@@ -256,7 +256,7 @@ setInterval (~25ms tick loop)
   → for each audible voice, compute which steps fall in the window
   → for each step with gate=true:
       → resolve full parameter bundle
-      → compute exact AudioContext time (with swing + micro offsets)
+      → compute exact AudioContext time (with swing offset)
       → emit ScheduledNote
   → advance internal cursor
   → publish derived playback position
@@ -271,7 +271,8 @@ The scheduler doesn't process audio — it decides *when* things happen. Keeping
 ```typescript
 interface ScheduledNote {
   voiceId: string;
-  time: number;               // AudioContext.currentTime target
+  time: number;               // AudioContext.currentTime for note-on
+  gateOffTime: number;        // AudioContext.currentTime for note-off
   accent: boolean;
   params: SynthParamValues;   // fully resolved, ready to play (includes note)
 }
@@ -289,6 +290,10 @@ class Scheduler {
   isRunning(): boolean;
 }
 ```
+
+**Gate-off timing is computed by the scheduler**, which has the sequencer knowledge to determine it. The rule: a gate lasts until the time of the next step in that voice's pattern, regardless of whether the next step is gated or not. (If the next step is also gated, the new trigger immediately cuts the old gate — the audio layer doesn't need special logic for this since `scheduleNote` at time T implicitly supersedes a `scheduleGateOff` at the same time T.)
+
+The `AudioEngine.scheduleNote(note)` implementation uses both `note.time` (for trigger + params) and `note.gateOffTime` (for `setGateOpen(false)`). `AudioEngine.scheduleGateOff` becomes an internal method, not part of the public API — the scheduler communicates everything through `ScheduledNote`.
 
 ### Internal state (scheduler owns)
 
@@ -379,7 +384,9 @@ interface SynthEngine {
 
 `trigger()` restarts the sound — for percussive models (kick, snare, hat) this is the attack. For tonal models (VA, FM, chords), `trigger()` restarts the envelope and `setGateOpen(false)` releases it.
 
-**Gate duration:** A gated step lasts until the next step, unless the next step also has `gate: true` (in which case the new note triggers immediately, cutting the old one). Steps with `gate: false` send `setGateOpen(false)` to release any sustained note. The scheduler emits both note-on and note-off events: for each `ScheduledNote`, it also schedules a `setGateOpen(false)` at the time of the next step (or at the next gated step's time, whichever comes first). This gives natural legato behavior for tonal patches and doesn't affect percussive models (which are self-decaying).
+**Accent execution:** When `ScheduledNote.accent` is true, the audio layer applies a velocity boost. For the Phase 2 Web Audio synth, accent maps to a +6dB gain boost on the voice's gain node for that note (applied at `note.time`, reverted at `note.gateOffTime`). This is the simplest musically meaningful mapping — accented steps are louder. For the future Plaits WASM engine, accent can additionally drive the Plaits `trigger` level (Plaits distinguishes between soft and hard triggers), but the +6dB gain boost is the baseline contract that all engines must honor.
+
+**Gate duration:** Computed by the scheduler and delivered as `gateOffTime` on `ScheduledNote` (see Scheduler interface section). A gate lasts until the next step's time. If the next step is also gated, the new trigger cuts the old gate naturally. `AudioEngine.scheduleNote()` schedules both the trigger at `note.time` and the gate-off at `note.gateOffTime`. This gives natural legato behavior for tonal patches and doesn't affect percussive models (which are self-decaying).
 
 For Phase 2 with the Web Audio synth, `trigger()` maps to restarting the oscillator envelope. For the future Plaits WASM engine, it maps to the Plaits trigger input which naturally excites all models.
 
@@ -622,8 +629,7 @@ class AudioEngine {
   muteVoice(voiceId: string, muted: boolean): void;
 
   // Time-scheduled (for sequencer — bridges ScheduledNote to SynthEngine):
-  scheduleNote(note: ScheduledNote): void;
-  scheduleGateOff(voiceId: string, time: number): void;
+  scheduleNote(note: ScheduledNote): void;  // handles both note-on and gate-off timing
 
   // Existing:
   getAnalyser(): AnalyserNode | null;
