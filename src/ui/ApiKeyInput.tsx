@@ -24,7 +24,7 @@ export function ApiKeyInput({ onSubmit, isConfigured }: Props) {
   return (
     <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-3">
       <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-2">
-        Anthropic API Key
+        Google API Key
       </div>
       <form
         onSubmit={(e) => {
@@ -40,7 +40,7 @@ export function ApiKeyInput({ onSubmit, isConfigured }: Props) {
           type="password"
           value={key}
           onChange={(e) => setKey(e.target.value)}
-          placeholder="sk-ant-..."
+          placeholder="AIza..."
           className="flex-1 bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors min-w-0"
         />
         <button

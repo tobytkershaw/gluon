@@ -35,17 +35,17 @@ import { PatternControls } from './PatternControls';
 import type { SketchPendingAction } from '../engine/types';
 
 export default function App() {
+  const audioRef = useRef(new AudioEngine());
+  const exporterRef = useRef(new AudioExporter());
+  const aiRef = useRef(new GluonAI());
+
   const [session, setSession] = useState<Session>(createSession);
   const [audioStarted, setAudioStarted] = useState(false);
-  const [apiConfigured, setApiConfigured] = useState(false);
+  const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
   const [recording, setRecording] = useState(false);
   const [heldStep, setHeldStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
-
-  const audioRef = useRef(new AudioEngine());
-  const exporterRef = useRef(new AudioExporter());
-  const aiRef = useRef(new GluonAI());
   const arbRef = useRef(new Arbitrator());
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
@@ -53,16 +53,16 @@ export default function App() {
 
   const schedulerRef = useRef<Scheduler | null>(null);
 
-  const startAudio = useCallback(async () => {
+  const ensureAudio = useCallback(async () => {
+    if (audioStarted) return;
     const s = sessionRef.current;
     await audioRef.current.start(s.voices.map(v => v.id));
-    // Set initial models
     for (const voice of s.voices) {
       audioRef.current.setVoiceModel(voice.id, voice.model);
       audioRef.current.setVoiceParams(voice.id, voice.params);
     }
     setAudioStarted(true);
-  }, []);
+  }, [audioStarted]);
 
   // Create scheduler once audio starts
   useEffect(() => {
@@ -87,12 +87,13 @@ export default function App() {
     }
   }, [session.transport.playing]);
 
-  // Sync audio params when session changes
+  // Sync audio params for all voices when session changes
   useEffect(() => {
     if (!audioStarted) return;
-    const activeVoice = getActiveVoice(session);
-    audioRef.current.setVoiceParams(activeVoice.id, activeVoice.params);
-    audioRef.current.setVoiceModel(activeVoice.id, activeVoice.model);
+    for (const voice of session.voices) {
+      audioRef.current.setVoiceParams(voice.id, voice.params);
+      audioRef.current.setVoiceModel(voice.id, voice.model);
+    }
   }, [session.voices, audioStarted]);
 
   // Sync mute/solo state
@@ -187,6 +188,7 @@ export default function App() {
   }, []);
 
   const handleParamChange = useCallback((timbre: number, morph: number) => {
+    ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
@@ -205,47 +207,54 @@ export default function App() {
   }, [heldStep]);
 
   const handleNoteChange = useCallback((note: number) => {
+    ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'note');
       return updateVoiceParams(next, vid, { note }, true);
     });
-  }, []);
+  }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
+    ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'harmonics');
       return updateVoiceParams(next, vid, { harmonics }, true);
     });
-  }, []);
+  }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {
+    ensureAudio();
     setSession((s) => setModel(s, s.activeVoiceId, model));
-  }, []);
+  }, [ensureAudio]);
 
   const handleLeashChange = useCallback((value: number) => {
+    ensureAudio();
     setSession((s) => setLeash(s, value));
-  }, []);
+  }, [ensureAudio]);
 
   const handleAgencyChange = useCallback((agency: 'OFF' | 'SUGGEST' | 'PLAY') => {
+    ensureAudio();
     setSession((s) => setAgency(s, s.activeVoiceId, agency));
-  }, []);
+  }, [ensureAudio]);
 
   const handleUndo = useCallback(() => {
+    ensureAudio();
     setSession((s) => applyUndo(s));
-  }, []);
+  }, [ensureAudio]);
 
   const handleSend = useCallback(async (message: string) => {
+    await ensureAudio();
     setSession((s) => ({
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
     const actions = await aiRef.current.ask(sessionRef.current, message);
     dispatchAIActions(actions);
-  }, [dispatchAIActions]);
+  }, [ensureAudio, dispatchAIActions]);
 
   const handleCommit = useCallback((pendingId: string) => {
     setSession((s) => commitPending(s, pendingId));
@@ -260,9 +269,10 @@ export default function App() {
     setApiConfigured(true);
   }, []);
 
-  const handleTogglePlay = useCallback(() => {
+  const handleTogglePlay = useCallback(async () => {
+    await ensureAudio();
     setSession((s) => togglePlaying(s));
-  }, []);
+  }, [ensureAudio]);
 
   const handleToggleRecord = useCallback(async () => {
     if (recording) {
@@ -290,29 +300,35 @@ export default function App() {
   }, []);
 
   const handleToggleMute = useCallback((voiceId: string) => {
+    ensureAudio();
     setSession((s) => toggleMute(s, voiceId));
-  }, []);
+  }, [ensureAudio]);
 
   const handleToggleSolo = useCallback((voiceId: string) => {
+    ensureAudio();
     setSession((s) => toggleSolo(s, voiceId));
-  }, []);
+  }, [ensureAudio]);
 
   const handleStepToggle = useCallback((stepIndex: number) => {
+    ensureAudio();
     setSession((s) => toggleStepGate(s, s.activeVoiceId, stepIndex));
-  }, []);
+  }, [ensureAudio]);
 
   const handleStepAccent = useCallback((stepIndex: number) => {
+    ensureAudio();
     setSession((s) => toggleStepAccent(s, s.activeVoiceId, stepIndex));
-  }, []);
+  }, [ensureAudio]);
 
   const handlePatternLength = useCallback((length: number) => {
+    ensureAudio();
     setSession((s) => setPatternLength(s, s.activeVoiceId, length));
     setStepPage(0);
-  }, []);
+  }, [ensureAudio]);
 
   const handleClearPattern = useCallback(() => {
+    ensureAudio();
     setSession((s) => clearPattern(s, s.activeVoiceId));
-  }, []);
+  }, [ensureAudio]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -370,23 +386,6 @@ export default function App() {
     (p): p is SketchPendingAction => p.kind === 'sketch' && p.voiceId === activeVoice.id,
   );
 
-  if (!audioStarted) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <div className="text-center space-y-6">
-          <h1 className="text-4xl font-light tracking-wider">GLUON</h1>
-          <p className="text-zinc-400 text-sm">human-AI music collaboration</p>
-          <button
-            onClick={startAudio}
-            className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm tracking-wide transition-colors"
-          >
-            Start Audio
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4">
       <div className="max-w-7xl mx-auto grid grid-cols-[1fr_320px] gap-4 h-[calc(100vh-2rem)]">
@@ -399,8 +398,8 @@ export default function App() {
             globalStep={globalStep}
             patternLength={activeVoice.pattern.length}
             onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => setSession(s => setTransportBpm(s, bpm))}
-            onSwingChange={(swing) => setSession(s => setTransportSwing(s, swing))}
+            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
+            onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
           />
 
