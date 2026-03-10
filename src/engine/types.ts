@@ -79,6 +79,7 @@ export type PendingAction = ParamPendingAction | SketchPendingAction;
 
 export interface AIMoveAction {
   type: 'move';
+  voiceId?: string;
   param: string;
   target: { absolute: number } | { relative: number };
   over?: number;
@@ -86,12 +87,14 @@ export interface AIMoveAction {
 
 export interface AISuggestAction {
   type: 'suggest';
+  voiceId?: string;
   changes: Partial<SynthParamValues>;
   reason?: string;
 }
 
 export interface AIAuditionAction {
   type: 'audition';
+  voiceId?: string;
   changes: Partial<SynthParamValues>;
   duration?: number;
 }

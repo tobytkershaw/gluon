@@ -40,6 +40,7 @@ export class Scheduler {
     const session = this.getSession();
     this.previousBpm = session.transport.bpm;
 
+    this.tick();
     this.intervalId = setInterval(() => this.tick(), LOOKAHEAD_MS);
   }
 

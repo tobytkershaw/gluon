@@ -16,12 +16,14 @@ function isValidAction(action: unknown): action is AIAction {
   switch (action.type) {
     case 'move':
       if (typeof action.param !== 'string') return false;
+      if (action.voiceId !== undefined && typeof action.voiceId !== 'string') return false;
       if (!isRecord(action.target)) return false;
       if (!('absolute' in action.target) && !('relative' in action.target)) return false;
       return typeof action.target.absolute === 'number' || typeof action.target.relative === 'number';
 
     case 'suggest':
     case 'audition':
+      if (action.voiceId !== undefined && typeof action.voiceId !== 'string') return false;
       return isRecord(action.changes) && Object.values(action.changes).every(v => typeof v === 'number');
 
     case 'say':

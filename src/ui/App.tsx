@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import type { Session, AIAction } from '../engine/types';
-import { getActiveVoice } from '../engine/types';
+import { getActiveVoice, getVoice } from '../engine/types';
 import {
   createSession, setLeash, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
@@ -110,37 +110,56 @@ export default function App() {
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
       let next = s;
-      const moveActions: { param: string; target: { absolute: number } | { relative: number } }[] = [];
-      const activeVid = s.activeVoiceId;
+      const moveGroups = new Map<string, { param: string; target: { absolute: number } | { relative: number } }[]>();
 
       for (const action of actions) {
         switch (action.type) {
-          case 'move':
-            if (getActiveVoice(next).agency !== 'OFF' && arbRef.current.canAIAct(action.param)) {
+          case 'move': {
+            const vid = action.voiceId ?? s.activeVoiceId;
+            const voice = getVoice(next, vid);
+            if (voice.agency !== 'OFF' && arbRef.current.canAIAct(action.param)) {
               if (action.over) {
-                const voice = getActiveVoice(next);
                 const currentVal = voice.params[action.param] ?? 0;
                 const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
                 const targetVal = Math.max(0, Math.min(1, rawTarget));
+                // Push undo snapshot before drift begins
+                next = {
+                  ...next,
+                  undoStack: [...next.undoStack, {
+                    kind: 'param' as const,
+                    voiceId: vid,
+                    prevValues: { [action.param]: currentVal },
+                    aiTargetValues: { [action.param]: targetVal },
+                    timestamp: Date.now(),
+                    description: `AI drift: ${action.param} ${currentVal.toFixed(2)} -> ${targetVal.toFixed(2)} over ${action.over}ms`,
+                  }],
+                };
                 autoRef.current.start(action.param, currentVal, targetVal, action.over, (param, value) => {
-                  setSession((s2) => applyParamDirect(s2, activeVid, param, value));
+                  setSession((s2) => applyParamDirect(s2, vid, param, value));
                 });
                 autoRef.current.startLoop();
               } else {
-                moveActions.push({ param: action.param, target: action.target });
+                const group = moveGroups.get(vid) ?? [];
+                group.push({ param: action.param, target: action.target });
+                moveGroups.set(vid, group);
               }
             }
             break;
-          case 'suggest':
-            if (getActiveVoice(next).agency !== 'OFF') {
-              next = applySuggest(next, activeVid, action.changes, action.reason);
+          }
+          case 'suggest': {
+            const vid = action.voiceId ?? s.activeVoiceId;
+            if (getVoice(next, vid).agency !== 'OFF') {
+              next = applySuggest(next, vid, action.changes, action.reason);
             }
             break;
-          case 'audition':
-            if (getActiveVoice(next).agency === 'PLAY') {
-              next = applyAudition(next, activeVid, action.changes, action.duration);
+          }
+          case 'audition': {
+            const vid = action.voiceId ?? s.activeVoiceId;
+            if (getVoice(next, vid).agency === 'PLAY') {
+              next = applyAudition(next, vid, action.changes, action.duration);
             }
             break;
+          }
           case 'sketch': {
             const targetVoice = next.voices.find(v => v.id === action.voiceId);
             if (targetVoice && targetVoice.agency !== 'OFF') {
@@ -157,10 +176,10 @@ export default function App() {
         }
       }
 
-      if (moveActions.length > 0) {
-        next = moveActions.length === 1
-          ? applyMove(next, activeVid, moveActions[0].param, moveActions[0].target)
-          : applyMoveGroup(next, activeVid, moveActions);
+      for (const [vid, moves] of moveGroups) {
+        next = moves.length === 1
+          ? applyMove(next, vid, moves[0].param, moves[0].target)
+          : applyMoveGroup(next, vid, moves);
       }
 
       return next;
