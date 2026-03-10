@@ -9,7 +9,7 @@ export class WebAudioSynth implements SynthEngine {
   private filter: BiquadFilterNode;
   private analyser: AnalyserNode;
   private params: SynthParams = { ...DEFAULT_PARAMS };
-  private gateOpen = true;
+  private gateOpen = false;
 
   constructor(ctx: AudioContext, output?: AudioNode) {
     this.ctx = ctx;
@@ -25,7 +25,7 @@ export class WebAudioSynth implements SynthEngine {
 
     this.filter.type = 'lowpass';
     this.filter.frequency.value = 2000;
-    this.envelope.gain.value = 0.3;
+    this.envelope.gain.value = 0;
     this.oscillator.start();
     this.applyParams();
   }

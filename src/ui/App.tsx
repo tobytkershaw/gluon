@@ -35,17 +35,17 @@ import { PatternControls } from './PatternControls';
 import type { SketchPendingAction } from '../engine/types';
 
 export default function App() {
+  const audioRef = useRef(new AudioEngine());
+  const exporterRef = useRef(new AudioExporter());
+  const aiRef = useRef(new GluonAI());
+
   const [session, setSession] = useState<Session>(createSession);
   const [audioStarted, setAudioStarted] = useState(false);
-  const [apiConfigured, setApiConfigured] = useState(false);
+  const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
   const [recording, setRecording] = useState(false);
   const [heldStep, setHeldStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
-
-  const audioRef = useRef(new AudioEngine());
-  const exporterRef = useRef(new AudioExporter());
-  const aiRef = useRef(new GluonAI());
   const arbRef = useRef(new Arbitrator());
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
@@ -53,16 +53,16 @@ export default function App() {
 
   const schedulerRef = useRef<Scheduler | null>(null);
 
-  const startAudio = useCallback(async () => {
+  const ensureAudio = useCallback(async () => {
+    if (audioStarted) return;
     const s = sessionRef.current;
     await audioRef.current.start(s.voices.map(v => v.id));
-    // Set initial models
     for (const voice of s.voices) {
       audioRef.current.setVoiceModel(voice.id, voice.model);
       audioRef.current.setVoiceParams(voice.id, voice.params);
     }
     setAudioStarted(true);
-  }, []);
+  }, [audioStarted]);
 
   // Create scheduler once audio starts
   useEffect(() => {
@@ -187,6 +187,7 @@ export default function App() {
   }, []);
 
   const handleParamChange = useCallback((timbre: number, morph: number) => {
+    ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
@@ -260,9 +261,10 @@ export default function App() {
     setApiConfigured(true);
   }, []);
 
-  const handleTogglePlay = useCallback(() => {
+  const handleTogglePlay = useCallback(async () => {
+    await ensureAudio();
     setSession((s) => togglePlaying(s));
-  }, []);
+  }, [ensureAudio]);
 
   const handleToggleRecord = useCallback(async () => {
     if (recording) {
@@ -369,23 +371,6 @@ export default function App() {
   const pendingSketch = session.pending.find(
     (p): p is SketchPendingAction => p.kind === 'sketch' && p.voiceId === activeVoice.id,
   );
-
-  if (!audioStarted) {
-    return (
-      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex items-center justify-center">
-        <div className="text-center space-y-6">
-          <h1 className="text-4xl font-light tracking-wider">GLUON</h1>
-          <p className="text-zinc-400 text-sm">human-AI music collaboration</p>
-          <button
-            onClick={startAudio}
-            className="px-8 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-sm tracking-wide transition-colors"
-          >
-            Start Audio
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4">

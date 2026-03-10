@@ -18,7 +18,7 @@ function createVoice(index: number): Voice {
     engine: defaults.engine,
     model: defaults.model,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-    agency: 'SUGGEST',
+    agency: 'OFF',
     pattern: createDefaultPattern(16),
     muted: false,
     solo: false,

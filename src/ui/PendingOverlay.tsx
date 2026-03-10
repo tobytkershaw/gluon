@@ -19,8 +19,8 @@ export function PendingOverlay({ pending, onCommit, onDismiss }: Props) {
   if (pending.length === 0) return null;
 
   return (
-    <div className="absolute bottom-3 right-3 flex flex-col gap-2 max-w-[220px] z-10">
-      {pending.map((p) => {
+    <div className="absolute bottom-3 right-3 flex flex-col gap-2 max-w-[220px] z-10 pointer-events-none max-h-[60%] overflow-y-auto">
+      {pending.slice(-5).map((p) => {
         const isSketch = p.kind === 'sketch';
         const isAudition = p.kind === 'audition';
         const remaining = Math.max(0, p.expiresAt - Date.now());
@@ -64,7 +64,7 @@ export function PendingOverlay({ pending, onCommit, onDismiss }: Props) {
         return (
           <div
             key={p.id}
-            className={`rounded-lg p-2.5 backdrop-blur-md border ${bgClass} ${colorClass}`}
+            className={`rounded-lg p-2.5 backdrop-blur-md border pointer-events-auto ${bgClass} ${colorClass}`}
             style={{ animation: 'fade-up 0.15s ease-out' }}
           >
             <div className="flex items-center justify-between mb-1.5">
