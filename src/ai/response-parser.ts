@@ -28,7 +28,13 @@ function isValidAction(action: unknown): action is AIAction {
       return typeof action.text === 'string';
 
     case 'sketch':
-      return typeof action.description === 'string';
+      if (typeof action.voiceId !== 'string') return false;
+      if (typeof action.description !== 'string') return false;
+      if (!isRecord(action.pattern)) return false;
+      if (!Array.isArray(action.pattern.steps)) return false;
+      return action.pattern.steps.every((s: unknown) =>
+        isRecord(s) && typeof s.index === 'number'
+      );
 
     default:
       return false;
