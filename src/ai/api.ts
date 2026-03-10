@@ -29,7 +29,9 @@ export class GluonAI {
 
   async react(session: Session): Promise<AIAction[]> {
     if (!this.client) return [];
-    if (session.voice.agency === 'OFF') return [];
+    // Check if any voice has agency beyond OFF
+    const anyActive = session.voices.some(v => v.agency !== 'OFF');
+    if (!anyActive) return [];
     if (session.leash < 0.3) return [];
     const state = compressState(session);
     return this.call(JSON.stringify(state));
@@ -44,7 +46,7 @@ export class GluonAI {
     try {
       const response = await this.client.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
+        max_tokens: 800,
         system: GLUON_SYSTEM_PROMPT,
         messages: this.conversationHistory,
       });
