@@ -51,7 +51,8 @@ export default function App() {
             if (arbRef.current.canAIAct(action.param)) {
               if (action.over) {
                 const currentVal = next.voice.params[action.param] ?? 0;
-                const targetVal = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+                const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+                const targetVal = Math.max(0, Math.min(1, rawTarget));
                 next = {
                   ...next,
                   undoStack: [...next.undoStack, {
