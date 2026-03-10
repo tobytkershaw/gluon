@@ -47,15 +47,15 @@ The atomic unit of the sequencer.
 interface Step {
   gate: boolean;              // note on/off
   accent: boolean;            // emphasis (velocity boost)
-  pitch?: number;             // 0.0-1.0 normalised, absent = inherit voice pitch
   params?: Partial<SynthParamValues>;  // parameter locks, absent = inherit voice params
   micro: number;              // micro-timing offset: -0.5 to +0.5 of one step width
 }
 ```
 
 - `gate: false` = rest.
-- `pitch` and `params` are optional. Absence means inherit from voice's current values at playback time.
-- `micro` is stored from day one. The transport ignores it initially — activating it later requires no data migration.
+- `params` is optional. Absence means inherit all values from the voice's current params at playback time.
+- **Per-step pitch** is a parameter lock on `note` within `params` (e.g., `params: { note: 0.5 }`). There is no separate `pitch` field — `SynthParamValues.note` is the single source of truth for pitch, whether set at voice level or per-step. This avoids dual-field ambiguity.
+- `micro` is stored from day one but **ignored by the scheduler in Phase 2** (see Sequencer Engine section). Activating it later requires no data migration.
 
 ### Pattern
 
@@ -191,8 +191,7 @@ interface StepSketch {
   index: number;                // which step (0-based)
   gate?: boolean;
   accent?: boolean;
-  pitch?: number;
-  params?: Partial<SynthParamValues>;
+  params?: Partial<SynthParamValues>;  // includes note for per-step pitch
   micro?: number;
 }
 ```
@@ -273,9 +272,8 @@ The scheduler doesn't process audio — it decides *when* things happen. Keeping
 interface ScheduledNote {
   voiceId: string;
   time: number;               // AudioContext.currentTime target
-  pitch: number;              // resolved: step pitch ?? voice pitch
   accent: boolean;
-  params: SynthParamValues;   // fully resolved, ready to play
+  params: SynthParamValues;   // fully resolved, ready to play (includes note)
 }
 
 class Scheduler {
@@ -330,7 +328,9 @@ Max swing delays the upbeat to 75% of the step duration (approaching triplet fee
 
 ### Timing offset application order
 
-Final note time = base step time + swing delay + (micro * step_duration). Swing is applied first (it's a grid-level feel), micro-timing is applied second (it's a per-step nudge on top of the swung grid).
+Final note time = base step time + swing delay. **Micro-timing is stored in the data model but ignored by the Phase 2 scheduler.** When micro-timing is activated (future phase), the formula becomes: base step time + swing delay + (micro * step_duration). Swing is a grid-level feel; micro-timing will be a per-step nudge on top of the swung grid.
+
+For Phase 2, `step.micro` is always 0 in the default step factory and the scheduler does not read it. The field exists so the data model doesn't need migration when micro-timing is activated.
 
 ### Tick-to-step mapping
 
@@ -346,13 +346,23 @@ On each tick loop iteration, the scheduler compares the previous step index to t
 
 Phase 1's synth renders continuously — `SynthEngine.render()` fills audio buffers every frame. The step sequencer adds a gate/trigger model on top.
 
-When the scheduler emits a `ScheduledNote`, the audio layer:
-1. Sets the synth's parameters to the resolved values at the scheduled `time`
-2. Sends a trigger signal to restart the synth's internal envelope/exciter
+When the scheduler emits a `ScheduledNote`, the audio layer schedules the parameter change and trigger at the note's future `time` using the Web Audio API's built-in scheduling.
 
-The `SynthEngine` interface is extended with:
+**The scheduling boundary lives in `AudioEngine`, not in `SynthEngine`.** The `SynthEngine` interface remains immediate-only (it doesn't know about time). The `AudioEngine` bridges the gap by using Web Audio's `AudioParam.setValueAtTime()` and scheduling trigger events via `setTimeout` with compensation for the AudioContext clock.
 
 ```typescript
+// AudioEngine handles time-scheduled events:
+class AudioEngine {
+  scheduleNote(note: ScheduledNote): void;
+  // Internally:
+  //   1. At note.time, set params on the voice's synth
+  //   2. At note.time, trigger the voice's envelope
+  //   3. Schedule gate-off for the next step's time (or next gate-on)
+  // Uses setTimeout with (note.time - ctx.currentTime) * 1000 offset,
+  // fine-tuned against AudioContext.currentTime on firing.
+}
+
+// SynthEngine stays immediate-only (no time parameter):
 interface SynthEngine {
   setParams(params: SynthParamValues): void;
   setModel(model: number): void;
@@ -362,9 +372,14 @@ interface SynthEngine {
 }
 ```
 
+**Why `setTimeout` instead of `AudioParam` scheduling for everything?** The Web Audio `AudioParam.setValueAtTime()` works for continuous parameters (filter cutoff, gain), but `trigger()` is a discrete event that can't be expressed as an AudioParam transition. So the scheduling strategy is:
+
+- **Continuous params** (timbre → filter cutoff, morph → filter Q): use `AudioParam.setValueAtTime(value, note.time)` for sample-accurate timing.
+- **Discrete events** (trigger, gate-off): use `setTimeout` with compensation. The 100ms lookahead means the setTimeout fires ~100ms before the audio time, and the callback checks `AudioContext.currentTime` to fine-tune. This gives ~1-2ms jitter on discrete events, which is inaudible for trigger/gate operations.
+
 `trigger()` restarts the sound — for percussive models (kick, snare, hat) this is the attack. For tonal models (VA, FM, chords), `trigger()` restarts the envelope and `setGateOpen(false)` releases it.
 
-**Gate duration:** A gated step lasts until the next step, unless the next step also has `gate: true` (in which case the new note triggers immediately, cutting the old one). Steps with `gate: false` send `setGateOpen(false)` to release any sustained note. This gives natural legato behavior for tonal patches and doesn't affect percussive models (which are self-decaying).
+**Gate duration:** A gated step lasts until the next step, unless the next step also has `gate: true` (in which case the new note triggers immediately, cutting the old one). Steps with `gate: false` send `setGateOpen(false)` to release any sustained note. The scheduler emits both note-on and note-off events: for each `ScheduledNote`, it also schedules a `setGateOpen(false)` at the time of the next step (or at the next gated step's time, whichever comes first). This gives natural legato behavior for tonal patches and doesn't affect percussive models (which are self-decaying).
 
 For Phase 2 with the Web Audio synth, `trigger()` maps to restarting the oscillator envelope. For the future Plaits WASM engine, it maps to the Plaits trigger input which naturally excites all models.
 
@@ -406,27 +421,43 @@ Requires updating `humanTouched(param, value)` to store both timestamp and value
 
 ### BPM changes mid-play
 
-When the scheduler detects BPM has changed (current snapshot vs previous), it reanchors without stopping:
+When the scheduler detects BPM has changed (current snapshot vs previous), it reanchors without stopping. The reanchor is based on the **actual playback position** (derived from `AudioContext.currentTime`), not the lookahead cursor:
 
 ```
-newStartTime = currentAudioTime - (currentCursor * newTickDuration)
+// Compute current playback position from real audio time (not from cursor, which runs ahead)
+oldStepDuration = 60 / (oldBpm * 4)    // seconds per 16th note
+playbackStep = (currentAudioTime - startTime) / oldStepDuration
+playbackTick = playbackStep * 12        // convert to ticks
+
+// Reanchor: recompute startTime so the new tempo maps to the same playback position
+newTickDuration = 60 / (newBpm * 4) / 12
+newStartTime = currentAudioTime - (playbackTick * newTickDuration)
+
+// Reset cursor to match current playback position (not ahead of it)
+// The next tick loop iteration will re-advance the cursor with lookahead
+cursor = Math.floor(playbackTick)
 ```
 
-Preserves current position, recomputes future tick-to-time mappings at the new tempo. Takes effect on the next tick iteration.
+This avoids the forward-shift that would occur if the cursor (which runs ahead by up to 100ms of lookahead) were used for reanchoring. Takes effect on the next tick iteration.
 
 ### Transport control
 
-The scheduler watches `transport.playing` from the session snapshot:
+The scheduler is **controlled by React**, not self-watching. The App component observes `transport.playing` and explicitly calls `scheduler.start()` / `scheduler.stop()`:
 
-```
-Each tick loop iteration:
-  session = getSession()
-  if session.transport.playing && !running → start
-  if !session.transport.playing && running → stop
-  if running → schedule lookahead window
+```typescript
+// In App.tsx (or a useScheduler hook):
+useEffect(() => {
+  if (session.transport.playing) {
+    scheduler.start();
+  } else {
+    scheduler.stop();
+  }
+}, [session.transport.playing]);
 ```
 
-React owns the intent (`transport.playing`). Scheduler reacts. Unidirectional.
+This avoids the closed-loop problem: if `stop()` clears the tick interval, there's no internal loop to observe `playing` becoming `true` again. Instead, React owns the lifecycle. The scheduler's `start()` creates the tick interval; `stop()` clears it. The scheduler never reads `transport.playing` internally — it just runs when told to and stops when told to.
+
+The tick loop still reads other session state via `getSession()` on each iteration (patterns, params, BPM, swing), but transport start/stop is externally driven.
 
 ### Integration rules
 
@@ -581,19 +612,27 @@ Voice 3 synth → GainNode (mute/volume) ─┘                              →
 
 Each voice gets its own `WebAudioSynth` instance and a `GainNode` for mute control. `getAudibleVoices()` determines which gain nodes are set to 0 vs 1. The mixer feeds both the speaker output and a `MediaStreamAudioDestinationNode` for recording.
 
-The `AudioEngine` is extended to manage N synth instances and expose per-voice parameter setting:
+The `AudioEngine` is extended to manage N synth instances and expose both immediate and time-scheduled APIs:
 
 ```typescript
 class AudioEngine {
+  // Immediate (for UI-driven param changes, existing Phase 1 usage):
   setVoiceParams(voiceId: string, params: SynthParamValues): void;
   setVoiceModel(voiceId: string, model: number): void;
-  triggerVoice(voiceId: string): void;
-  setVoiceGateOpen(voiceId: string, open: boolean): void;
   muteVoice(voiceId: string, muted: boolean): void;
-  getAnalyser(): AnalyserNode | null;      // existing, unchanged
+
+  // Time-scheduled (for sequencer — bridges ScheduledNote to SynthEngine):
+  scheduleNote(note: ScheduledNote): void;
+  scheduleGateOff(voiceId: string, time: number): void;
+
+  // Existing:
+  getAnalyser(): AnalyserNode | null;
   getMediaStreamDestination(): MediaStreamAudioDestinationNode | null;  // new
+  getCurrentTime(): number;             // exposes AudioContext.currentTime
 }
 ```
+
+`scheduleNote` is the entry point for the scheduler's `onNote` callback. It handles all time-based scheduling internally (AudioParam for continuous params, setTimeout+compensation for trigger/gate events).
 
 ---
 
