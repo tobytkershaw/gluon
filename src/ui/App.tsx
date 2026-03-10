@@ -232,16 +232,19 @@ export default function App() {
   }, [ensureAudio]);
 
   const handleLeashChange = useCallback((value: number) => {
+    ensureAudio();
     setSession((s) => setLeash(s, value));
-  }, []);
+  }, [ensureAudio]);
 
   const handleAgencyChange = useCallback((agency: 'OFF' | 'SUGGEST' | 'PLAY') => {
+    ensureAudio();
     setSession((s) => setAgency(s, s.activeVoiceId, agency));
-  }, []);
+  }, [ensureAudio]);
 
   const handleUndo = useCallback(() => {
+    ensureAudio();
     setSession((s) => applyUndo(s));
-  }, []);
+  }, [ensureAudio]);
 
   const handleSend = useCallback(async (message: string) => {
     await ensureAudio();
@@ -297,12 +300,14 @@ export default function App() {
   }, []);
 
   const handleToggleMute = useCallback((voiceId: string) => {
+    ensureAudio();
     setSession((s) => toggleMute(s, voiceId));
-  }, []);
+  }, [ensureAudio]);
 
   const handleToggleSolo = useCallback((voiceId: string) => {
+    ensureAudio();
     setSession((s) => toggleSolo(s, voiceId));
-  }, []);
+  }, [ensureAudio]);
 
   const handleStepToggle = useCallback((stepIndex: number) => {
     ensureAudio();
@@ -310,17 +315,20 @@ export default function App() {
   }, [ensureAudio]);
 
   const handleStepAccent = useCallback((stepIndex: number) => {
+    ensureAudio();
     setSession((s) => toggleStepAccent(s, s.activeVoiceId, stepIndex));
-  }, []);
+  }, [ensureAudio]);
 
   const handlePatternLength = useCallback((length: number) => {
+    ensureAudio();
     setSession((s) => setPatternLength(s, s.activeVoiceId, length));
     setStepPage(0);
-  }, []);
+  }, [ensureAudio]);
 
   const handleClearPattern = useCallback(() => {
+    ensureAudio();
     setSession((s) => clearPattern(s, s.activeVoiceId));
-  }, []);
+  }, [ensureAudio]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -390,8 +398,8 @@ export default function App() {
             globalStep={globalStep}
             patternLength={activeVoice.pattern.length}
             onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => setSession(s => setTransportBpm(s, bpm))}
-            onSwingChange={(swing) => setSession(s => setTransportSwing(s, swing))}
+            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
+            onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
           />
 
