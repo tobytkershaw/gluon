@@ -87,12 +87,13 @@ export default function App() {
     }
   }, [session.transport.playing]);
 
-  // Sync audio params when session changes
+  // Sync audio params for all voices when session changes
   useEffect(() => {
     if (!audioStarted) return;
-    const activeVoice = getActiveVoice(session);
-    audioRef.current.setVoiceParams(activeVoice.id, activeVoice.params);
-    audioRef.current.setVoiceModel(activeVoice.id, activeVoice.model);
+    for (const voice of session.voices) {
+      audioRef.current.setVoiceParams(voice.id, voice.params);
+      audioRef.current.setVoiceModel(voice.id, voice.model);
+    }
   }, [session.voices, audioStarted]);
 
   // Sync mute/solo state
@@ -206,26 +207,29 @@ export default function App() {
   }, [heldStep]);
 
   const handleNoteChange = useCallback((note: number) => {
+    ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'note');
       return updateVoiceParams(next, vid, { note }, true);
     });
-  }, []);
+  }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
+    ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'harmonics');
       return updateVoiceParams(next, vid, { harmonics }, true);
     });
-  }, []);
+  }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {
+    ensureAudio();
     setSession((s) => setModel(s, s.activeVoiceId, model));
-  }, []);
+  }, [ensureAudio]);
 
   const handleLeashChange = useCallback((value: number) => {
     setSession((s) => setLeash(s, value));
@@ -240,13 +244,14 @@ export default function App() {
   }, []);
 
   const handleSend = useCallback(async (message: string) => {
+    await ensureAudio();
     setSession((s) => ({
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
     const actions = await aiRef.current.ask(sessionRef.current, message);
     dispatchAIActions(actions);
-  }, [dispatchAIActions]);
+  }, [ensureAudio, dispatchAIActions]);
 
   const handleCommit = useCallback((pendingId: string) => {
     setSession((s) => commitPending(s, pendingId));
@@ -300,8 +305,9 @@ export default function App() {
   }, []);
 
   const handleStepToggle = useCallback((stepIndex: number) => {
+    ensureAudio();
     setSession((s) => toggleStepGate(s, s.activeVoiceId, stepIndex));
-  }, []);
+  }, [ensureAudio]);
 
   const handleStepAccent = useCallback((stepIndex: number) => {
     setSession((s) => toggleStepAccent(s, s.activeVoiceId, stepIndex));
