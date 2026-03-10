@@ -4,6 +4,8 @@ export interface SynthEngine {
   setModel(model: number): void;
   setParams(params: SynthParams): void;
   render(output: Float32Array): Float32Array;
+  trigger(): void;              // restart envelope/exciter
+  setGateOpen(open: boolean): void;  // for sustained note models
   destroy(): void;
 }
 

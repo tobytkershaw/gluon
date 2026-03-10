@@ -21,27 +21,55 @@ export function PendingOverlay({ pending, onCommit, onDismiss }: Props) {
   return (
     <div className="absolute bottom-3 right-3 flex flex-col gap-2 max-w-[220px] z-10">
       {pending.map((p) => {
-        const isAudition = p.type === 'audition';
+        const isSketch = p.kind === 'sketch';
+        const isAudition = p.kind === 'audition';
         const remaining = Math.max(0, p.expiresAt - Date.now());
-        const changes = Object.entries(p.changes)
-          .map(([k, v]) => `${k}: ${(v as number).toFixed(2)}`)
-          .join(', ');
+
+        let label: string;
+        let description: string;
+        let reason: string | undefined;
+        let colorClass: string;
+        let labelColorClass: string;
+        let bgClass: string;
+        let btnClass: string;
+
+        if (isSketch) {
+          label = 'Sketch';
+          description = p.description;
+          colorClass = 'border-violet-500/20';
+          labelColorClass = 'text-violet-400';
+          bgClass = 'bg-violet-950/40';
+          btnClass = 'bg-violet-400/15 text-violet-300 hover:bg-violet-400/25';
+        } else if (isAudition) {
+          label = 'Audition';
+          description = Object.entries(p.changes)
+            .map(([k, v]) => `${k}: ${(v as number).toFixed(2)}`)
+            .join(', ');
+          colorClass = 'border-amber-500/20';
+          labelColorClass = 'text-amber-400';
+          bgClass = 'bg-amber-950/40';
+          btnClass = 'bg-amber-400/15 text-amber-300 hover:bg-amber-400/25';
+        } else {
+          label = 'Suggestion';
+          description = Object.entries(p.changes)
+            .map(([k, v]) => `${k}: ${(v as number).toFixed(2)}`)
+            .join(', ');
+          reason = p.reason;
+          colorClass = 'border-teal-500/20';
+          labelColorClass = 'text-teal-400';
+          bgClass = 'bg-teal-950/40';
+          btnClass = 'bg-teal-400/15 text-teal-300 hover:bg-teal-400/25';
+        }
 
         return (
           <div
             key={p.id}
-            className={`rounded-lg p-2.5 backdrop-blur-md border ${
-              isAudition
-                ? 'bg-amber-950/40 border-amber-500/20'
-                : 'bg-teal-950/40 border-teal-500/20'
-            }`}
+            className={`rounded-lg p-2.5 backdrop-blur-md border ${bgClass} ${colorClass}`}
             style={{ animation: 'fade-up 0.15s ease-out' }}
           >
             <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-[8px] font-mono uppercase tracking-[0.15em] ${
-                isAudition ? 'text-amber-400' : 'text-teal-400'
-              }`}>
-                {isAudition ? 'Audition' : 'Suggestion'}
+              <span className={`text-[8px] font-mono uppercase tracking-[0.15em] ${labelColorClass}`}>
+                {label}
               </span>
               {isAudition && remaining > 0 && (
                 <span className="text-[9px] font-mono text-amber-400/50 tabular-nums">
@@ -51,12 +79,12 @@ export function PendingOverlay({ pending, onCommit, onDismiss }: Props) {
             </div>
 
             <div className="text-[9px] font-mono text-zinc-400 mb-2 leading-relaxed">
-              {changes}
+              {description}
             </div>
 
-            {p.reason && (
+            {reason && (
               <div className="text-[9px] text-zinc-500 mb-2 italic leading-relaxed">
-                {p.reason}
+                {reason}
               </div>
             )}
 
@@ -73,11 +101,7 @@ export function PendingOverlay({ pending, onCommit, onDismiss }: Props) {
             <div className="flex gap-1.5">
               <button
                 onClick={() => onCommit(p.id)}
-                className={`flex-1 text-[8px] font-mono uppercase tracking-wider py-1 rounded transition-colors ${
-                  isAudition
-                    ? 'bg-amber-400/15 text-amber-300 hover:bg-amber-400/25'
-                    : 'bg-teal-400/15 text-teal-300 hover:bg-teal-400/25'
-                }`}
+                className={`flex-1 text-[8px] font-mono uppercase tracking-wider py-1 rounded transition-colors ${btnClass}`}
               >
                 Keep
               </button>
