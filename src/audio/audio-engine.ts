@@ -1,6 +1,7 @@
 // src/audio/audio-engine.ts
 
-import { SynthParams, DEFAULT_PARAMS } from './synth-interface';
+import type { SynthParams } from './synth-interface';
+import { DEFAULT_PARAMS } from './synth-interface';
 import { WebAudioSynth } from './web-audio-synth';
 
 export class AudioEngine {

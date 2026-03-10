@@ -1,7 +1,7 @@
 // src/ui/App.tsx
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
-import { Session, AIAction } from '../engine/types';
+import type { Session, AIAction } from '../engine/types';
 import { createSession, setLeash, setAgency, updateVoiceParams, setModel } from '../engine/session';
 import { applyMove, applyMoveGroup, applyParamDirect, applySuggest, applyAudition, cancelAuditionParam, applyUndo, commitPending, dismissPending } from '../engine/primitives';
 import { GluonAI } from '../ai/api';

@@ -1,4 +1,4 @@
-import { Snapshot } from './types';
+import type { Snapshot } from './types';
 
 export class UndoStack {
   private stack: Snapshot[] = [];

@@ -1,4 +1,4 @@
-import { Session } from '../engine/types';
+import type { Session } from '../engine/types';
 
 export interface CompressedState {
   voice: {

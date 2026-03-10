@@ -1,4 +1,4 @@
-import { AIAction } from '../engine/types';
+import type { AIAction } from '../engine/types';
 
 const VALID_TYPES = ['move', 'suggest', 'audition', 'say', 'sketch'];
 

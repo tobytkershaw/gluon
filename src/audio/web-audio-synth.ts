@@ -1,18 +1,16 @@
 // src/audio/web-audio-synth.ts
 
-import { SynthEngine, SynthParams, DEFAULT_PARAMS, noteToHz } from './synth-interface';
+import type { SynthEngine, SynthParams } from './synth-interface';
+import { DEFAULT_PARAMS, noteToHz } from './synth-interface';
 
 export class WebAudioSynth implements SynthEngine {
-  private ctx: AudioContext;
   private oscillator: OscillatorNode;
   private gain: GainNode;
   private filter: BiquadFilterNode;
   private analyser: AnalyserNode;
-  private model = 0;
   private params: SynthParams = { ...DEFAULT_PARAMS };
 
   constructor(ctx: AudioContext) {
-    this.ctx = ctx;
     this.oscillator = ctx.createOscillator();
     this.filter = ctx.createBiquadFilter();
     this.gain = ctx.createGain();
@@ -29,7 +27,6 @@ export class WebAudioSynth implements SynthEngine {
   }
 
   setModel(model: number): void {
-    this.model = model;
     const typeMap: OscillatorType[] = [
       'sawtooth', 'square', 'sine', 'sawtooth', 'sine', 'square', 'sawtooth', 'square',
       'sawtooth', 'sawtooth', 'square', 'triangle', 'sine', 'sine', 'square', 'square',

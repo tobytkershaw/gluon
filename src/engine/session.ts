@@ -1,4 +1,4 @@
-import { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
+import type { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
 import { PLAITS_MODELS } from '../audio/synth-interface';
 
 export function createSession(): Session {
@@ -62,7 +62,7 @@ export function updateVoiceParams(session: Session, params: Partial<SynthParamVa
     ...session,
     voice: {
       ...session.voice,
-      params: { ...session.voice.params, ...params },
+      params: { ...session.voice.params, ...params } as SynthParamValues,
     },
     recentHumanActions: newActions,
   };

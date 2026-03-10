@@ -1,6 +1,6 @@
 // src/engine/primitives.ts
 
-import { Session, Snapshot, PendingAction, SynthParamValues } from './types';
+import type { Session, Snapshot, PendingAction, SynthParamValues } from './types';
 
 let nextPendingId = 1;
 
@@ -116,7 +116,7 @@ export function applyAudition(
     (p) => p.type === 'audition' && p.voiceId === session.voice.id,
   );
   if (existingAudition) {
-    currentParams = { ...currentParams, ...existingAudition.previousValues };
+    currentParams = { ...currentParams, ...existingAudition.previousValues } as SynthParamValues;
   }
   const pendingWithoutOldAudition = session.pending.filter(
     (p) => !(p.type === 'audition' && p.voiceId === session.voice.id),
@@ -140,7 +140,7 @@ export function applyAudition(
     ...session,
     voice: {
       ...session.voice,
-      params: { ...currentParams, ...changes },
+      params: { ...currentParams, ...changes } as SynthParamValues,
     },
     pending: [...pendingWithoutOldAudition, pending],
   };
@@ -180,7 +180,7 @@ export function commitPending(session: Session, pendingId: string): Session {
 
   let newParams = session.voice.params;
   if (action.type === 'suggestion') {
-    newParams = { ...newParams, ...action.changes };
+    newParams = { ...newParams, ...action.changes } as SynthParamValues;
   }
 
   return {
@@ -196,7 +196,7 @@ export function dismissPending(session: Session, pendingId: string): Session {
 
   let newParams = session.voice.params;
   if (action.type === 'audition') {
-    newParams = { ...newParams, ...action.previousValues };
+    newParams = { ...newParams, ...action.previousValues } as SynthParamValues;
   }
 
   return {
