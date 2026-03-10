@@ -26,15 +26,14 @@ export function ParameterSpace({ timbre, morph, onChange, onInteractionStart, on
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width === 0) return;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    if (w === 0 || h === 0) return;
 
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const w = rect.width;
-    const h = rect.height;
 
     // Background
     ctx.fillStyle = '#09090b';
@@ -147,8 +146,8 @@ export function ParameterSpace({ timbre, morph, onChange, onInteractionStart, on
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-full rounded-lg cursor-crosshair touch-none"
-      style={{ border: '1px solid rgba(63,63,70,0.25)' }}
+      className="block w-full h-full rounded-lg cursor-crosshair touch-none"
+      style={{ outline: '1px solid rgba(63,63,70,0.25)', outlineOffset: '-1px' }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

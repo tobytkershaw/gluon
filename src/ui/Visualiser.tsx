@@ -16,10 +16,11 @@ export function Visualiser({ analyser }: Props) {
     let prevH = 0;
 
     const draw = () => {
-      const rect = canvas.getBoundingClientRect();
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
       const dpr = window.devicePixelRatio || 1;
-      const tw = Math.round(rect.width * dpr);
-      const th = Math.round(rect.height * dpr);
+      const tw = Math.round(w * dpr);
+      const th = Math.round(h * dpr);
 
       if (tw !== prevW || th !== prevH) {
         canvas.width = tw;
@@ -29,8 +30,6 @@ export function Visualiser({ analyser }: Props) {
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const w = rect.width;
-      const h = rect.height;
 
       // Background
       ctx.fillStyle = '#09090b';
@@ -95,8 +94,8 @@ export function Visualiser({ analyser }: Props) {
   return (
     <canvas
       ref={canvasRef}
-      className="w-full h-16 rounded-lg"
-      style={{ border: '1px solid rgba(63,63,70,0.2)' }}
+      className="block w-full h-16 rounded-lg"
+      style={{ outline: '1px solid rgba(63,63,70,0.2)', outlineOffset: '-1px' }}
     />
   );
 }
