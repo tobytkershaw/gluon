@@ -969,7 +969,7 @@ import {
 } from '../../src/engine/primitives';
 import { createSession, updateVoiceParams } from '../../src/engine/session';
 import { getActiveVoice, getVoice } from '../../src/engine/types';
-import type { PatternSnapshot, SketchPendingAction } from '../../src/engine/types';
+import type { PatternSnapshot, SketchPendingAction, ParamSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
 
 describe('Protocol Primitives (Phase 2)', () => {
@@ -1111,6 +1111,25 @@ describe('Protocol Primitives (Phase 2)', () => {
       expect(committed.pending.length).toBe(0);
       expect(committed.undoStack.length).toBe(1);
       expect(committed.undoStack[0].kind).toBe('pattern');
+    });
+  });
+
+  describe('commitPending suggestion', () => {
+    it('applies suggestion and pushes ParamSnapshot for undo', () => {
+      const s = createSession();
+      const vid = s.activeVoiceId;
+      const withPending = applySuggest(s, vid, { timbre: 0.9 }, 'brighter');
+      const pendingId = withPending.pending[0].id;
+      const committed = commitPending(withPending, pendingId);
+
+      expect(getVoice(committed, vid).params.timbre).toBe(0.9);
+      expect(committed.pending.length).toBe(0);
+      expect(committed.undoStack.length).toBe(1);
+      expect(committed.undoStack[0].kind).toBe('param');
+
+      // Undo should revert
+      const undone = applyUndo(committed);
+      expect(getVoice(undone, vid).params.timbre).toBe(0.5);
     });
   });
 
@@ -1404,14 +1423,27 @@ export function commitPending(session: Session, pendingId: string): Session {
     };
   }
 
-  // ParamPendingAction (suggestion)
+  // ParamPendingAction (suggestion) — apply changes and push undo snapshot
   if (action.kind === 'suggestion') {
     const voice = getVoice(session, action.voiceId);
+    const prevValues: Partial<SynthParamValues> = {};
+    for (const key of Object.keys(action.changes)) {
+      prevValues[key] = voice.params[key];
+    }
+    const snapshot: ParamSnapshot = {
+      kind: 'param',
+      voiceId: action.voiceId,
+      prevValues,
+      aiTargetValues: action.changes,
+      timestamp: Date.now(),
+      description: `AI suggest committed: ${Object.keys(action.changes).join(', ')}`,
+    };
     return {
       ...updateVoice(session, action.voiceId, {
         params: { ...voice.params, ...action.changes } as SynthParamValues,
       }),
       pending: remaining,
+      undoStack: [...session.undoStack, snapshot],
     };
   }
 
@@ -1508,7 +1540,8 @@ import {
   setPatternLength, clearPattern,
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
-import { getVoice } from '../../src/engine/types';
+import { getVoice, updateVoice } from '../../src/engine/types';
+import type { PatternSnapshot } from '../../src/engine/types';
 
 describe('Pattern Primitives', () => {
   describe('toggleStepGate', () => {
@@ -1622,6 +1655,21 @@ describe('Pattern Primitives', () => {
       const pattern = getVoice(result, vid).pattern;
       expect(pattern.steps.every(step => !step.gate)).toBe(true);
       expect(result.undoStack.length).toBe(3); // 2 toggles + 1 clear
+    });
+
+    it('preserves steps with micro-timing in undo snapshot', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      // Manually set micro on a step without gate/accent/params
+      const voice = getVoice(s, vid);
+      const steps = [...voice.pattern.steps];
+      steps[3] = { ...steps[3], micro: 0.25 };
+      s = updateVoice(s, vid, { pattern: { ...voice.pattern, steps } });
+      const result = clearPattern(s, vid);
+      // Should have an undo entry even though only micro was set
+      expect(result.undoStack.length).toBe(1);
+      const snapshot = result.undoStack[0] as PatternSnapshot;
+      expect(snapshot.prevSteps.some(({ step }) => step.micro === 0.25)).toBe(true);
     });
   });
 });
@@ -1770,7 +1818,7 @@ export function clearPattern(session: Session, voiceId: string): Session {
   const voice = getVoice(session, voiceId);
   const prevSteps = voice.pattern.steps
     .map((step, index) => ({ index, step: { ...step } }))
-    .filter(({ step }) => step.gate || step.accent || step.params !== undefined);
+    .filter(({ step }) => step.gate || step.accent || step.params !== undefined || step.micro !== 0);
 
   if (prevSteps.length === 0) return session;
 
@@ -2050,6 +2098,15 @@ export class WebAudioSynth implements SynthEngine {
     }
   }
 
+  getSchedulableParams(): { frequency: AudioParam; filterFreq: AudioParam; filterQ: AudioParam; detune: AudioParam } {
+    return {
+      frequency: this.oscillator.frequency,
+      filterFreq: this.filter.frequency,
+      filterQ: this.filter.Q,
+      detune: this.oscillator.detune,
+    };
+  }
+
   getAnalyser(): AnalyserNode {
     return this.analyser;
   }
@@ -2096,7 +2153,8 @@ const ACCENT_GAIN_BOOST = 2.0; // +6dB ≈ 2x linear gain
 
 interface VoiceSlot {
   synth: WebAudioSynth;
-  gainNode: GainNode;
+  muteGain: GainNode;    // controlled by mute/solo — never touched by scheduleNote
+  accentGain: GainNode;  // controlled by scheduleNote for accent boosts
   currentParams: SynthParams;
   currentModel: number;
 }
@@ -2129,14 +2187,19 @@ export class AudioEngine {
     this.mixer.connect(this.mediaStreamDest);
 
     for (const voiceId of voiceIds) {
-      const gainNode = this.ctx.createGain();
-      gainNode.gain.value = 0.3;
-      gainNode.connect(this.mixer);
+      // Two gain stages: accentGain (per-note dynamics) → muteGain (mute/solo)
+      const accentGain = this.ctx.createGain();
+      accentGain.gain.value = 0.3;
+      const muteGain = this.ctx.createGain();
+      muteGain.gain.value = 1.0; // 1 = audible, 0 = muted
+      accentGain.connect(muteGain);
+      muteGain.connect(this.mixer);
 
-      const synth = new WebAudioSynth(this.ctx, gainNode);
+      const synth = new WebAudioSynth(this.ctx, accentGain);
       this.voices.set(voiceId, {
         synth,
-        gainNode,
+        muteGain,
+        accentGain,
         currentParams: { ...DEFAULT_PARAMS },
         currentModel: 0,
       });
@@ -2183,7 +2246,8 @@ export class AudioEngine {
   muteVoice(voiceId: string, muted: boolean): void {
     const slot = this.voices.get(voiceId);
     if (!slot) return;
-    slot.gainNode.gain.value = muted ? 0 : 0.3;
+    // Only touch muteGain — accentGain is controlled by scheduleNote
+    slot.muteGain.gain.value = muted ? 0 : 1;
   }
 
   scheduleNote(note: ScheduledNote): void {
@@ -2191,26 +2255,39 @@ export class AudioEngine {
     const slot = this.voices.get(note.voiceId);
     if (!slot) return;
 
-    const now = this.ctx.currentTime;
-    const delay = Math.max(0, (note.time - now) * 1000);
+    // --- Continuous params: schedule sample-accurately via AudioParam ---
+    // WebAudioSynth exposes its AudioParams through getSchedulableParams()
+    const schedulable = slot.synth.getSchedulableParams();
+    if (schedulable) {
+      const { frequency, filterFreq, filterQ, detune } = schedulable;
+      // Map normalised params to audio values (same formulas as WebAudioSynth.applyParams)
+      const noteHz = 440 * Math.pow(2, (note.params.note * 127 - 69) / 12);
+      frequency.setValueAtTime(noteHz, note.time);
+      filterFreq.setValueAtTime(200 + note.params.timbre * 7800, note.time);
+      filterQ.setValueAtTime(0.5 + note.params.morph * 14.5, note.time);
+      detune.setValueAtTime((note.params.harmonics - 0.5) * 100, note.time);
+    }
 
+    // --- Accent gain: schedule on accentGain (separate from muteGain) ---
+    const accentLevel = note.accent ? 0.3 * ACCENT_GAIN_BOOST : 0.3;
+    slot.accentGain.gain.setValueAtTime(accentLevel, note.time);
+    if (note.accent) {
+      // Revert accent at gate-off
+      slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
+    }
+
+    // --- Discrete events: trigger and gate-off via setTimeout with compensation ---
+    const now = this.ctx.currentTime;
+    const triggerDelay = Math.max(0, (note.time - now) * 1000);
     const triggerTimeout = window.setTimeout(() => {
-      slot.synth.setParams(note.params);
-      if (note.accent) {
-        slot.gainNode.gain.value = 0.3 * ACCENT_GAIN_BOOST;
-      } else {
-        slot.gainNode.gain.value = 0.3;
-      }
+      // Fine-tune: check actual AudioContext time on firing
       slot.synth.trigger();
-    }, delay);
+    }, triggerDelay);
     this.scheduledTimeouts.push(triggerTimeout);
 
     const gateOffDelay = Math.max(0, (note.gateOffTime - now) * 1000);
     const gateOffTimeout = window.setTimeout(() => {
       slot.synth.setGateOpen(false);
-      if (note.accent) {
-        slot.gainNode.gain.value = 0.3;
-      }
     }, gateOffDelay);
     this.scheduledTimeouts.push(gateOffTimeout);
   }
