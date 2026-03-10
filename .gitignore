@@ -22,3 +22,16 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# WASM build artifacts (extracted from eurorack repo)
+wasm/plaits/
+wasm/stmlib/
+public/plaits.js
+public/plaits.wasm
+
+# Environment / secrets
+.env
+.env.*
+
+# OS
+Thumbs.db
