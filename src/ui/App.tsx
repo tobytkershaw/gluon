@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import type { Session, AIAction } from '../engine/types';
-import { getActiveVoice, getVoice } from '../engine/types';
+import { getActiveVoice } from '../engine/types';
 import {
   createSession, setLeash, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
