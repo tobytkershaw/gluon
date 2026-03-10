@@ -1,7 +1,7 @@
 // src/engine/primitives.ts
 import type {
-  Session, Snapshot, ParamSnapshot, PatternSnapshot,
-  PendingAction, ParamPendingAction, SketchPendingAction,
+  Session, ParamSnapshot, PatternSnapshot,
+  ParamPendingAction, SketchPendingAction,
   SynthParamValues,
 } from './types';
 import { getVoice, updateVoice } from './types';

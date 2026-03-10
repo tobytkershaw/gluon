@@ -3,7 +3,6 @@ import type { Session, SynthParamValues } from './types';
 import type { ScheduledNote } from './sequencer-types';
 import { getAudibleVoices, resolveNoteParams } from './sequencer-helpers';
 
-const PPQN = 48;
 const TICKS_PER_STEP = 12; // 48 PPQN / 4 steps per beat
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;

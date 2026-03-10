@@ -56,7 +56,7 @@ function compressPattern(voice: Voice): CompressedPattern {
     if (step.params) {
       const rounded: Record<string, number> = {};
       for (const [k, v] of Object.entries(step.params)) {
-        rounded[k] = round2(v);
+        if (v !== undefined) rounded[k] = round2(v);
       }
       if (Object.keys(rounded).length > 0) {
         locks[String(i)] = rounded;

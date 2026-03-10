@@ -1,6 +1,6 @@
 // src/ui/StepGrid.tsx
 import type { Pattern } from '../engine/sequencer-types';
-import type { PendingAction, SketchPendingAction } from '../engine/types';
+import type { SketchPendingAction } from '../engine/types';
 
 interface Props {
   pattern: Pattern;
