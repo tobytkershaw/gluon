@@ -2,7 +2,7 @@
 
 ## What This Is
 
-Gluon is the Claude Code of music: an open source platform where you describe what you want and an AI makes it happen on a shared instrument. The human directs the AI via natural language, the AI makes structured changes to the project, the human listens and iterates.
+Gluon is the Claude Code of music: an open source platform built around an AI-legible musical core that you can glue instruments, workflows, and hardware onto. The human directs the AI via natural language, the AI makes structured changes to the project, and the human listens, iterates, or undoes.
 
 ## Architecture
 

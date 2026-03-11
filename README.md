@@ -1,73 +1,67 @@
-# React + TypeScript + Vite
+# Gluon
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Gluon is the Claude Code of music: an open source platform built around an AI-legible musical core that you can glue instruments, workflows, and hardware onto.
 
-Currently, two official plugins are available:
+You describe what you want. The AI reads the current project state, makes structured changes, and you listen, iterate, or undo. The point is not to have AI generate finished songs for you. The point is to build a shared musical system that both humans and models can understand and act on.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Product Thesis
 
-## React Compiler
+At the centre of Gluon is an AI-legible musical model. That core makes musical state explicit enough for an AI to reason about, edit, and evaluate, while still being playable and steerable by a human.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Because the core is legible and structured, you can glue other things onto it:
 
-## Expanding the ESLint configuration
+- software instruments
+- DAWs like Ableton
+- external hardware instruments
+- browser-native interfaces
+- future protocol adapters and controllers
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Core Loop
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+1. You describe what you want in natural language.
+2. The AI reads the current project state.
+3. The AI makes structured edits to voices, patterns, parameters, or arrangement.
+4. You listen to the result.
+5. You continue the conversation or undo.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Principles
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- The human's hands always win.
+- The AI plays the instrument; it does not replace it.
+- The AI acts when asked.
+- The AI can hear its own work.
+- Undo is always one action away.
+
+## Architecture
+
+- **Browser-based**: React + TypeScript + Vite
+- **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
+- **AI (reasoning)**: Google Gemini API (`@google/genai`) for project-state reasoning and structured edits
+- **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
+- **Protocol**: Custom interaction protocol in [`docs/gluon-interaction-protocol-v03.md`](/Users/tobykershaw/Development/gluon/docs/gluon-interaction-protocol-v03.md)
+
+## Project Structure
+
+```text
+src/
+  audio/       # WASM bridge, AudioWorklet, Web Audio setup
+  engine/      # Protocol types, session state, undo stack
+  ai/          # Gemini API, state compression, response parsing
+  ui/          # React components (parameter space, chat, controls)
+wasm/          # Plaits C++ source and Emscripten build
+docs/          # Architecture docs and protocol spec
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Development
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
+npm run build
+npm run wasm:build
 ```
+
+## Reference Docs
+
+- [`docs/gluon-architecture.md`](/Users/tobykershaw/Development/gluon/docs/gluon-architecture.md)
+- [`docs/gluon-interaction-protocol-v03.md`](/Users/tobykershaw/Development/gluon/docs/gluon-interaction-protocol-v03.md)
+- [`docs/gluon-phase1-build.md`](/Users/tobykershaw/Development/gluon/docs/gluon-phase1-build.md)
