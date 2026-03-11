@@ -165,7 +165,19 @@ export default function App() {
 
   const handleUndo = useCallback(() => {
     ensureAudio();
-    setSession((s) => applyUndo(s));
+    setSession((s) => {
+      if (s.undoStack.length === 0) return s;
+      const topEntry = s.undoStack[s.undoStack.length - 1];
+      const description = topEntry.description ?? 'last action';
+      const undone = applyUndo(s);
+      return {
+        ...undone,
+        messages: [
+          ...undone.messages,
+          { role: 'ai' as const, text: `Undid: ${description}`, timestamp: Date.now() },
+        ],
+      };
+    });
   }, [ensureAudio]);
 
   const handleSend = useCallback(async (message: string) => {

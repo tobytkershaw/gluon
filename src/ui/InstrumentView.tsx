@@ -98,7 +98,11 @@ export function InstrumentView({
           compact
         />
         <div className="flex-1" />
-        <UndoButton onClick={onUndo} disabled={session.undoStack.length === 0} />
+        <UndoButton
+          onClick={onUndo}
+          disabled={session.undoStack.length === 0}
+          description={session.undoStack.length > 0 ? session.undoStack[session.undoStack.length - 1].description : undefined}
+        />
       </div>
 
       {/* Instrument area */}

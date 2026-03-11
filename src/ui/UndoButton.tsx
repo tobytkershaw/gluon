@@ -1,15 +1,17 @@
 interface Props {
   onClick: () => void;
   disabled: boolean;
+  description?: string;
 }
 
-export function UndoButton({ onClick, disabled }: Props) {
+export function UndoButton({ onClick, disabled, description }: Props) {
+  const title = description ? `Undo: ${description} (⌘Z)` : 'Undo (⌘Z)';
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       className="p-2 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/50 disabled:text-zinc-800 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
-      title="Undo (⌘Z)"
+      title={title}
     >
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <path
