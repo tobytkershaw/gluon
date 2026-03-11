@@ -22,12 +22,13 @@ interface Props {
   onTogglePlay: () => void;
   playing: boolean;
   bpm: number;
+  isThinking?: boolean;
 }
 
 export function ChatView({
   session, view, onViewChange, apiConfigured, onApiKey,
   onSelectVoice, onToggleMute, onToggleSolo, onUndo, onSend,
-  onTogglePlay, playing, bpm,
+  onTogglePlay, playing, bpm, isThinking = false,
 }: Props) {
   return (
     <div className="flex flex-col h-full">
@@ -77,7 +78,7 @@ export function ChatView({
       {/* Main chat area */}
       <div className="flex-1 min-h-0 flex justify-center">
         <div className="w-full max-w-2xl flex flex-col min-h-0 px-4 py-2">
-          <ChatPanel messages={session.messages} onSend={onSend} />
+          <ChatPanel messages={session.messages} onSend={onSend} isThinking={isThinking} />
         </div>
       </div>
     </div>

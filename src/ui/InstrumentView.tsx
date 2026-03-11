@@ -53,6 +53,7 @@ interface Props {
   // Undo + Chat
   onUndo: () => void;
   onSend: (message: string) => void;
+  isThinking?: boolean;
   // Audio
   analyser: AnalyserNode | null;
 }
@@ -61,9 +62,14 @@ function lastAiPreview(messages: ChatMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (msg.role !== 'ai') continue;
+    const actionCount = msg.actions?.length ?? 0;
+    if (msg.text && actionCount > 0) {
+      return `${msg.text} [${actionCount} change${actionCount > 1 ? 's' : ''}]`;
+    }
     if (msg.text) return msg.text;
-    if (msg.actions?.length) {
-      return msg.actions.map(a => `${a.voiceLabel}: ${a.description}`).join(', ');
+    if (actionCount > 0) {
+      const first = `${msg.actions![0].voiceLabel}: ${msg.actions![0].description}`;
+      return actionCount > 1 ? `${first} +${actionCount - 1} more` : first;
     }
   }
   return null;
@@ -78,7 +84,7 @@ export function InstrumentView({
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   stepPage, onStepToggle, onStepAccent, onStepHold, onStepRelease,
   onPatternLength, onPageChange, onClearPattern,
-  onUndo, onSend, analyser,
+  onUndo, onSend, isThinking = false, analyser,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
   const totalPages = Math.ceil(activeVoice.pattern.length / 16);
@@ -177,7 +183,7 @@ export function InstrumentView({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <ChatComposer onSend={onSend} placeholder="Ask the AI..." />
+          <ChatComposer onSend={onSend} placeholder="Ask the AI..." disabled={isThinking} />
         </div>
       </div>
     </div>
