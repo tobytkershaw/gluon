@@ -1,3 +1,5 @@
+/** @deprecated Superseded by native function calling in api.ts. Kept as potential fallback. */
+
 import type { AIAction } from '../engine/types';
 
 function extractJSON(text: string): string {

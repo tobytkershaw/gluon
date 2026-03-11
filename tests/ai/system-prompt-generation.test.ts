@@ -25,13 +25,16 @@ describe('system prompt generation', () => {
     expect(GLUON_SYSTEM_PROMPT).toMatch(/0[\.\s]*[-–]\s*1/);
   });
 
-  it('still contains action syntax with param (not controlId)', () => {
-    expect(GLUON_SYSTEM_PROMPT).toContain('"param"');
+  it('mentions tool-based workflow', () => {
+    expect(GLUON_SYSTEM_PROMPT).toContain('tools');
+    expect(GLUON_SYSTEM_PROMPT).toContain('tool call');
   });
 
-  it('still contains sketch syntax with pattern.steps', () => {
-    expect(GLUON_SYSTEM_PROMPT).toContain('pattern');
-    expect(GLUON_SYSTEM_PROMPT).toContain('steps');
+  it('contains voice setup', () => {
+    expect(GLUON_SYSTEM_PROMPT).toContain('v0');
+    expect(GLUON_SYSTEM_PROMPT).toContain('v1');
+    expect(GLUON_SYSTEM_PROMPT).toContain('trigger');
+    expect(GLUON_SYSTEM_PROMPT).toContain('note events');
   });
 
   it('contains behaviour rules', () => {
@@ -39,7 +42,9 @@ describe('system prompt generation', () => {
     expect(GLUON_SYSTEM_PROMPT).toContain('undo');
   });
 
-  it('mentions per-step pitch via note', () => {
-    expect(GLUON_SYSTEM_PROMPT).toContain('note');
+  it('does not contain old JSON action syntax', () => {
+    expect(GLUON_SYSTEM_PROMPT).not.toContain('"type": "move"');
+    expect(GLUON_SYSTEM_PROMPT).not.toContain('Respond with valid JSON');
+    expect(GLUON_SYSTEM_PROMPT).not.toContain('Transport controls (BPM, swing, play/stop) are human-only');
   });
 });

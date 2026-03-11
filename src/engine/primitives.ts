@@ -1,6 +1,6 @@
 // src/engine/primitives.ts
 import type {
-  Session, ParamSnapshot, PatternSnapshot, Snapshot,
+  Session, ParamSnapshot, PatternSnapshot, TransportSnapshot, Snapshot,
   SynthParamValues,
 } from './types';
 import { getVoice, updateVoice } from './types';
@@ -146,6 +146,10 @@ export function applySketch(
 }
 
 function revertSnapshot(session: Session, snapshot: Snapshot): Session {
+  if (snapshot.kind === 'transport') {
+    return { ...session, transport: snapshot.prevTransport };
+  }
+
   if (snapshot.kind === 'pattern') {
     const voice = getVoice(session, snapshot.voiceId);
     const newSteps = [...voice.pattern.steps];

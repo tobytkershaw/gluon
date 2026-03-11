@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, ActionGroupSnapshot, Voice } from './types';
+import type { Session, AIAction, ActionGroupSnapshot, Voice, TransportSnapshot } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -196,6 +196,31 @@ export function executeOperations(
 
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `pattern: ${action.description}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_transport': {
+        const prev = next.transport;
+        const newTransport = { ...prev };
+        if (action.bpm !== undefined) newTransport.bpm = Math.max(60, Math.min(200, action.bpm));
+        if (action.swing !== undefined) newTransport.swing = Math.max(0, Math.min(1, action.swing));
+        if (action.playing !== undefined) newTransport.playing = action.playing;
+
+        const parts: string[] = [];
+        if (action.bpm !== undefined && newTransport.bpm !== prev.bpm) parts.push(`bpm ${prev.bpm} → ${newTransport.bpm}`);
+        if (action.swing !== undefined && newTransport.swing !== prev.swing) parts.push(`swing ${prev.swing.toFixed(2)} → ${newTransport.swing.toFixed(2)}`);
+        if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'stop');
+
+        const snapshot: TransportSnapshot = {
+          kind: 'transport',
+          prevTransport: prev,
+          timestamp: Date.now(),
+          description: `AI transport: ${parts.join(', ') || 'no change'}`,
+        };
+        next = { ...next, transport: newTransport, undoStack: [...next.undoStack, snapshot] };
+
+        log.push({ voiceId: '', voiceLabel: 'TRANSPORT', description: snapshot.description });
         accepted.push(action);
         break;
       }
