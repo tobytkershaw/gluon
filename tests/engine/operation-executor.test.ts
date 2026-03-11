@@ -201,4 +201,16 @@ describe('operation-executor', () => {
     const voice = report.session.voices.find(v => v.id === 'v0')!;
     expect(voice.controlProvenance?.brightness?.source).toBe('ai');
   });
+
+  it('rejects unknown control IDs that are not declared by the adapter', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [{ type: 'move', voiceId: 'v0', param: 'foo', target: { absolute: 0.5 } }];
+    const report = executeOperations(session, actions, adapter, new Arbitrator());
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Unknown control');
+    expect(report.accepted).toHaveLength(0);
+    // Ensure no arbitrary param was written
+    const voice = report.session.voices.find(v => v.id === 'v0')!;
+    expect((voice.params as Record<string, unknown>)['foo']).toBeUndefined();
+  });
 });

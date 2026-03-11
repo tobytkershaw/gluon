@@ -56,10 +56,13 @@ export function executeOperations(
         } else {
           // Try as controlId (canonical → runtime)
           const binding = adapter.mapControl(action.param);
-          if (binding && binding.path !== action.param) {
+          const pathParts = binding?.path.split('.');
+          const candidate = pathParts?.[pathParts.length - 1];
+          // Verify this is a declared control by round-tripping: the resolved
+          // runtime param must map back to a canonical ID via the adapter.
+          if (candidate && candidate !== action.param && adapter.mapRuntimeParamKey(candidate)) {
             controlId = action.param;
-            const pathParts = binding.path.split('.');
-            runtimeParam = pathParts[pathParts.length - 1];
+            runtimeParam = candidate;
           } else {
             rejected.push({ op: action, reason: `Unknown control: ${action.param}` });
             break;
