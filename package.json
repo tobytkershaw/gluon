@@ -10,7 +10,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "wasm:build": "bash scripts/wasm-build.sh",
+    "wasm:build:docker": "bash scripts/wasm-build-docker.sh"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
