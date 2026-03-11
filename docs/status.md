@@ -2,10 +2,35 @@
 
 **As of:** 2026-03-11
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers)
-**In progress:** Phase 3, Step 1 (Remove Reactive Model) — PR #11
-**Next:** Phase 3, Step 2+
+**In progress:** Canonical Musical Model (PRs 0–5 merged), Phase 3 Step 1 done
+**Next:** PR-6 (collapse PLAITS_MODELS), PR-7 (AI contract doc), Phase 3 Steps 2+
 **Latest spike:** Gemini Native Audio — SUCCESS
 **Data model direction:** Canonical Musical Model RFC adopted — see `docs/rfc-canonical-musical-model.md`
+
+---
+
+## Canonical Musical Model — Implementation Status
+
+| PR | Description | Status |
+|---|---|---|
+| PR-0 | Docs cleanup | Merged |
+| PR-1 | Canonical types (`canonical-types.ts`) | Merged |
+| PR-2 | Instrument registry + consumer migration | Merged |
+| PR-3 | System prompt from registry | Merged |
+| PR-4 | Operation executor + provenance | Merged |
+| PR-5 | Event abstraction, Plaits adapter, protocol migration | Merged |
+| PR-6 | Collapse `PLAITS_MODELS` | Not started |
+| PR-7 | AI contract doc | Not started |
+
+### What landed
+
+- **Canonical types** (`src/engine/canonical-types.ts`): ControlSchema, SemanticRole, ControlValue/ControlState, MusicalEvent (trigger/note/parameter), SourceAdapter interface, AIOperation union, ExecutionReport
+- **Instrument registry** (`src/audio/instrument-registry.ts`): 16 Plaits engines with 4 semantic controls each (brightness→timbre, richness→harmonics, texture→morph, pitch→note). Bidirectional control mapping. All consumers migrated.
+- **Operation executor** (`src/engine/operation-executor.ts`): Engine-layer operation dispatch with per-action validation, adapter-based control resolution, provenance tracking (canonical IDs), undo grouping. Returns execution report for UI consumption.
+- **Event conversion** (`src/engine/event-conversion.ts`): Generic `stepsToEvents`/`eventsToSteps` with injected pitch and control-ID mapping. Adapter-agnostic — no Plaits imports.
+- **Plaits adapter** (`src/audio/plaits-adapter.ts`): First `SourceAdapter` implementation. Validates controls, converts MIDI↔normalised pitch, delegates to registry.
+- **Protocol migration**: Parser accepts both legacy (`param`/`pattern.steps`) and canonical (`controlId`/`events[]`) shapes. System prompt teaches canonical syntax with semantic control names.
+- **Provenance**: `Voice.controlProvenance` tracks who set each control (human/ai/default), keyed by canonical controlId. Undo restores both values and provenance.
 
 ---
 
@@ -22,8 +47,8 @@
 **System Prompt (`system-prompt.ts`)**
 - Agentic assistant framing — AI makes changes when asked, does not act autonomously
 - Defines 3 action types: `move`, `sketch`, `say`
-- Covers 4 voices (v0–v3) with default models (kick, bass, lead, pad)
-- Full Plaits model reference (0–15), parameter space docs
+- Model reference and parameter space generated from instrument registry
+- Canonical action syntax: semantic control names (brightness, richness, texture, pitch), MusicalEvent-based sketches
 - Scope control rule (minimal and local edits by default)
 - Agency rule (OFF voices can be observed but not modified)
 
@@ -36,7 +61,8 @@
 **Response Parser (`response-parser.ts`)**
 - Parses JSON action arrays from AI responses
 - Handles markdown code blocks, strict type validation
-- Validates 3 action types: move, sketch, say
+- Accepts both legacy and canonical action shapes (backward compatible)
+- Per-kind event validation for canonical sketches
 - Safe failure (empty array on parse error)
 
 **Automation (`automation.ts`)**
@@ -47,15 +73,29 @@
 
 **Types (`types.ts`)**
 - `Agency`: `'OFF' | 'ON'` (2-state)
-- `Voice`: id, engine, model, params, agency, pattern, mute/solo
+- `Voice`: id, engine, model, params, agency, pattern, mute/solo, controlProvenance
 - `SynthParamValues`: harmonics, timbre, morph, note (all 0.0–1.0)
-- `AIAction` union: move, say, sketch
-- `Snapshot`: ParamSnapshot or PatternSnapshot
+- `AIAction` union: move (accepts param or controlId), say, sketch (accepts pattern or events)
+- `Snapshot`: ParamSnapshot (with prevProvenance) or PatternSnapshot
 - `Session`: voices[], activeVoiceId, transport, undoStack, context, messages[], recentHumanActions[]
+
+**Canonical Types (`canonical-types.ts`)**
+- ControlSchema, ControlBinding, ControlValue, ControlState
+- MusicalEvent discriminated union (NoteEvent, TriggerEvent, ParameterEvent)
+- SourceAdapter interface (read/write paths, pitch conversion, validation)
+- AIOperation union, ExecutionReport
+
+**Operation Executor (`operation-executor.ts`)**
+- Per-action validation through adapter (agency, arbitration, control resolution)
+- Adapter-based control ID resolution (runtime↔canonical) with round-trip verification
+- Provenance tracking under canonical controlIds
+- Undo snapshot grouping with prevProvenance for restore
+- Execution report: accepted/rejected/log/resolvedParams
 
 **Session (`session.ts`)**
 - 4 default voices with preset models
 - Agency setter, param/model updates, mute/solo, transport
+- Registry-derived default provenance per voice
 
 **Undo (`undo.ts`)**
 - Simple stack of Snapshot objects, max 100
@@ -70,7 +110,12 @@
 - `applyMove()` / `applyMoveGroup()`: Direct param changes (undoable)
 - `applySketch()`: Applies pattern sketch immediately + pushes undo snapshot
 - `applyParamDirect()`: Raw param set (used by automation drift)
-- `applyUndo()`: Reverts last AI action
+- `applyUndo()`: Reverts last AI action (restores params AND provenance)
+
+**Event Conversion (`event-conversion.ts`)**
+- `stepsToEvents()` / `eventsToSteps()`: adapter-agnostic conversion
+- Pitch and control-ID mapping injected as options
+- Preserves ungated param locks (automation on silent steps)
 
 **Sequencer**
 - `Step`: gate, accent, params (per-step locks), micro timing
@@ -82,8 +127,9 @@
 
 **App (`App.tsx`)**
 - Manages session state, audio setup, AI instance, scheduler, arbitrator, automation
+- Uses `createPlaitsAdapter()` for operation execution
 - `handleSend()`: human message → AI ask → dispatch actions
-- `dispatchAIActions()`: applies move, sketch, say actions
+- `dispatchAIActions()`: delegates to operation executor, handles drift animation from execution report
 - Keyboard shortcuts: Cmd+Z undo, Space play/pause
 
 **Chat Panel (`ChatPanel.tsx`)**
@@ -111,6 +157,17 @@
 
 **Audio Exporter (`audio-exporter.ts`)**
 - Records MediaStream to WebM (opus), start/stop with blob download
+
+**Instrument Registry (`instrument-registry.ts`)**
+- 16 Plaits engine definitions with semantic controls
+- Bidirectional mapping: controlId ↔ runtime param
+- Model list, engine lookup, control schema access
+
+**Plaits Adapter (`plaits-adapter.ts`)**
+- `SourceAdapter` implementation for Plaits WASM
+- Control validation (canonical + runtime param names, value range)
+- MIDI ↔ normalised pitch conversion
+- Event conversion with injected Plaits-specific mappings
 
 **Synth / WASM**
 - Plaits C++ compiled to WASM via Emscripten

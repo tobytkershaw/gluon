@@ -66,9 +66,12 @@ export type UndoEntry = Snapshot | ActionGroupSnapshot;
 
 // --- AI Actions ---
 
+import type { MusicalEvent } from './canonical-types';
+
 export interface AIMoveAction {
   type: 'move';
   voiceId?: string;
+  /** Runtime param key (legacy) or canonical controlId */
   param: string;
   target: { absolute: number } | { relative: number };
   over?: number;
@@ -83,7 +86,10 @@ export interface AISketchAction {
   type: 'sketch';
   voiceId: string;
   description: string;
-  pattern: PatternSketch;
+  /** Legacy pattern shape */
+  pattern?: PatternSketch;
+  /** Canonical event shape */
+  events?: MusicalEvent[];
 }
 
 export type AIAction = AIMoveAction | AISayAction | AISketchAction;
