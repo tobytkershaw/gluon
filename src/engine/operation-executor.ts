@@ -180,10 +180,10 @@ export function executeOperations(
               return parts[parts.length - 1];
             },
           });
+          // Include ALL steps so ungated steps explicitly clear existing gates.
+          // Without this, the sketch is additive and old gates persist.
           const sketch = {
-            steps: steps
-              .map((s, i) => ({ index: i, ...s }))
-              .filter(s => s.gate || s.params),
+            steps: steps.map((s, i) => ({ index: i, ...s })),
           };
           next = applySketch(next, action.voiceId, action.description, sketch);
         } else if (action.pattern) {

@@ -6,6 +6,7 @@ import type { Session, AIAction } from '../engine/types';
 import { compressState } from './state-compression';
 import { parseAIResponse } from './response-parser';
 import { GLUON_SYSTEM_PROMPT } from './system-prompt';
+import { GLUON_LISTEN_PROMPT } from './listen-prompt';
 
 const MODEL = 'gemini-3-flash-preview';
 
@@ -91,7 +92,7 @@ export class GluonAI {
         model: MODEL,
         config: {
           systemInstruction: GLUON_SYSTEM_PROMPT,
-          maxOutputTokens: 800,
+          maxOutputTokens: 2048,
           thinkingConfig: { thinkingLevel: 'MEDIUM' },
         },
         contents,
@@ -102,7 +103,8 @@ export class GluonAI {
       const modelContent = response.candidates?.[0]?.content ?? null;
 
       this.backoff = { until: 0, delay: 0 };
-      return { actions: parseAIResponse(text), raw: text, modelContent };
+      const actions = parseAIResponse(text);
+      return { actions, raw: text, modelContent };
     } catch (error) {
       return { actions: this.handleError(error), raw: '', modelContent: null };
     }
@@ -134,6 +136,65 @@ export class GluonAI {
 
     console.error('Gluon AI call failed:', error);
     return [];
+  }
+
+  /**
+   * Listen mode: send symbolic state + audio clip + question to Gemini.
+   * Returns critique text only — no actions. Uses a separate system prompt
+   * that does not include action definitions.
+   */
+  async evaluateAudio(
+    session: Session,
+    audioBlob: Blob,
+    mimeType: string,
+    question: string,
+  ): Promise<string> {
+    if (!this.ai) return 'API not configured.';
+
+    const now = Date.now();
+    if (now < this.backoff.until) return 'Rate limited — try again shortly.';
+
+    const state = compressState(session);
+    const audioBytes = new Uint8Array(await audioBlob.arrayBuffer());
+    // Chunk the conversion to avoid exceeding max call stack with spread operator
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < audioBytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...audioBytes.subarray(i, i + chunkSize));
+    }
+    const audioBase64 = btoa(binary);
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: MODEL,
+        config: {
+          systemInstruction: GLUON_LISTEN_PROMPT,
+          thinkingConfig: { thinkingLevel: 'MEDIUM' },
+        },
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: `Project state:\n${JSON.stringify(state)}\n\nQuestion: ${question}` },
+            { inlineData: { mimeType, data: audioBase64 } },
+          ],
+        }],
+      });
+
+      this.backoff = { until: 0, delay: 0 };
+      const critique = response.text ?? 'No response from model.';
+
+      // Inject the critique into edit-mode history so the model can act on what it heard
+      this.history.push(
+        { role: 'user', parts: [{ text: `[listened to audio] ${question}` }] },
+        { role: 'model', parts: [{ text: `[audio critique] ${critique}` }] },
+      );
+
+      return critique;
+    } catch (error) {
+      const actions = this.handleError(error);
+      const sayAction = actions.find(a => a.type === 'say');
+      return sayAction && 'text' in sayAction ? sayAction.text : 'Audio evaluation failed.';
+    }
   }
 
   clearHistory(): void {

@@ -4,16 +4,17 @@ import type { ChatMessage } from '../engine/types';
 interface Props {
   messages: ChatMessage[];
   isThinking?: boolean;
+  isListening?: boolean;
 }
 
-export function ChatMessages({ messages, isThinking = false }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, isThinking]);
+  }, [messages.length, isThinking, isListening]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll p-3 space-y-3">
@@ -61,12 +62,14 @@ export function ChatMessages({ messages, isThinking = false }: Props) {
           </div>
         ))
       )}
-      {isThinking && (
+      {(isThinking || isListening) && (
         <div className="flex gap-2" style={{ animation: 'fade-up 0.15s ease-out' }}>
           <div className="w-0.5 shrink-0 rounded-full bg-teal-500 animate-pulse" />
           <div className="min-w-0">
             <div className="text-[8px] font-mono uppercase tracking-[0.15em] mb-0.5 text-teal-600">AI</div>
-            <div className="text-[11px] text-zinc-500 animate-pulse">Thinking...</div>
+            <div className="text-[11px] text-zinc-500 animate-pulse">
+              {isListening ? 'Listening...' : 'Thinking...'}
+            </div>
           </div>
         </div>
       )}

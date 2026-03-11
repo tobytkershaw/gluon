@@ -38,35 +38,32 @@ describe('parseAIResponse (Phase 2)', () => {
     }
   });
 
-  it('rejects sketch without voiceId', () => {
+  it('discards malformed JSON actions (sketch without voiceId)', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       description: 'test',
       pattern: { steps: [] },
     }]);
-    const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects sketch without pattern', () => {
+  it('discards malformed JSON actions (sketch without pattern)', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       voiceId: 'v0',
       description: 'test',
     }]);
-    const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects sketch with non-array steps', () => {
+  it('discards malformed JSON actions (sketch with non-array steps)', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       voiceId: 'v0',
       description: 'test',
       pattern: { steps: 'not an array' },
     }]);
-    const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(parseAIResponse(json)).toHaveLength(0);
   });
 
   it('handles mixed valid and invalid actions', () => {
@@ -79,12 +76,22 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('returns empty array for invalid JSON', () => {
-    expect(parseAIResponse('not json')).toEqual([]);
+  it('falls back to say for plain text', () => {
+    const result = parseAIResponse('I can help with that!');
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
+    if (result[0].type === 'say') {
+      expect(result[0].text).toBe('I can help with that!');
+    }
   });
 
-  it('returns empty array for non-array JSON', () => {
-    expect(parseAIResponse('{"type":"move"}')).toEqual([]);
+  it('does not leak malformed JSON into chat', () => {
+    expect(parseAIResponse('{"type":"move"}')).toHaveLength(0);
+    expect(parseAIResponse('[{"type":"sketch"')).toHaveLength(0);
+  });
+
+  it('returns empty array for empty string', () => {
+    expect(parseAIResponse('')).toEqual([]);
   });
 
   // Canonical shape tests
@@ -116,24 +123,22 @@ describe('parseAIResponse (Phase 2)', () => {
     }
   });
 
-  it('rejects sketch with neither events nor pattern', () => {
+  it('discards invalid sketch with neither events nor pattern', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
     }]);
-    const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects sketch with invalid events', () => {
+  it('discards sketch with invalid events', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ not: 'valid' }],
     }]);
-    const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects note event missing pitch', () => {
+  it('discards note event missing pitch', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'note', at: 0, velocity: 0.8, duration: 0.25 }],
@@ -141,7 +146,7 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects parameter event missing controlId', () => {
+  it('discards parameter event missing controlId', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'parameter', at: 0, value: 0.5 }],
@@ -149,7 +154,7 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects parameter event missing value', () => {
+  it('discards parameter event missing value', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'parameter', at: 0, controlId: 'brightness' }],
@@ -157,7 +162,7 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(parseAIResponse(json)).toHaveLength(0);
   });
 
-  it('rejects unknown event kind', () => {
+  it('discards unknown event kind', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'unknown', at: 0 }],

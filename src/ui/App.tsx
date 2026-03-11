@@ -183,6 +183,67 @@ export default function App() {
   const requestIdRef = useRef(0);
   const [isThinking, setIsThinking] = useState(false);
 
+  const isListenIntent = (msg: string): boolean => {
+    const lower = msg.toLowerCase();
+    // Only match explicit audio-listening phrases, not generic "what do you think" or "review"
+    return /\b(take a listen|listen to (this|it|that|the mix)|how does it sound|how('s| is) it sound(ing)?)\b/.test(lower);
+  };
+
+  const [isListening, setIsListening] = useState(false);
+
+  const handleListen = useCallback(async (question: string) => {
+    const s = sessionRef.current;
+    if (!s.transport.playing) {
+      setSession((prev) => ({
+        ...prev,
+        messages: [...prev.messages, {
+          role: 'ai' as const,
+          text: 'Press play first — I need to hear the audio to evaluate it.',
+          timestamp: Date.now(),
+        }],
+      }));
+      return;
+    }
+
+    setIsListening(true);
+    const dest = audioRef.current.getMediaStreamDestination();
+    if (!dest) {
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      const activePattern = getActiveVoice(s).pattern;
+      const wavBlob = await exporterRef.current.captureNBars(
+        dest, 2, activePattern.length, s.transport.bpm,
+      );
+
+      const critique = await aiRef.current.evaluateAudio(
+        sessionRef.current, wavBlob, 'audio/wav', question,
+      );
+
+      setSession((prev) => ({
+        ...prev,
+        messages: [...prev.messages, {
+          role: 'ai' as const,
+          text: critique,
+          timestamp: Date.now(),
+        }],
+      }));
+    } catch {
+      setSession((prev) => ({
+        ...prev,
+        messages: [...prev.messages, {
+          role: 'ai' as const,
+          text: 'Audio evaluation failed — try again.',
+          timestamp: Date.now(),
+        }],
+      }));
+    } finally {
+      setIsListening(false);
+    }
+  }, []);
+
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
@@ -191,21 +252,24 @@ export default function App() {
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
+
+    // Route to listen mode if the message is a listen intent
+    if (isListenIntent(message)) {
+      try {
+        await handleListen(message);
+      } finally {
+        if (thisRequest === requestIdRef.current) {
+          setIsThinking(false);
+        }
+      }
+      return;
+    }
+
     try {
       const actions = await aiRef.current.ask(sessionRef.current, message);
       // Discard stale responses if another request was fired
       if (thisRequest !== requestIdRef.current) return;
-      const hasSay = actions.some(a => a.type === 'say');
-      const hasActions = actions.length > 0;
-      if (!hasSay && !hasActions) {
-        // Empty response — append fallback message
-        setSession((s) => ({
-          ...s,
-          messages: [...s.messages, { role: 'ai' as const, text: "I couldn't process that — try rephrasing.", timestamp: Date.now() }],
-        }));
-      } else {
-        dispatchAIActions(actions);
-      }
+      dispatchAIActions(actions);
     } catch {
       // Error already handled by GluonAI.handleError — no additional action needed
     } finally {
@@ -213,7 +277,7 @@ export default function App() {
         setIsThinking(false);
       }
     }
-  }, [ensureAudio, dispatchAIActions]);
+  }, [ensureAudio, dispatchAIActions, handleListen]);
 
   const handleApiKey = useCallback((key: string) => {
     aiRef.current.setApiKey(key);
@@ -338,6 +402,7 @@ export default function App() {
             playing={session.transport.playing}
             bpm={session.transport.bpm}
             isThinking={isThinking}
+            isListening={isListening}
           />
         ) : (
           <InstrumentView
@@ -375,6 +440,7 @@ export default function App() {
             onUndo={handleUndo}
             onSend={handleSend}
             isThinking={isThinking}
+            isListening={isListening}
             analyser={audioRef.current.getAnalyser()}
           />
         )}
