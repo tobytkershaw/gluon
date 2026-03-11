@@ -6,6 +6,7 @@ import type { Session, AIAction } from '../engine/types';
 import { compressState } from './state-compression';
 import { parseAIResponse } from './response-parser';
 import { GLUON_SYSTEM_PROMPT } from './system-prompt';
+import { GLUON_LISTEN_PROMPT } from './listen-prompt';
 
 const MODEL = 'gemini-3-flash-preview';
 
@@ -134,6 +135,52 @@ export class GluonAI {
 
     console.error('Gluon AI call failed:', error);
     return [];
+  }
+
+  /**
+   * Listen mode: send symbolic state + audio clip + question to Gemini.
+   * Returns critique text only — no actions. Uses a separate system prompt
+   * that does not include action definitions.
+   */
+  async evaluateAudio(
+    session: Session,
+    audioBlob: Blob,
+    mimeType: string,
+    question: string,
+  ): Promise<string> {
+    if (!this.ai) return 'API not configured.';
+
+    const now = Date.now();
+    if (now < this.backoff.until) return 'Rate limited — try again shortly.';
+
+    const state = compressState(session);
+    const audioBytes = new Uint8Array(await audioBlob.arrayBuffer());
+    const audioBase64 = btoa(String.fromCharCode(...audioBytes));
+
+    try {
+      const response = await this.ai.models.generateContent({
+        model: MODEL,
+        config: {
+          systemInstruction: GLUON_LISTEN_PROMPT,
+          maxOutputTokens: 400,
+          thinkingConfig: { thinkingLevel: 'MEDIUM' },
+        },
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: `Project state:\n${JSON.stringify(state)}\n\nQuestion: ${question}` },
+            { inlineData: { mimeType, data: audioBase64 } },
+          ],
+        }],
+      });
+
+      this.backoff = { until: 0, delay: 0 };
+      return response.text ?? 'No response from model.';
+    } catch (error) {
+      const actions = this.handleError(error);
+      const sayAction = actions.find(a => a.type === 'say');
+      return sayAction && 'text' in sayAction ? sayAction.text : 'Audio evaluation failed.';
+    }
   }
 
   clearHistory(): void {
