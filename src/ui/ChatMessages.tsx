@@ -25,7 +25,9 @@ export function ChatMessages({ messages, isThinking = false }: Props) {
         messages.map((msg, i) => (
           <div
             key={i}
-            className="flex gap-2"
+            className={`flex gap-2 rounded-md px-2 py-1.5 ${
+              msg.role === 'ai' ? 'bg-zinc-800/30' : ''
+            }`}
             style={{ animation: 'fade-up 0.15s ease-out' }}
           >
             <div
@@ -47,10 +49,10 @@ export function ChatMessages({ messages, isThinking = false }: Props) {
                 </div>
               )}
               {msg.actions && msg.actions.length > 0 && (
-                <div className="mt-1.5 space-y-0.5">
+                <div className="mt-1.5 space-y-0.5 border-l border-teal-500/20 pl-2">
                   {msg.actions.map((a, j) => (
-                    <div key={j} className="text-[10px] font-mono text-teal-400/70">
-                      &#9656; {a.voiceLabel}: {a.description}
+                    <div key={j} className="text-[10px] font-mono text-teal-400/60">
+                      {a.voiceLabel}: {a.description}
                     </div>
                   ))}
                 </div>
