@@ -82,6 +82,22 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 - `npx vitest run` — all tests pass
 - Both checks must pass after rebase, before merge
 
+## GitHub Backlog Hygiene
+
+- When creating or updating issues, preserve the backlog structure already in GitHub.
+- Close issues that are already merged; do not leave done work open.
+- For active implementation work, add:
+  - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
+  - one priority label: `priority:now`, `priority:next`, or `priority:later`
+- Use `audit` for QA, review, and assessment work rather than feature implementation.
+- Use milestones consistently:
+  - `M0: Stabilization + Backlog Hygiene` for cleanup, QA, and stabilization work
+  - `M1: Sequencer Foundations` for sequencing foundation issues
+  - `M2: Sequencer Expressivity` for timing/groove/transformation work
+  - `M3: Sequencer Surfaces + Integrations` for editor-surface and adapter work
+  - `M4: Phase 4A Discovery` for exploratory Phase 4A work
+- Do not create GitHub Projects or expand the label taxonomy unless explicitly asked.
+
 ## Reference Docs
 
 - `docs/gluon-architecture.md` - Full vision and architecture

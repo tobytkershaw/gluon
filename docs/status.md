@@ -1,38 +1,66 @@
 # Gluon — Current Build Status
 
 **As of:** 2026-03-11
-**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model (all 8 PRs merged)
-**In progress:** Phase 3 — Agentic Music Assistant
-**Next:** Polish pass, status docs, then optional audio eval (PR-F)
-**Latest milestone:** Audio quality audit (PR #34) — parameter smoothing, trigger/gate fix, scheduler double-hit fix
+**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model
+**Current product state:** Phase 3 core shipped
+**Near-term focus:** QA, backlog cleanup, status/doc cleanup, and prioritising the next execution slice
+**Latest milestone:** Gemini native function calling + tool loop (PR #38)
 **Data model direction:** Canonical Musical Model RFC adopted — see `docs/rfc-canonical-musical-model.md`
 
 ---
 
-## Canonical Musical Model — Implementation Status
+## Current Snapshot
 
-| PR | Description | Status |
+Gluon is currently a browser-based, AI-assisted instrument with:
+
+- 4-voice Plaits WASM synthesis
+- step-grid sequencing
+- canonical event abstraction under the AI path
+- grouped AI undo with provenance
+- multi-view UI (Chat + Instrument)
+- audio snapshot evaluation
+- native Gemini function calling with tool use
+
+The project is ahead of the previous Phase 3 status snapshot. Audio evaluation is no longer “next”; it has landed. The main AI execution path is no longer text-to-JSON parsing; it now uses Gemini's native tool-calling flow.
+
+---
+
+## Recent Merged PRs
+
+| PR | Description | Merged |
 |---|---|---|
-| PR-0 | Docs cleanup | Merged |
-| PR-1 | Canonical types (`canonical-types.ts`) | Merged |
-| PR-2 | Instrument registry + consumer migration | Merged |
-| PR-3 | System prompt from registry | Merged |
-| PR-4 | Operation executor + provenance | Merged |
-| PR-5 | Event abstraction, Plaits adapter, protocol migration | Merged |
-| PR-6 | Collapse `PLAITS_MODELS` | Merged |
-| PR-7 | AI contract doc | Merged |
+| PR #39 | Docs positioning refresh | 2026-03-11 |
+| PR #38 | Gemini native function calling, tool loop, listen tool, AI transport tools | 2026-03-11 |
+| PR #36 | Audio snapshot evaluation / listen mode | 2026-03-11 |
+| PR #35 | Polish pass — chat styling and status docs | 2026-03-11 |
+| PR #34 | Audio quality audit — smoothing, trigger/gate, HEAPF32, scheduler fix | 2026-03-11 |
+| PR #33 | Request lifecycle gating, thinking indicator, improved chat strip | 2026-03-11 |
+| PR #32 | Undo button preview tooltip and post-undo chat feedback | 2026-03-11 |
+| PR #31 | Gemini 3 migration | 2026-03-11 |
+| PR #23–#30 | Canonical musical model implementation sequence | 2026-03-11 |
+| PR #12 | Multi-view UI + action log | 2026-03-11 |
+| PR #11 | Remove reactive model | 2026-03-11 |
 
-### What landed
+---
 
-- **Canonical types** (`src/engine/canonical-types.ts`): ControlSchema, SemanticRole, ControlValue/ControlState, MusicalEvent (trigger/note/parameter), SourceAdapter interface, AIOperation union, ExecutionReport
-- **Instrument registry** (`src/audio/instrument-registry.ts`): 16 Plaits engines with 4 semantic controls each (brightness→timbre, richness→harmonics, texture→morph, pitch→note). Bidirectional control mapping. All consumers migrated.
-- **Operation executor** (`src/engine/operation-executor.ts`): Engine-layer operation dispatch with per-action validation, adapter-based control resolution, provenance tracking (canonical IDs), undo grouping. Returns execution report for UI consumption.
-- **Event conversion** (`src/engine/event-conversion.ts`): Generic `stepsToEvents`/`eventsToSteps` with injected pitch and control-ID mapping. Adapter-agnostic — no Plaits imports.
-- **Plaits adapter** (`src/audio/plaits-adapter.ts`): First `SourceAdapter` implementation. Validates controls, converts MIDI↔normalised pitch, delegates to registry.
-- **Protocol migration**: Parser accepts both legacy (`param`/`pattern.steps`) and canonical (`controlId`/`events[]`) shapes. System prompt teaches canonical syntax with semantic control names.
-- **Provenance**: `Voice.controlProvenance` tracks who set each control (human/ai/default), keyed by canonical controlId. Undo restores both values and provenance.
-- **PLAITS_MODELS collapsed** (`src/audio/synth-interface.ts`): Derived from instrument registry via `getModelList()`. Registry is single source of truth.
-- **AI contract doc** (`docs/ai-contract.md`): Inference-time reference — type definitions, serialised state format, semantic controls, worked examples, validation invariants.
+## Canonical Musical Model Status
+
+The canonical musical model implementation sequence is merged.
+
+### Landed
+
+- **Canonical types** (`src/engine/canonical-types.ts`): `ControlSchema`, `SemanticRole`, `ControlValue`/`ControlState`, `MusicalEvent`, `SourceAdapter`, canonical operation types
+- **Instrument registry** (`src/audio/instrument-registry.ts`): 16 Plaits engines with semantic controls and runtime bindings
+- **Operation executor** (`src/engine/operation-executor.ts`): engine-layer operation execution, validation, provenance, grouped undo support, execution reporting
+- **Event conversion** (`src/engine/event-conversion.ts`): adapter-agnostic `stepsToEvents()` / `eventsToSteps()`
+- **Plaits adapter** (`src/audio/plaits-adapter.ts`): first `SourceAdapter` implementation with control validation and pitch conversion
+- **Protocol migration**: AI-facing sequencing/control edits can use canonical control IDs and event-based sketches
+- **AI contract doc** (`docs/ai-contract.md`): inference-time contract for the AI layer
+- **Registry cleanup**: `PLAITS_MODELS` collapsed into registry-derived export
+
+### Implication
+
+The architectural foundation for future sequencing work is in place. The next sequencing work should build on canonical regions/events and adapters rather than expanding `Pattern.steps` as the real source of truth.
 
 ---
 
@@ -41,187 +69,165 @@
 ### AI Integration (`src/ai/`)
 
 **Gemini Chat (`api.ts`)**
-- `GluonAI` class using `@google/genai` SDK, model `gemini-3-flash-preview`
-- Thinking support: `thinkingConfig: { thinkingLevel: 'MEDIUM' }`
-- Full model `Content` preservation in history (retains `thoughtSignature` fields for multi-turn coherence)
-- Single mode: `ask()` (human-prompted) — AI only responds when asked
-- Stateful chat session per API key
-- Backoff/rate-limit handling with exponential delay
-- Request lifecycle gating: sequence-tagged requests prevent stale responses, all composers disabled during flight
+- `GluonAI` uses `@google/genai`, model `gemini-3-flash-preview`
+- Thinking support via `thinkingConfig`
+- Native Gemini function calling with multi-round tool loop
+- Exchange-based history trimming for multi-turn coherence
+- Cancellation support for stale requests and listen capture
+- Backoff/rate-limit handling
+
+**Tool Calling (`tool-declarations.ts`)**
+- Declared tools: `move`, `sketch`, `listen`, `set_transport`
+- Tool responses are prevalidated against live session state before returning success to the model
+- `listen` is model-invoked rather than routed by regex intent detection
 
 **System Prompt (`system-prompt.ts`)**
-- Agentic assistant framing — AI makes changes when asked, does not act autonomously
-- Defines 3 action types: `move`, `sketch`, `say`
-- Model reference and parameter space generated from instrument registry
-- Canonical action syntax: semantic control names (brightness, richness, texture, pitch), MusicalEvent-based sketches
-- Scope control rule (minimal and local edits by default)
-- Agency rule (OFF voices can be observed but not modified)
+- Agentic assistant framing
+- Tool-based workflow instructions rather than JSON-action formatting instructions
+- Model reference and parameter space generated from the instrument registry
+- Scope control and agency rules remain explicit
 
 **State Compression (`state-compression.ts`)**
-- Compact JSON of session state (~2–3KB per call)
-- Voices → id, model name, params (2dp), agency, mute/solo, pattern
-- Pattern → active_steps, accents, locks
-- Transport, context, undo depth, recent 5 human actions
+- Compact project-state payload for each AI call
+- Includes voices, pattern summaries, transport, undo depth, and recent human actions
 
 **Response Parser (`response-parser.ts`)**
-- Parses JSON action arrays from AI responses
-- Handles markdown code blocks, strict type validation
-- Accepts both legacy and canonical action shapes (backward compatible)
-- Per-kind event validation for canonical sketches
-- Safe failure (empty array on parse error)
+- Legacy fallback only; no longer the primary AI execution path
 
-**Automation (`automation.ts`)**
-- Smooth parameter drift for `move` actions with `over` timing
-- RAF loop interpolation, callback-driven
+**Audio Evaluation**
+- Audio snapshot evaluation landed in PR #36
+- Captures rendered audio, converts to WAV, sends critique request with separate listen prompt
+- Exposed to the model through the `listen` tool in the main tool loop
 
 ### Engine / Protocol (`src/engine/`)
 
 **Types (`types.ts`)**
-- `Agency`: `'OFF' | 'ON'` (2-state)
-- `Voice`: id, engine, model, params, agency, pattern, mute/solo, controlProvenance
-- `SynthParamValues`: harmonics, timbre, morph, note (all 0.0–1.0)
-- `AIAction` union: move (accepts param or controlId), say, sketch (accepts pattern or events)
-- `Snapshot`: ParamSnapshot (with prevProvenance) or PatternSnapshot
-- `Session`: voices[], activeVoiceId, transport, undoStack, context, messages[], recentHumanActions[]
-
-**Canonical Types (`canonical-types.ts`)**
-- ControlSchema, ControlBinding, ControlValue, ControlState
-- MusicalEvent discriminated union (NoteEvent, TriggerEvent, ParameterEvent)
-- SourceAdapter interface (read/write paths, pitch conversion, validation)
-- AIOperation union, ExecutionReport
+- `Agency`: `'OFF' | 'ON'`
+- `AIAction` union includes `move`, `say`, `sketch`, `set_transport`
+- Undo snapshots now include transport snapshots alongside param/pattern snapshots
 
 **Operation Executor (`operation-executor.ts`)**
-- Per-action validation through adapter (agency, arbitration, control resolution)
-- Adapter-based control ID resolution (runtime↔canonical) with round-trip verification
-- Provenance tracking under canonical controlIds
-- Undo snapshot grouping with prevProvenance for restore
-- Execution report: accepted/rejected/log/resolvedParams
+- Shared prevalidation path used by both the tool loop and executor
+- Per-action validation through adapter + arbitration
+- Provenance tracking under canonical control IDs
+- Grouped undo entries with execution reports
 
-**Session (`session.ts`)**
-- 4 default voices with preset models
-- Agency setter, param/model updates, mute/solo, transport
-- Registry-derived default provenance per voice
-
-**Undo (`undo.ts`)**
-- Simple stack of Snapshot objects, max 100
-- Push/pop semantics
-- Post-undo chat feedback ("Undid: <description>")
-
-**Arbitration (`arbitration.ts`)**
-- Tracks touch records per voice+param with timestamp
-- 500ms cooldown, `canAIAct()` / `getHeldParams()`
-- Human's hands always win
-
-**Primitives (`primitives.ts`)**
-- `applyMove()` / `applyMoveGroup()`: Direct param changes (undoable)
-- `applySketch()`: Applies pattern sketch immediately + pushes undo snapshot
-- `applyParamDirect()`: Raw param set (used by automation drift)
-- `applyUndo()`: Reverts last AI action (restores params AND provenance)
-
-**Event Conversion (`event-conversion.ts`)**
-- `stepsToEvents()` / `eventsToSteps()`: adapter-agnostic conversion
-- Pitch and control-ID mapping injected as options
-- Preserves ungated param locks (automation on silent steps)
+**Undo**
+- AI edits remain one undo away
+- Transport changes are undoable
 
 **Sequencer**
-- `Step`: gate, accent, params (per-step locks), micro timing
-- `Pattern`: steps[] + length
-- `PatternSketch`: sparse change description for AI proposals
-- `Scheduler`: drives note scheduling from pattern + tempo
+- Step-grid sequencing remains the current UI surface
+- `micro` exists in the data model but is still not active in playback
+- Scheduler remains the Phase 2-style main-thread lookahead scheduler
 
 ### UI (`src/ui/`)
 
-**App (`App.tsx`)**
-- Manages session state, audio setup, AI instance, scheduler, arbitrator, automation
-- Uses `createPlaitsAdapter()` for operation execution
-- `handleSend()`: human message → AI ask → dispatch actions
-- `dispatchAIActions()`: delegates to operation executor, handles drift animation from execution report
-- Request lifecycle gating with sequence tagging (prevents concurrent sends, stale responses)
-- Keyboard shortcuts: Cmd+Z undo, Space play/pause
+**Views**
+- `ChatView`: primary AI conversation surface
+- `InstrumentView`: parameter space, step grid, transport, and compact chat strip
+- View switching via `ViewToggle`
 
-**Two-View Layout**
-- `InstrumentView`: parameter space, step grid, transport, model selector, visualiser, compact chat strip
-- `ChatView`: full chat panel with API key config, compact transport controls
-- Tab / Cmd+1 / Cmd+2 switching via `ViewToggle`
+**Chat UX**
+- Thinking indicator
+- Listening indicator during capture/evaluation
+- Action logs shown inline in AI messages
+- Improved chat styling and action hierarchy
 
-**Chat Panel (`ChatPanel.tsx`)**
-- Human/AI message display, text input, auto-scroll
-- Thinking indicator (pulsing "Thinking..." during AI requests)
-- Action logs with visual hierarchy (teal left-border, indented)
-- Minimal dark UI (mono font, zinc/amber/teal)
-
-**Agency Toggle (`AgencyToggle.tsx`)**
-- 2-button: OFF | ON (per voice, teal styling for ON)
-
-**Other Components**
-- `ModelSelector`, `ParameterSpace`, `PitchControl`
-- `VoiceSelector` (switching + mute/solo, OFF/ON agency badge)
-- `TransportBar` (play/pause, BPM, swing, recording)
-- `StepGrid` (16-step with pagination), `PatternControls`
-- `Visualiser` (FFT analyser)
-- `UndoButton` (with preview tooltip showing pending undo description), `ApiKeyInput`
+**App Runtime (`App.tsx`)**
+- `handleSend()` routes through the native tool-calling AI path
+- Passes listen context, stale-request cancellation, and live action prevalidation to the AI layer
+- `dispatchAIActions()` delegates to the operation executor and automation engine
 
 ### Audio (`src/audio/`)
 
-**Audio Engine (`audio-engine.ts`)**
-- Web Audio API, 48kHz, 4 voice slots
-- Each voice: synth (Plaits WASM) → accentGain → muteGain → mixer → analyser → output
-- Sample-accurate `scheduleNote()` with per-step param locks
-- `getMediaStreamDestination()` — stream available for recording
+**Audio Engine**
+- 4 voice slots, Web Audio API, 48kHz
+- Sample-accurate `scheduleNote()` with per-step locks
+- Media stream destination available for export/evaluation
 
-**Audio Exporter (`audio-exporter.ts`)**
-- Records MediaStream to WebM (opus), start/stop with blob download
+**Audio Exporter**
+- Can record browser output and capture N bars for evaluation
+- WAV conversion path added for Gemini audio evaluation
 
-**Instrument Registry (`instrument-registry.ts`)**
-- 16 Plaits engine definitions with semantic controls
-- Bidirectional mapping: controlId ↔ runtime param
-- Model list, engine lookup, control schema access
-
-**Plaits Adapter (`plaits-adapter.ts`)**
-- `SourceAdapter` implementation for Plaits WASM
-- Control validation (canonical + runtime param names, value range)
-- MIDI ↔ normalised pitch conversion
-- Event conversion with injected Plaits-specific mappings
-
-**Synth / WASM**
-- Plaits C++ compiled to WASM via Emscripten
-- Runs in AudioWorklet
-- One-pole lowpass parameter smoothing (prevents clicks on parameter jumps)
-- Trigger/gate separation (trigger is one-block pulse, level follows gate)
-- `HEAPF32` exported via `EXPORTED_RUNTIME_METHODS` for Emscripten 5.x compatibility
-
-**Plaits Audit (`plaits-audit.ts`)**
-- Audit scenarios for all 16 Plaits models (sustain, percussion, param sweeps)
-- Buffer metrics: peak, RMS, max delta
-- Used for reference comparison between native and WASM builds
+**Plaits Runtime**
+- Parameter smoothing landed
+- Trigger/gate separation fixed
+- HEAPF32 compatibility fix landed for current Emscripten behavior
 
 ---
 
-## Phase 3 Progress
+## Phase 3 Status
 
 | Step | Description | Status | Notes |
 |---|---|---|---|
 | Step 1 | Remove reactive model | Done | PR #11 |
-| Gemini 3 | API migration | Done | PR #31 — `gemini-3-flash-preview`, thinking config, thought signature preservation |
-| Undo UX | Tooltip + post-undo feedback | Done | PR #32 — undo button preview, "Undid: ..." chat message |
-| Chat UX | Request lifecycle + thinking | Done | PR #33 — sequence-tagged requests, thinking indicator, empty-response fallback |
-| Audio | Quality audit | Done | PR #34 — parameter smoothing, trigger/gate fix, HEAPF32 export, scheduler double-hit |
-| Polish | Dead code sweep + styling | Done | PR #35 — no dead code found, chat message styling improved |
-| Step 4 | Audio snapshot evaluation | Not started | Optional. Requires audio format conversion (WebM→OGG/WAV) and listen-mode prompt isolation. |
+| Step 2 | Multi-view UI + action log | Done | PR #12 |
+| Canonical Model | Types, registry, executor, event abstraction, AI contract | Done | PRs #23–#30 |
+| Gemini 3 | API migration | Done | PR #31 |
+| Undo UX | Tooltip + post-undo feedback | Done | PR #32 |
+| Chat UX | Request lifecycle + thinking | Done | PR #33 |
+| Audio | Quality audit | Done | PR #34 |
+| Polish | Styling + docs refresh | Done | PR #35 |
+| Step 4 | Audio snapshot evaluation / listen mode | Done | PR #36 |
+| AI Runtime | Native Gemini function calling + tools | Done | PR #38 |
+| Docs | Positioning refresh | Done | PR #39 |
+
+**Summary:** The core Phase 3 agentic assistant is shipped. The app now supports canonical-model-backed AI edits, multi-view workflow, audio snapshot evaluation, and native Gemini function calling with tools.
 
 ---
 
-## Spike Results: Gemini Native Audio
+## Sequencer Status
 
-**Model:** `gemini-2.5-flash-native-audio-preview-12-2025`
-**Method:** Gemini Live API (`bidiGenerateContent`), PCM audio chunks from AudioWorklet
+The current sequencer is functional, but still clearly a Phase 2/3 implementation rather than the final sequencing architecture.
 
-**Findings:**
-- Model correctly identified: single voice, sustained tone, bright/metallic character of Plaits
-- Gave different descriptions at different moments — genuinely listening to the stream
-- Answers offset by ~1 question (audio response first, transcription lags)
-- `outputAudioTranscription: {}` required to get text from audio responses
-- `responseModalities: [Modality.AUDIO]` required (TEXT alone rejected by native audio models)
-- Only `gemini-2.5-flash-native-audio-*` models support `bidiGenerateContent`
+### What is true now
 
-**Implication for Phase 3:** Audio eval works. The integration path is: render clip → send as inline audio to Gemini → get text assessment. For Phase 3 this should be a discrete call (not continuous streaming) — render a few bars, send the buffer, get back a text evaluation.
+- step grid is the only production editing surface
+- AI can sketch using canonical events
+- event abstraction exists
+- grouped undo and arbitration work with sequencing edits
+- transport is AI-addressable
+
+### What is still missing
+
+- canonical regions/events as the clear sequencing source of truth behind the UI
+- audible microtiming
+- richer timing/groove features
+- transformation-style sequencing operations
+- second sequencing surface
+- external sequencing adapter proof
+- broader sequencing regression harness
+
+See:
+
+- `docs/gluon-sequencer-brief.md`
+- `docs/gluon-sequencer-implementation-plan.md`
+
+---
+
+## Audio Snapshot Status
+
+**Original spike model:** `gemini-2.5-flash-native-audio-preview-12-2025`
+**Current shipped path:** discrete captured-audio evaluation via WAV snapshots
+
+### Status
+
+- The project no longer depends on a continuous-live-audio spike to provide audio critique
+- A practical product path has landed: render/capture a short clip, send it with a critique-only prompt, and return text assessment
+
+### Implication
+
+Audio self-evaluation is now part of the product surface, not just an experiment.
+
+---
+
+## Likely Next Work
+
+The highest-signal near-term work is now:
+
+1. backlog cleanup and status/doc cleanup
+2. Phase 3 QA and polish
+3. selecting the next implementation slice from the sequencer plan
+
+The sequencer backlog now exists as issues `#42`–`#51`, which should be treated as the main roadmap for sequencing-specific follow-on work.
