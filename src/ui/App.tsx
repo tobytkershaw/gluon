@@ -185,7 +185,8 @@ export default function App() {
 
   const isListenIntent = (msg: string): boolean => {
     const lower = msg.toLowerCase();
-    return /\b(listen|how does it sound|what do you think|how('s| is) it|evaluate|critique|review)\b/.test(lower);
+    // Only match explicit audio-listening phrases, not generic "what do you think" or "review"
+    return /\b(take a listen|listen to (this|it|that|the mix)|how does it sound|how('s| is) it sound(ing)?)\b/.test(lower);
   };
 
   const [isListening, setIsListening] = useState(false);

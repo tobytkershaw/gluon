@@ -82,5 +82,7 @@ function fallbackSay(raw: string): AIAction[] {
   // Strip code fences the model may have wrapped around non-JSON text
   const text = raw.replace(/```(?:json)?\s*\n?/g, '').replace(/\n?```/g, '').trim();
   if (!text) return [];
+  // If the text looks like malformed JSON, don't leak it into chat
+  if (/^\s*[\[{]/.test(text)) return [];
   return [{ type: 'say', text }];
 }

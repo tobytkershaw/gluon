@@ -56,27 +56,35 @@ export class AudioExporter {
     const maxDuration = 30_000; // 30s safety net
     const timeoutMs = Math.min(durationSec * 1000, maxDuration);
 
-    this.start(destination);
+    // Use an independent recorder so we never clobber the manual export recorder
+    const stream = destination.stream;
+    const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      ? 'audio/webm;codecs=opus'
+      : 'audio/webm';
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks: Blob[] = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) chunks.push(e.data);
+    };
+    recorder.start();
 
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(async () => {
+      const timer = setTimeout(() => {
+        if (recorder.state === 'recording') {
+          recorder.stop();
+        }
+      }, timeoutMs);
+
+      recorder.onstop = async () => {
+        clearTimeout(timer);
         try {
-          const webmBlob = await this.stop();
+          const webmBlob = new Blob(chunks, { type: recorder.mimeType });
           const wavBlob = await blobToWav(webmBlob);
           resolve(wavBlob);
         } catch (err) {
           reject(err);
         }
-      }, timeoutMs);
-
-      // Safety: if recorder stops externally, clean up
-      if (this.recorder) {
-        const originalOnStop = this.recorder.onstop;
-        this.recorder.onstop = (e) => {
-          clearTimeout(timer);
-          if (originalOnStop) (originalOnStop as (e: Event) => void)(e);
-        };
-      }
+      };
     });
   }
 }
