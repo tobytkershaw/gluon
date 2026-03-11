@@ -172,9 +172,9 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
 
   const handleSend = useCallback(async (message: string) => {
-    await ensureAudio();
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
+    await ensureAudio();
     setSession((s) => ({
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
