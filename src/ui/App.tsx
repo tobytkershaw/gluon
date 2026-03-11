@@ -2,16 +2,16 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ActionGroupSnapshot, ActionLogEntry } from '../engine/types';
+import type { Session, AIAction } from '../engine/types';
 import { getActiveVoice, getVoice } from '../engine/types';
-import { VOICE_LABELS } from '../engine/voice-labels';
+import type { SourceAdapter } from '../engine/canonical-types';
+import { controlIdToRuntimeParam, runtimeParamToControlId } from '../audio/instrument-registry';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
-import {
-  applyMove, applyMoveGroup, applyParamDirect, applySketch, applyUndo,
-} from '../engine/primitives';
+import { applyParamDirect, applyUndo } from '../engine/primitives';
+import { executeOperations } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
@@ -20,6 +20,27 @@ import { Scheduler } from '../engine/scheduler';
 import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
 import type { ViewMode } from './view-types';
+
+// Minimal adapter stub for executor — full adapter in PR-5
+const plaitsAdapterStub: SourceAdapter = {
+  id: 'plaits-wasm',
+  name: 'Plaits WASM',
+  mapControl(controlId: string) {
+    const param = controlIdToRuntimeParam[controlId];
+    return { adapterId: 'plaits-wasm', path: param ? `params.${param}` : controlId };
+  },
+  mapRuntimeParamKey(paramKey: string) {
+    return runtimeParamToControlId[paramKey] ?? null;
+  },
+  applyControlChanges() {},
+  mapEvents() { return []; },
+  readControlState() { return {}; },
+  readRegions() { return []; },
+  getControlSchemas() { return []; },
+  validateOperation() { return { valid: true }; },
+  midiToNormalisedPitch(midi: number) { return midi / 127; },
+  normalisedPitchToMidi(n: number) { return Math.round(n * 127); },
+};
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
@@ -98,132 +119,26 @@ export default function App() {
 
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
-      let next = s;
-      const undoBaseline = s.undoStack.length;
-      const moveGroups = new Map<string, { param: string; target: { absolute: number } | { relative: number } }[]>();
-      const logEntries: ActionLogEntry[] = [];
-      const sayTexts: string[] = [];
+      const report = executeOperations(s, actions, plaitsAdapterStub, arbRef.current);
 
-      // Snapshot phase: record before values for non-over moves
-      const beforeValues = new Map<string, Record<string, number>>();
-      for (const action of actions) {
-        if (action.type === 'move') {
+      // Start drift animations for accepted moves with `over`
+      for (let i = 0; i < report.accepted.length; i++) {
+        const action = report.accepted[i];
+        if (action.type === 'move' && action.over) {
           const vid = action.voiceId ?? s.activeVoiceId;
-          if (!beforeValues.has(vid)) {
-            const voice = getVoice(next, vid);
-            beforeValues.set(vid, { ...voice.params });
-          }
-        }
-      }
-
-      // Apply phase
-      for (const action of actions) {
-        switch (action.type) {
-          case 'move': {
-            const vid = action.voiceId ?? s.activeVoiceId;
-            const voice = getVoice(next, vid);
-            const vLabel = VOICE_LABELS[vid]?.toUpperCase() ?? vid;
-            if (voice.agency === 'ON' && arbRef.current.canAIAct(vid, action.param)) {
-              if (action.over) {
-                const currentVal = voice.params[action.param] ?? 0;
-                const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
-                const targetVal = Math.max(0, Math.min(1, rawTarget));
-                next = {
-                  ...next,
-                  undoStack: [...next.undoStack, {
-                    kind: 'param' as const,
-                    voiceId: vid,
-                    prevValues: { [action.param]: currentVal },
-                    aiTargetValues: { [action.param]: targetVal },
-                    timestamp: Date.now(),
-                    description: `AI drift: ${action.param} ${currentVal.toFixed(2)} -> ${targetVal.toFixed(2)} over ${action.over}ms`,
-                  }],
-                };
-                logEntries.push({
-                  voiceId: vid,
-                  voiceLabel: vLabel,
-                  description: `${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)} (drift ${action.over}ms)`,
-                });
-                autoRef.current.start(action.param, currentVal, targetVal, action.over, (param, value) => {
-                  setSession((s2) => applyParamDirect(s2, vid, param, value));
-                });
-                autoRef.current.startLoop();
-              } else {
-                const group = moveGroups.get(vid) ?? [];
-                group.push({ param: action.param, target: action.target });
-                moveGroups.set(vid, group);
-              }
-            }
-            break;
-          }
-          case 'sketch': {
-            const targetVoice = next.voices.find(v => v.id === action.voiceId);
-            if (targetVoice && targetVoice.agency === 'ON') {
-              next = applySketch(next, action.voiceId, action.description, action.pattern);
-              const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
-              logEntries.push({
-                voiceId: action.voiceId,
-                voiceLabel: vLabel,
-                description: `pattern: ${action.description}`,
-              });
-            }
-            break;
-          }
-          case 'say':
-            sayTexts.push(action.text);
-            break;
-        }
-      }
-
-      // Apply batched move groups
-      for (const [vid, moves] of moveGroups) {
-        const before = beforeValues.get(vid) ?? {};
-        next = moves.length === 1
-          ? applyMove(next, vid, moves[0].param, moves[0].target)
-          : applyMoveGroup(next, vid, moves);
-        const after = getVoice(next, vid).params;
-        const vLabel = VOICE_LABELS[vid]?.toUpperCase() ?? vid;
-        for (const move of moves) {
-          const oldVal = before[move.param] ?? 0;
-          const newVal = after[move.param] ?? 0;
-          logEntries.push({
-            voiceId: vid,
-            voiceLabel: vLabel,
-            description: `${move.param} ${oldVal.toFixed(2)} → ${newVal.toFixed(2)}`,
+          const runtimeParam = report.resolvedParams.get(i) ?? action.param;
+          const voice = getVoice(s, vid);
+          const currentVal = voice.params[runtimeParam] ?? 0;
+          const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+          const targetVal = Math.max(0, Math.min(1, rawTarget));
+          autoRef.current.start(runtimeParam, currentVal, targetVal, action.over, (p, value) => {
+            setSession((s2) => applyParamDirect(s2, vid, p, value));
           });
+          autoRef.current.startLoop();
         }
       }
 
-      // Collapse multiple snapshots from this response into a single undo group
-      const newSnapshots = next.undoStack.slice(undoBaseline);
-      if (newSnapshots.length > 1) {
-        const sayText = sayTexts.join(' ');
-        const voiceCount = new Set(logEntries.map(e => e.voiceId)).size;
-        const undoDesc = sayText || `AI: ${logEntries.length} changes across ${voiceCount} voice${voiceCount !== 1 ? 's' : ''}`;
-        const group: ActionGroupSnapshot = {
-          kind: 'group',
-          snapshots: newSnapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
-          timestamp: Date.now(),
-          description: undoDesc,
-        };
-        next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
-      }
-
-      // Message synthesis: one ChatMessage per AI response
-      const combinedSay = sayTexts.join(' ');
-      if (combinedSay || logEntries.length > 0) {
-        next = {
-          ...next,
-          messages: [...next.messages, {
-            role: 'ai' as const,
-            text: combinedSay,
-            timestamp: Date.now(),
-            ...(logEntries.length > 0 ? { actions: logEntries } : {}),
-          }],
-        };
-      }
-
-      return next;
+      return report.session;
     });
   }, []);
 
@@ -233,7 +148,7 @@ export default function App() {
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
     setSession((s) => {
-      let next = updateVoiceParams(s, vid, { timbre, morph }, true);
+      let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapterStub);
 
       // If a step is held, apply param lock
       if (heldStep !== null) {
@@ -248,14 +163,14 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
-    setSession((s) => updateVoiceParams(s, vid, { note }, true));
+    setSession((s) => updateVoiceParams(s, vid, { note }, true, plaitsAdapterStub));
   }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
-    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true));
+    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapterStub));
   }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {

@@ -171,7 +171,15 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     }
   }
 
-  return updateVoice(session, snapshot.voiceId, { params: newParams });
+  const updates: Partial<import('./types').Voice> = { params: newParams };
+  if (snapshot.prevProvenance && voice.controlProvenance) {
+    updates.controlProvenance = {
+      ...voice.controlProvenance,
+      ...snapshot.prevProvenance,
+    };
+  }
+
+  return updateVoice(session, snapshot.voiceId, updates);
 }
 
 export function applyUndo(session: Session): Session {

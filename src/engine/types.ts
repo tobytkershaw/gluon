@@ -1,5 +1,6 @@
 // src/engine/types.ts
 import type { Pattern, PatternSketch, Step, Transport } from './sequencer-types';
+import type { ControlState } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
 
@@ -20,6 +21,7 @@ export interface Voice {
   pattern: Pattern;
   muted: boolean;
   solo: boolean;
+  controlProvenance?: ControlState;
 }
 
 export interface MusicalContext {
@@ -39,6 +41,7 @@ export interface ParamSnapshot {
   aiTargetValues: Partial<SynthParamValues>;
   timestamp: number;
   description: string;
+  prevProvenance?: Partial<ControlState>;
 }
 
 export interface PatternSnapshot {
