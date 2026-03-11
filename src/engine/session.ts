@@ -1,7 +1,7 @@
 // src/engine/session.ts
 import type { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
 import { updateVoice } from './types';
-import { PLAITS_MODELS } from '../audio/synth-interface';
+import { getModelName } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 
 const VOICE_DEFAULTS: { model: number; engine: string }[] = [
@@ -81,10 +81,10 @@ export function updateVoiceParams(
 }
 
 export function setModel(session: Session, voiceId: string, model: number): Session {
-  const modelInfo = PLAITS_MODELS[model];
-  const engineName = modelInfo
-    ? `plaits:${modelInfo.name.toLowerCase().replace(/[\s/]+/g, '_')}`
-    : `plaits:unknown_${model}`;
+  const name = getModelName(model);
+  const engineName = name.startsWith('Unknown')
+    ? `plaits:unknown_${model}`
+    : `plaits:${name.toLowerCase().replace(/[\s/]+/g, '_')}`;
   return updateVoice(session, voiceId, { model, engine: engineName });
 }
 
