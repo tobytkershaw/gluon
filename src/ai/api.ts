@@ -7,7 +7,15 @@ import { compressState } from './state-compression';
 import { parseAIResponse } from './response-parser';
 import { GLUON_SYSTEM_PROMPT } from './system-prompt';
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3-flash-preview';
+
+/** Result from a stateless Gemini call */
+interface CallResult {
+  actions: AIAction[];
+  raw: string;
+  /** Full model Content object preserving thoughtSignature fields */
+  modelContent: Content | null;
+}
 
 /** Backoff state for rate-limit handling */
 interface BackoffState {
@@ -54,34 +62,49 @@ export class GluonAI {
     const userContent: Content = { role: 'user', parts: [{ text: userText }] };
     const contents = [...this.history, userContent];
 
-    const response = await this.callStateless(contents);
+    const result = await this.callStateless(contents);
 
-    // Store clean human text + raw AI response in history (no state blob)
+    // Store clean human text + full model Content in history.
+    // The model Content preserves thoughtSignature fields required by Gemini 3
+    // thinking models for multi-turn coherence.
     this.history.push(
       { role: 'user', parts: [{ text: humanMessage }] },
-      { role: 'model', parts: [{ text: response.raw }] },
     );
+    if (result.modelContent) {
+      this.history.push(result.modelContent);
+    } else {
+      // Fallback: store raw text if no model Content available (e.g., error path)
+      this.history.push({ role: 'model', parts: [{ text: result.raw }] });
+    }
 
-    return response.actions;
+    return result.actions;
   }
 
-  private async callStateless(contents: Content[]): Promise<{ actions: AIAction[]; raw: string }> {
-    if (!this.ai) return { actions: [], raw: '' };
+  private async callStateless(contents: Content[]): Promise<CallResult> {
+    if (!this.ai) return { actions: [], raw: '', modelContent: null };
 
     const now = Date.now();
-    if (now < this.backoff.until) return { actions: [], raw: '' };
+    if (now < this.backoff.until) return { actions: [], raw: '', modelContent: null };
 
     try {
       const response = await this.ai.models.generateContent({
         model: MODEL,
-        config: { systemInstruction: GLUON_SYSTEM_PROMPT, maxOutputTokens: 800 },
+        config: {
+          systemInstruction: GLUON_SYSTEM_PROMPT,
+          maxOutputTokens: 800,
+          thinkingConfig: { thinkingLevel: 'MEDIUM' },
+        },
         contents,
       });
+
       const text = response.text ?? '';
+      // Preserve the full model Content object including thoughtSignature parts
+      const modelContent = response.candidates?.[0]?.content ?? null;
+
       this.backoff = { until: 0, delay: 0 };
-      return { actions: parseAIResponse(text), raw: text };
+      return { actions: parseAIResponse(text), raw: text, modelContent };
     } catch (error) {
-      return { actions: this.handleError(error), raw: '' };
+      return { actions: this.handleError(error), raw: '', modelContent: null };
     }
   }
 

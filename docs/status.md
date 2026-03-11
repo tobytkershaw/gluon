@@ -1,9 +1,9 @@
 # Gluon — Current Build Status
 
 **As of:** 2026-03-11
-**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers)
-**In progress:** Canonical Musical Model (PRs 0–5 merged), Phase 3 Step 1 done
-**Next:** PR-6 (collapse PLAITS_MODELS), PR-7 (AI contract doc), Phase 3 Steps 2+
+**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model (all 8 PRs merged)
+**In progress:** Phase 3 — Agentic Music Assistant
+**Next:** Undo UX polish, chat UX improvements, audio quality audit
 **Latest spike:** Gemini Native Audio — SUCCESS
 **Data model direction:** Canonical Musical Model RFC adopted — see `docs/rfc-canonical-musical-model.md`
 
@@ -19,7 +19,7 @@
 | PR-3 | System prompt from registry | Merged |
 | PR-4 | Operation executor + provenance | Merged |
 | PR-5 | Event abstraction, Plaits adapter, protocol migration | Merged |
-| PR-6 | Collapse `PLAITS_MODELS` | Not started |
+| PR-6 | Collapse `PLAITS_MODELS` | Merged |
 | PR-7 | AI contract doc | Merged |
 
 ### What landed
@@ -31,6 +31,8 @@
 - **Plaits adapter** (`src/audio/plaits-adapter.ts`): First `SourceAdapter` implementation. Validates controls, converts MIDI↔normalised pitch, delegates to registry.
 - **Protocol migration**: Parser accepts both legacy (`param`/`pattern.steps`) and canonical (`controlId`/`events[]`) shapes. System prompt teaches canonical syntax with semantic control names.
 - **Provenance**: `Voice.controlProvenance` tracks who set each control (human/ai/default), keyed by canonical controlId. Undo restores both values and provenance.
+- **PLAITS_MODELS collapsed** (`src/audio/synth-interface.ts`): Derived from instrument registry via `getModelList()`. Registry is single source of truth.
+- **AI contract doc** (`docs/ai-contract.md`): Inference-time reference — type definitions, serialised state format, semantic controls, worked examples, validation invariants.
 
 ---
 
@@ -194,16 +196,16 @@ All reactive jam-partner machinery has been removed:
 
 ---
 
-## Remaining Phase 3 Steps
+## Phase 3 Progress
 
-| Step | Description | Status |
-|---|---|---|
-| Step 2 | Chat-first UI | Not started |
-| Step 3 | Audio snapshot rendering | Not started |
-| Step 4 | Audio eval integration | Not started |
-| Step 5 | Listen-then-judge loop | Not started |
-| Step 6 | Action log in chat | Not started |
-| Step 7 | Improved undo UX | Not started |
+| Step | Description | Status | Notes |
+|---|---|---|---|
+| Step 1 | Remove reactive model | Done | PR #11 |
+| Step 1b | Audio quality audit | Not started | Investigation-driven |
+| Step 2 | Chat-first UI + multi-view | Mostly done | Two-view layout, Tab/Cmd+1/2 switching, conversation history (12 exchanges) — all delivered by canonical model PRs. Remaining: compact chat strip improvements, thinking indicator, empty-response fallback. |
+| Step 3 | Action group undo | Mostly done | ActionGroupSnapshot, grouped undo, action log rendering in chat — all delivered by canonical model PRs. Remaining: undo button preview tooltip, post-undo chat feedback. |
+| Step 4 | Audio snapshot evaluation | Not started | Optional extension. Mini-spikes A/B required first. |
+| Step 5 | Polish | Not started | Dead code sweep, prompt tuning, chat styling |
 
 ---
 
