@@ -36,6 +36,9 @@ Thumbs.db
 .superpowers/
 .worktrees/
 
+# Screenshots / spike artifacts
+*.png
+
 # Agent worktrees (Claude Code, Codex, etc.)
 .claude/worktrees/
 .codex-worktrees/
