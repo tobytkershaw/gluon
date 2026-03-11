@@ -3,8 +3,8 @@
 **As of:** 2026-03-11
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model (all 8 PRs merged)
 **In progress:** Phase 3 — Agentic Music Assistant
-**Next:** Undo UX polish, chat UX improvements, audio quality audit
-**Latest spike:** Gemini Native Audio — SUCCESS
+**Next:** Undo UX polish, chat UX + request lifecycle, audio quality audit
+**Latest milestone:** Gemini 3 migration (PR #31) — `gemini-3-flash-preview` with thinking support
 **Data model direction:** Canonical Musical Model RFC adopted — see `docs/rfc-canonical-musical-model.md`
 
 ---
@@ -41,7 +41,9 @@
 ### AI Integration (`src/ai/`)
 
 **Gemini Chat (`api.ts`)**
-- `GluonAI` class using `@google/genai` SDK, model `gemini-2.5-flash`
+- `GluonAI` class using `@google/genai` SDK, model `gemini-3-flash-preview`
+- Thinking support: `thinkingConfig: { thinkingLevel: 'MEDIUM' }`
+- Full model `Content` preservation in history (retains `thoughtSignature` fields for multi-turn coherence)
 - Single mode: `ask()` (human-prompted) — AI only responds when asked
 - Stateful chat session per API key
 - Backoff/rate-limit handling with exponential delay
@@ -201,10 +203,11 @@ All reactive jam-partner machinery has been removed:
 | Step | Description | Status | Notes |
 |---|---|---|---|
 | Step 1 | Remove reactive model | Done | PR #11 |
+| Gemini 3 | API migration | PR open | PR #31 — model swap, thinking config, history redesign for thought signatures |
 | Step 1b | Audio quality audit | Not started | Investigation-driven |
-| Step 2 | Chat-first UI + multi-view | Mostly done | Two-view layout, Tab/Cmd+1/2 switching, conversation history (12 exchanges) — all delivered by canonical model PRs. Remaining: compact chat strip improvements, thinking indicator, empty-response fallback. |
+| Step 2 | Chat-first UI + multi-view | Mostly done | Two-view layout, Tab/Cmd+1/2 switching, conversation history (12 exchanges) — all delivered by canonical model PRs. Remaining: compact chat strip improvements, thinking indicator, request lifecycle gating. |
 | Step 3 | Action group undo | Mostly done | ActionGroupSnapshot, grouped undo, action log rendering in chat — all delivered by canonical model PRs. Remaining: undo button preview tooltip, post-undo chat feedback. |
-| Step 4 | Audio snapshot evaluation | Not started | Optional extension. Mini-spikes A/B required first. |
+| Step 4 | Audio snapshot evaluation | Not started | Optional extension. Requires audio format conversion (WebM→OGG/WAV) and listen-mode prompt isolation. |
 | Step 5 | Polish | Not started | Dead code sweep, prompt tuning, chat styling |
 
 ---
