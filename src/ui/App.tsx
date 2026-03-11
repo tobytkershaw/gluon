@@ -268,17 +268,7 @@ export default function App() {
       const actions = await aiRef.current.ask(sessionRef.current, message);
       // Discard stale responses if another request was fired
       if (thisRequest !== requestIdRef.current) return;
-      const hasSay = actions.some(a => a.type === 'say');
-      const hasActions = actions.length > 0;
-      if (!hasSay && !hasActions) {
-        // Empty response — append fallback message
-        setSession((s) => ({
-          ...s,
-          messages: [...s.messages, { role: 'ai' as const, text: "I couldn't process that — try rephrasing.", timestamp: Date.now() }],
-        }));
-      } else {
-        dispatchAIActions(actions);
-      }
+      dispatchAIActions(actions);
     } catch {
       // Error already handled by GluonAI.handleError — no additional action needed
     } finally {

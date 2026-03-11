@@ -69,9 +69,18 @@ export function parseAIResponse(response: string): AIAction[] {
   try {
     const jsonStr = extractJSON(response);
     const parsed = JSON.parse(jsonStr);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidAction).map(a => normaliseAction(a as Record<string, unknown>));
+    if (!Array.isArray(parsed)) return fallbackSay(response);
+    const actions = parsed.filter(isValidAction).map(a => normaliseAction(a as Record<string, unknown>));
+    return actions.length > 0 ? actions : fallbackSay(response);
   } catch {
-    return [];
+    return fallbackSay(response);
   }
+}
+
+/** If no structured actions were parsed, surface the raw model text as a say action. */
+function fallbackSay(raw: string): AIAction[] {
+  // Strip code fences the model may have wrapped around non-JSON text
+  const text = raw.replace(/```(?:json)?\s*\n?/g, '').replace(/\n?```/g, '').trim();
+  if (!text) return [];
+  return [{ type: 'say', text }];
 }

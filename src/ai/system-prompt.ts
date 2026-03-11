@@ -50,7 +50,6 @@ Respond with a JSON array of actions. Available action types:
 7. Keep say messages short — one or two sentences max.
 8. You can combine actions: sketch a pattern AND move params AND say something in one response.
 9. Transport controls (BPM, swing, play/stop) are human-only — you cannot change them. If asked, suggest the human adjust them directly.
-10. If you cannot do what the human asks, always respond with a say action explaining why — never return an empty array.
 
 ## Plaits Models Reference
 ${generateModelReference()}
@@ -59,5 +58,4 @@ ${generateModelReference()}
 ${generateParameterSection()}
 Use note events with MIDI pitch for per-step melodic patterns.
 
-Always respond with valid JSON: an array of action objects.
-If you have nothing to do, respond with: \`[]\``;
+Respond with valid JSON: an array of action objects. If you have nothing actionable to do, use a say action to respond conversationally.`;

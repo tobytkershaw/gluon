@@ -38,27 +38,29 @@ describe('parseAIResponse (Phase 2)', () => {
     }
   });
 
-  it('rejects sketch without voiceId', () => {
+  it('falls back to say for sketch without voiceId', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       description: 'test',
       pattern: { steps: [] },
     }]);
     const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects sketch without pattern', () => {
+  it('falls back to say for sketch without pattern', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       voiceId: 'v0',
       description: 'test',
     }]);
     const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects sketch with non-array steps', () => {
+  it('falls back to say for sketch with non-array steps', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       voiceId: 'v0',
@@ -66,7 +68,8 @@ describe('parseAIResponse (Phase 2)', () => {
       pattern: { steps: 'not an array' },
     }]);
     const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
   it('handles mixed valid and invalid actions', () => {
@@ -79,12 +82,23 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('returns empty array for invalid JSON', () => {
-    expect(parseAIResponse('not json')).toEqual([]);
+  it('falls back to say for non-JSON text', () => {
+    const result = parseAIResponse('I can help with that!');
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
+    if (result[0].type === 'say') {
+      expect(result[0].text).toBe('I can help with that!');
+    }
   });
 
-  it('returns empty array for non-array JSON', () => {
-    expect(parseAIResponse('{"type":"move"}')).toEqual([]);
+  it('falls back to say for non-array JSON', () => {
+    const result = parseAIResponse('{"type":"move"}');
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
+  });
+
+  it('returns empty array for empty string', () => {
+    expect(parseAIResponse('')).toEqual([]);
   });
 
   // Canonical shape tests
@@ -116,52 +130,62 @@ describe('parseAIResponse (Phase 2)', () => {
     }
   });
 
-  it('rejects sketch with neither events nor pattern', () => {
+  it('falls back to say for sketch with neither events nor pattern', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
     }]);
     const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects sketch with invalid events', () => {
+  it('falls back to say for sketch with invalid events', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ not: 'valid' }],
     }]);
     const result = parseAIResponse(json);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects note event missing pitch', () => {
+  it('falls back to say for note event missing pitch', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'note', at: 0, velocity: 0.8, duration: 0.25 }],
     }]);
-    expect(parseAIResponse(json)).toHaveLength(0);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects parameter event missing controlId', () => {
+  it('falls back to say for parameter event missing controlId', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'parameter', at: 0, value: 0.5 }],
     }]);
-    expect(parseAIResponse(json)).toHaveLength(0);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects parameter event missing value', () => {
+  it('falls back to say for parameter event missing value', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'parameter', at: 0, controlId: 'brightness' }],
     }]);
-    expect(parseAIResponse(json)).toHaveLength(0);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 
-  it('rejects unknown event kind', () => {
+  it('falls back to say for unknown event kind', () => {
     const json = JSON.stringify([{
       type: 'sketch', voiceId: 'v0', description: 'test',
       events: [{ kind: 'unknown', at: 0 }],
     }]);
-    expect(parseAIResponse(json)).toHaveLength(0);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('say');
   });
 });
