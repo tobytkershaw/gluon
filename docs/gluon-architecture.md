@@ -6,7 +6,9 @@
 
 ## What This Is
 
-Gluon is the Claude Code of music: an open source platform where you describe what you want and an AI makes it happen on a shared instrument. Not generative AI that writes songs for you. Not a chatbot that suggests chord progressions. A conversation-driven music tool where you direct the AI to make changes to your project — patterns, parameters, arrangement — and it executes them. You listen to the result, give further direction, or undo.
+Gluon is the Claude Code of music: an open source platform built around an AI-legible musical core that you can glue instruments, workflows, and hardware onto. Not generative AI that writes songs for you. Not a chatbot that suggests chord progressions. A conversation-driven music tool where you direct the AI to make changes to your project, and that same structured core can connect to software instruments, DAWs, and external hardware. You listen to the result, give further direction, or undo.
+
+At the centre of Gluon is a shared musical model that is legible enough for an AI to reason about and concrete enough for a human to play, steer, and override. That is the deeper claim behind "the Claude Code of music": not just prompt-driven editing, but a musical system that both humans and models can work inside.
 
 The AI's role is closer to a skilled assistant than a session musician: it understands synthesis, sequencing, and sound design at the parameter level. You say "give me a four-on-the-floor kick with some swing" and it writes the pattern. You say "make the bass darker and more sub-heavy" and it moves the parameters. You say "that's too busy, strip it back" and it simplifies. It can hear the result of its own changes via audio snapshots (rendered clips sent to a multimodal model) and evaluate whether it achieved what you asked for.
 
