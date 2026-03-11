@@ -10,6 +10,7 @@ import {
   runtimeParamToControlId,
   getModelList,
 } from '../../src/audio/instrument-registry';
+import { PLAITS_MODELS } from '../../src/audio/synth-interface';
 import type { SemanticRole } from '../../src/engine/canonical-types';
 
 const VALID_SEMANTIC_ROLES: SemanticRole[] = [
@@ -109,5 +110,14 @@ describe('Plaits instrument registry', () => {
     expect(list).toHaveLength(16);
     expect(list[0]).toEqual({ index: 0, name: 'Virtual Analog', description: 'VA oscillator with variable waveshape' });
     expect(list[15]).toEqual({ index: 15, name: 'Analog Hi-Hat', description: 'Analog hi-hat' });
+  });
+
+  it('PLAITS_MODELS is derived from registry and matches shape', () => {
+    expect(PLAITS_MODELS).toHaveLength(16);
+    expect(PLAITS_MODELS[0]).toEqual({ index: 0, name: 'Virtual Analog', description: 'VA oscillator with variable waveshape' });
+    expect(PLAITS_MODELS[15]).toEqual({ index: 15, name: 'Analog Hi-Hat', description: 'Analog hi-hat' });
+    // Verify shape matches getModelList
+    const registryList = getModelList();
+    expect(PLAITS_MODELS).toEqual(registryList);
   });
 });
