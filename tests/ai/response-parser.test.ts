@@ -132,4 +132,36 @@ describe('parseAIResponse (Phase 2)', () => {
     const result = parseAIResponse(json);
     expect(result).toHaveLength(0);
   });
+
+  it('rejects note event missing pitch', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'test',
+      events: [{ kind: 'note', at: 0, velocity: 0.8, duration: 0.25 }],
+    }]);
+    expect(parseAIResponse(json)).toHaveLength(0);
+  });
+
+  it('rejects parameter event missing controlId', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'test',
+      events: [{ kind: 'parameter', at: 0, value: 0.5 }],
+    }]);
+    expect(parseAIResponse(json)).toHaveLength(0);
+  });
+
+  it('rejects parameter event missing value', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'test',
+      events: [{ kind: 'parameter', at: 0, controlId: 'brightness' }],
+    }]);
+    expect(parseAIResponse(json)).toHaveLength(0);
+  });
+
+  it('rejects unknown event kind', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'test',
+      events: [{ kind: 'unknown', at: 0 }],
+    }]);
+    expect(parseAIResponse(json)).toHaveLength(0);
+  });
 });

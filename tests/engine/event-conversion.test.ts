@@ -2,6 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { stepsToEvents, eventsToSteps } from '../../src/engine/event-conversion';
 import type { Step } from '../../src/engine/sequencer-types';
 import type { MusicalEvent, TriggerEvent, ParameterEvent, NoteEvent } from '../../src/engine/canonical-types';
+import { runtimeParamToControlId, controlIdToRuntimeParam } from '../../src/audio/instrument-registry';
+
+// Plaits-specific mappers for tests that use Plaits param names
+const plaitsOptions = {
+  runtimeToCanonical: (k: string) => runtimeParamToControlId[k] ?? k,
+};
+const plaitsInverseOptions = {
+  canonicalToRuntime: (k: string) => controlIdToRuntimeParam[k] ?? k,
+};
 
 describe('event-conversion', () => {
   describe('stepsToEvents', () => {
@@ -24,12 +33,12 @@ describe('event-conversion', () => {
       expect((events[1] as TriggerEvent).velocity).toBe(1.0);
     });
 
-    it('converts param locks to parameter events', () => {
+    it('converts param locks to parameter events with injected mapping', () => {
       const steps: Step[] = [
         { gate: true, accent: false, micro: 0, params: { timbre: 0.8 } },
         { gate: false, accent: false, micro: 0 },
       ];
-      const events = stepsToEvents(steps);
+      const events = stepsToEvents(steps, plaitsOptions);
       expect(events).toHaveLength(2); // trigger + parameter
       const paramEvent = events.find(e => e.kind === 'parameter') as ParameterEvent;
       expect(paramEvent).toBeDefined();
@@ -72,7 +81,7 @@ describe('event-conversion', () => {
         { gate: false, accent: false, micro: 0, params: { timbre: 0.9 } },
         { gate: true, accent: false, micro: 0 },
       ];
-      const events = stepsToEvents(steps);
+      const events = stepsToEvents(steps, plaitsOptions);
       // Step 0: ungated but has param → 1 ParameterEvent
       // Step 1: gated → 1 TriggerEvent
       expect(events).toHaveLength(2);
@@ -118,13 +127,21 @@ describe('event-conversion', () => {
       expect(steps[0].params?.note).toBeUndefined();
     });
 
-    it('converts parameter events to param locks', () => {
+    it('converts parameter events to param locks with injected mapping', () => {
       const events: MusicalEvent[] = [
         { kind: 'parameter', at: 2, controlId: 'brightness', value: 0.9 },
       ];
-      const steps = eventsToSteps(events, 4);
+      const steps = eventsToSteps(events, 4, plaitsInverseOptions);
       expect(steps[2].params).toBeDefined();
       expect((steps[2].params as Record<string, unknown>)['timbre']).toBe(0.9);
+    });
+
+    it('uses raw controlId when no mapping injected', () => {
+      const events: MusicalEvent[] = [
+        { kind: 'parameter', at: 0, controlId: 'brightness', value: 0.5 },
+      ];
+      const steps = eventsToSteps(events, 2);
+      expect((steps[0].params as Record<string, unknown>)['brightness']).toBe(0.5);
     });
 
     it('ignores out-of-range events', () => {
@@ -201,6 +218,20 @@ describe('event-conversion', () => {
       // Step 2: ungated with param lock
       expect(result[2].gate).toBe(false);
       expect((result[2].params as Record<string, unknown>)['morph']).toBe(0.4);
+    });
+
+    it('round-trip with Plaits mappings: runtime → canonical → runtime', () => {
+      const original: Step[] = [
+        { gate: true, accent: false, micro: 0, params: { timbre: 0.3 } },
+        { gate: false, accent: false, micro: 0 },
+      ];
+      const events = stepsToEvents(original, plaitsOptions);
+      // Events should use canonical controlId
+      const paramEvent = events.find(e => e.kind === 'parameter') as ParameterEvent;
+      expect(paramEvent.controlId).toBe('brightness');
+      // Convert back with inverse mapping
+      const result = eventsToSteps(events, 2, plaitsInverseOptions);
+      expect((result[0].params as Record<string, unknown>)['timbre']).toBe(0.3);
     });
   });
 });

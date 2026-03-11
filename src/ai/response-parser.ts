@@ -32,9 +32,17 @@ function isValidAction(action: unknown): action is AIAction {
       if (typeof action.description !== 'string') return false;
       // Accept canonical 'events' array or legacy 'pattern.steps'
       if (Array.isArray(action.events)) {
-        return action.events.every((e: unknown) =>
-          isRecord(e) && typeof e.kind === 'string' && typeof e.at === 'number'
-        );
+        return action.events.every((e: unknown) => {
+          if (!isRecord(e) || typeof e.kind !== 'string' || typeof e.at !== 'number') return false;
+          switch (e.kind) {
+            case 'trigger': return true;
+            case 'note':
+              return typeof e.pitch === 'number' && typeof e.velocity === 'number' && typeof e.duration === 'number';
+            case 'parameter':
+              return typeof e.controlId === 'string' && (typeof e.value === 'number' || typeof e.value === 'string' || typeof e.value === 'boolean');
+            default: return false;
+          }
+        });
       }
       if (isRecord(action.pattern) && Array.isArray(action.pattern.steps)) {
         return action.pattern.steps.every((s: unknown) =>

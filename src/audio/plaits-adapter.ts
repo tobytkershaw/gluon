@@ -37,6 +37,7 @@ export function createPlaitsAdapter(): SourceAdapter {
     mapEvents(events: MusicalEvent[]) {
       return eventsToSteps(events, 16, {
         midiToPitch: midiToNormalisedPitch,
+        canonicalToRuntime: (id) => controlIdToRuntimeParam[id] ?? id,
       });
     },
 

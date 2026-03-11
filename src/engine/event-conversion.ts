@@ -2,31 +2,35 @@
 import type { Step } from './sequencer-types';
 import type { MusicalEvent, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import type { SynthParamValues } from './types';
-import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 
 export interface ConversionOptions {
-  /** Convert normalised pitch (0–1) to MIDI (0–127). If omitted, note params are dropped. */
+  /** Convert normalised pitch (0-1) to MIDI (0-127). If omitted, note params are dropped. */
   pitchToMidi?: (normalised: number) => number;
+  /** Convert runtime param key to canonical controlId. If omitted, key is used as-is. */
+  runtimeToCanonical?: (paramKey: string) => string;
 }
 
 export interface InverseConversionOptions {
-  /** Convert MIDI pitch (0–127) to normalised (0–1). If omitted, NoteEvent pitch is dropped. */
+  /** Convert MIDI pitch (0-127) to normalised (0-1). If omitted, NoteEvent pitch is dropped. */
   midiToPitch?: (midi: number) => number;
+  /** Convert canonical controlId to runtime param key. If omitted, controlId is used as-is. */
+  canonicalToRuntime?: (controlId: string) => string;
 }
 
 /**
  * Convert Step[] to MusicalEvent[].
- * Structural conversion: gates → TriggerEvent, param locks → ParameterEvent.
- * Pitch conversion is opt-in via pitchToMidi.
+ * Structural conversion: gates -> TriggerEvent, param locks -> ParameterEvent.
+ * Pitch and control-ID conversion are opt-in via injected functions.
  */
 export function stepsToEvents(steps: Step[], options?: ConversionOptions): MusicalEvent[] {
   const events: MusicalEvent[] = [];
+  const toCanonical = options?.runtimeToCanonical ?? ((k: string) => k);
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
 
     if (step.gate) {
-      // Note param with pitch converter → NoteEvent; otherwise TriggerEvent
+      // Note param with pitch converter -> NoteEvent; otherwise TriggerEvent
       const noteValue = step.params?.note;
       if (noteValue !== undefined && options?.pitchToMidi) {
         const noteEvent: NoteEvent = {
@@ -48,16 +52,15 @@ export function stepsToEvents(steps: Step[], options?: ConversionOptions): Music
       }
     }
 
-    // Param locks → ParameterEvents (skip 'note' — handled above or dropped)
+    // Param locks -> ParameterEvents (skip 'note' -- handled above or dropped)
     // Emitted for both gated and ungated steps to preserve automation on silent steps.
     if (step.params) {
       for (const [key, value] of Object.entries(step.params)) {
         if (key === 'note') continue;
-        const controlId = runtimeParamToControlId[key] ?? key;
         const paramEvent: ParameterEvent = {
           kind: 'parameter',
           at: i,
-          controlId,
+          controlId: toCanonical(key),
           value: value as number,
         };
         events.push(paramEvent);
@@ -70,7 +73,7 @@ export function stepsToEvents(steps: Step[], options?: ConversionOptions): Music
 
 /**
  * Convert MusicalEvent[] to Step[].
- * Inverse of stepsToEvents. Pitch conversion is opt-in via midiToPitch.
+ * Inverse of stepsToEvents. Pitch and control-ID conversion are opt-in.
  */
 export function eventsToSteps(
   events: MusicalEvent[],
@@ -82,6 +85,7 @@ export function eventsToSteps(
     accent: false,
     micro: 0,
   }));
+  const toRuntime = options?.canonicalToRuntime ?? ((k: string) => k);
 
   for (const event of events) {
     const idx = Math.round(event.at);
@@ -105,7 +109,7 @@ export function eventsToSteps(
 
       case 'parameter': {
         if (!steps[idx].params) steps[idx].params = {} as Partial<SynthParamValues>;
-        const runtimeKey = controlIdToRuntimeParam[event.controlId] ?? event.controlId;
+        const runtimeKey = toRuntime(event.controlId);
         (steps[idx].params as Record<string, unknown>)[runtimeKey] = event.value;
         break;
       }

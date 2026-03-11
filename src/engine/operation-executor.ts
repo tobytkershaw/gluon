@@ -174,6 +174,11 @@ export function executeOperations(
           // Canonical sketch: convert MusicalEvent[] to PatternSketch via adapter
           const steps = eventsToSteps(action.events, voice.pattern.length, {
             midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
+            canonicalToRuntime: (id) => {
+              const binding = adapter.mapControl(id);
+              const parts = binding.path.split('.');
+              return parts[parts.length - 1];
+            },
           });
           const sketch = {
             steps: steps
