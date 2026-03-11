@@ -42,3 +42,6 @@ Thumbs.db
 # Agent worktrees (Claude Code, Codex, etc.)
 .claude/worktrees/
 .codex-worktrees/
+
+# Playwright
+.playwright-cli/
