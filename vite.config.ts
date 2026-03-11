@@ -15,5 +15,11 @@ export default defineConfig({
     globals: true,
     environment: 'happy-dom',
     setupFiles: [],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '.codex-worktrees/**',
+      '.claude/worktrees/**',
+    ],
   },
 });

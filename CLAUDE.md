@@ -55,6 +55,33 @@ npm run wasm:build   # Compile Plaits to WASM
 4. The AI can hear its own work (audio snapshots)
 5. Undo is always one action away
 
+## Multi-Agent Workflow
+
+This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. Rules:
+
+### Branching
+- `dev` is the integration branch — treat it as read-only during active work
+- One task per branch, one agent per branch
+- Rebase onto `dev` before opening a PR, not during parallel editing
+- Merge small PRs frequently rather than letting branches drift
+
+### Worktrees
+- Each agent uses its own worktree directory (auto-managed)
+- Both `.claude/worktrees/` and `.codex-worktrees/` are gitignored
+- Vitest excludes worktree directories (see `vite.config.ts`)
+- Clean up stale worktrees periodically: `git worktree prune`
+
+### Avoiding Conflicts
+- Split work by **module boundary** (`src/audio/`, `src/ai/`, `src/engine/`, `src/ui/`), not by task type
+- If two agents need the same file, assign ownership before starting — don't merge and hope
+- Shared types in `src/engine/types.ts` are the highest-conflict file; coordinate changes there
+- After one PR merges, the other rebases before merging
+
+### Verification
+- `npx tsc --noEmit` — zero type errors
+- `npx vitest run` — all tests pass
+- Both checks must pass after rebase, before merge
+
 ## Reference Docs
 
 - `docs/gluon-architecture.md` - Full vision and architecture

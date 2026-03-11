@@ -35,3 +35,7 @@ wasm/bin/
 Thumbs.db
 .superpowers/
 .worktrees/
+
+# Agent worktrees (Claude Code, Codex, etc.)
+.claude/worktrees/
+.codex-worktrees/
