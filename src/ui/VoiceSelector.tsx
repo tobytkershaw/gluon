@@ -12,8 +12,7 @@ interface Props {
 const VOICE_LABELS = ['KICK', 'BASS', 'LEAD', 'PAD'];
 const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
   OFF: { label: 'OFF', color: 'text-zinc-600' },
-  SUGGEST: { label: 'SUG', color: 'text-blue-400' },
-  PLAY: { label: 'PLY', color: 'text-amber-400' },
+  ON:  { label: 'ON',  color: 'text-teal-400' },
 };
 
 export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMute, onToggleSolo }: Props) {

@@ -1,7 +1,7 @@
 // tests/engine/session.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createSession, setLeash, setAgency, updateVoiceParams, setModel,
+  createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../../src/engine/session';
 
@@ -31,21 +31,11 @@ describe('Session (Phase 2)', () => {
     }
   });
 
-  it('sets leash, clamped to 0-1', () => {
-    let s = createSession();
-    s = setLeash(s, 0.75);
-    expect(s.leash).toBe(0.75);
-    s = setLeash(s, -0.5);
-    expect(s.leash).toBe(0);
-    s = setLeash(s, 1.5);
-    expect(s.leash).toBe(1);
-  });
-
   it('sets agency on active voice', () => {
     let s = createSession();
-    s = setAgency(s, s.activeVoiceId, 'PLAY');
+    s = setAgency(s, s.activeVoiceId, 'ON');
     const voice = s.voices.find(v => v.id === s.activeVoiceId)!;
-    expect(voice.agency).toBe('PLAY');
+    expect(voice.agency).toBe('ON');
   });
 
   it('updates voice params by voiceId', () => {

@@ -9,18 +9,25 @@ describe('Arbitrator', () => {
   it('blocks AI during active interaction', () => {
     const arb = new Arbitrator();
     arb.humanInteractionStart();
-    expect(arb.canAIAct('timbre')).toBe(false);
+    expect(arb.canAIAct('v0', 'timbre')).toBe(false);
     arb.humanInteractionEnd();
     vi.advanceTimersByTime(600);
-    expect(arb.canAIAct('timbre')).toBe(true);
+    expect(arb.canAIAct('v0', 'timbre')).toBe(true);
   });
 
   it('blocks AI for cooldown after param touch', () => {
     const arb = new Arbitrator(500);
     arb.humanTouched('v0', 'timbre', 0.8);
-    expect(arb.canAIAct('timbre')).toBe(false);
+    expect(arb.canAIAct('v0', 'timbre')).toBe(false);
     vi.advanceTimersByTime(600);
-    expect(arb.canAIAct('timbre')).toBe(true);
+    expect(arb.canAIAct('v0', 'timbre')).toBe(true);
+  });
+
+  it('does not block AI on a different voice for same param', () => {
+    const arb = new Arbitrator(500);
+    arb.humanTouched('v0', 'timbre', 0.8);
+    expect(arb.canAIAct('v0', 'timbre')).toBe(false);
+    expect(arb.canAIAct('v1', 'timbre')).toBe(true);
   });
 
   it('getHeldParams returns values within cooldown for specific voice', () => {

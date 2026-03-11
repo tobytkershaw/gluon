@@ -21,11 +21,6 @@ function isValidAction(action: unknown): action is AIAction {
       if (!('absolute' in action.target) && !('relative' in action.target)) return false;
       return typeof action.target.absolute === 'number' || typeof action.target.relative === 'number';
 
-    case 'suggest':
-    case 'audition':
-      if (action.voiceId !== undefined && typeof action.voiceId !== 'string') return false;
-      return isRecord(action.changes) && Object.values(action.changes).every(v => typeof v === 'number');
-
     case 'say':
       return typeof action.text === 'string';
 

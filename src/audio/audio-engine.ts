@@ -1,13 +1,14 @@
 // src/audio/audio-engine.ts
 import type { SynthParams } from './synth-interface';
 import { DEFAULT_PARAMS } from './synth-interface';
-import { WebAudioSynth } from './web-audio-synth';
+import type { SynthEngine } from './synth-interface';
+import { createPreferredSynth } from './create-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
 
 interface VoiceSlot {
-  synth: WebAudioSynth;
+  synth: SynthEngine;
   muteGain: GainNode;    // controlled by mute/solo -- never touched by scheduleNote
   accentGain: GainNode;  // controlled by scheduleNote for accent boosts
   currentParams: SynthParams;
@@ -21,7 +22,6 @@ export class AudioEngine {
   private analyser: AnalyserNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private _isRunning = false;
-  private scheduledTimeouts: number[] = [];
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -50,7 +50,7 @@ export class AudioEngine {
       accentGain.connect(muteGain);
       muteGain.connect(this.mixer);
 
-      const synth = new WebAudioSynth(this.ctx, accentGain);
+      const synth = await createPreferredSynth(this.ctx, accentGain);
       this.voices.set(voiceId, {
         synth,
         muteGain,
@@ -65,10 +65,6 @@ export class AudioEngine {
 
   stop(): void {
     if (!this._isRunning) return;
-    for (const timeout of this.scheduledTimeouts) {
-      clearTimeout(timeout);
-    }
-    this.scheduledTimeouts = [];
     for (const slot of this.voices.values()) {
       slot.synth.destroy();
     }
@@ -106,21 +102,8 @@ export class AudioEngine {
   }
 
   scheduleNote(note: ScheduledNote): void {
-    if (!this.ctx) return;
     const slot = this.voices.get(note.voiceId);
     if (!slot) return;
-
-    // --- Continuous params: schedule sample-accurately via AudioParam ---
-    const schedulable = slot.synth.getSchedulableParams();
-    if (schedulable) {
-      const { frequency, filterFreq, filterQ, detune } = schedulable;
-      // Map normalised params to audio values (same formulas as WebAudioSynth.applyParams)
-      const noteHz = 440 * Math.pow(2, (note.params.note * 127 - 69) / 12);
-      frequency.setValueAtTime(noteHz, note.time);
-      filterFreq.setValueAtTime(200 + note.params.timbre * 7800, note.time);
-      filterQ.setValueAtTime(0.5 + note.params.morph * 14.5, note.time);
-      detune.setValueAtTime((note.params.harmonics - 0.5) * 100, note.time);
-    }
 
     // --- Accent gain: schedule on accentGain (separate from muteGain) ---
     const accentLevel = note.accent ? 0.3 * ACCENT_GAIN_BOOST : 0.3;
@@ -129,20 +112,7 @@ export class AudioEngine {
       // Revert accent at gate-off
       slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
     }
-
-    // --- Discrete events: trigger and gate-off via setTimeout with compensation ---
-    const now = this.ctx.currentTime;
-    const triggerDelay = Math.max(0, (note.time - now) * 1000);
-    const triggerTimeout = window.setTimeout(() => {
-      slot.synth.trigger();
-    }, triggerDelay);
-    this.scheduledTimeouts.push(triggerTimeout);
-
-    const gateOffDelay = Math.max(0, (note.gateOffTime - now) * 1000);
-    const gateOffTimeout = window.setTimeout(() => {
-      slot.synth.setGateOpen(false);
-    }, gateOffDelay);
-    this.scheduledTimeouts.push(gateOffTimeout);
+    slot.synth.scheduleNote(note);
   }
 
   getCurrentTime(): number {

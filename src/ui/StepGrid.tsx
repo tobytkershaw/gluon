@@ -1,12 +1,10 @@
 // src/ui/StepGrid.tsx
 import type { Pattern } from '../engine/sequencer-types';
-import type { SketchPendingAction } from '../engine/types';
 
 interface Props {
   pattern: Pattern;
   currentStep: number;
   playing: boolean;
-  pendingSketch?: SketchPendingAction;
   page: number;
   onToggleGate: (stepIndex: number) => void;
   onToggleAccent: (stepIndex: number) => void;
@@ -17,26 +15,12 @@ interface Props {
 const STEPS_PER_PAGE = 16;
 
 export function StepGrid({
-  pattern, currentStep, playing, pendingSketch, page,
+  pattern, currentStep, playing, page,
   onToggleGate, onToggleAccent, onStepHold, onStepRelease,
 }: Props) {
   const startIndex = page * STEPS_PER_PAGE;
   const endIndex = Math.min(startIndex + STEPS_PER_PAGE, pattern.length);
   const visibleSteps = pattern.steps.slice(startIndex, endIndex);
-
-  // Build ghost step map from pending sketch
-  const ghostSteps = new Map<number, { gate?: boolean; accent?: boolean; hasLock?: boolean }>();
-  if (pendingSketch) {
-    for (const s of pendingSketch.pattern.steps) {
-      if (s.index >= startIndex && s.index < endIndex) {
-        ghostSteps.set(s.index, {
-          gate: s.gate,
-          accent: s.accent,
-          hasLock: s.params !== undefined,
-        });
-      }
-    }
-  }
 
   return (
     <div className="flex gap-1">
@@ -44,7 +28,6 @@ export function StepGrid({
         const globalIndex = startIndex + i;
         const isPlayhead = playing && currentStep === globalIndex;
         const isActive = globalIndex < pattern.length;
-        const ghost = ghostSteps.get(globalIndex);
         const hasLock = step.params !== undefined;
 
         return (
@@ -65,7 +48,6 @@ export function StepGrid({
                   : 'bg-amber-500/30 border border-amber-500/30'
                 : 'bg-zinc-800/60 border border-zinc-700/40 hover:border-zinc-600'
               }
-              ${ghost?.gate ? 'ring-2 ring-blue-400/40 ring-offset-1 ring-offset-zinc-950' : ''}
             `}
           >
             {/* Beat marker: thicker left border on beat boundaries (every 4 steps) */}
@@ -76,11 +58,6 @@ export function StepGrid({
             {/* Param lock indicator */}
             {hasLock && (
               <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-blue-400/60" />
-            )}
-
-            {/* Ghost lock indicator */}
-            {ghost?.hasLock && !hasLock && (
-              <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-blue-400/30 animate-pulse" />
             )}
 
             {/* Step number (1-based) */}

@@ -6,17 +6,19 @@
 
 ## What This Is
 
-Gluon is an open source platform where a human musician and an AI collaborate on music in real time. Not generative AI that writes songs for you. Not a chatbot that suggests chord progressions. A shared instrument where both participants can reach for the same knobs, listen to the same output, and build on each other's ideas.
+Gluon is the Claude Code of music: an open source platform where you describe what you want and an AI makes it happen on a shared instrument. Not generative AI that writes songs for you. Not a chatbot that suggests chord progressions. A conversation-driven music tool where you direct the AI to make changes to your project — patterns, parameters, arrangement — and it executes them. You listen to the result, give further direction, or undo.
 
-The AI's role is closer to a session musician than a producer: it has opinions, it can play, it can suggest, but the human always has final say. It can be as passive as a gentle nudge on a filter parameter, or as active as sketching an entire B-section arrangement. The human sets the leash.
+The AI's role is closer to a skilled assistant than a session musician: it understands synthesis, sequencing, and sound design at the parameter level. You say "give me a four-on-the-floor kick with some swing" and it writes the pattern. You say "make the bass darker and more sub-heavy" and it moves the parameters. You say "that's too busy, strip it back" and it simplifies. It can hear the result of its own changes via audio snapshots (rendered clips sent to a multimodal model) and evaluate whether it achieved what you asked for.
 
-The platform has two modes that share a single brain:
+The core loop:
 
-**Jam Mode** is a standalone instrument with world-class synthesis engines (Mutable Instruments Plaits/Braids, compiled natively) and a visual interface designed for real-time exploration. The human and AI explore sound together. Touch a parameter, the AI responds. Ask for "something darker," the AI translates that into parameter movements it understands at the DSP level because the engines are running inside the same process.
+1. **You describe what you want** (natural language in the chat panel)
+2. **The AI reads the current project state** (voices, patterns, parameters) and optionally listens to a rendered audio clip
+3. **The AI makes changes** (parameter moves, pattern edits, voice configuration)
+4. **You listen to the result**
+5. **You give further direction or undo**
 
-**Studio Mode** extends the same AI outward into a production environment. It integrates with Ableton Live (and other DAWs) via MIDI, OSC, and the Ableton Link/Push protocols. It can send MIDI CC to hardware synthesizers (Elektron boxes, Eurorack, whatever is in the studio). It can write MIDI clips, set up parameter automation, sketch arrangements. The Mutable Instruments engines remain available as software instruments within the DAW session, but the AI also speaks to external hardware through configurable parameter maps.
-
-Both modes share the same conversation, the same musical memory, and the same constraint system that governs what the AI is and isn't allowed to touch.
+That's a conversation, not a performance. The AI only acts when asked. There is no continuous streaming, no real-time jamming, no latency pressure. The cost is per-request, not continuous.
 
 ---
 
@@ -29,12 +31,12 @@ The AI music space has bifurcated into two dead ends:
 **AI-assisted composition** (WavTool, various MIDI generators): AI generates MIDI clips or chord progressions. Text in, MIDI out. The AI doesn't listen, doesn't watch what you're doing, doesn't share control of a sound. It's a suggestion box.
 
 Neither of these is collaboration. Collaboration requires:
-- Shared access to the same instrument/parameters
-- Real-time listening and response from both parties
-- A spectrum of control from human-led to AI-led
-- Transparency about what the AI is doing and why
+- An instrument the human and AI both understand at the parameter level
+- The AI can hear its own output (not just reason about numbers)
+- Transparency about what the AI changed and why
 - The ability to undo, override, or redirect at any moment
 - A shared context that builds over the session
+- The human stays in control: the AI acts when asked, not continuously
 
 Gluon is designed around all of these properties from the ground up.
 
@@ -50,25 +52,23 @@ Gluon is designed around all of these properties from the ground up.
 |                                                   |
 |  +-------------------+  +---------------------+  |
 |  | Synthesis Engines  |  | Musical State       |  |
-|  | (MI Plaits/Braids  |  | (what's playing,    |  |
-|  |  compiled natively)|  |  parameter history,  |  |
-|  +-------------------+  |  session context)    |  |
-|                          +---------------------+  |
+|  | (MI Plaits/Braids  |  | (voices, patterns,  |  |
+|  |  compiled to WASM) |  |  params, context)   |  |
+|  +-------------------+  +---------------------+  |
 |  +-------------------+  +---------------------+  |
 |  | AI Reasoning      |  | Constraint Engine    |  |
-|  | (LLM interface,   |  | (what AI can/cannot  |  |
-|  |  parameter mapping,|  |  touch, leash level, |  |
-|  |  musical intent)   |  |  per-track perms)   |  |
+|  | (Gemini API,      |  | (per-voice agency    |  |
+|  |  state → actions)  |  |  OFF/ON)             |  |
 |  +-------------------+  +---------------------+  |
 |                                                   |
 +--------------------------------------------------+
          |              |              |
     +---------+   +-----------+   +----------+
-    | Audio   |   | MIDI/OSC  |   | UI       |
-    | Engine  |   | Bridge    |   | Layer    |
-    | (ALSA/  |   | (to DAW,  |   | (visual  |
-    |  CoreA, |   |  hardware |   |  param   |
-    |  WebAu) |   |  synths)  |   |  space)  |
+    | Audio   |   | Audio     |   | UI       |
+    | Engine  |   | Eval      |   | Layer    |
+    | (WebAu, |   | (render   |   | (chat,   |
+    |  WASM)  |   |  snapshot  |   |  params, |
+    |         |   |  → Gemini) |   |  grid)   |
     +---------+   +-----------+   +----------+
 ```
 
@@ -107,9 +107,9 @@ Additional models including CZ-style phase distortion, vowel/formant synthesis, 
 - **Warps**: Signal crossfader/wavefolder/vocoder
 
 These would be compiled to:
-- **Native** (Rust wrapper around C++ DSP, or direct C++ with Rust orchestration)
-- **WebAssembly** (for browser-based Jam Mode)
-- **VST/AU plugin** (for DAW integration in Studio Mode)
+- **WebAssembly** (current: for browser-based Gluon)
+- **Native** (future: Rust wrapper around C++ DSP for desktop app)
+- **VST/AU plugin** (future: for DAW integration)
 
 ### 2. Musical State Engine
 
@@ -127,48 +127,45 @@ This is the shared ground truth that both human and AI reason about. It's also t
 
 ### 3. AI Reasoning Layer
 
-The interface between the musical state and an LLM (Anthropic API, or a local model for latency-sensitive operations).
+The interface between the musical state and an LLM. The AI operates in a request-response pattern: the human asks for changes, the AI reads the current state, makes structured edits, and the human evaluates the result.
 
-The AI operates at multiple timescales:
+**The agentic loop:**
 
-**Real-time (< 50ms):** Parameter modulation, LFO-like continuous changes. These cannot go through an LLM round-trip. Instead, a lightweight local model or rule-based system handles continuous parameter movement once the LLM has set a trajectory. "Slowly open the filter over 8 bars" becomes a local automation curve, not 1000 API calls.
+1. Human sends a prompt ("make it darker", "write a hi-hat pattern", "add syncopation to the bass")
+2. AI receives the compressed project state (all voices, patterns, parameters, transport)
+3. AI responds with structured actions: parameter moves, pattern sketches, voice configuration changes
+4. Actions are applied to the project (with undo support)
+5. Optionally: AI renders an audio snapshot of the result and evaluates it via a multimodal model (Gemini native audio) before committing
 
-**Interactive (100ms - 2s):** Responding to what the human just did. "They just dropped the bass note an octave, let's widen the stereo field on the pad." This can be a fast LLM call with the current state compressed into a concise prompt.
+**Audio evaluation (listen-then-judge):**
 
-**Compositional (seconds to minutes):** Sketching sections, writing MIDI patterns, suggesting arrangement changes. "Build me a breakdown that strips back to just the kick and a filtered version of this lead." This is a standard LLM interaction with rich context.
+The AI can "hear" its own work by rendering a few bars of audio and sending the clip to Gemini's native audio model. This is fundamentally different from continuous streaming — it's a discrete evaluation step, like a musician playing back a recording to check their work. The audio snapshot is rendered offline (not real-time streamed), sent as a base64 clip, and the model returns a text assessment. This informs whether to commit the changes or iterate.
 
-**Conversational (human-paced):** Natural language dialogue. "Make it more like early Autechre." "I want something that sounds like machinery winding down." This is where LLMs shine, translating subjective descriptions into concrete parameter and compositional decisions.
+**Model strategy:**
 
-The AI also needs a "taste model" that develops over sessions. Not a fine-tuned LLM, but a structured preference profile: this human tends to prefer darker timbres, shorter decay times, odd time signatures, etc. This informs the AI's suggestions without requiring explicit instruction every time.
+One capable model handles all reasoning: understanding prompts, reading project state, making structured changes, and conversing with the human. No need for separate Thinker/Listener/Generator/Reflex roles. The multimodal audio evaluation is an optional second model call (Gemini native audio) used when the AI wants to check its work.
+
+**Taste and memory:** The AI develops understanding of the user's preferences through conversation context, not through a separate taste model. Session history provides this naturally.
 
 ### 4. Constraint Engine
 
-The system that governs the AI's permissions. Inspired by the principle that useful AI collaboration requires bounded, verifiable agency.
+The system that governs the AI's permissions. Simple and transparent.
 
-Constraints are set per-session and can be adjusted on the fly:
+**Per-voice permissions:**
 
-**Per-track permissions:**
-- LOCKED: AI cannot touch this track at all
-- SUGGEST: AI can propose changes but human must approve
-- NUDGE: AI can make small parameter adjustments within defined ranges
-- CO-PILOT: AI has free rein within musical constraints
-- SKETCH: AI can write new content (MIDI patterns, automation)
+Each voice has an agency setting that tells the AI what it's allowed to touch:
 
-**Global leash level:**
-- 0%: AI is silent, just observing
-- 25%: AI only responds when asked
-- 50%: AI makes gentle suggestions and occasional nudges
-- 75%: Active co-creation, AI takes initiative
-- 100%: AI is jamming freely (within per-track permissions)
+- **OFF**: AI cannot modify this voice (but can observe it for context)
+- **ON**: AI can make changes to this voice when asked
 
-**Musical constraints:**
+That's it. Two states. The AI only acts when the human asks, so the complex leash/suggest/play hierarchy is unnecessary. Agency per voice lets the musician protect specific voices from AI changes ("don't touch my kick, but feel free to rewrite the lead").
+
+**Musical constraints (future):**
 - Key/scale lock
 - Tempo range
-- Complexity ceiling (max simultaneous voices, max note density)
-- "Stay in the neighbourhood" (limit how far AI moves from current state)
+- Complexity ceiling
 
-**Hardware safety:**
-- Never send MIDI that could damage equipment (e.g., certain sysex)
+**Hardware safety (future):**
 - Respect hardware-specific parameter ranges
 - Rate-limit CC messages to avoid overwhelming MIDI bus
 
@@ -229,52 +226,38 @@ The AI uses these profiles to reason about what each knob turn will do musically
 
 ### 6. UI Layer
 
-**Jam Mode UI:**
+The interface is built around the conversation. The chat panel is the primary interaction surface — where you tell the AI what to do and see what it did. The instrument controls (parameter space, step grid, voice selector) let you play and tweak directly, and show the AI's changes as they happen.
 
-The centerpiece is a 2D parameter space visualiser. For each Mutable Instruments engine, TIMBRE and COLOR map to X and Y axes. The human touches/clicks to explore. The AI's influence appears as a gentle pull or glow indicating "interesting regions." The current position, recent trajectory, and AI suggestions are all visible.
+**Core UI elements:**
+- **Chat panel** (primary): Natural language input, AI responses, action log showing what the AI changed
+- **2D parameter space**: TIMBRE x COLOR XY pad per voice, for direct sound exploration
+- **Step sequencer**: 16-step grid per voice, with parameter locks (Elektron-style)
+- **Voice selector**: 4 voice slots with model, mute/solo, and agency (OFF/ON)
+- **Transport**: Play/stop, BPM, swing
+- **Model selector**: Plaits synthesis model picker per voice
+- **Undo**: Reverses AI actions (essential for the iterate-and-refine loop)
+- **Audio export**: Record and download
 
-Additional UI elements:
-- Engine selector (switch between Plaits models, Braids models, etc.)
-- Effects chain (Rings, Clouds, etc.)
-- Pattern sequencer (simple step sequencer for building loops)
-- Conversation panel (natural language interaction with the AI)
-- Constraint controls (leash level, permissions)
-- Waveform/spectrum visualiser
-
-**Studio Mode UI:**
-
-A control surface that lives alongside the DAW (separate window, or embedded via Max for Live). Shows:
-- Active tracks with AI permission levels
-- Hardware synth parameter maps
-- AI activity log (what it changed, when, why)
-- Conversation panel
-- Arrangement sketch view
+The UI should feel like an instrument, not a productivity app. Dark theme. Musical aesthetic. The AI's changes should be visible and transparent — you should always be able to see what it changed and undo it.
 
 ---
 
 ## Technical Stack
 
-### Core (shared between modes)
+### Browser-based (current focus)
 
-- **Language:** Rust for the audio engine and MIDI/OSC bridge. Python for the AI reasoning layer and DAW scripting.
-- **DSP:** Mutable Instruments C++ code, wrapped in Rust via FFI, or compiled separately and linked. Also compiled to WASM for browser mode.
-- **AI:** Anthropic API for reasoning (Claude). Local small model for latency-sensitive continuous parameter modulation.
-- **MIDI:** midir (Rust), python-rtmidi (Python) for MIDI I/O. Virtual MIDI ports for DAW communication.
-- **OSC:** rosc (Rust), python-osc (Python).
-- **Audio:** CPAL (Rust cross-platform audio), or JACK for pro audio integration.
+- **UI:** React + TypeScript + Vite + Tailwind CSS
+- **DSP:** Mutable Instruments Plaits C++ code compiled to WebAssembly via Emscripten, running in an AudioWorklet
+- **AI (reasoning):** Google Gemini API (`@google/genai` SDK) for project state reasoning and structured edits
+- **AI (audio evaluation):** Gemini native audio model for listening to rendered audio snapshots
+- **Audio:** Web Audio API + AudioWorklet for real-time synthesis and playback
 
-### Jam Mode (standalone)
+### Future (not in current scope)
 
-- **Desktop app:** Rust + egui or similar immediate-mode GUI. Or Tauri (Rust backend, web frontend).
-- **Browser version:** Rust/WASM for DSP, React + Canvas/WebGL for UI, Web Audio API for output, WebMIDI for controller input.
-- **Touch support:** Native on browser/tablet. Dedicated touch handling in desktop app.
-
-### Studio Mode (DAW integration)
-
-- **Ableton integration:** Python Remote Script, AbletonOSC, and/or Max for Live device.
-- **Generic DAW:** Virtual MIDI ports (works with any DAW). MCP server exposing MIDI tools.
-- **Hardware:** MIDI output to Elektron/other hardware via USB or DIN MIDI.
-- **Plugin format:** VST3/AU wrapper around the MI engines for use as instruments within the DAW.
+- **MIDI/hardware:** MIDI output to hardware synths, hardware profile system
+- **DAW integration:** Ableton Live integration, clip writing, automation
+- **Desktop app:** Tauri or Electron wrapper for native performance
+- **Additional DSP:** Rings, Clouds, Elements compiled to WASM as effects
 
 ---
 
@@ -319,38 +302,44 @@ The only non-open component is the LLM API call, which is a service dependency. 
 
 ## Development Phases
 
-### Phase 1: Proof of Concept
-- Mutable Instruments Plaits compiled and running (native + WASM)
-- Basic 2D parameter space UI
-- LLM can describe current sound state and suggest parameter changes
-- Single synth voice, no sequencing
+### Phase 1: Proof of Concept (COMPLETE)
+- Mutable Instruments Plaits compiled and running as WASM in the browser
+- 2D parameter space UI, model selector, pitch/harmonics controls
+- AI integration via Gemini API for parameter reasoning
+- Single synth voice, basic chat panel, undo
 
-### Phase 2: Jam Mode MVP
-- Multiple MI engines available
-- Effects chain (Rings, Clouds)
-- Simple step sequencer
-- AI can modulate parameters in real time via local automation
-- Natural language control ("make it darker," "add some chaos")
-- Touch-friendly UI
+### Phase 2: Sequence & Layers (COMPLETE)
+- 4 voice slots with step sequencer (16-step, variable to 64)
+- Parameter locks (Elektron-style per-step overrides)
+- Transport (play/stop, BPM, swing)
+- AI can write patterns via sketch actions
+- Audio export via MediaRecorder
+- Voice mute/solo, pattern length, clear
 
-### Phase 3: MIDI Bridge
+### Phase 3: Agentic Music Assistant
+- **The pivot:** Reframe AI from live jam partner to agentic assistant ("Claude Code for music")
+- Chat panel becomes the primary interface for directing the AI
+- AI reads full project state and makes multi-step structured edits per request
+- Audio snapshots: render N bars, send to Gemini native audio model for self-evaluation
+- Simplify agency to OFF/ON per voice (AI only acts when asked)
+- Remove leash slider, reactive loop, continuous streaming
+- Improve undo UX: clear action log showing what the AI changed
+
+### Phase 4: MIDI Bridge
 - MIDI output to hardware synths
 - Hardware profile system
-- AI can send CC to Elektron boxes (and other gear)
-- MIDI input monitoring (AI listens to what you play)
+- AI can reason about external hardware parameters
 
-### Phase 4: Studio Mode / DAW Integration
-- Ableton Live integration (Remote Script + OSC)
+### Phase 5: DAW Integration
+- Ableton Live integration
 - AI can write MIDI clips and automation
 - Arrangement sketching
-- Multi-track constraint/permission system
 - Session memory across conversations
 
-### Phase 5: Community and Ecosystem
+### Phase 6: Community and Ecosystem
 - Community-contributed hardware profiles
-- Shared "taste models" (optional)
 - Plugin format (VST3/AU) for MI engines
-- Mobile/tablet-optimised Jam Mode
+- Mobile/tablet-optimised UI
 
 ---
 

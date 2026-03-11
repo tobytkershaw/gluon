@@ -2,16 +2,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction } from '../engine/types';
+import type { Session, AIAction, ActionGroupSnapshot } from '../engine/types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import {
-  createSession, setLeash, setAgency, updateVoiceParams, setModel,
+  createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
 import {
-  applyMove, applyMoveGroup, applyParamDirect, applySuggest,
-  applyAudition, cancelAuditionParam, applyUndo, commitPending,
-  dismissPending, applySketchPending,
+  applyMove, applyMoveGroup, applyParamDirect, applySketch, applyUndo,
 } from '../engine/primitives';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
 import { GluonAI } from '../ai/api';
@@ -20,11 +18,9 @@ import { AutomationEngine } from '../ai/automation';
 import { Scheduler } from '../engine/scheduler';
 import { ParameterSpace } from './ParameterSpace';
 import { ModelSelector } from './ModelSelector';
-import { LeashSlider } from './LeashSlider';
 import { AgencyToggle } from './AgencyToggle';
 import { ChatPanel } from './ChatPanel';
 import { Visualiser } from './Visualiser';
-import { PendingOverlay } from './PendingOverlay';
 import { PitchControl } from './PitchControl';
 import { UndoButton } from './UndoButton';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -32,7 +28,6 @@ import { TransportBar } from './TransportBar';
 import { VoiceSelector } from './VoiceSelector';
 import { StepGrid } from './StepGrid';
 import { PatternControls } from './PatternControls';
-import type { SketchPendingAction } from '../engine/types';
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
@@ -111,6 +106,7 @@ export default function App() {
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
       let next = s;
+      const undoBaseline = s.undoStack.length;
       const moveGroups = new Map<string, { param: string; target: { absolute: number } | { relative: number } }[]>();
 
       for (const action of actions) {
@@ -118,7 +114,7 @@ export default function App() {
           case 'move': {
             const vid = action.voiceId ?? s.activeVoiceId;
             const voice = getVoice(next, vid);
-            if (voice.agency !== 'OFF' && arbRef.current.canAIAct(action.param)) {
+            if (voice.agency === 'ON' && arbRef.current.canAIAct(vid, action.param)) {
               if (action.over) {
                 const currentVal = voice.params[action.param] ?? 0;
                 const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
@@ -147,24 +143,10 @@ export default function App() {
             }
             break;
           }
-          case 'suggest': {
-            const vid = action.voiceId ?? s.activeVoiceId;
-            if (getVoice(next, vid).agency !== 'OFF') {
-              next = applySuggest(next, vid, action.changes, action.reason);
-            }
-            break;
-          }
-          case 'audition': {
-            const vid = action.voiceId ?? s.activeVoiceId;
-            if (getVoice(next, vid).agency === 'PLAY') {
-              next = applyAudition(next, vid, action.changes, action.duration);
-            }
-            break;
-          }
           case 'sketch': {
             const targetVoice = next.voices.find(v => v.id === action.voiceId);
-            if (targetVoice && targetVoice.agency !== 'OFF') {
-              next = applySketchPending(next, action.voiceId, action.description, action.pattern);
+            if (targetVoice && targetVoice.agency === 'ON') {
+              next = applySketch(next, action.voiceId, action.description, action.pattern);
             }
             break;
           }
@@ -183,6 +165,18 @@ export default function App() {
           : applyMoveGroup(next, vid, moves);
       }
 
+      // Collapse multiple snapshots from this response into a single undo group
+      const newSnapshots = next.undoStack.slice(undoBaseline);
+      if (newSnapshots.length > 1) {
+        const group: ActionGroupSnapshot = {
+          kind: 'group',
+          snapshots: newSnapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
+          timestamp: Date.now(),
+          description: `AI response (${newSnapshots.length} actions)`,
+        };
+        next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
+      }
+
       return next;
     });
   }, []);
@@ -193,9 +187,7 @@ export default function App() {
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
     setSession((s) => {
-      let next = cancelAuditionParam(s, vid, 'timbre');
-      next = cancelAuditionParam(next, vid, 'morph');
-      next = updateVoiceParams(next, vid, { timbre, morph }, true);
+      let next = updateVoiceParams(s, vid, { timbre, morph }, true);
 
       // If a step is held, apply param lock
       if (heldStep !== null) {
@@ -210,20 +202,14 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
-    setSession((s) => {
-      let next = cancelAuditionParam(s, vid, 'note');
-      return updateVoiceParams(next, vid, { note }, true);
-    });
+    setSession((s) => updateVoiceParams(s, vid, { note }, true));
   }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
-    setSession((s) => {
-      let next = cancelAuditionParam(s, vid, 'harmonics');
-      return updateVoiceParams(next, vid, { harmonics }, true);
-    });
+    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true));
   }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {
@@ -231,12 +217,7 @@ export default function App() {
     setSession((s) => setModel(s, s.activeVoiceId, model));
   }, [ensureAudio]);
 
-  const handleLeashChange = useCallback((value: number) => {
-    ensureAudio();
-    setSession((s) => setLeash(s, value));
-  }, [ensureAudio]);
-
-  const handleAgencyChange = useCallback((agency: 'OFF' | 'SUGGEST' | 'PLAY') => {
+  const handleAgencyChange = useCallback((agency: 'OFF' | 'ON') => {
     ensureAudio();
     setSession((s) => setAgency(s, s.activeVoiceId, agency));
   }, [ensureAudio]);
@@ -255,14 +236,6 @@ export default function App() {
     const actions = await aiRef.current.ask(sessionRef.current, message);
     dispatchAIActions(actions);
   }, [ensureAudio, dispatchAIActions]);
-
-  const handleCommit = useCallback((pendingId: string) => {
-    setSession((s) => commitPending(s, pendingId));
-  }, []);
-
-  const handleDismiss = useCallback((pendingId: string) => {
-    setSession((s) => dismissPending(s, pendingId));
-  }, []);
 
   const handleApiKey = useCallback((key: string) => {
     aiRef.current.setApiKey(key);
@@ -345,46 +318,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleUndo, handleTogglePlay]);
 
-  // AI reactive loop
-  useEffect(() => {
-    if (!audioStarted) return;
-    const interval = setInterval(async () => {
-      const s = sessionRef.current;
-      if (!aiRef.current.isConfigured()) return;
-      const anyActive = s.voices.some(v => v.agency !== 'OFF');
-      if (!anyActive) return;
-      if (s.leash < 0.3) return;
-      const actions = await aiRef.current.react(s);
-      if (actions.length > 0) dispatchAIActions(actions);
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [audioStarted, dispatchAIActions]);
-
-  // Expire audition pending actions
-  useEffect(() => {
-    if (session.pending.length === 0) return;
-    const interval = setInterval(() => {
-      const now = Date.now();
-      setSession((s) => {
-        const expired = s.pending.filter(p => p.kind === 'audition' && p.expiresAt < now);
-        if (expired.length === 0) return s;
-        let next = s;
-        for (const p of expired) {
-          next = dismissPending(next, p.id);
-        }
-        return next;
-      });
-    }, 500);
-    return () => clearInterval(interval);
-  }, [session.pending.length]);
-
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
   const totalPages = Math.ceil(activeVoice.pattern.length / 16);
-
-  // Find pending sketch for active voice
-  const pendingSketch = session.pending.find(
-    (p): p is SketchPendingAction => p.kind === 'sketch' && p.voiceId === activeVoice.id,
-  );
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4">
@@ -425,7 +360,6 @@ export default function App() {
               onInteractionStart={() => arbRef.current.humanInteractionStart()}
               onInteractionEnd={() => arbRef.current.humanInteractionEnd()}
             />
-            <PendingOverlay pending={session.pending} onCommit={handleCommit} onDismiss={handleDismiss} />
           </div>
 
           <div className="flex items-center gap-3">
@@ -433,7 +367,6 @@ export default function App() {
               pattern={activeVoice.pattern}
               currentStep={currentStep}
               playing={session.transport.playing}
-              pendingSketch={pendingSketch}
               page={stepPage}
               onToggleGate={handleStepToggle}
               onToggleAccent={handleStepAccent}
@@ -465,7 +398,6 @@ export default function App() {
 
         <div className="flex flex-col gap-4">
           <ApiKeyInput onSubmit={handleApiKey} isConfigured={apiConfigured} />
-          <LeashSlider value={session.leash} onChange={handleLeashChange} />
           <AgencyToggle value={activeVoice.agency} onChange={handleAgencyChange} />
           <ChatPanel messages={session.messages} onSend={handleSend} />
         </div>

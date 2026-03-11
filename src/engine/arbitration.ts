@@ -32,14 +32,11 @@ export class Arbitrator {
     this.activeInteraction = false;
   }
 
-  canAIAct(param: string): boolean {
+  canAIAct(voiceId: string, param: string): boolean {
     if (this.activeInteraction) return false;
-    // Check across all voices for this param
-    const now = Date.now();
-    for (const [k, record] of this.touches) {
-      if (k.endsWith(`:${param}`) && now - record.timestamp <= this.cooldownMs) {
-        return false;
-      }
+    const record = this.touches.get(this.key(voiceId, param));
+    if (record && Date.now() - record.timestamp <= this.cooldownMs) {
+      return false;
     }
     return true;
   }

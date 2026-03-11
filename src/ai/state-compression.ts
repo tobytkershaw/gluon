@@ -21,9 +21,7 @@ interface CompressedVoice {
 export interface CompressedState {
   voices: CompressedVoice[];
   transport: { bpm: number; swing: number };
-  leash: number;
   context: { energy: number; density: number };
-  pending_count: number;
   undo_depth: number;
   recent_human_actions: string[];
   human_message?: string;
@@ -87,12 +85,10 @@ export function compressState(session: Session, humanMessage?: string): Compress
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
     },
-    leash: round2(session.leash),
     context: {
       energy: round2(session.context.energy),
       density: round2(session.context.density),
     },
-    pending_count: session.pending.length,
     undo_depth: session.undoStack.length,
     recent_human_actions: session.recentHumanActions.slice(-5).map(
       (a) => `${a.param}: ${a.from.toFixed(2)} -> ${a.to.toFixed(2)}`

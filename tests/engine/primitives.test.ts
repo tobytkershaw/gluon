@@ -1,13 +1,11 @@
 // tests/engine/primitives.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  applyMove, applyMoveGroup, applyParamDirect, applySuggest,
-  applyAudition, cancelAuditionParam, applyUndo, commitPending,
-  dismissPending, applySketchPending,
+  applyMove, applyMoveGroup, applyParamDirect, applySketch, applyUndo,
 } from '../../src/engine/primitives';
 import { createSession, updateVoiceParams } from '../../src/engine/session';
 import { getActiveVoice, getVoice } from '../../src/engine/types';
-import type { PatternSnapshot, SketchPendingAction, ParamSnapshot } from '../../src/engine/types';
+import type { PatternSnapshot, ActionGroupSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
 
 describe('Protocol Primitives (Phase 2)', () => {
@@ -52,24 +50,24 @@ describe('Protocol Primitives (Phase 2)', () => {
     });
   });
 
-  describe('applySuggest', () => {
-    it('adds suggestion to pending list', () => {
+  describe('applySketch', () => {
+    it('applies sketch pattern to voice and pushes PatternSnapshot', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
-      const result = applySuggest(s, vid, { timbre: 0.8 }, 'try this');
-      expect(result.pending.length).toBe(1);
-      expect(result.pending[0].kind).toBe('suggestion');
-    });
-  });
+      const sketch: PatternSketch = {
+        steps: [
+          { index: 0, gate: true, accent: true },
+          { index: 4, gate: true },
+        ],
+      };
+      const result = applySketch(s, 'v0', 'kick', sketch);
 
-  describe('applyAudition', () => {
-    it('applies changes and adds to pending', () => {
-      const s = createSession();
-      const vid = s.activeVoiceId;
-      const result = applyAudition(s, vid, { timbre: 0.8 }, 3000);
-      expect(getVoice(result, vid).params.timbre).toBe(0.8);
-      expect(result.pending.length).toBe(1);
-      expect(result.pending[0].kind).toBe('audition');
+      const voice = getVoice(result, 'v0');
+      expect(voice.pattern.steps[0].gate).toBe(true);
+      expect(voice.pattern.steps[0].accent).toBe(true);
+      expect(voice.pattern.steps[4].gate).toBe(true);
+      expect(voice.pattern.steps[1].gate).toBe(false); // untouched
+      expect(result.undoStack.length).toBe(1);
+      expect(result.undoStack[0].kind).toBe('pattern');
     });
   });
 
@@ -109,81 +107,28 @@ describe('Protocol Primitives (Phase 2)', () => {
       expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
       expect(undone.undoStack.length).toBe(0);
     });
-  });
 
-  describe('applySketchPending', () => {
-    it('adds a sketch to pending queue', () => {
+    it('undoes an action group in one step', () => {
       const s = createSession();
-      const sketch: PatternSketch = {
-        steps: [
-          { index: 0, gate: true },
-          { index: 4, gate: true },
-          { index: 8, gate: true },
-          { index: 12, gate: true },
-        ],
+      // Apply moves to two different voices
+      let next = applyMove(s, 'v0', 'timbre', { absolute: 0.8 });
+      next = applyMove(next, 'v1', 'morph', { absolute: 0.3 });
+
+      // Collapse into a group (as dispatchAIActions would)
+      const snapshots = next.undoStack.slice(0);
+      const group: ActionGroupSnapshot = {
+        kind: 'group',
+        snapshots: snapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
+        timestamp: Date.now(),
+        description: 'AI response (2 actions)',
       };
-      const result = applySketchPending(s, 'v0', 'four on the floor', sketch);
-      expect(result.pending.length).toBe(1);
-      expect(result.pending[0].kind).toBe('sketch');
-    });
-  });
+      const grouped = { ...next, undoStack: [group] };
 
-  describe('commitPending sketch', () => {
-    it('applies sketch pattern to voice and pushes PatternSnapshot', () => {
-      const s = createSession();
-      const sketch: PatternSketch = {
-        steps: [
-          { index: 0, gate: true, accent: true },
-          { index: 4, gate: true },
-        ],
-      };
-      const withPending = applySketchPending(s, 'v0', 'kick', sketch);
-      const pendingId = withPending.pending[0].id;
-      const committed = commitPending(withPending, pendingId);
-
-      const voice = getVoice(committed, 'v0');
-      expect(voice.pattern.steps[0].gate).toBe(true);
-      expect(voice.pattern.steps[0].accent).toBe(true);
-      expect(voice.pattern.steps[4].gate).toBe(true);
-      expect(voice.pattern.steps[1].gate).toBe(false); // untouched
-      expect(committed.pending.length).toBe(0);
-      expect(committed.undoStack.length).toBe(1);
-      expect(committed.undoStack[0].kind).toBe('pattern');
-    });
-  });
-
-  describe('commitPending suggestion', () => {
-    it('applies suggestion and pushes ParamSnapshot for undo', () => {
-      const s = createSession();
-      const vid = s.activeVoiceId;
-      const withPending = applySuggest(s, vid, { timbre: 0.9 }, 'brighter');
-      const pendingId = withPending.pending[0].id;
-      const committed = commitPending(withPending, pendingId);
-
-      expect(getVoice(committed, vid).params.timbre).toBe(0.9);
-      expect(committed.pending.length).toBe(0);
-      expect(committed.undoStack.length).toBe(1);
-      expect(committed.undoStack[0].kind).toBe('param');
-
-      // Undo should revert
-      const undone = applyUndo(committed);
-      expect(getVoice(undone, vid).params.timbre).toBe(0.5);
-    });
-  });
-
-  describe('dismissPending sketch', () => {
-    it('removes sketch from pending without applying', () => {
-      const s = createSession();
-      const sketch: PatternSketch = {
-        steps: [{ index: 0, gate: true }],
-      };
-      const withPending = applySketchPending(s, 'v0', 'test', sketch);
-      const pendingId = withPending.pending[0].id;
-      const dismissed = dismissPending(withPending, pendingId);
-
-      const voice = getVoice(dismissed, 'v0');
-      expect(voice.pattern.steps[0].gate).toBe(false); // unchanged
-      expect(dismissed.pending.length).toBe(0);
+      // Single undo should revert both voices
+      const undone = applyUndo(grouped);
+      expect(getVoice(undone, 'v0').params.timbre).toBe(0.5);
+      expect(getVoice(undone, 'v1').params.morph).toBe(0.5);
+      expect(undone.undoStack.length).toBe(0);
     });
   });
 });
