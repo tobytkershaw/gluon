@@ -52,25 +52,23 @@ Gluon is designed around all of these properties from the ground up.
 |                                                   |
 |  +-------------------+  +---------------------+  |
 |  | Synthesis Engines  |  | Musical State       |  |
-|  | (MI Plaits/Braids  |  | (what's playing,    |  |
-|  |  compiled natively)|  |  parameter history,  |  |
-|  +-------------------+  |  session context)    |  |
-|                          +---------------------+  |
+|  | (MI Plaits/Braids  |  | (voices, patterns,  |  |
+|  |  compiled to WASM) |  |  params, context)   |  |
+|  +-------------------+  +---------------------+  |
 |  +-------------------+  +---------------------+  |
 |  | AI Reasoning      |  | Constraint Engine    |  |
-|  | (LLM interface,   |  | (what AI can/cannot  |  |
-|  |  parameter mapping,|  |  touch, leash level, |  |
-|  |  musical intent)   |  |  per-track perms)   |  |
+|  | (Gemini API,      |  | (per-voice agency    |  |
+|  |  state → actions)  |  |  OFF/ON)             |  |
 |  +-------------------+  +---------------------+  |
 |                                                   |
 +--------------------------------------------------+
          |              |              |
     +---------+   +-----------+   +----------+
-    | Audio   |   | MIDI/OSC  |   | UI       |
-    | Engine  |   | Bridge    |   | Layer    |
-    | (ALSA/  |   | (to DAW,  |   | (visual  |
-    |  CoreA, |   |  hardware |   |  param   |
-    |  WebAu) |   |  synths)  |   |  space)  |
+    | Audio   |   | Audio     |   | UI       |
+    | Engine  |   | Eval      |   | Layer    |
+    | (WebAu, |   | (render   |   | (chat,   |
+    |  WASM)  |   |  snapshot  |   |  params, |
+    |         |   |  → Gemini) |   |  grid)   |
     +---------+   +-----------+   +----------+
 ```
 
@@ -109,9 +107,9 @@ Additional models including CZ-style phase distortion, vowel/formant synthesis, 
 - **Warps**: Signal crossfader/wavefolder/vocoder
 
 These would be compiled to:
-- **Native** (Rust wrapper around C++ DSP, or direct C++ with Rust orchestration)
-- **WebAssembly** (for browser-based Jam Mode)
-- **VST/AU plugin** (for DAW integration in Studio Mode)
+- **WebAssembly** (current: for browser-based Gluon)
+- **Native** (future: Rust wrapper around C++ DSP for desktop app)
+- **VST/AU plugin** (future: for DAW integration)
 
 ### 2. Musical State Engine
 
@@ -332,7 +330,7 @@ The only non-open component is the LLM API call, which is a service dependency. 
 - Hardware profile system
 - AI can reason about external hardware parameters
 
-### Phase 5: Studio Mode / DAW Integration
+### Phase 5: DAW Integration
 - Ableton Live integration
 - AI can write MIDI clips and automation
 - Arrangement sketching

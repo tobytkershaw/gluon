@@ -32,7 +32,6 @@ How a human musician and an AI share control of a musical instrument. The verbs,
 Session {
   voices: [Voice]
   undo_stack: [Snapshot]        // Most recent state on top
-  pending: [PendingAction]      // Sketches and changes awaiting human approval
   context: MusicalContext       // Inferred, human can override
   messages: [ChatMessage]       // Conversation history
 }
@@ -103,13 +102,7 @@ Go back one step. The most recent AI action (or action group) is reversed. If th
 
 Multiple undos walk back through the stack. Undo never reverses the human's own actions, only the AI's.
 
-#### `commit`
-
-Accept a pending change from the AI. "Yes, keep that."
-
-#### `dismiss`
-
-Wave away a pending change. Just "nah."
+There is no pending/commit/dismiss flow. AI changes are applied immediately and the human hears them. If it sounds wrong, undo. If it sounds right, keep going. This matches how a session musician works: they play something, you either nod or say "not that."
 
 ---
 
@@ -162,19 +155,6 @@ say {
 
 The AI explains what it did, answers questions, or describes what it hears. It should be concise — the changes speak louder than the words.
 
-#### `listen`
-
-Request an audio snapshot to evaluate the current state.
-
-```
-listen {
-  bars: number              // how many bars to render
-  reason: String            // what the AI wants to evaluate
-}
-```
-
-The system renders the requested audio, sends it to the multimodal model, and returns a text assessment. The AI uses this to decide whether to iterate or report to the human. This is optional and happens within the AI's reasoning loop, not as a visible protocol action.
-
 ---
 
 ## Action Groups
@@ -187,17 +167,9 @@ The AI should use action groups whenever changes are musically related. The prot
 
 ## Arbitration
 
-When human and AI both want to control the same parameter at the same time, the human wins. This is the only arbitration rule.
+When human and AI both want to control the same parameter, the human wins. This is the only arbitration rule.
 
-In practice this means:
-
-- If the human is actively touching a parameter, the AI leaves it alone. No moves, no auditions on that parameter. Suggestions are still fine since they don't produce sound.
-
-- If an audition is active and the human touches one of the auditioned parameters, the human's value sticks. When the audition expires, that parameter stays where the human put it. Other auditioned parameters revert normally.
-
-- If the human undoes while the AI is mid-move, the move is cancelled.
-
-The specific timing threshold for "actively touching" is an implementation detail. The principle is: the AI yields instantly and completely when the human asserts control.
+If the human touches a parameter, the AI's value is overwritten. If the human undoes while the AI's changes are being applied, the changes are cancelled. The principle is: the human's hands always win, instantly and completely.
 
 ---
 
@@ -235,11 +207,13 @@ Undo for hardware is best-effort. The system can re-send previous CC values, but
 
 ## What This Does Not Define
 
-**UI.** How suggestions look, how the parameter space is visualised, where the leash control lives. That's design work, not protocol work.
+**UI.** How the parameter space is visualised, how AI changes are displayed in the chat panel, where controls live. That's design work, not protocol work.
 
-**AI behaviour.** How the AI decides what to suggest, when to nudge, what "darker" means in parameter terms. That's the intelligence layer. The protocol defines what the AI can do, not how it thinks.
+**AI behaviour.** How the AI decides what changes to make, what "darker" means in parameter terms. That's the intelligence layer. The protocol defines what the AI can do, not how it thinks.
 
-**Taste and memory.** Whether the AI remembers your preferences across sessions, how it adapts to your style, what a preference profile contains. Implementations can do this however they want.
+**Audio evaluation.** Implementations may render audio snapshots and send them to a multimodal model so the AI can hear and evaluate its own work. This is an implementation detail of the AI reasoning loop, not a protocol action.
+
+**Taste and memory.** Whether the AI remembers your preferences across sessions, how it adapts to your style. Implementations can do this however they want.
 
 **Sound engine specifics.** The protocol doesn't care whether you're running Plaits, Braids, a hardware synth, or something entirely different. Voices have parameters. Parameters are 0.0-1.0. Everything else is on the other side of the boundary.
 
@@ -251,9 +225,9 @@ Undo for hardware is best-effort. The system can re-send previous CC values, but
 
 A Gluon session has **voices** (things that make sound) and **agency per voice** (OFF / ON).
 
-The human **plays** (direct manipulation), **asks** (natural language prompts), **undoes**, **commits**, and **dismisses**.
+The human **plays** (direct manipulation), **asks** (natural language prompts), and **undoes**.
 
-The AI **moves** parameters, **sketches** patterns and content, **says** things, and optionally **listens** to audio snapshots. Every AI action is undoable. The AI only acts when asked and only on voices with agency ON.
+The AI **moves** parameters, **sketches** patterns and content, and **says** things. Every AI action is applied immediately and is undoable. The AI only acts when asked, and only on voices with agency ON.
 
 When human and AI collide on the same parameter, the human wins. Always. Instantly.
 
