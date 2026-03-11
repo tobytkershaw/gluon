@@ -55,11 +55,15 @@ export function createPlaitsAdapter(): SourceAdapter {
 
     validateOperation(op: AIOperation): { valid: boolean; reason?: string } {
       if (op.type === 'move') {
-        // Check control is known (by controlId or runtime param)
-        const isCanonical = KNOWN_CONTROL_IDS.has(op.controlId);
-        const isRuntime = runtimeParamToControlId[op.controlId] !== undefined;
-        if (!isCanonical && !isRuntime) {
-          return { valid: false, reason: `Unknown control: ${op.controlId}` };
+        // Accept both canonical controlId and legacy param field
+        const id = ('controlId' in op ? op.controlId : undefined)
+          ?? ('param' in op ? (op as unknown as { param: string }).param : undefined);
+        if (id) {
+          const isCanonical = KNOWN_CONTROL_IDS.has(id);
+          const isRuntime = runtimeParamToControlId[id] !== undefined;
+          if (!isCanonical && !isRuntime) {
+            return { valid: false, reason: `Unknown control: ${id}` };
+          }
         }
         // Check value range for absolute targets
         if ('absolute' in op.target) {

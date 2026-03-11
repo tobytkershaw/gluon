@@ -57,6 +57,22 @@ describe('plaits-adapter', () => {
     expect(result.valid).toBe(true);
   });
 
+  it('validates move with param field (legacy shape)', () => {
+    const result = adapter.validateOperation({
+      type: 'move', voiceId: 'v0', controlId: 'brightness',
+      target: { absolute: 0.5 },
+      // Simulate what executor passes: raw AIAction with param instead of controlId
+    } as any);
+    expect(result.valid).toBe(true);
+
+    // Also test with runtime param name via param field
+    const result2 = adapter.validateOperation({
+      type: 'move', voiceId: 'v0', param: 'timbre',
+      target: { absolute: 0.5 },
+    } as any);
+    expect(result2.valid).toBe(true);
+  });
+
   it('rejects unknown controlId', () => {
     const result = adapter.validateOperation({
       type: 'move', voiceId: 'v0', controlId: 'unknown_param',
