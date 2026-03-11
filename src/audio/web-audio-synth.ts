@@ -1,27 +1,31 @@
 // src/audio/web-audio-synth.ts
-
 import type { SynthEngine, SynthParams } from './synth-interface';
 import { DEFAULT_PARAMS, noteToHz } from './synth-interface';
 
 export class WebAudioSynth implements SynthEngine {
+  private ctx: AudioContext;
   private oscillator: OscillatorNode;
-  private gain: GainNode;
+  private envelope: GainNode;
   private filter: BiquadFilterNode;
   private analyser: AnalyserNode;
   private params: SynthParams = { ...DEFAULT_PARAMS };
+  private gateOpen = false;
 
-  constructor(ctx: AudioContext) {
+  constructor(ctx: AudioContext, output?: AudioNode) {
+    this.ctx = ctx;
     this.oscillator = ctx.createOscillator();
     this.filter = ctx.createBiquadFilter();
-    this.gain = ctx.createGain();
+    this.envelope = ctx.createGain();
     this.analyser = ctx.createAnalyser();
+
     this.oscillator.connect(this.filter);
-    this.filter.connect(this.gain);
-    this.gain.connect(this.analyser);
-    this.analyser.connect(ctx.destination);
+    this.filter.connect(this.envelope);
+    this.envelope.connect(this.analyser);
+    this.analyser.connect(output ?? ctx.destination);
+
     this.filter.type = 'lowpass';
     this.filter.frequency.value = 2000;
-    this.gain.gain.value = 0.3;
+    this.envelope.gain.value = 0;
     this.oscillator.start();
     this.applyParams();
   }
@@ -46,6 +50,33 @@ export class WebAudioSynth implements SynthEngine {
     this.oscillator.detune.value = (this.params.harmonics - 0.5) * 100;
   }
 
+  trigger(): void {
+    const now = this.ctx.currentTime;
+    this.envelope.gain.cancelScheduledValues(now);
+    this.envelope.gain.setValueAtTime(0.01, now);
+    this.envelope.gain.linearRampToValueAtTime(0.3, now + 0.005);
+    this.gateOpen = true;
+  }
+
+  setGateOpen(open: boolean): void {
+    if (this.gateOpen === open) return;
+    this.gateOpen = open;
+    if (!open) {
+      const now = this.ctx.currentTime;
+      this.envelope.gain.cancelScheduledValues(now);
+      this.envelope.gain.setTargetAtTime(0, now, 0.05);
+    }
+  }
+
+  getSchedulableParams(): { frequency: AudioParam; filterFreq: AudioParam; filterQ: AudioParam; detune: AudioParam } {
+    return {
+      frequency: this.oscillator.frequency,
+      filterFreq: this.filter.frequency,
+      filterQ: this.filter.Q,
+      detune: this.oscillator.detune,
+    };
+  }
+
   getAnalyser(): AnalyserNode {
     return this.analyser;
   }
@@ -58,7 +89,7 @@ export class WebAudioSynth implements SynthEngine {
     this.oscillator.stop();
     this.oscillator.disconnect();
     this.filter.disconnect();
-    this.gain.disconnect();
+    this.envelope.disconnect();
     this.analyser.disconnect();
   }
 }

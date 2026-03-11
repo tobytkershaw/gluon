@@ -1,0 +1,41 @@
+// src/engine/sequencer-types.ts
+import type { SynthParamValues } from './types';
+
+export interface Step {
+  gate: boolean;
+  accent: boolean;
+  params?: Partial<SynthParamValues>;
+  micro: number;
+}
+
+export interface Pattern {
+  steps: Step[];
+  length: number;
+}
+
+export interface Transport {
+  playing: boolean;
+  bpm: number;
+  swing: number;
+}
+
+export interface ScheduledNote {
+  voiceId: string;
+  time: number;
+  gateOffTime: number;
+  accent: boolean;
+  params: SynthParamValues;
+}
+
+export interface PatternSketch {
+  length?: number;
+  steps: StepSketch[];
+}
+
+export interface StepSketch {
+  index: number;
+  gate?: boolean;
+  accent?: boolean;
+  params?: Partial<SynthParamValues>;
+  micro?: number;
+}

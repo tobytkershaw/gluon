@@ -1,23 +1,29 @@
 // src/engine/primitives.ts
+import type {
+  Session, ParamSnapshot, PatternSnapshot, Snapshot,
+  SynthParamValues,
+} from './types';
+import { getVoice, updateVoice } from './types';
+import type { PatternSketch, Step } from './sequencer-types';
 
-import type { Session, Snapshot, PendingAction, SynthParamValues } from './types';
-
-let nextPendingId = 1;
-
-function clampParam(_name: string, value: number): number {
+function clampParam(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
 export function applyMove(
   session: Session,
+  voiceId: string,
   param: string,
   target: { absolute: number } | { relative: number },
 ): Session {
-  const currentValue = session.voice.params[param] ?? 0;
+  const voice = getVoice(session, voiceId);
+  const currentValue = voice.params[param] ?? 0;
   const newValue = 'absolute' in target ? target.absolute : currentValue + target.relative;
-  const clamped = clampParam(param, newValue);
+  const clamped = clampParam(newValue);
 
-  const snapshot: Snapshot = {
+  const snapshot: ParamSnapshot = {
+    kind: 'param',
+    voiceId,
     prevValues: { [param]: currentValue },
     aiTargetValues: { [param]: clamped },
     timestamp: Date.now(),
@@ -25,194 +31,138 @@ export function applyMove(
   };
 
   return {
-    ...session,
-    voice: {
-      ...session.voice,
-      params: { ...session.voice.params, [param]: clamped },
-    },
+    ...updateVoice(session, voiceId, {
+      params: { ...voice.params, [param]: clamped },
+    }),
     undoStack: [...session.undoStack, snapshot],
   };
 }
 
 export function applyMoveGroup(
   session: Session,
+  voiceId: string,
   moves: { param: string; target: { absolute: number } | { relative: number } }[],
 ): Session {
+  const voice = getVoice(session, voiceId);
   const prevValues: Partial<SynthParamValues> = {};
   const aiTargetValues: Partial<SynthParamValues> = {};
   const descriptions: string[] = [];
 
   for (const move of moves) {
-    const cur = session.voice.params[move.param] ?? 0;
+    const cur = voice.params[move.param] ?? 0;
     prevValues[move.param] = cur;
-    const nv = clampParam(move.param, 'absolute' in move.target ? move.target.absolute : cur + move.target.relative);
+    const nv = clampParam('absolute' in move.target ? move.target.absolute : cur + move.target.relative);
     aiTargetValues[move.param] = nv;
     descriptions.push(`${move.param} ${cur.toFixed(2)} -> ${nv.toFixed(2)}`);
   }
 
-  const snapshot: Snapshot = {
+  const snapshot: ParamSnapshot = {
+    kind: 'param',
+    voiceId,
     prevValues,
     aiTargetValues,
     timestamp: Date.now(),
     description: `AI group: ${descriptions.join(', ')}`,
   };
 
-  const newParams = { ...session.voice.params };
+  const newParams = { ...voice.params };
   for (const move of moves) {
     const currentValue = newParams[move.param] ?? 0;
     const newValue = 'absolute' in move.target ? move.target.absolute : currentValue + move.target.relative;
-    newParams[move.param] = clampParam(move.param, newValue);
+    newParams[move.param] = clampParam(newValue);
   }
 
   return {
-    ...session,
-    voice: { ...session.voice, params: newParams },
+    ...updateVoice(session, voiceId, { params: newParams }),
     undoStack: [...session.undoStack, snapshot],
   };
 }
 
 export function applyParamDirect(
   session: Session,
+  voiceId: string,
   param: string,
   value: number,
 ): Session {
-  return {
-    ...session,
-    voice: {
-      ...session.voice,
-      params: { ...session.voice.params, [param]: clampParam(param, value) },
-    },
-  };
+  const voice = getVoice(session, voiceId);
+  return updateVoice(session, voiceId, {
+    params: { ...voice.params, [param]: clampParam(value) },
+  });
 }
 
-export function applySuggest(
+export function applySketch(
   session: Session,
-  changes: Partial<SynthParamValues>,
-  reason?: string,
+  voiceId: string,
+  description: string,
+  sketch: PatternSketch,
 ): Session {
-  const pending: PendingAction = {
-    id: `pending-${nextPendingId++}`,
-    type: 'suggestion',
-    voiceId: session.voice.id,
-    changes,
-    reason,
-    expiresAt: Date.now() + 15000,
-    previousValues: {},
-  };
+  const voice = getVoice(session, voiceId);
+  const prevSteps: { index: number; step: Step }[] = [];
+  const newSteps = [...voice.pattern.steps];
+  let newLength = voice.pattern.length;
+  const prevLength = sketch.length !== undefined && sketch.length !== voice.pattern.length
+    ? voice.pattern.length
+    : undefined;
 
-  return {
-    ...session,
-    pending: [...session.pending, pending],
-  };
-}
-
-export function applyAudition(
-  session: Session,
-  changes: Partial<SynthParamValues>,
-  durationMs = 3000,
-): Session {
-  let currentParams = { ...session.voice.params };
-  const existingAudition = session.pending.find(
-    (p) => p.type === 'audition' && p.voiceId === session.voice.id,
-  );
-  if (existingAudition) {
-    currentParams = { ...currentParams, ...existingAudition.previousValues } as SynthParamValues;
-  }
-  const pendingWithoutOldAudition = session.pending.filter(
-    (p) => !(p.type === 'audition' && p.voiceId === session.voice.id),
-  );
-
-  const previousValues: Partial<SynthParamValues> = {};
-  for (const key of Object.keys(changes)) {
-    previousValues[key] = currentParams[key];
+  if (sketch.length !== undefined) {
+    const clamped = Math.max(1, Math.min(64, sketch.length));
+    newLength = clamped;
+    while (newSteps.length < clamped) {
+      newSteps.push({ gate: false, accent: false, micro: 0 });
+    }
   }
 
-  const pending: PendingAction = {
-    id: `pending-${nextPendingId++}`,
-    type: 'audition',
-    voiceId: session.voice.id,
-    changes,
-    expiresAt: Date.now() + durationMs,
-    previousValues,
-  };
-
-  return {
-    ...session,
-    voice: {
-      ...session.voice,
-      params: { ...currentParams, ...changes } as SynthParamValues,
-    },
-    pending: [...pendingWithoutOldAudition, pending],
-  };
-}
-
-export function cancelAuditionParam(session: Session, param: string): Session {
-  const audition = session.pending.find(
-    (p) => p.type === 'audition' && p.voiceId === session.voice.id,
-  );
-  if (!audition || !(param in audition.previousValues)) return session;
-
-  const newPreviousValues = { ...audition.previousValues };
-  delete newPreviousValues[param];
-  const newChanges = { ...audition.changes };
-  delete newChanges[param];
-
-  if (Object.keys(newPreviousValues).length === 0) {
-    return {
-      ...session,
-      pending: session.pending.filter((p) => p.id !== audition.id),
+  for (const stepSketch of sketch.steps) {
+    if (stepSketch.index < 0 || stepSketch.index >= newSteps.length) continue;
+    prevSteps.push({ index: stepSketch.index, step: { ...newSteps[stepSketch.index] } });
+    const existing = newSteps[stepSketch.index];
+    newSteps[stepSketch.index] = {
+      gate: stepSketch.gate ?? existing.gate,
+      accent: stepSketch.accent ?? existing.accent,
+      micro: stepSketch.micro ?? existing.micro,
+      params: stepSketch.params !== undefined
+        ? { ...existing.params, ...stepSketch.params }
+        : existing.params,
     };
   }
 
+  const snapshot: PatternSnapshot = {
+    kind: 'pattern',
+    voiceId,
+    prevSteps,
+    prevLength,
+    timestamp: Date.now(),
+    description,
+  };
+
+  const updated = updateVoice(session, voiceId, {
+    pattern: { steps: newSteps, length: newLength },
+  });
+
   return {
-    ...session,
-    pending: session.pending.map((p) =>
-      p.id === audition.id
-        ? { ...p, previousValues: newPreviousValues, changes: newChanges }
-        : p,
-    ),
+    ...updated,
+    undoStack: [...updated.undoStack, snapshot],
   };
 }
 
-export function commitPending(session: Session, pendingId: string): Session {
-  const action = session.pending.find((p) => p.id === pendingId);
-  if (!action) return session;
-
-  let newParams = session.voice.params;
-  if (action.type === 'suggestion') {
-    newParams = { ...newParams, ...action.changes } as SynthParamValues;
+function revertSnapshot(session: Session, snapshot: Snapshot): Session {
+  if (snapshot.kind === 'pattern') {
+    const voice = getVoice(session, snapshot.voiceId);
+    const newSteps = [...voice.pattern.steps];
+    for (const { index, step } of snapshot.prevSteps) {
+      if (index < newSteps.length) {
+        newSteps[index] = step;
+      }
+    }
+    const newLength = snapshot.prevLength ?? voice.pattern.length;
+    return updateVoice(session, snapshot.voiceId, {
+      pattern: { steps: newSteps, length: newLength },
+    });
   }
 
-  return {
-    ...session,
-    voice: { ...session.voice, params: newParams },
-    pending: session.pending.filter((p) => p.id !== pendingId),
-  };
-}
-
-export function dismissPending(session: Session, pendingId: string): Session {
-  const action = session.pending.find((p) => p.id === pendingId);
-  if (!action) return session;
-
-  let newParams = session.voice.params;
-  if (action.type === 'audition') {
-    newParams = { ...newParams, ...action.previousValues } as SynthParamValues;
-  }
-
-  return {
-    ...session,
-    voice: { ...session.voice, params: newParams },
-    pending: session.pending.filter((p) => p.id !== pendingId),
-  };
-}
-
-export function applyUndo(session: Session): Session {
-  if (session.undoStack.length === 0) return session;
-
-  const newStack = [...session.undoStack];
-  const snapshot = newStack.pop()!;
-
-  const newParams = { ...session.voice.params };
+  // ParamSnapshot
+  const voice = getVoice(session, snapshot.voiceId);
+  const newParams = { ...voice.params };
   for (const [param, prevValue] of Object.entries(snapshot.prevValues)) {
     const aiTarget = snapshot.aiTargetValues[param];
     const currentValue = newParams[param];
@@ -221,9 +171,23 @@ export function applyUndo(session: Session): Session {
     }
   }
 
-  return {
-    ...session,
-    voice: { ...session.voice, params: newParams },
-    undoStack: newStack,
-  };
+  return updateVoice(session, snapshot.voiceId, { params: newParams });
+}
+
+export function applyUndo(session: Session): Session {
+  if (session.undoStack.length === 0) return session;
+
+  const newStack = [...session.undoStack];
+  const entry = newStack.pop()!;
+
+  if (entry.kind === 'group') {
+    let result = session;
+    // Revert in reverse order
+    for (let i = entry.snapshots.length - 1; i >= 0; i--) {
+      result = revertSnapshot(result, entry.snapshots[i]);
+    }
+    return { ...result, undoStack: newStack };
+  }
+
+  return { ...revertSnapshot(session, entry), undoStack: newStack };
 }
