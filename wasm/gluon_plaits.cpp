@@ -20,6 +20,21 @@ using stmlib::BufferAllocator;
 
 constexpr size_t kVoiceRamSize = 16384;
 
+// One-pole lowpass for parameter smoothing (prevents clicks on parameter jumps).
+// Coefficient chosen for ~5ms settling at 48kHz with kMaxBlockSize=24 blocks.
+struct SmoothedParam {
+  float current;
+  float target;
+
+  void set(float value) { target = value; }
+  void reset(float value) { current = target = value; }
+
+  // Advance one block. Coefficient is per-block, not per-sample.
+  void step(float coeff) {
+    current += coeff * (target - current);
+  }
+};
+
 struct PlaitsVoiceState {
   Voice voice;
   Patch patch;
@@ -31,6 +46,12 @@ struct PlaitsVoiceState {
   float accent_level;
   bool gate_open;
   float sample_rate;
+
+  // Smoothed parameters — applied per-block before Voice::Render
+  SmoothedParam smooth_harmonics;
+  SmoothedParam smooth_timbre;
+  SmoothedParam smooth_morph;
+  SmoothedParam smooth_note;
 
   PlaitsVoiceState() : trigger_blocks_remaining(0), accent_level(0.8f), gate_open(false), sample_rate(48000.0f) {
     std::memset(&patch, 0, sizeof(patch));
@@ -46,6 +67,11 @@ void init_state(PlaitsVoiceState* state, float sample_rate) {
   state->sample_rate = sample_rate;
   state->allocator.Init(state->ram, kVoiceRamSize);
   state->voice.Init(&state->allocator);
+
+  state->smooth_harmonics.reset(0.5f);
+  state->smooth_timbre.reset(0.5f);
+  state->smooth_morph.reset(0.5f);
+  state->smooth_note.reset(60.0f);
 
   state->patch.note = 60.0f;
   state->patch.harmonics = 0.5f;
@@ -96,10 +122,10 @@ void plaits_set_model(void* handle, int model_index) {
 void plaits_set_patch(void* handle, float harmonics, float timbre, float morph, float note) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state) return;
-  state->patch.harmonics = clamp01(harmonics);
-  state->patch.timbre = clamp01(timbre);
-  state->patch.morph = clamp01(morph);
-  state->patch.note = clamp01(note) * 127.0f;
+  state->smooth_harmonics.set(clamp01(harmonics));
+  state->smooth_timbre.set(clamp01(timbre));
+  state->smooth_morph.set(clamp01(morph));
+  state->smooth_note.set(clamp01(note) * 127.0f);
 }
 
 void plaits_trigger(void* handle, float accent_level) {
@@ -107,7 +133,7 @@ void plaits_trigger(void* handle, float accent_level) {
   if (!state) return;
   state->accent_level = std::max(0.0f, accent_level);
   state->trigger_blocks_remaining = 1;
-  state->gate_open = true;
+  // gate_open is managed by plaits_set_gate — don't set it here.
 }
 
 void plaits_set_gate(void* handle, int open) {
@@ -120,11 +146,28 @@ int plaits_render(void* handle, float* output, int num_frames) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state || !output || num_frames <= 0) return 0;
 
+  // Smoothing coefficient: ~5ms settling time at 48kHz with block size 24.
+  // At 48kHz/24 = 2000 blocks/sec, coeff=0.4 gives ~3 blocks (~1.5ms) to 90% of target.
+  constexpr float kSmoothCoeff = 0.4f;
+
   int rendered = 0;
   while (rendered < num_frames) {
     const size_t block = std::min(static_cast<size_t>(num_frames - rendered), plaits::kMaxBlockSize);
-    state->modulations.trigger = (state->gate_open || state->trigger_blocks_remaining > 0) ? 1.0f : 0.0f;
-    state->modulations.level = state->accent_level;
+
+    // Advance smoothed parameters toward targets
+    state->smooth_harmonics.step(kSmoothCoeff);
+    state->smooth_timbre.step(kSmoothCoeff);
+    state->smooth_morph.step(kSmoothCoeff);
+    state->smooth_note.step(kSmoothCoeff);
+
+    state->patch.harmonics = state->smooth_harmonics.current;
+    state->patch.timbre = state->smooth_timbre.current;
+    state->patch.morph = state->smooth_morph.current;
+    state->patch.note = state->smooth_note.current;
+
+    // Trigger is a one-shot pulse (1 block); level follows the gate for sustain.
+    state->modulations.trigger = (state->trigger_blocks_remaining > 0) ? 1.0f : 0.0f;
+    state->modulations.level = state->gate_open ? state->accent_level : 0.0f;
     state->voice.Render(state->patch, state->modulations, state->frames, block);
     for (size_t i = 0; i < block; ++i) {
       output[rendered + i] = static_cast<float>(state->frames[i].out) / 32768.0f;

@@ -34,7 +34,8 @@ interface PlaitsWasm {
   _plaits_trigger(handle: number, accentLevel: number): void;
   _plaits_set_gate(handle: number, open: number): void;
   _plaits_render(handle: number, outputPtr: number, frames: number): number;
-  HEAPF32: Float32Array;
+  HEAPF32?: Float32Array;
+  memory?: WebAssembly.Memory;
 }
 
 type ScheduledEvent =
@@ -144,11 +145,20 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     }
   }
 
+  private getHeapF32(): Float32Array | null {
+    if (!this.wasm) return null;
+    if (this.wasm.HEAPF32) return this.wasm.HEAPF32;
+    if (this.wasm.memory) return new Float32Array(this.wasm.memory.buffer);
+    return null;
+  }
+
   private renderSegment(startFrame: number, frames: number, left: Float32Array, right: Float32Array): void {
     if (!this.wasm || !this.handle || frames <= 0) return;
     const rendered = this.wasm._plaits_render(this.handle, this.outputPtr, frames);
+    const heap = this.getHeapF32();
+    if (!heap) return;
     const start = this.outputPtr / Float32Array.BYTES_PER_ELEMENT;
-    const mono = this.wasm.HEAPF32.subarray(start, start + rendered);
+    const mono = heap.subarray(start, start + rendered);
     left.set(mono, startFrame);
     right.set(mono, startFrame);
   }
