@@ -1,5 +1,4 @@
 import type { SynthParams } from './synth-interface';
-import { PlaitsSynth } from './plaits-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
 export interface PlaitsAuditScenario {
@@ -22,15 +21,7 @@ export interface PlaitsAuditResult {
   audio: Float32Array;
 }
 
-function monoFromStereo(buffer: AudioBuffer): Float32Array {
-  const left = buffer.getChannelData(0);
-  const right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
-  const mono = new Float32Array(buffer.length);
-  for (let i = 0; i < buffer.length; i += 1) {
-    mono[i] = (left[i] + right[i]) * 0.5;
-  }
-  return mono;
-}
+export type PlaitsAuditRenderer = (scenario: PlaitsAuditScenario) => Promise<Float32Array>;
 
 export function analyzeBuffer(audio: Float32Array): BufferMetrics {
   let peak = 0;
@@ -54,23 +45,11 @@ export function analyzeBuffer(audio: Float32Array): BufferMetrics {
   };
 }
 
-export async function renderAuditScenario(scenario: PlaitsAuditScenario): Promise<PlaitsAuditResult> {
-  const sampleRate = 48_000;
-  const frameCount = Math.ceil(scenario.durationSeconds * sampleRate);
-  const ctx = new OfflineAudioContext(2, frameCount, sampleRate);
-  const synth = await PlaitsSynth.create(ctx as unknown as AudioContext, ctx.destination);
-
-  synth.setModel(scenario.model);
-  synth.setParams(scenario.baseParams);
-
-  for (const note of scenario.notes) {
-    synth.scheduleNote(note);
-  }
-
-  const rendered = await ctx.startRendering();
-  synth.destroy();
-
-  const audio = monoFromStereo(rendered);
+export async function renderAuditScenario(
+  scenario: PlaitsAuditScenario,
+  render: PlaitsAuditRenderer,
+): Promise<PlaitsAuditResult> {
+  const audio = await render(scenario);
   return {
     scenario,
     metrics: analyzeBuffer(audio),
@@ -78,10 +57,13 @@ export async function renderAuditScenario(scenario: PlaitsAuditScenario): Promis
   };
 }
 
-export async function runAuditSuite(scenarios: PlaitsAuditScenario[]): Promise<PlaitsAuditResult[]> {
+export async function runAuditSuite(
+  scenarios: PlaitsAuditScenario[],
+  render: PlaitsAuditRenderer,
+): Promise<PlaitsAuditResult[]> {
   const results: PlaitsAuditResult[] = [];
   for (const scenario of scenarios) {
-    results.push(await renderAuditScenario(scenario));
+    results.push(await renderAuditScenario(scenario, render));
   }
   return results;
 }

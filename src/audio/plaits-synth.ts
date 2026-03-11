@@ -37,7 +37,10 @@ export class PlaitsSynth implements SynthEngine {
       load = (async () => {
         await ctx.audioWorklet.addModule(MODULE_URL);
         await ctx.audioWorklet.addModule(WORKLET_URL);
-      })();
+      })().catch((error) => {
+        this.moduleLoads.delete(ctx);
+        throw error;
+      });
       this.moduleLoads.set(ctx, load);
     }
     return load;
@@ -45,12 +48,17 @@ export class PlaitsSynth implements SynthEngine {
 
   private static loadWasmBinary(): Promise<ArrayBuffer> {
     if (!this.wasmBinaryLoad) {
-      this.wasmBinaryLoad = fetch(WASM_URL).then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`Failed to fetch Plaits WASM: ${response.status}`);
-        }
-        return response.arrayBuffer();
-      });
+      this.wasmBinaryLoad = fetch(WASM_URL)
+        .then(async (response) => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch Plaits WASM: ${response.status}`);
+          }
+          return response.arrayBuffer();
+        })
+        .catch((error) => {
+          this.wasmBinaryLoad = null;
+          throw error;
+        });
     }
     return this.wasmBinaryLoad;
   }
@@ -125,6 +133,7 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   destroy(): void {
+    this.post({ type: 'destroy' });
     this.node.disconnect();
     this.analyser.disconnect();
     this.node.port.close();

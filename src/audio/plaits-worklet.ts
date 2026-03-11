@@ -41,7 +41,8 @@ type ScheduledEvent =
   | { type: 'set-model'; time?: number; seq: number; model: number }
   | { type: 'set-patch'; time?: number; seq: number; patch: SynthPatch }
   | { type: 'trigger'; time: number; seq: number; accentLevel: number }
-  | { type: 'set-gate'; time: number; seq: number; open: boolean };
+  | { type: 'set-gate'; time: number; seq: number; open: boolean }
+  | { type: 'destroy'; time?: undefined; seq: number };
 
 class PlaitsProcessor extends AudioWorkletProcessor {
   private wasm: PlaitsWasm | null = null;
@@ -52,6 +53,7 @@ class PlaitsProcessor extends AudioWorkletProcessor {
   private seq = 0;
   private ready = false;
   private readonly wasmBinary: ArrayBuffer | null;
+  private destroyed = false;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -100,6 +102,20 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     }
   }
 
+  private destroyWasm(): void {
+    if (this.wasm && this.outputPtr) {
+      this.wasm._free(this.outputPtr);
+      this.outputPtr = 0;
+    }
+    if (this.wasm && this.handle) {
+      this.wasm._plaits_destroy(this.handle);
+      this.handle = 0;
+    }
+    this.queue = [];
+    this.ready = false;
+    this.destroyed = true;
+  }
+
   private applyEvent(event: ScheduledEvent): void {
     if (!this.wasm || !this.handle) return;
     switch (event.type) {
@@ -122,6 +138,9 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       case 'set-gate':
         this.wasm._plaits_set_gate(this.handle, event.open ? 1 : 0);
         break;
+      case 'destroy':
+        this.destroyWasm();
+        break;
     }
   }
 
@@ -141,6 +160,10 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     const right = output[1] ?? output[0];
     left.fill(0);
     right.fill(0);
+
+    if (this.destroyed) {
+      return false;
+    }
 
     if (!this.ready || !this.wasm || !this.handle) {
       return true;

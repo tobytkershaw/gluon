@@ -24,11 +24,16 @@ export interface PlaitsGateMessage {
   open: boolean;
 }
 
+export interface PlaitsDestroyMessage {
+  type: 'destroy';
+}
+
 export type PlaitsProcessorCommand =
   | PlaitsPatchMessage
   | PlaitsModelMessage
   | PlaitsTriggerMessage
-  | PlaitsGateMessage;
+  | PlaitsGateMessage
+  | PlaitsDestroyMessage;
 
 export interface PlaitsProcessorReady {
   type: 'ready';

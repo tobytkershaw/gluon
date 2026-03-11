@@ -9,7 +9,6 @@ export class WebAudioSynth implements SynthEngine {
   private filter: BiquadFilterNode;
   private analyser: AnalyserNode;
   private params: SynthParams = { ...DEFAULT_PARAMS };
-  private gateOpen = false;
 
   constructor(ctx: AudioContext, output?: AudioNode) {
     this.oscillator = ctx.createOscillator();
@@ -53,16 +52,10 @@ export class WebAudioSynth implements SynthEngine {
     this.envelope.gain.cancelScheduledValues(time);
     this.envelope.gain.setValueAtTime(0.01, time);
     this.envelope.gain.linearRampToValueAtTime(0.3, time + 0.005);
-    this.gateOpen = true;
   }
 
-  private setGateOpenAt(open: boolean, time: number): void {
-    if (this.gateOpen === open) return;
-    this.gateOpen = open;
-    if (!open) {
-      this.envelope.gain.cancelScheduledValues(time);
-      this.envelope.gain.setTargetAtTime(0, time, 0.05);
-    }
+  private releaseAt(time: number): void {
+    this.envelope.gain.setTargetAtTime(0, time, 0.05);
   }
 
   scheduleNote(note: ScheduledNote): void {
@@ -72,8 +65,7 @@ export class WebAudioSynth implements SynthEngine {
     this.filter.Q.setValueAtTime(0.5 + note.params.morph * 14.5, note.time);
     this.oscillator.detune.setValueAtTime((note.params.harmonics - 0.5) * 100, note.time);
     this.triggerAt(note.time);
-    this.setGateOpenAt(true, note.time);
-    this.setGateOpenAt(false, note.gateOffTime);
+    this.releaseAt(note.gateOffTime);
   }
 
   destroy(): void {
