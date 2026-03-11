@@ -449,6 +449,7 @@ export default function App() {
             onUndo={handleUndo}
             onSend={handleSend}
             isThinking={isThinking}
+            isListening={isListening}
             analyser={audioRef.current.getAnalyser()}
           />
         )}

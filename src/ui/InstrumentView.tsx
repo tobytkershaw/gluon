@@ -54,6 +54,7 @@ interface Props {
   onUndo: () => void;
   onSend: (message: string) => void;
   isThinking?: boolean;
+  isListening?: boolean;
   // Audio
   analyser: AnalyserNode | null;
 }
@@ -84,7 +85,7 @@ export function InstrumentView({
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   stepPage, onStepToggle, onStepAccent, onStepHold, onStepRelease,
   onPatternLength, onPageChange, onClearPattern,
-  onUndo, onSend, isThinking = false, analyser,
+  onUndo, onSend, isThinking = false, isListening = false, analyser,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
   const totalPages = Math.ceil(activeVoice.pattern.length / 16);
@@ -187,7 +188,7 @@ export function InstrumentView({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <ChatComposer onSend={onSend} placeholder="Ask the AI..." disabled={isThinking} />
+          <ChatComposer onSend={onSend} placeholder="Ask the AI..." disabled={isThinking || isListening} />
         </div>
       </div>
     </div>

@@ -155,7 +155,13 @@ export class GluonAI {
 
     const state = compressState(session);
     const audioBytes = new Uint8Array(await audioBlob.arrayBuffer());
-    const audioBase64 = btoa(String.fromCharCode(...audioBytes));
+    // Chunk the conversion to avoid exceeding max call stack with spread operator
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < audioBytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...audioBytes.subarray(i, i + chunkSize));
+    }
+    const audioBase64 = btoa(binary);
 
     try {
       const response = await this.ai.models.generateContent({
