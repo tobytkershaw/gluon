@@ -32,6 +32,7 @@ import { TransportBar } from './TransportBar';
 import { VoiceSelector } from './VoiceSelector';
 import { StepGrid } from './StepGrid';
 import { PatternControls } from './PatternControls';
+import { ListenerSpike } from './ListenerSpike';
 import type { SketchPendingAction } from '../engine/types';
 
 export default function App() {
@@ -356,7 +357,7 @@ export default function App() {
       if (s.leash < 0.3) return;
       const actions = await aiRef.current.react(s);
       if (actions.length > 0) dispatchAIActions(actions);
-    }, 3000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [audioStarted, dispatchAIActions]);
 
@@ -380,6 +381,11 @@ export default function App() {
 
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
   const totalPages = Math.ceil(activeVoice.pattern.length / 16);
+
+  const getMediaStream = useCallback(() => {
+    const dest = audioRef.current.getMediaStreamDestination();
+    return dest?.stream ?? null;
+  }, []);
 
   // Find pending sketch for active voice
   const pendingSketch = session.pending.find(
@@ -468,6 +474,7 @@ export default function App() {
           <LeashSlider value={session.leash} onChange={handleLeashChange} />
           <AgencyToggle value={activeVoice.agency} onChange={handleAgencyChange} />
           <ChatPanel messages={session.messages} onSend={handleSend} />
+          <ListenerSpike getMediaStream={getMediaStream} />
         </div>
       </div>
     </div>
