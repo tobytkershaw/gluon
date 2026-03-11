@@ -1,5 +1,6 @@
 // src/ai/state-compression.ts
 import type { Session, Voice } from '../engine/types';
+import { getModelName } from '../audio/instrument-registry';
 
 interface CompressedPattern {
   length: number;
@@ -31,13 +32,8 @@ function round2(n: number): number {
 }
 
 function modelName(model: number): string {
-  const names = [
-    'virtual_analog', 'waveshaping', 'fm', 'grain_formant', 'harmonic',
-    'wavetable', 'chords', 'vowel_speech', 'swarm', 'filtered_noise',
-    'particle_dust', 'inharmonic_string', 'modal_resonator',
-    'analog_bass_drum', 'analog_snare', 'analog_hi_hat',
-  ];
-  return names[model] ?? `unknown_${model}`;
+  const name = getModelName(model);
+  return name.toLowerCase().replace(/[\s/]+/g, '_');
 }
 
 function compressPattern(voice: Voice): CompressedPattern {

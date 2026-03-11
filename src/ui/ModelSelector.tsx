@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { PLAITS_MODELS } from '../audio/synth-interface';
+import { getModelList } from '../audio/instrument-registry';
+
+const PLAITS_MODELS = getModelList();
 
 interface Props {
   model: number;
