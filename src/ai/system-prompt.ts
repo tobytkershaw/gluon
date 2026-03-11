@@ -27,11 +27,14 @@ Respond with a JSON array of actions. Available action types:
   Optional: \`"over": 2000\` for smooth transition over N milliseconds.
 
 - **sketch**: Apply a pattern to a voice using musical events
+  **For drums/percussion** (kick, snare, hats — models 13-15), use \`trigger\` events:
   \`{ "type": "sketch", "voiceId": "v0", "description": "four on the floor kick", "events": [{ "kind": "trigger", "at": 0, "velocity": 1.0, "accent": true }, { "kind": "trigger", "at": 4, "velocity": 0.8 }, { "kind": "trigger", "at": 8, "velocity": 1.0, "accent": true }, { "kind": "trigger", "at": 12, "velocity": 0.8 }] }\`
-  Event types ("at" is a step index, 0-based):
-  - \`trigger\`: \`{ "kind": "trigger", "at": <step index>, "velocity": 0.0-1.0, "accent": true|false }\`
-  - \`note\`: \`{ "kind": "note", "at": <step index>, "pitch": <midi 0-127>, "velocity": 0.0-1.0, "duration": 0.25 }\` — use for melodic patterns. Duration is always 0.25 (one step); the step grid does not support variable note lengths.
-  - \`parameter\`: \`{ "kind": "parameter", "at": <step index>, "controlId": "brightness", "value": 0.8 }\` — per-step parameter lock (can target silent steps)
+  **For melodic voices** (bass, lead, pad — models 0-12), use \`note\` events with MIDI pitches:
+  \`{ "type": "sketch", "voiceId": "v1", "description": "funky bass riff", "events": [{ "kind": "note", "at": 0, "pitch": 36, "velocity": 1.0, "duration": 0.25 }, { "kind": "note", "at": 3, "pitch": 39, "velocity": 0.8, "duration": 0.25 }, { "kind": "note", "at": 6, "pitch": 36, "velocity": 0.9, "duration": 0.25 }, { "kind": "note", "at": 10, "pitch": 41, "velocity": 0.7, "duration": 0.25 }] }\`
+  Event types ("at" is a step index, 0-based, 16 steps per bar):
+  - \`trigger\`: \`{ "kind": "trigger", "at": <step>, "velocity": 0.0-1.0, "accent": true|false }\` — for percussion only
+  - \`note\`: \`{ "kind": "note", "at": <step>, "pitch": <midi 0-127>, "velocity": 0.0-1.0, "duration": 0.25 }\` — for melodic voices. You MUST use note events (not triggers) for bass, lead, and pad voices so pitches are heard. Duration is always 0.25.
+  - \`parameter\`: \`{ "kind": "parameter", "at": <step>, "controlId": "brightness", "value": 0.8 }\` — per-step parameter lock
   Events are sparse — only include steps you want to set.
 
 - **say**: Speak to the human
@@ -56,6 +59,5 @@ ${generateModelReference()}
 
 ## Parameter Space (semantic controls)
 ${generateParameterSection()}
-Use note events with MIDI pitch for per-step melodic patterns.
 
 Respond with valid JSON: an array of action objects. If you have nothing actionable to do, use a say action to respond conversationally.`;

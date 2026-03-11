@@ -169,7 +169,6 @@ export class GluonAI {
         model: MODEL,
         config: {
           systemInstruction: GLUON_LISTEN_PROMPT,
-          maxOutputTokens: 800,
           thinkingConfig: { thinkingLevel: 'MEDIUM' },
         },
         contents: [{
@@ -182,7 +181,15 @@ export class GluonAI {
       });
 
       this.backoff = { until: 0, delay: 0 };
-      return response.text ?? 'No response from model.';
+      const critique = response.text ?? 'No response from model.';
+
+      // Inject the critique into edit-mode history so the model can act on what it heard
+      this.history.push(
+        { role: 'user', parts: [{ text: `[listened to audio] ${question}` }] },
+        { role: 'model', parts: [{ text: `[audio critique] ${critique}` }] },
+      );
+
+      return critique;
     } catch (error) {
       const actions = this.handleError(error);
       const sayAction = actions.find(a => a.type === 'say');
