@@ -28,10 +28,10 @@ Respond with a JSON array of actions. Available action types:
 
 - **sketch**: Apply a pattern to a voice using musical events
   \`{ "type": "sketch", "voiceId": "v0", "description": "four on the floor kick", "events": [{ "kind": "trigger", "at": 0, "velocity": 1.0, "accent": true }, { "kind": "trigger", "at": 4, "velocity": 0.8 }, { "kind": "trigger", "at": 8, "velocity": 1.0, "accent": true }, { "kind": "trigger", "at": 12, "velocity": 0.8 }] }\`
-  Event types:
-  - \`trigger\`: \`{ "kind": "trigger", "at": <step>, "velocity": 0.0-1.0, "accent": true|false }\`
-  - \`note\`: \`{ "kind": "note", "at": <step>, "pitch": <midi 0-127>, "velocity": 0.0-1.0, "duration": 0.25 }\` — use for melodic patterns
-  - \`parameter\`: \`{ "kind": "parameter", "at": <step>, "controlId": "brightness", "value": 0.8 }\` — per-step parameter lock
+  Event types ("at" is a step index, 0-based):
+  - \`trigger\`: \`{ "kind": "trigger", "at": <step index>, "velocity": 0.0-1.0, "accent": true|false }\`
+  - \`note\`: \`{ "kind": "note", "at": <step index>, "pitch": <midi 0-127>, "velocity": 0.0-1.0, "duration": 0.25 }\` — use for melodic patterns
+  - \`parameter\`: \`{ "kind": "parameter", "at": <step index>, "controlId": "brightness", "value": 0.8 }\` — per-step parameter lock (can target silent steps)
   Events are sparse — only include steps you want to set.
 
 - **say**: Speak to the human

@@ -176,7 +176,9 @@ export function executeOperations(
             midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
           });
           const sketch = {
-            steps: steps.map((s, i) => ({ index: i, ...s })).filter(s => s.gate),
+            steps: steps
+              .map((s, i) => ({ index: i, ...s }))
+              .filter(s => s.gate || s.params),
           };
           next = applySketch(next, action.voiceId, action.description, sketch);
         } else if (action.pattern) {

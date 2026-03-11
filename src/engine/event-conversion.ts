@@ -24,30 +24,32 @@ export function stepsToEvents(steps: Step[], options?: ConversionOptions): Music
 
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
-    if (!step.gate) continue;
 
-    // Note param with pitch converter → NoteEvent; otherwise TriggerEvent
-    const noteValue = step.params?.note;
-    if (noteValue !== undefined && options?.pitchToMidi) {
-      const noteEvent: NoteEvent = {
-        kind: 'note',
-        at: i,
-        pitch: options.pitchToMidi(noteValue),
-        velocity: step.accent ? 1.0 : 0.8,
-        duration: 0.25,
-      };
-      events.push(noteEvent);
-    } else {
-      const trigger: TriggerEvent = {
-        kind: 'trigger',
-        at: i,
-        velocity: step.accent ? 1.0 : 0.8,
-        accent: step.accent,
-      };
-      events.push(trigger);
+    if (step.gate) {
+      // Note param with pitch converter → NoteEvent; otherwise TriggerEvent
+      const noteValue = step.params?.note;
+      if (noteValue !== undefined && options?.pitchToMidi) {
+        const noteEvent: NoteEvent = {
+          kind: 'note',
+          at: i,
+          pitch: options.pitchToMidi(noteValue),
+          velocity: step.accent ? 1.0 : 0.8,
+          duration: 0.25,
+        };
+        events.push(noteEvent);
+      } else {
+        const trigger: TriggerEvent = {
+          kind: 'trigger',
+          at: i,
+          velocity: step.accent ? 1.0 : 0.8,
+          accent: step.accent,
+        };
+        events.push(trigger);
+      }
     }
 
     // Param locks → ParameterEvents (skip 'note' — handled above or dropped)
+    // Emitted for both gated and ungated steps to preserve automation on silent steps.
     if (step.params) {
       for (const [key, value] of Object.entries(step.params)) {
         if (key === 'note') continue;

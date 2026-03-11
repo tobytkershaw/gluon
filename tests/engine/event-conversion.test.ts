@@ -59,12 +59,28 @@ describe('event-conversion', () => {
       expect((events[0] as NoteEvent).pitch).toBe(60); // 0.47 * 127 ≈ 60
     });
 
-    it('returns empty for all-off steps', () => {
+    it('returns empty for all-off steps without params', () => {
       const steps: Step[] = [
         { gate: false, accent: false, micro: 0 },
         { gate: false, accent: false, micro: 0 },
       ];
       expect(stepsToEvents(steps)).toHaveLength(0);
+    });
+
+    it('emits ParameterEvents for ungated steps with param locks', () => {
+      const steps: Step[] = [
+        { gate: false, accent: false, micro: 0, params: { timbre: 0.9 } },
+        { gate: true, accent: false, micro: 0 },
+      ];
+      const events = stepsToEvents(steps);
+      // Step 0: ungated but has param → 1 ParameterEvent
+      // Step 1: gated → 1 TriggerEvent
+      expect(events).toHaveLength(2);
+      const paramEvent = events.find(e => e.kind === 'parameter') as ParameterEvent;
+      expect(paramEvent).toBeDefined();
+      expect(paramEvent.at).toBe(0);
+      expect(paramEvent.controlId).toBe('brightness');
+      expect(paramEvent.value).toBe(0.9);
     });
   });
 
@@ -166,6 +182,25 @@ describe('event-conversion', () => {
       const result = eventsToSteps(events, 2, { midiToPitch });
       expect(result[0].gate).toBe(true);
       expect(result[0].params?.note).toBeCloseTo(0.47, 1);
+    });
+
+    it('round-trip: ungated param locks preserved', () => {
+      const original: Step[] = [
+        { gate: false, accent: false, micro: 0, params: { timbre: 0.6 } },
+        { gate: true, accent: false, micro: 0 },
+        { gate: false, accent: false, micro: 0, params: { morph: 0.4 } },
+        { gate: false, accent: false, micro: 0 },
+      ];
+      const events = stepsToEvents(original);
+      const result = eventsToSteps(events, 4);
+      // Step 0: ungated with param lock
+      expect(result[0].gate).toBe(false);
+      expect((result[0].params as Record<string, unknown>)['timbre']).toBe(0.6);
+      // Step 1: gated, no params
+      expect(result[1].gate).toBe(true);
+      // Step 2: ungated with param lock
+      expect(result[2].gate).toBe(false);
+      expect((result[2].params as Record<string, unknown>)['morph']).toBe(0.4);
     });
   });
 });

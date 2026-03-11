@@ -213,4 +213,43 @@ describe('operation-executor', () => {
     const voice = report.session.voices.find(v => v.id === 'v0')!;
     expect((voice.params as Record<string, unknown>)['foo']).toBeUndefined();
   });
+
+  it('applies canonical sketch with events', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [{
+      type: 'sketch',
+      voiceId: 'v0',
+      description: 'test events',
+      events: [
+        { kind: 'trigger', at: 0, velocity: 1.0, accent: true },
+        { kind: 'trigger', at: 4, velocity: 0.8 },
+      ],
+    }];
+    const report = executeOperations(session, actions, adapter, new Arbitrator());
+    expect(report.accepted).toHaveLength(1);
+    const voice = report.session.voices.find(v => v.id === 'v0')!;
+    expect(voice.pattern.steps[0].gate).toBe(true);
+    expect(voice.pattern.steps[0].accent).toBe(true);
+    expect(voice.pattern.steps[4].gate).toBe(true);
+  });
+
+  it('preserves param-only events on silent steps in canonical sketch', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [{
+      type: 'sketch',
+      voiceId: 'v0',
+      description: 'automation on silent step',
+      events: [
+        { kind: 'trigger', at: 0, velocity: 1.0, accent: false },
+        { kind: 'parameter', at: 2, controlId: 'brightness', value: 0.9 },
+      ],
+    }];
+    const report = executeOperations(session, actions, adapter, new Arbitrator());
+    expect(report.accepted).toHaveLength(1);
+    const voice = report.session.voices.find(v => v.id === 'v0')!;
+    expect(voice.pattern.steps[0].gate).toBe(true);
+    // Step 2 is silent but should have the param lock
+    expect(voice.pattern.steps[2].gate).toBe(false);
+    expect((voice.pattern.steps[2].params as Record<string, unknown>)?.['timbre']).toBe(0.9);
+  });
 });
