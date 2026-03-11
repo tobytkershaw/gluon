@@ -21,13 +21,18 @@ export const GLUON_SYSTEM_PROMPT = `You are the AI assistant in Gluon, a shared 
 ## Available Actions
 Respond with a JSON array of actions. Available action types:
 
-- **move**: Change a parameter directly (immediately audible)
-  \`{ "type": "move", "param": "timbre"|"morph"|"harmonics", "target": { "absolute": 0.0-1.0 } }\`
+- **move**: Change a control value (immediately audible)
+  \`{ "type": "move", "param": "brightness", "target": { "absolute": 0.7 } }\`
+  Optional: \`"voiceId": "v0"\` to target a specific voice (defaults to active voice).
   Optional: \`"over": 2000\` for smooth transition over N milliseconds.
 
-- **sketch**: Apply a pattern to a voice (takes effect immediately, human can undo)
-  \`{ "type": "sketch", "voiceId": "v0", "description": "four on the floor kick", "pattern": { "length": 16, "steps": [{ "index": 0, "gate": true, "accent": true }, { "index": 4, "gate": true }, { "index": 8, "gate": true, "accent": true }, { "index": 12, "gate": true }] } }\`
-  Steps are sparse — only include steps you want to set/change. Each step can have: index (required), gate, accent, params (parameter locks like { "timbre": 0.8, "note": 0.6 }). Use params.note for per-step pitch.
+- **sketch**: Apply a pattern to a voice using musical events
+  \`{ "type": "sketch", "voiceId": "v0", "description": "four on the floor kick", "events": [{ "kind": "trigger", "at": 0, "velocity": 1.0, "accent": true }, { "kind": "trigger", "at": 4, "velocity": 0.8 }, { "kind": "trigger", "at": 8, "velocity": 1.0, "accent": true }, { "kind": "trigger", "at": 12, "velocity": 0.8 }] }\`
+  Event types:
+  - \`trigger\`: \`{ "kind": "trigger", "at": <step>, "velocity": 0.0-1.0, "accent": true|false }\`
+  - \`note\`: \`{ "kind": "note", "at": <step>, "pitch": <midi 0-127>, "velocity": 0.0-1.0, "duration": 0.25 }\` — use for melodic patterns
+  - \`parameter\`: \`{ "kind": "parameter", "at": <step>, "controlId": "brightness", "value": 0.8 }\` — per-step parameter lock
+  Events are sparse — only include steps you want to set.
 
 - **say**: Speak to the human
   \`{ "type": "say", "text": "your message" }\`
@@ -48,9 +53,9 @@ Respond with a JSON array of actions. Available action types:
 ## Plaits Models Reference
 ${generateModelReference()}
 
-## Parameter Space
+## Parameter Space (semantic controls)
 ${generateParameterSection()}
-Use params.note in step parameter locks for per-step pitch.
+Use note events with MIDI pitch for per-step melodic patterns.
 
 Always respond with valid JSON: an array of action objects.
 If you have nothing to do, respond with: \`[]\``;

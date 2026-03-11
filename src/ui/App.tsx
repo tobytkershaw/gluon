@@ -4,8 +4,7 @@ import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import type { Session, AIAction } from '../engine/types';
 import { getActiveVoice, getVoice } from '../engine/types';
-import type { SourceAdapter } from '../engine/canonical-types';
-import { controlIdToRuntimeParam, runtimeParamToControlId } from '../audio/instrument-registry';
+import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
@@ -21,26 +20,7 @@ import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
 import type { ViewMode } from './view-types';
 
-// Minimal adapter stub for executor — full adapter in PR-5
-const plaitsAdapterStub: SourceAdapter = {
-  id: 'plaits-wasm',
-  name: 'Plaits WASM',
-  mapControl(controlId: string) {
-    const param = controlIdToRuntimeParam[controlId];
-    return { adapterId: 'plaits-wasm', path: param ? `params.${param}` : controlId };
-  },
-  mapRuntimeParamKey(paramKey: string) {
-    return runtimeParamToControlId[paramKey] ?? null;
-  },
-  applyControlChanges() {},
-  mapEvents() { return []; },
-  readControlState() { return {}; },
-  readRegions() { return []; },
-  getControlSchemas() { return []; },
-  validateOperation() { return { valid: true }; },
-  midiToNormalisedPitch(midi: number) { return midi / 127; },
-  normalisedPitchToMidi(n: number) { return Math.round(n * 127); },
-};
+const plaitsAdapter = createPlaitsAdapter();
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
@@ -119,7 +99,7 @@ export default function App() {
 
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
-      const report = executeOperations(s, actions, plaitsAdapterStub, arbRef.current);
+      const report = executeOperations(s, actions, plaitsAdapter, arbRef.current);
 
       // Start drift animations for accepted moves with `over`
       for (let i = 0; i < report.accepted.length; i++) {
@@ -148,7 +128,7 @@ export default function App() {
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
     setSession((s) => {
-      let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapterStub);
+      let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
       // If a step is held, apply param lock
       if (heldStep !== null) {
@@ -163,14 +143,14 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
-    setSession((s) => updateVoiceParams(s, vid, { note }, true, plaitsAdapterStub));
+    setSession((s) => updateVoiceParams(s, vid, { note }, true, plaitsAdapter));
   }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
-    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapterStub));
+    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter));
   }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {

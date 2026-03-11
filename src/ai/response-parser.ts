@@ -14,28 +14,47 @@ function isValidAction(action: unknown): action is AIAction {
   if (!isRecord(action) || typeof action.type !== 'string') return false;
 
   switch (action.type) {
-    case 'move':
-      if (typeof action.param !== 'string') return false;
+    case 'move': {
+      // Accept 'param' or 'controlId' — normalise to 'param'
+      const param = action.param ?? action.controlId;
+      if (typeof param !== 'string') return false;
       if (action.voiceId !== undefined && typeof action.voiceId !== 'string') return false;
       if (!isRecord(action.target)) return false;
       if (!('absolute' in action.target) && !('relative' in action.target)) return false;
       return typeof action.target.absolute === 'number' || typeof action.target.relative === 'number';
+    }
 
     case 'say':
       return typeof action.text === 'string';
 
-    case 'sketch':
+    case 'sketch': {
       if (typeof action.voiceId !== 'string') return false;
       if (typeof action.description !== 'string') return false;
-      if (!isRecord(action.pattern)) return false;
-      if (!Array.isArray(action.pattern.steps)) return false;
-      return action.pattern.steps.every((s: unknown) =>
-        isRecord(s) && typeof s.index === 'number'
-      );
+      // Accept canonical 'events' array or legacy 'pattern.steps'
+      if (Array.isArray(action.events)) {
+        return action.events.every((e: unknown) =>
+          isRecord(e) && typeof e.kind === 'string' && typeof e.at === 'number'
+        );
+      }
+      if (isRecord(action.pattern) && Array.isArray(action.pattern.steps)) {
+        return action.pattern.steps.every((s: unknown) =>
+          isRecord(s) && typeof s.index === 'number'
+        );
+      }
+      return false;
+    }
 
     default:
       return false;
   }
+}
+
+/** Normalise parsed action to internal shape */
+function normaliseAction(raw: Record<string, unknown>): AIAction {
+  if (raw.type === 'move' && raw.controlId && !raw.param) {
+    return { ...raw, param: raw.controlId } as unknown as AIAction;
+  }
+  return raw as unknown as AIAction;
 }
 
 export function parseAIResponse(response: string): AIAction[] {
@@ -43,7 +62,7 @@ export function parseAIResponse(response: string): AIAction[] {
     const jsonStr = extractJSON(response);
     const parsed = JSON.parse(jsonStr);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isValidAction);
+    return parsed.filter(isValidAction).map(a => normaliseAction(a as Record<string, unknown>));
   } catch {
     return [];
   }

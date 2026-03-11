@@ -34,7 +34,7 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(result[0].type).toBe('sketch');
     if (result[0].type === 'sketch') {
       expect(result[0].voiceId).toBe('v0');
-      expect(result[0].pattern.steps).toHaveLength(4);
+      expect(result[0].pattern?.steps).toHaveLength(4);
     }
   });
 
@@ -85,5 +85,51 @@ describe('parseAIResponse (Phase 2)', () => {
 
   it('returns empty array for non-array JSON', () => {
     expect(parseAIResponse('{"type":"move"}')).toEqual([]);
+  });
+
+  // Canonical shape tests
+  it('parses move with controlId (canonical shape)', () => {
+    const json = JSON.stringify([{
+      type: 'move', controlId: 'brightness', target: { absolute: 0.7 },
+    }]);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('move');
+    if (result[0].type === 'move') {
+      expect(result[0].param).toBe('brightness');
+    }
+  });
+
+  it('parses sketch with events (canonical shape)', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'kick pattern',
+      events: [
+        { kind: 'trigger', at: 0, velocity: 1.0, accent: true },
+        { kind: 'trigger', at: 4, velocity: 0.8 },
+      ],
+    }]);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('sketch');
+    if (result[0].type === 'sketch') {
+      expect(result[0].events).toHaveLength(2);
+    }
+  });
+
+  it('rejects sketch with neither events nor pattern', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'test',
+    }]);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(0);
+  });
+
+  it('rejects sketch with invalid events', () => {
+    const json = JSON.stringify([{
+      type: 'sketch', voiceId: 'v0', description: 'test',
+      events: [{ not: 'valid' }],
+    }]);
+    const result = parseAIResponse(json);
+    expect(result).toHaveLength(0);
   });
 });

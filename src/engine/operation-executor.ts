@@ -4,6 +4,7 @@ import type { ControlState, SourceAdapter, ExecutionReportLogEntry } from './can
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
+import { eventsToSteps } from './event-conversion';
 import { VOICE_LABELS } from './voice-labels';
 
 export interface OperationExecutionReport {
@@ -169,7 +170,23 @@ export function executeOperations(
           break;
         }
 
-        next = applySketch(next, action.voiceId, action.description, action.pattern);
+        if (action.events) {
+          // Canonical sketch: convert MusicalEvent[] to PatternSketch via adapter
+          const steps = eventsToSteps(action.events, voice.pattern.length, {
+            midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
+          });
+          const sketch = {
+            steps: steps.map((s, i) => ({ index: i, ...s })).filter(s => s.gate),
+          };
+          next = applySketch(next, action.voiceId, action.description, sketch);
+        } else if (action.pattern) {
+          // Legacy sketch: pass through directly
+          next = applySketch(next, action.voiceId, action.description, action.pattern);
+        } else {
+          rejected.push({ op: action, reason: 'Sketch has neither events nor pattern' });
+          break;
+        }
+
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `pattern: ${action.description}` });
         accepted.push(action);
