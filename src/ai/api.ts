@@ -10,6 +10,18 @@ import { GLUON_TOOLS } from './tool-declarations';
 
 const MODEL = 'gemini-3-flash-preview';
 
+/** Build an error function response that returns no actions */
+function errorResponse(
+  id: string,
+  name: string,
+  message: string,
+): { actions: AIAction[]; responsePart: Part } {
+  return {
+    actions: [],
+    responsePart: createPartFromFunctionResponse(id, name, { error: message }),
+  };
+}
+
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
   getAudioDestination: () => MediaStreamAudioDestinationNode | null;
@@ -122,10 +134,14 @@ export class GluonAI {
       collectedActions.push(...errorActions);
     }
 
-    // Store exchange in history
-    this.exchanges.push({ userText: humanMessage, turns: loopContents });
-    if (this.exchanges.length > GluonAI.MAX_EXCHANGES) {
-      this.exchanges = this.exchanges.slice(-GluonAI.MAX_EXCHANGES);
+    // Only store exchange in history if the request wasn't cancelled.
+    // Stale exchanges would pollute history with tool calls/responses
+    // for actions the session never applied.
+    if (!ctx?.isStale?.()) {
+      this.exchanges.push({ userText: humanMessage, turns: loopContents });
+      if (this.exchanges.length > GluonAI.MAX_EXCHANGES) {
+        this.exchanges = this.exchanges.slice(-GluonAI.MAX_EXCHANGES);
+      }
     }
 
     return collectedActions;
@@ -170,10 +186,19 @@ export class GluonAI {
 
     switch (name) {
       case 'move': {
+        // Validate required args
+        if (typeof args.param !== 'string' || !args.param) {
+          return errorResponse(id, name, 'Missing required parameter: param');
+        }
+        const target = args.target as Record<string, unknown> | undefined;
+        if (!target || (typeof target.absolute !== 'number' && typeof target.relative !== 'number')) {
+          return errorResponse(id, name, 'Missing required parameter: target (needs absolute or relative number)');
+        }
+
         const action: AIMoveAction = {
           type: 'move',
           param: args.param as string,
-          target: args.target as { absolute?: number; relative?: number },
+          target: target as { absolute?: number; relative?: number },
           ...(args.voiceId ? { voiceId: args.voiceId as string } : {}),
           ...(args.over ? { over: args.over as number } : {}),
         };
@@ -189,6 +214,16 @@ export class GluonAI {
       }
 
       case 'sketch': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+        if (!Array.isArray(args.events)) {
+          return errorResponse(id, name, 'Missing required parameter: events (must be an array)');
+        }
+
         const action: AISketchAction = {
           type: 'sketch',
           voiceId: args.voiceId as string,
@@ -207,11 +242,18 @@ export class GluonAI {
       }
 
       case 'set_transport': {
+        const hasBpm = typeof args.bpm === 'number';
+        const hasSwing = typeof args.swing === 'number';
+        const hasPlaying = typeof args.playing === 'boolean';
+        if (!hasBpm && !hasSwing && !hasPlaying) {
+          return errorResponse(id, name, 'At least one of bpm, swing, or playing must be provided');
+        }
+
         const action: AITransportAction = {
           type: 'set_transport',
-          ...(args.bpm !== undefined ? { bpm: args.bpm as number } : {}),
-          ...(args.swing !== undefined ? { swing: args.swing as number } : {}),
-          ...(args.playing !== undefined ? { playing: args.playing as boolean } : {}),
+          ...(hasBpm ? { bpm: args.bpm as number } : {}),
+          ...(hasSwing ? { swing: args.swing as number } : {}),
+          ...(hasPlaying ? { playing: args.playing as boolean } : {}),
         };
         return {
           actions: [action],

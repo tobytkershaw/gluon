@@ -235,4 +235,98 @@ describe('Function Call Execution', () => {
     expect(mockGenerateContent).toHaveBeenCalledTimes(1);
     expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
   });
+
+  it('stale request does not store exchange in history', async () => {
+    // First normal call to populate history
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('first reply'));
+    const session = createSession();
+    await ai.ask(session, 'hello');
+
+    // Second call becomes stale immediately — isStale() returns true before
+    // the first API call, so the loop never fires callWithTools
+    await ai.ask(session, 'stale message', { isStale: () => true });
+    // Only 1 API call happened (first ask), stale ask made 0
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+
+    // Third call — check that history only has the first exchange
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('ok'));
+    await ai.ask(session, 'third');
+
+    // Second API call (index 1) is from the third ask()
+    const thirdCall = mockGenerateContent.mock.calls[1][0];
+    const contents = thirdCall.contents;
+
+    // Should have: 1 exchange (user + model) + 1 current turn = 3
+    // NOT 2 exchanges (5 entries) — the stale one should be absent
+    expect(contents).toHaveLength(3);
+    expect(contents[0].parts[0].text).toBe('hello');
+  });
+
+  it('returns error response for move with missing param', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'move', args: { target: { absolute: 0.5 } } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('Sorry about that.'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'move something');
+
+    // No move action collected — validation failed
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+    // Model got error response and replied with text
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
+
+  it('returns error response for move with missing target', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'move', args: { param: 'brightness' } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('I need a target value.'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten');
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+  });
+
+  it('returns error response for sketch with missing voiceId', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'sketch', args: { description: 'kick', events: [] } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('Which voice?'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'make a pattern');
+
+    expect(actions.filter(a => a.type === 'sketch')).toHaveLength(0);
+  });
+
+  it('returns error response for sketch with non-array events', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'sketch', args: { voiceId: 'v0', description: 'kick', events: 'not-array' } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('Let me fix that.'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'make a kick');
+
+    expect(actions.filter(a => a.type === 'sketch')).toHaveLength(0);
+  });
+
+  it('returns error response for set_transport with no valid fields', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'set_transport', args: {} },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('What should I change?'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'change transport');
+
+    expect(actions.filter(a => a.type === 'set_transport')).toHaveLength(0);
+  });
 });
