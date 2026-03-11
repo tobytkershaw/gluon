@@ -20,7 +20,7 @@
 | PR-4 | Operation executor + provenance | Merged |
 | PR-5 | Event abstraction, Plaits adapter, protocol migration | Merged |
 | PR-6 | Collapse `PLAITS_MODELS` | Not started |
-| PR-7 | AI contract doc | Not started |
+| PR-7 | AI contract doc | Merged |
 
 ### What landed
 
