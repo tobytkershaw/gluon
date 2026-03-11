@@ -105,10 +105,17 @@ export interface Session {
   recentHumanActions: HumanAction[];
 }
 
+export interface ActionLogEntry {
+  voiceId: string;
+  voiceLabel: string;
+  description: string;
+}
+
 export interface ChatMessage {
   role: 'human' | 'ai';
   text: string;
   timestamp: number;
+  actions?: ActionLogEntry[];
 }
 
 // --- Helpers ---

@@ -1,7 +1,7 @@
 // src/ai/api.ts
 
 import { GoogleGenAI } from '@google/genai';
-import type { Chat } from '@google/genai';
+import type { Content } from '@google/genai';
 import type { Session, AIAction } from '../engine/types';
 import { compressState } from './state-compression';
 import { parseAIResponse } from './response-parser';
@@ -17,8 +17,10 @@ interface BackoffState {
 
 export class GluonAI {
   private ai: GoogleGenAI | null = null;
-  private chat: Chat | null = null;
+  private history: Content[] = [];
   private backoff: BackoffState = { until: 0, delay: 0 };
+
+  private static MAX_EXCHANGES = 12;
 
   constructor() {
     const envKey = import.meta.env.VITE_GOOGLE_API_KEY;
@@ -29,13 +31,7 @@ export class GluonAI {
 
   setApiKey(key: string): void {
     this.ai = new GoogleGenAI({ apiKey: key });
-    this.chat = this.ai.chats.create({
-      model: MODEL,
-      config: {
-        systemInstruction: GLUON_SYSTEM_PROMPT,
-        maxOutputTokens: 800,
-      },
-    });
+    this.history = [];
     this.backoff = { until: 0, delay: 0 };
   }
 
@@ -45,25 +41,47 @@ export class GluonAI {
 
   async ask(session: Session, humanMessage: string): Promise<AIAction[]> {
     if (!this.ai) return [];
-    const state = compressState(session, humanMessage);
-    return this.call(JSON.stringify(state));
+
+    // Trim history to bounded window
+    const maxTurns = GluonAI.MAX_EXCHANGES * 2;
+    if (this.history.length > maxTurns) {
+      this.history = this.history.slice(-maxTurns);
+    }
+
+    // Current turn includes compressed state + human message
+    const state = compressState(session);
+    const userText = `Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
+    const userContent: Content = { role: 'user', parts: [{ text: userText }] };
+    const contents = [...this.history, userContent];
+
+    const response = await this.callStateless(contents);
+
+    // Store clean human text + raw AI response in history (no state blob)
+    this.history.push(
+      { role: 'user', parts: [{ text: humanMessage }] },
+      { role: 'model', parts: [{ text: response.raw }] },
+    );
+
+    return response.actions;
   }
 
-  private async call(userContent: string): Promise<AIAction[]> {
-    if (!this.chat) return [];
+  private async callStateless(contents: Content[]): Promise<{ actions: AIAction[]; raw: string }> {
+    if (!this.ai) return { actions: [], raw: '' };
 
-    // Respect backoff
     const now = Date.now();
-    if (now < this.backoff.until) return [];
+    if (now < this.backoff.until) return { actions: [], raw: '' };
 
     try {
-      const response = await this.chat.sendMessage({ message: userContent });
+      const response = await this.ai.models.generateContent({
+        model: MODEL,
+        config: { systemInstruction: GLUON_SYSTEM_PROMPT, maxOutputTokens: 800 },
+        contents,
+      });
       const text = response.text ?? '';
-      // Reset backoff on success
       this.backoff = { until: 0, delay: 0 };
-      return parseAIResponse(text);
+      return { actions: parseAIResponse(text), raw: text };
     } catch (error) {
-      return this.handleError(error);
+      return { actions: this.handleError(error), raw: '' };
     }
   }
 
@@ -96,15 +114,7 @@ export class GluonAI {
   }
 
   clearHistory(): void {
-    if (this.ai) {
-      this.chat = this.ai.chats.create({
-        model: MODEL,
-        config: {
-          systemInstruction: GLUON_SYSTEM_PROMPT,
-          maxOutputTokens: 800,
-        },
-      });
-    }
+    this.history = [];
     this.backoff = { until: 0, delay: 0 };
   }
 }

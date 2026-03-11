@@ -24,7 +24,6 @@ export interface CompressedState {
   context: { energy: number; density: number };
   undo_depth: number;
   recent_human_actions: string[];
-  human_message?: string;
 }
 
 function round2(n: number): number {
@@ -65,7 +64,7 @@ function compressPattern(voice: Voice): CompressedPattern {
   return { length: voice.pattern.length, active_steps, accents, locks };
 }
 
-export function compressState(session: Session, humanMessage?: string): CompressedState {
+export function compressState(session: Session): CompressedState {
   const result: CompressedState = {
     voices: session.voices.map(voice => ({
       id: voice.id,
@@ -94,10 +93,6 @@ export function compressState(session: Session, humanMessage?: string): Compress
       (a) => `${a.param}: ${a.from.toFixed(2)} -> ${a.to.toFixed(2)}`
     ),
   };
-
-  if (humanMessage) {
-    result.human_message = humanMessage;
-  }
 
   return result;
 }
