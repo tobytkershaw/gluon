@@ -44,9 +44,9 @@ describe('State Compression (Phase 2)', () => {
     expect(result.voices[0].pattern.locks).toEqual({ '5': { timbre: 0.8 } });
   });
 
-  it('includes human message when provided', () => {
+  it('does not include human_message field', () => {
     const session = createSession();
-    const result = compressState(session, 'hello');
-    expect(result.human_message).toBe('hello');
+    const result = compressState(session);
+    expect(result).not.toHaveProperty('human_message');
   });
 });
