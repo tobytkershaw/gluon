@@ -8,6 +8,8 @@ You describe what you want. The AI reads the current project state, makes struct
 
 At the centre of Gluon is an AI-legible musical model. That core makes musical state explicit enough for an AI to reason about, edit, and evaluate, while still being playable and steerable by a human.
 
+Today Gluon runs as a browser instrument with Plaits synthesis and Gemini-backed reasoning. The architecture is designed to support external instruments, DAWs, and hardware integrations as the project grows.
+
 Because the core is legible and structured, you can glue other things onto it:
 
 - software instruments
@@ -38,7 +40,7 @@ Because the core is legible and structured, you can glue other things onto it:
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
 - **AI (reasoning)**: Google Gemini API (`@google/genai`) for project-state reasoning and structured edits
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
-- **Protocol**: Custom interaction protocol in [`docs/gluon-interaction-protocol-v03.md`](/Users/tobykershaw/Development/gluon/docs/gluon-interaction-protocol-v03.md)
+- **Protocol**: Custom interaction protocol in [`docs/gluon-interaction-protocol-v03.md`](./docs/gluon-interaction-protocol-v03.md)
 
 ## Project Structure
 
@@ -62,6 +64,6 @@ npm run wasm:build
 
 ## Reference Docs
 
-- [`docs/gluon-architecture.md`](/Users/tobykershaw/Development/gluon/docs/gluon-architecture.md)
-- [`docs/gluon-interaction-protocol-v03.md`](/Users/tobykershaw/Development/gluon/docs/gluon-interaction-protocol-v03.md)
-- [`docs/gluon-phase1-build.md`](/Users/tobykershaw/Development/gluon/docs/gluon-phase1-build.md)
+- [`docs/gluon-architecture.md`](./docs/gluon-architecture.md)
+- [`docs/gluon-interaction-protocol-v03.md`](./docs/gluon-interaction-protocol-v03.md)
+- [`docs/gluon-phase1-build.md`](./docs/gluon-phase1-build.md)
