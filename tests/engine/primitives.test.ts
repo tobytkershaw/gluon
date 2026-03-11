@@ -5,7 +5,7 @@ import {
 } from '../../src/engine/primitives';
 import { createSession, updateVoiceParams } from '../../src/engine/session';
 import { getActiveVoice, getVoice } from '../../src/engine/types';
-import type { PatternSnapshot } from '../../src/engine/types';
+import type { PatternSnapshot, ActionGroupSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
 
 describe('Protocol Primitives (Phase 2)', () => {
@@ -105,6 +105,29 @@ describe('Protocol Primitives (Phase 2)', () => {
 
       const undone = applyUndo(modified);
       expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
+      expect(undone.undoStack.length).toBe(0);
+    });
+
+    it('undoes an action group in one step', () => {
+      const s = createSession();
+      // Apply moves to two different voices
+      let next = applyMove(s, 'v0', 'timbre', { absolute: 0.8 });
+      next = applyMove(next, 'v1', 'morph', { absolute: 0.3 });
+
+      // Collapse into a group (as dispatchAIActions would)
+      const snapshots = next.undoStack.slice(0);
+      const group: ActionGroupSnapshot = {
+        kind: 'group',
+        snapshots: snapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
+        timestamp: Date.now(),
+        description: 'AI response (2 actions)',
+      };
+      const grouped = { ...next, undoStack: [group] };
+
+      // Single undo should revert both voices
+      const undone = applyUndo(grouped);
+      expect(getVoice(undone, 'v0').params.timbre).toBe(0.5);
+      expect(getVoice(undone, 'v1').params.morph).toBe(0.5);
       expect(undone.undoStack.length).toBe(0);
     });
   });

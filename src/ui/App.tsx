@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction } from '../engine/types';
+import type { Session, AIAction, ActionGroupSnapshot } from '../engine/types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
@@ -106,6 +106,7 @@ export default function App() {
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
       let next = s;
+      const undoBaseline = s.undoStack.length;
       const moveGroups = new Map<string, { param: string; target: { absolute: number } | { relative: number } }[]>();
 
       for (const action of actions) {
@@ -113,7 +114,7 @@ export default function App() {
           case 'move': {
             const vid = action.voiceId ?? s.activeVoiceId;
             const voice = getVoice(next, vid);
-            if (voice.agency === 'ON' && arbRef.current.canAIAct(action.param)) {
+            if (voice.agency === 'ON' && arbRef.current.canAIAct(vid, action.param)) {
               if (action.over) {
                 const currentVal = voice.params[action.param] ?? 0;
                 const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
@@ -162,6 +163,18 @@ export default function App() {
         next = moves.length === 1
           ? applyMove(next, vid, moves[0].param, moves[0].target)
           : applyMoveGroup(next, vid, moves);
+      }
+
+      // Collapse multiple snapshots from this response into a single undo group
+      const newSnapshots = next.undoStack.slice(undoBaseline);
+      if (newSnapshots.length > 1) {
+        const group: ActionGroupSnapshot = {
+          kind: 'group',
+          snapshots: newSnapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
+          timestamp: Date.now(),
+          description: `AI response (${newSnapshots.length} actions)`,
+        };
+        next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
       }
 
       return next;

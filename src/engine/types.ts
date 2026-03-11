@@ -52,6 +52,15 @@ export interface PatternSnapshot {
 
 export type Snapshot = ParamSnapshot | PatternSnapshot;
 
+export interface ActionGroupSnapshot {
+  kind: 'group';
+  snapshots: Snapshot[];
+  timestamp: number;
+  description: string;
+}
+
+export type UndoEntry = Snapshot | ActionGroupSnapshot;
+
 // --- AI Actions ---
 
 export interface AIMoveAction {
@@ -90,7 +99,7 @@ export interface Session {
   voices: Voice[];
   activeVoiceId: string;
   transport: Transport;
-  undoStack: Snapshot[];
+  undoStack: UndoEntry[];
   context: MusicalContext;
   messages: ChatMessage[];
   recentHumanActions: HumanAction[];

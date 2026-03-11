@@ -1,6 +1,6 @@
 // src/engine/primitives.ts
 import type {
-  Session, ParamSnapshot, PatternSnapshot,
+  Session, ParamSnapshot, PatternSnapshot, Snapshot,
   SynthParamValues,
 } from './types';
 import { getVoice, updateVoice } from './types';
@@ -145,12 +145,7 @@ export function applySketch(
   };
 }
 
-export function applyUndo(session: Session): Session {
-  if (session.undoStack.length === 0) return session;
-
-  const newStack = [...session.undoStack];
-  const snapshot = newStack.pop()!;
-
+function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   if (snapshot.kind === 'pattern') {
     const voice = getVoice(session, snapshot.voiceId);
     const newSteps = [...voice.pattern.steps];
@@ -160,12 +155,9 @@ export function applyUndo(session: Session): Session {
       }
     }
     const newLength = snapshot.prevLength ?? voice.pattern.length;
-    return {
-      ...updateVoice(session, snapshot.voiceId, {
-        pattern: { steps: newSteps, length: newLength },
-      }),
-      undoStack: newStack,
-    };
+    return updateVoice(session, snapshot.voiceId, {
+      pattern: { steps: newSteps, length: newLength },
+    });
   }
 
   // ParamSnapshot
@@ -179,8 +171,23 @@ export function applyUndo(session: Session): Session {
     }
   }
 
-  return {
-    ...updateVoice(session, snapshot.voiceId, { params: newParams }),
-    undoStack: newStack,
-  };
+  return updateVoice(session, snapshot.voiceId, { params: newParams });
+}
+
+export function applyUndo(session: Session): Session {
+  if (session.undoStack.length === 0) return session;
+
+  const newStack = [...session.undoStack];
+  const entry = newStack.pop()!;
+
+  if (entry.kind === 'group') {
+    let result = session;
+    // Revert in reverse order
+    for (let i = entry.snapshots.length - 1; i >= 0; i--) {
+      result = revertSnapshot(result, entry.snapshots[i]);
+    }
+    return { ...result, undoStack: newStack };
+  }
+
+  return { ...revertSnapshot(session, entry), undoStack: newStack };
 }
