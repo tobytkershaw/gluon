@@ -92,7 +92,7 @@ export class GluonAI {
         model: MODEL,
         config: {
           systemInstruction: GLUON_SYSTEM_PROMPT,
-          maxOutputTokens: 800,
+          maxOutputTokens: 2048,
           thinkingConfig: { thinkingLevel: 'MEDIUM' },
         },
         contents,
@@ -103,7 +103,8 @@ export class GluonAI {
       const modelContent = response.candidates?.[0]?.content ?? null;
 
       this.backoff = { until: 0, delay: 0 };
-      return { actions: parseAIResponse(text), raw: text, modelContent };
+      const actions = parseAIResponse(text);
+      return { actions, raw: text, modelContent };
     } catch (error) {
       return { actions: this.handleError(error), raw: '', modelContent: null };
     }
@@ -168,7 +169,7 @@ export class GluonAI {
         model: MODEL,
         config: {
           systemInstruction: GLUON_LISTEN_PROMPT,
-          maxOutputTokens: 400,
+          maxOutputTokens: 800,
           thinkingConfig: { thinkingLevel: 'MEDIUM' },
         },
         contents: [{
