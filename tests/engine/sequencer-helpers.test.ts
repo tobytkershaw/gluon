@@ -74,7 +74,7 @@ describe('resolveNoteParams', () => {
     const voice: Voice = {
       id: 'v0', engine: 'test', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'SUGGEST', pattern: createDefaultPattern(), muted: false, solo: false,
+      agency: 'ON', pattern: createDefaultPattern(), muted: false, solo: false,
     };
     const step: Step = { gate: true, accent: false, micro: 0 };
     const result = resolveNoteParams(voice, step, {});
@@ -85,7 +85,7 @@ describe('resolveNoteParams', () => {
     const voice: Voice = {
       id: 'v0', engine: 'test', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'SUGGEST', pattern: createDefaultPattern(), muted: false, solo: false,
+      agency: 'ON', pattern: createDefaultPattern(), muted: false, solo: false,
     };
     const step: Step = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
     const result = resolveNoteParams(voice, step, {});
@@ -97,7 +97,7 @@ describe('resolveNoteParams', () => {
     const voice: Voice = {
       id: 'v0', engine: 'test', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'SUGGEST', pattern: createDefaultPattern(), muted: false, solo: false,
+      agency: 'ON', pattern: createDefaultPattern(), muted: false, solo: false,
     };
     const step: Step = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
     const result = resolveNoteParams(voice, step, { timbre: 0.2 });

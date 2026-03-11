@@ -1,7 +1,7 @@
 // src/engine/types.ts
 import type { Pattern, PatternSketch, Step, Transport } from './sequencer-types';
 
-export type Agency = 'OFF' | 'SUGGEST' | 'PLAY';
+export type Agency = 'OFF' | 'ON';
 
 export interface SynthParamValues {
   harmonics: number;
@@ -52,29 +52,6 @@ export interface PatternSnapshot {
 
 export type Snapshot = ParamSnapshot | PatternSnapshot;
 
-// --- Pending actions (discriminated union) ---
-
-export interface ParamPendingAction {
-  id: string;
-  kind: 'suggestion' | 'audition';
-  voiceId: string;
-  changes: Partial<SynthParamValues>;
-  reason?: string;
-  expiresAt: number;
-  previousValues: Partial<SynthParamValues>;
-}
-
-export interface SketchPendingAction {
-  id: string;
-  kind: 'sketch';
-  voiceId: string;
-  description: string;
-  pattern: PatternSketch;
-  expiresAt: number;
-}
-
-export type PendingAction = ParamPendingAction | SketchPendingAction;
-
 // --- AI Actions ---
 
 export interface AIMoveAction {
@@ -83,20 +60,6 @@ export interface AIMoveAction {
   param: string;
   target: { absolute: number } | { relative: number };
   over?: number;
-}
-
-export interface AISuggestAction {
-  type: 'suggest';
-  voiceId?: string;
-  changes: Partial<SynthParamValues>;
-  reason?: string;
-}
-
-export interface AIAuditionAction {
-  type: 'audition';
-  voiceId?: string;
-  changes: Partial<SynthParamValues>;
-  duration?: number;
 }
 
 export interface AISayAction {
@@ -111,7 +74,7 @@ export interface AISketchAction {
   pattern: PatternSketch;
 }
 
-export type AIAction = AIMoveAction | AISuggestAction | AIAuditionAction | AISayAction | AISketchAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction;
 
 // --- Session ---
 
@@ -127,9 +90,7 @@ export interface Session {
   voices: Voice[];
   activeVoiceId: string;
   transport: Transport;
-  leash: number;
   undoStack: Snapshot[];
-  pending: PendingAction[];
   context: MusicalContext;
   messages: ChatMessage[];
   recentHumanActions: HumanAction[];

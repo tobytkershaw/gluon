@@ -2,7 +2,6 @@
 import { describe, it, expect } from 'vitest';
 import type {
   Voice, Session, ParamSnapshot, PatternSnapshot,
-  ParamPendingAction, SketchPendingAction,
   AISketchAction,
 } from '../../src/engine/types';
 import type { Step, Transport } from '../../src/engine/sequencer-types';
@@ -14,7 +13,7 @@ describe('Phase 2 type shapes', () => {
       engine: 'plaits:virtual_analog',
       model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'SUGGEST',
+      agency: 'ON',
       pattern: { steps: [{ gate: false, accent: false, micro: 0 }], length: 1 },
       muted: false,
       solo: false,
@@ -48,19 +47,6 @@ describe('Phase 2 type shapes', () => {
     expect(snapshot.prevSteps).toHaveLength(1);
   });
 
-  it('SketchPendingAction has pattern data', () => {
-    const pending: SketchPendingAction = {
-      id: 'p1',
-      kind: 'sketch',
-      voiceId: 'v0',
-      description: 'four on the floor',
-      pattern: { steps: [{ index: 0, gate: true }] },
-      expiresAt: Date.now() + 15000,
-    };
-    expect(pending.kind).toBe('sketch');
-    expect(pending.pattern.steps).toHaveLength(1);
-  });
-
   it('AISketchAction has voiceId and PatternSketch', () => {
     const action: AISketchAction = {
       type: 'sketch',
@@ -85,9 +71,7 @@ describe('Phase 2 type shapes', () => {
       voices: [],
       activeVoiceId: 'v0',
       transport: { playing: false, bpm: 120, swing: 0 },
-      leash: 0.5,
       undoStack: [],
-      pending: [],
       context: { key: null, scale: null, tempo: null, energy: 0.3, density: 0.2 },
       messages: [],
       recentHumanActions: [],

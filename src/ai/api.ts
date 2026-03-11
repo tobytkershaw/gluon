@@ -49,15 +49,6 @@ export class GluonAI {
     return this.call(JSON.stringify(state));
   }
 
-  async react(session: Session): Promise<AIAction[]> {
-    if (!this.ai) return [];
-    const anyActive = session.voices.some(v => v.agency !== 'OFF');
-    if (!anyActive) return [];
-    if (session.leash < 0.3) return [];
-    const state = compressState(session);
-    return this.call(JSON.stringify(state));
-  }
-
   private async call(userContent: string): Promise<AIAction[]> {
     if (!this.chat) return [];
 

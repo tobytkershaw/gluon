@@ -39,17 +39,11 @@ export function createSession(): Session {
     voices,
     activeVoiceId: voices[0].id,
     transport: { playing: false, bpm: 120, swing: 0 },
-    leash: 0.5,
     undoStack: [],
-    pending: [],
     context,
     messages: [],
     recentHumanActions: [],
   };
-}
-
-export function setLeash(session: Session, value: number): Session {
-  return { ...session, leash: Math.max(0, Math.min(1, value)) };
 }
 
 export function setAgency(session: Session, voiceId: string, agency: Agency): Session {

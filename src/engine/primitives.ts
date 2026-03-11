@@ -1,13 +1,10 @@
 // src/engine/primitives.ts
 import type {
   Session, ParamSnapshot, PatternSnapshot,
-  ParamPendingAction, SketchPendingAction,
   SynthParamValues,
 } from './types';
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
-
-let nextPendingId = 1;
 
 function clampParam(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -93,113 +90,12 @@ export function applyParamDirect(
   });
 }
 
-export function applySuggest(
-  session: Session,
-  voiceId: string,
-  changes: Partial<SynthParamValues>,
-  reason?: string,
-): Session {
-  const pending: ParamPendingAction = {
-    id: `pending-${nextPendingId++}`,
-    kind: 'suggestion',
-    voiceId,
-    changes,
-    reason,
-    expiresAt: Date.now() + 15000,
-    previousValues: {},
-  };
-
-  return { ...session, pending: [...session.pending, pending] };
-}
-
-export function applyAudition(
-  session: Session,
-  voiceId: string,
-  changes: Partial<SynthParamValues>,
-  durationMs = 3000,
-): Session {
-  const voice = getVoice(session, voiceId);
-  let currentParams = { ...voice.params };
-
-  const existingAudition = session.pending.find(
-    (p): p is ParamPendingAction => p.kind === 'audition' && p.voiceId === voiceId,
-  );
-  if (existingAudition) {
-    currentParams = { ...currentParams, ...existingAudition.previousValues } as SynthParamValues;
-  }
-
-  const pendingWithoutOld = session.pending.filter(
-    p => !(p.kind === 'audition' && p.voiceId === voiceId),
-  );
-
-  const previousValues: Partial<SynthParamValues> = {};
-  for (const key of Object.keys(changes)) {
-    previousValues[key] = currentParams[key];
-  }
-
-  const pending: ParamPendingAction = {
-    id: `pending-${nextPendingId++}`,
-    kind: 'audition',
-    voiceId,
-    changes,
-    expiresAt: Date.now() + durationMs,
-    previousValues,
-  };
-
-  return {
-    ...updateVoice(session, voiceId, {
-      params: { ...currentParams, ...changes } as SynthParamValues,
-    }),
-    pending: [...pendingWithoutOld, pending],
-  };
-}
-
-export function cancelAuditionParam(session: Session, voiceId: string, param: string): Session {
-  const audition = session.pending.find(
-    (p): p is ParamPendingAction => p.kind === 'audition' && p.voiceId === voiceId,
-  );
-  if (!audition || !(param in audition.previousValues)) return session;
-
-  const newPreviousValues = { ...audition.previousValues };
-  delete newPreviousValues[param];
-  const newChanges = { ...audition.changes };
-  delete newChanges[param];
-
-  if (Object.keys(newPreviousValues).length === 0) {
-    return { ...session, pending: session.pending.filter(p => p.id !== audition.id) };
-  }
-
-  return {
-    ...session,
-    pending: session.pending.map(p =>
-      p.id === audition.id ? { ...p, previousValues: newPreviousValues, changes: newChanges } : p,
-    ),
-  };
-}
-
-export function applySketchPending(
+export function applySketch(
   session: Session,
   voiceId: string,
   description: string,
-  pattern: PatternSketch,
-): Session {
-  const pending: SketchPendingAction = {
-    id: `pending-${nextPendingId++}`,
-    kind: 'sketch',
-    voiceId,
-    description,
-    pattern,
-    expiresAt: Date.now() + 30000,
-  };
-
-  return { ...session, pending: [...session.pending, pending] };
-}
-
-function applyPatternSketch(
-  session: Session,
-  voiceId: string,
   sketch: PatternSketch,
-): { session: Session; snapshot: PatternSnapshot } {
+): Session {
   const voice = getVoice(session, voiceId);
   const prevSteps: { index: number; step: Step }[] = [];
   const newSteps = [...voice.pattern.steps];
@@ -211,7 +107,6 @@ function applyPatternSketch(
   if (sketch.length !== undefined) {
     const clamped = Math.max(1, Math.min(64, sketch.length));
     newLength = clamped;
-    // Extend steps array if needed
     while (newSteps.length < clamped) {
       newSteps.push({ gate: false, accent: false, micro: 0 });
     }
@@ -237,75 +132,17 @@ function applyPatternSketch(
     prevSteps,
     prevLength,
     timestamp: Date.now(),
-    description: `sketch applied`,
+    description,
   };
 
   const updated = updateVoice(session, voiceId, {
     pattern: { steps: newSteps, length: newLength },
   });
 
-  return { session: updated, snapshot };
-}
-
-export function commitPending(session: Session, pendingId: string): Session {
-  const action = session.pending.find(p => p.id === pendingId);
-  if (!action) return session;
-
-  const remaining = session.pending.filter(p => p.id !== pendingId);
-
-  if (action.kind === 'sketch') {
-    const { session: updated, snapshot } = applyPatternSketch(session, action.voiceId, action.pattern);
-    return {
-      ...updated,
-      pending: remaining,
-      undoStack: [...updated.undoStack, snapshot],
-    };
-  }
-
-  // ParamPendingAction (suggestion) — apply changes and push undo snapshot
-  if (action.kind === 'suggestion') {
-    const voice = getVoice(session, action.voiceId);
-    const prevValues: Partial<SynthParamValues> = {};
-    for (const key of Object.keys(action.changes)) {
-      prevValues[key] = voice.params[key];
-    }
-    const snapshot: ParamSnapshot = {
-      kind: 'param',
-      voiceId: action.voiceId,
-      prevValues,
-      aiTargetValues: action.changes,
-      timestamp: Date.now(),
-      description: `AI suggest committed: ${Object.keys(action.changes).join(', ')}`,
-    };
-    return {
-      ...updateVoice(session, action.voiceId, {
-        params: { ...voice.params, ...action.changes } as SynthParamValues,
-      }),
-      pending: remaining,
-      undoStack: [...session.undoStack, snapshot],
-    };
-  }
-
-  // Audition — already applied, just remove from pending
-  return { ...session, pending: remaining };
-}
-
-export function dismissPending(session: Session, pendingId: string): Session {
-  const action = session.pending.find(p => p.id === pendingId);
-  if (!action) return session;
-
-  if (action.kind === 'audition') {
-    const voice = getVoice(session, action.voiceId);
-    return {
-      ...updateVoice(session, action.voiceId, {
-        params: { ...voice.params, ...action.previousValues } as SynthParamValues,
-      }),
-      pending: session.pending.filter(p => p.id !== pendingId),
-    };
-  }
-
-  // Suggestion or sketch — just remove
-  return { ...session, pending: session.pending.filter(p => p.id !== pendingId) };
+  return {
+    ...updated,
+    undoStack: [...updated.undoStack, snapshot],
+  };
 }
 
 export function applyUndo(session: Session): Session {

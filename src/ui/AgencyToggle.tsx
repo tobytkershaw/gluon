@@ -7,8 +7,7 @@ interface Props {
 
 const options: { value: Agency; label: string; activeClass: string }[] = [
   { value: 'OFF', label: 'OFF', activeClass: 'bg-zinc-700 text-zinc-200' },
-  { value: 'SUGGEST', label: 'SUGGEST', activeClass: 'bg-teal-500/15 text-teal-300 ring-1 ring-teal-500/25' },
-  { value: 'PLAY', label: 'PLAY', activeClass: 'bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/25' },
+  { value: 'ON', label: 'ON', activeClass: 'bg-teal-500/15 text-teal-300 ring-1 ring-teal-500/25' },
 ];
 
 export function AgencyToggle({ value, onChange }: Props) {
