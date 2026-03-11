@@ -180,14 +180,39 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  const requestIdRef = useRef(0);
+  const [isThinking, setIsThinking] = useState(false);
+
   const handleSend = useCallback(async (message: string) => {
+    const thisRequest = ++requestIdRef.current;
+    setIsThinking(true);
     await ensureAudio();
     setSession((s) => ({
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
-    const actions = await aiRef.current.ask(sessionRef.current, message);
-    dispatchAIActions(actions);
+    try {
+      const actions = await aiRef.current.ask(sessionRef.current, message);
+      // Discard stale responses if another request was fired
+      if (thisRequest !== requestIdRef.current) return;
+      const hasSay = actions.some(a => a.type === 'say');
+      const hasActions = actions.length > 0;
+      if (!hasSay && !hasActions) {
+        // Empty response — append fallback message
+        setSession((s) => ({
+          ...s,
+          messages: [...s.messages, { role: 'ai' as const, text: "I couldn't process that — try rephrasing.", timestamp: Date.now() }],
+        }));
+      } else {
+        dispatchAIActions(actions);
+      }
+    } catch {
+      // Error already handled by GluonAI.handleError — no additional action needed
+    } finally {
+      if (thisRequest === requestIdRef.current) {
+        setIsThinking(false);
+      }
+    }
   }, [ensureAudio, dispatchAIActions]);
 
   const handleApiKey = useCallback((key: string) => {
@@ -312,6 +337,7 @@ export default function App() {
             onTogglePlay={handleTogglePlay}
             playing={session.transport.playing}
             bpm={session.transport.bpm}
+            isThinking={isThinking}
           />
         ) : (
           <InstrumentView
@@ -348,6 +374,7 @@ export default function App() {
             onClearPattern={handleClearPattern}
             onUndo={handleUndo}
             onSend={handleSend}
+            isThinking={isThinking}
             analyser={audioRef.current.getAnalyser()}
           />
         )}
