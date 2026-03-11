@@ -263,3 +263,59 @@ export function executeOperations(
 
   return { session: next, accepted, rejected, log, resolvedParams };
 }
+
+/**
+ * Pre-validate an action against session state without applying it.
+ * Returns null if the action would be accepted, or a rejection reason.
+ * Used by the tool loop to give honest function responses.
+ */
+export function prevalidateAction(
+  session: Session,
+  action: AIAction,
+  adapter: SourceAdapter,
+  arbitrator: Arbitrator,
+): string | null {
+  switch (action.type) {
+    case 'move': {
+      const voiceId = action.voiceId ?? session.activeVoiceId;
+      const voice = session.voices.find(v => v.id === voiceId);
+      if (!voice) return `Voice not found: ${voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${voiceId} has agency OFF`;
+
+      // Resolve param: try as runtime key, then as canonical controlId
+      const mappedCanonical = adapter.mapRuntimeParamKey(action.param);
+      let runtimeParam: string;
+      if (mappedCanonical) {
+        runtimeParam = action.param;
+      } else {
+        const binding = adapter.mapControl(action.param);
+        const pathParts = binding?.path.split('.');
+        const candidate = pathParts?.[pathParts.length - 1];
+        if (candidate && candidate !== action.param && adapter.mapRuntimeParamKey(candidate)) {
+          runtimeParam = candidate;
+        } else {
+          return `Unknown control: ${action.param}`;
+        }
+      }
+
+      const validation = adapter.validateOperation(action);
+      if (!validation.valid) return validation.reason ?? `Validation failed for ${action.param}`;
+
+      if (!arbitrator.canAIAct(voiceId, runtimeParam)) {
+        return `Arbitration: human is currently holding ${runtimeParam} on ${voiceId}`;
+      }
+      return null;
+    }
+
+    case 'sketch': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      return null;
+    }
+
+    case 'set_transport':
+    case 'say':
+      return null;
+  }
+}

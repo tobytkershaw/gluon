@@ -29,10 +29,20 @@ export interface ListenContext {
   onListening?: (active: boolean) => void;
 }
 
+/**
+ * Pre-validate an action against current session state.
+ * Returns null if the action will be accepted, or a rejection reason string.
+ * This runs the same checks as executeOperations() (voice existence, agency,
+ * control validity, arbitration) so the tool response is honest.
+ */
+export type ActionValidator = (action: AIAction) => string | null;
+
 /** Context passed to ask() for listen support and cancellation */
 export interface AskContext {
   listen?: ListenContext;
   isStale?: () => boolean;
+  /** Pre-validate actions against session state before returning tool responses */
+  validateAction?: ActionValidator;
 }
 
 /** A single human-AI exchange, stored as an atomic unit for history trimming */
@@ -202,6 +212,10 @@ export class GluonAI {
           ...(args.voiceId ? { voiceId: args.voiceId as string } : {}),
           ...(args.over ? { over: args.over as number } : {}),
         };
+
+        const rejection = ctx?.validateAction?.(action);
+        if (rejection) return errorResponse(id, name, rejection);
+
         return {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
@@ -230,6 +244,10 @@ export class GluonAI {
           description: args.description as string,
           events: args.events as AISketchAction['events'],
         };
+
+        const rejection = ctx?.validateAction?.(action);
+        if (rejection) return errorResponse(id, name, rejection);
+
         return {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
@@ -255,6 +273,10 @@ export class GluonAI {
           ...(hasSwing ? { swing: args.swing as number } : {}),
           ...(hasPlaying ? { playing: args.playing as boolean } : {}),
         };
+
+        const rejection = ctx?.validateAction?.(action);
+        if (rejection) return errorResponse(id, name, rejection);
+
         return {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {

@@ -329,4 +329,56 @@ describe('Function Call Execution', () => {
 
     expect(actions.filter(a => a.type === 'set_transport')).toHaveLength(0);
   });
+
+  it('validateAction rejection prevents action collection and returns error to model', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, voiceId: 'v0' } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('That voice has agency off, sorry.'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten the kick', {
+      validateAction: () => 'Voice v0 has agency OFF',
+    });
+
+    // Move was NOT collected — validator rejected it
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+    // Model got the error and replied with text
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
+
+  it('validateAction null allows action to be collected', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, voiceId: 'v0' } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('Done.'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten the kick', {
+      validateAction: () => null,
+    });
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
+  });
+
+  it('validateAction rejection on sketch prevents collection', async () => {
+    mockGenerateContent
+      .mockResolvedValueOnce(mockFunctionCallResponse([
+        { id: 'c1', name: 'sketch', args: {
+          voiceId: 'v0', description: 'kick pattern',
+          events: [{ kind: 'trigger', at: 0, velocity: 1.0 }],
+        } },
+      ]))
+      .mockResolvedValueOnce(mockTextResponse('Cannot edit that voice.'));
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'make a kick pattern', {
+      validateAction: (a) => a.type === 'sketch' ? 'Voice v0 has agency OFF' : null,
+    });
+
+    expect(actions.filter(a => a.type === 'sketch')).toHaveLength(0);
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
 });

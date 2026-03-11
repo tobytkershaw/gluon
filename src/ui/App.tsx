@@ -10,7 +10,7 @@ import {
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
-import { executeOperations } from '../engine/operation-executor';
+import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
@@ -201,6 +201,9 @@ export default function App() {
           onListening: setIsListening,
         },
         isStale: () => thisRequest !== requestIdRef.current,
+        validateAction: (action) => prevalidateAction(
+          sessionRef.current, action, plaitsAdapter, arbRef.current,
+        ),
       });
       if (thisRequest !== requestIdRef.current) return;
       dispatchAIActions(actions);
