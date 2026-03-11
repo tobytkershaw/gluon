@@ -3,8 +3,8 @@
 **As of:** 2026-03-11
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model (all 8 PRs merged)
 **In progress:** Phase 3 — Agentic Music Assistant
-**Next:** Undo UX polish, chat UX + request lifecycle, audio quality audit
-**Latest milestone:** Gemini 3 migration (PR #31) — `gemini-3-flash-preview` with thinking support
+**Next:** Polish pass, status docs, then optional audio eval (PR-F)
+**Latest milestone:** Audio quality audit (PR #34) — parameter smoothing, trigger/gate fix, scheduler double-hit fix
 **Data model direction:** Canonical Musical Model RFC adopted — see `docs/rfc-canonical-musical-model.md`
 
 ---
@@ -47,6 +47,7 @@
 - Single mode: `ask()` (human-prompted) — AI only responds when asked
 - Stateful chat session per API key
 - Backoff/rate-limit handling with exponential delay
+- Request lifecycle gating: sequence-tagged requests prevent stale responses, all composers disabled during flight
 
 **System Prompt (`system-prompt.ts`)**
 - Agentic assistant framing — AI makes changes when asked, does not act autonomously
@@ -104,6 +105,7 @@
 **Undo (`undo.ts`)**
 - Simple stack of Snapshot objects, max 100
 - Push/pop semantics
+- Post-undo chat feedback ("Undid: <description>")
 
 **Arbitration (`arbitration.ts`)**
 - Tracks touch records per voice+param with timestamp
@@ -134,11 +136,19 @@
 - Uses `createPlaitsAdapter()` for operation execution
 - `handleSend()`: human message → AI ask → dispatch actions
 - `dispatchAIActions()`: delegates to operation executor, handles drift animation from execution report
+- Request lifecycle gating with sequence tagging (prevents concurrent sends, stale responses)
 - Keyboard shortcuts: Cmd+Z undo, Space play/pause
+
+**Two-View Layout**
+- `InstrumentView`: parameter space, step grid, transport, model selector, visualiser, compact chat strip
+- `ChatView`: full chat panel with API key config, compact transport controls
+- Tab / Cmd+1 / Cmd+2 switching via `ViewToggle`
 
 **Chat Panel (`ChatPanel.tsx`)**
 - Human/AI message display, text input, auto-scroll
-- Minimal dark UI (mono font, zinc/amber)
+- Thinking indicator (pulsing "Thinking..." during AI requests)
+- Action logs with visual hierarchy (teal left-border, indented)
+- Minimal dark UI (mono font, zinc/amber/teal)
 
 **Agency Toggle (`AgencyToggle.tsx`)**
 - 2-button: OFF | ON (per voice, teal styling for ON)
@@ -149,7 +159,7 @@
 - `TransportBar` (play/pause, BPM, swing, recording)
 - `StepGrid` (16-step with pagination), `PatternControls`
 - `Visualiser` (FFT analyser)
-- `UndoButton`, `ApiKeyInput`
+- `UndoButton` (with preview tooltip showing pending undo description), `ApiKeyInput`
 
 ### Audio (`src/audio/`)
 
@@ -176,25 +186,14 @@
 **Synth / WASM**
 - Plaits C++ compiled to WASM via Emscripten
 - Runs in AudioWorklet
+- One-pole lowpass parameter smoothing (prevents clicks on parameter jumps)
+- Trigger/gate separation (trigger is one-block pulse, level follows gate)
+- `HEAPF32` exported via `EXPORTED_RUNTIME_METHODS` for Emscripten 5.x compatibility
 
----
-
-## Phase 3 Step 1: Remove Reactive Model (DONE — PR #11)
-
-All reactive jam-partner machinery has been removed:
-
-| Removed | Replacement |
-|---|---|
-| Agency: OFF / SUGGEST / PLAY | Agency: OFF / ON |
-| Leash slider (0.0–1.0) | Removed — AI doesn't act autonomously |
-| Reactive loop (15s `react()` calls) | Removed — AI only responds to human prompts |
-| 5 action types (move, suggest, audition, sketch, say) | 3 action types (move, sketch, say) |
-| Pending actions (suggest/audition/sketch queues) | Sketches apply immediately, undo to revert |
-| PendingOverlay, LeashSlider, ListenerSpike components | Deleted |
-| listener.ts (native audio spike) | Deleted (spike complete, will reintegrate in later step) |
-
-**Files deleted:** `LeashSlider.tsx`, `PendingOverlay.tsx`, `ListenerSpike.tsx`, `listener.ts`
-**Net change:** -1,001 lines across 19 files. All 189 tests pass.
+**Plaits Audit (`plaits-audit.ts`)**
+- Audit scenarios for all 16 Plaits models (sustain, percussion, param sweeps)
+- Buffer metrics: peak, RMS, max delta
+- Used for reference comparison between native and WASM builds
 
 ---
 
@@ -203,12 +202,12 @@ All reactive jam-partner machinery has been removed:
 | Step | Description | Status | Notes |
 |---|---|---|---|
 | Step 1 | Remove reactive model | Done | PR #11 |
-| Gemini 3 | API migration | PR open | PR #31 — model swap, thinking config, history redesign for thought signatures |
-| Step 1b | Audio quality audit | Not started | Investigation-driven |
-| Step 2 | Chat-first UI + multi-view | Mostly done | Two-view layout, Tab/Cmd+1/2 switching, conversation history (12 exchanges) — all delivered by canonical model PRs. Remaining: compact chat strip improvements, thinking indicator, request lifecycle gating. |
-| Step 3 | Action group undo | Mostly done | ActionGroupSnapshot, grouped undo, action log rendering in chat — all delivered by canonical model PRs. Remaining: undo button preview tooltip, post-undo chat feedback. |
-| Step 4 | Audio snapshot evaluation | Not started | Optional extension. Requires audio format conversion (WebM→OGG/WAV) and listen-mode prompt isolation. |
-| Step 5 | Polish | Not started | Dead code sweep, prompt tuning, chat styling |
+| Gemini 3 | API migration | Done | PR #31 — `gemini-3-flash-preview`, thinking config, thought signature preservation |
+| Undo UX | Tooltip + post-undo feedback | Done | PR #32 — undo button preview, "Undid: ..." chat message |
+| Chat UX | Request lifecycle + thinking | Done | PR #33 — sequence-tagged requests, thinking indicator, empty-response fallback |
+| Audio | Quality audit | Done | PR #34 — parameter smoothing, trigger/gate fix, HEAPF32 export, scheduler double-hit |
+| Polish | Dead code sweep + styling | Done | PR #35 — no dead code found, chat message styling improved |
+| Step 4 | Audio snapshot evaluation | Not started | Optional. Requires audio format conversion (WebM→OGG/WAV) and listen-mode prompt isolation. |
 
 ---
 
