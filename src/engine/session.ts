@@ -1,5 +1,6 @@
 // src/engine/session.ts
 import type { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
+import type { SourceAdapter } from './canonical-types';
 import { updateVoice } from './types';
 import { getModelName } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
@@ -22,6 +23,12 @@ function createVoice(index: number): Voice {
     pattern: createDefaultPattern(16),
     muted: false,
     solo: false,
+    controlProvenance: {
+      brightness: { value: 0.5, source: 'default' },
+      richness: { value: 0.5, source: 'default' },
+      texture: { value: 0.5, source: 'default' },
+      pitch: { value: 0.47, source: 'default' },
+    },
   };
 }
 
@@ -55,6 +62,7 @@ export function updateVoiceParams(
   voiceId: string,
   params: Partial<SynthParamValues>,
   trackAsHuman = false,
+  adapter?: Pick<SourceAdapter, 'mapRuntimeParamKey'>,
 ): Session {
   const voice = session.voices.find(v => v.id === voiceId);
   if (!voice) return session;
@@ -72,9 +80,25 @@ export function updateVoiceParams(
       ].slice(-20)
     : session.recentHumanActions;
 
+  let newProvenance = voice.controlProvenance;
+  if (adapter && trackAsHuman && newProvenance) {
+    newProvenance = { ...newProvenance };
+    for (const paramKey of Object.keys(params)) {
+      const controlId = adapter.mapRuntimeParamKey(paramKey);
+      if (controlId && newProvenance[controlId]) {
+        newProvenance[controlId] = {
+          value: params[paramKey] as number,
+          source: 'human',
+          updatedAt: Date.now(),
+        };
+      }
+    }
+  }
+
   return {
     ...updateVoice(session, voiceId, {
       params: { ...voice.params, ...params } as SynthParamValues,
+      ...(newProvenance !== voice.controlProvenance ? { controlProvenance: newProvenance } : {}),
     }),
     recentHumanActions: newActions,
   };
