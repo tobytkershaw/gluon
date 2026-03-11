@@ -16,6 +16,78 @@ export interface OperationExecutionReport {
   resolvedParams: Map<number, string>;
 }
 
+/** Result of resolving a move action's param through the adapter */
+interface ResolvedMoveParam {
+  runtimeParam: string;
+  controlId: string;
+}
+
+/**
+ * Resolve a move action's param key through the adapter.
+ * Returns the runtime param key and canonical control ID, or null if unresolvable.
+ */
+function resolveMoveParam(param: string, adapter: SourceAdapter): ResolvedMoveParam | null {
+  // Try as runtime param key first (runtime → canonical)
+  const mappedCanonical = adapter.mapRuntimeParamKey(param);
+  if (mappedCanonical) {
+    return { runtimeParam: param, controlId: mappedCanonical };
+  }
+
+  // Try as controlId (canonical → runtime)
+  const binding = adapter.mapControl(param);
+  const pathParts = binding?.path.split('.');
+  const candidate = pathParts?.[pathParts.length - 1];
+  if (candidate && candidate !== param && adapter.mapRuntimeParamKey(candidate)) {
+    return { runtimeParam: candidate, controlId: param };
+  }
+
+  return null;
+}
+
+/**
+ * Pre-validate an action against session state without applying it.
+ * Returns null if the action would be accepted, or a rejection reason.
+ * Used by the tool loop to give honest function responses, and by
+ * executeOperations as its single source of truth for rejection logic.
+ */
+export function prevalidateAction(
+  session: Session,
+  action: AIAction,
+  adapter: SourceAdapter,
+  arbitrator: Arbitrator,
+): string | null {
+  switch (action.type) {
+    case 'move': {
+      const voiceId = action.voiceId ?? session.activeVoiceId;
+      const voice = session.voices.find(v => v.id === voiceId);
+      if (!voice) return `Voice not found: ${voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${voiceId} has agency OFF`;
+
+      const resolved = resolveMoveParam(action.param, adapter);
+      if (!resolved) return `Unknown control: ${action.param}`;
+
+      const validation = adapter.validateOperation(action);
+      if (!validation.valid) return validation.reason ?? `Validation failed for ${action.param}`;
+
+      if (!arbitrator.canAIAct(voiceId, resolved.runtimeParam)) {
+        return `Arbitration: human is currently holding ${resolved.runtimeParam} on ${voiceId}`;
+      }
+      return null;
+    }
+
+    case 'sketch': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      return null;
+    }
+
+    case 'set_transport':
+    case 'say':
+      return null;
+  }
+}
+
 export function executeOperations(
   session: Session,
   actions: AIAction[],
@@ -32,55 +104,20 @@ export function executeOperations(
   const undoBaseline = session.undoStack.length;
 
   for (const action of actions) {
+    // Early rejection via shared validation (uses `next` so sequential
+    // actions see the effects of prior ones, e.g. agency changes)
+    const rejection = prevalidateAction(next, action, adapter, arbitrator);
+    if (rejection) {
+      rejected.push({ op: action, reason: rejection });
+      continue;
+    }
+
     switch (action.type) {
       case 'move': {
-        const voiceId = action.voiceId ?? session.activeVoiceId;
-        const voice = next.voices.find(v => v.id === voiceId);
-        if (!voice) {
-          rejected.push({ op: action, reason: `Voice not found: ${voiceId}` });
-          break;
-        }
-        if (voice.agency !== 'ON') {
-          rejected.push({ op: action, reason: `Voice ${voiceId} has agency OFF` });
-          break;
-        }
-
-        // Resolve param through adapter: could be controlId or runtime param key
-        let runtimeParam: string;
-        let controlId: string;
-
-        // Try as runtime param key first (runtime → canonical)
-        const mappedCanonical = adapter.mapRuntimeParamKey(action.param);
-        if (mappedCanonical) {
-          controlId = mappedCanonical;
-          runtimeParam = action.param;
-        } else {
-          // Try as controlId (canonical → runtime)
-          const binding = adapter.mapControl(action.param);
-          const pathParts = binding?.path.split('.');
-          const candidate = pathParts?.[pathParts.length - 1];
-          // Verify this is a declared control by round-tripping: the resolved
-          // runtime param must map back to a canonical ID via the adapter.
-          if (candidate && candidate !== action.param && adapter.mapRuntimeParamKey(candidate)) {
-            controlId = action.param;
-            runtimeParam = candidate;
-          } else {
-            rejected.push({ op: action, reason: `Unknown control: ${action.param}` });
-            break;
-          }
-        }
-
-        // Validate through adapter
-        const validation = adapter.validateOperation(action);
-        if (!validation.valid) {
-          rejected.push({ op: action, reason: validation.reason ?? `Validation failed for ${action.param}` });
-          break;
-        }
-
-        if (!arbitrator.canAIAct(voiceId, runtimeParam)) {
-          rejected.push({ op: action, reason: `Arbitration: human holding ${runtimeParam} on ${voiceId}` });
-          break;
-        }
+        const voiceId = action.voiceId ?? next.activeVoiceId;
+        const voice = getVoice(next, voiceId);
+        const resolved = resolveMoveParam(action.param, adapter)!;
+        const { runtimeParam, controlId } = resolved;
 
         const vLabel = VOICE_LABELS[voiceId]?.toUpperCase() ?? voiceId;
 
@@ -160,15 +197,7 @@ export function executeOperations(
       }
 
       case 'sketch': {
-        const voice = next.voices.find(v => v.id === action.voiceId);
-        if (!voice) {
-          rejected.push({ op: action, reason: `Voice not found: ${action.voiceId}` });
-          break;
-        }
-        if (voice.agency !== 'ON') {
-          rejected.push({ op: action, reason: `Voice ${action.voiceId} has agency OFF` });
-          break;
-        }
+        const voice = getVoice(next, action.voiceId);
 
         if (action.events) {
           // Canonical sketch: convert MusicalEvent[] to PatternSketch via adapter
@@ -262,60 +291,4 @@ export function executeOperations(
   }
 
   return { session: next, accepted, rejected, log, resolvedParams };
-}
-
-/**
- * Pre-validate an action against session state without applying it.
- * Returns null if the action would be accepted, or a rejection reason.
- * Used by the tool loop to give honest function responses.
- */
-export function prevalidateAction(
-  session: Session,
-  action: AIAction,
-  adapter: SourceAdapter,
-  arbitrator: Arbitrator,
-): string | null {
-  switch (action.type) {
-    case 'move': {
-      const voiceId = action.voiceId ?? session.activeVoiceId;
-      const voice = session.voices.find(v => v.id === voiceId);
-      if (!voice) return `Voice not found: ${voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${voiceId} has agency OFF`;
-
-      // Resolve param: try as runtime key, then as canonical controlId
-      const mappedCanonical = adapter.mapRuntimeParamKey(action.param);
-      let runtimeParam: string;
-      if (mappedCanonical) {
-        runtimeParam = action.param;
-      } else {
-        const binding = adapter.mapControl(action.param);
-        const pathParts = binding?.path.split('.');
-        const candidate = pathParts?.[pathParts.length - 1];
-        if (candidate && candidate !== action.param && adapter.mapRuntimeParamKey(candidate)) {
-          runtimeParam = candidate;
-        } else {
-          return `Unknown control: ${action.param}`;
-        }
-      }
-
-      const validation = adapter.validateOperation(action);
-      if (!validation.valid) return validation.reason ?? `Validation failed for ${action.param}`;
-
-      if (!arbitrator.canAIAct(voiceId, runtimeParam)) {
-        return `Arbitration: human is currently holding ${runtimeParam} on ${voiceId}`;
-      }
-      return null;
-    }
-
-    case 'sketch': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      return null;
-    }
-
-    case 'set_transport':
-    case 'say':
-      return null;
-  }
 }
