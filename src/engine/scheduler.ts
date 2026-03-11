@@ -88,7 +88,7 @@ export class Scheduler {
     for (let stepIdx = startStep; stepIdx <= endStep; stepIdx++) {
       const stepTick = stepIdx * TICKS_PER_STEP;
       // Skip steps we've already scheduled (cursor is past this step's tick)
-      if (stepTick < this.cursor && stepIdx !== startStep) continue;
+      if (stepTick < this.cursor) continue;
 
       for (const voice of audibleVoices) {
         const patternStep = stepIdx % voice.pattern.length;
