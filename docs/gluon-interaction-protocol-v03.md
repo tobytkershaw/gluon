@@ -1,6 +1,6 @@
 # Gluon Interaction Protocol
 
-**Version:** 0.3.1 (Draft)
+**Version:** 0.4.0 (Draft)
 
 ---
 
@@ -16,9 +16,9 @@ How a human musician and an AI share control of a musical instrument. The verbs,
 
 **2. The AI plays the instrument. It does not replace it.** The AI's contributions flow through the same engines, parameters, and signal chain as the human's. What it does is exposed, tweakable, and designed to be reversible. This is not a prompt-to-track generator. It's a shared instrument.
 
-**3. One knob controls how much the AI does.** The leash. Turn it down for silence. Turn it up for a full collaborator. Everything in between is a gradient, not a mode switch.
+**3. The AI acts when asked.** The human directs the AI via natural language prompts. The AI makes structured changes to the project and reports what it did. No unsolicited actions, no continuous streaming, no reactive nudges.
 
-**4. The AI shuts up unless asked.** No running commentary. No explaining every nudge. If you want to know why it did something, ask. Otherwise it just plays.
+**4. The AI can hear its own work.** After making changes, the AI can request an audio snapshot (rendered clip) and evaluate whether it achieved what the human asked for. This is a discrete evaluation step, not continuous listening.
 
 **5. Undo is always one action away.** You never need to think about how to get back. Just undo.
 
@@ -31,10 +31,10 @@ How a human musician and an AI share control of a musical instrument. The verbs,
 ```
 Session {
   voices: [Voice]
-  leash: f32                    // 0.0 (AI silent) to 1.0 (full co-creation)
   undo_stack: [Snapshot]        // Most recent state on top
-  pending: [PendingAction]      // Suggestions, auditions, and sketches awaiting response
+  pending: [PendingAction]      // Sketches and changes awaiting human approval
   context: MusicalContext       // Inferred, human can override
+  messages: [ChatMessage]       // Conversation history
 }
 ```
 
@@ -51,19 +51,16 @@ Voice {
 
 ### Agency
 
-What the AI can do to a voice. Set per-voice by the musician.
+What the AI is allowed to do to a voice. Set per-voice by the musician.
 
 ```
 enum Agency {
   OFF           // AI does not act on this voice, but may still observe it for context.
-  SUGGEST       // AI can propose changes. Nothing sounds until you accept.
-  PLAY          // AI can move parameters and play notes freely.
+  ON            // AI can modify this voice when asked by the human.
 }
 ```
 
-Three levels. That's it. OFF means hands off. SUGGEST means show me ideas. PLAY means jam with me. The leash dial scales how active the AI is within whatever level you've set.
-
-There is no strict ordering requirement. You might have one voice on PLAY and another on SUGGEST. You might have everything on PLAY with the leash at 0.1 so the AI barely touches anything. The leash and the per-voice agency interact: a low leash with PLAY permission means the AI can act but mostly chooses not to. A high leash with SUGGEST permission means the AI has lots of ideas but still waits for your approval.
+Two states. OFF means hands off. ON means the AI can make changes when you ask it to. The AI never acts unsolicited — it only modifies voices when responding to a human prompt, and only if that voice's agency is ON.
 
 ### Musical Context
 
@@ -85,17 +82,20 @@ The AI infers this from what it hears and sees. The human can pin any field ("we
 
 #### `play`
 
-Touch a parameter. Move a knob. Play a note. This is the primary interaction and it always takes priority over everything the AI is doing.
+Touch a parameter. Move a knob. Play a note. Toggle a step. This is direct manipulation of the instrument and it always takes priority over AI changes.
 
 #### `ask`
 
-Talk to the AI in natural language.
+Talk to the AI in natural language. This is the primary way the human directs the AI.
 
-- "Make it darker"
-- "Surprise me on the bass"
+- "Give me a four-on-the-floor kick pattern"
+- "Make the bass darker and more sub-heavy"
+- "Add syncopation to the lead"
+- "That's too busy, strip it back"
 - "Sketch a 4-bar pattern that complements this"
 - "Why did you change the filter?"
-- "More like that, but weirder"
+
+The AI reads the full project state and responds with structured changes.
 
 #### `undo`
 
@@ -105,101 +105,50 @@ Multiple undos walk back through the stack. Undo never reverses the human's own 
 
 #### `commit`
 
-Accept a pending suggestion or audition from the AI. "Yes, keep that."
+Accept a pending change from the AI. "Yes, keep that."
 
 #### `dismiss`
 
-Wave away a pending suggestion or audition. Not a formal rejection with structured feedback. Just "nah." The AI should read the room from the pattern of what you commit and what you dismiss, without requiring you to explain yourself.
-
-#### `leash` (up / down)
-
-The single most important control in Gluon. One continuous value from 0.0 to 1.0. Should map to a physical knob or slider.
-
-At 0.0 the AI is silent. It's watching, building its model, but doing nothing.
-
-At 0.25 it might occasionally suggest something on voices set to SUGGEST.
-
-At 0.5 it's an active participant. Suggesting regularly, nudging parameters on PLAY voices, responding to what you do.
-
-At 0.75 it's assertive. Taking initiative, making bigger moves, introducing ideas you didn't ask for.
-
-At 1.0 it's a full co-creator. Jamming freely on any voice set to PLAY.
-
-The exact mapping from leash value to AI behaviour is an implementation concern, not a protocol concern. The protocol just says: there is one scalar that controls how much the AI does, and the human can change it at any time.
+Wave away a pending change. Just "nah."
 
 ---
 
 ## What the AI Does
 
-#### `suggest`
-
-Propose a change without making it. The suggestion appears visually (a ghost on the parameter space, a highlighted region, whatever the UI decides). Nothing sounds until the human commits.
-
-```
-suggest {
-  voice: VoiceID
-  changes: [(ParamID, f32)]
-  reason: Option<String>        // Available if the human asks "why?"
-}
-```
-
-**Requires:** voice agency SUGGEST or PLAY.
-
-Suggestions expire naturally. If you don't commit within a reasonable window, they fade away. No cleanup needed from the human.
-
-#### `audition`
-
-Temporarily apply a change so the human can hear it. After a few seconds, it reverts automatically unless the human commits.
-
-```
-audition {
-  voice: VoiceID
-  changes: [(ParamID, f32)]
-  duration: Duration
-}
-```
-
-**Requires:** voice agency PLAY.
-
-This is the AI saying "what about this?" and trying it. If you like it, commit. If not, it goes away on its own. Committing an audition preserves its current state instead of reverting at expiry. If you touch any of the auditioned parameters during the audition, your value wins and the audition for that parameter is cancelled.
-
-Only one audition per voice at a time. A new audition replaces the old one.
+All AI actions are in response to a human `ask`. The AI never acts unsolicited.
 
 #### `move`
 
-Change a parameter. This is the AI playing the instrument. It's immediately audible.
+Change a parameter on a voice.
 
 ```
 move {
   voice: VoiceID
   param: ParamID
   target: { absolute: f32 } | { relative: f32 }
-  over: Option<Duration>        // If set, drift smoothly over this time
 }
 ```
 
-**Requires:** voice agency PLAY.
+**Requires:** voice agency ON.
 
-If `over` is set, the AI is creating a smooth automation curve rather than a step change. "Slowly open the filter over 8 bars" is a `move` with a long `over` duration. The local engine handles the interpolation; no LLM round-trip per sample.
-
-Moves are the primary unit of undo. Each move (or group of coordinated moves) pushes one entry onto the undo stack.
+Moves are immediately applied and pushed onto the undo stack. Multiple related moves are grouped into a single undo entry (action group).
 
 #### `sketch`
 
-Create new content: a MIDI pattern, a parameter automation curve, a new voice configuration.
+Create or modify a pattern, voice configuration, or arrangement element.
 
 ```
 sketch {
-  type: "pattern" | "automation" | "voice" | "arrangement"
+  type: "pattern" | "voice" | "arrangement"
   content: SketchContent
   target: Option<VoiceID>
   description: String
 }
 ```
 
-Sketches are always provisional. They appear in the pending list with a description. The human commits to apply them or dismisses to discard. The AI can offer to audition a sketch ("want to hear it?").
+**Requires:** voice agency ON.
 
-In typical use, the AI sketches in response to a human `ask` rather than unsolicited. Implementations may restrict unsolicited sketches even on voices set to PLAY.
+Sketches are applied immediately with a description of what changed shown in the chat panel. The human can undo to revert.
 
 #### `say`
 
@@ -211,7 +160,20 @@ say {
 }
 ```
 
-The AI speaks when spoken to (responding to `ask`), or when it has something genuinely worth saying. It does not narrate its own actions by default. Good AI behaviour is like a good session musician: mostly you communicate through the instrument, not through words.
+The AI explains what it did, answers questions, or describes what it hears. It should be concise — the changes speak louder than the words.
+
+#### `listen`
+
+Request an audio snapshot to evaluate the current state.
+
+```
+listen {
+  bars: number              // how many bars to render
+  reason: String            // what the AI wants to evaluate
+}
+```
+
+The system renders the requested audio, sends it to the multimodal model, and returns a text assessment. The AI uses this to decide whether to iterate or report to the human. This is optional and happens within the AI's reasoning loop, not as a visible protocol action.
 
 ---
 
@@ -239,19 +201,11 @@ The specific timing threshold for "actively touching" is an implementation detai
 
 ---
 
-## Timescales
+## Timescale
 
-Different AI actions have different speed requirements.
+The AI operates at a single timescale: **conversational**. The human asks, the AI responds within a few seconds. There is no reactive timescale, no continuous parameter modulation, no reflex responses. This dramatically simplifies the system and eliminates the latency sensitivity that made real-time jamming impractical.
 
-**Continuous:** Smooth parameter drifts (`move` with `over`). Handled by a local automation engine after the LLM sets the trajectory. No per-sample LLM calls.
-
-**Reactive:** Responding to what the human just did. The AI notices you opened the filter and nudges the resonance to complement it. Needs to happen within 1-2 seconds to feel alive. Fast LLM call or local model.
-
-**Compositional:** Sketching a pattern, writing an arrangement. The human asked for something and is willing to wait a few seconds for a considered response.
-
-**Conversational:** Natural language dialogue. Normal LLM call speed.
-
-If the AI can't respond fast enough at any timescale, it does nothing. Late is worse than absent.
+The AI can make multiple changes in a single response (moving parameters across several voices and sketching a pattern), so complex operations don't require multiple round-trips.
 
 ---
 
@@ -295,12 +249,12 @@ Undo for hardware is best-effort. The system can re-send previous CC values, but
 
 ## The Whole Thing on One Page
 
-A Gluon session has **voices** (things that make sound), a **leash** (how much the AI does), and **agency per voice** (OFF / SUGGEST / PLAY).
+A Gluon session has **voices** (things that make sound) and **agency per voice** (OFF / ON).
 
-The human **plays**, **asks**, **undoes**, **commits**, and **dismisses**. The human also controls the **leash**.
+The human **plays** (direct manipulation), **asks** (natural language prompts), **undoes**, **commits**, and **dismisses**.
 
-The AI **suggests**, **auditions**, **moves**, **sketches**, and **says**. Every AI action is undoable. The AI only acts within the agency and leash the human has set.
+The AI **moves** parameters, **sketches** patterns and content, **says** things, and optionally **listens** to audio snapshots. Every AI action is undoable. The AI only acts when asked and only on voices with agency ON.
 
 When human and AI collide on the same parameter, the human wins. Always. Instantly.
 
-That's Gluon.
+That's Gluon. The Claude Code of music.
