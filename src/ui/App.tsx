@@ -122,14 +122,16 @@ export default function App() {
       const report = executeOperations(s, actions, plaitsAdapterStub, arbRef.current);
 
       // Start drift animations for accepted moves with `over`
-      for (const action of report.accepted) {
+      for (let i = 0; i < report.accepted.length; i++) {
+        const action = report.accepted[i];
         if (action.type === 'move' && action.over) {
           const vid = action.voiceId ?? s.activeVoiceId;
+          const runtimeParam = report.resolvedParams.get(i) ?? action.param;
           const voice = getVoice(s, vid);
-          const currentVal = voice.params[action.param] ?? 0;
+          const currentVal = voice.params[runtimeParam] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
-          autoRef.current.start(action.param, currentVal, targetVal, action.over, (p, value) => {
+          autoRef.current.start(runtimeParam, currentVal, targetVal, action.over, (p, value) => {
             setSession((s2) => applyParamDirect(s2, vid, p, value));
           });
           autoRef.current.startLoop();

@@ -5,13 +5,14 @@ import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
 import { VOICE_LABELS } from './voice-labels';
-import { controlIdToRuntimeParam, runtimeParamToControlId } from '../audio/instrument-registry';
 
 export interface OperationExecutionReport {
   session: Session;
   accepted: AIAction[];
   rejected: { op: AIAction; reason: string }[];
   log: ExecutionReportLogEntry[];
+  /** For accepted move actions, maps action index → resolved runtime param key */
+  resolvedParams: Map<number, string>;
 }
 
 export function executeOperations(
@@ -24,6 +25,7 @@ export function executeOperations(
   const rejected: { op: AIAction; reason: string }[] = [];
   const log: ExecutionReportLogEntry[] = [];
   const sayTexts: string[] = [];
+  const resolvedParams = new Map<number, string>();
 
   let next = session;
   const undoBaseline = session.undoStack.length;
@@ -42,14 +44,33 @@ export function executeOperations(
           break;
         }
 
-        // Resolve param: could be controlId or runtime param
-        let runtimeParam = action.param;
-        let controlId = runtimeParamToControlId[action.param] ?? action.param;
+        // Resolve param through adapter: could be controlId or runtime param key
+        let runtimeParam: string;
+        let controlId: string;
 
-        const resolved = controlIdToRuntimeParam[action.param];
-        if (resolved) {
-          runtimeParam = resolved;
-          controlId = action.param;
+        // Try as runtime param key first (runtime → canonical)
+        const mappedCanonical = adapter.mapRuntimeParamKey(action.param);
+        if (mappedCanonical) {
+          controlId = mappedCanonical;
+          runtimeParam = action.param;
+        } else {
+          // Try as controlId (canonical → runtime)
+          const binding = adapter.mapControl(action.param);
+          if (binding && binding.path !== action.param) {
+            controlId = action.param;
+            const pathParts = binding.path.split('.');
+            runtimeParam = pathParts[pathParts.length - 1];
+          } else {
+            rejected.push({ op: action, reason: `Unknown control: ${action.param}` });
+            break;
+          }
+        }
+
+        // Validate through adapter
+        const validation = adapter.validateOperation(action);
+        if (!validation.valid) {
+          rejected.push({ op: action, reason: validation.reason ?? `Validation failed for ${action.param}` });
+          break;
         }
 
         if (!arbitrator.canAIAct(voiceId, runtimeParam)) {
@@ -93,6 +114,7 @@ export function executeOperations(
           }
 
           log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)} (drift ${action.over}ms)` });
+          resolvedParams.set(accepted.length, runtimeParam);
           accepted.push(action);
         } else {
           // Immediate move
@@ -127,6 +149,7 @@ export function executeOperations(
           }
 
           log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${beforeVal.toFixed(2)} → ${afterVal.toFixed(2)}` });
+          resolvedParams.set(accepted.length, runtimeParam);
           accepted.push(action);
         }
         break;
@@ -186,5 +209,5 @@ export function executeOperations(
     };
   }
 
-  return { session: next, accepted, rejected, log };
+  return { session: next, accepted, rejected, log, resolvedParams };
 }

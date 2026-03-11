@@ -1,8 +1,8 @@
 // src/engine/session.ts
 import type { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
-import type { SourceAdapter } from './canonical-types';
+import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateVoice } from './types';
-import { getModelName } from '../audio/instrument-registry';
+import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 
 const VOICE_DEFAULTS: { model: number; engine: string }[] = [
@@ -11,6 +11,19 @@ const VOICE_DEFAULTS: { model: number; engine: string }[] = [
   { model: 2, engine: 'plaits:fm' },
   { model: 4, engine: 'plaits:harmonic' },
 ];
+
+function buildDefaultProvenance(modelIndex: number): ControlState {
+  const engine = getEngineByIndex(modelIndex);
+  if (!engine) return {};
+  const provenance: ControlState = {};
+  for (const control of engine.controls) {
+    provenance[control.id] = {
+      value: control.range?.default ?? 0.5,
+      source: 'default',
+    };
+  }
+  return provenance;
+}
 
 function createVoice(index: number): Voice {
   const defaults = VOICE_DEFAULTS[index] ?? VOICE_DEFAULTS[0];
@@ -23,12 +36,7 @@ function createVoice(index: number): Voice {
     pattern: createDefaultPattern(16),
     muted: false,
     solo: false,
-    controlProvenance: {
-      brightness: { value: 0.5, source: 'default' },
-      richness: { value: 0.5, source: 'default' },
-      texture: { value: 0.5, source: 'default' },
-      pitch: { value: 0.47, source: 'default' },
-    },
+    controlProvenance: buildDefaultProvenance(defaults.model),
   };
 }
 
