@@ -57,9 +57,14 @@ interface Props {
   analyser: AnalyserNode | null;
 }
 
-function lastAiMessage(messages: ChatMessage[]): string | null {
+function lastAiPreview(messages: ChatMessage[]): string | null {
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].role === 'ai' && messages[i].text) return messages[i].text;
+    const msg = messages[i];
+    if (msg.role !== 'ai') continue;
+    if (msg.text) return msg.text;
+    if (msg.actions?.length) {
+      return msg.actions.map(a => `${a.voiceLabel}: ${a.description}`).join(', ');
+    }
   }
   return null;
 }
@@ -77,7 +82,7 @@ export function InstrumentView({
 }: Props) {
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
   const totalPages = Math.ceil(activeVoice.pattern.length / 16);
-  const lastMsg = lastAiMessage(session.messages);
+  const lastMsg = lastAiPreview(session.messages);
 
   return (
     <div className="flex flex-col h-full">

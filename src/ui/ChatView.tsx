@@ -69,12 +69,10 @@ export function ChatView({
         <UndoButton onClick={onUndo} disabled={session.undoStack.length === 0} />
       </div>
 
-      {/* API key when not configured */}
-      {!apiConfigured && (
-        <div className="px-4 py-2">
-          <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} />
-        </div>
-      )}
+      {/* API key: expanded when not configured, collapsed pill when configured */}
+      <div className="px-4 py-2">
+        <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} />
+      </div>
 
       {/* Main chat area */}
       <div className="flex-1 min-h-0 flex justify-center">
