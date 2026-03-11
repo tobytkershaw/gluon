@@ -10,7 +10,7 @@ import {
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
-import { executeOperations } from '../engine/operation-executor';
+import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
@@ -182,67 +182,7 @@ export default function App() {
 
   const requestIdRef = useRef(0);
   const [isThinking, setIsThinking] = useState(false);
-
-  const isListenIntent = (msg: string): boolean => {
-    const lower = msg.toLowerCase();
-    // Only match explicit audio-listening phrases, not generic "what do you think" or "review"
-    return /\b(take a listen|listen to (this|it|that|the mix)|how does it sound|how('s| is) it sound(ing)?)\b/.test(lower);
-  };
-
   const [isListening, setIsListening] = useState(false);
-
-  const handleListen = useCallback(async (question: string) => {
-    const s = sessionRef.current;
-    if (!s.transport.playing) {
-      setSession((prev) => ({
-        ...prev,
-        messages: [...prev.messages, {
-          role: 'ai' as const,
-          text: 'Press play first — I need to hear the audio to evaluate it.',
-          timestamp: Date.now(),
-        }],
-      }));
-      return;
-    }
-
-    setIsListening(true);
-    const dest = audioRef.current.getMediaStreamDestination();
-    if (!dest) {
-      setIsListening(false);
-      return;
-    }
-
-    try {
-      const activePattern = getActiveVoice(s).pattern;
-      const wavBlob = await exporterRef.current.captureNBars(
-        dest, 2, activePattern.length, s.transport.bpm,
-      );
-
-      const critique = await aiRef.current.evaluateAudio(
-        sessionRef.current, wavBlob, 'audio/wav', question,
-      );
-
-      setSession((prev) => ({
-        ...prev,
-        messages: [...prev.messages, {
-          role: 'ai' as const,
-          text: critique,
-          timestamp: Date.now(),
-        }],
-      }));
-    } catch {
-      setSession((prev) => ({
-        ...prev,
-        messages: [...prev.messages, {
-          role: 'ai' as const,
-          text: 'Audio evaluation failed — try again.',
-          timestamp: Date.now(),
-        }],
-      }));
-    } finally {
-      setIsListening(false);
-    }
-  }, []);
 
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
@@ -253,21 +193,18 @@ export default function App() {
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
 
-    // Route to listen mode if the message is a listen intent
-    if (isListenIntent(message)) {
-      try {
-        await handleListen(message);
-      } finally {
-        if (thisRequest === requestIdRef.current) {
-          setIsThinking(false);
-        }
-      }
-      return;
-    }
-
     try {
-      const actions = await aiRef.current.ask(sessionRef.current, message);
-      // Discard stale responses if another request was fired
+      const actions = await aiRef.current.ask(sessionRef.current, message, {
+        listen: {
+          getAudioDestination: () => audioRef.current.getMediaStreamDestination(),
+          captureNBars: (dest, bars, len, bpm) => exporterRef.current.captureNBars(dest, bars, len, bpm),
+          onListening: setIsListening,
+        },
+        isStale: () => thisRequest !== requestIdRef.current,
+        validateAction: (action) => prevalidateAction(
+          sessionRef.current, action, plaitsAdapter, arbRef.current,
+        ),
+      });
       if (thisRequest !== requestIdRef.current) return;
       dispatchAIActions(actions);
     } catch {
@@ -275,9 +212,10 @@ export default function App() {
     } finally {
       if (thisRequest === requestIdRef.current) {
         setIsThinking(false);
+        setIsListening(false);
       }
     }
-  }, [ensureAudio, dispatchAIActions, handleListen]);
+  }, [ensureAudio, dispatchAIActions]);
 
   const handleApiKey = useCallback((key: string) => {
     aiRef.current.setApiKey(key);

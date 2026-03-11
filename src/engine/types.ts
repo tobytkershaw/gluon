@@ -53,7 +53,14 @@ export interface PatternSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot;
+export interface TransportSnapshot {
+  kind: 'transport';
+  prevTransport: Transport;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -92,7 +99,14 @@ export interface AISketchAction {
   events?: MusicalEvent[];
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction;
+export interface AITransportAction {
+  type: 'set_transport';
+  bpm?: number;
+  swing?: number;
+  playing?: boolean;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction;
 
 // --- Session ---
 
