@@ -75,6 +75,27 @@ export interface Processor {
 // --- Region ---
 export type RegionKind = 'pattern' | 'clip' | 'automation_lane';
 
+/**
+ * A Region is a time-bounded container for musical events.
+ *
+ * ## Structural invariants
+ * 1. `duration > 0`
+ * 2. `start >= 0`
+ * 3. All events: `0 <= event.at < duration`
+ * 4. Events are sorted ascending by `at` (enforced via normalization on write)
+ *
+ * ## Collision rules (per kind)
+ * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001)
+ * 9. No duplicate ParameterEvents for the same `controlId` at the same `at` (tolerance 0.001)
+ * 10. No simultaneous NoteEvents in a voice (monophonic in M1)
+ *
+ * ## Deferred
+ * - Cross-region overlap detection
+ * - Region splitting / merging
+ * - Non-looping clip playback
+ * - Automation lane semantics
+ * - Polyphonic voices
+ */
 export interface Region {
   id: string;
   kind: RegionKind;
@@ -88,11 +109,26 @@ export interface Region {
 // --- Musical Event ---
 export type EventKind = 'note' | 'trigger' | 'parameter';
 
+/**
+ * Base for all musical events.
+ *
+ * ## Invariant
+ * 3. `0 <= at < region.duration` (validated in region context)
+ */
 export interface BaseEvent {
   at: number;
   kind: EventKind;
 }
 
+/**
+ * A pitched note event.
+ *
+ * ## Invariants
+ * 6. `pitch` in 0–127 (MIDI range)
+ * 6. `velocity` in 0–1
+ * 6. `duration > 0`
+ * 10. No simultaneous NoteEvents in a voice (monophonic in M1)
+ */
 export interface NoteEvent extends BaseEvent {
   kind: 'note';
   pitch: number; // MIDI 0-127
@@ -100,12 +136,26 @@ export interface NoteEvent extends BaseEvent {
   duration: number; // length in beats
 }
 
+/**
+ * A percussive trigger (unpitched).
+ *
+ * ## Invariants
+ * 5. `velocity` in 0–1 when present
+ * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001)
+ */
 export interface TriggerEvent extends BaseEvent {
   kind: 'trigger';
   velocity?: number;
   accent?: boolean;
 }
 
+/**
+ * A parameter automation event.
+ *
+ * ## Invariants
+ * 7. `controlId` is non-empty
+ * 9. No duplicate ParameterEvents for the same `controlId` at the same `at` (tolerance 0.001)
+ */
 export interface ParameterEvent extends BaseEvent {
   kind: 'parameter';
   controlId: string;
