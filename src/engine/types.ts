@@ -64,6 +64,7 @@ export interface ModelSnapshot {
   kind: 'model';
   voiceId: string;
   prevModel: number;
+  prevEngine: string;
   timestamp: number;
   description: string;
 }

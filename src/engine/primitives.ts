@@ -151,7 +151,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'model') {
-    return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel });
+    return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel, engine: snapshot.prevEngine });
   }
 
   if (snapshot.kind === 'pattern') {

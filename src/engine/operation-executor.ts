@@ -269,17 +269,22 @@ export function executeOperations(
         const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
         const engineDef = plaitsInstrument.engines[engineIndex];
         const prevModel = voice.model;
+        const prevEngine = voice.engine;
+
+        // Derive engine name the same way as session.ts:setModel
+        const engineName = `plaits:${engineDef.label.toLowerCase().replace(/[\s/]+/g, '_')}`;
 
         const snapshot: ModelSnapshot = {
           kind: 'model',
           voiceId: action.voiceId,
           prevModel,
+          prevEngine,
           timestamp: Date.now(),
           description: `AI model: ${plaitsInstrument.engines[prevModel]?.label ?? prevModel} → ${engineDef.label}`,
         };
 
         next = {
-          ...updateVoice(next, action.voiceId, { model: engineIndex }),
+          ...updateVoice(next, action.voiceId, { model: engineIndex, engine: engineName }),
           undoStack: [...next.undoStack, snapshot],
         };
 
