@@ -301,3 +301,13 @@ The point is to give it a coherent world in which it can do the right things wel
 ## One-Sentence Summary
 
 **Design Gluon so the model uses the instrument through clear affordances and real feedback, rather than forcing it to simulate hidden protocols through text.**
+
+---
+
+## Capability Doctrine
+
+See [ai-capability-doctrine.md](./ai-capability-doctrine.md) for the project-level doctrine that complements these interface principles.
+
+The short version is:
+
+**Constrain the AI at the product boundary. Empower it aggressively inside that boundary.**
