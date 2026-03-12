@@ -111,13 +111,16 @@ export function toggleStepAccent(session: Session, voiceId: string, stepIndex: n
     const idx = findTriggerAt(events, stepIndex);
     if (idx >= 0) {
       const trigger = events[idx] as TriggerEvent;
-      events[idx] = {
-        ...trigger,
-        accent: !trigger.accent,
-        velocity: trigger.accent ? 0.8 : 1.0,
-      };
+      // Skip disabled triggers (velocity=0) — accent on an ungated step is a no-op
+      if (trigger.velocity !== 0) {
+        events[idx] = {
+          ...trigger,
+          accent: !trigger.accent,
+          velocity: trigger.accent ? 0.8 : 1.0,
+        };
+      }
     }
-    // If no trigger at this step, accent toggle is a no-op
+    // If no trigger at this step (or disabled), accent toggle is a no-op
     return applyRegionEdit(session, voiceId, events);
   }
 
@@ -205,10 +208,24 @@ export function setPatternLength(session: Session, voiceId: string, length: numb
   if (clamped === voice.pattern.length) return session;
 
   // Canonical path: update region duration, re-project.
-  // Keep all events (even beyond new duration) so expanding restores them.
-  // The projection naturally ignores events at positions >= stepCount.
+  // Events beyond the new duration are stashed in voice._hiddenEvents
+  // so expanding later restores them. The region invariant (event.at < duration)
+  // is preserved at all times.
   if (voice.regions.length > 0) {
-    return applyRegionEdit(session, voiceId, voice.regions[0].events, { duration: clamped });
+    const currentEvents = voice.regions[0].events;
+    const prevHidden = voice._hiddenEvents ?? [];
+
+    // Merge current events + previously hidden events, then split by new duration
+    const allEvents = [...currentEvents, ...prevHidden];
+    const inRange = allEvents.filter(e => e.at < clamped);
+    const outOfRange = allEvents.filter(e => e.at >= clamped);
+
+    let result = applyRegionEdit(session, voiceId, inRange, { duration: clamped });
+    // Stash out-of-range events on the voice (transient, not persisted)
+    result = updateVoice(result, voiceId, {
+      _hiddenEvents: outOfRange.length > 0 ? outOfRange : undefined,
+    });
+    return result;
   }
 
   // Fallback

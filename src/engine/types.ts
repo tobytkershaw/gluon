@@ -23,6 +23,8 @@ export interface Voice {
   muted: boolean;
   solo: boolean;
   controlProvenance?: ControlState;
+  /** Events hidden by setPatternLength, restored on expand. Not persisted. */
+  _hiddenEvents?: CanonicalMusicalEvent[];
 }
 
 export interface MusicalContext {

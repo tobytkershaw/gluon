@@ -6,6 +6,7 @@ import {
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
 import { getVoice, updateVoice } from '../../src/engine/types';
+import { validateRegion } from '../../src/engine/region-helpers';
 
 describe('Pattern Primitives', () => {
   describe('toggleStepGate', () => {
@@ -74,6 +75,18 @@ describe('Pattern Primitives', () => {
       const trigger = region.events.find(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01);
       expect(trigger).toBeDefined();
       expect((trigger as any).accent).toBe(true);
+    });
+
+    it('does not re-enable a disabled (gated-off) step', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      s = toggleStepGate(s, vid, 0);        // gate on
+      s = toggleStepGate(s, vid, 0);        // gate off (disabled sentinel)
+      expect(getVoice(s, vid).pattern.steps[0].gate).toBe(false);
+
+      s = toggleStepAccent(s, vid, 0);      // accent toggle on disabled step
+      // Gate must remain off — accent on a disabled step is a no-op
+      expect(getVoice(s, vid).pattern.steps[0].gate).toBe(false);
     });
   });
 
@@ -160,6 +173,20 @@ describe('Pattern Primitives', () => {
 
       s = setPatternLength(s, vid, 16);      // expand back to 16
       expect(getVoice(s, vid).pattern.steps[12].gate).toBe(true);
+    });
+
+    it('shortened region still passes validation (no out-of-range events)', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      s = toggleStepGate(s, vid, 12);
+      s = setPatternLength(s, vid, 8);
+
+      const region = getVoice(s, vid).regions[0];
+      const { valid, errors } = validateRegion(region);
+      expect(valid).toBe(true);
+      expect(errors).toHaveLength(0);
+      // Out-of-range events are stashed, not in the region
+      expect(region.events.every(e => e.at < region.duration)).toBe(true);
     });
   });
 
