@@ -13,6 +13,11 @@ import { saveSession, loadSession } from '../engine/persistence';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
+import { updateEvent, removeEvent } from '../engine/event-primitives';
+import type { EventSelector } from '../engine/event-primitives';
+import type { MusicalEvent } from '../engine/canonical-types';
+import { addView, removeView } from '../engine/view-primitives';
+import type { SequencerViewKind } from '../engine/types';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
@@ -289,6 +294,22 @@ export default function App() {
     setSession((s) => clearPattern(s, s.activeVoiceId));
   }, [ensureAudio]);
 
+  const handleEventUpdate = useCallback((selector: EventSelector, updates: Partial<MusicalEvent>) => {
+    setSession((s) => updateEvent(s, s.activeVoiceId, selector, updates));
+  }, []);
+
+  const handleEventDelete = useCallback((selector: EventSelector) => {
+    setSession((s) => removeEvent(s, s.activeVoiceId, selector));
+  }, []);
+
+  const handleAddView = useCallback((kind: SequencerViewKind) => {
+    setSession((s) => addView(s, s.activeVoiceId, kind));
+  }, []);
+
+  const handleRemoveView = useCallback((viewId: string) => {
+    setSession((s) => removeView(s, s.activeVoiceId, viewId));
+  }, []);
+
   // Focus-safe keyboard shortcuts
   useEffect(() => {
     const isEditable = () => {
@@ -374,6 +395,10 @@ export default function App() {
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
+            onEventUpdate={handleEventUpdate}
+            onEventDelete={handleEventDelete}
+            onAddView={handleAddView}
+            onRemoveView={handleRemoveView}
             stepPage={stepPage}
             onStepToggle={handleStepToggle}
             onStepAccent={handleStepAccent}

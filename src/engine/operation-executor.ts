@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -99,6 +99,20 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      return null;
+    }
+
+    case 'add_view': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      // No agency check — view ops are UI curation, not musical mutation
+      return null;
+    }
+
+    case 'remove_view': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      // No agency check
       return null;
     }
 
@@ -408,6 +422,52 @@ export function executeOperations(
 
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `transform ${action.operation}: ${action.description}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'add_view': {
+        const voice = getVoice(next, action.voiceId);
+        const prevViews = [...(voice.views ?? [])];
+        const newView = { kind: action.viewKind, id: `${action.viewKind}-ai-${Date.now()}` };
+        const snapshot: ViewSnapshot = {
+          kind: 'view',
+          voiceId: action.voiceId,
+          prevViews,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateVoice(next, action.voiceId, { views: [...prevViews, newView] }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.viewKind} view` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'remove_view': {
+        const voice = getVoice(next, action.voiceId);
+        const prevViews = [...(voice.views ?? [])];
+        const filtered = prevViews.filter(v => v.id !== action.viewId);
+        if (filtered.length === prevViews.length) {
+          rejected.push({ op: action, reason: `View not found: ${action.viewId}` });
+          break;
+        }
+        const snapshot: ViewSnapshot = {
+          kind: 'view',
+          voiceId: action.voiceId,
+          prevViews,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateVoice(next, action.voiceId, { views: filtered }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed view ${action.viewId}` });
         accepted.push(action);
         break;
       }

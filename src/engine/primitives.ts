@@ -1,7 +1,7 @@
 // src/engine/primitives.ts
 import type {
   Session, ParamSnapshot, PatternSnapshot, TransportSnapshot, Snapshot,
-  SynthParamValues, RegionSnapshot,
+  SynthParamValues, RegionSnapshot, ViewSnapshot,
 } from './types';
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
@@ -171,6 +171,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   if (snapshot.kind === 'model') {
     return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel, engine: snapshot.prevEngine });
+  }
+
+  if (snapshot.kind === 'view') {
+    return updateVoice(session, snapshot.voiceId, { views: snapshot.prevViews });
   }
 
   if (snapshot.kind === 'region') {

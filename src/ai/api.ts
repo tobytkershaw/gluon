@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
 import { controlIdToRuntimeParam, getEngineById, plaitsInstrument } from '../audio/instrument-registry';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -89,6 +89,17 @@ function projectAction(session: Session, action: AIAction): Session {
       const engineDef = plaitsInstrument.engines[engineIndex];
       const engineName = `plaits:${engineDef.label.toLowerCase().replace(/[\s/]+/g, '_')}`;
       return updateVoice(session, action.voiceId, { model: engineIndex, engine: engineName });
+    }
+    case 'add_view': {
+      const voice = getVoice(session, action.voiceId);
+      const views = [...(voice.views ?? [])];
+      views.push({ kind: action.viewKind, id: `${action.viewKind}-proj-${Date.now()}` });
+      return updateVoice(session, action.voiceId, { views });
+    }
+    case 'remove_view': {
+      const voice = getVoice(session, action.voiceId);
+      const views = (voice.views ?? []).filter(v => v.id !== action.viewId);
+      return updateVoice(session, action.voiceId, { views });
     }
     case 'say':
     default:
@@ -495,6 +506,72 @@ export class GluonAI {
             voiceId: action.voiceId,
             operation: action.operation,
             description: action.description,
+          }),
+        };
+      }
+
+      case 'add_view': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.viewKind !== 'string' || !args.viewKind) {
+          return errorResponse(id, name, 'Missing required parameter: viewKind');
+        }
+        const validKinds = ['step-grid', 'piano-roll'];
+        if (!validKinds.includes(args.viewKind as string)) {
+          return errorResponse(id, name, `Unknown viewKind: ${args.viewKind}. Must be one of: ${validKinds.join(', ')}`);
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const addViewAction: AIAddViewAction = {
+          type: 'add_view',
+          voiceId: args.voiceId as string,
+          viewKind: args.viewKind as AIAddViewAction['viewKind'],
+          description: args.description as string,
+        };
+
+        const addViewRejection = ctx?.validateAction?.(addViewAction);
+        if (addViewRejection) return errorResponse(id, name, addViewRejection);
+
+        return {
+          actions: [addViewAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            voiceId: addViewAction.voiceId,
+            viewKind: addViewAction.viewKind,
+          }),
+        };
+      }
+
+      case 'remove_view': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.viewId !== 'string' || !args.viewId) {
+          return errorResponse(id, name, 'Missing required parameter: viewId');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const removeViewAction: AIRemoveViewAction = {
+          type: 'remove_view',
+          voiceId: args.voiceId as string,
+          viewId: args.viewId as string,
+          description: args.description as string,
+        };
+
+        const removeViewRejection = ctx?.validateAction?.(removeViewAction);
+        if (removeViewRejection) return errorResponse(id, name, removeViewRejection);
+
+        return {
+          actions: [removeViewAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            voiceId: removeViewAction.voiceId,
+            viewId: removeViewAction.viewId,
           }),
         };
       }

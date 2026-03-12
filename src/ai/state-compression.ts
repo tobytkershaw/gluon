@@ -20,6 +20,7 @@ interface CompressedVoice {
   muted: boolean;
   solo: boolean;
   pattern: CompressedPattern;
+  views: string[];
 }
 
 interface CompressedHumanAction {
@@ -121,6 +122,7 @@ export function compressState(session: Session): CompressedState {
       muted: voice.muted,
       solo: voice.solo,
       pattern: compressPattern(voice),
+      views: (voice.views ?? []).map(v => `${v.kind}:${v.id}`),
     })),
     activeVoiceId: session.activeVoiceId,
     transport: {

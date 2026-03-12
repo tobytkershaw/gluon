@@ -4,6 +4,15 @@ import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent } from
 
 export type Agency = 'OFF' | 'ON';
 
+// --- Sequencer views (presentation state, not musical) ---
+
+export type SequencerViewKind = 'step-grid' | 'piano-roll';
+
+export interface SequencerViewConfig {
+  kind: SequencerViewKind;
+  id: string;
+}
+
 export interface SynthParamValues {
   harmonics: number;
   timbre: number;
@@ -23,6 +32,8 @@ export interface Voice {
   muted: boolean;
   solo: boolean;
   controlProvenance?: ControlState;
+  /** Addable sequencer views. Presentation state only — not serialized, not part of musical state. */
+  views?: SequencerViewConfig[];
   /** Events hidden by setPatternLength, restored on expand. Not persisted. */
   _hiddenEvents?: CanonicalMusicalEvent[];
 }
@@ -81,7 +92,15 @@ export interface RegionSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot;
+export interface ViewSnapshot {
+  kind: 'view';
+  voiceId: string;
+  prevViews: SequencerViewConfig[];
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -140,7 +159,21 @@ export interface AITransformAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction;
+export interface AIAddViewAction {
+  type: 'add_view';
+  voiceId: string;
+  viewKind: SequencerViewKind;
+  description: string;
+}
+
+export interface AIRemoveViewAction {
+  type: 'remove_view';
+  voiceId: string;
+  viewId: string;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction;
 
 // --- Session ---
 

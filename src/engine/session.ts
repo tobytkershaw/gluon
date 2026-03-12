@@ -37,6 +37,7 @@ function createVoice(index: number): Voice {
     agency: 'ON',
     pattern: createDefaultPattern(16),
     regions: [createDefaultRegion(voiceId, 16)],
+    views: [{ kind: 'step-grid', id: `step-grid-${voiceId}` }],
     muted: false,
     solo: false,
     controlProvenance: buildDefaultProvenance(defaults.model),

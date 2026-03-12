@@ -1,5 +1,7 @@
 // src/ui/InstrumentView.tsx
-import type { Session, Voice } from '../engine/types';
+import type { Session, Voice, SequencerViewKind } from '../engine/types';
+import type { MusicalEvent } from '../engine/canonical-types';
+import type { EventSelector } from '../engine/event-primitives';
 import type { ViewMode } from './view-types';
 import { ViewToggle } from './ViewToggle';
 import { VoiceSelector } from './VoiceSelector';
@@ -8,11 +10,11 @@ import { TransportBar } from './TransportBar';
 import { ParameterSpace } from './ParameterSpace';
 import { ModelSelector } from './ModelSelector';
 import { AgencyToggle } from './AgencyToggle';
-import { StepGrid } from './StepGrid';
-import { PatternControls } from './PatternControls';
 import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
 import { ChatPanel } from './ChatPanel';
+import { Tracker } from './Tracker';
+import { SequencerViewSlot } from './SequencerViewSlot';
 
 interface Props {
   session: Session;
@@ -50,6 +52,12 @@ interface Props {
   onPatternLength: (length: number) => void;
   onPageChange: (page: number) => void;
   onClearPattern: () => void;
+  // Tracker editing
+  onEventUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
+  onEventDelete?: (selector: EventSelector) => void;
+  // Views
+  onAddView?: (kind: SequencerViewKind) => void;
+  onRemoveView?: (viewId: string) => void;
   // Undo + Chat
   onUndo: () => void;
   onSend: (message: string) => void;
@@ -66,12 +74,12 @@ export function InstrumentView({
   onSelectVoice, onToggleMute, onToggleSolo,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
+  onEventUpdate, onEventDelete, onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
   onUndo, onSend, isThinking = false, isListening = false, analyser,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
-  const totalPages = Math.ceil(activeVoice.pattern.length / 16);
 
   return (
     <div className="flex flex-col h-full">
@@ -126,26 +134,45 @@ export function InstrumentView({
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <StepGrid
+          {activeVoice.regions.length > 0 && (
+            <Tracker
+              region={activeVoice.regions[0]}
+              currentStep={currentStep}
+              playing={playing}
+              onUpdate={onEventUpdate}
+              onDelete={onEventDelete}
+            />
+          )}
+
+          {(activeVoice.views ?? []).map((viewConfig) => (
+            <SequencerViewSlot
+              key={viewConfig.id}
+              config={viewConfig}
+              onRemove={onRemoveView ?? (() => {})}
               pattern={activeVoice.pattern}
               currentStep={currentStep}
               playing={playing}
-              page={stepPage}
-              onToggleGate={onStepToggle}
-              onToggleAccent={onStepAccent}
+              stepPage={stepPage}
               selectedStep={selectedStep}
+              onStepToggle={onStepToggle}
+              onStepAccent={onStepAccent}
               onStepSelect={onStepSelect}
-            />
-            <PatternControls
-              patternLength={activeVoice.pattern.length}
-              totalPages={totalPages}
-              currentPage={stepPage}
-              onLengthChange={onPatternLength}
+              onPatternLength={onPatternLength}
               onPageChange={onPageChange}
-              onClear={onClearPattern}
+              onClearPattern={onClearPattern}
             />
-          </div>
+          ))}
+
+          {onAddView && (
+            <div className="flex items-center gap-2">
+              <button
+                className="text-[9px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-colors"
+                onClick={() => onAddView('step-grid')}
+              >
+                + Step Grid
+              </button>
+            </div>
+          )}
 
           <div className="flex gap-4">
             <div className="flex-1">

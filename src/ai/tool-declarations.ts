@@ -181,6 +181,54 @@ const transformTool: FunctionDeclaration = {
   },
 };
 
+const addViewTool: FunctionDeclaration = {
+  name: 'add_view',
+  description:
+    'Add a sequencer view to a voice. Use after sketching a pattern to make it visible in the appropriate editor.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      viewKind: {
+        type: Type.STRING,
+        description: 'View type: "step-grid" or "piano-roll".',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "show kick pattern in step grid").',
+      },
+    },
+    required: ['voiceId', 'viewKind', 'description'],
+  },
+};
+
+const removeViewTool: FunctionDeclaration = {
+  name: 'remove_view',
+  description:
+    'Remove a sequencer view from a voice by its ID.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      viewId: {
+        type: Type.STRING,
+        description: 'The view ID to remove.',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "remove step grid").',
+      },
+    },
+    required: ['voiceId', 'viewId', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
@@ -188,4 +236,6 @@ export const GLUON_TOOLS: FunctionDeclaration[] = [
   setTransportTool,
   setModelTool,
   transformTool,
+  addViewTool,
+  removeViewTool,
 ];

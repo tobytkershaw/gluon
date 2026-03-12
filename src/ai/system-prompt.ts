@@ -53,6 +53,7 @@ ${generateVoiceSetup(session)}
 7. Keep text responses short — one or two sentences max.
 8. You can combine tool calls: sketch a pattern AND move params in one turn.
 9. Use the transform tool to rotate, transpose, reverse, or duplicate existing patterns instead of rewriting them with sketch.
+10. After sketching a percussion pattern, add a step-grid view if the voice doesn't already have one. Only add views after relevant actions or when asked — don't add them unsolicited.
 
 ## Plaits Models Reference
 ${generateModelReference()}
