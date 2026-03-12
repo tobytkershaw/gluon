@@ -209,8 +209,8 @@ describe('Function Call Execution', () => {
     await ai.ask(session, 'test');
 
     const call = mockGenerateContent.mock.calls[0][0];
-    expect(call.tools).toBeDefined();
-    expect(call.tools[0].functionDeclarations).toBeDefined();
+    expect(call.config.tools).toBeDefined();
+    expect(call.config.tools[0].functionDeclarations).toBeDefined();
     expect(call.config.toolConfig.functionCallingConfig.mode).toBe('AUTO');
   });
 

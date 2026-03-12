@@ -203,19 +203,19 @@ describe('GluonAI History Management (Exchange-based)', () => {
     }
   });
 
-  it('sends thinkingConfig in API calls', async () => {
+  it('does not send thinkingConfig (unsupported on gemini-2.5-flash)', async () => {
     const session = createSession();
     await ai.ask(session, 'test');
 
     const call = mockGenerateContent.mock.calls[0];
-    expect(call[0].config.thinkingConfig).toEqual({ thinkingLevel: 'MEDIUM' });
+    expect(call[0].config.thinkingConfig).toBeUndefined();
   });
 
-  it('uses gemini-3-flash-preview model', async () => {
+  it('uses gemini-2.5-flash model', async () => {
     const session = createSession();
     await ai.ask(session, 'test');
 
     const call = mockGenerateContent.mock.calls[0];
-    expect(call[0].model).toBe('gemini-3-flash-preview');
+    expect(call[0].model).toBe('gemini-2.5-flash');
   });
 });
