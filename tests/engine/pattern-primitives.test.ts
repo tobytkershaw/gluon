@@ -26,6 +26,21 @@ describe('Pattern Primitives', () => {
       expect(getVoice(result, vid).pattern.steps[0].gate).toBe(false);
     });
 
+    it('preserves accent when toggling gate off and back on', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      s = toggleStepGate(s, vid, 0);       // gate on
+      s = toggleStepAccent(s, vid, 0);      // accent on
+      expect(getVoice(s, vid).pattern.steps[0].accent).toBe(true);
+
+      s = toggleStepGate(s, vid, 0);        // gate off
+      expect(getVoice(s, vid).pattern.steps[0].gate).toBe(false);
+
+      s = toggleStepGate(s, vid, 0);        // gate back on
+      expect(getVoice(s, vid).pattern.steps[0].gate).toBe(true);
+      expect(getVoice(s, vid).pattern.steps[0].accent).toBe(true);
+    });
+
     it('ignores out-of-range step index', () => {
       const s = createSession();
       const result = toggleStepGate(s, s.voices[0].id, 99);
@@ -132,6 +147,19 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = setPatternLength(s, vid, 32);
       expect(getVoice(result, vid).regions[0].duration).toBe(32);
+    });
+
+    it('shortening then expanding restores hidden content', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      s = toggleStepGate(s, vid, 12);       // gate at step 12
+      expect(getVoice(s, vid).pattern.steps[12].gate).toBe(true);
+
+      s = setPatternLength(s, vid, 8);       // shorten to 8 — step 12 hidden
+      expect(getVoice(s, vid).pattern.length).toBe(8);
+
+      s = setPatternLength(s, vid, 16);      // expand back to 16
+      expect(getVoice(s, vid).pattern.steps[12].gate).toBe(true);
     });
   });
 

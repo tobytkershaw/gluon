@@ -4,6 +4,7 @@ import { getVoice, updateVoice } from './types';
 import type { TriggerEvent, ParameterEvent, MusicalEvent } from './canonical-types';
 import { createDefaultStep } from './sequencer-helpers';
 import { reprojectVoicePattern } from './region-projection';
+import { normalizeRegionEvents } from './region-helpers';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
@@ -45,11 +46,11 @@ function applyRegionEdit(
   const voice = getVoice(session, voiceId);
   if (voice.regions.length === 0) return session;
 
-  const region = {
+  const region = normalizeRegionEvents({
     ...voice.regions[0],
     events: newEvents,
     ...(regionUpdates ?? {}),
-  };
+  });
   const newRegions = [region, ...voice.regions.slice(1)];
   const updatedVoice = reprojectVoicePattern({ ...voice, regions: newRegions }, defaultInverseOpts);
   return updateVoice(session, voiceId, {
@@ -71,10 +72,20 @@ export function toggleStepGate(session: Session, voiceId: string, stepIndex: num
     const events = [...voice.regions[0].events];
     const idx = findTriggerAt(events, stepIndex);
     if (idx >= 0) {
-      // Remove trigger (gate off)
-      events.splice(idx, 1);
+      const existing = events[idx] as TriggerEvent;
+      if (existing.velocity === 0) {
+        // Re-enable disabled trigger: restore accent state
+        events[idx] = {
+          ...existing,
+          velocity: existing.accent ? 1.0 : 0.8,
+        };
+      } else {
+        // Disable trigger: set velocity=0 to preserve accent state.
+        // The projection treats velocity=0 as ungated.
+        events[idx] = { ...existing, velocity: 0 };
+      }
     } else {
-      // Insert trigger (gate on), keep sorted
+      // Insert new trigger, keep sorted
       const newTrigger: TriggerEvent = { kind: 'trigger', at: stepIndex, velocity: 0.8 };
       const insertAt = events.findIndex(e => e.at > stepIndex);
       if (insertAt === -1) events.push(newTrigger);
@@ -193,11 +204,11 @@ export function setPatternLength(session: Session, voiceId: string, length: numb
   const clamped = Math.max(1, Math.min(64, length));
   if (clamped === voice.pattern.length) return session;
 
-  // Canonical path: update region duration, re-project
+  // Canonical path: update region duration, re-project.
+  // Keep all events (even beyond new duration) so expanding restores them.
+  // The projection naturally ignores events at positions >= stepCount.
   if (voice.regions.length > 0) {
-    // Filter out events beyond new duration
-    const events = voice.regions[0].events.filter(e => e.at < clamped);
-    return applyRegionEdit(session, voiceId, events, { duration: clamped });
+    return applyRegionEdit(session, voiceId, voice.regions[0].events, { duration: clamped });
   }
 
   // Fallback

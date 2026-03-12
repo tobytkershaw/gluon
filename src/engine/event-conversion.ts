@@ -93,6 +93,9 @@ export function eventsToSteps(
 
     switch (event.kind) {
       case 'trigger':
+        // velocity=0 is the "ungated" sentinel — trigger exists to preserve
+        // accent state but should not produce a gate in the step grid.
+        if (event.velocity === 0) break;
         steps[idx].gate = true;
         if (event.accent) steps[idx].accent = true;
         if (event.velocity !== undefined && event.velocity >= 0.95) steps[idx].accent = true;

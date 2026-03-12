@@ -6,7 +6,7 @@ import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
 import { eventsToSteps } from './event-conversion';
 import { projectRegionToPattern } from './region-projection';
-import { normalizeRegionEvents } from './region-helpers';
+import { normalizeRegionEvents, validateRegion } from './region-helpers';
 import { VOICE_LABELS } from './voice-labels';
 import { getEngineById, plaitsInstrument } from '../audio/instrument-registry';
 
@@ -222,6 +222,14 @@ export function executeOperations(
             ...voice.regions[0],
             events: action.events,
           });
+
+          // Enforce region invariants on the canonical write path
+          const validation = validateRegion(updatedRegion);
+          if (!validation.valid) {
+            rejected.push({ op: action, reason: `Invalid region: ${validation.errors.join('; ')}` });
+            break;
+          }
+
           const newRegions = [updatedRegion, ...voice.regions.slice(1)];
 
           // Project region to pattern (derived)
