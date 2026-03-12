@@ -103,3 +103,4 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v03.md` - Protocol spec (v0.4.0)
 - `docs/gluon-phase1-build.md` - Phase 1 implementation brief
+- `docs/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.

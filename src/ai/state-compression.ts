@@ -1,6 +1,6 @@
 // src/ai/state-compression.ts
 import type { Session, Voice } from '../engine/types';
-import { getModelName } from '../audio/instrument-registry';
+import { getModelName, runtimeParamToControlId } from '../audio/instrument-registry';
 
 interface CompressedPattern {
   length: number;
@@ -19,12 +19,21 @@ interface CompressedVoice {
   pattern: CompressedPattern;
 }
 
+interface CompressedHumanAction {
+  voiceId: string;
+  param: string;
+  from: number;
+  to: number;
+  age_ms: number;
+}
+
 export interface CompressedState {
   voices: CompressedVoice[];
-  transport: { bpm: number; swing: number };
+  activeVoiceId: string;
+  transport: { bpm: number; swing: number; playing: boolean };
   context: { energy: number; density: number };
   undo_depth: number;
-  recent_human_actions: string[];
+  recent_human_actions: CompressedHumanAction[];
 }
 
 function round2(n: number): number {
@@ -49,7 +58,10 @@ function compressPattern(voice: Voice): CompressedPattern {
     if (step.params) {
       const rounded: Record<string, number> = {};
       for (const [k, v] of Object.entries(step.params)) {
-        if (v !== undefined) rounded[k] = round2(v);
+        if (v !== undefined) {
+          const semanticKey = runtimeParamToControlId[k] ?? k;
+          rounded[semanticKey] = round2(v);
+        }
       }
       if (Object.keys(rounded).length > 0) {
         locks[String(i)] = rounded;
@@ -61,33 +73,40 @@ function compressPattern(voice: Voice): CompressedPattern {
 }
 
 export function compressState(session: Session): CompressedState {
+  const now = Date.now();
   const result: CompressedState = {
     voices: session.voices.map(voice => ({
       id: voice.id,
       model: modelName(voice.model),
       params: {
-        harmonics: round2(voice.params.harmonics),
-        timbre: round2(voice.params.timbre),
-        morph: round2(voice.params.morph),
-        note: round2(voice.params.note),
+        brightness: round2(voice.params.timbre),
+        richness: round2(voice.params.harmonics),
+        texture: round2(voice.params.morph),
+        pitch: round2(voice.params.note),
       },
       agency: voice.agency,
       muted: voice.muted,
       solo: voice.solo,
       pattern: compressPattern(voice),
     })),
+    activeVoiceId: session.activeVoiceId,
     transport: {
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
+      playing: session.transport.playing,
     },
     context: {
       energy: round2(session.context.energy),
       density: round2(session.context.density),
     },
     undo_depth: session.undoStack.length,
-    recent_human_actions: session.recentHumanActions.slice(-5).map(
-      (a) => `${a.param}: ${a.from.toFixed(2)} -> ${a.to.toFixed(2)}`
-    ),
+    recent_human_actions: session.recentHumanActions.slice(-5).map(a => ({
+      voiceId: a.voiceId,
+      param: runtimeParamToControlId[a.param] ?? a.param,
+      from: round2(a.from),
+      to: round2(a.to),
+      age_ms: now - a.timestamp,
+    })),
   };
 
   return result;

@@ -8,7 +8,7 @@ import { GLUON_SYSTEM_PROMPT } from './system-prompt';
 import { GLUON_LISTEN_PROMPT } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-declarations';
 
-const MODEL = 'gemini-3-flash-preview';
+const MODEL = 'gemini-2.5-flash';
 
 /** Build an error function response that returns no actions */
 function errorResponse(
@@ -94,7 +94,14 @@ export class GluonAI {
     const contents: Content[] = [];
     for (const ex of this.exchanges) {
       contents.push({ role: 'user', parts: [{ text: ex.userText }] });
-      contents.push(...ex.turns);
+      for (const turn of ex.turns) {
+        // Ensure every history entry is a valid Content object for the SDK.
+        // API responses sometimes omit `parts` or `role`; normalize here.
+        contents.push({
+          role: turn.role ?? 'model',
+          parts: Array.isArray(turn.parts) ? turn.parts : [],
+        });
+      }
     }
 
     const state = compressState(session);
@@ -103,6 +110,7 @@ export class GluonAI {
 
     const collectedActions: AIAction[] = [];
     const loopContents: Content[] = [];
+    let hadError = false;
 
     try {
       for (let round = 0; round < GluonAI.MAX_TOOL_ROUNDS; round++) {
@@ -110,14 +118,27 @@ export class GluonAI {
         if (ctx?.isStale?.()) break;
 
         const response = await this.callWithTools(contents);
-        const modelContent = response.candidates?.[0]?.content;
-        if (!modelContent) break;
+        const candidate = response.candidates?.[0];
+        const rawContent = candidate?.content;
+
+        // Empty or missing content — the API returned nothing useful.
+        // This can happen when safety filters suppress the response or
+        // the model produces only thinking tokens with no visible output.
+        if (!rawContent || !Array.isArray(rawContent.parts) || rawContent.parts.length === 0) {
+          break;
+        }
+
+        // Normalize model content to guarantee valid Content shape.
+        const modelContent: Content = {
+          role: rawContent.role ?? 'model',
+          parts: rawContent.parts,
+        };
 
         loopContents.push(modelContent);
         contents.push(modelContent);
 
         // Collect text parts as say actions (skip thought parts)
-        for (const part of modelContent.parts ?? []) {
+        for (const part of modelContent.parts) {
           if (part.text && !('thought' in part && part.thought)) {
             collectedActions.push({ type: 'say', text: part.text });
           }
@@ -140,14 +161,15 @@ export class GluonAI {
         contents.push(functionResponseContent);
       }
     } catch (error) {
+      hadError = true;
       const errorActions = this.handleError(error);
       collectedActions.push(...errorActions);
     }
 
-    // Only store exchange in history if the request wasn't cancelled.
-    // Stale exchanges would pollute history with tool calls/responses
-    // for actions the session never applied.
-    if (!ctx?.isStale?.()) {
+    // Only store exchange in history if the request succeeded and wasn't
+    // cancelled. Broken or stale exchanges pollute history and cause
+    // cascading SDK failures on subsequent calls.
+    if (!ctx?.isStale?.() && !hadError && loopContents.length > 0) {
       this.exchanges.push({ userText: humanMessage, turns: loopContents });
       if (this.exchanges.length > GluonAI.MAX_EXCHANGES) {
         this.exchanges = this.exchanges.slice(-GluonAI.MAX_EXCHANGES);
@@ -167,18 +189,17 @@ export class GluonAI {
 
     const response = await this.ai.models.generateContent({
       model: MODEL,
+      contents: [...contents],
       config: {
         systemInstruction: GLUON_SYSTEM_PROMPT,
         maxOutputTokens: 2048,
-        thinkingConfig: { thinkingLevel: 'MEDIUM' },
+        tools: [{ functionDeclarations: GLUON_TOOLS }],
         toolConfig: {
           functionCallingConfig: {
             mode: FunctionCallingConfigMode.AUTO,
           },
         },
       },
-      tools: [{ functionDeclarations: GLUON_TOOLS }],
-      contents: [...contents],
     });
 
     this.backoff = { until: 0, delay: 0 };
@@ -376,7 +397,6 @@ export class GluonAI {
         model: MODEL,
         config: {
           systemInstruction: GLUON_LISTEN_PROMPT,
-          thinkingConfig: { thinkingLevel: 'MEDIUM' },
         },
         contents: [{
           role: 'user',
