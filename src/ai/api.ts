@@ -3,12 +3,48 @@
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction } from '../engine/types';
+import { getVoice, updateVoice } from '../engine/types';
+import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { compressState } from './state-compression';
 import { GLUON_SYSTEM_PROMPT } from './system-prompt';
 import { GLUON_LISTEN_PROMPT } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-declarations';
 
 const MODEL = 'gemini-2.5-flash';
+
+/**
+ * Lightweight projection of an action onto session state.
+ * No undo entries or messages — just updates the values so later
+ * tool calls in the same turn can validate against current state.
+ */
+function projectAction(session: Session, action: AIAction): Session {
+  switch (action.type) {
+    case 'move': {
+      const voiceId = action.voiceId ?? session.activeVoiceId;
+      const voice = getVoice(session, voiceId);
+      const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
+      const currentVal = voice.params[runtimeKey] ?? 0;
+      const rawTarget = 'absolute' in action.target
+        ? action.target.absolute
+        : currentVal + action.target.relative;
+      const value = Math.max(0, Math.min(1, rawTarget));
+      return updateVoice(session, voiceId, {
+        params: { ...voice.params, [runtimeKey]: value },
+      });
+    }
+    case 'set_transport': {
+      const t = { ...session.transport };
+      if (action.bpm !== undefined) t.bpm = Math.max(60, Math.min(200, action.bpm));
+      if (action.swing !== undefined) t.swing = Math.max(0, Math.min(1, action.swing));
+      if (action.playing !== undefined) t.playing = action.playing;
+      return { ...session, transport: t };
+    }
+    case 'sketch':
+    case 'say':
+    default:
+      return session;
+  }
+}
 
 /** Build an error function response that returns no actions */
 function errorResponse(
@@ -111,6 +147,9 @@ export class GluonAI {
     const collectedActions: AIAction[] = [];
     const loopContents: Content[] = [];
     let hadError = false;
+    // Turn-local projected session: later tool calls validate against
+    // the projected result of earlier accepted calls in this turn.
+    let projectedSession = session;
 
     try {
       for (let round = 0; round < GluonAI.MAX_TOOL_ROUNDS; round++) {
@@ -148,12 +187,16 @@ export class GluonAI {
         const functionCalls = response.functionCalls;
         if (!functionCalls || functionCalls.length === 0) break;
 
-        // Execute function calls sequentially
+        // Execute function calls sequentially against projected state
         const responseParts: Part[] = [];
         for (const fc of functionCalls) {
-          const result = await this.executeFunctionCall(fc, session, ctx);
+          const result = await this.executeFunctionCall(fc, projectedSession, ctx);
           collectedActions.push(...result.actions);
           responseParts.push(result.responsePart);
+          // Project accepted actions onto local state for subsequent calls
+          for (const action of result.actions) {
+            projectedSession = projectAction(projectedSession, action);
+          }
         }
 
         const functionResponseContent: Content = { role: 'user', parts: responseParts };
@@ -237,13 +280,23 @@ export class GluonAI {
         const rejection = ctx?.validateAction?.(action);
         if (rejection) return errorResponse(id, name, rejection);
 
+        // Compute resulting value for the response
+        const voiceId = action.voiceId ?? session.activeVoiceId;
+        const voice = session.voices.find(v => v.id === voiceId);
+        const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
+        const currentVal = voice?.params[runtimeKey] ?? 0;
+        const rawTarget = 'absolute' in action.target
+          ? action.target.absolute
+          : currentVal + (action.target as { relative: number }).relative;
+        const resultValue = Math.max(0, Math.min(1, rawTarget));
+
         return {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
-            queued: true,
+            applied: true,
             param: action.param,
-            ...(action.voiceId ? { voiceId: action.voiceId } : {}),
-            target: action.target,
+            voiceId,
+            value: Math.round(resultValue * 100) / 100,
           }),
         };
       }
@@ -272,7 +325,7 @@ export class GluonAI {
         return {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
-            queued: true,
+            applied: true,
             voiceId: action.voiceId,
             description: action.description,
             eventCount: action.events?.length ?? 0,
@@ -298,12 +351,16 @@ export class GluonAI {
         const rejection = ctx?.validateAction?.(action);
         if (rejection) return errorResponse(id, name, rejection);
 
+        // Compute resulting transport values (clamped)
+        const resultBpm = action.bpm !== undefined ? Math.max(60, Math.min(200, action.bpm)) : undefined;
+        const resultSwing = action.swing !== undefined ? Math.max(0, Math.min(1, action.swing)) : undefined;
+
         return {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
-            queued: true,
-            ...(action.bpm !== undefined ? { bpm: action.bpm } : {}),
-            ...(action.swing !== undefined ? { swing: action.swing } : {}),
+            applied: true,
+            ...(resultBpm !== undefined ? { bpm: resultBpm } : {}),
+            ...(resultSwing !== undefined ? { swing: Math.round(resultSwing * 100) / 100 } : {}),
             ...(action.playing !== undefined ? { playing: action.playing } : {}),
           }),
         };
