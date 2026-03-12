@@ -2,8 +2,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, SynthParamValues } from '../engine/types';
-import type { MusicalEvent as CanonicalMusicalEvent } from '../engine/canonical-types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry } from '../engine/types';
+import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -51,6 +51,7 @@ export default function App() {
   const interactionUndoRef = useRef<{
     voiceId: string;
     prevParams: Partial<SynthParamValues>;
+    prevProvenance?: Partial<ControlState>;
     prevEvents?: CanonicalMusicalEvent[];
   } | null>(null);
 
@@ -164,12 +165,19 @@ export default function App() {
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
     setSession((s) => {
-      const prevNote = getVoice(s, vid).params.note ?? 0;
+      const voice = getVoice(s, vid);
+      const prevNote = voice.params.note ?? 0;
       const next = updateVoiceParams(s, vid, { note }, true, plaitsAdapter);
       if (Math.abs(note - prevNote) < 0.001) return next;
+      const controlId = plaitsAdapter.mapRuntimeParamKey('note');
+      const prevProvenance: Partial<ControlState> = {};
+      if (controlId && voice.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+      }
       const snapshot: ParamSnapshot = {
         kind: 'param', voiceId: vid,
         prevValues: { note: prevNote }, aiTargetValues: { note },
+        prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
         timestamp: Date.now(), description: `Note change`,
       };
       return { ...next, undoStack: [...next.undoStack, snapshot] };
@@ -181,12 +189,19 @@ export default function App() {
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
     setSession((s) => {
-      const prevHarmonics = getVoice(s, vid).params.harmonics ?? 0;
+      const voice = getVoice(s, vid);
+      const prevHarmonics = voice.params.harmonics ?? 0;
       const next = updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter);
       if (Math.abs(harmonics - prevHarmonics) < 0.001) return next;
+      const controlId = plaitsAdapter.mapRuntimeParamKey('harmonics');
+      const prevProvenance: Partial<ControlState> = {};
+      if (controlId && voice.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+      }
       const snapshot: ParamSnapshot = {
         kind: 'param', voiceId: vid,
         prevValues: { harmonics: prevHarmonics }, aiTargetValues: { harmonics },
+        prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
         timestamp: Date.now(), description: `Harmonics change`,
       };
       return { ...next, undoStack: [...next.undoStack, snapshot] };
@@ -421,9 +436,19 @@ export default function App() {
               arbRef.current.humanInteractionStart();
               const s = sessionRef.current;
               const voice = getActiveVoice(s);
+              const prevProvenance: Partial<ControlState> = {};
+              if (voice.controlProvenance) {
+                for (const key of ['timbre', 'morph']) {
+                  const controlId = plaitsAdapter.mapRuntimeParamKey(key);
+                  if (controlId && voice.controlProvenance[controlId]) {
+                    prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+                  }
+                }
+              }
               interactionUndoRef.current = {
                 voiceId: s.activeVoiceId,
                 prevParams: { timbre: voice.params.timbre, morph: voice.params.morph },
+                prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
                 prevEvents: voice.regions.length > 0 ? [...voice.regions[0].events] : undefined,
               };
             }}
@@ -450,6 +475,7 @@ export default function App() {
                       voiceId: captured.voiceId,
                       prevValues: captured.prevParams,
                       aiTargetValues: currentValues,
+                      prevProvenance: captured.prevProvenance,
                       timestamp: Date.now(),
                       description: `Param change: ${Object.keys(currentValues).join(', ')}`,
                     });
@@ -472,7 +498,19 @@ export default function App() {
                   }
 
                   if (snapshots.length === 0) return s;
-                  return { ...s, undoStack: [...s.undoStack, ...snapshots] };
+                  // Group multiple snapshots into one undo entry
+                  let entry: UndoEntry;
+                  if (snapshots.length === 1) {
+                    entry = snapshots[0];
+                  } else {
+                    entry = {
+                      kind: 'group',
+                      snapshots,
+                      timestamp: Date.now(),
+                      description: 'XY pad drag with param lock',
+                    } as ActionGroupSnapshot;
+                  }
+                  return { ...s, undoStack: [...s.undoStack, entry] };
                 });
               }
             }}
