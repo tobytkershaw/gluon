@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { saveSession, loadSession, clearSavedSession } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
+import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -79,6 +80,84 @@ describe('persistence', () => {
     expect(loadSession()).not.toBeNull();
     clearSavedSession();
     expect(loadSession()).toBeNull();
+  });
+
+  it('saves session when pattern has been edited (gate enabled)', () => {
+    const session = createSession();
+    const modified = {
+      ...session,
+      voices: session.voices.map((v, i) =>
+        i === 0
+          ? {
+              ...v,
+              pattern: {
+                ...v.pattern,
+                steps: v.pattern.steps.map((s, j) =>
+                  j === 0 ? { ...s, gate: true } : s,
+                ),
+              },
+            }
+          : v,
+      ),
+    };
+    saveSession(modified);
+    expect(loadSession()).not.toBeNull();
+  });
+
+  it('saves session when pattern has been edited (accent enabled)', () => {
+    const session = createSession();
+    const modified = {
+      ...session,
+      voices: session.voices.map((v, i) =>
+        i === 0
+          ? {
+              ...v,
+              pattern: {
+                ...v.pattern,
+                steps: v.pattern.steps.map((s, j) =>
+                  j === 2 ? { ...s, accent: true } : s,
+                ),
+              },
+            }
+          : v,
+      ),
+    };
+    saveSession(modified);
+    expect(loadSession()).not.toBeNull();
+  });
+
+  it('saves session when pattern has non-zero micro timing', () => {
+    const session = createSession();
+    const modified = {
+      ...session,
+      voices: session.voices.map((v, i) =>
+        i === 1
+          ? {
+              ...v,
+              pattern: {
+                ...v.pattern,
+                steps: v.pattern.steps.map((s, j) =>
+                  j === 0 ? { ...s, micro: 0.3 } : s,
+                ),
+              },
+            }
+          : v,
+      ),
+    };
+    saveSession(modified);
+    expect(loadSession()).not.toBeNull();
+  });
+
+  it('saves session when pattern length differs from default', () => {
+    const session = createSession();
+    const modified = {
+      ...session,
+      voices: session.voices.map((v, i) =>
+        i === 0 ? { ...v, pattern: createDefaultPattern(8) } : v,
+      ),
+    };
+    saveSession(modified);
+    expect(loadSession()).not.toBeNull();
   });
 
   it('strips undo stack on save', () => {

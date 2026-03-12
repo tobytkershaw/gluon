@@ -38,6 +38,11 @@ function isNonDefault(session: Session): boolean {
     if (v.muted !== d.muted || v.solo !== d.solo) return true;
     if (v.params.timbre !== d.params.timbre || v.params.morph !== d.params.morph) return true;
     if (v.params.harmonics !== d.params.harmonics || v.params.note !== d.params.note) return true;
+    // Check if pattern has been edited from default
+    if (v.pattern.length !== d.pattern.length) return true;
+    for (const step of v.pattern.steps) {
+      if (step.gate || step.accent || step.micro !== 0 || step.params) return true;
+    }
   }
   return false;
 }
