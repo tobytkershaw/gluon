@@ -113,6 +113,8 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       // No agency check
+      const views = voice.views ?? [];
+      if (!views.some(v => v.id === action.viewId)) return `View not found: ${action.viewId}`;
       return null;
     }
 
