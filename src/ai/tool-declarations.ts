@@ -140,9 +140,34 @@ const setTransportTool: FunctionDeclaration = {
   },
 };
 
+const setModelTool: FunctionDeclaration = {
+  name: 'set_model',
+  description:
+    'Change the synthesis engine/model for a voice. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      model: {
+        type: Type.STRING,
+        description:
+          'Engine ID to switch to. Available: ' +
+          'virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
+          'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
+          'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat.',
+      },
+    },
+    required: ['voiceId', 'model'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
   listenTool,
   setTransportTool,
+  setModelTool,
 ];

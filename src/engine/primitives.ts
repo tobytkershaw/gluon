@@ -150,6 +150,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return { ...session, transport: snapshot.prevTransport };
   }
 
+  if (snapshot.kind === 'model') {
+    return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel });
+  }
+
   if (snapshot.kind === 'pattern') {
     const voice = getVoice(session, snapshot.voiceId);
     const newSteps = [...voice.pattern.steps];
