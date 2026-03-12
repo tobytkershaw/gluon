@@ -55,6 +55,13 @@ export class Scheduler {
     return this.intervalId !== null;
   }
 
+  /** Imperatively update BPM, bypassing the React render cycle. */
+  setBpm(bpm: number): void {
+    if (bpm === this.previousBpm) return;
+    this.reanchorBpm(bpm);
+    this.previousBpm = bpm;
+  }
+
   private tick(): void {
     const session = this.getSession();
     const { bpm, swing } = session.transport;

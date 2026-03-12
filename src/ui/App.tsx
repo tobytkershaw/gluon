@@ -32,7 +32,7 @@ export default function App() {
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [heldStep, setHeldStep] = useState<number | null>(null);
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>('chat');
   const arbRef = useRef(new Arbitrator());
@@ -131,13 +131,13 @@ export default function App() {
       let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
       // If a step is held, apply param lock
-      if (heldStep !== null) {
-        next = setStepParamLock(next, vid, heldStep, { timbre, morph });
+      if (selectedStep !== null) {
+        next = setStepParamLock(next, vid, selectedStep, { timbre, morph });
       }
 
       return next;
     });
-  }, [heldStep]);
+  }, [selectedStep]);
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
@@ -354,7 +354,7 @@ export default function App() {
             recording={recording}
             globalStep={globalStep}
             onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
+            onBpmChange={(bpm) => { ensureAudio(); schedulerRef.current?.setBpm(bpm); setSession(s => setTransportBpm(s, bpm)); }}
             onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
             onSelectVoice={handleSelectVoice}
@@ -370,8 +370,8 @@ export default function App() {
             stepPage={stepPage}
             onStepToggle={handleStepToggle}
             onStepAccent={handleStepAccent}
-            onStepHold={setHeldStep}
-            onStepRelease={() => setHeldStep(null)}
+            selectedStep={selectedStep}
+            onStepSelect={setSelectedStep}
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
