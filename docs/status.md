@@ -1,9 +1,9 @@
 # Gluon — Current Build Status
 
-**As of:** 2026-03-11
+**As of:** 2026-03-12
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model
 **Current product state:** Phase 3 core shipped
-**Near-term focus:** QA, backlog cleanup, status/doc cleanup, and prioritising the next execution slice
+**Near-term focus:** M0 stabilization (bugs + cleanup), then parallel streams: sequencer foundations (M1) + UI layers (M5)
 **Latest milestone:** Gemini native function calling + tool loop (PR #38)
 **Data model direction:** Canonical Musical Model RFC adopted — see `docs/rfc-canonical-musical-model.md`
 
@@ -90,9 +90,6 @@ The architectural foundation for future sequencing work is in place. The next se
 **State Compression (`state-compression.ts`)**
 - Compact project-state payload for each AI call
 - Includes voices, pattern summaries, transport, undo depth, and recent human actions
-
-**Response Parser (`response-parser.ts`)**
-- Legacy fallback only; no longer the primary AI execution path
 
 **Audio Evaluation**
 - Audio snapshot evaluation landed in PR #36
@@ -224,10 +221,40 @@ Audio self-evaluation is now part of the product surface, not just an experiment
 
 ## Likely Next Work
 
-The highest-signal near-term work is now:
+### Immediate: M0 Stabilization
 
-1. backlog cleanup and status/doc cleanup
-2. Phase 3 QA and polish
-3. selecting the next implementation slice from the sequencer plan
+9 `priority:now` bugs and cleanup items. Fix these before starting new streams.
 
-The sequencer backlog now exists as issues `#42`–`#51`, which should be treated as the main roadmap for sequencing-specific follow-on work.
+### After M0: Two Parallel Streams
+
+**Stream A — Sequencer (M1 → M2 → M3):** Canonical sequencing authority, timing/groove, second editor surface. Issues `#42`–`#51`. Primarily `src/engine/` and `src/audio/`.
+
+**Stream B — UI Layers (M5):** Three-layer UI model from the AI-Curated Surfaces RFC. Compact cards, expanded card layout, deep view. Tracking issue `#73`. Primarily `src/ui/`. Runs in parallel with sequencer work — different module boundaries.
+
+### Later: Phase 4A and AI-Curated Surfaces
+
+Phase 4A discovery (M4) can begin planning anytime. Phase 4A implementation introduces patch chains. After chains exist and UI Layers are in place, the full AI-Curated Surfaces RFC (semantic controls, pinning, AI surface operations) can be implemented.
+
+Dependency graph:
+
+```
+M0 (Stabilization)
+  ├── M1 → M2 → M3 (Sequencer)
+  ├── M5 (UI Layers — parallel with sequencer)
+  └── M4 (Phase 4A Discovery)
+        └── Phase 4A Implementation
+              └── AI-Curated Surfaces (needs chains + UI Layers)
+```
+
+---
+
+## AI-Curated Surfaces
+
+A new RFC (`docs/rfc-ai-curated-surfaces.md`) defines a layered UI model where the AI can curate what the human sees, not just what parameters are set. Key ideas:
+
+- **Three-layer UI**: Stage (compact voice cards) → Semantic Surface (curated controls per voice) → Deep View (all raw parameters)
+- **Semantic controls**: virtual controls that map to weighted combinations of raw params across a chain, inspectable and stable per chain configuration
+- **AI as UI curator**: the AI can propose surfaces, suggest pins, label axes — but never reconfigures the UI without human approval
+- **Same collaboration contract**: AI acts when asked, human's hands win, undo reverts UI changes too
+
+The RFC was audited against the AI Interface Design Principles and addresses all 10 design rules. See the full RFC for type definitions, migration strategy, and acceptance criteria.
