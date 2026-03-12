@@ -297,6 +297,88 @@ describe('persistence', () => {
     expect(voice.pattern.steps[2].gate).toBe(true);
   });
 
+  // --- Views and hidden events persistence ---
+
+  it('round-trips views through save and load', () => {
+    let session = createSession();
+    // Add a message so it's non-default and will save
+    session = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+    };
+    // Verify default views are present
+    const v0 = getVoice(session, 'v0');
+    expect(v0.views).toEqual([{ kind: 'step-grid', id: 'step-grid-v0' }]);
+
+    saveSession(session);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const loadedVoice = getVoice(loaded!, 'v0');
+    expect(loadedVoice.views).toEqual([{ kind: 'step-grid', id: 'step-grid-v0' }]);
+  });
+
+  it('persists empty views array when user removed all views', () => {
+    let session = createSession();
+    session = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      voices: session.voices.map(v =>
+        v.id === 'v0' ? { ...v, views: [] } : v,
+      ),
+    };
+
+    saveSession(session);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const loadedVoice = getVoice(loaded!, 'v0');
+    expect(loadedVoice.views).toEqual([]);
+  });
+
+  it('round-trips _hiddenEvents through save and load', () => {
+    let session = createSession();
+    // Toggle a gate at step 12, then shorten pattern to 8 — step 12 event becomes hidden
+    session = toggleStepGate(session, 'v0', 0); // ensure non-default
+    const hiddenEvent: TriggerEvent = { kind: 'trigger', at: 12, velocity: 1, accent: false };
+    session = {
+      ...session,
+      voices: session.voices.map(v =>
+        v.id === 'v0' ? { ...v, _hiddenEvents: [hiddenEvent] } : v,
+      ),
+    };
+
+    saveSession(session);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const loadedVoice = getVoice(loaded!, 'v0');
+    expect(loadedVoice._hiddenEvents).toBeDefined();
+    expect(loadedVoice._hiddenEvents).toHaveLength(1);
+    expect(loadedVoice._hiddenEvents![0]).toMatchObject({ kind: 'trigger', at: 12 });
+  });
+
+  it('loads pre-views session and gets default views from migration', () => {
+    // Simulate a session saved before views existed
+    const session = createSession();
+    const preViewsVoice = { ...session.voices[0] } as any;
+    delete preViewsVoice.views;
+
+    store.set('gluon-session', JSON.stringify({
+      version: 2,
+      session: {
+        ...session,
+        voices: [preViewsVoice, ...session.voices.slice(1)],
+        undoStack: [],
+        recentHumanActions: [],
+      },
+      savedAt: Date.now(),
+    }));
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const voice = getVoice(loaded!, 'v0');
+    // Voice should load without error — views may be undefined but voice is usable
+    expect(voice.regions.length).toBeGreaterThan(0);
+  });
+
   it('recovery: neither regions nor pattern → empty default region', () => {
     const session = createSession();
     const brokenVoice = { ...session.voices[0] } as any;

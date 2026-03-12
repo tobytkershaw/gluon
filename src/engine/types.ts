@@ -32,9 +32,9 @@ export interface Voice {
   muted: boolean;
   solo: boolean;
   controlProvenance?: ControlState;
-  /** Addable sequencer views. Presentation state only — not serialized, not part of musical state. */
+  /** Addable sequencer views. Presentation state — persisted but not part of musical state. */
   views?: SequencerViewConfig[];
-  /** Events hidden by setPatternLength, restored on expand. Not persisted. */
+  /** Events hidden by setPatternLength, restored on expand. Persisted to prevent data loss. */
   _hiddenEvents?: CanonicalMusicalEvent[];
 }
 
