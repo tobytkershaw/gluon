@@ -306,26 +306,8 @@ The point is to give it a coherent world in which it can do the right things wel
 
 ## Capability Doctrine
 
-Gluon should impose a small set of hard product boundaries, then maximize the AI's freedom and usefulness inside those boundaries.
+See [docs/ai-capability-doctrine.md](/Users/tobykershaw/Development/gluon/.codex-worktrees/docs-ai-capability/docs/ai-capability-doctrine.md) for the project-level doctrine that complements these interface principles.
 
-The hard boundaries remain:
-
-- the human's hands win
-- the AI acts when asked
-- permission boundaries are enforced
-- AI actions are inspectable
-- AI actions are undoable
-- execution remains bounded and coherent
-
-Inside that contract, the default design move should be to increase capability rather than add more restrictions.
-
-That means:
-
-- prefer real tools over manual workaround flows
-- prefer richer state over tighter prompt policing
-- prefer composable operations over narrow one-off paths
-- treat weak AI behavior as a design problem in state, tools, or feedback before treating it as proof the AI should be allowed to do less
-
-In short:
+The short version is:
 
 **Constrain the AI at the product boundary. Empower it aggressively inside that boundary.**

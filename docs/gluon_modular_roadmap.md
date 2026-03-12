@@ -217,16 +217,7 @@ Add structured operations such as:
 - adjust_modulation_depth
 - simplify_chain
 
-This is the minimum structural layer. Phase 4A should also plan for higher-leverage assistant capabilities once the basic chain model is real, for example:
-
-- explain_chain
-- compare_variants
-- simplify_preserve_intent
-- propose_macro_controls
-- suggest_alternative_processor
-- listen_then_critique
-
-Those capabilities should be treated as part of Gluon's differentiation, not as optional polish after patch editing works.
+This is the minimum structural layer. Once the basic chain model is real, Gluon should bias toward richer first-class assistant capabilities rather than stopping at low-level patch editing verbs.
 
 ## UI expectations
 
