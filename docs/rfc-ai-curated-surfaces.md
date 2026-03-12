@@ -7,9 +7,10 @@ Draft RFC for architectural alignment.
 Related docs:
 
 - `docs/rfc-canonical-musical-model.md` — canonical data model (semantic controls, adapters, control schema)
+- `docs/rfc-sequencer-view-layer.md` — sequencer views as addable projections (same pattern applied to sequencing)
 - `docs/gluon-phase4a-rfc.md` — constrained patch chains (the module expansion this RFC builds on top of)
 - `docs/ai-interface-design-principles.md` — AI interface posture
-- `docs/gluon-interaction-protocol-v03.md` — interaction protocol (v0.4.0)
+- `docs/gluon-interaction-protocol-v05.md` — interaction protocol (v0.5.0)
 
 ---
 
@@ -369,7 +370,7 @@ The AI cannot:
 - Rearrange the order of controls on the surface
 - Change the thumbprint
 - Hide the deep view or any information the human asked to see
-- Make surface changes to voices with agency OFF
+- Make sound-affecting changes to voices with agency OFF (surface/view changes are allowed — they don't affect sound)
 
 #### Trigger Discipline
 
@@ -684,7 +685,7 @@ When an LFO is sweeping a parameter that contributes to a semantic control, the 
    - Semantic controls with all mappings invalid are removed.
    - After degradation, if a registry template matches the new chain, it is offered as a replacement. Otherwise the AI is prompted to propose a revised surface.
 3. **Pinned controls must reference existing modules and controls.** When a module is removed, pins targeting it are automatically removed (with an undo entry).
-4. **Surface operations require the same agency check as parameter operations.** No surface changes on voices with agency OFF.
+4. **UI curation operations do not require agency.** Agency gates sound mutation (params, patterns, transforms, chain structure), not presentation. The AI should be able to help the human inspect and organise any voice regardless of agency. OFF means "don't change my sound," not "don't help me look at this voice." This aligns with the sequencer view layer RFC, where `add_view`/`remove_view` are explicitly not agency-gated.
 5. **`propose_surface` requires human approval before application.** The UI must present the proposal and wait for accept/dismiss. This is not optional.
 6. **Maximum 4 pinned controls per voice.** Enforced at the model layer.
 7. **The activity pulse carries no state.** It is purely a rendering effect driven by the action log. It cannot be undone, persisted, or referenced by other operations.
@@ -787,4 +788,4 @@ These questions are important but do not block the core direction. They can be r
 - **Canonical Model RFC**: This RFC builds on `ControlSchema`, `SemanticRole`, `Processor`, and the adapter interface. Semantic controls aggregate canonical controls. The two RFCs are complementary — canonical model defines what the AI reasons about, this RFC defines what the human sees.
 - **Phase 4A RFC**: The chain UI elements (chain strip, module inspector, deep view) are the UI counterpart of Phase 4A's patch chain model. This RFC should be implemented alongside or shortly after Phase 4A's runtime work.
 - **AI Interface Design Principles**: This RFC was audited against all 10 design rules and the 7-point heuristic for new AI features. Surface operations are first-class structured tools (Rule 1), the action space matches the task (Rule 2), state compression includes surface state (Rule 3), constraints are enforced at the model layer via validation invariants with the approval gate as the runtime boundary (Rule 4), the AI chooses whether to propose or not (Rule 5), execution reports return consequences (Rule 6), conceptual and operational truth are aligned across types/validation/undo/agency (Rule 7), surface operations compose with immediate operations via the deferred-operation pattern (Rule 8), human authority is explicit throughout (Rule 9), and all operations are coherent affordances, not hacks (Rule 10). The one intentional deviation is trigger discipline (Rule 4): frequency guidance is prompt-level, with the approval gate as the runtime safety net. This is documented and justified in the Trigger Discipline section.
-- **Interaction Protocol**: The protocol's principles (human wins, AI acts when asked, undo is one action away) extend to surface operations unchanged. `propose_surface` is an AI action like `move` or `sketch` — it requires agency, it's undoable, it's inspectable.
+- **Interaction Protocol**: The protocol's principles (human wins, AI acts when asked, undo is one action away) extend to surface operations unchanged. `propose_surface` is an AI action like `move` or `sketch` — it's undoable and inspectable. Unlike sound-mutation tools, UI curation operations (views, surfaces, pins) do not require agency — they change presentation, not sound.
