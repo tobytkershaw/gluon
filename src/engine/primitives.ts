@@ -1,10 +1,11 @@
 // src/engine/primitives.ts
 import type {
   Session, ParamSnapshot, PatternSnapshot, TransportSnapshot, Snapshot,
-  SynthParamValues,
+  SynthParamValues, RegionSnapshot,
 } from './types';
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
+import { reprojectVoicePattern } from './region-projection';
 
 function clampParam(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -152,6 +153,24 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   if (snapshot.kind === 'model') {
     return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel, engine: snapshot.prevEngine });
+  }
+
+  if (snapshot.kind === 'region') {
+    const voice = getVoice(session, snapshot.voiceId);
+    if (voice.regions.length === 0) return session;
+    const restoredRegion = {
+      ...voice.regions[0],
+      events: snapshot.prevEvents,
+      ...(snapshot.prevDuration !== undefined ? { duration: snapshot.prevDuration } : {}),
+    };
+    const updatedVoice = reprojectVoicePattern({
+      ...voice,
+      regions: [restoredRegion, ...voice.regions.slice(1)],
+    });
+    return updateVoice(session, snapshot.voiceId, {
+      regions: updatedVoice.regions,
+      pattern: updatedVoice.pattern,
+    });
   }
 
   if (snapshot.kind === 'pattern') {
