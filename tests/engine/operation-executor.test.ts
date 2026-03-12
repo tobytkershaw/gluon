@@ -3,7 +3,7 @@ import { executeOperations } from '../../src/engine/operation-executor';
 import { createSession, setAgency } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
-import type { AIAction } from '../../src/engine/types';
+import type { AIAction, AITransformAction } from '../../src/engine/types';
 import { applyUndo } from '../../src/engine/primitives';
 
 function createTestAdapter(): SourceAdapter {
@@ -252,5 +252,107 @@ describe('operation-executor', () => {
     // Step 2 is silent but should have the param lock
     expect(voice.pattern.steps[2].gate).toBe(false);
     expect((voice.pattern.steps[2].params as Record<string, unknown>)?.['timbre']).toBe(0.9);
+  });
+
+  describe('transform actions', () => {
+    function setupWithEvents() {
+      let session = createSession();
+      session = setAgency(session, 'v0', 'ON');
+      // Write trigger events to v0's region
+      const voice = session.voices.find(v => v.id === 'v0')!;
+      const region = { ...voice.regions[0], events: [
+        { kind: 'trigger' as const, at: 0, velocity: 1.0 },
+        { kind: 'trigger' as const, at: 4, velocity: 0.8 },
+        { kind: 'trigger' as const, at: 8, velocity: 0.6 },
+      ]};
+      session = {
+        ...session,
+        voices: session.voices.map(v => v.id === 'v0' ? { ...v, regions: [region] } : v),
+      };
+      return session;
+    }
+
+    it('rotate flows through executor with correct events', () => {
+      const session = setupWithEvents();
+      const actions: AIAction[] = [{
+        type: 'transform',
+        voiceId: 'v0',
+        operation: 'rotate',
+        steps: 2,
+        description: 'shift pattern forward',
+      }];
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+      const voice = report.session.voices.find(v => v.id === 'v0')!;
+      const ats = voice.regions[0].events.map(e => e.at);
+      expect(ats).toEqual([2, 6, 10]);
+    });
+
+    it('reverse flows through executor with correct events', () => {
+      const session = setupWithEvents();
+      const actions: AIAction[] = [{
+        type: 'transform',
+        voiceId: 'v0',
+        operation: 'reverse',
+        description: 'reverse the pattern',
+      }];
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+      const voice = report.session.voices.find(v => v.id === 'v0')!;
+      const ats = voice.regions[0].events.map(e => e.at);
+      // 0 → 0 (wraps), 4 → 12, 8 → 8
+      expect(ats).toEqual([0, 8, 12]);
+    });
+
+    it('transform on agency-OFF voice is rejected', () => {
+      let session = createSession();
+      session = setAgency(session, 'v0', 'OFF');
+      const actions: AIAction[] = [{
+        type: 'transform',
+        voiceId: 'v0',
+        operation: 'reverse',
+        description: 'should fail',
+      }];
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('agency OFF');
+      expect(report.accepted).toHaveLength(0);
+    });
+
+    it('undo reverts transform cleanly', () => {
+      const session = setupWithEvents();
+      const originalAts = session.voices.find(v => v.id === 'v0')!.regions[0].events.map(e => e.at);
+
+      const actions: AIAction[] = [{
+        type: 'transform',
+        voiceId: 'v0',
+        operation: 'rotate',
+        steps: 3,
+        description: 'shift then undo',
+      }];
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+
+      const afterUndo = applyUndo(report.session);
+      const restoredAts = afterUndo.voices.find(v => v.id === 'v0')!.regions[0].events.map(e => e.at);
+      expect(restoredAts).toEqual(originalAts);
+    });
+
+    it('duplicate doubles events and duration', () => {
+      const session = setupWithEvents();
+      const origDuration = session.voices.find(v => v.id === 'v0')!.regions[0].duration;
+
+      const actions: AIAction[] = [{
+        type: 'transform',
+        voiceId: 'v0',
+        operation: 'duplicate',
+        description: 'double the pattern',
+      }];
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+      const voice = report.session.voices.find(v => v.id === 'v0')!;
+      expect(voice.regions[0].events.length).toBe(6);
+      expect(voice.regions[0].duration).toBe(origDuration * 2);
+    });
   });
 });

@@ -1,9 +1,10 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
+import { rotate, transpose, reverse, duplicate } from './transformations';
 import { eventsToSteps } from './event-conversion';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
@@ -91,6 +92,13 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const engine = getEngineById(action.model);
       if (!engine) return `Unknown model: ${action.model}`;
+      return null;
+    }
+
+    case 'transform': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       return null;
     }
 
@@ -322,6 +330,84 @@ export function executeOperations(
 
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `model → ${engineDef.label}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'transform': {
+        const voice = getVoice(next, action.voiceId);
+        const region = voice.regions[0];
+        if (!region) {
+          rejected.push({ op: action, reason: 'No region on voice' });
+          break;
+        }
+
+        const prevEvents = [...region.events];
+        const prevDuration = region.duration;
+        let newEvents: MusicalEvent[];
+        let newDuration = region.duration;
+
+        switch (action.operation) {
+          case 'rotate':
+            newEvents = rotate(region.events, action.steps ?? 0, region.duration);
+            break;
+          case 'transpose':
+            newEvents = transpose(region.events, action.semitones ?? 0);
+            break;
+          case 'reverse':
+            newEvents = reverse(region.events, region.duration);
+            break;
+          case 'duplicate': {
+            const dup = duplicate(region.events, region.duration);
+            newEvents = dup.events;
+            newDuration = dup.duration;
+            break;
+          }
+          default:
+            rejected.push({ op: action, reason: `Unknown transform operation: ${(action as AITransformAction).operation}` });
+            continue;
+        }
+
+        const updatedRegion = normalizeRegionEvents({
+          ...region,
+          events: newEvents,
+          duration: newDuration,
+        });
+
+        const validation = validateRegion(updatedRegion);
+        if (!validation.valid) {
+          rejected.push({ op: action, reason: `Invalid region after transform: ${validation.errors.join('; ')}` });
+          break;
+        }
+
+        const newRegions = [updatedRegion, ...voice.regions.slice(1)];
+
+        const inverseOpts = {
+          midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
+          canonicalToRuntime: (id: string) => {
+            const binding = adapter.mapControl(id);
+            const parts = binding.path.split('.');
+            return parts[parts.length - 1];
+          },
+        };
+        const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
+
+        const snapshot: RegionSnapshot = {
+          kind: 'region',
+          voiceId: action.voiceId,
+          prevEvents,
+          prevDuration: prevDuration !== newDuration ? prevDuration : undefined,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+
+        next = {
+          ...updateVoice(next, action.voiceId, { regions: newRegions, pattern }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `transform ${action.operation}: ${action.description}` });
         accepted.push(action);
         break;
       }

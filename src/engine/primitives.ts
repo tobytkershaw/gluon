@@ -6,6 +6,9 @@ import type {
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
 import { reprojectVoicePattern } from './region-projection';
+import { stepsToEvents } from './event-conversion';
+import { normalizeRegionEvents } from './region-helpers';
+import { runtimeParamToControlId } from '../audio/instrument-registry';
 
 function clampParam(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -136,9 +139,24 @@ export function applySketch(
     description,
   };
 
-  const updated = updateVoice(session, voiceId, {
-    pattern: { steps: newSteps, length: newLength },
-  });
+  const newPattern = { steps: newSteps, length: newLength };
+  let updated = updateVoice(session, voiceId, { pattern: newPattern });
+
+  // Project pattern steps to canonical events in the region
+  const updatedVoice = getVoice(updated, voiceId);
+  if (updatedVoice.regions.length > 0) {
+    const events = stepsToEvents(newSteps.slice(0, newLength), {
+      runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
+    });
+    const region = normalizeRegionEvents({
+      ...updatedVoice.regions[0],
+      events,
+      duration: newLength,
+    });
+    updated = updateVoice(updated, voiceId, {
+      regions: [region, ...updatedVoice.regions.slice(1)],
+    });
+  }
 
   return {
     ...updated,

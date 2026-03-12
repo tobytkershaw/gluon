@@ -2,11 +2,14 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
-import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { controlIdToRuntimeParam, getEngineById, plaitsInstrument } from '../audio/instrument-registry';
+import { normalizeRegionEvents } from '../engine/region-helpers';
+import { projectRegionToPattern } from '../engine/region-projection';
+import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { compressState } from './state-compression';
-import { GLUON_SYSTEM_PROMPT } from './system-prompt';
+import { buildSystemPrompt } from './system-prompt';
 import { GLUON_LISTEN_PROMPT } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-declarations';
 
@@ -39,7 +42,54 @@ function projectAction(session: Session, action: AIAction): Session {
       if (action.playing !== undefined) t.playing = action.playing;
       return { ...session, transport: t };
     }
-    case 'sketch':
+    case 'sketch': {
+      const voice = getVoice(session, action.voiceId);
+      if (!action.events || voice.regions.length === 0) return session;
+      const updatedRegion = normalizeRegionEvents({
+        ...voice.regions[0],
+        events: action.events,
+      });
+      const inverseOpts = {
+        midiToPitch: (midi: number) => midi / 127,
+        canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
+      };
+      const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
+      const newRegions = [updatedRegion, ...voice.regions.slice(1)];
+      return updateVoice(session, action.voiceId, { regions: newRegions, pattern });
+    }
+    case 'transform': {
+      const voice = getVoice(session, action.voiceId);
+      if (voice.regions.length === 0) return session;
+      const region = voice.regions[0];
+      let newEvents = region.events;
+      let newDuration = region.duration;
+      switch (action.operation) {
+        case 'rotate': newEvents = rotate(newEvents, action.steps ?? 0, newDuration); break;
+        case 'transpose': newEvents = transpose(newEvents, action.semitones ?? 0); break;
+        case 'reverse': newEvents = reverse(newEvents, newDuration); break;
+        case 'duplicate': {
+          const result = duplicate(newEvents, newDuration);
+          newEvents = result.events;
+          newDuration = result.duration;
+          break;
+        }
+      }
+      const updatedRegion = normalizeRegionEvents({ ...region, events: newEvents, duration: newDuration });
+      const inverseOpts = {
+        midiToPitch: (midi: number) => midi / 127,
+        canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
+      };
+      const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
+      const newRegions = [updatedRegion, ...voice.regions.slice(1)];
+      return updateVoice(session, action.voiceId, { regions: newRegions, pattern });
+    }
+    case 'set_model': {
+      const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
+      if (engineIndex < 0) return session;
+      const engineDef = plaitsInstrument.engines[engineIndex];
+      const engineName = `plaits:${engineDef.label.toLowerCase().replace(/[\s/]+/g, '_')}`;
+      return updateVoice(session, action.voiceId, { model: engineIndex, engine: engineName });
+    }
     case 'say':
     default:
       return session;
@@ -156,7 +206,7 @@ export class GluonAI {
         // Cancellation check before API call
         if (ctx?.isStale?.()) break;
 
-        const response = await this.callWithTools(contents);
+        const response = await this.callWithTools(contents, projectedSession);
         const candidate = response.candidates?.[0];
         const rawContent = candidate?.content;
 
@@ -222,7 +272,7 @@ export class GluonAI {
     return collectedActions;
   }
 
-  private async callWithTools(contents: Content[]) {
+  private async callWithTools(contents: Content[], session: Session) {
     if (!this.ai) throw new Error('API not configured');
 
     const now = Date.now();
@@ -234,7 +284,7 @@ export class GluonAI {
       model: MODEL,
       contents: [...contents],
       config: {
-        systemInstruction: GLUON_SYSTEM_PROMPT,
+        systemInstruction: buildSystemPrompt(session),
         maxOutputTokens: 2048,
         tools: [{ functionDeclarations: GLUON_TOOLS }],
         toolConfig: {
@@ -389,6 +439,62 @@ export class GluonAI {
             queued: true,
             voiceId: action.voiceId,
             model: action.model,
+          }),
+        };
+      }
+
+      case 'transform': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.operation !== 'string' || !args.operation) {
+          return errorResponse(id, name, 'Missing required parameter: operation');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const operation = args.operation as string;
+        const validOps = ['rotate', 'transpose', 'reverse', 'duplicate'];
+        if (!validOps.includes(operation)) {
+          return errorResponse(id, name, `Unknown operation: ${operation}. Must be one of: ${validOps.join(', ')}`);
+        }
+
+        const hasSteps = typeof args.steps === 'number';
+        const hasSemitones = typeof args.semitones === 'number';
+
+        if (operation === 'rotate') {
+          if (!hasSteps) return errorResponse(id, name, 'rotate requires steps parameter');
+          if (hasSemitones) return errorResponse(id, name, 'rotate does not accept semitones parameter');
+          if (args.steps === 0) return errorResponse(id, name, 'steps must be non-zero');
+        } else if (operation === 'transpose') {
+          if (!hasSemitones) return errorResponse(id, name, 'transpose requires semitones parameter');
+          if (hasSteps) return errorResponse(id, name, 'transpose does not accept steps parameter');
+          if (args.semitones === 0) return errorResponse(id, name, 'semitones must be non-zero');
+        } else {
+          if (hasSteps) return errorResponse(id, name, `${operation} does not accept steps parameter`);
+          if (hasSemitones) return errorResponse(id, name, `${operation} does not accept semitones parameter`);
+        }
+
+        const action: AITransformAction = {
+          type: 'transform',
+          voiceId: args.voiceId as string,
+          operation: operation as AITransformAction['operation'],
+          description: args.description as string,
+          ...(hasSteps ? { steps: args.steps as number } : {}),
+          ...(hasSemitones ? { semitones: args.semitones as number } : {}),
+        };
+
+        const rejection = ctx?.validateAction?.(action);
+        if (rejection) return errorResponse(id, name, rejection);
+
+        return {
+          actions: [action],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            voiceId: action.voiceId,
+            operation: action.operation,
+            description: action.description,
           }),
         };
       }

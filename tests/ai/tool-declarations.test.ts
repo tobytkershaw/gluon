@@ -30,17 +30,18 @@ import { GLUON_TOOLS } from '../../src/ai/tool-declarations';
 import { createSession } from '../../src/engine/session';
 
 describe('Tool Declarations', () => {
-  it('exports five tool declarations', () => {
-    expect(GLUON_TOOLS).toHaveLength(5);
+  it('exports six tool declarations', () => {
+    expect(GLUON_TOOLS).toHaveLength(6);
   });
 
-  it('declares move, sketch, listen, set_transport, set_model', () => {
+  it('declares move, sketch, listen, set_transport, set_model, transform', () => {
     const names = GLUON_TOOLS.map(t => t.name);
     expect(names).toContain('move');
     expect(names).toContain('sketch');
     expect(names).toContain('listen');
     expect(names).toContain('set_model');
     expect(names).toContain('set_transport');
+    expect(names).toContain('transform');
   });
 
   it('all tools have description and name', () => {

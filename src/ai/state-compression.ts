@@ -4,9 +4,12 @@ import { getModelName, runtimeParamToControlId } from '../audio/instrument-regis
 
 interface CompressedPattern {
   length: number;
-  active_steps: number[];
+  event_count: number;
+  triggers: number[];
+  notes: { at: number; pitch: number; vel: number }[];
   accents: number[];
-  locks: Record<string, Record<string, number>>;
+  param_locks: { at: number; params: Record<string, number> }[];
+  density: number;
 }
 
 interface CompressedVoice {
@@ -46,30 +49,60 @@ function modelName(model: number): string {
 }
 
 function compressPattern(voice: Voice): CompressedPattern {
-  const active_steps: number[] = [];
-  const accents: number[] = [];
-  const locks: Record<string, Record<string, number>> = {};
+  const region = voice.regions[0];
+  if (!region) {
+    return { length: voice.pattern.length, event_count: 0, triggers: [], notes: [], accents: [], param_locks: [], density: 0 };
+  }
 
-  for (let i = 0; i < voice.pattern.length; i++) {
-    const step = voice.pattern.steps[i];
-    if (!step) continue;
-    if (step.gate) active_steps.push(i);
-    if (step.accent) accents.push(i);
-    if (step.params) {
-      const rounded: Record<string, number> = {};
-      for (const [k, v] of Object.entries(step.params)) {
-        if (v !== undefined) {
-          const semanticKey = runtimeParamToControlId[k] ?? k;
-          rounded[semanticKey] = round2(v);
+  const events = region.events;
+  const triggers: number[] = [];
+  const notes: { at: number; pitch: number; vel: number }[] = [];
+  const accents: number[] = [];
+  const paramMap = new Map<string, Record<string, number>>();
+
+  for (const e of events) {
+    switch (e.kind) {
+      case 'trigger':
+        if (e.velocity !== 0) {
+          triggers.push(round2(e.at));
+          if (e.accent || (e.velocity !== undefined && e.velocity >= 0.95)) {
+            accents.push(round2(e.at));
+          }
         }
-      }
-      if (Object.keys(rounded).length > 0) {
-        locks[String(i)] = rounded;
+        break;
+      case 'note':
+        notes.push({ at: round2(e.at), pitch: e.pitch, vel: round2(e.velocity) });
+        if (e.velocity >= 0.95) {
+          accents.push(round2(e.at));
+        }
+        break;
+      case 'parameter': {
+        const bucket = String(round2(e.at));
+        const existing = paramMap.get(bucket) ?? {};
+        existing[e.controlId] = round2(e.value as number);
+        paramMap.set(bucket, existing);
+        break;
       }
     }
   }
 
-  return { length: voice.pattern.length, active_steps, accents, locks };
+  const param_locks = Array.from(paramMap.entries()).map(([atStr, params]) => ({
+    at: Number(atStr),
+    params,
+  }));
+
+  const soundEvents = triggers.length + notes.length;
+  const density = region.duration > 0 ? round2(soundEvents / region.duration) : 0;
+
+  return {
+    length: region.duration,
+    event_count: events.length,
+    triggers,
+    notes,
+    accents,
+    param_locks,
+    density,
+  };
 }
 
 export function compressState(session: Session): CompressedState {

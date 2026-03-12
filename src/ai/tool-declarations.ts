@@ -164,10 +164,28 @@ const setModelTool: FunctionDeclaration = {
   },
 };
 
+const transformTool: FunctionDeclaration = {
+  name: 'transform',
+  description:
+    'Transform an existing pattern on a voice. Use this to modify patterns structurally (rotate, transpose, reverse, duplicate) rather than rewriting them.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: { type: Type.STRING, description: 'Target voice ID (e.g. "v0").' },
+      operation: { type: Type.STRING, description: 'Transform operation: "rotate" (shift events in time), "transpose" (shift pitch), "reverse" (mirror positions), "duplicate" (repeat pattern).' },
+      steps: { type: Type.INTEGER, description: 'For rotate: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations.' },
+      semitones: { type: Type.INTEGER, description: 'For transpose: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations.' },
+      description: { type: Type.STRING, description: 'Short description of the transform intent.' },
+    },
+    required: ['voiceId', 'operation', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
   listenTool,
   setTransportTool,
   setModelTool,
+  transformTool,
 ];
