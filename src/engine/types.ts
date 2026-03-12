@@ -60,7 +60,16 @@ export interface TransportSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot;
+export interface ModelSnapshot {
+  kind: 'model';
+  voiceId: string;
+  prevModel: number;
+  prevEngine: string;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -106,7 +115,13 @@ export interface AITransportAction {
   playing?: boolean;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction;
+export interface AISetModelAction {
+  type: 'set_model';
+  voiceId: string;
+  model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum")
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction;
 
 // --- Session ---
 

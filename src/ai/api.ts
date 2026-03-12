@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction } from '../engine/types';
 import { compressState } from './state-compression';
 import { GLUON_SYSTEM_PROMPT } from './system-prompt';
 import { GLUON_LISTEN_PROMPT } from './listen-prompt';
@@ -305,6 +305,33 @@ export class GluonAI {
             ...(action.bpm !== undefined ? { bpm: action.bpm } : {}),
             ...(action.swing !== undefined ? { swing: action.swing } : {}),
             ...(action.playing !== undefined ? { playing: action.playing } : {}),
+          }),
+        };
+      }
+
+      case 'set_model': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.model !== 'string' || !args.model) {
+          return errorResponse(id, name, 'Missing required parameter: model');
+        }
+
+        const action: AISetModelAction = {
+          type: 'set_model',
+          voiceId: args.voiceId as string,
+          model: args.model as string,
+        };
+
+        const rejection = ctx?.validateAction?.(action);
+        if (rejection) return errorResponse(id, name, rejection);
+
+        return {
+          actions: [action],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            queued: true,
+            voiceId: action.voiceId,
+            model: action.model,
           }),
         };
       }

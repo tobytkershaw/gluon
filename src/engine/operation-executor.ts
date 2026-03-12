@@ -1,11 +1,12 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, ActionGroupSnapshot, Voice, TransportSnapshot } from './types';
+import type { Session, AIAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
 import { eventsToSteps } from './event-conversion';
 import { VOICE_LABELS } from './voice-labels';
+import { getEngineById, plaitsInstrument } from '../audio/instrument-registry';
 
 export interface OperationExecutionReport {
   session: Session;
@@ -79,6 +80,15 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      return null;
+    }
+
+    case 'set_model': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const engine = getEngineById(action.model);
+      if (!engine) return `Unknown model: ${action.model}`;
       return null;
     }
 
@@ -250,6 +260,36 @@ export function executeOperations(
         next = { ...next, transport: newTransport, undoStack: [...next.undoStack, snapshot] };
 
         log.push({ voiceId: '', voiceLabel: 'TRANSPORT', description: snapshot.description });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_model': {
+        const voice = getVoice(next, action.voiceId);
+        const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
+        const engineDef = plaitsInstrument.engines[engineIndex];
+        const prevModel = voice.model;
+        const prevEngine = voice.engine;
+
+        // Derive engine name the same way as session.ts:setModel
+        const engineName = `plaits:${engineDef.label.toLowerCase().replace(/[\s/]+/g, '_')}`;
+
+        const snapshot: ModelSnapshot = {
+          kind: 'model',
+          voiceId: action.voiceId,
+          prevModel,
+          prevEngine,
+          timestamp: Date.now(),
+          description: `AI model: ${plaitsInstrument.engines[prevModel]?.label ?? prevModel} → ${engineDef.label}`,
+        };
+
+        next = {
+          ...updateVoice(next, action.voiceId, { model: engineIndex, engine: engineName }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `model → ${engineDef.label}` });
         accepted.push(action);
         break;
       }

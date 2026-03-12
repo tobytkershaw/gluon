@@ -34,7 +34,7 @@ export function StepGrid({
         return (
           <button
             key={globalIndex}
-            onClick={(e) => { if (e.shiftKey) return; onToggleGate(globalIndex); }}
+            onClick={() => onToggleGate(globalIndex)}
             onContextMenu={(e) => { e.preventDefault(); onToggleAccent(globalIndex); }}
             onPointerDown={(e) => {
               // Middle-click or shift+click to toggle step lock selection
