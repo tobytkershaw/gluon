@@ -83,6 +83,24 @@ As Gluon evolves, it should distinguish between:
 
 This will keep the system understandable and extensible.
 
+### 6. Constrain the boundary, empower the AI inside it
+
+The roadmap should not treat every increase in AI capability as a risk to be minimized. The fixed product boundaries already do that work:
+
+- the AI acts when asked
+- the user can inspect what changed
+- undo remains dependable
+- permission rules remain explicit
+
+Inside that contract, Gluon should bias toward making the AI more useful:
+
+- richer first-class operations
+- better state visibility
+- better consequence reporting
+- stronger inspect/explain/compare abilities
+
+The goal is not merely safe AI patch editing. The goal is the most capable musical assistant that still obeys Gluon's collaboration contract.
+
 ---
 
 ## Roadmap Overview
@@ -198,6 +216,17 @@ Add structured operations such as:
 - add_modulation
 - adjust_modulation_depth
 - simplify_chain
+
+This is the minimum structural layer. Phase 4A should also plan for higher-leverage assistant capabilities once the basic chain model is real, for example:
+
+- explain_chain
+- compare_variants
+- simplify_preserve_intent
+- propose_macro_controls
+- suggest_alternative_processor
+- listen_then_critique
+
+Those capabilities should be treated as part of Gluon's differentiation, not as optional polish after patch editing works.
 
 ## UI expectations
 
@@ -439,6 +468,8 @@ Examples:
 
 These operations should become the main unit of explanation, logging, and undo grouping.
 
+As the patch model matures, the vocabulary should expand not only downward into more precise edit operations, but upward into more useful assistant capabilities: explain, compare, simplify while preserving intent, and propose better human-facing controls over complex patches.
+
 ## 3. Patch Legibility and Explanation
 
 The AI should not only build patches. It should help users understand them.
@@ -584,4 +615,3 @@ The right way to get there is incrementally:
 - then deeper modular freedom
 
 If Gluon stays disciplined about legibility, restraint, and user control, this could become one of its most distinctive long-term directions.
-
