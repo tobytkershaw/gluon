@@ -40,7 +40,7 @@ Because the core is legible and structured, you can glue other things onto it:
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
 - **AI (reasoning)**: Google Gemini API (`@google/genai`) for project-state reasoning and structured edits
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
-- **Protocol**: Custom interaction protocol in [`docs/gluon-interaction-protocol-v03.md`](./docs/gluon-interaction-protocol-v03.md)
+- **Protocol**: Custom interaction protocol in [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md)
 
 ## Project Structure
 
@@ -65,5 +65,5 @@ npm run wasm:build
 ## Reference Docs
 
 - [`docs/gluon-architecture.md`](./docs/gluon-architecture.md)
-- [`docs/gluon-interaction-protocol-v03.md`](./docs/gluon-interaction-protocol-v03.md)
+- [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md)
 - [`docs/gluon-phase1-build.md`](./docs/gluon-phase1-build.md)

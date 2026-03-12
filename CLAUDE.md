@@ -10,14 +10,14 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
 - **AI (reasoning)**: Google Gemini API (`@google/genai`) for project state reasoning and structured edits
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
-- **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v03.md`)
+- **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v05.md`)
 
 ## Key Concepts
 
 - **Voices**: Things that make sound, with parameters normalised 0.0-1.0
 - **Agency**: Per-voice AI permission (OFF / ON) — AI only modifies voices with agency ON, and only when asked
 - **Arbitration**: Human's hands always win when both touch the same parameter
-- **Undo**: Reverses AI actions only, grouped by action groups
+- **Undo**: Reverses actions grouped by action groups (human undo coming in M4, #89)
 - **Audio snapshots**: Rendered clips sent to multimodal model for AI self-evaluation
 
 ## Project Structure
@@ -91,17 +91,15 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
-  - `M0: Stabilization + Backlog Hygiene` for cleanup, QA, and stabilization work
-  - `M1: Sequencer Foundations` for sequencing foundation issues
-  - `M2: Sequencer Expressivity` for timing/groove/transformation work
-  - `M3: Sequencer Surfaces + Integrations` for editor-surface and adapter work
-  - `M4: Phase 4A Discovery` for exploratory Phase 4A work
+  - `M1–M3` — complete (sequencer foundations, expressivity, surfaces)
+  - `M4: First Chain` — prove modular chains end-to-end (Rings, structure tools, human undo)
+  - `M5: UI Layers` — UI foundation from curated surfaces RFC + external adapters
 - Do not create GitHub Projects or expand the label taxonomy unless explicitly asked.
 
 ## Reference Docs
 
 - `docs/gluon-architecture.md` - Full vision and architecture
-- `docs/gluon-interaction-protocol-v03.md` - Protocol spec (v0.4.0)
+- `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
 - `docs/gluon-phase1-build.md` - Phase 1 implementation brief
 - `docs/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.
 - `docs/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.

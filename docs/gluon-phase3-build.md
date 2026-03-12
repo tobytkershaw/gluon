@@ -415,6 +415,6 @@ That's the "Claude Code for music" experience. Direct, transparent, reversible.
 ## Reference Documents
 
 - `docs/gluon-architecture.md` — Full vision and architecture (updated for agentic pivot)
-- `docs/gluon-interaction-protocol-v03.md` — Protocol spec (v0.4.0)
+- `docs/gluon-interaction-protocol-v05.md` — Protocol spec (v0.5.0)
 - `docs/gluon-phase1-build.md` — Phase 1 build plan (for format reference)
 - `docs/status.md` — Current build status and gap analysis

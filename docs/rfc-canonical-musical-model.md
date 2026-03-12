@@ -6,7 +6,7 @@ Draft RFC for architectural alignment. Supersedes `rfc-musical-data-model.md` an
 
 Related docs:
 
-- `docs/gluon-interaction-protocol-v03.md`
+- `docs/gluon-interaction-protocol-v05.md`
 - `docs/gluon-architecture.md`
 - `docs/gluon-phase3-build.md`
 - `docs/gluon-phase4a-rfc.md`

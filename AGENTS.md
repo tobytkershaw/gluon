@@ -10,7 +10,7 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
 - **AI (reasoning)**: Google Gemini API (`@google/genai`) for project state reasoning and structured edits
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
-- **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v03.md`)
+- **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v05.md`)
 
 ## Key Concepts
 
@@ -101,6 +101,6 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 ## Reference Docs
 
 - `docs/gluon-architecture.md` - Full vision and architecture
-- `docs/gluon-interaction-protocol-v03.md` - Protocol spec (v0.4.0)
+- `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.4.0)
 - `docs/gluon-phase1-build.md` - Phase 1 implementation brief
 - `docs/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.

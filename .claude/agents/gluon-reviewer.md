@@ -76,7 +76,7 @@ The inference-time contract. Check changes to `src/ai/` against:
 
 ## Collaboration Contract
 
-These are product-defining rules from the interaction protocol (`docs/gluon-interaction-protocol-v03.md`):
+These are product-defining rules from the interaction protocol (`docs/gluon-interaction-protocol-v05.md`):
 - The human's hands always win (arbitration)
 - The AI plays the instrument, it does not replace it
 - The AI acts when asked (no unsolicited actions)

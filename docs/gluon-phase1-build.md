@@ -7,7 +7,7 @@
 
 Gluon is an open source platform for human-AI music collaboration. The human and an AI share control of a musical instrument. The AI can suggest, audition, and directly move synthesis parameters, but the human's hands always win.
 
-The full protocol spec is in `gluon-interaction-protocol-v03.md`. Read it first. It's short.
+The full protocol spec is in `gluon-interaction-protocol-v05.md`. Read it first. It's short.
 
 This document describes what to build for Phase 1: a browser-based proof of concept that demonstrates the core Gluon interaction.
 
@@ -399,7 +399,7 @@ gluon/
 
 ## Reference Documents
 
-- `gluon-interaction-protocol-v03.md` - The protocol spec (read this first)
+- `gluon-interaction-protocol-v05.md` - The protocol spec (read this first)
 - `gluon-architecture.md` - The broader vision (Jam Mode, Studio Mode, hardware integration)
 - `github.com/pichenettes/eurorack` - Mutable Instruments source code (MIT license for STM32 projects including Plaits)
 - `github.com/AudibleInstruments` in the VCV Rack ecosystem - Reference for how others have ported the MI code
