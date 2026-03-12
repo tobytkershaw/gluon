@@ -1,6 +1,6 @@
 // src/engine/types.ts
 import type { Pattern, PatternSketch, Step, Transport } from './sequencer-types';
-import type { ControlState } from './canonical-types';
+import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
 
@@ -19,9 +19,12 @@ export interface Voice {
   params: SynthParamValues;
   agency: Agency;
   pattern: Pattern;
+  regions: Region[];
   muted: boolean;
   solo: boolean;
   controlProvenance?: ControlState;
+  /** Events hidden by setPatternLength, restored on expand. Not persisted. */
+  _hiddenEvents?: CanonicalMusicalEvent[];
 }
 
 export interface MusicalContext {
@@ -69,7 +72,16 @@ export interface ModelSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot;
+export interface RegionSnapshot {
+  kind: 'region';
+  voiceId: string;
+  prevEvents: CanonicalMusicalEvent[];
+  prevDuration?: number;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -81,8 +93,6 @@ export interface ActionGroupSnapshot {
 export type UndoEntry = Snapshot | ActionGroupSnapshot;
 
 // --- AI Actions ---
-
-import type { MusicalEvent } from './canonical-types';
 
 export interface AIMoveAction {
   type: 'move';
@@ -105,7 +115,7 @@ export interface AISketchAction {
   /** Legacy pattern shape */
   pattern?: PatternSketch;
   /** Canonical event shape */
-  events?: MusicalEvent[];
+  events?: CanonicalMusicalEvent[];
 }
 
 export interface AITransportAction {

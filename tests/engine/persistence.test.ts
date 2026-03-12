@@ -3,6 +3,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { saveSession, loadSession, clearSavedSession } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
 import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
+import { toggleStepGate, setStepParamLock } from '../../src/engine/pattern-primitives';
+import { getVoice } from '../../src/engine/types';
+import type { Region, TriggerEvent } from '../../src/engine/canonical-types';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -23,7 +26,6 @@ describe('persistence', () => {
 
   it('round-trips a modified session through save and load', () => {
     const session = createSession();
-    // Modify something so it's non-default and worth saving
     const modified = {
       ...session,
       messages: [{ role: 'human' as const, text: 'hello', timestamp: 1 }],
@@ -35,9 +37,7 @@ describe('persistence', () => {
     expect(loaded!.transport.bpm).toBe(140);
     expect(loaded!.messages).toHaveLength(1);
     expect(loaded!.messages[0].text).toBe('hello');
-    // Undo stack should be empty after load
     expect(loaded!.undoStack).toEqual([]);
-    // Transport should be stopped
     expect(loaded!.transport.playing).toBe(false);
   });
 
@@ -178,5 +178,146 @@ describe('persistence', () => {
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
     expect(loaded!.undoStack).toEqual([]);
+  });
+
+  // --- V2 Migration tests ---
+
+  it('loads v1 session (no regions) and hydrates regions from legacy steps', () => {
+    // Simulate a v1 save: session with pattern but no regions
+    const session = createSession();
+    const v1Voice = {
+      ...session.voices[0],
+      pattern: {
+        ...session.voices[0].pattern,
+        steps: session.voices[0].pattern.steps.map((s, j) =>
+          j === 0 ? { ...s, gate: true } : j === 4 ? { ...s, gate: true, accent: true } : s,
+        ),
+      },
+    };
+    // Remove regions to simulate v1
+    const v1VoiceNoRegions = { ...v1Voice } as any;
+    delete v1VoiceNoRegions.regions;
+
+    const v1Session = {
+      ...session,
+      voices: [v1VoiceNoRegions, ...session.voices.slice(1)],
+    };
+
+    store.set('gluon-session', JSON.stringify({
+      version: 1,
+      session: { ...v1Session, undoStack: [], recentHumanActions: [] },
+      savedAt: Date.now(),
+    }));
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const voice = getVoice(loaded!, 'v0');
+    // Regions should be hydrated
+    expect(voice.regions).toBeDefined();
+    expect(voice.regions.length).toBeGreaterThan(0);
+    // Pattern should be re-projected from regions and match original gates
+    expect(voice.pattern.steps[0].gate).toBe(true);
+    expect(voice.pattern.steps[4].gate).toBe(true);
+    expect(voice.pattern.steps[4].accent).toBe(true);
+  });
+
+  it('loads v2 session: pattern is re-projected from regions, not from saved data', () => {
+    // Create a session with regions containing events
+    let session = createSession();
+    session = toggleStepGate(session, 'v0', 0);
+    session = toggleStepGate(session, 'v0', 4);
+
+    saveSession(session);
+
+    // Tamper with the saved pattern to prove it gets re-projected
+    const raw = JSON.parse(store.get('gluon-session')!);
+    raw.session.voices[0].pattern.steps[0].gate = false; // corrupt pattern
+    store.set('gluon-session', JSON.stringify(raw));
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const voice = getVoice(loaded!, 'v0');
+    // Pattern should be re-projected from regions (ignoring corrupted saved pattern)
+    expect(voice.pattern.steps[0].gate).toBe(true);
+    expect(voice.pattern.steps[4].gate).toBe(true);
+  });
+
+  it('round-trips v2 save: regions and projected pattern match', () => {
+    let session = createSession();
+    session = toggleStepGate(session, 'v0', 0);
+    session = toggleStepGate(session, 'v0', 8);
+
+    saveSession(session);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+
+    const voice = getVoice(loaded!, 'v0');
+    expect(voice.regions[0].events.length).toBe(2);
+    expect(voice.pattern.steps[0].gate).toBe(true);
+    expect(voice.pattern.steps[8].gate).toBe(true);
+    expect(voice.pattern.steps[1].gate).toBe(false);
+  });
+
+  it('saves session when regions have events (non-default check)', () => {
+    let session = createSession();
+    session = toggleStepGate(session, 'v0', 0);
+    saveSession(session);
+    expect(loadSession()).not.toBeNull();
+  });
+
+  it('recovery: regions missing but legacy pattern exists → hydrate from pattern', () => {
+    const session = createSession();
+    const v1Voice = {
+      ...session.voices[0],
+      pattern: {
+        steps: session.voices[0].pattern.steps.map((s, j) =>
+          j === 2 ? { ...s, gate: true } : s,
+        ),
+        length: 16,
+      },
+    } as any;
+    delete v1Voice.regions;
+
+    store.set('gluon-session', JSON.stringify({
+      version: 1,
+      session: {
+        ...session,
+        voices: [v1Voice, ...session.voices.slice(1)],
+        undoStack: [],
+        recentHumanActions: [],
+      },
+      savedAt: Date.now(),
+    }));
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const voice = getVoice(loaded!, 'v0');
+    expect(voice.regions.length).toBe(1);
+    expect(voice.regions[0].events.some(e => e.kind === 'trigger' && Math.abs(e.at - 2) < 0.01)).toBe(true);
+    expect(voice.pattern.steps[2].gate).toBe(true);
+  });
+
+  it('recovery: neither regions nor pattern → empty default region', () => {
+    const session = createSession();
+    const brokenVoice = { ...session.voices[0] } as any;
+    delete brokenVoice.regions;
+    brokenVoice.pattern = { steps: [], length: 0 };
+
+    store.set('gluon-session', JSON.stringify({
+      version: 1,
+      session: {
+        ...session,
+        voices: [brokenVoice, ...session.voices.slice(1)],
+        undoStack: [],
+        recentHumanActions: [],
+      },
+      savedAt: Date.now(),
+    }));
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    const voice = getVoice(loaded!, 'v0');
+    expect(voice.regions.length).toBe(1);
+    expect(voice.regions[0].events).toHaveLength(0);
   });
 });

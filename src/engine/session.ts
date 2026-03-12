@@ -4,6 +4,7 @@ import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateVoice } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
+import { createDefaultRegion } from './region-helpers';
 
 const VOICE_DEFAULTS: { model: number; engine: string }[] = [
   { model: 13, engine: 'plaits:analog_bass_drum' },
@@ -27,13 +28,15 @@ function buildDefaultProvenance(modelIndex: number): ControlState {
 
 function createVoice(index: number): Voice {
   const defaults = VOICE_DEFAULTS[index] ?? VOICE_DEFAULTS[0];
+  const voiceId = `v${index}`;
   return {
-    id: `v${index}`,
+    id: voiceId,
     engine: defaults.engine,
     model: defaults.model,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     agency: 'ON',
     pattern: createDefaultPattern(16),
+    regions: [createDefaultRegion(voiceId, 16)],
     muted: false,
     solo: false,
     controlProvenance: buildDefaultProvenance(defaults.model),

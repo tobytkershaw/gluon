@@ -1,10 +1,12 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot } from './types';
-import type { ControlState, SourceAdapter, ExecutionReportLogEntry } from './canonical-types';
+import type { Session, AIAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot } from './types';
+import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
 import { eventsToSteps } from './event-conversion';
+import { projectRegionToPattern } from './region-projection';
+import { normalizeRegionEvents, validateRegion } from './region-helpers';
 import { VOICE_LABELS } from './voice-labels';
 import { getEngineById, plaitsInstrument } from '../audio/instrument-registry';
 
@@ -210,23 +212,53 @@ export function executeOperations(
         const voice = getVoice(next, action.voiceId);
 
         if (action.events) {
-          // Canonical sketch: convert MusicalEvent[] to PatternSketch via adapter
-          const steps = eventsToSteps(action.events, voice.pattern.length, {
+          // Canonical sketch: write events to region first (source of truth),
+          // then project to pattern (derived cache).
+          const prevEvents = voice.regions[0]?.events ?? [];
+          const prevDuration = voice.regions[0]?.duration;
+
+          // Build updated region with new events
+          const updatedRegion = normalizeRegionEvents({
+            ...voice.regions[0],
+            events: action.events,
+          });
+
+          // Enforce region invariants on the canonical write path
+          const validation = validateRegion(updatedRegion);
+          if (!validation.valid) {
+            rejected.push({ op: action, reason: `Invalid region: ${validation.errors.join('; ')}` });
+            break;
+          }
+
+          const newRegions = [updatedRegion, ...voice.regions.slice(1)];
+
+          // Project region to pattern (derived)
+          const inverseOpts = {
             midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
-            canonicalToRuntime: (id) => {
+            canonicalToRuntime: (id: string) => {
               const binding = adapter.mapControl(id);
               const parts = binding.path.split('.');
               return parts[parts.length - 1];
             },
-          });
-          // Include ALL steps so ungated steps explicitly clear existing gates.
-          // Without this, the sketch is additive and old gates persist.
-          const sketch = {
-            steps: steps.map((s, i) => ({ index: i, ...s })),
           };
-          next = applySketch(next, action.voiceId, action.description, sketch);
+          const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
+
+          // Create RegionSnapshot for undo
+          const snapshot: RegionSnapshot = {
+            kind: 'region',
+            voiceId: action.voiceId,
+            prevEvents: [...prevEvents],
+            prevDuration: prevDuration !== updatedRegion.duration ? prevDuration : undefined,
+            timestamp: Date.now(),
+            description: action.description,
+          };
+
+          next = {
+            ...updateVoice(next, action.voiceId, { regions: newRegions, pattern }),
+            undoStack: [...next.undoStack, snapshot],
+          };
         } else if (action.pattern) {
-          // Legacy sketch: pass through directly
+          // Legacy sketch: pass through directly (writes only to pattern, not regions)
           next = applySketch(next, action.voiceId, action.description, action.pattern);
         } else {
           rejected.push({ op: action, reason: 'Sketch has neither events nor pattern' });
