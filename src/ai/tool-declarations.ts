@@ -194,7 +194,7 @@ const addViewTool: FunctionDeclaration = {
       },
       viewKind: {
         type: Type.STRING,
-        description: 'View type: "step-grid" or "piano-roll".',
+        description: 'View type: "step-grid".',
       },
       description: {
         type: Type.STRING,

@@ -30,11 +30,7 @@ function stripForPersistence(session: Session): Session {
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
     transport: { ...session.transport, playing: false },
-    // Strip transient state from each voice
-    voices: session.voices.map(v => {
-      const { _hiddenEvents, views, ...rest } = v;
-      return rest;
-    }),
+    voices: session.voices.map(v => ({ ...v })),
   };
 }
 

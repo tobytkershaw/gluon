@@ -517,7 +517,7 @@ export class GluonAI {
         if (typeof args.viewKind !== 'string' || !args.viewKind) {
           return errorResponse(id, name, 'Missing required parameter: viewKind');
         }
-        const validKinds = ['step-grid', 'piano-roll'];
+        const validKinds = ['step-grid'];
         if (!validKinds.includes(args.viewKind as string)) {
           return errorResponse(id, name, `Unknown viewKind: ${args.viewKind}. Must be one of: ${validKinds.join(', ')}`);
         }
