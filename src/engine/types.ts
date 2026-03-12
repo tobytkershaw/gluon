@@ -1,7 +1,17 @@
 // src/engine/types.ts
 import type { Pattern, PatternSketch, Step, Transport } from './sequencer-types';
+import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
+
+// --- Sequencer views (presentation state, not musical) ---
+
+export type SequencerViewKind = 'step-grid' | 'piano-roll';
+
+export interface SequencerViewConfig {
+  kind: SequencerViewKind;
+  id: string;
+}
 
 export interface SynthParamValues {
   harmonics: number;
@@ -18,8 +28,14 @@ export interface Voice {
   params: SynthParamValues;
   agency: Agency;
   pattern: Pattern;
+  regions: Region[];
   muted: boolean;
   solo: boolean;
+  controlProvenance?: ControlState;
+  /** Addable sequencer views. Presentation state only — not serialized, not part of musical state. */
+  views?: SequencerViewConfig[];
+  /** Events hidden by setPatternLength, restored on expand. Not persisted. */
+  _hiddenEvents?: CanonicalMusicalEvent[];
 }
 
 export interface MusicalContext {
@@ -39,6 +55,7 @@ export interface ParamSnapshot {
   aiTargetValues: Partial<SynthParamValues>;
   timestamp: number;
   description: string;
+  prevProvenance?: Partial<ControlState>;
 }
 
 export interface PatternSnapshot {
@@ -50,7 +67,40 @@ export interface PatternSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot;
+export interface TransportSnapshot {
+  kind: 'transport';
+  prevTransport: Transport;
+  timestamp: number;
+  description: string;
+}
+
+export interface ModelSnapshot {
+  kind: 'model';
+  voiceId: string;
+  prevModel: number;
+  prevEngine: string;
+  timestamp: number;
+  description: string;
+}
+
+export interface RegionSnapshot {
+  kind: 'region';
+  voiceId: string;
+  prevEvents: CanonicalMusicalEvent[];
+  prevDuration?: number;
+  timestamp: number;
+  description: string;
+}
+
+export interface ViewSnapshot {
+  kind: 'view';
+  voiceId: string;
+  prevViews: SequencerViewConfig[];
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -66,6 +116,7 @@ export type UndoEntry = Snapshot | ActionGroupSnapshot;
 export interface AIMoveAction {
   type: 'move';
   voiceId?: string;
+  /** Runtime param key (legacy) or canonical controlId */
   param: string;
   target: { absolute: number } | { relative: number };
   over?: number;
@@ -80,10 +131,49 @@ export interface AISketchAction {
   type: 'sketch';
   voiceId: string;
   description: string;
-  pattern: PatternSketch;
+  /** Legacy pattern shape */
+  pattern?: PatternSketch;
+  /** Canonical event shape */
+  events?: CanonicalMusicalEvent[];
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction;
+export interface AITransportAction {
+  type: 'set_transport';
+  bpm?: number;
+  swing?: number;
+  playing?: boolean;
+}
+
+export interface AISetModelAction {
+  type: 'set_model';
+  voiceId: string;
+  model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum")
+}
+
+export interface AITransformAction {
+  type: 'transform';
+  voiceId: string;
+  operation: 'rotate' | 'transpose' | 'reverse' | 'duplicate';
+  steps?: number;
+  semitones?: number;
+  description: string;
+}
+
+export interface AIAddViewAction {
+  type: 'add_view';
+  voiceId: string;
+  viewKind: SequencerViewKind;
+  description: string;
+}
+
+export interface AIRemoveViewAction {
+  type: 'remove_view';
+  voiceId: string;
+  viewId: string;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction;
 
 // --- Session ---
 
@@ -105,10 +195,17 @@ export interface Session {
   recentHumanActions: HumanAction[];
 }
 
+export interface ActionLogEntry {
+  voiceId: string;
+  voiceLabel: string;
+  description: string;
+}
+
 export interface ChatMessage {
   role: 'human' | 'ai';
   text: string;
   timestamp: number;
+  actions?: ActionLogEntry[];
 }
 
 // --- Helpers ---

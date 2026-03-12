@@ -2,49 +2,55 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ActionGroupSnapshot } from '../engine/types';
+import type { Session, AIAction } from '../engine/types';
 import { getActiveVoice, getVoice } from '../engine/types';
+import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
-import {
-  applyMove, applyMoveGroup, applyParamDirect, applySketch, applyUndo,
-} from '../engine/primitives';
+import { saveSession, loadSession } from '../engine/persistence';
+import { applyParamDirect, applyUndo } from '../engine/primitives';
+import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
+import { updateEvent, removeEvent } from '../engine/event-primitives';
+import type { EventSelector } from '../engine/event-primitives';
+import type { MusicalEvent } from '../engine/canonical-types';
+import { addView, removeView } from '../engine/view-primitives';
+import type { SequencerViewKind } from '../engine/types';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { Scheduler } from '../engine/scheduler';
-import { ParameterSpace } from './ParameterSpace';
-import { ModelSelector } from './ModelSelector';
-import { AgencyToggle } from './AgencyToggle';
-import { ChatPanel } from './ChatPanel';
-import { Visualiser } from './Visualiser';
-import { PitchControl } from './PitchControl';
-import { UndoButton } from './UndoButton';
-import { ApiKeyInput } from './ApiKeyInput';
-import { TransportBar } from './TransportBar';
-import { VoiceSelector } from './VoiceSelector';
-import { StepGrid } from './StepGrid';
-import { PatternControls } from './PatternControls';
+import { ChatView } from './ChatView';
+import { InstrumentView } from './InstrumentView';
+import type { ViewMode } from './view-types';
+
+const plaitsAdapter = createPlaitsAdapter();
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
   const exporterRef = useRef(new AudioExporter());
   const aiRef = useRef(new GluonAI());
 
-  const [session, setSession] = useState<Session>(createSession);
+  const [session, setSession] = useState<Session>(() => loadSession() ?? createSession());
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
   const [recording, setRecording] = useState(false);
-  const [heldStep, setHeldStep] = useState<number | null>(null);
+  const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
+  const [view, setView] = useState<ViewMode>('chat');
   const arbRef = useRef(new Arbitrator());
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // Auto-save session to localStorage (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => saveSession(session), 500);
+    return () => clearTimeout(timer);
+  }, [session]);
 
   const schedulerRef = useRef<Scheduler | null>(null);
 
@@ -105,79 +111,26 @@ export default function App() {
 
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
-      let next = s;
-      const undoBaseline = s.undoStack.length;
-      const moveGroups = new Map<string, { param: string; target: { absolute: number } | { relative: number } }[]>();
+      const report = executeOperations(s, actions, plaitsAdapter, arbRef.current);
 
-      for (const action of actions) {
-        switch (action.type) {
-          case 'move': {
-            const vid = action.voiceId ?? s.activeVoiceId;
-            const voice = getVoice(next, vid);
-            if (voice.agency === 'ON' && arbRef.current.canAIAct(vid, action.param)) {
-              if (action.over) {
-                const currentVal = voice.params[action.param] ?? 0;
-                const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
-                const targetVal = Math.max(0, Math.min(1, rawTarget));
-                // Push undo snapshot before drift begins
-                next = {
-                  ...next,
-                  undoStack: [...next.undoStack, {
-                    kind: 'param' as const,
-                    voiceId: vid,
-                    prevValues: { [action.param]: currentVal },
-                    aiTargetValues: { [action.param]: targetVal },
-                    timestamp: Date.now(),
-                    description: `AI drift: ${action.param} ${currentVal.toFixed(2)} -> ${targetVal.toFixed(2)} over ${action.over}ms`,
-                  }],
-                };
-                autoRef.current.start(action.param, currentVal, targetVal, action.over, (param, value) => {
-                  setSession((s2) => applyParamDirect(s2, vid, param, value));
-                });
-                autoRef.current.startLoop();
-              } else {
-                const group = moveGroups.get(vid) ?? [];
-                group.push({ param: action.param, target: action.target });
-                moveGroups.set(vid, group);
-              }
-            }
-            break;
-          }
-          case 'sketch': {
-            const targetVoice = next.voices.find(v => v.id === action.voiceId);
-            if (targetVoice && targetVoice.agency === 'ON') {
-              next = applySketch(next, action.voiceId, action.description, action.pattern);
-            }
-            break;
-          }
-          case 'say':
-            next = {
-              ...next,
-              messages: [...next.messages, { role: 'ai' as const, text: action.text, timestamp: Date.now() }],
-            };
-            break;
+      // Start drift animations for accepted moves with `over`
+      for (let i = 0; i < report.accepted.length; i++) {
+        const action = report.accepted[i];
+        if (action.type === 'move' && action.over) {
+          const vid = action.voiceId ?? s.activeVoiceId;
+          const runtimeParam = report.resolvedParams.get(i) ?? action.param;
+          const voice = getVoice(s, vid);
+          const currentVal = voice.params[runtimeParam] ?? 0;
+          const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+          const targetVal = Math.max(0, Math.min(1, rawTarget));
+          autoRef.current.start(runtimeParam, currentVal, targetVal, action.over, (p, value) => {
+            setSession((s2) => applyParamDirect(s2, vid, p, value));
+          });
+          autoRef.current.startLoop();
         }
       }
 
-      for (const [vid, moves] of moveGroups) {
-        next = moves.length === 1
-          ? applyMove(next, vid, moves[0].param, moves[0].target)
-          : applyMoveGroup(next, vid, moves);
-      }
-
-      // Collapse multiple snapshots from this response into a single undo group
-      const newSnapshots = next.undoStack.slice(undoBaseline);
-      if (newSnapshots.length > 1) {
-        const group: ActionGroupSnapshot = {
-          kind: 'group',
-          snapshots: newSnapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
-          timestamp: Date.now(),
-          description: `AI response (${newSnapshots.length} actions)`,
-        };
-        next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
-      }
-
-      return next;
+      return report.session;
     });
   }, []);
 
@@ -187,29 +140,29 @@ export default function App() {
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
     setSession((s) => {
-      let next = updateVoiceParams(s, vid, { timbre, morph }, true);
+      let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
       // If a step is held, apply param lock
-      if (heldStep !== null) {
-        next = setStepParamLock(next, vid, heldStep, { timbre, morph });
+      if (selectedStep !== null) {
+        next = setStepParamLock(next, vid, selectedStep, { timbre, morph });
       }
 
       return next;
     });
-  }, [heldStep]);
+  }, [selectedStep]);
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
-    setSession((s) => updateVoiceParams(s, vid, { note }, true));
+    setSession((s) => updateVoiceParams(s, vid, { note }, true, plaitsAdapter));
   }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
-    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true));
+    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter));
   }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {
@@ -224,17 +177,56 @@ export default function App() {
 
   const handleUndo = useCallback(() => {
     ensureAudio();
-    setSession((s) => applyUndo(s));
+    setSession((s) => {
+      if (s.undoStack.length === 0) return s;
+      const topEntry = s.undoStack[s.undoStack.length - 1];
+      const description = topEntry.description ?? 'last action';
+      const undone = applyUndo(s);
+      return {
+        ...undone,
+        messages: [
+          ...undone.messages,
+          { role: 'ai' as const, text: `Undid: ${description}`, timestamp: Date.now() },
+        ],
+      };
+    });
   }, [ensureAudio]);
 
+  const requestIdRef = useRef(0);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
   const handleSend = useCallback(async (message: string) => {
+    const thisRequest = ++requestIdRef.current;
+    setIsThinking(true);
     await ensureAudio();
     setSession((s) => ({
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
-    const actions = await aiRef.current.ask(sessionRef.current, message);
-    dispatchAIActions(actions);
+
+    try {
+      const actions = await aiRef.current.ask(sessionRef.current, message, {
+        listen: {
+          getAudioDestination: () => audioRef.current.getMediaStreamDestination(),
+          captureNBars: (dest, bars, len, bpm) => exporterRef.current.captureNBars(dest, bars, len, bpm),
+          onListening: setIsListening,
+        },
+        isStale: () => thisRequest !== requestIdRef.current,
+        validateAction: (action) => prevalidateAction(
+          sessionRef.current, action, plaitsAdapter, arbRef.current,
+        ),
+      });
+      if (thisRequest !== requestIdRef.current) return;
+      dispatchAIActions(actions);
+    } catch {
+      // Error already handled by GluonAI.handleError — no additional action needed
+    } finally {
+      if (thisRequest === requestIdRef.current) {
+        setIsThinking(false);
+        setIsListening(false);
+      }
+    }
   }, [ensureAudio, dispatchAIActions]);
 
   const handleApiKey = useCallback((key: string) => {
@@ -251,7 +243,6 @@ export default function App() {
     if (recording) {
       const blob = await exporterRef.current.stop();
       setRecording(false);
-      // Download the file
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -303,13 +294,52 @@ export default function App() {
     setSession((s) => clearPattern(s, s.activeVoiceId));
   }, [ensureAudio]);
 
+  const handleEventUpdate = useCallback((selector: EventSelector, updates: Partial<MusicalEvent>) => {
+    setSession((s) => updateEvent(s, s.activeVoiceId, selector, updates));
+  }, []);
+
+  const handleEventDelete = useCallback((selector: EventSelector) => {
+    setSession((s) => removeEvent(s, s.activeVoiceId, selector));
+  }, []);
+
+  const handleAddView = useCallback((kind: SequencerViewKind) => {
+    setSession((s) => addView(s, s.activeVoiceId, kind));
+  }, []);
+
+  const handleRemoveView = useCallback((viewId: string) => {
+    setSession((s) => removeView(s, s.activeVoiceId, viewId));
+  }, []);
+
+  // Focus-safe keyboard shortcuts
   useEffect(() => {
+    const isEditable = () => {
+      const el = document.activeElement;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
+    };
+
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault();
         handleUndo();
       }
-      if (e.key === ' ' && !e.repeat) {
+      // Cmd+1 / Cmd+2 for view switching
+      if ((e.metaKey || e.ctrlKey) && e.key === '1') {
+        e.preventDefault();
+        setView('chat');
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '2') {
+        e.preventDefault();
+        setView('instrument');
+      }
+      // Tab toggles views when not in editable
+      if (e.key === 'Tab' && !isEditable()) {
+        e.preventDefault();
+        setView((v) => v === 'chat' ? 'instrument' : 'chat');
+      }
+      // Space for play/stop — only when not in editable
+      if (e.key === ' ' && !e.repeat && !isEditable()) {
         e.preventDefault();
         handleTogglePlay();
       }
@@ -318,89 +348,72 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [handleUndo, handleTogglePlay]);
 
-  const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
-  const totalPages = Math.ceil(activeVoice.pattern.length / 16);
-
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 p-4">
-      <div className="max-w-7xl mx-auto grid grid-cols-[1fr_320px] gap-4 h-[calc(100vh-2rem)]">
-        <div className="flex flex-col gap-3">
-          <TransportBar
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+      <div className="h-screen">
+        {view === 'chat' ? (
+          <ChatView
+            session={session}
+            activeVoice={activeVoice}
+            view={view}
+            onViewChange={setView}
+            apiConfigured={apiConfigured}
+            onApiKey={handleApiKey}
+            onSelectVoice={handleSelectVoice}
+            onToggleMute={handleToggleMute}
+            onToggleSolo={handleToggleSolo}
+            onUndo={handleUndo}
+            onSend={handleSend}
+            onTogglePlay={handleTogglePlay}
+            playing={session.transport.playing}
+            bpm={session.transport.bpm}
+            isThinking={isThinking}
+            isListening={isListening}
+          />
+        ) : (
+          <InstrumentView
+            session={session}
+            activeVoice={activeVoice}
+            view={view}
+            onViewChange={setView}
             playing={session.transport.playing}
             bpm={session.transport.bpm}
             swing={session.transport.swing}
             recording={recording}
             globalStep={globalStep}
-            patternLength={activeVoice.pattern.length}
             onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
+            onBpmChange={(bpm) => { ensureAudio(); schedulerRef.current?.setBpm(bpm); setSession(s => setTransportBpm(s, bpm)); }}
             onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
+            onSelectVoice={handleSelectVoice}
+            onToggleMute={handleToggleMute}
+            onToggleSolo={handleToggleSolo}
+            onParamChange={handleParamChange}
+            onInteractionStart={() => arbRef.current.humanInteractionStart()}
+            onInteractionEnd={() => arbRef.current.humanInteractionEnd()}
+            onModelChange={handleModelChange}
+            onAgencyChange={handleAgencyChange}
+            onNoteChange={handleNoteChange}
+            onHarmonicsChange={handleHarmonicsChange}
+            onEventUpdate={handleEventUpdate}
+            onEventDelete={handleEventDelete}
+            onAddView={handleAddView}
+            onRemoveView={handleRemoveView}
+            stepPage={stepPage}
+            onStepToggle={handleStepToggle}
+            onStepAccent={handleStepAccent}
+            selectedStep={selectedStep}
+            onStepSelect={setSelectedStep}
+            onPatternLength={handlePatternLength}
+            onPageChange={setStepPage}
+            onClearPattern={handleClearPattern}
+            onUndo={handleUndo}
+            onSend={handleSend}
+            isThinking={isThinking}
+            isListening={isListening}
+            analyser={audioRef.current.getAnalyser()}
           />
-
-          <div className="flex items-center justify-between">
-            <VoiceSelector
-              voices={session.voices}
-              activeVoiceId={session.activeVoiceId}
-              onSelectVoice={handleSelectVoice}
-              onToggleMute={handleToggleMute}
-              onToggleSolo={handleToggleSolo}
-            />
-            <div className="flex items-center gap-4">
-              <ModelSelector model={activeVoice.model} onChange={handleModelChange} />
-              <UndoButton onClick={handleUndo} disabled={session.undoStack.length === 0} />
-            </div>
-          </div>
-
-          <div className="relative flex-1 min-h-0">
-            <ParameterSpace
-              timbre={activeVoice.params.timbre}
-              morph={activeVoice.params.morph}
-              onChange={handleParamChange}
-              onInteractionStart={() => arbRef.current.humanInteractionStart()}
-              onInteractionEnd={() => arbRef.current.humanInteractionEnd()}
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <StepGrid
-              pattern={activeVoice.pattern}
-              currentStep={currentStep}
-              playing={session.transport.playing}
-              page={stepPage}
-              onToggleGate={handleStepToggle}
-              onToggleAccent={handleStepAccent}
-              onStepHold={setHeldStep}
-              onStepRelease={() => setHeldStep(null)}
-            />
-            <PatternControls
-              patternLength={activeVoice.pattern.length}
-              totalPages={totalPages}
-              currentPage={stepPage}
-              onLengthChange={handlePatternLength}
-              onPageChange={setStepPage}
-              onClear={handleClearPattern}
-            />
-          </div>
-
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Visualiser analyser={audioRef.current.getAnalyser()} />
-            </div>
-            <PitchControl
-              note={activeVoice.params.note}
-              harmonics={activeVoice.params.harmonics}
-              onNoteChange={handleNoteChange}
-              onHarmonicsChange={handleHarmonicsChange}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <ApiKeyInput onSubmit={handleApiKey} isConfigured={apiConfigured} />
-          <AgencyToggle value={activeVoice.agency} onChange={handleAgencyChange} />
-          <ChatPanel messages={session.messages} onSend={handleSend} />
-        </div>
+        )}
       </div>
     </div>
   );

@@ -1,10 +1,14 @@
 // src/engine/primitives.ts
 import type {
-  Session, ParamSnapshot, PatternSnapshot, Snapshot,
-  SynthParamValues,
+  Session, ParamSnapshot, PatternSnapshot, TransportSnapshot, Snapshot,
+  SynthParamValues, RegionSnapshot, ViewSnapshot,
 } from './types';
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
+import { reprojectVoicePattern } from './region-projection';
+import { stepsToEvents } from './event-conversion';
+import { normalizeRegionEvents } from './region-helpers';
+import { runtimeParamToControlId } from '../audio/instrument-registry';
 
 function clampParam(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -135,9 +139,24 @@ export function applySketch(
     description,
   };
 
-  const updated = updateVoice(session, voiceId, {
-    pattern: { steps: newSteps, length: newLength },
-  });
+  const newPattern = { steps: newSteps, length: newLength };
+  let updated = updateVoice(session, voiceId, { pattern: newPattern });
+
+  // Project pattern steps to canonical events in the region
+  const updatedVoice = getVoice(updated, voiceId);
+  if (updatedVoice.regions.length > 0) {
+    const events = stepsToEvents(newSteps.slice(0, newLength), {
+      runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
+    });
+    const region = normalizeRegionEvents({
+      ...updatedVoice.regions[0],
+      events,
+      duration: newLength,
+    });
+    updated = updateVoice(updated, voiceId, {
+      regions: [region, ...updatedVoice.regions.slice(1)],
+    });
+  }
 
   return {
     ...updated,
@@ -146,6 +165,36 @@ export function applySketch(
 }
 
 function revertSnapshot(session: Session, snapshot: Snapshot): Session {
+  if (snapshot.kind === 'transport') {
+    return { ...session, transport: snapshot.prevTransport };
+  }
+
+  if (snapshot.kind === 'model') {
+    return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel, engine: snapshot.prevEngine });
+  }
+
+  if (snapshot.kind === 'view') {
+    return updateVoice(session, snapshot.voiceId, { views: snapshot.prevViews });
+  }
+
+  if (snapshot.kind === 'region') {
+    const voice = getVoice(session, snapshot.voiceId);
+    if (voice.regions.length === 0) return session;
+    const restoredRegion = {
+      ...voice.regions[0],
+      events: snapshot.prevEvents,
+      ...(snapshot.prevDuration !== undefined ? { duration: snapshot.prevDuration } : {}),
+    };
+    const updatedVoice = reprojectVoicePattern({
+      ...voice,
+      regions: [restoredRegion, ...voice.regions.slice(1)],
+    });
+    return updateVoice(session, snapshot.voiceId, {
+      regions: updatedVoice.regions,
+      pattern: updatedVoice.pattern,
+    });
+  }
+
   if (snapshot.kind === 'pattern') {
     const voice = getVoice(session, snapshot.voiceId);
     const newSteps = [...voice.pattern.steps];
@@ -171,7 +220,15 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     }
   }
 
-  return updateVoice(session, snapshot.voiceId, { params: newParams });
+  const updates: Partial<import('./types').Voice> = { params: newParams };
+  if (snapshot.prevProvenance && voice.controlProvenance) {
+    updates.controlProvenance = {
+      ...voice.controlProvenance,
+      ...snapshot.prevProvenance,
+    };
+  }
+
+  return updateVoice(session, snapshot.voiceId, updates);
 }
 
 export function applyUndo(session: Session): Session {

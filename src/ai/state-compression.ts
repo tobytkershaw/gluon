@@ -1,11 +1,15 @@
 // src/ai/state-compression.ts
 import type { Session, Voice } from '../engine/types';
+import { getModelName, runtimeParamToControlId } from '../audio/instrument-registry';
 
 interface CompressedPattern {
   length: number;
-  active_steps: number[];
+  event_count: number;
+  triggers: number[];
+  notes: { at: number; pitch: number; vel: number }[];
   accents: number[];
-  locks: Record<string, Record<string, number>>;
+  param_locks: { at: number; params: Record<string, number> }[];
+  density: number;
 }
 
 interface CompressedVoice {
@@ -16,15 +20,24 @@ interface CompressedVoice {
   muted: boolean;
   solo: boolean;
   pattern: CompressedPattern;
+  views: string[];
+}
+
+interface CompressedHumanAction {
+  voiceId: string;
+  param: string;
+  from: number;
+  to: number;
+  age_ms: number;
 }
 
 export interface CompressedState {
   voices: CompressedVoice[];
-  transport: { bpm: number; swing: number };
+  activeVoiceId: string;
+  transport: { bpm: number; swing: number; playing: boolean };
   context: { energy: number; density: number };
   undo_depth: number;
-  recent_human_actions: string[];
-  human_message?: string;
+  recent_human_actions: CompressedHumanAction[];
 }
 
 function round2(n: number): number {
@@ -32,72 +45,104 @@ function round2(n: number): number {
 }
 
 function modelName(model: number): string {
-  const names = [
-    'virtual_analog', 'waveshaping', 'fm', 'grain_formant', 'harmonic',
-    'wavetable', 'chords', 'vowel_speech', 'swarm', 'filtered_noise',
-    'particle_dust', 'inharmonic_string', 'modal_resonator',
-    'analog_bass_drum', 'analog_snare', 'analog_hi_hat',
-  ];
-  return names[model] ?? `unknown_${model}`;
+  const name = getModelName(model);
+  return name.toLowerCase().replace(/[\s/]+/g, '_');
 }
 
 function compressPattern(voice: Voice): CompressedPattern {
-  const active_steps: number[] = [];
-  const accents: number[] = [];
-  const locks: Record<string, Record<string, number>> = {};
+  const region = voice.regions[0];
+  if (!region) {
+    return { length: voice.pattern.length, event_count: 0, triggers: [], notes: [], accents: [], param_locks: [], density: 0 };
+  }
 
-  for (let i = 0; i < voice.pattern.length; i++) {
-    const step = voice.pattern.steps[i];
-    if (!step) continue;
-    if (step.gate) active_steps.push(i);
-    if (step.accent) accents.push(i);
-    if (step.params) {
-      const rounded: Record<string, number> = {};
-      for (const [k, v] of Object.entries(step.params)) {
-        if (v !== undefined) rounded[k] = round2(v);
-      }
-      if (Object.keys(rounded).length > 0) {
-        locks[String(i)] = rounded;
+  const events = region.events;
+  const triggers: number[] = [];
+  const notes: { at: number; pitch: number; vel: number }[] = [];
+  const accents: number[] = [];
+  const paramMap = new Map<string, Record<string, number>>();
+
+  for (const e of events) {
+    switch (e.kind) {
+      case 'trigger':
+        if (e.velocity !== 0) {
+          triggers.push(round2(e.at));
+          if (e.accent || (e.velocity !== undefined && e.velocity >= 0.95)) {
+            accents.push(round2(e.at));
+          }
+        }
+        break;
+      case 'note':
+        notes.push({ at: round2(e.at), pitch: e.pitch, vel: round2(e.velocity) });
+        if (e.velocity >= 0.95) {
+          accents.push(round2(e.at));
+        }
+        break;
+      case 'parameter': {
+        const bucket = String(round2(e.at));
+        const existing = paramMap.get(bucket) ?? {};
+        existing[e.controlId] = round2(e.value as number);
+        paramMap.set(bucket, existing);
+        break;
       }
     }
   }
 
-  return { length: voice.pattern.length, active_steps, accents, locks };
+  const param_locks = Array.from(paramMap.entries()).map(([atStr, params]) => ({
+    at: Number(atStr),
+    params,
+  }));
+
+  const soundEvents = triggers.length + notes.length;
+  const density = region.duration > 0 ? round2(soundEvents / region.duration) : 0;
+
+  return {
+    length: region.duration,
+    event_count: events.length,
+    triggers,
+    notes,
+    accents,
+    param_locks,
+    density,
+  };
 }
 
-export function compressState(session: Session, humanMessage?: string): CompressedState {
+export function compressState(session: Session): CompressedState {
+  const now = Date.now();
   const result: CompressedState = {
     voices: session.voices.map(voice => ({
       id: voice.id,
       model: modelName(voice.model),
       params: {
-        harmonics: round2(voice.params.harmonics),
-        timbre: round2(voice.params.timbre),
-        morph: round2(voice.params.morph),
-        note: round2(voice.params.note),
+        brightness: round2(voice.params.timbre),
+        richness: round2(voice.params.harmonics),
+        texture: round2(voice.params.morph),
+        pitch: round2(voice.params.note),
       },
       agency: voice.agency,
       muted: voice.muted,
       solo: voice.solo,
       pattern: compressPattern(voice),
+      views: (voice.views ?? []).map(v => `${v.kind}:${v.id}`),
     })),
+    activeVoiceId: session.activeVoiceId,
     transport: {
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
+      playing: session.transport.playing,
     },
     context: {
       energy: round2(session.context.energy),
       density: round2(session.context.density),
     },
     undo_depth: session.undoStack.length,
-    recent_human_actions: session.recentHumanActions.slice(-5).map(
-      (a) => `${a.param}: ${a.from.toFixed(2)} -> ${a.to.toFixed(2)}`
-    ),
+    recent_human_actions: session.recentHumanActions.slice(-5).map(a => ({
+      voiceId: a.voiceId,
+      param: runtimeParamToControlId[a.param] ?? a.param,
+      from: round2(a.from),
+      to: round2(a.to),
+      age_ms: now - a.timestamp,
+    })),
   };
-
-  if (humanMessage) {
-    result.human_message = humanMessage;
-  }
 
   return result;
 }

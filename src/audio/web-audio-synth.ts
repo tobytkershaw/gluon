@@ -1,18 +1,16 @@
 // src/audio/web-audio-synth.ts
 import type { SynthEngine, SynthParams } from './synth-interface';
 import { DEFAULT_PARAMS, noteToHz } from './synth-interface';
+import type { ScheduledNote } from '../engine/sequencer-types';
 
 export class WebAudioSynth implements SynthEngine {
-  private ctx: AudioContext;
   private oscillator: OscillatorNode;
   private envelope: GainNode;
   private filter: BiquadFilterNode;
   private analyser: AnalyserNode;
   private params: SynthParams = { ...DEFAULT_PARAMS };
-  private gateOpen = false;
 
   constructor(ctx: AudioContext, output?: AudioNode) {
-    this.ctx = ctx;
     this.oscillator = ctx.createOscillator();
     this.filter = ctx.createBiquadFilter();
     this.envelope = ctx.createGain();
@@ -50,39 +48,24 @@ export class WebAudioSynth implements SynthEngine {
     this.oscillator.detune.value = (this.params.harmonics - 0.5) * 100;
   }
 
-  trigger(): void {
-    const now = this.ctx.currentTime;
-    this.envelope.gain.cancelScheduledValues(now);
-    this.envelope.gain.setValueAtTime(0.01, now);
-    this.envelope.gain.linearRampToValueAtTime(0.3, now + 0.005);
-    this.gateOpen = true;
+  private triggerAt(time: number): void {
+    this.envelope.gain.cancelScheduledValues(time);
+    this.envelope.gain.setValueAtTime(0.01, time);
+    this.envelope.gain.linearRampToValueAtTime(0.3, time + 0.005);
   }
 
-  setGateOpen(open: boolean): void {
-    if (this.gateOpen === open) return;
-    this.gateOpen = open;
-    if (!open) {
-      const now = this.ctx.currentTime;
-      this.envelope.gain.cancelScheduledValues(now);
-      this.envelope.gain.setTargetAtTime(0, now, 0.05);
-    }
+  private releaseAt(time: number): void {
+    this.envelope.gain.setTargetAtTime(0, time, 0.05);
   }
 
-  getSchedulableParams(): { frequency: AudioParam; filterFreq: AudioParam; filterQ: AudioParam; detune: AudioParam } {
-    return {
-      frequency: this.oscillator.frequency,
-      filterFreq: this.filter.frequency,
-      filterQ: this.filter.Q,
-      detune: this.oscillator.detune,
-    };
-  }
-
-  getAnalyser(): AnalyserNode {
-    return this.analyser;
-  }
-
-  render(_output: Float32Array): Float32Array {
-    return _output;
+  scheduleNote(note: ScheduledNote): void {
+    const noteHz = noteToHz(note.params.note);
+    this.oscillator.frequency.setValueAtTime(noteHz, note.time);
+    this.filter.frequency.setValueAtTime(200 + note.params.timbre * 7800, note.time);
+    this.filter.Q.setValueAtTime(0.5 + note.params.morph * 14.5, note.time);
+    this.oscillator.detune.setValueAtTime((note.params.harmonics - 0.5) * 100, note.time);
+    this.triggerAt(note.time);
+    this.releaseAt(note.gateOffTime);
   }
 
   destroy(): void {

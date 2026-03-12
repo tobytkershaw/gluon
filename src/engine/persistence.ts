@@ -1,0 +1,165 @@
+// src/engine/persistence.ts
+import type { Session, Voice } from './types';
+import type { Region } from './canonical-types';
+import { createSession } from './session';
+import { stepsToEvents } from './event-conversion';
+import { reprojectVoicePattern } from './region-projection';
+import { createDefaultRegion } from './region-helpers';
+import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import type { InverseConversionOptions } from './event-conversion';
+
+const STORAGE_KEY = 'gluon-session';
+const CURRENT_VERSION = 2;
+
+interface PersistedSession {
+  version: number;
+  session: Session;
+  savedAt: number;
+}
+
+/** Default inverse options for re-projecting pattern from regions on load. */
+const defaultInverseOpts: InverseConversionOptions = {
+  canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
+};
+
+/** Strip undo stack (contains closures) and recentHumanActions before saving. */
+function stripForPersistence(session: Session): Session {
+  return {
+    ...session,
+    undoStack: [],
+    recentHumanActions: [],
+    // Always persist transport as stopped to avoid auto-playing on reload
+    transport: { ...session.transport, playing: false },
+    // Strip transient state from each voice
+    voices: session.voices.map(v => {
+      const { _hiddenEvents, views, ...rest } = v;
+      return rest;
+    }),
+  };
+}
+
+/** Check whether a session differs from the default enough to be worth saving. */
+function isNonDefault(session: Session): boolean {
+  const defaults = createSession();
+  if (session.messages.length > 0) return true;
+  if (session.transport.bpm !== defaults.transport.bpm) return true;
+  if (session.transport.swing !== defaults.transport.swing) return true;
+  for (let i = 0; i < session.voices.length; i++) {
+    const v = session.voices[i];
+    const d = defaults.voices[i];
+    if (!v || !d) continue;
+    if (v.agency !== d.agency) return true;
+    if (v.model !== d.model) return true;
+    if (v.muted !== d.muted || v.solo !== d.solo) return true;
+    if (v.params.timbre !== d.params.timbre || v.params.morph !== d.params.morph) return true;
+    if (v.params.harmonics !== d.params.harmonics || v.params.note !== d.params.note) return true;
+    // Check regions for content
+    if (v.regions.length > 0 && v.regions[0].events.length > 0) return true;
+    // Fallback: check pattern for content (covers legacy or direct pattern edits)
+    if (v.pattern.length !== d.pattern.length) return true;
+    for (const step of v.pattern.steps) {
+      if (step.gate || step.accent || step.micro !== 0 || step.params) return true;
+    }
+  }
+  return false;
+}
+
+/** Validate that a loaded object looks like a Session. */
+function isValidSession(obj: unknown): obj is Session {
+  if (typeof obj !== 'object' || obj === null) return false;
+  const s = obj as Record<string, unknown>;
+  return (
+    Array.isArray(s.voices) &&
+    s.voices.length > 0 &&
+    typeof s.activeVoiceId === 'string' &&
+    typeof s.transport === 'object' &&
+    s.transport !== null &&
+    Array.isArray(s.messages)
+  );
+}
+
+/**
+ * Hydrate regions for a voice that was saved without them (v1 legacy).
+ * Converts step-grid pattern to canonical events in a default region.
+ */
+function hydrateRegionsFromPattern(voice: Voice): Region[] {
+  const events = stepsToEvents(voice.pattern.steps);
+  const region = createDefaultRegion(voice.id, voice.pattern.length);
+  return [{ ...region, events }];
+}
+
+/**
+ * Ensure voice has valid regions and re-project pattern from regions.
+ * Recovery hierarchy:
+ * 1. Regions present and valid → use as-is, re-project pattern
+ * 2. Regions missing but pattern exists → hydrate regions from pattern
+ * 3. Regions invalid but pattern exists → warn, hydrate from pattern
+ * 4. Neither recoverable → fall back to empty default region
+ */
+function migrateVoice(voice: Voice): Voice {
+  let regions = voice.regions;
+
+  if (!regions || !Array.isArray(regions) || regions.length === 0) {
+    // No regions — hydrate from pattern if available
+    if (voice.pattern?.steps?.length > 0) {
+      regions = hydrateRegionsFromPattern(voice);
+    } else {
+      regions = [createDefaultRegion(voice.id, 16)];
+    }
+  } else if (regions[0] && (!regions[0].events || !Array.isArray(regions[0].events))) {
+    // Regions present but invalid
+    console.warn(`[persistence] Voice ${voice.id}: invalid regions, hydrating from pattern`);
+    if (voice.pattern?.steps?.length > 0) {
+      regions = hydrateRegionsFromPattern(voice);
+    } else {
+      regions = [createDefaultRegion(voice.id, 16)];
+    }
+  }
+
+  // Always re-project pattern from regions (pattern is derived, never trusted from save)
+  const migrated = { ...voice, regions };
+  return reprojectVoicePattern(migrated, defaultInverseOpts);
+}
+
+export function saveSession(session: Session): void {
+  if (!isNonDefault(session)) return;
+  try {
+    const data: PersistedSession = {
+      version: CURRENT_VERSION,
+      session: stripForPersistence(session),
+      savedAt: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    // localStorage full or unavailable — silent fail
+  }
+}
+
+export function loadSession(): Session | null {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const data: PersistedSession = JSON.parse(raw);
+
+    // Reject unknown future versions
+    if (data.version > CURRENT_VERSION) return null;
+    if (!isValidSession(data.session)) return null;
+
+    // Migrate all voices (handles both v1 and v2)
+    const session = data.session;
+    const migratedVoices = session.voices.map(migrateVoice);
+
+    return {
+      ...session,
+      voices: migratedVoices,
+      undoStack: [],
+      recentHumanActions: session.recentHumanActions ?? [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function clearSavedSession(): void {
+  localStorage.removeItem(STORAGE_KEY);
+}

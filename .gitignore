@@ -23,11 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# WASM build artifacts (extracted from eurorack repo)
-wasm/plaits/
-wasm/stmlib/
-public/plaits.js
-public/plaits.wasm
+# WASM build artifacts
+public/audio/
+wasm/bin/
 
 # Environment / secrets
 .env
@@ -37,3 +35,13 @@ public/plaits.wasm
 Thumbs.db
 .superpowers/
 .worktrees/
+
+# Screenshots / spike artifacts
+*.png
+
+# Agent worktrees (Claude Code, Codex, etc.)
+.claude/worktrees/
+.codex-worktrees/
+
+# Playwright
+.playwright-cli/

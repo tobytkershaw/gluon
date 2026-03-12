@@ -231,4 +231,4 @@ The AI **moves** parameters, **sketches** patterns and content, and **says** thi
 
 When human and AI collide on the same parameter, the human wins. Always. Instantly.
 
-That's Gluon. The Claude Code of music.
+That's Gluon: the Claude Code of music, built on an AI-legible musical core.

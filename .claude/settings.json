@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Post-compaction reminders:\n- voice.regions[0] is sequencing source of truth, voice.pattern is derived\n- Human edits (pattern-primitives) do NOT push undo snapshots\n- Disabled triggers use velocity=0 sentinel\n- Always run: npx tsc --noEmit && npx vitest run'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Were any .ts or .tsx files edited or created in this session? Reply with ONLY raw JSON, no markdown, no explanation. If yes: {\"ok\":false,\"reason\":\"Run npx tsc --noEmit && npx vitest run before finishing.\"} If no: {\"ok\":true}"
+          }
+        ]
+      }
+    ]
+  }
+}
