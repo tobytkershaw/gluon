@@ -31,11 +31,18 @@ describe('Session (Phase 2)', () => {
     }
   });
 
+  it('creates voices with agency ON by default', () => {
+    const s = createSession();
+    for (const voice of s.voices) {
+      expect(voice.agency).toBe('ON');
+    }
+  });
+
   it('sets agency on active voice', () => {
     let s = createSession();
-    s = setAgency(s, s.activeVoiceId, 'ON');
+    s = setAgency(s, s.activeVoiceId, 'OFF');
     const voice = s.voices.find(v => v.id === s.activeVoiceId)!;
-    expect(voice.agency).toBe('ON');
+    expect(voice.agency).toBe('OFF');
   });
 
   it('updates voice params by voiceId', () => {

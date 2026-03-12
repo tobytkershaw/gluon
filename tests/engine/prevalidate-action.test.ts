@@ -18,7 +18,7 @@ describe('prevalidateAction', () => {
   describe('move', () => {
     it('returns null for valid move on ON voice', () => {
       const session = createSession();
-      // v0 has agency ON by default in createSession
+      // v0 has agency ON by default in createSession (voices are AI-editable unless protected)
       const s = {
         ...session,
         voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
