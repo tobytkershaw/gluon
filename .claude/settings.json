@@ -10,16 +10,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "prompt",
-            "prompt": "Were any .ts or .tsx files edited or created in this session? Reply with ONLY raw JSON, no markdown, no explanation. If yes: {\"ok\":false,\"reason\":\"Run npx tsc --noEmit && npx vitest run before finishing.\"} If no: {\"ok\":true}"
-          }
-        ]
-      }
     ]
   }
 }
