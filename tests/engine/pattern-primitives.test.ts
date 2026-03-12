@@ -210,5 +210,20 @@ describe('Pattern Primitives', () => {
       const result = clearPattern(s, vid);
       expect(getVoice(result, vid).regions[0].events).toHaveLength(0);
     });
+
+    it('clears hidden events so expand after clear does not resurrect old notes', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      s = toggleStepGate(s, vid, 12);          // gate at step 12
+      s = setPatternLength(s, vid, 8);          // shorten — step 12 stashed in _hiddenEvents
+      expect(getVoice(s, vid)._hiddenEvents?.length).toBeGreaterThan(0);
+
+      s = clearPattern(s, vid);                 // clear everything
+      expect(getVoice(s, vid)._hiddenEvents).toBeUndefined();
+
+      s = setPatternLength(s, vid, 16);         // expand back
+      expect(getVoice(s, vid).pattern.steps[12].gate).toBe(false);
+      expect(getVoice(s, vid).regions[0].events).toHaveLength(0);
+    });
   });
 });

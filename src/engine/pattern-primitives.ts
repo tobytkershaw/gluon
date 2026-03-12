@@ -237,10 +237,12 @@ export function setPatternLength(session: Session, voiceId: string, length: numb
 export function clearPattern(session: Session, voiceId: string): Session {
   const voice = getVoice(session, voiceId);
 
-  // Canonical path: clear all events
+  // Canonical path: clear all events (including hidden stash)
   if (voice.regions.length > 0) {
-    if (voice.regions[0].events.length === 0) return session;
-    return applyRegionEdit(session, voiceId, []);
+    if (voice.regions[0].events.length === 0 && !voice._hiddenEvents?.length) return session;
+    let result = applyRegionEdit(session, voiceId, []);
+    result = updateVoice(result, voiceId, { _hiddenEvents: undefined });
+    return result;
   }
 
   // Fallback
