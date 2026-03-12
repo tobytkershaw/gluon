@@ -6,7 +6,6 @@ import {
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
 import { getVoice, updateVoice } from '../../src/engine/types';
-import type { PatternSnapshot } from '../../src/engine/types';
 
 describe('Pattern Primitives', () => {
   describe('toggleStepGate', () => {
@@ -15,8 +14,8 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = toggleStepGate(s, vid, 0);
       expect(getVoice(result, vid).pattern.steps[0].gate).toBe(true);
-      expect(result.undoStack.length).toBe(1);
-      expect(result.undoStack[0].kind).toBe('pattern');
+      // Human edits do NOT push undo snapshots (AI-only undo contract)
+      expect(result.undoStack.length).toBe(0);
     });
 
     it('toggles gate off', () => {
@@ -32,6 +31,14 @@ describe('Pattern Primitives', () => {
       const result = toggleStepGate(s, s.voices[0].id, 99);
       expect(result).toBe(s);
     });
+
+    it('updates canonical region events', () => {
+      const s = createSession();
+      const vid = s.voices[0].id;
+      const result = toggleStepGate(s, vid, 0);
+      const region = getVoice(result, vid).regions[0];
+      expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(true);
+    });
   });
 
   describe('toggleStepAccent', () => {
@@ -42,6 +49,17 @@ describe('Pattern Primitives', () => {
       const result = toggleStepAccent(s, vid, 0);
       expect(getVoice(result, vid).pattern.steps[0].accent).toBe(true);
     });
+
+    it('updates canonical region events', () => {
+      let s = createSession();
+      const vid = s.voices[0].id;
+      s = toggleStepGate(s, vid, 0);
+      const result = toggleStepAccent(s, vid, 0);
+      const region = getVoice(result, vid).regions[0];
+      const trigger = region.events.find(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01);
+      expect(trigger).toBeDefined();
+      expect((trigger as any).accent).toBe(true);
+    });
   });
 
   describe('setStepParamLock', () => {
@@ -50,7 +68,7 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       expect(getVoice(result, vid).pattern.steps[0].params?.timbre).toBe(0.9);
-      expect(result.undoStack.length).toBe(1);
+      expect(result.undoStack.length).toBe(0);
     });
 
     it('merges with existing locks', () => {
@@ -90,7 +108,7 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = setPatternLength(s, vid, 8);
       expect(getVoice(result, vid).pattern.length).toBe(8);
-      expect(result.undoStack.length).toBe(1);
+      expect(result.undoStack.length).toBe(0);
     });
 
     it('extends steps array when length exceeds current steps', () => {
@@ -108,6 +126,13 @@ describe('Pattern Primitives', () => {
       expect(getVoice(setPatternLength(s, vid, 0), vid).pattern.length).toBe(1);
       expect(getVoice(setPatternLength(s, vid, 100), vid).pattern.length).toBe(64);
     });
+
+    it('updates canonical region duration', () => {
+      const s = createSession();
+      const vid = s.voices[0].id;
+      const result = setPatternLength(s, vid, 32);
+      expect(getVoice(result, vid).regions[0].duration).toBe(32);
+    });
   });
 
   describe('clearPattern', () => {
@@ -119,22 +144,16 @@ describe('Pattern Primitives', () => {
       const result = clearPattern(s, vid);
       const pattern = getVoice(result, vid).pattern;
       expect(pattern.steps.every(step => !step.gate)).toBe(true);
-      expect(result.undoStack.length).toBe(3); // 2 toggles + 1 clear
+      // Human edits don't push undo, so stack stays empty
+      expect(result.undoStack.length).toBe(0);
     });
 
-    it('preserves steps with micro-timing in undo snapshot', () => {
+    it('clears canonical region events', () => {
       let s = createSession();
       const vid = s.voices[0].id;
-      // Manually set micro on a step without gate/accent/params
-      const voice = getVoice(s, vid);
-      const steps = [...voice.pattern.steps];
-      steps[3] = { ...steps[3], micro: 0.25 };
-      s = updateVoice(s, vid, { pattern: { ...voice.pattern, steps } });
+      s = toggleStepGate(s, vid, 0);
       const result = clearPattern(s, vid);
-      // Should have an undo entry even though only micro was set
-      expect(result.undoStack.length).toBe(1);
-      const snapshot = result.undoStack[0] as PatternSnapshot;
-      expect(snapshot.prevSteps.some(({ step }) => step.micro === 0.25)).toBe(true);
+      expect(getVoice(result, vid).regions[0].events).toHaveLength(0);
     });
   });
 });
