@@ -306,7 +306,7 @@ The point is to give it a coherent world in which it can do the right things wel
 
 ## Capability Doctrine
 
-See [docs/ai-capability-doctrine.md](/Users/tobykershaw/Development/gluon/.codex-worktrees/docs-ai-capability/docs/ai-capability-doctrine.md) for the project-level doctrine that complements these interface principles.
+See [ai-capability-doctrine.md](./ai-capability-doctrine.md) for the project-level doctrine that complements these interface principles.
 
 The short version is:
 
