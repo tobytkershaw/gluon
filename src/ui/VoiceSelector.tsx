@@ -38,6 +38,22 @@ export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMu
               <span className={`text-[10px] font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
                 {label}
               </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleMute(voice.id); }}
+                className={`text-[10px] px-0.5 rounded ${
+                  voice.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
+                }`}
+              >
+                M
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); onToggleSolo(voice.id); }}
+                className={`text-[10px] px-0.5 rounded ${
+                  voice.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
+                }`}
+              >
+                S
+              </button>
               {voice.agency === 'ON' && (
                 <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
               )}

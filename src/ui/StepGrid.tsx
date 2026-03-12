@@ -6,17 +6,17 @@ interface Props {
   currentStep: number;
   playing: boolean;
   page: number;
+  selectedStep: number | null;
   onToggleGate: (stepIndex: number) => void;
   onToggleAccent: (stepIndex: number) => void;
-  onStepHold: (stepIndex: number) => void;
-  onStepRelease: () => void;
+  onStepSelect: (stepIndex: number | null) => void;
 }
 
 const STEPS_PER_PAGE = 16;
 
 export function StepGrid({
-  pattern, currentStep, playing, page,
-  onToggleGate, onToggleAccent, onStepHold, onStepRelease,
+  pattern, currentStep, playing, page, selectedStep,
+  onToggleGate, onToggleAccent, onStepSelect,
 }: Props) {
   const startIndex = page * STEPS_PER_PAGE;
   const endIndex = Math.min(startIndex + STEPS_PER_PAGE, pattern.length);
@@ -29,19 +29,25 @@ export function StepGrid({
         const isPlayhead = playing && currentStep === globalIndex;
         const isActive = globalIndex < pattern.length;
         const hasLock = step.params !== undefined;
+        const isSelected = selectedStep === globalIndex;
 
         return (
           <button
             key={globalIndex}
-            onClick={() => onToggleGate(globalIndex)}
+            onClick={(e) => { if (e.shiftKey) return; onToggleGate(globalIndex); }}
             onContextMenu={(e) => { e.preventDefault(); onToggleAccent(globalIndex); }}
-            onPointerDown={() => onStepHold(globalIndex)}
-            onPointerUp={onStepRelease}
-            onPointerLeave={onStepRelease}
+            onPointerDown={(e) => {
+              // Middle-click or shift+click to toggle step lock selection
+              if (e.shiftKey || e.button === 1) {
+                e.preventDefault();
+                onStepSelect(isSelected ? null : globalIndex);
+              }
+            }}
             className={`
               relative w-10 h-12 rounded transition-all flex-shrink-0
               ${!isActive ? 'opacity-30 pointer-events-none' : ''}
-              ${isPlayhead ? 'ring-1 ring-amber-400/60' : ''}
+              ${isSelected ? 'ring-2 ring-blue-400/80' : ''}
+              ${isPlayhead && !isSelected ? 'ring-1 ring-amber-400/60' : ''}
               ${step.gate
                 ? step.accent
                   ? 'bg-amber-500/70 border border-amber-400/60'

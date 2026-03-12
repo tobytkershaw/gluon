@@ -45,8 +45,8 @@ interface Props {
   stepPage: number;
   onStepToggle: (stepIndex: number) => void;
   onStepAccent: (stepIndex: number) => void;
-  onStepHold: (stepIndex: number) => void;
-  onStepRelease: () => void;
+  selectedStep: number | null;
+  onStepSelect: (stepIndex: number | null) => void;
   onPatternLength: (length: number) => void;
   onPageChange: (page: number) => void;
   onClearPattern: () => void;
@@ -66,7 +66,7 @@ export function InstrumentView({
   onSelectVoice, onToggleMute, onToggleSolo,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
-  stepPage, onStepToggle, onStepAccent, onStepHold, onStepRelease,
+  stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
   onUndo, onSend, isThinking = false, isListening = false, analyser,
 }: Props) {
@@ -134,8 +134,8 @@ export function InstrumentView({
               page={stepPage}
               onToggleGate={onStepToggle}
               onToggleAccent={onStepAccent}
-              onStepHold={onStepHold}
-              onStepRelease={onStepRelease}
+              selectedStep={selectedStep}
+              onStepSelect={onStepSelect}
             />
             <PatternControls
               patternLength={activeVoice.pattern.length}
