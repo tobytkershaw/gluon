@@ -9,6 +9,7 @@ import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
+import { saveSession, loadSession } from '../engine/persistence';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
@@ -27,7 +28,7 @@ export default function App() {
   const exporterRef = useRef(new AudioExporter());
   const aiRef = useRef(new GluonAI());
 
-  const [session, setSession] = useState<Session>(createSession);
+  const [session, setSession] = useState<Session>(() => loadSession() ?? createSession());
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
@@ -39,6 +40,12 @@ export default function App() {
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // Auto-save session to localStorage (debounced)
+  useEffect(() => {
+    const timer = setTimeout(() => saveSession(session), 500);
+    return () => clearTimeout(timer);
+  }, [session]);
 
   const schedulerRef = useRef<Scheduler | null>(null);
 
