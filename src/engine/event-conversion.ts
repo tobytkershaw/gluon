@@ -88,7 +88,7 @@ export function eventsToSteps(
   const toRuntime = options?.canonicalToRuntime ?? ((k: string) => k);
 
   for (const event of events) {
-    const idx = Math.round(event.at);
+    const idx = Math.floor(event.at);
     if (idx < 0 || idx >= stepCount) continue;
 
     switch (event.kind) {
@@ -117,6 +117,10 @@ export function eventsToSteps(
         break;
       }
     }
+
+    // Populate micro from fractional part of event position
+    const micro = event.at - Math.floor(event.at);
+    if (micro > 0) steps[idx].micro = micro;
   }
 
   return steps;

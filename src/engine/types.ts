@@ -131,7 +131,16 @@ export interface AISetModelAction {
   model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum")
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction;
+export interface AITransformAction {
+  type: 'transform';
+  voiceId: string;
+  operation: 'rotate' | 'transpose' | 'reverse' | 'duplicate';
+  steps?: number;
+  semitones?: number;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction;
 
 // --- Session ---
 

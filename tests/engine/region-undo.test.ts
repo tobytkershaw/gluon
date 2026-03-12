@@ -101,9 +101,10 @@ describe('Region Undo', () => {
     expect(session.undoStack[0].kind).toBe('pattern');
     expect(session.undoStack[1].kind).toBe('region');
 
-    // Undo RegionSnapshot (most recent)
+    // Undo RegionSnapshot (most recent) — reverts to state after legacy sketch,
+    // which now projects its pattern step into canonical events
     session = applyUndo(session);
-    expect(getVoice(session, 'v0').regions[0].events.length).toBe(0);
+    expect(getVoice(session, 'v0').regions[0].events.length).toBe(1);
     expect(session.undoStack.length).toBe(1);
 
     // Undo PatternSnapshot (legacy)

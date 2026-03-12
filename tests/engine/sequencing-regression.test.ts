@@ -445,6 +445,16 @@ describe('Scheduler timing', () => {
     );
   }
 
+  /** Progressively advance audioTime so the cursor-based scheduler catches up. */
+  function advanceTo(targetTime: number, step = 0.05) {
+    for (let t = step; t <= targetTime; t += step) {
+      audioTime = t;
+      vi.advanceTimersByTime(30);
+    }
+    audioTime = targetTime;
+    vi.advanceTimersByTime(30);
+  }
+
   it('four-on-floor at 120 BPM: notes at expected times', () => {
     // Apply four-on-floor pattern
     session = applySketch(session, VID, 'kick', FOUR_ON_FLOOR_SKETCH);
@@ -453,8 +463,7 @@ describe('Scheduler timing', () => {
     sched.start();
     // At 120 BPM, step duration = 60 / (120 * 4) = 0.125s
     // Advance 2 seconds to capture all 16 steps
-    audioTime = 2.0;
-    vi.advanceTimersByTime(500);
+    advanceTo(2.0);
     sched.stop();
 
     const kickNotes = notes.filter(n => n.voiceId === VID);
@@ -474,8 +483,7 @@ describe('Scheduler timing', () => {
 
     const sched = createTestScheduler();
     sched.start();
-    audioTime = 2.0;
-    vi.advanceTimersByTime(500);
+    advanceTo(2.0);
     sched.stop();
 
     const hatNotes = notes.filter(n => n.voiceId === VID);
@@ -529,8 +537,7 @@ describe('Scheduler timing', () => {
     const sched = createTestScheduler();
     sched.start();
     // 16 steps at 120 BPM = 2 seconds; pattern wraps at step 8
-    audioTime = 2.0;
-    vi.advanceTimersByTime(500);
+    advanceTo(2.0);
     sched.stop();
 
     const voiceNotes = notes.filter(n => n.voiceId === VID);
@@ -543,8 +550,7 @@ describe('Scheduler timing', () => {
 
     const sched = createTestScheduler();
     sched.start();
-    audioTime = 0.2;
-    vi.advanceTimersByTime(100);
+    advanceTo(0.2);
     sched.stop();
 
     const step0Note = notes.find(n => n.voiceId === VID && Math.abs(n.time) < 0.01);
@@ -560,8 +566,7 @@ describe('Scheduler timing', () => {
 
     const sched = createTestScheduler();
     sched.start();
-    audioTime = 1.0;
-    vi.advanceTimersByTime(300);
+    advanceTo(1.0);
     sched.stop();
 
     const voiceNotes = notes.filter(n => n.voiceId === VID);
@@ -583,8 +588,7 @@ describe('Scheduler timing', () => {
 
     const sched = createTestScheduler();
     sched.start();
-    audioTime = 0.2;
-    vi.advanceTimersByTime(100);
+    advanceTo(0.2);
     sched.stop();
 
     const note = notes.find(n => n.voiceId === VID);
@@ -603,8 +607,7 @@ describe('Scheduler timing', () => {
 
     const sched = createTestScheduler();
     sched.start();
-    audioTime = 2.0;
-    vi.advanceTimersByTime(500);
+    advanceTo(2.0);
     sched.stop();
 
     const voiceNotes = notes.filter(n => n.voiceId === VID);

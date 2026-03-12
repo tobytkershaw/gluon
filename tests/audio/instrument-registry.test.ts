@@ -9,6 +9,8 @@ import {
   controlIdToRuntimeParam,
   runtimeParamToControlId,
   getModelList,
+  isPercussion,
+  isPercussionByIndex,
 } from '../../src/audio/instrument-registry';
 import { PLAITS_MODELS } from '../../src/audio/synth-interface';
 import type { SemanticRole } from '../../src/engine/canonical-types';
@@ -119,5 +121,24 @@ describe('Plaits instrument registry', () => {
     // Verify shape matches getModelList
     const registryList = getModelList();
     expect(PLAITS_MODELS).toEqual(registryList);
+  });
+
+  it('isPercussion returns true only for drum engines (indices 13-15)', () => {
+    expect(isPercussion('analog-bass-drum')).toBe(true);
+    expect(isPercussion('analog-snare')).toBe(true);
+    expect(isPercussion('analog-hi-hat')).toBe(true);
+    expect(isPercussion('virtual-analog')).toBe(false);
+    expect(isPercussion('fm')).toBe(false);
+    expect(isPercussion('nonexistent')).toBe(false);
+  });
+
+  it('isPercussionByIndex returns true only for indices 13-15', () => {
+    for (let i = 0; i < 13; i++) {
+      expect(isPercussionByIndex(i), `index ${i} should not be percussion`).toBe(false);
+    }
+    expect(isPercussionByIndex(13)).toBe(true);
+    expect(isPercussionByIndex(14)).toBe(true);
+    expect(isPercussionByIndex(15)).toBe(true);
+    expect(isPercussionByIndex(16)).toBe(false);
   });
 });

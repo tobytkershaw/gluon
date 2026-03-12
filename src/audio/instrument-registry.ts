@@ -84,23 +84,23 @@ function defaultControls(): ControlSchema[] {
 
 // --- Engine definitions ---
 
-const ENGINE_DATA: [string, string, string][] = [
-  ['virtual-analog', 'Virtual Analog', 'VA oscillator with variable waveshape'],
-  ['waveshaping', 'Waveshaping', 'Waveshaping oscillator'],
-  ['fm', 'FM', '2-operator FM synthesis'],
-  ['grain-formant', 'Grain/Formant', 'Granular formant oscillator'],
-  ['harmonic', 'Harmonic', 'Additive harmonic oscillator'],
-  ['wavetable', 'Wavetable', 'Wavetable oscillator'],
-  ['chords', 'Chords', 'Chord engine'],
-  ['vowel-speech', 'Vowel/Speech', 'Speech synthesis'],
-  ['swarm', 'Swarm', 'Swarm of 8 sawtooth oscillators'],
-  ['filtered-noise', 'Filtered Noise', 'Filtered noise generator'],
-  ['particle-dust', 'Particle/Dust', 'Particle noise (dust)'],
-  ['inharmonic-string', 'Inharmonic String', 'Inharmonic string model'],
-  ['modal-resonator', 'Modal Resonator', 'Struck objects, bells'],
-  ['analog-bass-drum', 'Analog Bass Drum', 'Analog bass drum'],
-  ['analog-snare', 'Analog Snare', 'Analog snare drum'],
-  ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat'],
+const ENGINE_DATA: [string, string, string, boolean][] = [
+  ['virtual-analog', 'Virtual Analog', 'VA oscillator with variable waveshape', false],
+  ['waveshaping', 'Waveshaping', 'Waveshaping oscillator', false],
+  ['fm', 'FM', '2-operator FM synthesis', false],
+  ['grain-formant', 'Grain/Formant', 'Granular formant oscillator', false],
+  ['harmonic', 'Harmonic', 'Additive harmonic oscillator', false],
+  ['wavetable', 'Wavetable', 'Wavetable oscillator', false],
+  ['chords', 'Chords', 'Chord engine', false],
+  ['vowel-speech', 'Vowel/Speech', 'Speech synthesis', false],
+  ['swarm', 'Swarm', 'Swarm of 8 sawtooth oscillators', false],
+  ['filtered-noise', 'Filtered Noise', 'Filtered noise generator', false],
+  ['particle-dust', 'Particle/Dust', 'Particle noise (dust)', false],
+  ['inharmonic-string', 'Inharmonic String', 'Inharmonic string model', false],
+  ['modal-resonator', 'Modal Resonator', 'Struck objects, bells', false],
+  ['analog-bass-drum', 'Analog Bass Drum', 'Analog bass drum', true],
+  ['analog-snare', 'Analog Snare', 'Analog snare drum', true],
+  ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat', true],
 ];
 
 const engines: EngineDef[] = ENGINE_DATA.map(([id, label, description]) => ({
@@ -109,6 +109,18 @@ const engines: EngineDef[] = ENGINE_DATA.map(([id, label, description]) => ({
   description,
   controls: defaultControls(),
 }));
+
+const percussionSet = new Set(
+  ENGINE_DATA.filter(([, , , perc]) => perc).map(([id]) => id),
+);
+
+export function isPercussion(engineId: string): boolean {
+  return percussionSet.has(engineId);
+}
+
+export function isPercussionByIndex(index: number): boolean {
+  return ENGINE_DATA[index]?.[3] ?? false;
+}
 
 // --- Instrument definition ---
 
