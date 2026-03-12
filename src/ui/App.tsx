@@ -2,7 +2,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ParamSnapshot, SynthParamValues } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, SynthParamValues } from '../engine/types';
+import type { MusicalEvent as CanonicalMusicalEvent } from '../engine/canonical-types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -46,8 +47,12 @@ export default function App() {
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
-  // Capture param state at interaction start for undo
-  const interactionUndoRef = useRef<{ voiceId: string; prevParams: Partial<SynthParamValues> } | null>(null);
+  // Capture param + region state at interaction start for undo
+  const interactionUndoRef = useRef<{
+    voiceId: string;
+    prevParams: Partial<SynthParamValues>;
+    prevEvents?: CanonicalMusicalEvent[];
+  } | null>(null);
 
   // Auto-save session to localStorage (debounced)
   useEffect(() => {
@@ -145,9 +150,9 @@ export default function App() {
     setSession((s) => {
       let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
-      // If a step is held, apply param lock
+      // If a step is held, apply param lock (no per-frame undo — captured at interaction end)
       if (selectedStep !== null) {
-        next = setStepParamLock(next, vid, selectedStep, { timbre, morph });
+        next = setStepParamLock(next, vid, selectedStep, { timbre, morph }, { pushUndo: false });
       }
 
       return next;
@@ -419,6 +424,7 @@ export default function App() {
               interactionUndoRef.current = {
                 voiceId: s.activeVoiceId,
                 prevParams: { timbre: voice.params.timbre, morph: voice.params.morph },
+                prevEvents: voice.regions.length > 0 ? [...voice.regions[0].events] : undefined,
               };
             }}
             onInteractionEnd={() => {
@@ -428,25 +434,45 @@ export default function App() {
                 interactionUndoRef.current = null;
                 setSession((s) => {
                   const voice = getVoice(s, captured.voiceId);
+                  const snapshots: (ParamSnapshot | RegionSnapshot)[] = [];
+
+                  // Check if params changed
                   const currentValues: Partial<SynthParamValues> = {};
-                  let changed = false;
                   for (const [param, prevValue] of Object.entries(captured.prevParams)) {
                     const cur = voice.params[param] ?? 0;
                     if (Math.abs(cur - (prevValue as number)) > 0.001) {
                       currentValues[param] = cur;
-                      changed = true;
                     }
                   }
-                  if (!changed) return s;
-                  const snapshot: ParamSnapshot = {
-                    kind: 'param',
-                    voiceId: captured.voiceId,
-                    prevValues: captured.prevParams,
-                    aiTargetValues: currentValues,
-                    timestamp: Date.now(),
-                    description: `Param change: ${Object.keys(currentValues).join(', ')}`,
-                  };
-                  return { ...s, undoStack: [...s.undoStack, snapshot] };
+                  if (Object.keys(currentValues).length > 0) {
+                    snapshots.push({
+                      kind: 'param',
+                      voiceId: captured.voiceId,
+                      prevValues: captured.prevParams,
+                      aiTargetValues: currentValues,
+                      timestamp: Date.now(),
+                      description: `Param change: ${Object.keys(currentValues).join(', ')}`,
+                    });
+                  }
+
+                  // Check if region events changed (param lock during drag)
+                  if (captured.prevEvents && voice.regions.length > 0) {
+                    const curEvents = voice.regions[0].events;
+                    const eventsChanged = curEvents.length !== captured.prevEvents.length ||
+                      curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
+                    if (eventsChanged) {
+                      snapshots.push({
+                        kind: 'region',
+                        voiceId: captured.voiceId,
+                        prevEvents: captured.prevEvents,
+                        timestamp: Date.now(),
+                        description: 'Param lock change',
+                      });
+                    }
+                  }
+
+                  if (snapshots.length === 0) return s;
+                  return { ...s, undoStack: [...s.undoStack, ...snapshots] };
                 });
               }
             }}

@@ -154,6 +154,7 @@ export function setStepParamLock(
   voiceId: string,
   stepIndex: number,
   params: Partial<SynthParamValues>,
+  options?: { pushUndo?: boolean },
 ): Session {
   const voice = getVoice(session, voiceId);
   if (stepIndex < 0 || stepIndex >= voice.pattern.length) return session;
@@ -178,7 +179,8 @@ export function setStepParamLock(
         else events.splice(insertAt, 0, newEvent);
       }
     }
-    return applyRegionEdit(session, voiceId, events, undefined, `Set param lock at step ${stepIndex}`);
+    const desc = (options?.pushUndo ?? true) ? `Set param lock at step ${stepIndex}` : undefined;
+    return applyRegionEdit(session, voiceId, events, undefined, desc);
   }
 
   // Fallback
