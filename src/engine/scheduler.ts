@@ -18,6 +18,7 @@ export class Scheduler {
   private cursor = 0; // ticks
   private startTime = 0;
   private previousBpm = 0;
+  private _bpm = 0; // internal source of truth — avoids stale reads from React state
 
   constructor(
     getSession: () => Session,
@@ -38,7 +39,8 @@ export class Scheduler {
     this.startTime = this.getAudioTime();
     this.cursor = 0;
     const session = this.getSession();
-    this.previousBpm = session.transport.bpm;
+    this._bpm = session.transport.bpm;
+    this.previousBpm = this._bpm;
 
     this.tick();
     this.intervalId = setInterval(() => this.tick(), LOOKAHEAD_MS);
@@ -57,21 +59,28 @@ export class Scheduler {
 
   /** Imperatively update BPM, bypassing the React render cycle. */
   setBpm(bpm: number): void {
-    if (bpm === this.previousBpm) return;
+    if (bpm === this._bpm) return;
     this.reanchorBpm(bpm);
-    this.previousBpm = bpm;
+    this.previousBpm = this._bpm;
+    this._bpm = bpm;
   }
 
   private tick(): void {
     const session = this.getSession();
-    const { bpm, swing } = session.transport;
+    const { swing } = session.transport;
 
-    // Handle BPM change mid-play
-    if (bpm !== this.previousBpm) {
-      this.reanchorBpm(bpm);
-      this.previousBpm = bpm;
+    // Sync from session only when session BPM diverges from our last-known
+    // session value (i.e. changed via a non-imperative path like AI action).
+    // This avoids oscillation: setBpm() updates _bpm immediately, but
+    // session state may lag behind by one React commit.
+    const sessionBpm = session.transport.bpm;
+    if (sessionBpm !== this.previousBpm && sessionBpm !== this._bpm) {
+      this.reanchorBpm(sessionBpm);
+      this.previousBpm = this._bpm;
+      this._bpm = sessionBpm;
     }
 
+    const bpm = this._bpm;
     const currentAudioTime = this.getAudioTime();
     const tickDuration = 60 / (bpm * 4) / TICKS_PER_STEP; // seconds per tick
     const stepDuration = tickDuration * TICKS_PER_STEP;
@@ -139,7 +148,7 @@ export class Scheduler {
 
   private reanchorBpm(newBpm: number): void {
     const currentAudioTime = this.getAudioTime();
-    const oldStepDuration = 60 / (this.previousBpm * 4);
+    const oldStepDuration = 60 / (this._bpm * 4);
     const playbackStep = (currentAudioTime - this.startTime) / oldStepDuration;
     const playbackTick = playbackStep * TICKS_PER_STEP;
 
