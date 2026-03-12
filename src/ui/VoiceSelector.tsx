@@ -12,8 +12,8 @@ interface Props {
 }
 
 const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
-  OFF: { label: 'OFF', color: 'text-zinc-600' },
-  ON:  { label: 'ON',  color: 'text-teal-400' },
+  OFF: { label: '\u{1F512}', color: 'text-amber-400' },
+  ON:  { label: '',   color: '' },
 };
 
 export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMute, onToggleSolo, compact }: Props) {
@@ -54,8 +54,8 @@ export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMu
               >
                 S
               </button>
-              {voice.agency === 'ON' && (
-                <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+              {voice.agency === 'OFF' && (
+                <span className="text-[9px] text-amber-400">{'\u{1F512}'}</span>
               )}
             </div>
           );

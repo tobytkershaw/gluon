@@ -39,7 +39,8 @@ describe('operation-executor', () => {
   }
 
   it('rejects move on agency-OFF voice', () => {
-    const session = createSession();
+    let session = createSession();
+    session = setAgency(session, 'v0', 'OFF');
     const actions: AIAction[] = [{ type: 'move', voiceId: 'v0', param: 'timbre', target: { absolute: 0.8 } }];
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.rejected).toHaveLength(1);
@@ -140,7 +141,7 @@ describe('operation-executor', () => {
 
   it('mixes accepted and rejected in same batch', () => {
     let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
+    session = setAgency(session, 'v1', 'OFF');
     const actions: AIAction[] = [
       { type: 'move', voiceId: 'v0', param: 'timbre', target: { absolute: 0.8 } },
       { type: 'move', voiceId: 'v1', param: 'timbre', target: { absolute: 0.8 } },
