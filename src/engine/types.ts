@@ -88,6 +88,7 @@ export interface RegionSnapshot {
   voiceId: string;
   prevEvents: CanonicalMusicalEvent[];
   prevDuration?: number;
+  prevHiddenEvents?: CanonicalMusicalEvent[];
   timestamp: number;
   description: string;
 }

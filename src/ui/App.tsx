@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, SynthParamValues } from '../engine/types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -45,6 +45,9 @@ export default function App() {
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // Capture param state at interaction start for undo
+  const interactionUndoRef = useRef<{ voiceId: string; prevParams: Partial<SynthParamValues> } | null>(null);
 
   // Auto-save session to localStorage (debounced)
   useEffect(() => {
@@ -155,14 +158,34 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
-    setSession((s) => updateVoiceParams(s, vid, { note }, true, plaitsAdapter));
+    setSession((s) => {
+      const prevNote = getVoice(s, vid).params.note ?? 0;
+      const next = updateVoiceParams(s, vid, { note }, true, plaitsAdapter);
+      if (Math.abs(note - prevNote) < 0.001) return next;
+      const snapshot: ParamSnapshot = {
+        kind: 'param', voiceId: vid,
+        prevValues: { note: prevNote }, aiTargetValues: { note },
+        timestamp: Date.now(), description: `Note change`,
+      };
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
   }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
-    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter));
+    setSession((s) => {
+      const prevHarmonics = getVoice(s, vid).params.harmonics ?? 0;
+      const next = updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter);
+      if (Math.abs(harmonics - prevHarmonics) < 0.001) return next;
+      const snapshot: ParamSnapshot = {
+        kind: 'param', voiceId: vid,
+        prevValues: { harmonics: prevHarmonics }, aiTargetValues: { harmonics },
+        timestamp: Date.now(), description: `Harmonics change`,
+      };
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
   }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {
@@ -389,8 +412,44 @@ export default function App() {
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
             onParamChange={handleParamChange}
-            onInteractionStart={() => arbRef.current.humanInteractionStart()}
-            onInteractionEnd={() => arbRef.current.humanInteractionEnd()}
+            onInteractionStart={() => {
+              arbRef.current.humanInteractionStart();
+              const s = sessionRef.current;
+              const voice = getActiveVoice(s);
+              interactionUndoRef.current = {
+                voiceId: s.activeVoiceId,
+                prevParams: { timbre: voice.params.timbre, morph: voice.params.morph },
+              };
+            }}
+            onInteractionEnd={() => {
+              arbRef.current.humanInteractionEnd();
+              const captured = interactionUndoRef.current;
+              if (captured) {
+                interactionUndoRef.current = null;
+                setSession((s) => {
+                  const voice = getVoice(s, captured.voiceId);
+                  const currentValues: Partial<SynthParamValues> = {};
+                  let changed = false;
+                  for (const [param, prevValue] of Object.entries(captured.prevParams)) {
+                    const cur = voice.params[param] ?? 0;
+                    if (Math.abs(cur - (prevValue as number)) > 0.001) {
+                      currentValues[param] = cur;
+                      changed = true;
+                    }
+                  }
+                  if (!changed) return s;
+                  const snapshot: ParamSnapshot = {
+                    kind: 'param',
+                    voiceId: captured.voiceId,
+                    prevValues: captured.prevParams,
+                    aiTargetValues: currentValues,
+                    timestamp: Date.now(),
+                    description: `Param change: ${Object.keys(currentValues).join(', ')}`,
+                  };
+                  return { ...s, undoStack: [...s.undoStack, snapshot] };
+                });
+              }
+            }}
             onModelChange={handleModelChange}
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}

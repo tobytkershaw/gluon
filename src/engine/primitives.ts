@@ -189,10 +189,14 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
       ...voice,
       regions: [restoredRegion, ...voice.regions.slice(1)],
     });
-    return updateVoice(session, snapshot.voiceId, {
+    const updates: Partial<import('./types').Voice> = {
       regions: updatedVoice.regions,
       pattern: updatedVoice.pattern,
-    });
+    };
+    if ('prevHiddenEvents' in snapshot) {
+      updates._hiddenEvents = snapshot.prevHiddenEvents;
+    }
+    return updateVoice(session, snapshot.voiceId, updates);
   }
 
   if (snapshot.kind === 'pattern') {
