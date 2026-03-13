@@ -2,7 +2,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry } from '../engine/types';
+import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -45,6 +46,14 @@ export default function App() {
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // Capture param + region state at interaction start for undo
+  const interactionUndoRef = useRef<{
+    voiceId: string;
+    prevParams: Partial<SynthParamValues>;
+    prevProvenance?: Partial<ControlState>;
+    prevEvents?: CanonicalMusicalEvent[];
+  } | null>(null);
 
   // Auto-save session to localStorage (debounced)
   useEffect(() => {
@@ -142,9 +151,9 @@ export default function App() {
     setSession((s) => {
       let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
-      // If a step is held, apply param lock
+      // If a step is held, apply param lock (no per-frame undo — captured at interaction end)
       if (selectedStep !== null) {
-        next = setStepParamLock(next, vid, selectedStep, { timbre, morph });
+        next = setStepParamLock(next, vid, selectedStep, { timbre, morph }, { pushUndo: false });
       }
 
       return next;
@@ -155,14 +164,48 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
-    setSession((s) => updateVoiceParams(s, vid, { note }, true, plaitsAdapter));
+    setSession((s) => {
+      const voice = getVoice(s, vid);
+      const prevNote = voice.params.note ?? 0;
+      const next = updateVoiceParams(s, vid, { note }, true, plaitsAdapter);
+      if (Math.abs(note - prevNote) < 0.001) return next;
+      const controlId = plaitsAdapter.mapRuntimeParamKey('note');
+      const prevProvenance: Partial<ControlState> = {};
+      if (controlId && voice.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+      }
+      const snapshot: ParamSnapshot = {
+        kind: 'param', voiceId: vid,
+        prevValues: { note: prevNote }, aiTargetValues: { note },
+        prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
+        timestamp: Date.now(), description: `Note change`,
+      };
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
   }, [ensureAudio]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
-    setSession((s) => updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter));
+    setSession((s) => {
+      const voice = getVoice(s, vid);
+      const prevHarmonics = voice.params.harmonics ?? 0;
+      const next = updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter);
+      if (Math.abs(harmonics - prevHarmonics) < 0.001) return next;
+      const controlId = plaitsAdapter.mapRuntimeParamKey('harmonics');
+      const prevProvenance: Partial<ControlState> = {};
+      if (controlId && voice.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+      }
+      const snapshot: ParamSnapshot = {
+        kind: 'param', voiceId: vid,
+        prevValues: { harmonics: prevHarmonics }, aiTargetValues: { harmonics },
+        prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
+        timestamp: Date.now(), description: `Harmonics change`,
+      };
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
   }, [ensureAudio]);
 
   const handleModelChange = useCallback((model: number) => {
@@ -389,8 +432,88 @@ export default function App() {
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
             onParamChange={handleParamChange}
-            onInteractionStart={() => arbRef.current.humanInteractionStart()}
-            onInteractionEnd={() => arbRef.current.humanInteractionEnd()}
+            onInteractionStart={() => {
+              arbRef.current.humanInteractionStart();
+              const s = sessionRef.current;
+              const voice = getActiveVoice(s);
+              const prevProvenance: Partial<ControlState> = {};
+              if (voice.controlProvenance) {
+                for (const key of ['timbre', 'morph']) {
+                  const controlId = plaitsAdapter.mapRuntimeParamKey(key);
+                  if (controlId && voice.controlProvenance[controlId]) {
+                    prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+                  }
+                }
+              }
+              interactionUndoRef.current = {
+                voiceId: s.activeVoiceId,
+                prevParams: { timbre: voice.params.timbre, morph: voice.params.morph },
+                prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
+                prevEvents: voice.regions.length > 0 ? [...voice.regions[0].events] : undefined,
+              };
+            }}
+            onInteractionEnd={() => {
+              arbRef.current.humanInteractionEnd();
+              const captured = interactionUndoRef.current;
+              if (captured) {
+                interactionUndoRef.current = null;
+                setSession((s) => {
+                  const voice = getVoice(s, captured.voiceId);
+                  const snapshots: (ParamSnapshot | RegionSnapshot)[] = [];
+
+                  // Check if params changed
+                  const currentValues: Partial<SynthParamValues> = {};
+                  for (const [param, prevValue] of Object.entries(captured.prevParams)) {
+                    const cur = voice.params[param] ?? 0;
+                    if (Math.abs(cur - (prevValue as number)) > 0.001) {
+                      currentValues[param] = cur;
+                    }
+                  }
+                  if (Object.keys(currentValues).length > 0) {
+                    snapshots.push({
+                      kind: 'param',
+                      voiceId: captured.voiceId,
+                      prevValues: captured.prevParams,
+                      aiTargetValues: currentValues,
+                      prevProvenance: captured.prevProvenance,
+                      timestamp: Date.now(),
+                      description: `Param change: ${Object.keys(currentValues).join(', ')}`,
+                    });
+                  }
+
+                  // Check if region events changed (param lock during drag)
+                  if (captured.prevEvents && voice.regions.length > 0) {
+                    const curEvents = voice.regions[0].events;
+                    const eventsChanged = curEvents.length !== captured.prevEvents.length ||
+                      curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
+                    if (eventsChanged) {
+                      snapshots.push({
+                        kind: 'region',
+                        voiceId: captured.voiceId,
+                        prevEvents: captured.prevEvents,
+                        timestamp: Date.now(),
+                        description: 'Param lock change',
+                      });
+                    }
+                  }
+
+                  if (snapshots.length === 0) return s;
+                  // Group multiple snapshots into one undo entry
+                  let entry: UndoEntry;
+                  if (snapshots.length === 1) {
+                    entry = snapshots[0];
+                  } else {
+                    entry = {
+                      kind: 'group',
+                      snapshots,
+                      timestamp: Date.now(),
+                      description: 'XY pad drag with param lock',
+                    } as ActionGroupSnapshot;
+                  }
+                  return { ...s, undoStack: [...s.undoStack, entry] };
+                });
+              }
+            }}
             onModelChange={handleModelChange}
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}

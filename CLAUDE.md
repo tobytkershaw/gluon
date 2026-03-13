@@ -17,7 +17,7 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 - **Voices**: Things that make sound, with parameters normalised 0.0-1.0
 - **Agency**: Per-voice AI permission (OFF / ON) — AI only modifies voices with agency ON, and only when asked
 - **Arbitration**: Human's hands always win when both touch the same parameter
-- **Undo**: Reverses actions grouped by action groups (human undo coming in M4, #89)
+- **Undo**: Reverses all actions (human and AI) in LIFO order, grouped by action groups
 - **Audio snapshots**: Rendered clips sent to multimodal model for AI self-evaluation
 
 ## Project Structure

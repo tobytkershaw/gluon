@@ -15,8 +15,8 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = toggleStepGate(s, vid, 0);
       expect(getVoice(result, vid).pattern.steps[0].gate).toBe(true);
-      // Human edits do NOT push undo snapshots (AI-only undo contract)
-      expect(result.undoStack.length).toBe(0);
+      expect(result.undoStack.length).toBe(1);
+      expect(result.undoStack[0].kind).toBe('region');
     });
 
     it('toggles gate off', () => {
@@ -96,7 +96,7 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       expect(getVoice(result, vid).pattern.steps[0].params?.timbre).toBe(0.9);
-      expect(result.undoStack.length).toBe(0);
+      expect(result.undoStack.length).toBe(1);
     });
 
     it('merges with existing locks', () => {
@@ -136,7 +136,7 @@ describe('Pattern Primitives', () => {
       const vid = s.voices[0].id;
       const result = setPatternLength(s, vid, 8);
       expect(getVoice(result, vid).pattern.length).toBe(8);
-      expect(result.undoStack.length).toBe(0);
+      expect(result.undoStack.length).toBe(1);
     });
 
     it('extends steps array when length exceeds current steps', () => {
@@ -199,8 +199,9 @@ describe('Pattern Primitives', () => {
       const result = clearPattern(s, vid);
       const pattern = getVoice(result, vid).pattern;
       expect(pattern.steps.every(step => !step.gate)).toBe(true);
-      // Human edits don't push undo, so stack stays empty
-      expect(result.undoStack.length).toBe(0);
+      // clearPattern pushes its own snapshot; prior toggleStepGate snapshots also present
+      expect(result.undoStack.length).toBeGreaterThan(0);
+      expect(result.undoStack[result.undoStack.length - 1].kind).toBe('region');
     });
 
     it('clears canonical region events', () => {

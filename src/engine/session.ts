@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
+import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ParamSnapshot } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateVoice } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
@@ -117,11 +117,25 @@ export function updateVoiceParams(
 }
 
 export function setModel(session: Session, voiceId: string, model: number): Session {
+  const voice = session.voices.find(v => v.id === voiceId);
+  if (!voice) return session;
+
   const name = getModelName(model);
   const engineName = name.startsWith('Unknown')
     ? `plaits:unknown_${model}`
     : `plaits:${name.toLowerCase().replace(/[\s/]+/g, '_')}`;
-  return updateVoice(session, voiceId, { model, engine: engineName });
+
+  const snapshot: ModelSnapshot = {
+    kind: 'model',
+    voiceId,
+    prevModel: voice.model,
+    prevEngine: voice.engine,
+    timestamp: Date.now(),
+    description: `Change model to ${name}`,
+  };
+
+  const result = updateVoice(session, voiceId, { model, engine: engineName });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
 export function setActiveVoice(session: Session, voiceId: string): Session {

@@ -47,26 +47,36 @@ describe('Undo (Phase 2)', () => {
     expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
   });
 
-  it('human edits do not create undo entries', () => {
+  it('human step-grid edits create undo entries', () => {
     const s = createSession();
     const vid = s.activeVoiceId;
     const toggled = toggleStepGate(s, vid, 0);
     expect(getVoice(toggled, vid).pattern.steps[0].gate).toBe(true);
-    // Human edit should NOT push to undo stack
-    expect(toggled.undoStack.length).toBe(0);
+    expect(toggled.undoStack.length).toBe(1);
+    expect(toggled.undoStack[0].kind).toBe('region');
   });
 
-  it('undoes in LIFO order (AI entries only)', () => {
+  it('undoes human step-grid edit', () => {
+    const s = createSession();
+    const vid = s.activeVoiceId;
+    const toggled = toggleStepGate(s, vid, 0);
+    expect(getVoice(toggled, vid).pattern.steps[0].gate).toBe(true);
+    const undone = applyUndo(toggled);
+    expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
+  });
+
+  it('undoes in LIFO order across human and AI entries', () => {
     const s = createSession();
     const vid = s.activeVoiceId;
     let state = applyMove(s, vid, 'timbre', { absolute: 0.8 });
-    // Human edit — no undo entry
     state = toggleStepGate(state, vid, 0);
-    expect(state.undoStack.length).toBe(1); // only param move
-    // Undo the param move
+    expect(state.undoStack.length).toBe(2); // param move + region edit
+    // Undo the human step-grid edit first (LIFO)
+    state = applyUndo(state);
+    expect(getVoice(state, vid).pattern.steps[0].gate).toBe(false);
+    expect(getVoice(state, vid).params.timbre).toBe(0.8); // AI move still applied
+    // Undo the AI param move
     state = applyUndo(state);
     expect(getVoice(state, vid).params.timbre).toBe(0.5);
-    // Human gate edit persists (not undoable)
-    expect(getVoice(state, vid).pattern.steps[0].gate).toBe(true);
   });
 });

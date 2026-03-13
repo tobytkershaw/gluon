@@ -18,10 +18,11 @@ These are the most common source of bugs. Check any code touching `src/engine/`:
 - Any write to `voice.pattern` MUST be preceded by a write to `voice.regions`.
 - Pattern is re-projected via `reprojectVoicePattern()` after every region write.
 
-**AI-only undo contract:**
-- Human edits (`src/engine/pattern-primitives.ts`) must NOT push to `undoStack`.
-- AI operations (`src/engine/operation-executor.ts`) MUST push snapshots (`RegionSnapshot`, `ParamSnapshot`, etc.).
-- If you see an undo push in a human edit path, or a missing undo push in an AI path, flag it as P1.
+**Unified undo contract:**
+- All edits (human and AI) push undo snapshots. Undo reverses the most recent action regardless of who made it.
+- Human edits (`src/engine/pattern-primitives.ts`, `src/engine/event-primitives.ts`) push `RegionSnapshot` via `applyRegionEdit()`/`applyEventEdit()`.
+- AI operations (`src/engine/operation-executor.ts`) push snapshots (`RegionSnapshot`, `ParamSnapshot`, etc.).
+- If you see a write path that does NOT push an undo snapshot, flag it as P1.
 
 **Region invariants:**
 - All events must satisfy `event.at < region.duration`.
