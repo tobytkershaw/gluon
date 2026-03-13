@@ -1,9 +1,9 @@
 // src/ui/ExpandedVoice.tsx
 // Layer 2: expanded voice layout with module-grouped controls.
-import type { Session, Voice, Agency, SequencerViewKind } from '../engine/types';
+import type { Session, Voice, Agency, SequencerViewKind, ModulationTarget } from '../engine/types';
 import type { MusicalEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
-import { getModelName, getEngineByIndex, getProcessorInstrument } from '../audio/instrument-registry';
+import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { TransportBar } from './TransportBar';
 import { ParameterSpace } from './ParameterSpace';
@@ -44,6 +44,14 @@ interface ExpandedVoiceProps {
   onProcessorInteractionEnd: (processorId: string) => void;
   onProcessorModelChange: (processorId: string, model: number) => void;
   onRemoveProcessor: (processorId: string) => void;
+  // Modulator editing
+  selectedModulatorId: string | null;
+  onSelectModulator: (modulatorId: string | null) => void;
+  onModulatorParamChange: (modulatorId: string, param: string, value: number) => void;
+  onModulatorInteractionStart: (modulatorId: string) => void;
+  onModulatorInteractionEnd: (modulatorId: string) => void;
+  onModulatorModelChange: (modulatorId: string, model: number) => void;
+  onRemoveModulator: (modulatorId: string) => void;
   // Pattern
   stepPage: number;
   onStepToggle: (stepIndex: number) => void;
@@ -90,6 +98,29 @@ function getProcessorControls(proc: { type: string; model: number; params: Recor
   }));
 }
 
+/** Build modulator controls from instrument registry */
+function getModulatorControls(mod: { type: string; model: number; params: Record<string, number> }) {
+  const inst = getModulatorInstrument(mod.type);
+  if (!inst) return [];
+  const engine = inst.engines[mod.model] ?? inst.engines[0];
+  if (!engine) return [];
+  return engine.controls.map(c => ({
+    id: c.id,
+    name: c.name,
+    value: mod.params[c.id] ?? c.range.default,
+  }));
+}
+
+/** Human-readable label for a modulation target */
+function formatRoutingTarget(target: ModulationTarget, voice: Voice): string {
+  if (target.kind === 'source') {
+    return `Source / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
+  }
+  const proc = (voice.processors ?? []).find(p => p.id === target.processorId);
+  const procLabel = proc ? getProcessorInstrument(proc.type)?.label ?? proc.type : target.processorId;
+  return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
+}
+
 export function ExpandedVoice({
   session, activeVoice,
   playing, bpm, swing, recording, globalStep,
@@ -99,6 +130,9 @@ export function ExpandedVoice({
   selectedProcessorId, onSelectProcessor,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor,
+  selectedModulatorId, onSelectModulator,
+  onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
+  onModulatorModelChange, onRemoveModulator,
   onEventUpdate, onEventDelete, onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
@@ -107,6 +141,8 @@ export function ExpandedVoice({
 }: ExpandedVoiceProps) {
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
   const processors = activeVoice.processors ?? [];
+  const modulators = activeVoice.modulators ?? [];
+  const modulations = activeVoice.modulations ?? [];
   const sourceLabel = `Plaits (${getModelName(activeVoice.model)})`;
   const sourceEngine = getEngineByIndex(activeVoice.model);
 
@@ -154,12 +190,14 @@ export function ExpandedVoice({
         onToggleRecord={onToggleRecord}
       />
 
-      {/* Chain strip (if processors exist) */}
-      {processors.length > 0 && (
+      {/* Chain strip (if processors or modulators exist) */}
+      {(processors.length > 0 || modulators.length > 0) && (
         <ChainStrip
           voice={activeVoice}
           selectedProcessorId={selectedProcessorId}
+          selectedModulatorId={selectedModulatorId}
           onSelectProcessor={onSelectProcessor}
+          onSelectModulator={onSelectModulator}
           onNodeClick={(moduleId) => onOpenDeepView(moduleId)}
         />
       )}
@@ -220,6 +258,47 @@ export function ExpandedVoice({
                 onModelChange={(model) => onProcessorModelChange(proc.id, model)}
                 onRemove={() => onRemoveProcessor(proc.id)}
               />
+            );
+          })}
+
+          {/* Modulator control sections */}
+          {modulators.map((mod) => {
+            const inst = getModulatorInstrument(mod.type);
+            if (!inst) return null;
+            const engine = inst.engines[mod.model] ?? inst.engines[0];
+            const modLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
+            const modEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
+            const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
+
+            return (
+              <div key={mod.id}>
+                <ControlSection
+                  label={modLabel}
+                  accentColor="violet"
+                  controls={getModulatorControls(mod)}
+                  onParamChange={(controlId, value) => onModulatorParamChange(mod.id, controlId, value)}
+                  onInteractionStart={() => onModulatorInteractionStart(mod.id)}
+                  onInteractionEnd={() => onModulatorInteractionEnd(mod.id)}
+                  isHighlighted={selectedModulatorId === mod.id}
+                  engines={modEngines}
+                  currentModel={mod.model}
+                  onModelChange={(model) => onModulatorModelChange(mod.id, model)}
+                  onRemove={() => onRemoveModulator(mod.id)}
+                />
+                {/* Routing chips */}
+                {modRoutings.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-1.5 px-1">
+                    {modRoutings.map(r => (
+                      <span
+                        key={r.id}
+                        className="text-[9px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
+                      >
+                        → {formatRoutingTarget(r.target, activeVoice)} ({r.depth > 0 ? '+' : ''}{r.depth.toFixed(2)})
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
 

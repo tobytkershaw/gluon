@@ -30,8 +30,8 @@ import { GLUON_TOOLS } from '../../src/ai/tool-declarations';
 import { createSession } from '../../src/engine/session';
 
 describe('Tool Declarations', () => {
-  it('exports eleven tool declarations', () => {
-    expect(GLUON_TOOLS).toHaveLength(11);
+  it('exports fifteen tool declarations', () => {
+    expect(GLUON_TOOLS).toHaveLength(15);
   });
 
   it('declares all expected tools', () => {
@@ -47,6 +47,10 @@ describe('Tool Declarations', () => {
     expect(names).toContain('add_processor');
     expect(names).toContain('remove_processor');
     expect(names).toContain('replace_processor');
+    expect(names).toContain('add_modulator');
+    expect(names).toContain('remove_modulator');
+    expect(names).toContain('connect_modulator');
+    expect(names).toContain('disconnect_modulator');
   });
 
   it('all tools have description and name', () => {

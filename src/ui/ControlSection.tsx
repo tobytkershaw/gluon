@@ -10,7 +10,7 @@ interface ControlDef {
 
 interface ControlSectionProps {
   label: string;
-  accentColor: 'amber' | 'sky';
+  accentColor: 'amber' | 'sky' | 'violet';
   controls: ControlDef[];
   onParamChange: (controlId: string, value: number) => void;
   onInteractionStart: () => void;
@@ -38,6 +38,13 @@ const ACCENT = {
     border: 'border-sky-400/20',
     highlight: 'border-sky-400/40',
     modeBg: 'bg-sky-400/10 text-sky-300',
+  },
+  violet: {
+    header: 'text-violet-300',
+    slider: 'accent-violet-400',
+    border: 'border-violet-400/20',
+    highlight: 'border-violet-400/40',
+    modeBg: 'bg-violet-400/10 text-violet-300',
   },
 };
 
@@ -97,7 +104,7 @@ function ModeSelector({ engines, currentModel, onChange, accentColor }: {
   engines: { index: number; label: string }[];
   currentModel: number;
   onChange: (model: number) => void;
-  accentColor: 'amber' | 'sky';
+  accentColor: 'amber' | 'sky' | 'violet';
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);

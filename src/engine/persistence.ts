@@ -1,11 +1,11 @@
 // src/engine/persistence.ts
-import type { Session, Voice } from './types';
+import type { Session, Voice, ModulatorConfig, ModulationRouting } from './types';
 import type { Region } from './canonical-types';
 import { createSession } from './session';
 import { stepsToEvents } from './event-conversion';
 import { reprojectVoicePattern } from './region-projection';
 import { createDefaultRegion } from './region-helpers';
-import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
@@ -125,6 +125,17 @@ function migrateVoice(voice: Voice): Voice {
       },
     };
   }
+
+  // Validate modulators: strip unknown types and dangling modulation references
+  const registeredModTypes = getRegisteredModulatorTypes();
+  const validModulators = (surfaced.modulators ?? []).filter(
+    (m: ModulatorConfig) => registeredModTypes.includes(m.type),
+  );
+  const validModulatorIds = new Set(validModulators.map((m: ModulatorConfig) => m.id));
+  const validModulations = (surfaced.modulations ?? []).filter(
+    (r: ModulationRouting) => validModulatorIds.has(r.modulatorId),
+  );
+  surfaced = { ...surfaced, modulators: validModulators, modulations: validModulations };
 
   // Always re-project pattern from regions (pattern is derived, never trusted from save)
   return reprojectVoicePattern(surfaced, defaultInverseOpts);

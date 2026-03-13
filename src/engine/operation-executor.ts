@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -9,8 +9,8 @@ import { eventsToSteps } from './event-conversion';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
 import { VOICE_LABELS } from './voice-labels';
-import { getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName } from '../audio/instrument-registry';
-import { validateChainMutation, validateProcessorTarget } from './chain-validation';
+import { getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
+import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 
 export interface OperationExecutionReport {
   session: Session;
@@ -68,6 +68,14 @@ export function prevalidateAction(
       if (!voice) return `Voice not found: ${voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${voiceId} has agency OFF`;
 
+      // Modulator path: validate against modulator registry
+      if (action.modulatorId) {
+        if (action.over) return `Timed moves (over) are not supported for modulator controls`;
+        const targetResult = validateModulatorTarget(voice, action.modulatorId, { param: action.param });
+        if (!targetResult.valid) return targetResult.errors[0];
+        return null;
+      }
+
       // Processor path: validate against processor registry via chain-validation
       if (action.processorId) {
         if (action.over) return `Timed moves (over) are not supported for processor controls`;
@@ -100,6 +108,13 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+
+      // Modulator path: resolve model against modulator type's engine list
+      if (action.modulatorId) {
+        const targetResult = validateModulatorTarget(voice, action.modulatorId, { model: action.model });
+        if (!targetResult.valid) return targetResult.errors[0];
+        return null;
+      }
 
       // Processor path: resolve model against processor type's engine list via chain-validation
       if (action.processorId) {
@@ -170,6 +185,42 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'add_modulator': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const modResult = validateModulatorMutation(voice, { kind: 'add', type: action.moduleType });
+      if (!modResult.valid) return modResult.errors[0];
+      return null;
+    }
+
+    case 'remove_modulator': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const modResult = validateModulatorMutation(voice, { kind: 'remove', modulatorId: action.modulatorId });
+      if (!modResult.valid) return modResult.errors[0];
+      return null;
+    }
+
+    case 'connect_modulator': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const routeResult = validateModulationTarget(voice, { modulatorId: action.modulatorId, target: action.target, depth: action.depth });
+      if (!routeResult.valid) return routeResult.errors[0];
+      return null;
+    }
+
+    case 'disconnect_modulator': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const modulations = voice.modulations ?? [];
+      if (!modulations.some(m => m.id === action.modulationId)) return `Modulation routing not found: ${action.modulationId}`;
+      return null;
+    }
+
     case 'set_transport':
     case 'say':
       return null;
@@ -205,6 +256,39 @@ export function executeOperations(
         const voiceId = action.voiceId ?? next.activeVoiceId;
         const voice = getVoice(next, voiceId);
         const vLabel = VOICE_LABELS[voiceId]?.toUpperCase() ?? voiceId;
+
+        // Modulator path: write directly to modulator.params
+        if (action.modulatorId) {
+          const modulators = voice.modulators ?? [];
+          const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
+          const mod = modulators[modIndex];
+          const currentVal = mod.params[action.param] ?? 0;
+          const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+          const targetVal = Math.max(0, Math.min(1, rawTarget));
+
+          const snapshot: ModulatorStateSnapshot = {
+            kind: 'modulator-state',
+            voiceId,
+            modulatorId: action.modulatorId,
+            prevParams: { ...mod.params },
+            prevModel: mod.model,
+            timestamp: Date.now(),
+            description: `AI modulator move: ${action.param} ${currentVal.toFixed(2)} -> ${targetVal.toFixed(2)}`,
+          };
+
+          const updatedMod = { ...mod, params: { ...mod.params, [action.param]: targetVal } };
+          const newModulators = [...modulators];
+          newModulators[modIndex] = updatedMod;
+
+          next = {
+            ...updateVoice(next, voiceId, { modulators: newModulators }),
+            undoStack: [...next.undoStack, snapshot],
+          };
+
+          log.push({ voiceId, voiceLabel: vLabel, description: `${mod.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}` });
+          accepted.push(action);
+          break;
+        }
 
         // Processor path: write directly to processor.params
         if (action.processorId) {
@@ -409,6 +493,37 @@ export function executeOperations(
       case 'set_model': {
         const voice = getVoice(next, action.voiceId);
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+
+        // Modulator path: switch modulator mode
+        if (action.modulatorId) {
+          const modulators = voice.modulators ?? [];
+          const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
+          const mod = modulators[modIndex];
+          const result = getModulatorEngineByName(mod.type, action.model)!;
+
+          const snapshot: ModulatorStateSnapshot = {
+            kind: 'modulator-state',
+            voiceId: action.voiceId,
+            modulatorId: action.modulatorId,
+            prevParams: { ...mod.params },
+            prevModel: mod.model,
+            timestamp: Date.now(),
+            description: `AI modulator model: ${mod.type} mode → ${result.engine.label}`,
+          };
+
+          const updatedMod = { ...mod, model: result.index };
+          const newModulators = [...modulators];
+          newModulators[modIndex] = updatedMod;
+
+          next = {
+            ...updateVoice(next, action.voiceId, { modulators: newModulators }),
+            undoStack: [...next.undoStack, snapshot],
+          };
+
+          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${mod.type} mode → ${result.engine.label}` });
+          accepted.push(action);
+          break;
+        }
 
         // Processor path: switch processor mode
         if (action.processorId) {
@@ -666,6 +781,123 @@ export function executeOperations(
         };
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'add_modulator': {
+        const voice = getVoice(next, action.voiceId);
+        const prevModulators = [...(voice.modulators ?? [])];
+        const prevModulations = [...(voice.modulations ?? [])];
+        const newModulator: ModulatorConfig = {
+          id: action.modulatorId,
+          type: action.moduleType,
+          model: 1, // default to Looping mode
+          params: {},
+        };
+        const snapshot: ModulatorSnapshot = {
+          kind: 'modulator',
+          voiceId: action.voiceId,
+          prevModulators,
+          prevModulations,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateVoice(next, action.voiceId, { modulators: [...prevModulators, newModulator] }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} modulator (${action.modulatorId})` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'remove_modulator': {
+        const voice = getVoice(next, action.voiceId);
+        const prevModulators = [...(voice.modulators ?? [])];
+        const prevModulations = [...(voice.modulations ?? [])];
+        const snapshot: ModulatorSnapshot = {
+          kind: 'modulator',
+          voiceId: action.voiceId,
+          prevModulators,
+          prevModulations,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        // Cascade: remove modulator and all associated routings
+        const filteredModulators = prevModulators.filter(m => m.id !== action.modulatorId);
+        const filteredModulations = prevModulations.filter(r => r.modulatorId !== action.modulatorId);
+        next = {
+          ...updateVoice(next, action.voiceId, { modulators: filteredModulators, modulations: filteredModulations }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed modulator ${action.modulatorId}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'connect_modulator': {
+        const voice = getVoice(next, action.voiceId);
+        const prevModulations = [...(voice.modulations ?? [])];
+        const snapshot: ModulationRoutingSnapshot = {
+          kind: 'modulation-routing',
+          voiceId: action.voiceId,
+          prevModulations,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        // Idempotent: check for existing route with same (modulatorId, target.kind, target.param, target.processorId)
+        const existingIdx = prevModulations.findIndex(r =>
+          r.modulatorId === action.modulatorId &&
+          r.target.kind === action.target.kind &&
+          r.target.param === action.target.param &&
+          (action.target.kind === 'source' || (action.target.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === action.target.processorId))
+        );
+        let newModulations: ModulationRouting[];
+        if (existingIdx >= 0) {
+          // Update depth on existing route
+          newModulations = [...prevModulations];
+          newModulations[existingIdx] = { ...newModulations[existingIdx], depth: action.depth };
+        } else {
+          // Create new route
+          const newRouting: ModulationRouting = {
+            id: action.modulationId ?? `mod-${Date.now()}`,
+            modulatorId: action.modulatorId,
+            target: action.target,
+            depth: action.depth,
+          };
+          newModulations = [...prevModulations, newRouting];
+        }
+        next = {
+          ...updateVoice(next, action.voiceId, { modulations: newModulations }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const targetStr = action.target.kind === 'source' ? `source:${action.target.param}` : `${action.target.processorId}:${action.target.param}`;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${existingIdx >= 0 ? 'updated' : 'connected'} modulation → ${targetStr} (${action.depth.toFixed(2)})` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'disconnect_modulator': {
+        const voice = getVoice(next, action.voiceId);
+        const prevModulations = [...(voice.modulations ?? [])];
+        const snapshot: ModulationRoutingSnapshot = {
+          kind: 'modulation-routing',
+          voiceId: action.voiceId,
+          prevModulations,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        const filteredModulations = prevModulations.filter(r => r.id !== action.modulationId);
+        next = {
+          ...updateVoice(next, action.voiceId, { modulations: filteredModulations }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `disconnected modulation ${action.modulationId}` });
         accepted.push(action);
         break;
       }

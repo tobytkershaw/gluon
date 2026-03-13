@@ -5,6 +5,8 @@ import type { RingsEngine } from './rings-synth';
 import { RingsSynth } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
 import { CloudsSynth } from './clouds-synth';
+import type { TidesEngine } from './tides-synth';
+import { TidesSynth } from './tides-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -21,4 +23,8 @@ export async function createRingsProcessor(ctx: AudioContext): Promise<RingsEngi
 
 export async function createCloudsProcessor(ctx: AudioContext): Promise<CloudsEngine> {
   return CloudsSynth.create(ctx);
+}
+
+export async function createTidesModulator(ctx: AudioContext): Promise<TidesEngine> {
+  return TidesSynth.create(ctx);
 }

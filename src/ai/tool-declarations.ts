@@ -7,13 +7,13 @@ import { Type } from '@google/genai';
 const moveTool: FunctionDeclaration = {
   name: 'move',
   description:
-    'Move a normalized control to a target value. Targets a voice source control by default, or a processor control when processorId is provided. Immediately audible. Takes effect after this response.',
+    'Move a normalized control to a target value. Targets a voice source control by default, or a processor control when processorId is provided, or a modulator control when modulatorId is provided. Immediately audible. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
       param: {
         type: Type.STRING,
-        description: 'The control ID to change. For voice: "brightness", "richness", "texture", "pitch". For processors: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback").',
+        description: 'The control ID to change. For voice: "brightness", "richness", "texture", "pitch". For processors: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback"). For Tides modulator: "frequency", "shape", "slope", "smoothness".',
       },
       target: {
         type: Type.OBJECT,
@@ -30,6 +30,10 @@ const moveTool: FunctionDeclaration = {
       processorId: {
         type: Type.STRING,
         description: 'Processor ID to target (e.g. "rings-1710342000000"). When provided, moves a control on the processor instead of the voice source.',
+      },
+      modulatorId: {
+        type: Type.STRING,
+        description: 'Modulator ID to target (e.g. "tides-1710342000000"). When provided, moves a control on the modulator (e.g. LFO rate).',
       },
       over: {
         type: Type.NUMBER,
@@ -147,7 +151,7 @@ const setTransportTool: FunctionDeclaration = {
 const setModelTool: FunctionDeclaration = {
   name: 'set_model',
   description:
-    'Switch the mode of a module. Without processorId, changes the voice synthesis engine. With processorId, changes the processor\'s mode (e.g. Rings resonator type). Takes effect after this response.',
+    'Switch the mode of a module. Without processorId/modulatorId, changes the voice synthesis engine. With processorId, changes the processor\'s mode. With modulatorId, changes the modulator\'s mode. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -162,11 +166,16 @@ const setModelTool: FunctionDeclaration = {
           'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
           'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat. ' +
           'For Rings processor: modal, sympathetic-string, string, fm-voice, sympathetic-quantized, string-and-reverb. ' +
-          'For Clouds processor: granular, pitch-shifter, looping-delay, spectral.',
+          'For Clouds processor: granular, pitch-shifter, looping-delay, spectral. ' +
+          'For Tides modulator: ad, looping, ar.',
       },
       processorId: {
         type: Type.STRING,
         description: 'Processor ID to target. When provided, switches the processor\'s mode instead of the voice\'s synthesis engine.',
+      },
+      modulatorId: {
+        type: Type.STRING,
+        description: 'Modulator ID to target. When provided, switches the modulator\'s mode (e.g. ad, looping, ar for Tides).',
       },
     },
     required: ['voiceId', 'model'],
@@ -314,6 +323,118 @@ const replaceProcessorTool: FunctionDeclaration = {
   },
 };
 
+const addModulatorTool: FunctionDeclaration = {
+  name: 'add_modulator',
+  description:
+    'Add a modulator module (LFO/envelope) to a voice. The modulator generates control-rate signals that can be routed to parameters on the source or processors. Use connect_modulator to wire it up after adding. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      moduleType: {
+        type: Type.STRING,
+        description: 'Modulator type to add. Available: "tides" (Mutable Instruments Tides — function generator with LFO/envelope modes).',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "add Tides LFO for slow brightness sweep").',
+      },
+    },
+    required: ['voiceId', 'moduleType', 'description'],
+  },
+};
+
+const removeModulatorTool: FunctionDeclaration = {
+  name: 'remove_modulator',
+  description:
+    'Remove a modulator module from a voice by its ID. Also disconnects all routings from this modulator. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      modulatorId: {
+        type: Type.STRING,
+        description: 'The modulator ID to remove (visible in project state).',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "remove LFO from kick voice").',
+      },
+    },
+    required: ['voiceId', 'modulatorId', 'description'],
+  },
+};
+
+const connectModulatorTool: FunctionDeclaration = {
+  name: 'connect_modulator',
+  description:
+    'Route a modulator\'s output to a target parameter. Idempotent: calling again with the same modulator + target updates the depth. Human sets center, modulation adds around it. Multiple routings to the same target sum (additive). Strong combined modulation saturates at 0/1 boundaries. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      modulatorId: {
+        type: Type.STRING,
+        description: 'The modulator ID to route from.',
+      },
+      targetKind: {
+        type: Type.STRING,
+        description: 'Target type: "source" for the voice\'s Plaits source, or "processor" for a processor module.',
+      },
+      processorId: {
+        type: Type.STRING,
+        description: 'Required when targetKind is "processor". The processor ID to target.',
+      },
+      targetParam: {
+        type: Type.STRING,
+        description: 'The parameter to modulate. Source: "brightness", "richness", "texture" (pitch excluded). Processor: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback").',
+      },
+      depth: {
+        type: Type.NUMBER,
+        description: 'Modulation depth (-1.0 to 1.0). Prefer shallow values (0.1-0.3) before aggressive ones. Negative depth inverts the modulation.',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "route Tides to brightness for slow sweep").',
+      },
+    },
+    required: ['voiceId', 'modulatorId', 'targetKind', 'targetParam', 'depth', 'description'],
+  },
+};
+
+const disconnectModulatorTool: FunctionDeclaration = {
+  name: 'disconnect_modulator',
+  description:
+    'Remove a modulation routing by its ID. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      modulationId: {
+        type: Type.STRING,
+        description: 'The modulation routing ID to disconnect (visible in project state).',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "disconnect brightness modulation").',
+      },
+    },
+    required: ['voiceId', 'modulationId', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
@@ -326,4 +447,8 @@ export const GLUON_TOOLS: FunctionDeclaration[] = [
   addProcessorTool,
   removeProcessorTool,
   replaceProcessorTool,
+  addModulatorTool,
+  removeModulatorTool,
+  connectModulatorTool,
+  disconnectModulatorTool,
 ];

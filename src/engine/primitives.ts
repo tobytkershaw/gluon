@@ -2,6 +2,7 @@
 import type {
   Session, ParamSnapshot, PatternSnapshot, TransportSnapshot, Snapshot,
   SynthParamValues, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot,
+  ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot,
 } from './types';
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
@@ -189,6 +190,29 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
         : p,
     );
     return updateVoice(session, snapshot.voiceId, { processors });
+  }
+
+  if (snapshot.kind === 'modulator') {
+    return updateVoice(session, snapshot.voiceId, {
+      modulators: snapshot.prevModulators,
+      modulations: snapshot.prevModulations,
+    });
+  }
+
+  if (snapshot.kind === 'modulator-state') {
+    const voice = getVoice(session, snapshot.voiceId);
+    const modulators = (voice.modulators ?? []).map(m =>
+      m.id === snapshot.modulatorId
+        ? { ...m, params: { ...snapshot.prevParams }, model: snapshot.prevModel }
+        : m,
+    );
+    return updateVoice(session, snapshot.voiceId, { modulators });
+  }
+
+  if (snapshot.kind === 'modulation-routing') {
+    return updateVoice(session, snapshot.voiceId, {
+      modulations: snapshot.prevModulations,
+    });
   }
 
   if (snapshot.kind === 'region') {

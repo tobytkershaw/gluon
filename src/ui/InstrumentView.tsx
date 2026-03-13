@@ -47,6 +47,14 @@ interface Props {
   onProcessorInteractionEnd: (processorId: string) => void;
   onProcessorModelChange: (processorId: string, model: number) => void;
   onRemoveProcessor: (processorId: string) => void;
+  // Modulator editing
+  selectedModulatorId: string | null;
+  onSelectModulator: (modulatorId: string | null) => void;
+  onModulatorParamChange: (modulatorId: string, param: string, value: number) => void;
+  onModulatorInteractionStart: (modulatorId: string) => void;
+  onModulatorInteractionEnd: (modulatorId: string) => void;
+  onModulatorModelChange: (modulatorId: string, model: number) => void;
+  onRemoveModulator: (modulatorId: string) => void;
   // Pattern
   stepPage: number;
   onStepToggle: (stepIndex: number) => void;
@@ -84,6 +92,9 @@ export function InstrumentView({
   selectedProcessorId, onSelectProcessor,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor,
+  selectedModulatorId, onSelectModulator,
+  onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
+  onModulatorModelChange, onRemoveModulator,
   onEventUpdate, onEventDelete, onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
@@ -140,6 +151,13 @@ export function InstrumentView({
           onProcessorInteractionEnd={onProcessorInteractionEnd}
           onProcessorModelChange={onProcessorModelChange}
           onRemoveProcessor={onRemoveProcessor}
+          selectedModulatorId={selectedModulatorId}
+          onSelectModulator={onSelectModulator}
+          onModulatorParamChange={onModulatorParamChange}
+          onModulatorInteractionStart={onModulatorInteractionStart}
+          onModulatorInteractionEnd={onModulatorInteractionEnd}
+          onModulatorModelChange={onModulatorModelChange}
+          onRemoveModulator={onRemoveModulator}
           stepPage={stepPage}
           onStepToggle={onStepToggle}
           onStepAccent={onStepAccent}

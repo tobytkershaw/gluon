@@ -44,6 +44,15 @@ type ScheduledEvent =
   | { type: 'destroy'; time?: undefined; seq: number };
 
 class CloudsProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
+    return [
+      { name: 'mod-position', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-size', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-density', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-feedback', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+    ];
+  }
+
   private wasm: CloudsWasm | null = null;
   private handle = 0;
   private inputPtr = 0;
@@ -132,13 +141,6 @@ class CloudsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-patch':
         this.currentPatch = event.patch;
-        this.wasm._clouds_set_parameters(
-          this.handle,
-          event.patch.position,
-          event.patch.size,
-          event.patch.density,
-          event.patch.feedback,
-        );
         break;
       case 'set-freeze':
         this.wasm._clouds_set_freeze(this.handle, event.freeze ? 1 : 0);
@@ -147,6 +149,18 @@ class CloudsProcessor extends AudioWorkletProcessor {
         this.destroyWasm();
         break;
     }
+  }
+
+  private applyPatchWithModulation(modPosition: number, modSize: number, modDensity: number, modFeedback: number): void {
+    if (!this.wasm || !this.handle) return;
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    this.wasm._clouds_set_parameters(
+      this.handle,
+      clamp01(this.currentPatch.position + modPosition),
+      clamp01(this.currentPatch.size + modSize),
+      clamp01(this.currentPatch.density + modDensity),
+      clamp01(this.currentPatch.feedback + modFeedback),
+    );
   }
 
   private getHeapF32(): Float32Array | null {
@@ -176,7 +190,7 @@ class CloudsProcessor extends AudioWorkletProcessor {
     right.set(mono, startFrame);
   }
 
-  process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const output = outputs[0];
     if (!output?.length) return true;
     const left = output[0];
@@ -194,6 +208,12 @@ class CloudsProcessor extends AudioWorkletProcessor {
 
     const input = inputs[0]?.[0] ?? new Float32Array(left.length);
 
+    // Read k-rate modulation params (single value per block)
+    const modPosition = parameters['mod-position'][0];
+    const modSize = parameters['mod-size'][0];
+    const modDensity = parameters['mod-density'][0];
+    const modFeedback = parameters['mod-feedback'][0];
+
     const blockStart = currentTime;
     const frameCount = left.length;
     const blockDuration = frameCount / sampleRate;
@@ -203,6 +223,9 @@ class CloudsProcessor extends AudioWorkletProcessor {
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
+
+    // Apply effective patch (base + modulation) after processing immediate events
+    this.applyPatchWithModulation(modPosition, modSize, modDensity, modFeedback);
 
     // Sub-block event scheduling
     let cursor = 0;
@@ -223,6 +246,10 @@ class CloudsProcessor extends AudioWorkletProcessor {
       this.queue = this.queue.filter((event) => !readyEvents.includes(event));
       for (const event of readyEvents) {
         this.applyEvent(event);
+        // Re-apply modulation after any event that changes the patch
+        if (event.type === 'set-patch') {
+          this.applyPatchWithModulation(modPosition, modSize, modDensity, modFeedback);
+        }
       }
     }
 

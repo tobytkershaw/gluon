@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
@@ -43,6 +43,7 @@ export default function App() {
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>('chat');
   const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
+  const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
   const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
   const arbRef = useRef(new Arbitrator());
@@ -147,6 +148,63 @@ export default function App() {
           audio.setProcessorPatch(voice.id, sp.id, sp.params);
         }
       }
+    }
+  }, [session.voices, audioStarted]);
+
+  // Sync modulator state to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    const audio = audioRef.current;
+    for (const voice of session.voices) {
+      const sessionMods = voice.modulators ?? [];
+      const engineMods = audio.getModulators(voice.id);
+
+      // Remove modulators no longer in session
+      for (const em of engineMods) {
+        if (!sessionMods.some(sm => sm.id === em.id)) {
+          audio.removeModulator(voice.id, em.id);
+        }
+      }
+
+      // Helper: sync modulation routes for this voice against current engine state
+      const syncRoutes = (vid: string) => {
+        const v = sessionRef.current.voices.find(sv => sv.id === vid);
+        if (!v) return;
+        const sRoutes = v.modulations ?? [];
+        const eRoutes = audio.getModulationRoutes(vid);
+        for (const er of eRoutes) {
+          if (!sRoutes.some(sr => sr.id === er.id)) {
+            audio.removeModulationRoute(vid, er.id);
+          }
+        }
+        const eRoutesAfter = audio.getModulationRoutes(vid);
+        for (const sr of sRoutes) {
+          if (!eRoutesAfter.some(er => er.id === sr.id)) {
+            audio.addModulationRoute(vid, sr.id, sr.modulatorId, sr.target, sr.depth);
+          } else {
+            audio.setModulationDepth(vid, sr.id, sr.depth);
+          }
+        }
+      };
+
+      // Add new modulators from session
+      for (const sm of sessionMods) {
+        if (!engineMods.some(em => em.id === sm.id)) {
+          void audio.addModulator(voice.id, sm.type, sm.id).then(() => {
+            audio.setModulatorModel(voice.id, sm.id, sm.model);
+            audio.setModulatorPatch(voice.id, sm.id, sm.params);
+            // Connect routes after modulator WASM loads (fixes race condition)
+            syncRoutes(voice.id);
+          });
+        } else {
+          // Sync params/model for existing modulators
+          audio.setModulatorModel(voice.id, sm.id, sm.model);
+          audio.setModulatorPatch(voice.id, sm.id, sm.params);
+        }
+      }
+
+      // Sync routes now (for already-loaded modulators)
+      syncRoutes(voice.id);
     }
   }, [session.voices, audioStarted]);
 
@@ -355,6 +413,7 @@ export default function App() {
     setSession((s) => setActiveVoice(s, voiceId));
     setStepPage(0);
     setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
     setDeepViewModuleId(null);
   }, []);
 
@@ -531,6 +590,135 @@ export default function App() {
       };
     });
     setSelectedProcessorId(null);
+  }, [ensureAudio]);
+
+  // Capture modulator state at drag start for single-gesture undo
+  const modulatorUndoRef = useRef<{
+    voiceId: string;
+    modulatorId: string;
+    prevParams: Record<string, number>;
+    prevModel: number;
+  } | null>(null);
+
+  const handleModulatorInteractionStart = useCallback((modulatorId: string) => {
+    const s = sessionRef.current;
+    const voice = getActiveVoice(s);
+    const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+    if (!mod) return;
+    modulatorUndoRef.current = {
+      voiceId: s.activeVoiceId,
+      modulatorId,
+      prevParams: { ...mod.params },
+      prevModel: mod.model,
+    };
+  }, []);
+
+  const handleModulatorInteractionEnd = useCallback((modulatorId: string) => {
+    const captured = modulatorUndoRef.current;
+    if (!captured || captured.modulatorId !== modulatorId) return;
+    modulatorUndoRef.current = null;
+    setSession((s) => {
+      const voice = getVoice(s, captured.voiceId);
+      const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+      if (!mod) return s;
+      const changed = Object.keys(captured.prevParams).some(
+        k => Math.abs((mod.params[k] ?? 0) - captured.prevParams[k]) > 0.001
+      );
+      if (!changed) return s;
+      const snapshot: ModulatorStateSnapshot = {
+        kind: 'modulator-state',
+        voiceId: captured.voiceId,
+        modulatorId,
+        prevParams: captured.prevParams,
+        prevModel: captured.prevModel,
+        timestamp: Date.now(),
+        description: `Modulator param change`,
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
+
+  const handleModulatorParamChange = useCallback((modulatorId: string, param: string, value: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+      if (!mod) return s;
+
+      const prevValue = mod.params[param] ?? 0;
+      if (Math.abs(value - prevValue) < 0.001) return s;
+
+      const updatedMod = { ...mod, params: { ...mod.params, [param]: value } };
+      const updatedVoice = {
+        ...voice,
+        modulators: (voice.modulators ?? []).map(m => m.id === modulatorId ? updatedMod : m),
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleModulatorModelChange = useCallback((modulatorId: string, model: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+      if (!mod || mod.model === model) return s;
+
+      const updatedMod = { ...mod, model };
+      const updatedVoice = {
+        ...voice,
+        modulators: (voice.modulators ?? []).map(m => m.id === modulatorId ? updatedMod : m),
+      };
+      const snapshot: ModulatorStateSnapshot = {
+        kind: 'modulator-state',
+        voiceId: vid,
+        modulatorId,
+        prevParams: { ...mod.params },
+        prevModel: mod.model,
+        timestamp: Date.now(),
+        description: `Modulator model change`,
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleRemoveModulator = useCallback((modulatorId: string) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const modulators = voice.modulators ?? [];
+      if (!modulators.some(m => m.id === modulatorId)) return s;
+
+      const snapshot: ModulatorSnapshot = {
+        kind: 'modulator',
+        voiceId: vid,
+        prevModulators: modulators.map(m => ({ ...m, params: { ...m.params } })),
+        prevModulations: (voice.modulations ?? []).map(r => ({ ...r })),
+        timestamp: Date.now(),
+        description: `Remove modulator`,
+      };
+      const updatedVoice = {
+        ...voice,
+        modulators: modulators.filter(m => m.id !== modulatorId),
+        modulations: (voice.modulations ?? []).filter(r => r.modulatorId !== modulatorId),
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+    setSelectedModulatorId(null);
   }, [ensureAudio]);
 
   // Focus-safe keyboard shortcuts
@@ -711,6 +899,13 @@ export default function App() {
             onProcessorInteractionEnd={handleProcessorInteractionEnd}
             onProcessorModelChange={handleProcessorModelChange}
             onRemoveProcessor={handleRemoveProcessor}
+            selectedModulatorId={selectedModulatorId}
+            onSelectModulator={setSelectedModulatorId}
+            onModulatorParamChange={handleModulatorParamChange}
+            onModulatorInteractionStart={handleModulatorInteractionStart}
+            onModulatorInteractionEnd={handleModulatorInteractionEnd}
+            onModulatorModelChange={handleModulatorModelChange}
+            onRemoveModulator={handleRemoveModulator}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
             onAddView={handleAddView}
