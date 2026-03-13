@@ -805,7 +805,7 @@ export default function App() {
             recording={recording}
             globalStep={globalStep}
             onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => { ensureAudio(); schedulerRef.current?.setBpm(bpm); setSession(s => setTransportBpm(s, bpm)); }}
+            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
             onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
             onSelectVoice={handleSelectVoice}
@@ -943,7 +943,7 @@ export default function App() {
             recording={recording}
             globalStep={globalStep}
             onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => { ensureAudio(); schedulerRef.current?.setBpm(bpm); setSession(s => setTransportBpm(s, bpm)); }}
+            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
             onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
             onSelectVoice={handleSelectVoice}

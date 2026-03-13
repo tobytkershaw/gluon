@@ -176,6 +176,19 @@ export class AudioEngine {
   silenceAll(): void {
     for (const slot of this.voices.values()) {
       slot.synth.silence();
+      // Cancel pending accent automation and restore baseline
+      slot.accentGain.gain.cancelScheduledValues(0);
+      slot.accentGain.gain.value = 0.3;
+      // Clear scheduled events in downstream processors
+      for (const proc of slot.processors) {
+        proc.engine.silence();
+      }
+    }
+    // Clear scheduled events in modulators
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.silence();
+      }
     }
   }
 

@@ -14,6 +14,8 @@ export interface RingsEngine {
   setPolyphony(polyphony: number): void;
   setInternalExciter(enabled: boolean): void;
   strum(time: number): void;
+  /** Clear all scheduled events from the worklet queue. */
+  silence(): void;
   destroy(): void;
 }
 
@@ -138,6 +140,10 @@ export class RingsSynth implements RingsEngine {
 
   strum(time: number): void {
     this.post({ type: 'strum', time });
+  }
+
+  silence(): void {
+    this.post({ type: 'clear-scheduled' });
   }
 
   destroy(): void {

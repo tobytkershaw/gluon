@@ -47,6 +47,7 @@ type ScheduledEvent =
   | { type: 'set-polyphony'; time?: number; seq: number; polyphony: number }
   | { type: 'set-internal-exciter'; time?: number; seq: number; enabled: boolean }
   | { type: 'strum'; time: number; seq: number }
+  | { type: 'clear-scheduled'; time?: undefined; seq: number }
   | { type: 'destroy'; time?: undefined; seq: number };
 
 class RingsProcessor extends AudioWorkletProcessor {
@@ -162,6 +163,9 @@ class RingsProcessor extends AudioWorkletProcessor {
       case 'strum':
         this.wasm._rings_strum(this.handle);
         break;
+      case 'clear-scheduled':
+        this.queue = this.queue.filter(e => e.time === undefined);
+        break;
       case 'destroy':
         this.destroyWasm();
         break;
@@ -243,6 +247,11 @@ class RingsProcessor extends AudioWorkletProcessor {
 
     // Process immediate (untimed) events first
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
+      this.applyEvent(this.queue.shift()!);
+    }
+
+    // Drain stale events that were scheduled before this block
+    while (this.queue.length > 0 && this.queue[0].time !== undefined && this.queue[0].time! < blockStart) {
       this.applyEvent(this.queue.shift()!);
     }
 

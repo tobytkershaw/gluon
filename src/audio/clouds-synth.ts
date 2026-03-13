@@ -11,6 +11,8 @@ export interface CloudsEngine {
   setMode(mode: number): void;
   setPatch(params: CloudsPatchParams): void;
   setFreeze(freeze: boolean): void;
+  /** Clear all scheduled events from the worklet queue. */
+  silence(): void;
   destroy(): void;
 }
 
@@ -123,6 +125,10 @@ export class CloudsSynth implements CloudsEngine {
 
   setFreeze(freeze: boolean): void {
     this.post({ type: 'set-freeze', freeze });
+  }
+
+  silence(): void {
+    this.post({ type: 'clear-scheduled' });
   }
 
   destroy(): void {
