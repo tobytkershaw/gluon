@@ -116,6 +116,47 @@ export default function App() {
     }
   }, [session.voices, audioStarted]);
 
+  // Sync processor chains to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    const audio = audioRef.current;
+    for (const voice of session.voices) {
+      const sessionProcs = voice.processors ?? [];
+      const engineProcs = audio.getProcessors(voice.id);
+
+      // Remove processors no longer in session
+      for (const ep of engineProcs) {
+        if (!sessionProcs.some(sp => sp.id === ep.id)) {
+          audio.removeProcessor(voice.id, ep.id);
+        }
+      }
+
+      // Add new processors from session
+      for (const sp of sessionProcs) {
+        if (!engineProcs.some(ep => ep.id === sp.id)) {
+          void audio.addProcessor(voice.id, sp.type, sp.id).then(() => {
+            audio.setProcessorModel(voice.id, sp.id, sp.model);
+            audio.setProcessorPatch(voice.id, sp.id, {
+              structure: sp.params.structure ?? 0.5,
+              brightness: sp.params.brightness ?? 0.5,
+              damping: sp.params.damping ?? 0.7,
+              position: sp.params.position ?? 0.5,
+            });
+          });
+        } else {
+          // Sync params/model for existing processors
+          audio.setProcessorModel(voice.id, sp.id, sp.model);
+          audio.setProcessorPatch(voice.id, sp.id, {
+            structure: sp.params.structure ?? 0.5,
+            brightness: sp.params.brightness ?? 0.5,
+            damping: sp.params.damping ?? 0.7,
+            position: sp.params.position ?? 0.5,
+          });
+        }
+      }
+    }
+  }, [session.voices, audioStarted]);
+
   const activeVoice = getActiveVoice(session);
 
   const dispatchAIActions = useCallback((actions: AIAction[]) => {

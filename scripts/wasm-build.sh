@@ -4,7 +4,9 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 if command -v emcc >/dev/null 2>&1; then
-  exec bash "$ROOT_DIR/wasm/build.sh"
+  bash "$ROOT_DIR/wasm/build.sh"
+  bash "$ROOT_DIR/wasm/build-rings.sh"
+  exit 0
 fi
 
 if command -v docker >/dev/null 2>&1; then

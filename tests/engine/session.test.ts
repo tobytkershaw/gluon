@@ -3,7 +3,9 @@ import { describe, it, expect } from 'vitest';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
+  addVoiceProcessor, removeVoiceProcessor, updateProcessorParams, setProcessorModel,
 } from '../../src/engine/session';
+import { getVoice } from '../../src/engine/types';
 
 describe('Session (Phase 2)', () => {
   it('creates a session with 4 voices', () => {
@@ -106,5 +108,43 @@ describe('Session (Phase 2)', () => {
     expect(s.transport.playing).toBe(true);
     s = togglePlaying(s);
     expect(s.transport.playing).toBe(false);
+  });
+
+  it('adds a processor to a voice', () => {
+    const s = createSession();
+    const vid = s.activeVoiceId;
+    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
+    const updated = addVoiceProcessor(s, vid, proc);
+    const voice = getVoice(updated, vid);
+    expect(voice.processors).toHaveLength(1);
+    expect(voice.processors![0].id).toBe('rings-0');
+  });
+
+  it('removes a processor from a voice', () => {
+    const s = createSession();
+    const vid = s.activeVoiceId;
+    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
+    let state = addVoiceProcessor(s, vid, proc);
+    state = removeVoiceProcessor(state, vid, 'rings-0');
+    expect(getVoice(state, vid).processors).toHaveLength(0);
+  });
+
+  it('updates processor params', () => {
+    const s = createSession();
+    const vid = s.activeVoiceId;
+    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
+    let state = addVoiceProcessor(s, vid, proc);
+    state = updateProcessorParams(state, vid, 'rings-0', { brightness: 0.8 });
+    expect(getVoice(state, vid).processors![0].params.brightness).toBe(0.8);
+    expect(getVoice(state, vid).processors![0].params.structure).toBe(0.5);
+  });
+
+  it('sets processor model', () => {
+    const s = createSession();
+    const vid = s.activeVoiceId;
+    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
+    let state = addVoiceProcessor(s, vid, proc);
+    state = setProcessorModel(state, vid, 'rings-0', 3);
+    expect(getVoice(state, vid).processors![0].model).toBe(3);
   });
 });
