@@ -173,13 +173,13 @@ export default function App() {
         }
       }
 
-      // Track activity for touched voices (skip say-only actions)
+      // Track activity for touched voices (skip non-voice actions)
       const now = Date.now();
       const touchedVoices = new Set<string>();
       for (const action of report.accepted) {
-        if (action.type === 'say') continue;
-        const vid = ('voiceId' in action && action.voiceId) ? action.voiceId : s.activeVoiceId;
-        touchedVoices.add(vid);
+        if (action.type === 'say' || action.type === 'set_transport') continue;
+        if (!('voiceId' in action) || !action.voiceId) continue;
+        touchedVoices.add(action.voiceId);
       }
       if (touchedVoices.size > 0) {
         setActivityMap(prev => {

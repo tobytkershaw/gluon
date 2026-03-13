@@ -121,7 +121,7 @@ export function ExpandedVoice({
       {/* Voice header: label, engine, agency toggle */}
       <div
         className="flex items-center gap-3"
-        onDoubleClick={() => onOpenDeepView(null)}
+        onDoubleClick={() => onOpenDeepView('all')}
       >
         <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
           {activeVoice.id}
@@ -168,7 +168,7 @@ export function ExpandedVoice({
       {deepViewModuleId !== null ? (
         <DeepView
           voice={activeVoice}
-          focusedModuleId={deepViewModuleId}
+          focusedModuleId={deepViewModuleId === 'all' ? null : deepViewModuleId}
           onClose={() => onOpenDeepView(null)}
         />
       ) : (
