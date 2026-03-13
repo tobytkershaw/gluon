@@ -1,11 +1,9 @@
 // src/ui/InstrumentView.tsx
-// Thin shell: top bar + ExpandedVoice + ChatPanel
+// Thin shell: top bar + ExpandedVoice
 import type { Session, Voice, SequencerViewKind, Agency } from '../engine/types';
 import type { ViewMode } from './view-types';
 import { ViewToggle } from './ViewToggle';
-import { VoiceStage } from './VoiceStage';
 import { UndoButton } from './UndoButton';
-import { ChatPanel } from './ChatPanel';
 import { ExpandedVoice } from './ExpandedVoice';
 
 interface Props {
@@ -13,7 +11,6 @@ interface Props {
   activeVoice: Voice;
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
-  activityMap: Record<string, number>;
   // Transport
   playing: boolean;
   bpm: number;
@@ -24,11 +21,6 @@ interface Props {
   onBpmChange: (bpm: number) => void;
   onSwingChange: (swing: number) => void;
   onToggleRecord: () => void;
-  // Voice
-  onSelectVoice: (voiceId: string) => void;
-  onToggleMute: (voiceId: string) => void;
-  onToggleSolo: (voiceId: string) => void;
-  onToggleAgency?: (voiceId: string) => void;
   // Params
   onParamChange: (timbre: number, morph: number) => void;
   onInteractionStart: () => void;
@@ -65,11 +57,8 @@ interface Props {
   // Views
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
-  // Undo + Chat
+  // Undo
   onUndo: () => void;
-  onSend: (message: string) => void;
-  isThinking?: boolean;
-  isListening?: boolean;
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;
@@ -78,10 +67,9 @@ interface Props {
 }
 
 export function InstrumentView({
-  session, activeVoice, view, onViewChange, activityMap,
+  session, activeVoice, view, onViewChange,
   playing, bpm, swing, recording, globalStep,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
-  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   selectedProcessorId, onSelectProcessor,
@@ -93,7 +81,7 @@ export function InstrumentView({
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
-  onUndo, onSend, isThinking = false, isListening = false,
+  onUndo,
   deepViewModuleId, onOpenDeepView,
   analyser,
 }: Props) {
@@ -102,15 +90,6 @@ export function InstrumentView({
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/50">
         <ViewToggle view={view} onViewChange={onViewChange} />
-        <VoiceStage
-          voices={session.voices}
-          activeVoiceId={session.activeVoiceId}
-          activityMap={activityMap}
-          onSelectVoice={onSelectVoice}
-          onToggleMute={onToggleMute}
-          onToggleSolo={onToggleSolo}
-          onToggleAgency={onToggleAgency}
-        />
         <div className="flex-1" />
         <UndoButton
           onClick={onUndo}
@@ -119,7 +98,7 @@ export function InstrumentView({
         />
       </div>
 
-      {/* Main content: instrument left, chat right */}
+      {/* Main content */}
       <div className="flex-1 min-h-0 flex">
         <ExpandedVoice
           session={session}
@@ -168,16 +147,6 @@ export function InstrumentView({
           onOpenDeepView={onOpenDeepView}
           analyser={analyser}
         />
-
-        {/* Chat panel — right side */}
-        <div className="w-80 border-l border-zinc-800/50 flex flex-col min-h-0">
-          <ChatPanel
-            messages={session.messages}
-            onSend={onSend}
-            isThinking={isThinking}
-            isListening={isListening}
-          />
-        </div>
       </div>
     </div>
   );
