@@ -89,6 +89,10 @@ class RingsProcessor extends AudioWorkletProcessor {
         locateFile: (path: string) => `/audio/${path}`,
         wasmBinary: this.wasmBinary,
       });
+      // Rings DSP is hardcoded to 48 kHz — reject other rates
+      if (sampleRate !== 48000) {
+        throw new Error(`Rings requires 48 kHz sample rate; got ${sampleRate}`);
+      }
       this.wasm = wasm;
       this.handle = wasm._rings_create();
       // Allocate I/O buffers (128 frames each)
@@ -171,7 +175,9 @@ class RingsProcessor extends AudioWorkletProcessor {
   private renderSegment(startFrame: number, frames: number, input: Float32Array, left: Float32Array, right: Float32Array): void {
     if (!this.wasm || !this.handle || frames <= 0) return;
 
-    const heap = this.getHeapF32();
+    // Re-read HEAPF32 before each use — with ALLOW_MEMORY_GROWTH, the
+    // underlying ArrayBuffer can be detached when WASM memory grows.
+    let heap = this.getHeapF32();
     if (!heap) return;
 
     // Copy input audio to WASM heap
@@ -179,6 +185,10 @@ class RingsProcessor extends AudioWorkletProcessor {
     heap.set(input.subarray(startFrame, startFrame + frames), inStart);
 
     const rendered = this.wasm._rings_render(this.handle, this.inputPtr, this.outputPtr, frames);
+
+    // Re-read heap after render — memory may have grown during the call
+    heap = this.getHeapF32();
+    if (!heap) return;
 
     const outStart = this.outputPtr / Float32Array.BYTES_PER_ELEMENT;
     const mono = heap.subarray(outStart, outStart + rendered);

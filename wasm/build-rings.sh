@@ -46,3 +46,4 @@ text = text.replace('self.location.href', '(globalThis.location && globalThis.lo
 path.write_text(text)
 PY
 printf '\nglobalThis.createRingsModule = createRingsModule;\n' >> "$OUT_DIR/rings-module.js"
+node "$ROOT_DIR/scripts/build-rings-worklet.mjs"
