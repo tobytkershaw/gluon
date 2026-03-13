@@ -22,7 +22,7 @@ import type { SequencerViewKind } from '../engine/types';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
-import { Scheduler } from '../engine/scheduler';
+import { Scheduler, START_OFFSET_SEC } from '../engine/scheduler';
 import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
@@ -101,11 +101,17 @@ export default function App() {
   useEffect(() => {
     if (!schedulerRef.current) return;
     if (session.transport.playing) {
-      audioRef.current.restoreBaseline();
+      const audioTime = audioRef.current.getCurrentTime();
+      const startTime = audioTime + START_OFFSET_SEC;
+      // Restore gain at startTime (not now) so accentGain stays at 0 until the
+      // first note fires, eliminating the window where stale accent automation
+      // from a previous cycle could corrupt the gain timeline.
+      audioRef.current.restoreBaseline(startTime);
       schedulerRef.current.start();
       recordQaAudioTrace({
         type: 'transport.play-start',
-        audioTime: audioRef.current.getCurrentTime(),
+        audioTime,
+        startTime,
       });
     } else {
       schedulerRef.current.stop();
@@ -280,6 +286,8 @@ export default function App() {
 
   const handleParamChange = useCallback((timbre: number, morph: number) => {
     ensureAudio();
+    autoRef.current.cancel('timbre');
+    autoRef.current.cancel('morph');
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
@@ -297,6 +305,7 @@ export default function App() {
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
+    autoRef.current.cancel('note');
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'note', note);
     setSession((s) => {
@@ -321,6 +330,7 @@ export default function App() {
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
+    autoRef.current.cancel('harmonics');
     const vid = sessionRef.current.activeVoiceId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
     setSession((s) => {
@@ -884,7 +894,6 @@ export default function App() {
             onParamChange={handleParamChange}
             onInteractionStart={() => {
               arbRef.current.humanInteractionStart();
-              autoRef.current.cancelAll();
               const s = sessionRef.current;
               const voice = getActiveVoice(s);
               const prevProvenance: Partial<ControlState> = {};
