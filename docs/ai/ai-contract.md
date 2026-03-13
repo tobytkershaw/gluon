@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has ten tools, declared as Gemini function declarations.
+The AI has fifteen tools, declared as Gemini function declarations.
 
 ### Programming
 
@@ -16,14 +16,15 @@ Change what the instrument sounds like — parameters, patterns, and transformat
 
 #### `move`
 
-Change a control parameter value on a voice source or processor.
+Change a control parameter value on a voice source, processor, or modulator.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `param` | string | yes | Control ID. Voice: `brightness`, `richness`, `texture`, `pitch`. Processor (Rings): `structure`, `brightness`, `damping`, `position`. |
+| `param` | string | yes | Control ID. Voice: `brightness`, `richness`, `texture`, `pitch`. Processor (Rings): `structure`, `brightness`, `damping`, `position`. Processor (Clouds): `position`, `size`, `density`, `feedback`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`. |
 | `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
 | `voiceId` | string | no | Target voice (`v0`–`v3`). Defaults to active voice. |
 | `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the voice source. |
+| `modulatorId` | string | no | Modulator ID to target. When provided, moves a control on the modulator (e.g. LFO rate). |
 | `over` | number | no | Smooth transition duration in milliseconds |
 
 #### `sketch`
@@ -85,22 +86,23 @@ Change what the instrument is — its modules, signal chain, and configuration. 
 
 #### `set_model`
 
-Switch the mode of a module. Without `processorId`, changes the voice synthesis engine. With `processorId`, changes the processor's mode.
+Switch the mode of a module. Without `processorId`/`modulatorId`, changes the voice synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `voiceId` | string | yes | Target voice ID |
-| `model` | string | yes | Model/mode ID. Voice: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. |
+| `model` | string | yes | Model/mode ID. Voice: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. Clouds: `granular`, `pitch-shifter`, `looping-delay`, `spectral`. Tides: `ad`, `looping`, `ar`. |
 | `processorId` | string | no | Processor ID to target. When provided, switches the processor's mode instead of the voice's synthesis engine. |
+| `modulatorId` | string | no | Modulator ID to target. When provided, switches the modulator's mode (e.g. AD, Looping, AR for Tides). |
 
 #### `add_processor`
 
-Add a processor module to a voice's signal chain.
+Add a processor module to a voice's signal chain. Max 2 processors per voice.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `voiceId` | string | yes | Target voice ID |
-| `moduleType` | string | yes | Processor type. Available: `rings` (Mutable Instruments Rings resonator — 6 models, 4 controls). |
+| `moduleType` | string | yes | Processor type. Available: `rings` (Mutable Instruments Rings resonator — 6 models, 4 controls), `clouds` (Mutable Instruments Clouds granular processor — 4 models, 4 controls). |
 | `description` | string | yes | Short description |
 
 Returns `{ processorId }` so the AI can reference the new processor in later same-turn calls (e.g., to set its parameters or model).
@@ -113,6 +115,69 @@ Remove a processor module from a voice's signal chain.
 |-----------|------|----------|-------------|
 | `voiceId` | string | yes | Target voice ID |
 | `processorId` | string | yes | The processor ID to remove (visible in project state) |
+| `description` | string | yes | Short description |
+
+#### `replace_processor`
+
+Atomically swap one processor for another type in a voice's signal chain. Keeps the same chain position.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `processorId` | string | yes | The processor ID to replace |
+| `newModuleType` | string | yes | New processor type (`rings` or `clouds`) |
+| `description` | string | yes | Short description |
+
+Returns `{ newProcessorId }` for same-turn configuration.
+
+#### `add_modulator`
+
+Add a modulator module (LFO/envelope) to a voice. Max 2 modulators per voice. Use `connect_modulator` to wire it up after adding.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `moduleType` | string | yes | Modulator type. Available: `tides` (Mutable Instruments Tides — function generator with LFO/envelope modes). |
+| `description` | string | yes | Short description |
+
+Returns `{ modulatorId }` for same-turn configuration.
+
+#### `remove_modulator`
+
+Remove a modulator module from a voice. Also disconnects all routings from this modulator.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `modulatorId` | string | yes | The modulator ID to remove |
+| `description` | string | yes | Short description |
+
+#### `connect_modulator`
+
+Route a modulator's output to a target parameter. Idempotent: calling again with the same modulator + target updates the depth instead of creating a duplicate.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `modulatorId` | string | yes | The modulator ID to route from |
+| `targetKind` | string | yes | `"source"` for the voice's Plaits source, or `"processor"` for a processor module |
+| `processorId` | string | no | Required when `targetKind` is `"processor"`. The processor ID to target. |
+| `targetParam` | string | yes | The parameter to modulate. Source: `brightness`, `richness`, `texture` (pitch excluded). Processor: depends on type. |
+| `depth` | number | yes | Modulation depth (-1.0 to 1.0). Negative depth inverts the modulation. |
+| `description` | string | yes | Short description |
+
+Returns `{ modulationId }` for same-turn disconnect if needed. When updating an existing route, returns `{ modulationId, created: false, previousDepth }`.
+
+**Modulation semantics:** Human sets center (knob position), modulation adds/subtracts around it. Multiple routings to the same parameter sum additively. Effective value is clamped to 0–1.
+
+#### `disconnect_modulator`
+
+Remove a modulation routing by its ID.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `modulationId` | string | yes | The modulation routing ID to disconnect (visible in project state) |
 | `description` | string | yes | Short description |
 
 ### UI Curation
@@ -187,6 +252,22 @@ Each turn, the AI receives compressed session state as JSON:
           "model": "modal",
           "params": { "structure": 0.50, "brightness": 0.50, "damping": 0.70, "position": 0.50 }
         }
+      ],
+      "modulators": [
+        {
+          "id": "tides-1710342000000",
+          "type": "tides",
+          "model": "looping",
+          "params": { "frequency": 0.30, "shape": 0.50, "slope": 0.50, "smoothness": 0.50 }
+        }
+      ],
+      "modulations": [
+        {
+          "id": "mod-1710342000000",
+          "modulatorId": "tides-1710342000000",
+          "target": "source:brightness",
+          "depth": 0.3
+        }
       ]
     }
   ],
@@ -201,11 +282,13 @@ Each turn, the AI receives compressed session state as JSON:
 ```
 
 Fields:
-- **voices[]** — each voice's current state, parameters (semantic names), agency, pattern, views, and processor chain
+- **voices[]** — each voice's current state, parameters (semantic names), agency, pattern, views, processor chain, modulators, and modulation routings
 - **activeVoiceId** — the voice the human currently has selected
 - **pattern** — canonical event summary with trigger positions, notes, accents, param locks, and density
 - **views** — list of active sequencer views (`kind:id` format)
 - **processors** — processor chain with IDs, types, models, and current parameter values
+- **modulators** — modulator modules with IDs, types, current mode names, and parameter values
+- **modulations** — modulation routings with IDs, source modulator, target (e.g. `"source:brightness"` or `"processor:rings-xxx:position"`), and depth
 - **transport** — tempo, swing, and playing state
 - **context** — global energy and density (0.0–1.0)
 - **undo_depth** — how many action groups can be undone
@@ -237,6 +320,28 @@ Four controls, all 0.0–1.0:
 | **damping**    | Decay time. Low = long ring, high = short. |
 | **position**   | Excitation position on the resonator.  |
 
+### Processor (Clouds)
+
+Four controls, all 0.0–1.0:
+
+| Control      | Meaning                                               |
+|-------------|-------------------------------------------------------|
+| **position** | Where in the recording buffer to read.                |
+| **size**     | Grain size or texture scale. Small = glitchy, large = smooth. |
+| **density**  | Grain generation rate. Low = sparse, high = dense.    |
+| **feedback** | Wet signal recirculation. High = evolving textures.   |
+
+### Modulator (Tides)
+
+Four controls, all 0.0–1.0:
+
+| Control         | Meaning                                                    |
+|----------------|-----------------------------------------------------------|
+| **frequency**   | Rate of the modulation cycle. Low = slow sweeps, high = fast oscillation. |
+| **shape**       | Waveform character. Blends between sine, triangle, saw, square-like. |
+| **slope**       | Attack/decay symmetry. Low = fast attack, high = slow attack. |
+| **smoothness**  | Waveform smoothing. Low = sharp edges, high = rounded curves. |
+
 The compressed state and tool parameters use semantic names. The runtime handles the mapping to engine parameters internally.
 
 For note events in sketches, pitch is specified as MIDI (0–127), not normalised.
@@ -249,16 +354,22 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 1. All param values are **0.0–1.0**.
 2. `voiceId` must reference an existing voice (`v0`–`v3`).
-3. Agency must be **ON** for the target voice (programming and structure tools). UI curation tools (`add_view`, `remove_view`) do not require agency.
+3. Agency must be **ON** for the target voice (programming, structure, and modulation tools). UI curation tools (`add_view`, `remove_view`) do not require agency.
 4. `at` in events is a **0-based step index** (fractional values allowed for microtiming).
 5. MIDI pitch in note events is **0–127**.
 6. `duration` in note events is always **0.25**.
 7. `controlId` in parameter events must be a known semantic control.
 8. `listen` requires the transport to be playing.
 9. `set_transport` requires at least one of `bpm`, `swing`, or `playing`.
-10. `processorId` in `move`, `set_model`, and `remove_processor` must reference an existing processor on the target voice.
-11. `moduleType` in `add_processor` must be a registered processor type.
-12. Invalid tool calls get error responses; valid calls in the same round are unaffected.
+10. `processorId` in `move`, `set_model`, `remove_processor`, and `replace_processor` must reference an existing processor on the target voice.
+11. `moduleType` in `add_processor` must be a registered processor type (`rings`, `clouds`).
+12. `modulatorId` in `move`, `set_model`, and `remove_modulator` must reference an existing modulator on the target voice.
+13. `moduleType` in `add_modulator` must be a registered modulator type (`tides`).
+14. Max **2 processors** and **2 modulators** per voice.
+15. Modulation depth must be **-1.0 to 1.0**.
+16. Modulation targets must be valid controls on the target module. Source targets: `brightness`, `richness`, `texture` (pitch is excluded). Processor targets: all controls for that processor type.
+17. One route per `(modulatorId, target)` pair — `connect_modulator` is idempotent.
+18. Invalid tool calls get error responses; valid calls in the same round are unaffected.
 
 ---
 
@@ -266,7 +377,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 - All actions (human and AI) push undo snapshots in LIFO order
 - AI actions are grouped per turn into a single undo entry; human edits push individual snapshots
-- Transport, model, view, and processor changes are included in the undo group
+- Transport, model, view, processor, and modulator changes are included in the undo group
 - The human can undo with Cmd+Z; one press reverts the most recent action or action group
 - `undo_depth` in the state tells the model how many groups can be undone
 
@@ -332,6 +443,34 @@ The `listen` tool captures 2 bars and returns a text critique that the model inc
 transform({ voiceId: "v3", operation: "rotate", steps: 2, description: "Shift hats forward for syncopation" })
 ```
 
+### Example 6: "Add slow movement to the pad"
+
+The model chains three tools in one turn:
+```
+add_modulator({ voiceId: "v1", moduleType: "tides", description: "Add Tides LFO for slow brightness sweep" })
+```
+
+Tool response: `{ queued: true, modulatorId: "tides-1710342000000" }`
+
+```
+connect_modulator({ voiceId: "v1", modulatorId: "tides-1710342000000", targetKind: "source", targetParam: "brightness", depth: 0.25, description: "Route LFO to brightness for gentle sweep" })
+move({ voiceId: "v1", modulatorId: "tides-1710342000000", param: "frequency", target: { absolute: 0.15 } })
+```
+
+### Example 7: "Swap Rings for Clouds on the lead"
+
+```
+replace_processor({ voiceId: "v1", processorId: "rings-1710342000000", newModuleType: "clouds", description: "Replace Rings with Clouds for granular texture" })
+```
+
+Tool response: `{ queued: true, newProcessorId: "clouds-1710342100000" }`
+
+The model can then configure Clouds in the same turn:
+```
+set_model({ voiceId: "v1", processorId: "clouds-1710342100000", model: "spectral" })
+move({ voiceId: "v1", processorId: "clouds-1710342100000", param: "size", target: { absolute: 0.7 } })
+```
+
 ---
 
 ## Positive Instructions
@@ -339,8 +478,9 @@ transform({ voiceId: "v3", operation: "rotate", steps: 2, description: "Shift ha
 - Be musical, not mechanical. Patterns should groove, not just fill slots.
 - Prefer small changes over wholesale rewrites. Nudge a parameter rather than replacing an entire pattern.
 - When sketching patterns, think in terms of groove and dynamics — vary velocity, use accents for emphasis.
-- Combine tool calls in one turn when it makes sense: sketch + move, add_processor + set_model + move.
+- Combine tool calls in one turn when it makes sense: sketch + move, add_processor + set_model + move, add_modulator + connect_modulator + move.
 - Keep text responses short — one or two sentences. The human is listening, not reading an essay.
 - When unsure, ask. A short clarifying question is better than a wrong guess.
-- After adding a processor, configure its parameters and model in the same turn.
+- After adding a processor or modulator, configure it in the same turn.
 - After sketching a percussion pattern, consider adding a step-grid view so the human can see it.
+- For modulation, prefer shallow depth (0.1–0.3) before aggressive values. Common useful routings: Tides → brightness for filter sweeps, Tides → texture for evolving character, Tides → Clouds position for granular scrubbing.
