@@ -131,6 +131,104 @@ export const plaitsInstrument: InstrumentDef = {
   engines,
 };
 
+// --- Rings control factory ---
+
+function makeRingsControl(
+  id: string,
+  name: string,
+  semanticRole: SemanticRole,
+  description: string,
+  defaultVal = 0.5,
+): ControlSchema {
+  return {
+    id,
+    name,
+    kind: 'continuous' as ControlKind,
+    semanticRole,
+    description,
+    readable: true,
+    writable: true,
+    range: { min: 0, max: 1, default: defaultVal },
+    binding: {
+      adapterId: 'rings',
+      path: `params.${id}`,
+    },
+  };
+}
+
+function ringsControls(): ControlSchema[] {
+  return [
+    makeRingsControl(
+      'structure',
+      'Structure',
+      'richness',
+      'Harmonic structure. Controls the intervals between partials (modal) or string arrangement (string).',
+    ),
+    makeRingsControl(
+      'brightness',
+      'Brightness',
+      'brightness',
+      'Spectral brightness of the resonance. Low values are dark and muffled, high values are bright and present.',
+    ),
+    makeRingsControl(
+      'damping',
+      'Damping',
+      'texture',
+      'Decay time of the resonance. Low values ring long, high values decay quickly.',
+      0.7,
+    ),
+    makeRingsControl(
+      'position',
+      'Position',
+      'texture',
+      'Excitation position along the resonator. Changes the harmonic content by exciting different modes.',
+    ),
+  ];
+}
+
+// --- Rings engine definitions ---
+
+const RINGS_ENGINE_DATA: [string, string, string][] = [
+  ['modal', 'Modal Resonator', 'Resonant body model — bells, plates, bowls'],
+  ['sympathetic-string', 'Sympathetic String', 'Sympathetic string resonance — sitar, tanpura'],
+  ['string', 'String', 'Karplus-Strong string model — plucked and bowed'],
+  ['fm-voice', 'FM Voice', 'FM synthesis through the resonator'],
+  ['sympathetic-quantized', 'Sympathetic Quantized', 'Sympathetic strings with quantized pitches — chordal'],
+  ['string-and-reverb', 'String + Reverb', 'String model with integrated reverb'],
+];
+
+const ringsEngines: EngineDef[] = RINGS_ENGINE_DATA.map(([id, label, description]) => ({
+  id,
+  label,
+  description,
+  controls: ringsControls(),
+}));
+
+// --- Rings instrument definition ---
+
+export const ringsInstrument: InstrumentDef = {
+  type: 'effect',
+  label: 'Mutable Instruments Rings',
+  adapterId: 'rings',
+  engines: ringsEngines,
+};
+
+const ringsEngineByIdMap = new Map<string, EngineDef>(
+  ringsEngines.map(e => [e.id, e]),
+);
+
+export function getRingsEngineById(engineId: string): EngineDef | undefined {
+  return ringsEngineByIdMap.get(engineId);
+}
+
+export function getRingsEngineByIndex(index: number): EngineDef | undefined {
+  return ringsEngines[index];
+}
+
+export function getRingsModelList(): { index: number; name: string; description: string }[] {
+  return ringsEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
+}
+
 // --- Lookup helpers ---
 
 const engineByIdMap = new Map<string, EngineDef>(
