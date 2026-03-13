@@ -8,20 +8,25 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has four tools, declared as Gemini function declarations:
+The AI has ten tools, declared as Gemini function declarations.
 
-### `move`
+### Programming
 
-Change a control parameter value on a voice.
+Change what the instrument sounds like — parameters, patterns, and transformations. **Requires voice agency ON.**
+
+#### `move`
+
+Change a control parameter value on a voice source or processor.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `param` | string | yes | Semantic control ID (`brightness`, `richness`, `texture`, `pitch`) |
+| `param` | string | yes | Control ID. Voice: `brightness`, `richness`, `texture`, `pitch`. Processor (Rings): `structure`, `brightness`, `damping`, `position`. |
 | `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
 | `voiceId` | string | no | Target voice (`v0`–`v3`). Defaults to active voice. |
+| `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the voice source. |
 | `over` | number | no | Smooth transition duration in milliseconds |
 
-### `sketch`
+#### `sketch`
 
 Apply a rhythmic or melodic pattern to a voice using musical events.
 
@@ -32,11 +37,27 @@ Apply a rhythmic or melodic pattern to a voice using musical events.
 | `events` | array | yes | Sparse list of musical events (see below) |
 
 **Event kinds:**
-- `trigger` — percussion hit. Fields: `at` (step 0–15), `velocity` (0.0–1.0), `accent` (boolean)
+- `trigger` — percussion hit. Fields: `at` (step index, 0-based), `velocity` (0.0–1.0), `accent` (boolean)
 - `note` — melodic note. Fields: `at`, `pitch` (MIDI 0–127), `velocity`, `duration` (always 0.25)
 - `parameter` — per-step param lock. Fields: `at`, `controlId` (semantic name), `value` (0.0–1.0)
 
-### `listen`
+Fractional `at` values are supported for microtiming (e.g., `4.3` places an event slightly after step 4).
+
+#### `transform`
+
+Transform an existing pattern structurally rather than rewriting it.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `operation` | string | yes | `rotate`, `transpose`, `reverse`, or `duplicate` |
+| `steps` | integer | no | For `rotate`: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations. |
+| `semitones` | integer | no | For `transpose`: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations. |
+| `description` | string | yes | Short description of the transform intent |
+
+### Observation
+
+#### `listen`
 
 Capture audio and evaluate how it sounds. Requires transport to be playing.
 
@@ -44,17 +65,79 @@ Capture audio and evaluate how it sounds. Requires transport to be playing.
 |-----------|------|----------|-------------|
 | `question` | string | yes | What to evaluate (e.g. "how does the kick sound?") |
 
-The tool captures 2 bars of rendered audio, converts to WAV, and sends it with a critique prompt to the model. Returns a text critique.
+Captures 2 bars of rendered audio, converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
 
-### `set_transport`
+### Transport
 
-Change tempo, swing, or play/stop state. At least one parameter must be provided.
+#### `set_transport`
+
+Change tempo, swing, or play/stop state. At least one parameter must be provided. **No agency gate** — transport is global.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `bpm` | number | no | Tempo (60–200) |
 | `swing` | number | no | Swing amount (0.0–1.0, 0 = straight) |
 | `playing` | boolean | no | true to start, false to stop |
+
+### Structure
+
+Change what the instrument is — its modules, signal chain, and configuration. **Requires voice agency ON.**
+
+#### `set_model`
+
+Switch the mode of a module. Without `processorId`, changes the voice synthesis engine. With `processorId`, changes the processor's mode.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `model` | string | yes | Model/mode ID. Voice: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. |
+| `processorId` | string | no | Processor ID to target. When provided, switches the processor's mode instead of the voice's synthesis engine. |
+
+#### `add_processor`
+
+Add a processor module to a voice's signal chain.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `moduleType` | string | yes | Processor type. Available: `rings` (Mutable Instruments Rings resonator — 6 models, 4 controls). |
+| `description` | string | yes | Short description |
+
+Returns `{ processorId }` so the AI can reference the new processor in later same-turn calls (e.g., to set its parameters or model).
+
+#### `remove_processor`
+
+Remove a processor module from a voice's signal chain.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `processorId` | string | yes | The processor ID to remove (visible in project state) |
+| `description` | string | yes | Short description |
+
+### UI Curation
+
+Changes to what the human sees, not what the instrument plays. **No agency gate** — the AI should be able to help the human inspect any voice regardless of agency.
+
+#### `add_view`
+
+Add a sequencer view to a voice.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `viewKind` | string | yes | View type: `step-grid` |
+| `description` | string | yes | Short description |
+
+#### `remove_view`
+
+Remove a sequencer view from a voice.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `voiceId` | string | yes | Target voice ID |
+| `viewId` | string | yes | The view ID to remove |
+| `description` | string | yes | Short description |
 
 ---
 
@@ -89,10 +172,22 @@ Each turn, the AI receives compressed session state as JSON:
       "solo": false,
       "pattern": {
         "length": 16,
-        "active_steps": [0, 4, 8, 12],
+        "event_count": 4,
+        "triggers": [0, 4, 8, 12],
+        "notes": [],
         "accents": [0, 8],
-        "locks": {}
-      }
+        "param_locks": [],
+        "density": 0.25
+      },
+      "views": ["step-grid:step-grid-v0"],
+      "processors": [
+        {
+          "id": "rings-1710342000000",
+          "type": "rings",
+          "model": "modal",
+          "params": { "structure": 0.50, "brightness": 0.50, "damping": 0.70, "position": 0.50 }
+        }
+      ]
     }
   ],
   "activeVoiceId": "v0",
@@ -106,9 +201,11 @@ Each turn, the AI receives compressed session state as JSON:
 ```
 
 Fields:
-- **voices[]** — each voice's current state, parameters (semantic names), agency, and pattern
+- **voices[]** — each voice's current state, parameters (semantic names), agency, pattern, views, and processor chain
 - **activeVoiceId** — the voice the human currently has selected
-- **pattern.locks** — per-step parameter overrides, keyed by step index, using semantic control names
+- **pattern** — canonical event summary with trigger positions, notes, accents, param locks, and density
+- **views** — list of active sequencer views (`kind:id` format)
+- **processors** — processor chain with IDs, types, models, and current parameter values
 - **transport** — tempo, swing, and playing state
 - **context** — global energy and density (0.0–1.0)
 - **undo_depth** — how many action groups can be undone
@@ -118,7 +215,9 @@ Fields:
 
 ## Semantic Controls
 
-Four controls per voice, all 0.0–1.0:
+### Voice source (Plaits)
+
+Four controls, all 0.0–1.0:
 
 | Control        | Meaning                                 | Maps to Plaits |
 |---------------|----------------------------------------|----------------|
@@ -127,7 +226,18 @@ Four controls per voice, all 0.0–1.0:
 | **texture**    | Surface character. Smooth to textured. | `morph`        |
 | **pitch**      | Fundamental pitch. Low to high.        | `note`         |
 
-The compressed state and tool parameters use semantic names. The runtime handles the mapping to Plaits parameters internally.
+### Processor (Rings)
+
+Four controls, all 0.0–1.0:
+
+| Control        | Meaning                                 |
+|---------------|----------------------------------------|
+| **structure**  | Geometric structure of the resonator.  |
+| **brightness** | Spectral content of the resonance.     |
+| **damping**    | Decay time. Low = long ring, high = short. |
+| **position**   | Excitation position on the resonator.  |
+
+The compressed state and tool parameters use semantic names. The runtime handles the mapping to engine parameters internally.
 
 For note events in sketches, pitch is specified as MIDI (0–127), not normalised.
 
@@ -139,14 +249,16 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 1. All param values are **0.0–1.0**.
 2. `voiceId` must reference an existing voice (`v0`–`v3`).
-3. Agency must be **ON** for the target voice. Actions targeting an OFF voice are rejected.
-4. `at` in events is a **0-based step index** (0–15 for a 16-step pattern).
+3. Agency must be **ON** for the target voice (programming and structure tools). UI curation tools (`add_view`, `remove_view`) do not require agency.
+4. `at` in events is a **0-based step index** (fractional values allowed for microtiming).
 5. MIDI pitch in note events is **0–127**.
 6. `duration` in note events is always **0.25**.
-7. `controlId` in parameter events must be a known semantic control (`brightness`, `richness`, `texture`, `pitch`).
+7. `controlId` in parameter events must be a known semantic control.
 8. `listen` requires the transport to be playing.
 9. `set_transport` requires at least one of `bpm`, `swing`, or `playing`.
-10. Invalid tool calls get error responses; valid calls in the same round are unaffected.
+10. `processorId` in `move`, `set_model`, and `remove_processor` must reference an existing processor on the target voice.
+11. `moduleType` in `add_processor` must be a registered processor type.
+12. Invalid tool calls get error responses; valid calls in the same round are unaffected.
 
 ---
 
@@ -154,7 +266,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 - All actions (human and AI) push undo snapshots in LIFO order
 - AI actions are grouped per turn into a single undo entry; human edits push individual snapshots
-- Transport changes are included in the undo group
+- Transport, model, view, and processor changes are included in the undo group
 - The human can undo with Cmd+Z; one press reverts the most recent action or action group
 - `undo_depth` in the state tells the model how many groups can be undone
 
@@ -189,7 +301,22 @@ sketch({
 })
 ```
 
-### Example 3: "Start it up and tell me how it sounds"
+### Example 3: "Add some resonance to the lead"
+
+The model calls:
+```
+add_processor({ voiceId: "v1", moduleType: "rings", description: "Add Rings for metallic resonance" })
+```
+
+Tool response: `{ queued: true, processorId: "rings-1710342000000" }`
+
+The model can then configure the processor in the same turn:
+```
+move({ voiceId: "v1", processorId: "rings-1710342000000", param: "brightness", target: { absolute: 0.7 } })
+set_model({ voiceId: "v1", processorId: "rings-1710342000000", model: "sympathetic-string" })
+```
+
+### Example 4: "Start it up and tell me how it sounds"
 
 The model calls two tools in sequence:
 ```
@@ -199,6 +326,12 @@ listen({ question: "How does the overall mix sound?" })
 
 The `listen` tool captures 2 bars and returns a text critique that the model incorporates into its response.
 
+### Example 5: "Shift the hi-hat pattern forward by 2 steps"
+
+```
+transform({ voiceId: "v3", operation: "rotate", steps: 2, description: "Shift hats forward for syncopation" })
+```
+
 ---
 
 ## Positive Instructions
@@ -206,6 +339,8 @@ The `listen` tool captures 2 bars and returns a text critique that the model inc
 - Be musical, not mechanical. Patterns should groove, not just fill slots.
 - Prefer small changes over wholesale rewrites. Nudge a parameter rather than replacing an entire pattern.
 - When sketching patterns, think in terms of groove and dynamics — vary velocity, use accents for emphasis.
-- Combine tool calls in one turn when it makes sense: sketch + move, set_transport + listen.
+- Combine tool calls in one turn when it makes sense: sketch + move, add_processor + set_model + move.
 - Keep text responses short — one or two sentences. The human is listening, not reading an essay.
 - When unsure, ask. A short clarifying question is better than a wrong guess.
+- After adding a processor, configure its parameters and model in the same turn.
+- After sketching a percussion pattern, consider adding a step-grid view so the human can see it.
