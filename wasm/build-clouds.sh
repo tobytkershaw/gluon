@@ -16,6 +16,7 @@ emcc \
   "$ROOT_DIR/wasm/gluon_clouds.cpp" \
   "$ROOT_DIR/wasm/clouds/resources.cc" \
   "$ROOT_DIR/wasm/stmlib/dsp/units.cc" \
+  "$ROOT_DIR/wasm/stmlib/dsp/atan.cc" \
   "$ROOT_DIR/wasm/stmlib/utils/random.cc" \
   $CLOUDS_CC_SOURCES \
   -I"$ROOT_DIR/wasm" \
