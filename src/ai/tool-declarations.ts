@@ -13,7 +13,7 @@ const moveTool: FunctionDeclaration = {
     properties: {
       param: {
         type: Type.STRING,
-        description: 'The control ID to change. For voice: "brightness", "richness", "texture", "pitch". For processors: depends on type (e.g. Rings: "structure", "brightness", "damping", "position").',
+        description: 'The control ID to change. For voice: "brightness", "richness", "texture", "pitch". For processors: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback").',
       },
       target: {
         type: Type.OBJECT,
@@ -161,7 +161,8 @@ const setModelTool: FunctionDeclaration = {
           'Model/mode ID. For voice: virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
           'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
           'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat. ' +
-          'For Rings processor: modal, sympathetic-string, string, fm-voice, sympathetic-quantized, string-and-reverb.',
+          'For Rings processor: modal, sympathetic-string, string, fm-voice, sympathetic-quantized, string-and-reverb. ' +
+          'For Clouds processor: granular, pitch-shifter, looping-delay, spectral.',
       },
       processorId: {
         type: Type.STRING,
@@ -250,7 +251,7 @@ const addProcessorTool: FunctionDeclaration = {
       },
       moduleType: {
         type: Type.STRING,
-        description: 'Processor type to add. Available: "rings" (Mutable Instruments Rings resonator).',
+        description: 'Processor type to add. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor).',
       },
       description: {
         type: Type.STRING,

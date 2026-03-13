@@ -263,10 +263,107 @@ export function getModelList(): { index: number; name: string; description: stri
   return engines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
 }
 
+// --- Clouds control factory ---
+
+function makeCloudsControl(
+  id: string,
+  name: string,
+  semanticRole: SemanticRole,
+  description: string,
+  defaultVal = 0.5,
+): ControlSchema {
+  return {
+    id,
+    name,
+    kind: 'continuous' as ControlKind,
+    semanticRole,
+    description,
+    readable: true,
+    writable: true,
+    range: { min: 0, max: 1, default: defaultVal },
+    binding: {
+      adapterId: 'clouds',
+      path: `params.${id}`,
+    },
+  };
+}
+
+function cloudsControls(): ControlSchema[] {
+  return [
+    makeCloudsControl(
+      'position',
+      'Position',
+      'texture',
+      'Where in the recording buffer to read. Scrubs through captured audio.',
+    ),
+    makeCloudsControl(
+      'size',
+      'Size',
+      'texture',
+      'Grain size or texture scale. Small values are glitchy, large values are smooth and ambient.',
+    ),
+    makeCloudsControl(
+      'density',
+      'Density',
+      'density',
+      'Grain generation rate. Low values are sparse, high values create dense textures.',
+    ),
+    makeCloudsControl(
+      'feedback',
+      'Feedback',
+      'decay',
+      'Wet signal recirculation. High values create evolving, self-reinforcing textures.',
+      0.0,
+    ),
+  ];
+}
+
+// --- Clouds engine definitions ---
+
+const CLOUDS_ENGINE_DATA: [string, string, string][] = [
+  ['granular', 'Granular', 'Classic granular processing — slice and scatter frozen audio'],
+  ['pitch-shifter', 'Pitch Shifter', 'Time stretcher and pitch shifter'],
+  ['looping-delay', 'Looping Delay', 'Looping delay with pitch shifting'],
+  ['spectral', 'Spectral', 'Spectral processing via phase vocoder — freeze and warp frequency content'],
+];
+
+const cloudsEngines: EngineDef[] = CLOUDS_ENGINE_DATA.map(([id, label, description]) => ({
+  id,
+  label,
+  description,
+  controls: cloudsControls(),
+}));
+
+// --- Clouds instrument definition ---
+
+export const cloudsInstrument: InstrumentDef = {
+  type: 'effect',
+  label: 'Mutable Instruments Clouds',
+  adapterId: 'clouds',
+  engines: cloudsEngines,
+};
+
+const cloudsEngineByIdMap = new Map<string, EngineDef>(
+  cloudsEngines.map(e => [e.id, e]),
+);
+
+export function getCloudsEngineById(engineId: string): EngineDef | undefined {
+  return cloudsEngineByIdMap.get(engineId);
+}
+
+export function getCloudsEngineByIndex(index: number): EngineDef | undefined {
+  return cloudsEngines[index];
+}
+
+export function getCloudsModelList(): { index: number; name: string; description: string }[] {
+  return cloudsEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
+}
+
 // --- Processor registry ---
 
 const processorInstruments = new Map<string, InstrumentDef>([
   ['rings', ringsInstrument],
+  ['clouds', cloudsInstrument],
 ]);
 
 /** Get the instrument definition for a processor type */

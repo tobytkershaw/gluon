@@ -15,6 +15,7 @@ import { PitchControl } from './PitchControl';
 import { ChatPanel } from './ChatPanel';
 import { Tracker } from './Tracker';
 import { SequencerViewSlot } from './SequencerViewSlot';
+import { ChainStrip } from './ChainStrip';
 
 interface Props {
   session: Session;
@@ -123,6 +124,8 @@ export function InstrumentView({
             <ModelSelector model={activeVoice.model} onChange={onModelChange} />
             <AgencyToggle value={activeVoice.agency} onChange={onAgencyChange} />
           </div>
+
+          <ChainStrip voice={activeVoice} />
 
           <div className="relative flex-1 min-h-[200px]">
             <ParameterSpace

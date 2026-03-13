@@ -136,22 +136,12 @@ export default function App() {
         if (!engineProcs.some(ep => ep.id === sp.id)) {
           void audio.addProcessor(voice.id, sp.type, sp.id).then(() => {
             audio.setProcessorModel(voice.id, sp.id, sp.model);
-            audio.setProcessorPatch(voice.id, sp.id, {
-              structure: sp.params.structure ?? 0.5,
-              brightness: sp.params.brightness ?? 0.5,
-              damping: sp.params.damping ?? 0.7,
-              position: sp.params.position ?? 0.5,
-            });
+            audio.setProcessorPatch(voice.id, sp.id, sp.params);
           });
         } else {
           // Sync params/model for existing processors
           audio.setProcessorModel(voice.id, sp.id, sp.model);
-          audio.setProcessorPatch(voice.id, sp.id, {
-            structure: sp.params.structure ?? 0.5,
-            brightness: sp.params.brightness ?? 0.5,
-            damping: sp.params.damping ?? 0.7,
-            position: sp.params.position ?? 0.5,
-          });
+          audio.setProcessorPatch(voice.id, sp.id, sp.params);
         }
       }
     }
