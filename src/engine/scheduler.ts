@@ -4,6 +4,7 @@ import type { ScheduledNote } from './sequencer-types';
 import type { MusicalEvent, TriggerEvent, NoteEvent } from './canonical-types';
 import { getAudibleVoices, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { recordQaAudioTrace } from '../qa/audio-trace';
 
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
@@ -185,6 +186,17 @@ export class Scheduler {
             params: resolvedParams,
             baseParams: voice.params,
           });
+
+          recordQaAudioTrace({
+            type: 'scheduler.note',
+            voiceId: voice.id,
+            eventKind: event.kind,
+            at: event.at,
+            absoluteStep,
+            noteTime,
+            gateOffTime,
+            accent,
+          });
         }
       }
     }
@@ -209,10 +221,16 @@ export class Scheduler {
 
     for (let cycle = startCycle; cycle <= endCycle; cycle++) {
       const cycleStart = cycle * regionLen;
-      const cycleEnd = (cycle + 1) * regionLen;
-
-      const localStart = Math.max(0, absStart - cycleStart);
+      let localStart = Math.max(0, absStart - cycleStart);
       const localEnd = Math.min(regionLen, absEnd - cycleStart);
+
+      // Guard against floating-point dust at loop boundaries: the cursor
+      // accumulates lookaheadSteps each tick via addition, and 0.1/stepDuration
+      // is not exactly representable in float64.  After many ticks the cursor
+      // overshoots exact multiples of regionLen by ~1e-15, producing a
+      // localStart just above 0.  lowerBound then skips events at position 0,
+      // silencing the first step on subsequent loops.
+      if (localStart > 0 && localStart < 1e-9) localStart = 0;
 
       if (localEnd > localStart) {
         segments.push({ localStart, localEnd, loopCycle: cycle });

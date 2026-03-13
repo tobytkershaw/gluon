@@ -526,6 +526,36 @@ describe('Scheduler', () => {
     sched.stop();
   });
 
+  it('does not miss step-0 events on loop boundaries due to floating-point cursor drift', () => {
+    const vid = session.voices[0].id;
+    const voice = getVoice(session, vid);
+    // Single kick on step 0, 16-step pattern
+    const events: MusicalEvent[] = [
+      { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
+    ];
+    const newRegion = { ...voice.regions[0], duration: 16, events };
+    session = {
+      ...session,
+      voices: session.voices.map(v =>
+        v.id === vid ? { ...v, regions: [newRegion] } : v
+      ),
+    };
+
+    const sched = createScheduler();
+    sched.start(0);
+    // Advance through 4 full loops (16 steps * 4 = 64 steps = 8 seconds at 120 BPM)
+    // Tick every 25ms, advancing audioTime proportionally
+    for (let t = 0.025; t <= 8.5; t += 0.025) {
+      audioTime = t;
+      vi.advanceTimersByTime(25);
+    }
+    sched.stop();
+
+    const voiceNotes = notes.filter(n => n.voiceId === vid);
+    // Should have at least 4 notes (one per loop): at steps 0, 16, 32, 48
+    expect(voiceNotes.length).toBeGreaterThanOrEqual(4);
+  });
+
   it('resolves ParameterEvents into scheduled note params', () => {
     const vid = session.voices[0].id;
     const voice = getVoice(session, vid);
