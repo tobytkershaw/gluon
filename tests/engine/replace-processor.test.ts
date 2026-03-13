@@ -43,6 +43,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
+        newProcessorId: 'clouds-replace-1',
         description: 'swap Rings for Clouds',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBeNull();
@@ -55,6 +56,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'nonexistent',
         newModuleType: 'clouds',
+        newProcessorId: 'clouds-replace-x',
         description: 'swap',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toMatch(/not found/i);
@@ -67,6 +69,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'invalid',
+        newProcessorId: 'invalid-replace-x',
         description: 'swap',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toMatch(/invalid|unknown/i);
@@ -83,6 +86,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
+        newProcessorId: 'clouds-replace-x',
         description: 'swap',
       };
       expect(prevalidateAction(s, action, adapter, makeArbitrator())).toMatch(/agency/i);
@@ -97,6 +101,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
+        newProcessorId: 'clouds-replace-1',
         description: 'swap Rings for Clouds',
       };
       const report = executeOperations(session, [action], adapter, makeArbitrator());
@@ -106,7 +111,7 @@ describe('replace_processor', () => {
       expect(voice.processors).toHaveLength(1);
       expect(voice.processors![0].type).toBe('clouds');
       expect(voice.processors![0].model).toBe(0);
-      expect(voice.processors![0].id).not.toBe('rings-test-1'); // new ID
+      expect(voice.processors![0].id).toBe('clouds-replace-1'); // uses pre-assigned ID
     });
 
     it('preserves chain position when multiple processors exist', () => {
@@ -128,6 +133,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
+        newProcessorId: 'clouds-replace-2',
         description: 'swap first processor',
       };
       const report = executeOperations(s, [action], adapter, makeArbitrator());
@@ -137,6 +143,33 @@ describe('replace_processor', () => {
       expect(voice.processors).toHaveLength(2);
       expect(voice.processors![0].type).toBe('clouds');
       expect(voice.processors![1].id).toBe('clouds-test-1');
+    });
+
+    it('uses pre-assigned newProcessorId for same-turn composition', () => {
+      const session = sessionWithRings();
+      const replaceAction: AIAction = {
+        type: 'replace_processor',
+        voiceId: 'v0',
+        processorId: 'rings-test-1',
+        newModuleType: 'clouds',
+        newProcessorId: 'clouds-composed-1',
+        description: 'swap Rings for Clouds',
+      };
+      // Follow-up action targets the new processor by its pre-assigned ID
+      const moveAction: AIAction = {
+        type: 'move',
+        voiceId: 'v0',
+        processorId: 'clouds-composed-1',
+        param: 'position',
+        target: { absolute: 0.8 },
+        description: 'move position',
+      };
+      const report = executeOperations(session, [replaceAction, moveAction], adapter, makeArbitrator());
+      expect(report.accepted).toHaveLength(2);
+
+      const voice = getVoice(report.session, 'v0');
+      expect(voice.processors![0].id).toBe('clouds-composed-1');
+      expect(voice.processors![0].params.position).toBeCloseTo(0.8);
     });
   });
 
@@ -148,6 +181,7 @@ describe('replace_processor', () => {
         voiceId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
+        newProcessorId: 'clouds-replace-1',
         description: 'swap Rings for Clouds',
       };
       const report = executeOperations(session, [action], adapter, makeArbitrator());

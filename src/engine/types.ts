@@ -223,8 +223,9 @@ export interface AIRemoveProcessorAction {
 export interface AIReplaceProcessorAction {
   type: 'replace_processor';
   voiceId: string;
-  processorId: string;    // existing processor to replace
-  newModuleType: string;  // new processor type from registry
+  processorId: string;       // existing processor to replace
+  newModuleType: string;     // new processor type from registry
+  newProcessorId: string;    // pre-assigned ID for the replacement
   description: string;
 }
 

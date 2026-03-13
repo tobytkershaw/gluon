@@ -386,6 +386,53 @@ export default function App() {
     setSession((s) => removeView(s, s.activeVoiceId, viewId));
   }, []);
 
+  // Capture processor state at drag start for single-gesture undo
+  const processorUndoRef = useRef<{
+    voiceId: string;
+    processorId: string;
+    prevParams: Record<string, number>;
+    prevModel: number;
+  } | null>(null);
+
+  const handleProcessorInteractionStart = useCallback((processorId: string) => {
+    const s = sessionRef.current;
+    const voice = getActiveVoice(s);
+    const proc = (voice.processors ?? []).find(p => p.id === processorId);
+    if (!proc) return;
+    processorUndoRef.current = {
+      voiceId: s.activeVoiceId,
+      processorId,
+      prevParams: { ...proc.params },
+      prevModel: proc.model,
+    };
+  }, []);
+
+  const handleProcessorInteractionEnd = useCallback((processorId: string) => {
+    const captured = processorUndoRef.current;
+    if (!captured || captured.processorId !== processorId) return;
+    processorUndoRef.current = null;
+    setSession((s) => {
+      const voice = getVoice(s, captured.voiceId);
+      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      if (!proc) return s;
+      // Check if anything actually changed
+      const changed = Object.keys(captured.prevParams).some(
+        k => Math.abs((proc.params[k] ?? 0) - captured.prevParams[k]) > 0.001
+      );
+      if (!changed) return s;
+      const snapshot: ProcessorStateSnapshot = {
+        kind: 'processor-state',
+        voiceId: captured.voiceId,
+        processorId,
+        prevParams: captured.prevParams,
+        prevModel: captured.prevModel,
+        timestamp: Date.now(),
+        description: `Processor param change`,
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
+
   const handleProcessorParamChange = useCallback((processorId: string, param: string, value: number) => {
     ensureAudio();
     setSession((s) => {
@@ -402,19 +449,9 @@ export default function App() {
         ...voice,
         processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
       };
-      const snapshot: ProcessorStateSnapshot = {
-        kind: 'processor-state',
-        voiceId: vid,
-        processorId,
-        prevParams: { ...proc.params },
-        prevModel: proc.model,
-        timestamp: Date.now(),
-        description: `Processor ${param} change`,
-      };
       return {
         ...s,
         voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
-        undoStack: [...s.undoStack, snapshot],
       };
     });
   }, [ensureAudio]);
@@ -645,6 +682,8 @@ export default function App() {
             selectedProcessorId={selectedProcessorId}
             onSelectProcessor={setSelectedProcessorId}
             onProcessorParamChange={handleProcessorParamChange}
+            onProcessorInteractionStart={handleProcessorInteractionStart}
+            onProcessorInteractionEnd={handleProcessorInteractionEnd}
             onProcessorModelChange={handleProcessorModelChange}
             onRemoveProcessor={handleRemoveProcessor}
             onEventUpdate={handleEventUpdate}

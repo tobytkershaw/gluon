@@ -158,7 +158,7 @@ function projectAction(session: Session, action: AIAction): Session {
       const voice = getVoice(session, action.voiceId);
       const processors = (voice.processors ?? []).map(p =>
         p.id === action.processorId
-          ? { id: `${action.newModuleType}-${Date.now()}`, type: action.newModuleType, model: 0, params: {} }
+          ? { id: action.newProcessorId, type: action.newModuleType, model: 0, params: {} }
           : p,
       );
       return updateVoice(session, action.voiceId, { processors });
@@ -737,11 +737,15 @@ export class GluonAI {
           return errorResponse(id, name, 'Missing required parameter: description');
         }
 
+        // Generate the replacement processor ID once — used by projection, execution, and response
+        const newProcessorId = `${args.newModuleType}-${Date.now()}`;
+
         const replaceAction: AIReplaceProcessorAction = {
           type: 'replace_processor',
           voiceId: args.voiceId as string,
           processorId: args.processorId as string,
           newModuleType: args.newModuleType as string,
+          newProcessorId,
           description: args.description as string,
         };
 
@@ -755,6 +759,7 @@ export class GluonAI {
             voiceId: replaceAction.voiceId,
             replacedProcessorId: replaceAction.processorId,
             newModuleType: replaceAction.newModuleType,
+            newProcessorId,
           }),
         };
       }

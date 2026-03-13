@@ -7,11 +7,13 @@ import { getProcessorInstrument } from '../audio/instrument-registry';
 interface Props {
   processor: ProcessorConfig;
   onParamChange: (processorId: string, param: string, value: number) => void;
+  onParamInteractionStart: (processorId: string) => void;
+  onParamInteractionEnd: (processorId: string) => void;
   onModelChange: (processorId: string, model: number) => void;
   onRemove: (processorId: string) => void;
 }
 
-export function ModuleInspector({ processor, onParamChange, onModelChange, onRemove }: Props) {
+export function ModuleInspector({ processor, onParamChange, onParamInteractionStart, onParamInteractionEnd, onModelChange, onRemove }: Props) {
   const inst = getProcessorInstrument(processor.type);
   if (!inst) return null;
 
@@ -48,6 +50,8 @@ export function ModuleInspector({ processor, onParamChange, onModelChange, onRem
             label={control.name}
             value={processor.params[control.id] ?? control.range.default}
             onChange={(value) => onParamChange(processor.id, control.id, value)}
+            onPointerDown={() => onParamInteractionStart(processor.id)}
+            onPointerUp={() => onParamInteractionEnd(processor.id)}
           />
         ))}
       </div>
@@ -104,10 +108,12 @@ function ModeSelector({ engines, currentModel, onChange }: {
   );
 }
 
-function ControlSlider({ label, value, onChange }: {
+function ControlSlider({ label, value, onChange, onPointerDown, onPointerUp }: {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  onPointerDown: () => void;
+  onPointerUp: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -119,6 +125,8 @@ function ControlSlider({ label, value, onChange }: {
         step={0.01}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
         className="flex-1 h-1 accent-sky-400 cursor-pointer"
       />
       <span className="text-[9px] text-zinc-500 w-8 text-right font-mono">{value.toFixed(2)}</span>

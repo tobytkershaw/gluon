@@ -652,9 +652,8 @@ export function executeOperations(
           timestamp: Date.now(),
           description: action.description,
         };
-        const newProcessorId = `${action.newModuleType}-${Date.now()}`;
         const newProcessor: ProcessorConfig = {
-          id: newProcessorId,
+          id: action.newProcessorId,
           type: action.newModuleType,
           model: 0,
           params: {},

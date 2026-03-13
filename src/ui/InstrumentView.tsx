@@ -49,6 +49,8 @@ interface Props {
   selectedProcessorId: string | null;
   onSelectProcessor: (processorId: string | null) => void;
   onProcessorParamChange: (processorId: string, param: string, value: number) => void;
+  onProcessorInteractionStart: (processorId: string) => void;
+  onProcessorInteractionEnd: (processorId: string) => void;
   onProcessorModelChange: (processorId: string, model: number) => void;
   onRemoveProcessor: (processorId: string) => void;
   // Pattern
@@ -83,7 +85,8 @@ export function InstrumentView({
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   selectedProcessorId, onSelectProcessor,
-  onProcessorParamChange, onProcessorModelChange, onRemoveProcessor,
+  onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
+  onProcessorModelChange, onRemoveProcessor,
   onEventUpdate, onEventDelete, onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
@@ -146,6 +149,8 @@ export function InstrumentView({
               <ModuleInspector
                 processor={proc}
                 onParamChange={onProcessorParamChange}
+                onParamInteractionStart={onProcessorInteractionStart}
+                onParamInteractionEnd={onProcessorInteractionEnd}
                 onModelChange={onProcessorModelChange}
                 onRemove={onRemoveProcessor}
               />
