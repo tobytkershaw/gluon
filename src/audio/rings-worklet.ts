@@ -50,6 +50,15 @@ type ScheduledEvent =
   | { type: 'destroy'; time?: undefined; seq: number };
 
 class RingsProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
+    return [
+      { name: 'mod-structure', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-brightness', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-damping', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-position', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+    ];
+  }
+
   private wasm: RingsWasm | null = null;
   private handle = 0;
   private inputPtr = 0;
@@ -140,13 +149,6 @@ class RingsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-patch':
         this.currentPatch = event.patch;
-        this.wasm._rings_set_patch(
-          this.handle,
-          event.patch.structure,
-          event.patch.brightness,
-          event.patch.damping,
-          event.patch.position,
-        );
         break;
       case 'set-note':
         this.wasm._rings_set_note(this.handle, event.tonic, event.note);
@@ -164,6 +166,18 @@ class RingsProcessor extends AudioWorkletProcessor {
         this.destroyWasm();
         break;
     }
+  }
+
+  private applyPatchWithModulation(modStructure: number, modBrightness: number, modDamping: number, modPosition: number): void {
+    if (!this.wasm || !this.handle) return;
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    this.wasm._rings_set_patch(
+      this.handle,
+      clamp01(this.currentPatch.structure + modStructure),
+      clamp01(this.currentPatch.brightness + modBrightness),
+      clamp01(this.currentPatch.damping + modDamping),
+      clamp01(this.currentPatch.position + modPosition),
+    );
   }
 
   private getHeapF32(): Float32Array | null {
@@ -197,7 +211,7 @@ class RingsProcessor extends AudioWorkletProcessor {
     right.set(mono, startFrame);
   }
 
-  process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+  process(inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const output = outputs[0];
     if (!output?.length) return true;
     const left = output[0];
@@ -216,6 +230,12 @@ class RingsProcessor extends AudioWorkletProcessor {
     // Get mono input (from source node connected to this processor)
     const input = inputs[0]?.[0] ?? new Float32Array(left.length);
 
+    // Read k-rate modulation params (single value per block)
+    const modStructure = parameters['mod-structure'][0];
+    const modBrightness = parameters['mod-brightness'][0];
+    const modDamping = parameters['mod-damping'][0];
+    const modPosition = parameters['mod-position'][0];
+
     const blockStart = currentTime;
     const frameCount = left.length;
     const blockDuration = frameCount / sampleRate;
@@ -225,6 +245,9 @@ class RingsProcessor extends AudioWorkletProcessor {
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
+
+    // Apply effective patch (base + modulation) after processing immediate events
+    this.applyPatchWithModulation(modStructure, modBrightness, modDamping, modPosition);
 
     // Sub-block event scheduling: render in segments, applying timed events at their offsets
     let cursor = 0;
@@ -245,6 +268,10 @@ class RingsProcessor extends AudioWorkletProcessor {
       this.queue = this.queue.filter((event) => !readyEvents.includes(event));
       for (const event of readyEvents) {
         this.applyEvent(event);
+        // Re-apply modulation after any event that changes the patch
+        if (event.type === 'set-patch') {
+          this.applyPatchWithModulation(modStructure, modBrightness, modDamping, modPosition);
+        }
       }
     }
 

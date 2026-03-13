@@ -1,12 +1,14 @@
 // src/ui/ChainStrip.tsx
 // Chain strip: shows source + processor badges with arrows. Processor badges are clickable.
 import type { Voice } from '../engine/types';
-import { getModelName, getProcessorInstrument } from '../audio/instrument-registry';
+import { getModelName, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 
 interface Props {
   voice: Voice;
   selectedProcessorId?: string | null;
+  selectedModulatorId?: string | null;
   onSelectProcessor?: (processorId: string | null) => void;
+  onSelectModulator?: (modulatorId: string | null) => void;
   onNodeClick?: (moduleId: string) => void;
 }
 
@@ -15,6 +17,13 @@ function getProcessorLabel(type: string, modelIndex: number): string {
   if (!inst) return type;
   const engine = inst.engines[modelIndex];
   return engine ? `${inst.label}: ${engine.label}` : inst.label;
+}
+
+function getModulatorLabel(type: string, modelIndex: number): string {
+  const inst = getModulatorInstrument(type);
+  if (!inst) return type;
+  const engine = inst.engines[modelIndex];
+  return engine ? `${engine.label}` : inst.label;
 }
 
 function ChevronButton({ onClick }: { onClick: () => void }) {
@@ -30,8 +39,9 @@ function ChevronButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function ChainStrip({ voice, selectedProcessorId, onSelectProcessor, onNodeClick }: Props) {
+export function ChainStrip({ voice, selectedProcessorId, selectedModulatorId, onSelectProcessor, onSelectModulator, onNodeClick }: Props) {
   const processors = voice.processors ?? [];
+  const modulators = voice.modulators ?? [];
   const sourceLabel = getModelName(voice.model);
 
   return (
@@ -65,6 +75,28 @@ export function ChainStrip({ voice, selectedProcessorId, onSelectProcessor, onNo
               )}
             </button>
           </div>
+        );
+      })}
+
+      {/* Modulator badges (visually separated) */}
+      {modulators.length > 0 && (
+        <span className="mx-1 text-zinc-700">|</span>
+      )}
+
+      {modulators.map((mod) => {
+        const isSelected = selectedModulatorId === mod.id;
+        return (
+          <button
+            key={mod.id}
+            onClick={() => onSelectModulator?.(isSelected ? null : mod.id)}
+            className={`flex items-center px-2 py-0.5 rounded font-medium truncate max-w-[140px] transition-colors ${
+              isSelected
+                ? 'bg-violet-400/20 border border-violet-400/40 text-violet-200'
+                : 'bg-violet-400/10 border border-violet-400/20 text-violet-300 hover:bg-violet-400/15 hover:border-violet-400/30'
+            }`}
+          >
+            {getModulatorLabel(mod.type, mod.model)}
+          </button>
         );
       })}
     </div>

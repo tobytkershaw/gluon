@@ -6,6 +6,10 @@ import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
+import type { ModulationTarget } from '../engine/types';
+import type { TidesEngine } from './tides-synth';
+import type { TidesPatchParams } from './tides-messages';
+import { controlIdToRuntimeParam } from './instrument-registry';
 
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
 
@@ -15,6 +19,21 @@ interface ProcessorSlot {
   id: string;
   type: string;
   engine: ProcessorEngine;
+}
+
+interface ModulatorSlot {
+  id: string;
+  type: string;
+  engine: TidesEngine;
+  keepAliveGain: GainNode;  // gain=0 → destination (prevents GC)
+}
+
+interface ModulationRoute {
+  id: string;
+  modulatorSlotId: string;
+  depthGain: GainNode;
+  targetNode: AudioWorkletNode;
+  targetParam: string;  // "mod-timbre" etc.
 }
 
 interface VoiceSlot {
@@ -84,6 +103,22 @@ export class AudioEngine {
 
   stop(): void {
     if (!this._isRunning) return;
+    // Destroy modulators and routes
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.destroy();
+        modSlot.keepAliveGain.disconnect();
+      }
+    }
+    for (const [, routes] of this.modulationRouteSlots) {
+      for (const route of routes) {
+        route.depthGain.disconnect();
+      }
+    }
+    this.modulatorSlots.clear();
+    this.modulationRouteSlots.clear();
+    this.pendingModulators.clear();
+    // Destroy processors and voices
     for (const slot of this.voices.values()) {
       for (const proc of slot.processors) {
         proc.engine.destroy();
@@ -256,6 +291,182 @@ export class AudioEngine {
         slot.processors[i].engine.inputNode.connect(slot.processors[i + 1].engine.inputNode);
       }
       slot.processors[slot.processors.length - 1].engine.inputNode.connect(slot.accentGain);
+    }
+  }
+
+  // --- Modulator chain ---
+
+  /** Tracks modulator IDs currently being created (async in-flight guard). */
+  private pendingModulators = new Set<string>();
+  private modulatorSlots: Map<string, ModulatorSlot[]> = new Map();
+  private modulationRouteSlots: Map<string, ModulationRoute[]> = new Map();
+
+  async addModulator(voiceId: string, modulatorType: string, modulatorId: string): Promise<void> {
+    const key = `${voiceId}:${modulatorId}`;
+    if (this.pendingModulators.has(key)) return;
+
+    const slot = this.voices.get(voiceId);
+    if (!slot || !this.ctx) return;
+    const existing = this.modulatorSlots.get(voiceId) ?? [];
+    if (existing.some(s => s.id === modulatorId)) return;
+
+    this.pendingModulators.add(key);
+    try {
+      if (modulatorType !== 'tides') return;
+      const { createTidesModulator } = await import('./create-synth');
+      const engine = await createTidesModulator(this.ctx);
+
+      // After async gap: only insert if still wanted
+      if (!this.pendingModulators.has(key)) {
+        engine.destroy();
+        return;
+      }
+      const currentSlots = this.modulatorSlots.get(voiceId) ?? [];
+      if (currentSlots.some(s => s.id === modulatorId)) {
+        engine.destroy();
+        return;
+      }
+
+      // Keep-alive: connect to a silent gain → destination (prevents GC)
+      const keepAliveGain = this.ctx.createGain();
+      keepAliveGain.gain.value = 0;
+      engine.outputNode.connect(keepAliveGain);
+      keepAliveGain.connect(this.ctx.destination);
+
+      currentSlots.push({ id: modulatorId, type: modulatorType, engine, keepAliveGain });
+      this.modulatorSlots.set(voiceId, currentSlots);
+    } finally {
+      this.pendingModulators.delete(key);
+    }
+  }
+
+  removeModulator(voiceId: string, modulatorId: string): void {
+    const key = `${voiceId}:${modulatorId}`;
+    this.pendingModulators.delete(key);
+
+    const slots = this.modulatorSlots.get(voiceId);
+    if (slots) {
+      const idx = slots.findIndex(s => s.id === modulatorId);
+      if (idx !== -1) {
+        const modSlot = slots[idx];
+        modSlot.engine.destroy();
+        modSlot.keepAliveGain.disconnect();
+        slots.splice(idx, 1);
+      }
+    }
+
+    // Cascade remove associated routes
+    const routes = this.modulationRouteSlots.get(voiceId);
+    if (routes) {
+      const toRemove = routes.filter(r => r.modulatorSlotId === modulatorId);
+      for (const route of toRemove) {
+        route.depthGain.disconnect();
+      }
+      this.modulationRouteSlots.set(voiceId, routes.filter(r => r.modulatorSlotId !== modulatorId));
+    }
+  }
+
+  setModulatorPatch(voiceId: string, modulatorId: string, params: Record<string, number>): void {
+    const slots = this.modulatorSlots.get(voiceId);
+    if (!slots) return;
+    const modSlot = slots.find(s => s.id === modulatorId);
+    if (!modSlot) return;
+    modSlot.engine.setPatch(params as TidesPatchParams);
+  }
+
+  setModulatorModel(voiceId: string, modulatorId: string, model: number): void {
+    const slots = this.modulatorSlots.get(voiceId);
+    if (!slots) return;
+    const modSlot = slots.find(s => s.id === modulatorId);
+    if (!modSlot) return;
+    modSlot.engine.setMode(model);
+  }
+
+  addModulationRoute(voiceId: string, modulatorId: string, target: ModulationTarget, depth: number): void {
+    if (!this.ctx) return;
+    const voiceSlot = this.voices.get(voiceId);
+    if (!voiceSlot) return;
+    const modSlots = this.modulatorSlots.get(voiceId) ?? [];
+    const modSlot = modSlots.find(s => s.id === modulatorId);
+    if (!modSlot) return;
+
+    // Resolve the target AudioWorkletNode and AudioParam
+    const resolved = this.resolveModulationTarget(voiceSlot, target);
+    if (!resolved) return;
+
+    // Create GainNode for depth scaling: Tides output → GainNode(depth) → target AudioParam
+    const depthGain = this.ctx.createGain();
+    depthGain.gain.value = depth;
+    modSlot.engine.outputNode.connect(depthGain);
+    // Connect to AudioParam directly — Web Audio sums all inputs to the same param
+    depthGain.connect(resolved.audioParam);
+
+    const routeId = `route-${modulatorId}-${Date.now()}`;
+    const routes = this.modulationRouteSlots.get(voiceId) ?? [];
+    routes.push({ id: routeId, modulatorSlotId: modulatorId, depthGain, targetNode: resolved.targetNode, targetParam: resolved.paramName });
+    this.modulationRouteSlots.set(voiceId, routes);
+  }
+
+  removeModulationRoute(voiceId: string, routeId: string): void {
+    const routes = this.modulationRouteSlots.get(voiceId);
+    if (!routes) return;
+    const idx = routes.findIndex(r => r.id === routeId);
+    if (idx === -1) return;
+    routes[idx].depthGain.disconnect();
+    routes.splice(idx, 1);
+  }
+
+  setModulationDepth(voiceId: string, routeId: string, depth: number): void {
+    const routes = this.modulationRouteSlots.get(voiceId);
+    if (!routes) return;
+    const route = routes.find(r => r.id === routeId);
+    if (!route) return;
+    route.depthGain.gain.value = depth;
+  }
+
+  getModulators(voiceId: string): { id: string; type: string }[] {
+    const slots = this.modulatorSlots.get(voiceId) ?? [];
+    const result = slots.map(s => ({ id: s.id, type: s.type }));
+    // Include in-flight modulators so the sync effect doesn't re-add them
+    for (const key of this.pendingModulators) {
+      const [vid, mid] = key.split(':');
+      if (vid === voiceId && !result.some(s => s.id === mid)) {
+        result.push({ id: mid!, type: 'unknown' });
+      }
+    }
+    return result;
+  }
+
+  getModulationRoutes(voiceId: string): { id: string; modulatorId: string }[] {
+    const routes = this.modulationRouteSlots.get(voiceId) ?? [];
+    return routes.map(r => ({ id: r.id, modulatorId: r.modulatorSlotId }));
+  }
+
+  /**
+   * Resolve a ModulationTarget to the AudioWorkletNode and param index for connection.
+   * Uses AudioWorkletNode.parameters to connect GainNode output to a specific AudioParam.
+   *
+   * Source targets use the Plaits worklet node (via synth.workletNode).
+   * Processor targets use the processor's inputNode (which is an AudioWorkletNode).
+   */
+  private resolveModulationTarget(voiceSlot: VoiceSlot, target: ModulationTarget): { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam } | null {
+    if (target.kind === 'source') {
+      const workletNode = voiceSlot.synth.workletNode;
+      if (!workletNode) return null;
+      // Map canonical name → Plaits runtime param name via controlIdToRuntimeParam
+      const runtimeParam = controlIdToRuntimeParam[target.param] ?? target.param;
+      const paramName = `mod-${runtimeParam}`;
+      const audioParam = workletNode.parameters.get(paramName);
+      if (!audioParam) return null;
+      return { targetNode: workletNode, paramName, audioParam };
+    } else {
+      const proc = voiceSlot.processors.find(p => p.id === target.processorId);
+      if (!proc) return null;
+      const targetNode = proc.engine.inputNode as AudioWorkletNode;
+      const paramName = `mod-${target.param}`;
+      const audioParam = targetNode.parameters.get(paramName);
+      if (!audioParam) return null;
+      return { targetNode, paramName, audioParam };
     }
   }
 

@@ -46,6 +46,14 @@ type ScheduledEvent =
   | { type: 'destroy'; time?: undefined; seq: number };
 
 class PlaitsProcessor extends AudioWorkletProcessor {
+  static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
+    return [
+      { name: 'mod-timbre', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-harmonics', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-morph', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+    ];
+  }
+
   private wasm: PlaitsWasm | null = null;
   private handle = 0;
   private outputPtr = 0;
@@ -125,13 +133,6 @@ class PlaitsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-patch':
         this.currentPatch = event.patch;
-        this.wasm._plaits_set_patch(
-          this.handle,
-          event.patch.harmonics,
-          event.patch.timbre,
-          event.patch.morph,
-          event.patch.note,
-        );
         break;
       case 'trigger':
         this.wasm._plaits_trigger(this.handle, event.accentLevel);
@@ -143,6 +144,18 @@ class PlaitsProcessor extends AudioWorkletProcessor {
         this.destroyWasm();
         break;
     }
+  }
+
+  private applyPatchWithModulation(modTimbre: number, modHarmonics: number, modMorph: number): void {
+    if (!this.wasm || !this.handle) return;
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    this.wasm._plaits_set_patch(
+      this.handle,
+      clamp01(this.currentPatch.harmonics + modHarmonics),
+      clamp01(this.currentPatch.timbre + modTimbre),
+      clamp01(this.currentPatch.morph + modMorph),
+      this.currentPatch.note,
+    );
   }
 
   private getHeapF32(): Float32Array | null {
@@ -163,7 +176,7 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     right.set(mono, startFrame);
   }
 
-  process(_inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+  process(_inputs: Float32Array[][], outputs: Float32Array[][], parameters: Record<string, Float32Array>): boolean {
     const output = outputs[0];
     if (!output?.length) return true;
     const left = output[0];
@@ -179,6 +192,11 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       return true;
     }
 
+    // Read k-rate modulation params (single value per block)
+    const modTimbre = parameters['mod-timbre'][0];
+    const modHarmonics = parameters['mod-harmonics'][0];
+    const modMorph = parameters['mod-morph'][0];
+
     const blockStart = currentTime;
     const frameCount = left.length;
     const blockDuration = frameCount / sampleRate;
@@ -187,6 +205,9 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
+
+    // Apply effective patch (base + modulation) after processing immediate events
+    this.applyPatchWithModulation(modTimbre, modHarmonics, modMorph);
 
     let cursor = 0;
     while (cursor < frameCount) {
@@ -206,6 +227,10 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       this.queue = this.queue.filter((event) => !readyEvents.includes(event));
       for (const event of readyEvents) {
         this.applyEvent(event);
+        // Re-apply modulation after any event that changes the patch
+        if (event.type === 'set-patch') {
+          this.applyPatchWithModulation(modTimbre, modHarmonics, modMorph);
+        }
       }
     }
 

@@ -7,6 +7,8 @@ export interface SynthEngine {
   setParams(params: SynthParams): void;
   scheduleNote(note: ScheduledNote): void;
   destroy(): void;
+  /** The underlying AudioWorkletNode, if available (for modulation routing). */
+  readonly workletNode?: AudioWorkletNode;
 }
 
 export interface SynthParams {

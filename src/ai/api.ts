@@ -2,10 +2,10 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, ProcessorConfig } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulationTarget } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
-import { controlIdToRuntimeParam, getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getProcessorEngineName, getRegisteredProcessorTypes } from '../audio/instrument-registry';
-import { validateChainMutation } from '../engine/chain-validation';
+import { controlIdToRuntimeParam, getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getProcessorEngineName, getRegisteredProcessorTypes, getModulatorEngineByName } from '../audio/instrument-registry';
+import { validateChainMutation, validateModulatorMutation, validateModulationTarget } from '../engine/chain-validation';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { projectRegionToPattern } from '../engine/region-projection';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
@@ -26,6 +26,23 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'move': {
       const voiceId = action.voiceId ?? session.activeVoiceId;
       const voice = getVoice(session, voiceId);
+
+      // Modulator path: update modulator.params directly
+      if (action.modulatorId) {
+        const modulators = voice.modulators ?? [];
+        const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
+        if (modIndex < 0) return session;
+        const mod = modulators[modIndex];
+        const currentVal = mod.params[action.param] ?? 0;
+        const rawTarget = 'absolute' in action.target
+          ? action.target.absolute
+          : currentVal + action.target.relative;
+        const value = Math.max(0, Math.min(1, rawTarget));
+        const updatedMod = { ...mod, params: { ...mod.params, [action.param]: value } };
+        const newModulators = [...modulators];
+        newModulators[modIndex] = updatedMod;
+        return updateVoice(session, voiceId, { modulators: newModulators });
+      }
 
       // Processor path: update processor.params directly
       if (action.processorId) {
@@ -104,6 +121,21 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateVoice(session, action.voiceId, { regions: newRegions, pattern });
     }
     case 'set_model': {
+      // Modulator path: update modulator model
+      if (action.modulatorId) {
+        const voice = getVoice(session, action.voiceId);
+        const modulators = voice.modulators ?? [];
+        const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
+        if (modIndex < 0) return session;
+        const mod = modulators[modIndex];
+        const result = getModulatorEngineByName(mod.type, action.model);
+        if (!result) return session;
+        const updatedMod = { ...mod, model: result.index };
+        const newModulators = [...modulators];
+        newModulators[modIndex] = updatedMod;
+        return updateVoice(session, action.voiceId, { modulators: newModulators });
+      }
+
       // Processor path: update processor model
       if (action.processorId) {
         const voice = getVoice(session, action.voiceId);
@@ -162,6 +194,50 @@ function projectAction(session: Session, action: AIAction): Session {
           : p,
       );
       return updateVoice(session, action.voiceId, { processors });
+    }
+    case 'add_modulator': {
+      const voice = getVoice(session, action.voiceId);
+      const modulators = [...(voice.modulators ?? [])];
+      const newMod: ModulatorConfig = {
+        id: action.modulatorId,
+        type: action.moduleType,
+        model: 1, // default Looping
+        params: {},
+      };
+      modulators.push(newMod);
+      return updateVoice(session, action.voiceId, { modulators });
+    }
+    case 'remove_modulator': {
+      const voice = getVoice(session, action.voiceId);
+      const modulators = (voice.modulators ?? []).filter(m => m.id !== action.modulatorId);
+      const modulations = (voice.modulations ?? []).filter(r => r.modulatorId !== action.modulatorId);
+      return updateVoice(session, action.voiceId, { modulators, modulations });
+    }
+    case 'connect_modulator': {
+      const voice = getVoice(session, action.voiceId);
+      const modulations = [...(voice.modulations ?? [])];
+      const existingIdx = modulations.findIndex(r =>
+        r.modulatorId === action.modulatorId &&
+        r.target.kind === action.target.kind &&
+        r.target.param === action.target.param &&
+        (action.target.kind === 'source' || (action.target.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === action.target.processorId))
+      );
+      if (existingIdx >= 0) {
+        modulations[existingIdx] = { ...modulations[existingIdx], depth: action.depth };
+      } else {
+        modulations.push({
+          id: action.modulationId ?? `mod-proj-${Date.now()}`,
+          modulatorId: action.modulatorId,
+          target: action.target,
+          depth: action.depth,
+        });
+      }
+      return updateVoice(session, action.voiceId, { modulations });
+    }
+    case 'disconnect_modulator': {
+      const voice = getVoice(session, action.voiceId);
+      const modulations = (voice.modulations ?? []).filter(r => r.id !== action.modulationId);
+      return updateVoice(session, action.voiceId, { modulations });
     }
     case 'say':
     default:
@@ -398,6 +474,7 @@ export class GluonAI {
           target: target as { absolute?: number; relative?: number },
           ...(args.voiceId ? { voiceId: args.voiceId as string } : {}),
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
+          ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
           ...(args.over ? { over: args.over as number } : {}),
         };
 
@@ -408,7 +485,10 @@ export class GluonAI {
         const voiceId = action.voiceId ?? session.activeVoiceId;
         const voice = session.voices.find(v => v.id === voiceId);
         let currentVal: number;
-        if (action.processorId) {
+        if (action.modulatorId) {
+          const mod = (voice?.modulators ?? []).find(m => m.id === action.modulatorId);
+          currentVal = mod?.params[action.param] ?? 0;
+        } else if (action.processorId) {
           const proc = (voice?.processors ?? []).find(p => p.id === action.processorId);
           currentVal = proc?.params[action.param] ?? 0;
         } else {
@@ -427,6 +507,7 @@ export class GluonAI {
             param: action.param,
             voiceId,
             ...(action.processorId ? { processorId: action.processorId } : {}),
+            ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
             value: Math.round(resultValue * 100) / 100,
           }),
         };
@@ -510,6 +591,7 @@ export class GluonAI {
           voiceId: args.voiceId as string,
           model: args.model as string,
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
+          ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);
@@ -760,6 +842,184 @@ export class GluonAI {
             replacedProcessorId: replaceAction.processorId,
             newModuleType: replaceAction.newModuleType,
             newProcessorId,
+          }),
+        };
+      }
+
+      case 'add_modulator': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.moduleType !== 'string' || !args.moduleType) {
+          return errorResponse(id, name, 'Missing required parameter: moduleType');
+        }
+        const voice = session.voices.find(v => v.id === args.voiceId);
+        if (voice) {
+          const modResult = validateModulatorMutation(voice, { kind: 'add', type: args.moduleType as string });
+          if (!modResult.valid) {
+            return errorResponse(id, name, modResult.errors[0]);
+          }
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const assignedModulatorId = `${args.moduleType}-${Date.now()}`;
+
+        const addModAction: AIAddModulatorAction = {
+          type: 'add_modulator',
+          voiceId: args.voiceId as string,
+          moduleType: args.moduleType as string,
+          modulatorId: assignedModulatorId,
+          description: args.description as string,
+        };
+
+        const addModRejection = ctx?.validateAction?.(addModAction);
+        if (addModRejection) return errorResponse(id, name, addModRejection);
+
+        return {
+          actions: [addModAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            queued: true,
+            voiceId: addModAction.voiceId,
+            moduleType: addModAction.moduleType,
+            modulatorId: assignedModulatorId,
+          }),
+        };
+      }
+
+      case 'remove_modulator': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
+          return errorResponse(id, name, 'Missing required parameter: modulatorId');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const removeModAction: AIRemoveModulatorAction = {
+          type: 'remove_modulator',
+          voiceId: args.voiceId as string,
+          modulatorId: args.modulatorId as string,
+          description: args.description as string,
+        };
+
+        const removeModRejection = ctx?.validateAction?.(removeModAction);
+        if (removeModRejection) return errorResponse(id, name, removeModRejection);
+
+        return {
+          actions: [removeModAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            queued: true,
+            voiceId: removeModAction.voiceId,
+            modulatorId: removeModAction.modulatorId,
+          }),
+        };
+      }
+
+      case 'connect_modulator': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
+          return errorResponse(id, name, 'Missing required parameter: modulatorId');
+        }
+        if (typeof args.targetKind !== 'string' || !args.targetKind) {
+          return errorResponse(id, name, 'Missing required parameter: targetKind');
+        }
+        if (typeof args.targetParam !== 'string' || !args.targetParam) {
+          return errorResponse(id, name, 'Missing required parameter: targetParam');
+        }
+        if (typeof args.depth !== 'number') {
+          return errorResponse(id, name, 'Missing required parameter: depth');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const targetKind = args.targetKind as string;
+        if (targetKind !== 'source' && targetKind !== 'processor') {
+          return errorResponse(id, name, `targetKind must be "source" or "processor", got "${targetKind}"`);
+        }
+        if (targetKind === 'processor' && (typeof args.processorId !== 'string' || !args.processorId)) {
+          return errorResponse(id, name, 'processorId is required when targetKind is "processor"');
+        }
+
+        const modTarget: ModulationTarget = targetKind === 'source'
+          ? { kind: 'source', param: args.targetParam as string }
+          : { kind: 'processor', processorId: args.processorId as string, param: args.targetParam as string };
+
+        // Check for existing route (for idempotent response)
+        const connectVoice = session.voices.find(v => v.id === args.voiceId);
+        const existingRoute = (connectVoice?.modulations ?? []).find(r =>
+          r.modulatorId === args.modulatorId &&
+          r.target.kind === modTarget.kind &&
+          r.target.param === modTarget.param &&
+          (modTarget.kind === 'source' || (modTarget.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === modTarget.processorId))
+        );
+
+        // Pre-assign route ID for new routes (enables same-turn disconnect)
+        const preAssignedId = existingRoute?.id ?? `mod-${Date.now()}`;
+
+        const connectAction: AIConnectModulatorAction = {
+          type: 'connect_modulator',
+          voiceId: args.voiceId as string,
+          modulatorId: args.modulatorId as string,
+          target: modTarget,
+          depth: args.depth as number,
+          modulationId: preAssignedId,
+          description: args.description as string,
+        };
+
+        const connectRejection = ctx?.validateAction?.(connectAction);
+        if (connectRejection) return errorResponse(id, name, connectRejection);
+
+        const targetStr = modTarget.kind === 'source'
+          ? `source:${modTarget.param}`
+          : `processor:${modTarget.processorId}:${modTarget.param}`;
+
+        return {
+          actions: [connectAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            queued: true,
+            modulationId: preAssignedId,
+            created: !existingRoute,
+            ...(existingRoute ? { previousDepth: existingRoute.depth } : {}),
+            target: targetStr,
+            depth: args.depth,
+          }),
+        };
+      }
+
+      case 'disconnect_modulator': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.modulationId !== 'string' || !args.modulationId) {
+          return errorResponse(id, name, 'Missing required parameter: modulationId');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const disconnectAction: AIDisconnectModulatorAction = {
+          type: 'disconnect_modulator',
+          voiceId: args.voiceId as string,
+          modulationId: args.modulationId as string,
+          description: args.description as string,
+        };
+
+        const disconnectRejection = ctx?.validateAction?.(disconnectAction);
+        if (disconnectRejection) return errorResponse(id, name, disconnectRejection);
+
+        return {
+          actions: [disconnectAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            queued: true,
+            voiceId: disconnectAction.voiceId,
+            modulationId: disconnectAction.modulationId,
           }),
         };
       }

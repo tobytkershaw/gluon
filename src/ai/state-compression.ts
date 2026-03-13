@@ -1,6 +1,6 @@
 // src/ai/state-compression.ts
-import type { Session, Voice } from '../engine/types';
-import { getModelName, runtimeParamToControlId, getProcessorEngineName } from '../audio/instrument-registry';
+import type { Session, Voice, ModulationTarget } from '../engine/types';
+import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 
 interface CompressedPattern {
   length: number;
@@ -19,6 +19,20 @@ interface CompressedProcessor {
   params: Record<string, number>;
 }
 
+interface CompressedModulator {
+  id: string;
+  type: string;
+  model: string;
+  params: Record<string, number>;
+}
+
+interface CompressedModulation {
+  id: string;
+  modulatorId: string;
+  target: string;  // "source:brightness" or "processor:rings-xxx:position"
+  depth: number;
+}
+
 interface CompressedVoice {
   id: string;
   model: string;
@@ -29,6 +43,8 @@ interface CompressedVoice {
   pattern: CompressedPattern;
   views: string[];
   processors: CompressedProcessor[];
+  modulators: CompressedModulator[];
+  modulations: CompressedModulation[];
 }
 
 interface CompressedHumanAction {
@@ -136,6 +152,20 @@ export function compressState(session: Session): CompressedState {
         type: p.type,
         model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
         params: Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, round2(v)])),
+      })),
+      modulators: (voice.modulators ?? []).map(m => ({
+        id: m.id,
+        type: m.type,
+        model: getModulatorEngineName(m.type, m.model) ?? String(m.model),
+        params: Object.fromEntries(Object.entries(m.params).map(([k, v]) => [k, round2(v)])),
+      })),
+      modulations: (voice.modulations ?? []).map(r => ({
+        id: r.id,
+        modulatorId: r.modulatorId,
+        target: r.target.kind === 'source'
+          ? `source:${r.target.param}`
+          : `processor:${r.target.processorId}:${r.target.param}`,
+        depth: round2(r.depth),
       })),
     })),
     activeVoiceId: session.activeVoiceId,

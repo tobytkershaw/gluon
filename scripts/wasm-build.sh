@@ -7,6 +7,7 @@ if command -v emcc >/dev/null 2>&1; then
   bash "$ROOT_DIR/wasm/build.sh"
   bash "$ROOT_DIR/wasm/build-rings.sh"
   bash "$ROOT_DIR/wasm/build-clouds.sh"
+  bash "$ROOT_DIR/wasm/build-tides.sh"
   exit 0
 fi
 

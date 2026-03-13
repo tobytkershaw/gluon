@@ -2,7 +2,7 @@
 
 import type { Session } from '../engine/types';
 import { VOICE_LABELS } from '../engine/voice-labels';
-import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes } from '../audio/instrument-registry';
+import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
   return getModelList()
@@ -28,7 +28,19 @@ function generateVoiceSetup(session: Session): string {
     const agency = v.agency === 'ON' ? 'agency ON' : 'agency OFF';
     const procs = (v.processors ?? []).map(p => `${p.type}(${p.id})`).join(', ');
     const chainSuffix = procs ? ` → [${procs}]` : '';
-    return `- ${v.id} (${label}): ${engineLabel} (${classification}) — ${agency}${chainSuffix}`;
+    const mods = (v.modulators ?? []).map(m => {
+      const modeName = getModulatorEngineName(m.type, m.model) ?? String(m.model);
+      const routings = (v.modulations ?? [])
+        .filter(r => r.modulatorId === m.id)
+        .map(r => {
+          const targetStr = r.target.kind === 'source' ? `source:${r.target.param}` : `${r.target.processorId}:${r.target.param}`;
+          return `${targetStr}(${r.depth.toFixed(1)})`;
+        })
+        .join(', ');
+      return routings ? `${m.type}(${modeName}) → ${routings}` : `${m.type}(${modeName})`;
+    }).join(', ');
+    const modSuffix = mods ? ` | mod: [${mods}]` : '';
+    return `- ${v.id} (${label}): ${engineLabel} (${classification}) — ${agency}${chainSuffix}${modSuffix}`;
   }).join('\n');
 
   return `${session.voices.length} voices:
@@ -76,7 +88,28 @@ ${getRegisteredProcessorTypes().map(type => {
 Use add_processor to insert a processor, remove_processor to take it out.
 To adjust processor controls, use **move** with the processorId parameter (e.g. move param="brightness" target={absolute: 0.7} processorId="rings-xxx").
 To switch processor modes, use **set_model** with the processorId parameter (e.g. set_model model="string" processorId="rings-xxx").
-Processors array order = signal chain order. All controls are normalized 0.0–1.0.`;
+Processors array order = signal chain order. All controls are normalized 0.0–1.0.
+
+## Modulator Modules
+Available modulator types you can add to a voice using add_modulator:
+${getRegisteredModulatorTypes().map(type => {
+  const inst = getModulatorInstrument(type);
+  if (!inst) return '';
+  const models = inst.engines.map(e => `${e.id} (${e.description})`).join(', ');
+  const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
+  return `- **${type}** — ${inst.label}.\n  Modes: ${models}.\n  Controls: ${controls}.`;
+}).filter(Boolean).join('\n')}
+
+## Modulation Guide
+- Use **add_modulator** to create an LFO/envelope, then **connect_modulator** to wire it to a target parameter.
+- The human sets the center point (knob position), modulation adds/subtracts around it. This is standard modular synth behavior.
+- Prefer shallow modulation depth (0.1–0.3) before aggressive values. Strong combined modulation saturates at 0/1 boundaries.
+- Common useful routings: Tides → brightness for filter sweeps, → texture for evolving character, → Clouds position for granular scrubbing.
+- Tides frequency controls how fast the modulation cycles; shape controls the waveform character.
+- To adjust modulator controls, use **move** with modulatorId. To switch modes, use **set_model** with modulatorId.
+- Valid source modulation targets: brightness, richness, texture. Pitch modulation is excluded.
+- connect_modulator is idempotent — calling again with the same modulator + target updates the depth.
+- listen in the same turn as modulation changes cannot hear those changes until after execution.`;
 }
 
 /** @deprecated Use buildSystemPrompt(session) instead */

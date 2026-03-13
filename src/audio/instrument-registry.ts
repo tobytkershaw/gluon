@@ -359,6 +359,102 @@ export function getCloudsModelList(): { index: number; name: string; description
   return cloudsEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
 }
 
+// --- Tides control factory ---
+
+function makeTidesControl(
+  id: string,
+  name: string,
+  semanticRole: SemanticRole,
+  description: string,
+  defaultVal = 0.5,
+): ControlSchema {
+  return {
+    id,
+    name,
+    kind: 'continuous' as ControlKind,
+    semanticRole,
+    description,
+    readable: true,
+    writable: true,
+    range: { min: 0, max: 1, default: defaultVal },
+    binding: {
+      adapterId: 'tides',
+      path: `params.${id}`,
+    },
+  };
+}
+
+function tidesControls(): ControlSchema[] {
+  return [
+    makeTidesControl(
+      'frequency',
+      'Frequency',
+      'pitch',
+      'Rate of the modulation cycle. Low values are slow sweeps, high values are fast oscillation.',
+      0.3,
+    ),
+    makeTidesControl(
+      'shape',
+      'Shape',
+      'texture',
+      'Waveform character. Blends between different waveshapes (sine, triangle, saw, square-like).',
+    ),
+    makeTidesControl(
+      'slope',
+      'Slope',
+      'texture',
+      'Attack/decay symmetry. Low values have fast attack/slow decay, high values have slow attack/fast decay.',
+    ),
+    makeTidesControl(
+      'smoothness',
+      'Smoothness',
+      'brightness',
+      'Waveform smoothing. Low values are sharp/stepped, high values are smooth/rounded.',
+      0.5,
+    ),
+  ];
+}
+
+// --- Tides engine definitions ---
+
+const TIDES_ENGINE_DATA: [string, string, string][] = [
+  ['ad', 'AD', 'Attack-decay envelope — one-shot shape triggered by events'],
+  ['looping', 'Looping', 'Free-running LFO — continuous cyclic modulation'],
+  ['ar', 'AR', 'Attack-release envelope — sustained shape with gate control'],
+];
+
+const tidesEngines: EngineDef[] = TIDES_ENGINE_DATA.map(([id, label, description]) => ({
+  id,
+  label,
+  description,
+  controls: tidesControls(),
+}));
+
+// --- Tides instrument definition ---
+
+export const tidesInstrument: InstrumentDef = {
+  type: 'modulator',
+  label: 'Mutable Instruments Tides',
+  adapterId: 'tides',
+  engines: tidesEngines,
+};
+
+const tidesEngineByIdMap = new Map<string, EngineDef>(
+  tidesEngines.map(e => [e.id, e]),
+);
+
+export function getTidesEngineById(engineId: string): EngineDef | undefined {
+  return tidesEngineByIdMap.get(engineId);
+}
+
+export function getTidesEngineByIndex(index: number): EngineDef | undefined {
+  return tidesEngines[index];
+}
+
+export function getTidesModelList(): { index: number; name: string; description: string }[] {
+  return tidesEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
+}
+
 // --- Processor registry ---
 
 const processorInstruments = new Map<string, InstrumentDef>([
@@ -381,6 +477,44 @@ export function getProcessorControlIds(type: string): string[] {
 /** Get all registered processor type names */
 export function getRegisteredProcessorTypes(): string[] {
   return Array.from(processorInstruments.keys());
+}
+
+// --- Modulator registry ---
+
+const modulatorInstruments = new Map<string, InstrumentDef>([
+  ['tides', tidesInstrument],
+]);
+
+/** Get the instrument definition for a modulator type */
+export function getModulatorInstrument(type: string): InstrumentDef | undefined {
+  return modulatorInstruments.get(type);
+}
+
+/** Get valid control IDs for a modulator type */
+export function getModulatorControlIds(type: string): string[] {
+  const inst = modulatorInstruments.get(type);
+  if (!inst || inst.engines.length === 0) return [];
+  return inst.engines[0].controls.map(c => c.id);
+}
+
+/** Get all registered modulator type names */
+export function getRegisteredModulatorTypes(): string[] {
+  return Array.from(modulatorInstruments.keys());
+}
+
+/** Look up a modulator engine (model/mode) by name, returning its index */
+export function getModulatorEngineByName(type: string, name: string): { index: number; engine: EngineDef } | undefined {
+  const inst = modulatorInstruments.get(type);
+  if (!inst) return undefined;
+  const index = inst.engines.findIndex(e => e.id === name);
+  if (index < 0) return undefined;
+  return { index, engine: inst.engines[index] };
+}
+
+/** Get the engine name for a modulator type by index */
+export function getModulatorEngineName(type: string, index: number): string | undefined {
+  const inst = modulatorInstruments.get(type);
+  return inst?.engines[index]?.id;
 }
 
 /** Look up a processor engine (model/mode) by name, returning its index */

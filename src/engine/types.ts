@@ -28,6 +28,25 @@ export interface ProcessorConfig {
   params: Record<string, number>;
 }
 
+export interface ModulatorConfig {
+  id: string;
+  type: string;
+  model: number;       // mode index (0=AD, 1=Looping, 2=AR)
+  params: Record<string, number>;
+}
+
+/** Discriminated target — explicit about what's being modulated */
+export type ModulationTarget =
+  | { kind: 'source'; param: string }
+  | { kind: 'processor'; processorId: string; param: string };
+
+export interface ModulationRouting {
+  id: string;
+  modulatorId: string;
+  target: ModulationTarget;
+  depth: number;        // -1.0 to 1.0 (bipolar)
+}
+
 // --- Voice Surface (Layer model for UI, Steps 5+ activate semantic controls) ---
 
 export type SemanticTransform = 'linear' | 'inverse' | 'bipolar';
@@ -81,6 +100,10 @@ export interface Voice {
   _hiddenEvents?: CanonicalMusicalEvent[];
   /** Processor chain (effects applied after source). */
   processors?: ProcessorConfig[];
+  /** Modulator modules (control-rate signal generators). */
+  modulators?: ModulatorConfig[];
+  /** Modulation routings (modulator → target param). */
+  modulations?: ModulationRouting[];
   /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
   surface: VoiceSurface;
 }
@@ -166,7 +189,34 @@ export interface ProcessorStateSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot;
+export interface ModulatorSnapshot {
+  kind: 'modulator';
+  voiceId: string;
+  prevModulators: ModulatorConfig[];
+  prevModulations: ModulationRouting[];
+  timestamp: number;
+  description: string;
+}
+
+export interface ModulatorStateSnapshot {
+  kind: 'modulator-state';
+  voiceId: string;
+  modulatorId: string;
+  prevParams: Record<string, number>;
+  prevModel: number;
+  timestamp: number;
+  description: string;
+}
+
+export interface ModulationRoutingSnapshot {
+  kind: 'modulation-routing';
+  voiceId: string;
+  prevModulations: ModulationRouting[];
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -184,6 +234,8 @@ export interface AIMoveAction {
   voiceId?: string;
   /** When present, targets a processor control instead of a voice/source control */
   processorId?: string;
+  /** When present, targets a modulator control instead of a voice/source control */
+  modulatorId?: string;
   /** Runtime param key (legacy) or canonical controlId */
   param: string;
   target: { absolute: number } | { relative: number };
@@ -217,6 +269,8 @@ export interface AISetModelAction {
   voiceId: string;
   /** When present, switches the processor's mode instead of the voice's synthesis engine */
   processorId?: string;
+  /** When present, switches the modulator's mode */
+  modulatorId?: string;
   model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum" for voice, "modal" for Rings)
 }
 
@@ -267,7 +321,40 @@ export interface AIReplaceProcessorAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction;
+export interface AIAddModulatorAction {
+  type: 'add_modulator';
+  voiceId: string;
+  moduleType: string;
+  modulatorId: string;
+  description: string;
+}
+
+export interface AIRemoveModulatorAction {
+  type: 'remove_modulator';
+  voiceId: string;
+  modulatorId: string;
+  description: string;
+}
+
+export interface AIConnectModulatorAction {
+  type: 'connect_modulator';
+  voiceId: string;
+  modulatorId: string;
+  target: ModulationTarget;
+  depth: number;
+  /** Pre-assigned route ID (assigned at tool-call time for same-turn composition). */
+  modulationId?: string;
+  description: string;
+}
+
+export interface AIDisconnectModulatorAction {
+  type: 'disconnect_modulator';
+  voiceId: string;
+  modulationId: string;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction;
 
 // --- Session ---
 

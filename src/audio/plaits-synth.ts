@@ -115,6 +115,10 @@ export class PlaitsSynth implements SynthEngine {
     this.node.port.postMessage(message);
   }
 
+  get workletNode(): AudioWorkletNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentModel = clampModel(model);
     this.post({ type: 'set-model', model: toPlaitsEngineIndex(this.currentModel) });
