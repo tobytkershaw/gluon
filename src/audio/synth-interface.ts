@@ -6,6 +6,8 @@ export interface SynthEngine {
   setModel(model: number): void;
   setParams(params: SynthParams): void;
   scheduleNote(note: ScheduledNote): void;
+  /** Immediately close gate and clear all scheduled events. */
+  silence(): void;
   destroy(): void;
   /** The underlying AudioWorkletNode, if available (for modulation routing). */
   readonly workletNode?: AudioWorkletNode;

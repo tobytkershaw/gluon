@@ -173,6 +173,12 @@ export class AudioEngine {
     slot.synth.scheduleNote(note);
   }
 
+  silenceAll(): void {
+    for (const slot of this.voices.values()) {
+      slot.synth.silence();
+    }
+  }
+
   getCurrentTime(): number {
     return this.ctx?.currentTime ?? 0;
   }

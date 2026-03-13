@@ -99,6 +99,7 @@ export default function App() {
       schedulerRef.current.start();
     } else {
       schedulerRef.current.stop();
+      audioRef.current.silenceAll();
     }
   }, [session.transport.playing]);
 

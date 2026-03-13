@@ -178,6 +178,7 @@ export class Scheduler {
             gateOffTime,
             accent,
             params: resolvedParams,
+            baseParams: voice.params,
           });
         }
       }
