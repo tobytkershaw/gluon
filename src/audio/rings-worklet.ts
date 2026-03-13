@@ -5,6 +5,7 @@ declare abstract class AudioWorkletProcessor {
 }
 
 declare function registerProcessor(name: string, processorCtor: typeof AudioWorkletProcessor): void;
+declare const currentTime: number;
 declare const sampleRate: number;
 declare const globalThis: {
   createRingsModule?: (options?: { locateFile?: (path: string) => string; wasmBinary?: ArrayBuffer }) => Promise<RingsWasm>;
@@ -214,22 +215,38 @@ class RingsProcessor extends AudioWorkletProcessor {
 
     // Get mono input (from source node connected to this processor)
     const input = inputs[0]?.[0] ?? new Float32Array(left.length);
-    const frameCount = left.length;
 
-    // Process immediate events
+    const blockStart = currentTime;
+    const frameCount = left.length;
+    const blockDuration = frameCount / sampleRate;
+    const blockEnd = blockStart + blockDuration;
+
+    // Process immediate (untimed) events first
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
 
-    // Render with sub-block event scheduling
-    this.renderSegment(0, frameCount, input, left, right);
+    // Sub-block event scheduling: render in segments, applying timed events at their offsets
+    let cursor = 0;
+    while (cursor < frameCount) {
+      const nextEvent = this.queue.find((event) => event.time !== undefined && event.time! >= blockStart && event.time! < blockEnd);
+      if (!nextEvent) {
+        this.renderSegment(cursor, frameCount - cursor, input, left, right);
+        break;
+      }
 
-    // Drain any remaining timed events that fell in this block
-    this.queue = this.queue.filter((event) => {
-      if (event.time !== undefined) return true;
-      this.applyEvent(event);
-      return false;
-    });
+      const eventFrame = Math.max(cursor, Math.min(frameCount, Math.round((nextEvent.time! - blockStart) * sampleRate)));
+      this.renderSegment(cursor, eventFrame - cursor, input, left, right);
+      cursor = eventFrame;
+
+      const readyEvents = this.queue
+        .filter((event) => event.time !== undefined && Math.round((event.time! - blockStart) * sampleRate) <= cursor)
+        .sort((a, b) => (a.time! - b.time!) || (a.seq - b.seq));
+      this.queue = this.queue.filter((event) => !readyEvents.includes(event));
+      for (const event of readyEvents) {
+        this.applyEvent(event);
+      }
+    }
 
     return true;
   }
