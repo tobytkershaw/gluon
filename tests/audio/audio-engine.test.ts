@@ -16,8 +16,10 @@ describe('AudioEngine', () => {
     (engine as { voices: Map<string, unknown> }).voices = new Map([
       ['v0', {
         synth,
+        sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
         muteGain: { gain: { value: 1 } },
         accentGain: { gain: { setValueAtTime } },
+        processors: [],
         currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
         currentModel: 0,
       }],
@@ -36,5 +38,105 @@ describe('AudioEngine', () => {
     expect(synth.scheduleNote).toHaveBeenCalledWith(note);
     expect(setValueAtTime).toHaveBeenNthCalledWith(1, 0.6, 1.25);
     expect(setValueAtTime).toHaveBeenNthCalledWith(2, 0.3, 1.5);
+  });
+
+  it('rebuildChain wires sourceOut -> accentGain when no processors', () => {
+    const engine = new AudioEngine();
+    const sourceOutConnect = vi.fn();
+    const sourceOutDisconnect = vi.fn();
+    const accentGain = { gain: { setValueAtTime: vi.fn() } };
+
+    const slot = {
+      synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
+      sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
+      muteGain: { gain: { value: 1 } },
+      accentGain,
+      processors: [],
+      currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+      currentModel: 0,
+    };
+
+    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+
+    // Access private method for testing
+    (engine as unknown as { rebuildChain: (s: unknown) => void }).rebuildChain(slot);
+
+    expect(sourceOutDisconnect).toHaveBeenCalled();
+    expect(sourceOutConnect).toHaveBeenCalledWith(accentGain);
+  });
+
+  it('rebuildChain inserts processor between sourceOut and accentGain', () => {
+    const engine = new AudioEngine();
+    const sourceOutConnect = vi.fn();
+    const sourceOutDisconnect = vi.fn();
+    const procConnect = vi.fn();
+    const procDisconnect = vi.fn();
+    const accentGain = { gain: { setValueAtTime: vi.fn() } };
+    const procNode = { connect: procConnect, disconnect: procDisconnect };
+
+    const slot = {
+      synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
+      sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
+      muteGain: { gain: { value: 1 } },
+      accentGain,
+      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy: vi.fn(), setPatch: vi.fn(), setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
+      currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+      currentModel: 0,
+    };
+
+    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    (engine as unknown as { rebuildChain: (s: unknown) => void }).rebuildChain(slot);
+
+    expect(sourceOutConnect).toHaveBeenCalledWith(procNode);
+    expect(procConnect).toHaveBeenCalledWith(accentGain);
+  });
+
+  it('setProcessorPatch delegates to processor engine', () => {
+    const engine = new AudioEngine();
+    const setPatch = vi.fn();
+    const procNode = { connect: vi.fn(), disconnect: vi.fn() };
+
+    const slot = {
+      synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
+      sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+      muteGain: { gain: { value: 1 } },
+      accentGain: { gain: { setValueAtTime: vi.fn() } },
+      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy: vi.fn(), setPatch, setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
+      currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+      currentModel: 0,
+    };
+
+    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    const params = { structure: 0.3, brightness: 0.6, damping: 0.5, position: 0.8 };
+    engine.setProcessorPatch('v0', 'rings-0', params);
+
+    expect(setPatch).toHaveBeenCalledWith(params);
+  });
+
+  it('removeProcessor destroys and removes the processor', () => {
+    const engine = new AudioEngine();
+    const destroy = vi.fn();
+    const procNode = { connect: vi.fn(), disconnect: vi.fn() };
+    const sourceOutConnect = vi.fn();
+    const sourceOutDisconnect = vi.fn();
+    const accentGain = { gain: { setValueAtTime: vi.fn() } };
+
+    const slot = {
+      synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
+      sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
+      muteGain: { gain: { value: 1 } },
+      accentGain,
+      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy, setPatch: vi.fn(), setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
+      currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+      currentModel: 0,
+    };
+
+    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    engine.removeProcessor('v0', 'rings-0');
+
+    expect(destroy).toHaveBeenCalled();
+    expect(slot.processors).toHaveLength(0);
+    // After removal, sourceOut connects directly to accentGain
+    expect(sourceOutConnect).toHaveBeenCalledWith(accentGain);
   });
 });
