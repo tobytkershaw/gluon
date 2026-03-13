@@ -1,10 +1,7 @@
 // src/ui/InstrumentView.tsx
 // Thin shell: top bar + ExpandedVoice + ChatPanel
-import type { Session, Voice, SequencerViewKind } from '../engine/types';
-import type { MusicalEvent } from '../engine/canonical-types';
-import type { EventSelector } from '../engine/event-primitives';
+import type { Session, Voice, SequencerViewKind, Agency } from '../engine/types';
 import type { ViewMode } from './view-types';
-import type { Agency } from '../engine/types';
 import { ViewToggle } from './ViewToggle';
 import { VoiceStage } from './VoiceStage';
 import { UndoButton } from './UndoButton';
@@ -64,9 +61,6 @@ interface Props {
   onPatternLength: (length: number) => void;
   onPageChange: (page: number) => void;
   onClearPattern: () => void;
-  // Tracker editing
-  onEventUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
-  onEventDelete?: (selector: EventSelector) => void;
   // Views
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
@@ -95,7 +89,7 @@ export function InstrumentView({
   selectedModulatorId, onSelectModulator,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
-  onEventUpdate, onEventDelete, onAddView, onRemoveView,
+  onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
   onUndo, onSend, isThinking = false, isListening = false,
@@ -166,8 +160,6 @@ export function InstrumentView({
           onPatternLength={onPatternLength}
           onPageChange={onPageChange}
           onClearPattern={onClearPattern}
-          onEventUpdate={onEventUpdate}
-          onEventDelete={onEventDelete}
           onAddView={onAddView}
           onRemoveView={onRemoveView}
           deepViewModuleId={deepViewModuleId}

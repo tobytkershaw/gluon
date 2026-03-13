@@ -25,6 +25,7 @@ import { AutomationEngine } from '../ai/automation';
 import { Scheduler } from '../engine/scheduler';
 import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
+import { TrackerView } from './TrackerView';
 import type { ViewMode } from './view-types';
 
 const plaitsAdapter = createPlaitsAdapter();
@@ -735,19 +736,23 @@ export default function App() {
         e.preventDefault();
         handleUndo();
       }
-      // Cmd+1 / Cmd+2 for view switching
-      if ((e.metaKey || e.ctrlKey) && e.key === '1') {
+      // Cmd+1 / Cmd+2 / Cmd+3 for view switching (gated on editable focus)
+      if ((e.metaKey || e.ctrlKey) && e.key === '1' && !isEditable()) {
         e.preventDefault();
         setView('chat');
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === '2') {
+      if ((e.metaKey || e.ctrlKey) && e.key === '2' && !isEditable()) {
         e.preventDefault();
         setView('instrument');
       }
-      // Tab toggles views when not in editable
+      if ((e.metaKey || e.ctrlKey) && e.key === '3' && !isEditable()) {
+        e.preventDefault();
+        setView('tracker');
+      }
+      // Tab cycles views: chat → instrument → tracker → chat
       if (e.key === 'Tab' && !isEditable()) {
         e.preventDefault();
-        setView((v) => v === 'chat' ? 'instrument' : 'chat');
+        setView((v) => v === 'chat' ? 'instrument' : v === 'instrument' ? 'tracker' : 'chat');
       }
       // Space for play/stop — only when not in editable
       if (e.key === ' ' && !e.repeat && !isEditable()) {
@@ -786,7 +791,7 @@ export default function App() {
             isListening={isListening}
             activityMap={activityMap}
           />
-        ) : (
+        ) : view === 'instrument' ? (
           <InstrumentView
             session={session}
             activeVoice={activeVoice}
@@ -906,8 +911,6 @@ export default function App() {
             onModulatorInteractionEnd={handleModulatorInteractionEnd}
             onModulatorModelChange={handleModulatorModelChange}
             onRemoveModulator={handleRemoveModulator}
-            onEventUpdate={handleEventUpdate}
-            onEventDelete={handleEventDelete}
             onAddView={handleAddView}
             onRemoveView={handleRemoveView}
             stepPage={stepPage}
@@ -925,6 +928,32 @@ export default function App() {
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
+          />
+        ) : (
+          <TrackerView
+            session={session}
+            activeVoice={activeVoice}
+            view={view}
+            onViewChange={setView}
+            activityMap={activityMap}
+            playing={session.transport.playing}
+            bpm={session.transport.bpm}
+            swing={session.transport.swing}
+            recording={recording}
+            globalStep={globalStep}
+            onTogglePlay={handleTogglePlay}
+            onBpmChange={(bpm) => { ensureAudio(); schedulerRef.current?.setBpm(bpm); setSession(s => setTransportBpm(s, bpm)); }}
+            onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
+            onToggleRecord={handleToggleRecord}
+            onSelectVoice={handleSelectVoice}
+            onToggleMute={handleToggleMute}
+            onToggleSolo={handleToggleSolo}
+            onEventUpdate={handleEventUpdate}
+            onEventDelete={handleEventDelete}
+            onUndo={handleUndo}
+            onSend={handleSend}
+            isThinking={isThinking}
+            isListening={isListening}
           />
         )}
       </div>

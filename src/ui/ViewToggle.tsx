@@ -29,6 +29,16 @@ export function ViewToggle({ view, onViewChange }: Props) {
       >
         Inst
       </button>
+      <button
+        onClick={() => onViewChange('tracker')}
+        className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
+          view === 'tracker'
+            ? 'bg-amber-400/15 text-amber-400'
+            : 'text-zinc-500 hover:text-zinc-300'
+        }`}
+      >
+        Track
+      </button>
     </div>
   );
 }
