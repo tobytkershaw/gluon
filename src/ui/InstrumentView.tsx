@@ -28,6 +28,7 @@ interface Props {
   onSelectVoice: (voiceId: string) => void;
   onToggleMute: (voiceId: string) => void;
   onToggleSolo: (voiceId: string) => void;
+  onToggleAgency?: (voiceId: string) => void;
   // Params
   onParamChange: (timbre: number, morph: number) => void;
   onInteractionStart: () => void;
@@ -80,7 +81,7 @@ export function InstrumentView({
   session, activeVoice, view, onViewChange, activityMap,
   playing, bpm, swing, recording, globalStep,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
-  onSelectVoice, onToggleMute, onToggleSolo,
+  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   selectedProcessorId, onSelectProcessor,
@@ -108,6 +109,7 @@ export function InstrumentView({
           onSelectVoice={onSelectVoice}
           onToggleMute={onToggleMute}
           onToggleSolo={onToggleSolo}
+          onToggleAgency={onToggleAgency}
         />
         <div className="flex-1" />
         <UndoButton

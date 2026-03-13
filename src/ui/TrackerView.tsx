@@ -32,6 +32,7 @@ interface Props {
   onSelectVoice: (voiceId: string) => void;
   onToggleMute: (voiceId: string) => void;
   onToggleSolo: (voiceId: string) => void;
+  onToggleAgency?: (voiceId: string) => void;
   // Tracker editing
   onEventUpdate: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onEventDelete: (selector: EventSelector) => void;
@@ -46,7 +47,7 @@ export function TrackerView({
   session, activeVoice, view, onViewChange, activityMap,
   playing, bpm, swing, recording, globalStep,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
-  onSelectVoice, onToggleMute, onToggleSolo,
+  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency,
   onEventUpdate, onEventDelete,
   onUndo, onSend, isThinking = false, isListening = false,
 }: Props) {
@@ -64,6 +65,7 @@ export function TrackerView({
           onSelectVoice={onSelectVoice}
           onToggleMute={onToggleMute}
           onToggleSolo={onToggleSolo}
+          onToggleAgency={onToggleAgency}
         />
         <div className="flex-1" />
         <UndoButton

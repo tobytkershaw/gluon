@@ -103,6 +103,10 @@ export default function App() {
     if (session.transport.playing) {
       audioRef.current.restoreBaseline();
       schedulerRef.current.start();
+      recordQaAudioTrace({
+        type: 'transport.play-start',
+        audioTime: audioRef.current.getCurrentTime(),
+      });
     } else {
       schedulerRef.current.stop();
       audioRef.current.silenceAll();
@@ -247,6 +251,7 @@ export default function App() {
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
           autoRef.current.start(runtimeParam, currentVal, targetVal, action.over, (p, value) => {
+            if (!arbRef.current.canAIAct(vid, p)) return;
             setSession((s2) => applyParamDirect(s2, vid, p, value));
           });
           autoRef.current.startLoop();
@@ -409,6 +414,9 @@ export default function App() {
 
   const handleTogglePlay = useCallback(async () => {
     await ensureAudio();
+    // Resume AudioContext if browser auto-suspended it after idle.
+    // Must happen during user gesture to satisfy autoplay policy.
+    await audioRef.current.resume();
     setSession((s) => togglePlaying(s));
   }, [ensureAudio]);
 
@@ -869,9 +877,14 @@ export default function App() {
             onSelectVoice={handleSelectVoice}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
+            onToggleAgency={(voiceId) => {
+              const voice = session.voices.find(v => v.id === voiceId);
+              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+            }}
             onParamChange={handleParamChange}
             onInteractionStart={() => {
               arbRef.current.humanInteractionStart();
+              autoRef.current.cancelAll();
               const s = sessionRef.current;
               const voice = getActiveVoice(s);
               const prevProvenance: Partial<ControlState> = {};
@@ -1007,6 +1020,10 @@ export default function App() {
             onSelectVoice={handleSelectVoice}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
+            onToggleAgency={(voiceId) => {
+              const voice = session.voices.find(v => v.id === voiceId);
+              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+            }}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
             onUndo={handleUndo}

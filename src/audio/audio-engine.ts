@@ -9,6 +9,8 @@ import type { ScheduledNote } from '../engine/sequencer-types';
 import type { ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
 import type { TidesPatchParams } from './tides-messages';
+import type { RingsPatchParams } from './rings-messages';
+import type { CloudsPatchParams } from './clouds-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 
@@ -45,6 +47,33 @@ interface VoiceSlot {
   processors: ProcessorSlot[];
   currentParams: SynthParams;
   currentModel: number;
+}
+
+function toRingsPatchParams(params: Record<string, number>): RingsPatchParams {
+  return {
+    structure: params.structure ?? 0.5,
+    brightness: params.brightness ?? 0.5,
+    damping: params.damping ?? 0.7,
+    position: params.position ?? 0.5,
+  };
+}
+
+function toCloudsPatchParams(params: Record<string, number>): CloudsPatchParams {
+  return {
+    position: params.position ?? 0.5,
+    size: params.size ?? 0.5,
+    density: params.density ?? 0.5,
+    feedback: params.feedback ?? 0.5,
+  };
+}
+
+function toTidesPatchParams(params: Record<string, number>): TidesPatchParams {
+  return {
+    frequency: params.frequency ?? 0.5,
+    shape: params.shape ?? 0.5,
+    slope: params.slope ?? 0.5,
+    smoothness: params.smoothness ?? 0.5,
+  };
 }
 
 export class AudioEngine {
@@ -217,6 +246,13 @@ export class AudioEngine {
     return this.ctx?.currentTime ?? 0;
   }
 
+  /** Ensure AudioContext is running (may have been auto-suspended by the browser). */
+  async resume(): Promise<void> {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      await this.ctx.resume();
+    }
+  }
+
   getAnalyser(): AnalyserNode | null {
     return this.analyser;
   }
@@ -282,9 +318,9 @@ export class AudioEngine {
     if (!proc) return;
     // Each processor type has its own setPatch shape — dispatch by type
     if (proc.type === 'rings') {
-      (proc.engine as import('./rings-synth').RingsEngine).setPatch(params as import('./rings-messages').RingsPatchParams);
+      (proc.engine as import('./rings-synth').RingsEngine).setPatch(toRingsPatchParams(params));
     } else if (proc.type === 'clouds') {
-      (proc.engine as import('./clouds-synth').CloudsEngine).setPatch(params as import('./clouds-messages').CloudsPatchParams);
+      (proc.engine as import('./clouds-synth').CloudsEngine).setPatch(toCloudsPatchParams(params));
     }
   }
 
@@ -411,7 +447,7 @@ export class AudioEngine {
     if (!slots) return;
     const modSlot = slots.find(s => s.id === modulatorId);
     if (!modSlot) return;
-    modSlot.engine.setPatch(params as TidesPatchParams);
+    modSlot.engine.setPatch(toTidesPatchParams(params));
   }
 
   setModulatorModel(voiceId: string, modulatorId: string, model: number): void {
