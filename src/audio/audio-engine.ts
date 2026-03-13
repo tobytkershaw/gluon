@@ -163,8 +163,9 @@ export class AudioEngine {
       try {
         const { createRingsProcessor } = await import('./create-synth');
         const rings = await createRingsProcessor(this.ctx);
-        // Re-check after async gap — slot may have changed
-        if (!slot.processors.some(p => p.id === processorId)) {
+        // After async gap: only insert if still wanted (key not cancelled
+        // by removeProcessor) and not already present (dedupe).
+        if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
           slot.processors.push({ id: processorId, type: 'rings', engine: rings });
           this.rebuildChain(slot);
         } else {
@@ -179,6 +180,11 @@ export class AudioEngine {
   removeProcessor(voiceId: string, processorId: string): void {
     const slot = this.voices.get(voiceId);
     if (!slot) return;
+
+    // Cancel any in-flight add for this processor
+    const key = `${voiceId}:${processorId}`;
+    this.pendingProcessors.delete(key);
+
     const idx = slot.processors.findIndex(p => p.id === processorId);
     if (idx === -1) return;
     slot.processors[idx].engine.destroy();
