@@ -382,7 +382,7 @@ export class AudioEngine {
     modSlot.engine.setMode(model);
   }
 
-  addModulationRoute(voiceId: string, modulatorId: string, target: ModulationTarget, depth: number): void {
+  addModulationRoute(voiceId: string, routeId: string, modulatorId: string, target: ModulationTarget, depth: number): void {
     if (!this.ctx) return;
     const voiceSlot = this.voices.get(voiceId);
     if (!voiceSlot) return;
@@ -401,7 +401,6 @@ export class AudioEngine {
     // Connect to AudioParam directly — Web Audio sums all inputs to the same param
     depthGain.connect(resolved.audioParam);
 
-    const routeId = `route-${modulatorId}-${Date.now()}`;
     const routes = this.modulationRouteSlots.get(voiceId) ?? [];
     routes.push({ id: routeId, modulatorSlotId: modulatorId, depthGain, targetNode: resolved.targetNode, targetParam: resolved.paramName });
     this.modulationRouteSlots.set(voiceId, routes);

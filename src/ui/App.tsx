@@ -180,7 +180,7 @@ export default function App() {
         const eRoutesAfter = audio.getModulationRoutes(vid);
         for (const sr of sRoutes) {
           if (!eRoutesAfter.some(er => er.id === sr.id)) {
-            audio.addModulationRoute(vid, sr.modulatorId, sr.target, sr.depth);
+            audio.addModulationRoute(vid, sr.id, sr.modulatorId, sr.target, sr.depth);
           } else {
             audio.setModulationDepth(vid, sr.id, sr.depth);
           }
