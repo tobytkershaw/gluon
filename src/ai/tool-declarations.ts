@@ -286,6 +286,34 @@ const removeProcessorTool: FunctionDeclaration = {
   },
 };
 
+const replaceProcessorTool: FunctionDeclaration = {
+  name: 'replace_processor',
+  description:
+    'Atomically swap one processor for another type in a voice\'s signal chain. Keeps the same chain position. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      processorId: {
+        type: Type.STRING,
+        description: 'The processor ID to replace (visible in project state).',
+      },
+      newModuleType: {
+        type: Type.STRING,
+        description: 'New processor type. Available: "rings", "clouds".',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "swap Rings for Clouds on kick voice").',
+      },
+    },
+    required: ['voiceId', 'processorId', 'newModuleType', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
@@ -297,4 +325,5 @@ export const GLUON_TOOLS: FunctionDeclaration[] = [
   removeViewTool,
   addProcessorTool,
   removeProcessorTool,
+  replaceProcessorTool,
 ];

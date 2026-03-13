@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
@@ -42,6 +42,7 @@ export default function App() {
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>('chat');
+  const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const arbRef = useRef(new Arbitrator());
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
@@ -335,6 +336,7 @@ export default function App() {
   const handleSelectVoice = useCallback((voiceId: string) => {
     setSession((s) => setActiveVoice(s, voiceId));
     setStepPage(0);
+    setSelectedProcessorId(null);
   }, []);
 
   const handleToggleMute = useCallback((voiceId: string) => {
@@ -383,6 +385,97 @@ export default function App() {
   const handleRemoveView = useCallback((viewId: string) => {
     setSession((s) => removeView(s, s.activeVoiceId, viewId));
   }, []);
+
+  const handleProcessorParamChange = useCallback((processorId: string, param: string, value: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      if (!proc) return s;
+
+      const prevValue = proc.params[param] ?? 0;
+      if (Math.abs(value - prevValue) < 0.001) return s;
+
+      const updatedProc = { ...proc, params: { ...proc.params, [param]: value } };
+      const updatedVoice = {
+        ...voice,
+        processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
+      };
+      const snapshot: ProcessorStateSnapshot = {
+        kind: 'processor-state',
+        voiceId: vid,
+        processorId,
+        prevParams: { ...proc.params },
+        prevModel: proc.model,
+        timestamp: Date.now(),
+        description: `Processor ${param} change`,
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleProcessorModelChange = useCallback((processorId: string, model: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      if (!proc || proc.model === model) return s;
+
+      const updatedProc = { ...proc, model };
+      const updatedVoice = {
+        ...voice,
+        processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
+      };
+      const snapshot: ProcessorStateSnapshot = {
+        kind: 'processor-state',
+        voiceId: vid,
+        processorId,
+        prevParams: { ...proc.params },
+        prevModel: proc.model,
+        timestamp: Date.now(),
+        description: `Processor model change`,
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleRemoveProcessor = useCallback((processorId: string) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const processors = voice.processors ?? [];
+      if (!processors.some(p => p.id === processorId)) return s;
+
+      const snapshot: ProcessorSnapshot = {
+        kind: 'processor',
+        voiceId: vid,
+        prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
+        timestamp: Date.now(),
+        description: `Remove processor`,
+      };
+      const updatedVoice = {
+        ...voice,
+        processors: processors.filter(p => p.id !== processorId),
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+    setSelectedProcessorId(null);
+  }, [ensureAudio]);
 
   // Focus-safe keyboard shortcuts
   useEffect(() => {
@@ -549,6 +642,11 @@ export default function App() {
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
+            selectedProcessorId={selectedProcessorId}
+            onSelectProcessor={setSelectedProcessorId}
+            onProcessorParamChange={handleProcessorParamChange}
+            onProcessorModelChange={handleProcessorModelChange}
+            onRemoveProcessor={handleRemoveProcessor}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
             onAddView={handleAddView}

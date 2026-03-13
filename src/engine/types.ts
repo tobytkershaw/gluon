@@ -220,7 +220,15 @@ export interface AIRemoveProcessorAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction;
+export interface AIReplaceProcessorAction {
+  type: 'replace_processor';
+  voiceId: string;
+  processorId: string;    // existing processor to replace
+  newModuleType: string;  // new processor type from registry
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction;
 
 // --- Session ---
 

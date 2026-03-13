@@ -1,10 +1,12 @@
 // src/ui/ChainStrip.tsx
-// Read-only chain strip: shows source + processor badges with arrows.
+// Chain strip: shows source + processor badges with arrows. Processor badges are clickable.
 import type { Voice } from '../engine/types';
 import { getModelName, getProcessorInstrument } from '../audio/instrument-registry';
 
 interface Props {
   voice: Voice;
+  selectedProcessorId?: string | null;
+  onSelectProcessor?: (processorId: string | null) => void;
 }
 
 function getProcessorLabel(type: string, modelIndex: number): string {
@@ -14,7 +16,7 @@ function getProcessorLabel(type: string, modelIndex: number): string {
   return engine ? `${inst.label}: ${engine.label}` : inst.label;
 }
 
-export function ChainStrip({ voice }: Props) {
+export function ChainStrip({ voice, selectedProcessorId, onSelectProcessor }: Props) {
   const processors = voice.processors ?? [];
   const sourceLabel = getModelName(voice.model);
 
@@ -25,16 +27,26 @@ export function ChainStrip({ voice }: Props) {
         {sourceLabel}
       </span>
 
-      {processors.map((proc) => (
-        <div key={proc.id} className="flex items-center gap-1.5">
-          <svg className="w-3 h-3 text-zinc-600 flex-shrink-0" viewBox="0 0 12 12" fill="none">
-            <path d="M2 6H10M7.5 3.5L10 6L7.5 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="px-2 py-0.5 rounded bg-sky-400/10 border border-sky-400/20 text-sky-300 font-medium truncate max-w-[180px]">
-            {getProcessorLabel(proc.type, proc.model)}
-          </span>
-        </div>
-      ))}
+      {processors.map((proc) => {
+        const isSelected = selectedProcessorId === proc.id;
+        return (
+          <div key={proc.id} className="flex items-center gap-1.5">
+            <svg className="w-3 h-3 text-zinc-600 flex-shrink-0" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6H10M7.5 3.5L10 6L7.5 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <button
+              onClick={() => onSelectProcessor?.(isSelected ? null : proc.id)}
+              className={`px-2 py-0.5 rounded font-medium truncate max-w-[180px] transition-colors ${
+                isSelected
+                  ? 'bg-sky-400/20 border border-sky-400/40 text-sky-200'
+                  : 'bg-sky-400/10 border border-sky-400/20 text-sky-300 hover:bg-sky-400/15 hover:border-sky-400/30'
+              }`}
+            >
+              {getProcessorLabel(proc.type, proc.model)}
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

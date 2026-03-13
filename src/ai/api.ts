@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, ProcessorConfig } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, ProcessorConfig } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
 import { controlIdToRuntimeParam, getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getProcessorEngineName, getRegisteredProcessorTypes } from '../audio/instrument-registry';
 import { validateChainMutation } from '../engine/chain-validation';
@@ -152,6 +152,15 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'remove_processor': {
       const voice = getVoice(session, action.voiceId);
       const processors = (voice.processors ?? []).filter(p => p.id !== action.processorId);
+      return updateVoice(session, action.voiceId, { processors });
+    }
+    case 'replace_processor': {
+      const voice = getVoice(session, action.voiceId);
+      const processors = (voice.processors ?? []).map(p =>
+        p.id === action.processorId
+          ? { id: `${action.newModuleType}-${Date.now()}`, type: action.newModuleType, model: 0, params: {} }
+          : p,
+      );
       return updateVoice(session, action.voiceId, { processors });
     }
     case 'say':
@@ -710,6 +719,42 @@ export class GluonAI {
             applied: true,
             voiceId: removeProcAction.voiceId,
             processorId: removeProcAction.processorId,
+          }),
+        };
+      }
+
+      case 'replace_processor': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.processorId !== 'string' || !args.processorId) {
+          return errorResponse(id, name, 'Missing required parameter: processorId');
+        }
+        if (typeof args.newModuleType !== 'string' || !args.newModuleType) {
+          return errorResponse(id, name, 'Missing required parameter: newModuleType');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const replaceAction: AIReplaceProcessorAction = {
+          type: 'replace_processor',
+          voiceId: args.voiceId as string,
+          processorId: args.processorId as string,
+          newModuleType: args.newModuleType as string,
+          description: args.description as string,
+        };
+
+        const replaceRejection = ctx?.validateAction?.(replaceAction);
+        if (replaceRejection) return errorResponse(id, name, replaceRejection);
+
+        return {
+          actions: [replaceAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            voiceId: replaceAction.voiceId,
+            replacedProcessorId: replaceAction.processorId,
+            newModuleType: replaceAction.newModuleType,
           }),
         };
       }
