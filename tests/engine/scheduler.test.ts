@@ -38,7 +38,7 @@ describe('Scheduler', () => {
 
   it('does not emit notes when no steps are gated', () => {
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.5;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -52,7 +52,7 @@ describe('Scheduler', () => {
     session = toggleStepGate(session, vid, 4);
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
 
     // BPM 120 = 0.125s per 16th note
     // Advance enough time for step 0 to be scheduled
@@ -69,7 +69,7 @@ describe('Scheduler', () => {
     const vid = session.voices[0].id;
     session = toggleStepGate(session, vid, 0);
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.3;
     vi.advanceTimersByTime(100);
     expect(positions.length).toBeGreaterThan(0);
@@ -78,7 +78,7 @@ describe('Scheduler', () => {
 
   it('stops cleanly', () => {
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     expect(sched.isRunning()).toBe(true);
     sched.stop();
     expect(sched.isRunning()).toBe(false);
@@ -93,7 +93,7 @@ describe('Scheduler', () => {
     session = toggleStepGate(session, vid, 1);
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.5;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -129,7 +129,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.2;
     vi.advanceTimersByTime(100);
     sched.stop();
@@ -144,7 +144,7 @@ describe('Scheduler', () => {
     session = toggleStepGate(session, vid, 0);
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.2;
     vi.advanceTimersByTime(100);
     sched.stop();
@@ -169,7 +169,7 @@ describe('Scheduler', () => {
       () => ({}),
     );
 
-    sched.start();
+    sched.start(0);
     audioTime = 0.3;
     vi.advanceTimersByTime(100);
 
@@ -205,7 +205,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     // Simulate time progressing through multiple ticks so the cursor advances.
     // At 120 BPM, 8 steps = 1s. We need to get past 1.0s to wrap.
     // Each tick interval is 25ms; advance in increments to let the cursor catch up.
@@ -232,7 +232,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.2;
     vi.advanceTimersByTime(100);
     sched.stop();
@@ -263,7 +263,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 1.0;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -295,7 +295,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.5;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -324,7 +324,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.5;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -354,7 +354,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     // Don't advance audioTime — only the initial tick fires, cursor starts at 0
     // Lookahead = 0.1s = 0.8 steps at 120bpm, so only step 0 should be scheduled
     sched.stop();
@@ -391,7 +391,7 @@ describe('Scheduler', () => {
       () => ({}),
     );
 
-    sched.start();
+    sched.start(0);
     // Advance to 0.3s (past step 2 at 120 BPM = 0.25s)
     audioTime = 0.3;
     vi.advanceTimersByTime(100);
@@ -439,7 +439,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     // Simulate browser throttling: jump audio time by 5 seconds in one tick
     // At 120 BPM, 16 steps = 2s, so 5s = 2.5 full cycles = 20 events expected
     audioTime = 5.0;
@@ -472,7 +472,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 2.0;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -492,7 +492,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 1.0;
     vi.advanceTimersByTime(100);
     sched.stop();
@@ -506,7 +506,7 @@ describe('Scheduler', () => {
     session = toggleStepGate(session, vid, 0);
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
 
     // Advance through many ticks
     for (let t = 0.1; t <= 2.0; t += 0.1) {
@@ -543,7 +543,7 @@ describe('Scheduler', () => {
     };
 
     const sched = createScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.2;
     vi.advanceTimersByTime(100);
     sched.stop();

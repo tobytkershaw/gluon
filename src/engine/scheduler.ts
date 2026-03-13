@@ -7,6 +7,8 @@ import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
+/** Safety margin so first-beat events have future timestamps in the worklet. */
+export const START_OFFSET_SEC = 0.05;
 
 /**
  * Binary search: find index of first event with `at >= target`.
@@ -49,9 +51,12 @@ export class Scheduler {
     this.getHeldParams = getHeldParams;
   }
 
-  start(): void {
+  start(startOffset = START_OFFSET_SEC): void {
     if (this.intervalId !== null) return;
-    this.startTime = this.getAudioTime();
+    // Offset start so first-beat events have future timestamps in the
+    // worklet. Without this, messages race the render thread and may
+    // be stale-drained or miss gain automation. Tests pass 0.
+    this.startTime = this.getAudioTime() + startOffset;
     this.cursor = 0;
     const session = this.getSession();
     this.previousBpm = session.transport.bpm;
@@ -122,6 +127,9 @@ export class Scheduler {
 
           // Only schedule trigger and note events (parameter events are resolved inline)
           if (event.kind === 'parameter') continue;
+          // velocity=0 is the "ungated" sentinel — trigger exists to preserve
+          // accent state but should not produce a gate (matches event-conversion.ts)
+          if (event.kind === 'trigger' && (event as TriggerEvent).velocity === 0) continue;
 
           // Absolute step position of this event
           const absoluteStep = seg.loopCycle * regionLen + event.at;
@@ -129,10 +137,7 @@ export class Scheduler {
           // Base time
           const baseTime = this.startTime + absoluteStep * stepDuration;
 
-          // Apply swing
-          const beatLocalStep = absoluteStep % 4;
-          const pairPosition = Math.floor(beatLocalStep) % 2 === 1 ? 1 : (beatLocalStep % 2);
-          // Swing applies to odd positions in beat pairs (positions 1, 3 within a beat)
+          // Apply swing to odd positions in beat pairs (positions 1, 3 within a beat)
           const isOddInPair = Math.floor(absoluteStep) % 2 === 1;
           const swingDelay = isOddInPair ? swing * (stepDuration * 0.75) : 0;
           const noteTime = baseTime + swingDelay;

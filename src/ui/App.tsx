@@ -96,6 +96,7 @@ export default function App() {
   useEffect(() => {
     if (!schedulerRef.current) return;
     if (session.transport.playing) {
+      audioRef.current.restoreBaseline();
       schedulerRef.current.start();
     } else {
       schedulerRef.current.stop();

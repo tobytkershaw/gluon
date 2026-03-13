@@ -460,7 +460,7 @@ describe('Scheduler timing', () => {
     session = applySketch(session, VID, 'kick', FOUR_ON_FLOOR_SKETCH);
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     // At 120 BPM, step duration = 60 / (120 * 4) = 0.125s
     // Advance 2 seconds to capture all 16 steps
     advanceTo(2.0);
@@ -482,7 +482,7 @@ describe('Scheduler timing', () => {
     session = applySketch(session, VID, 'hats', OFFBEAT_HATS_SKETCH);
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     advanceTo(2.0);
     sched.stop();
 
@@ -506,7 +506,7 @@ describe('Scheduler timing', () => {
     session = { ...session, transport: { ...session.transport, swing: 0.5 } };
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     audioTime = 0.5;
     vi.advanceTimersByTime(200);
     sched.stop();
@@ -535,7 +535,7 @@ describe('Scheduler timing', () => {
     });
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     // 16 steps at 120 BPM = 2 seconds; pattern wraps at step 8
     advanceTo(2.0);
     sched.stop();
@@ -549,7 +549,7 @@ describe('Scheduler timing', () => {
     session = applySketch(session, VID, 'locked', PARAM_LOCKS_SKETCH);
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     advanceTo(0.2);
     sched.stop();
 
@@ -565,7 +565,7 @@ describe('Scheduler timing', () => {
     session = applySketch(session, VID, 'melody', PITCHED_MELODY_SKETCH);
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     advanceTo(1.0);
     sched.stop();
 
@@ -587,7 +587,7 @@ describe('Scheduler timing', () => {
     });
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     advanceTo(0.2);
     sched.stop();
 
@@ -606,7 +606,7 @@ describe('Scheduler timing', () => {
     session = { ...session, transport: { ...session.transport, bpm: 60 } };
 
     const sched = createTestScheduler();
-    sched.start();
+    sched.start(0);
     advanceTo(2.0);
     sched.stop();
 

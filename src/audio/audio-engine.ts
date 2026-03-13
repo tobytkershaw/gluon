@@ -173,6 +173,15 @@ export class AudioEngine {
     slot.synth.scheduleNote(note);
   }
 
+  /** Restore accent gains to baseline after silenceAll() zeroed them. */
+  restoreBaseline(): void {
+    const now = this.ctx?.currentTime ?? 0;
+    for (const slot of this.voices.values()) {
+      slot.accentGain.gain.cancelAndHoldAtTime(now);
+      slot.accentGain.gain.setValueAtTime(0.3, now);
+    }
+  }
+
   silenceAll(): void {
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.voices.values()) {
