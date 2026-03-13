@@ -75,7 +75,7 @@ function getSourceControls(voice: Voice) {
   return engine.controls.map(c => ({
     id: c.id,
     name: c.name,
-    value: voice.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range.default,
+    value: voice.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
   }));
 }
 
@@ -88,7 +88,7 @@ function getProcessorControls(proc: { type: string; model: number; params: Recor
   return engine.controls.map(c => ({
     id: c.id,
     name: c.name,
-    value: proc.params[c.id] ?? c.range.default,
+    value: proc.params[c.id] ?? c.range?.default ?? 0.5,
   }));
 }
 
@@ -101,7 +101,7 @@ function getModulatorControls(mod: { type: string; model: number; params: Record
   return engine.controls.map(c => ({
     id: c.id,
     name: c.name,
-    value: mod.params[c.id] ?? c.range.default,
+    value: mod.params[c.id] ?? c.range?.default ?? 0.5,
   }));
 }
 
@@ -116,7 +116,7 @@ function formatRoutingTarget(target: ModulationTarget, voice: Voice): string {
 }
 
 export function ExpandedVoice({
-  session, activeVoice,
+  activeVoice,
   playing, bpm, swing, recording, globalStep,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
   onParamChange, onInteractionStart, onInteractionEnd,
@@ -138,7 +138,6 @@ export function ExpandedVoice({
   const modulators = activeVoice.modulators ?? [];
   const modulations = activeVoice.modulations ?? [];
   const sourceLabel = `Plaits (${getModelName(activeVoice.model)})`;
-  const sourceEngine = getEngineByIndex(activeVoice.model);
 
   // Build source engine list for mode selector
   const sourceEngines = Array.from({ length: 16 }, (_, i) => {

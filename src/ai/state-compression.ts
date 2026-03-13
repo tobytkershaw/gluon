@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Voice, ModulationTarget } from '../engine/types';
+import type { Session, Voice } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 
 interface CompressedPattern {

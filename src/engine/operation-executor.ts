@@ -1,15 +1,14 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot } from './types';
-import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot } from './types';
+import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
 import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
-import { eventsToSteps } from './event-conversion';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
 import { VOICE_LABELS } from './voice-labels';
-import { getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
+import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 
 export interface OperationExecutionReport {
@@ -88,7 +87,16 @@ export function prevalidateAction(
       const resolved = resolveMoveParam(action.param, adapter);
       if (!resolved) return `Unknown control: ${action.param}`;
 
-      const validation = adapter.validateOperation(action);
+      const validationMove: MoveOp = {
+        type: 'move',
+        voiceId,
+        controlId: resolved.controlId,
+        target: 'absolute' in action.target
+          ? { absolute: action.target.absolute }
+          : { relative: action.target.relative },
+        ...(action.over ? { overMs: action.over } : {}),
+      };
+      const validation = adapter.validateOperation(validationMove);
       if (!validation.valid) return validation.reason ?? `Validation failed for ${action.param}`;
 
       if (!arbitrator.canAIAct(voiceId, resolved.runtimeParam)) {
