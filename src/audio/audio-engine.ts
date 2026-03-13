@@ -210,20 +210,12 @@ export class AudioEngine {
     });
   }
 
-  /**
-   * Restore accent gains to baseline after silenceAll() zeroed them.
-   *
-   * When `startTime` is provided, the gain stays at its current value (0 from
-   * silenceAll) until `startTime`, then steps to 0.3.  This eliminates the
-   * window between "now" and the first scheduled note where stale accent
-   * automation from a previous playback cycle could corrupt the gain timeline.
-   */
-  restoreBaseline(startTime?: number): void {
+  /** Restore accent gains to baseline after silenceAll() zeroed them. */
+  restoreBaseline(): void {
     const now = this.ctx?.currentTime ?? 0;
-    const t = startTime ?? now;
     for (const slot of this.voices.values()) {
       slot.accentGain.gain.cancelAndHoldAtTime(now);
-      slot.accentGain.gain.setValueAtTime(0.3, t);
+      slot.accentGain.gain.setValueAtTime(0.3, now);
     }
   }
 
