@@ -70,6 +70,7 @@ export function prevalidateAction(
 
       // Processor path: validate against processor registry via chain-validation
       if (action.processorId) {
+        if (action.over) return `Timed moves (over) are not supported for processor controls`;
         const targetResult = validateProcessorTarget(voice, action.processorId, { param: action.param });
         if (!targetResult.valid) return targetResult.errors[0];
         return null;

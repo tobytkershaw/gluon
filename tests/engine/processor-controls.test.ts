@@ -69,6 +69,16 @@ describe('Processor-targeted move', () => {
       expect(result).toContain('structure');
     });
 
+    it('rejects processor move with over (timed moves not supported)', () => {
+      const session = sessionWithProcessor();
+      const action: AIAction = {
+        type: 'move', param: 'brightness', target: { absolute: 0.3 },
+        voiceId: 'v0', processorId: 'rings-test-1', over: 2000,
+      };
+      expect(prevalidateAction(session, action, adapter, makeArbitrator()))
+        .toMatch(/not supported.*processor/i);
+    });
+
     it('rejects processor move when agency OFF', () => {
       const session = sessionWithProcessor();
       const s = {
