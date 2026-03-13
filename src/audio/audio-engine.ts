@@ -32,6 +32,8 @@ export class AudioEngine {
   private analyser: AnalyserNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private _isRunning = false;
+  /** Tracks processor IDs currently being created (async in-flight guard). */
+  private pendingProcessors = new Set<string>();
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -87,6 +89,7 @@ export class AudioEngine {
       slot.synth.destroy();
     }
     this.voices.clear();
+    this.pendingProcessors.clear();
     this.mixer?.disconnect();
     this.analyser?.disconnect();
     this.mediaStreamDest?.disconnect();
@@ -148,14 +151,28 @@ export class AudioEngine {
   // --- Processor chain ---
 
   async addProcessor(voiceId: string, processorType: 'rings', processorId: string): Promise<void> {
+    const key = `${voiceId}:${processorId}`;
+    if (this.pendingProcessors.has(key)) return;
+
     const slot = this.voices.get(voiceId);
     if (!slot || !this.ctx) return;
+    if (slot.processors.some(p => p.id === processorId)) return;
 
     if (processorType === 'rings') {
-      const { createRingsProcessor } = await import('./create-synth');
-      const rings = await createRingsProcessor(this.ctx);
-      slot.processors.push({ id: processorId, type: 'rings', engine: rings });
-      this.rebuildChain(slot);
+      this.pendingProcessors.add(key);
+      try {
+        const { createRingsProcessor } = await import('./create-synth');
+        const rings = await createRingsProcessor(this.ctx);
+        // Re-check after async gap — slot may have changed
+        if (!slot.processors.some(p => p.id === processorId)) {
+          slot.processors.push({ id: processorId, type: 'rings', engine: rings });
+          this.rebuildChain(slot);
+        } else {
+          rings.destroy();
+        }
+      } finally {
+        this.pendingProcessors.delete(key);
+      }
     }
   }
 
@@ -188,7 +205,15 @@ export class AudioEngine {
   getProcessors(voiceId: string): { id: string; type: string }[] {
     const slot = this.voices.get(voiceId);
     if (!slot) return [];
-    return slot.processors.map(p => ({ id: p.id, type: p.type }));
+    const result = slot.processors.map(p => ({ id: p.id, type: p.type }));
+    // Include in-flight processors so the sync effect doesn't re-add them
+    for (const key of this.pendingProcessors) {
+      const [vid, pid] = key.split(':');
+      if (vid === voiceId && !result.some(p => p.id === pid)) {
+        result.push({ id: pid!, type: 'rings' });
+      }
+    }
+    return result;
   }
 
   private rebuildChain(slot: VoiceSlot): void {
