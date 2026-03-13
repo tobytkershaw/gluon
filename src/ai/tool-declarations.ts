@@ -229,6 +229,54 @@ const removeViewTool: FunctionDeclaration = {
   },
 };
 
+const addProcessorTool: FunctionDeclaration = {
+  name: 'add_processor',
+  description:
+    'Add a processor module to a voice\'s signal chain (e.g. Rings resonator). The processor processes the voice\'s audio output. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      moduleType: {
+        type: Type.STRING,
+        description: 'Processor type to add. Available: "rings" (Mutable Instruments Rings resonator).',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "add Rings resonator for metallic texture").',
+      },
+    },
+    required: ['voiceId', 'moduleType', 'description'],
+  },
+};
+
+const removeProcessorTool: FunctionDeclaration = {
+  name: 'remove_processor',
+  description:
+    'Remove a processor module from a voice\'s signal chain by its ID. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      voiceId: {
+        type: Type.STRING,
+        description: 'Target voice ID (e.g. "v0").',
+      },
+      processorId: {
+        type: Type.STRING,
+        description: 'The processor ID to remove (visible in project state).',
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description (e.g. "remove Rings from kick voice").',
+      },
+    },
+    required: ['voiceId', 'processorId', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
@@ -238,4 +286,6 @@ export const GLUON_TOOLS: FunctionDeclaration[] = [
   transformTool,
   addViewTool,
   removeViewTool,
+  addProcessorTool,
+  removeProcessorTool,
 ];

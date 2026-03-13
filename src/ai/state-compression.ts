@@ -12,6 +12,12 @@ interface CompressedPattern {
   density: number;
 }
 
+interface CompressedProcessor {
+  id: string;
+  type: string;
+  model: number;
+}
+
 interface CompressedVoice {
   id: string;
   model: string;
@@ -21,6 +27,7 @@ interface CompressedVoice {
   solo: boolean;
   pattern: CompressedPattern;
   views: string[];
+  processors: CompressedProcessor[];
 }
 
 interface CompressedHumanAction {
@@ -123,6 +130,7 @@ export function compressState(session: Session): CompressedState {
       solo: voice.solo,
       pattern: compressPattern(voice),
       views: (voice.views ?? []).map(v => `${v.kind}:${v.id}`),
+      processors: (voice.processors ?? []).map(p => ({ id: p.id, type: p.type, model: p.model })),
     })),
     activeVoiceId: session.activeVoiceId,
     transport: {
