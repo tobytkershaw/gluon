@@ -4,7 +4,8 @@ import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode 
 import type { Content, FunctionCall, Part } from '@google/genai';
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, ProcessorConfig } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
-import { controlIdToRuntimeParam, getEngineById, plaitsInstrument } from '../audio/instrument-registry';
+import { controlIdToRuntimeParam, getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getProcessorEngineName, getRegisteredProcessorTypes } from '../audio/instrument-registry';
+import { validateChainMutation } from '../engine/chain-validation';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { projectRegionToPattern } from '../engine/region-projection';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
@@ -25,6 +26,25 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'move': {
       const voiceId = action.voiceId ?? session.activeVoiceId;
       const voice = getVoice(session, voiceId);
+
+      // Processor path: update processor.params directly
+      if (action.processorId) {
+        const processors = voice.processors ?? [];
+        const procIndex = processors.findIndex(p => p.id === action.processorId);
+        if (procIndex < 0) return session;
+        const proc = processors[procIndex];
+        const currentVal = proc.params[action.param] ?? 0;
+        const rawTarget = 'absolute' in action.target
+          ? action.target.absolute
+          : currentVal + action.target.relative;
+        const value = Math.max(0, Math.min(1, rawTarget));
+        const updatedProc = { ...proc, params: { ...proc.params, [action.param]: value } };
+        const newProcessors = [...processors];
+        newProcessors[procIndex] = updatedProc;
+        return updateVoice(session, voiceId, { processors: newProcessors });
+      }
+
+      // Source path
       const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
       const currentVal = voice.params[runtimeKey] ?? 0;
       const rawTarget = 'absolute' in action.target
@@ -84,6 +104,22 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateVoice(session, action.voiceId, { regions: newRegions, pattern });
     }
     case 'set_model': {
+      // Processor path: update processor model
+      if (action.processorId) {
+        const voice = getVoice(session, action.voiceId);
+        const processors = voice.processors ?? [];
+        const procIndex = processors.findIndex(p => p.id === action.processorId);
+        if (procIndex < 0) return session;
+        const proc = processors[procIndex];
+        const result = getProcessorEngineByName(proc.type, action.model);
+        if (!result) return session;
+        const updatedProc = { ...proc, model: result.index };
+        const newProcessors = [...processors];
+        newProcessors[procIndex] = updatedProc;
+        return updateVoice(session, action.voiceId, { processors: newProcessors });
+      }
+
+      // Source path
       const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
       if (engineIndex < 0) return session;
       const engineDef = plaitsInstrument.engines[engineIndex];
@@ -352,6 +388,7 @@ export class GluonAI {
           param: args.param as string,
           target: target as { absolute?: number; relative?: number },
           ...(args.voiceId ? { voiceId: args.voiceId as string } : {}),
+          ...(args.processorId ? { processorId: args.processorId as string } : {}),
           ...(args.over ? { over: args.over as number } : {}),
         };
 
@@ -361,8 +398,14 @@ export class GluonAI {
         // Compute resulting value for the response
         const voiceId = action.voiceId ?? session.activeVoiceId;
         const voice = session.voices.find(v => v.id === voiceId);
-        const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
-        const currentVal = voice?.params[runtimeKey] ?? 0;
+        let currentVal: number;
+        if (action.processorId) {
+          const proc = (voice?.processors ?? []).find(p => p.id === action.processorId);
+          currentVal = proc?.params[action.param] ?? 0;
+        } else {
+          const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
+          currentVal = voice?.params[runtimeKey] ?? 0;
+        }
         const rawTarget = 'absolute' in action.target
           ? action.target.absolute
           : currentVal + (action.target as { relative: number }).relative;
@@ -374,6 +417,7 @@ export class GluonAI {
             applied: true,
             param: action.param,
             voiceId,
+            ...(action.processorId ? { processorId: action.processorId } : {}),
             value: Math.round(resultValue * 100) / 100,
           }),
         };
@@ -456,6 +500,7 @@ export class GluonAI {
           type: 'set_model',
           voiceId: args.voiceId as string,
           model: args.model as string,
+          ...(args.processorId ? { processorId: args.processorId as string } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);
@@ -467,6 +512,7 @@ export class GluonAI {
             queued: true,
             voiceId: action.voiceId,
             model: action.model,
+            ...(action.processorId ? { processorId: action.processorId } : {}),
           }),
         };
       }
@@ -600,9 +646,13 @@ export class GluonAI {
         if (typeof args.moduleType !== 'string' || !args.moduleType) {
           return errorResponse(id, name, 'Missing required parameter: moduleType');
         }
-        const validProcessorTypes = ['rings'];
-        if (!validProcessorTypes.includes(args.moduleType as string)) {
-          return errorResponse(id, name, `Unknown moduleType: ${args.moduleType}. Must be one of: ${validProcessorTypes.join(', ')}`);
+        // Chain validation: type and capacity
+        const voice = session.voices.find(v => v.id === args.voiceId);
+        if (voice) {
+          const chainResult = validateChainMutation(voice, { kind: 'add', type: args.moduleType as string });
+          if (!chainResult.valid) {
+            return errorResponse(id, name, chainResult.errors[0]);
+          }
         }
         if (typeof args.description !== 'string') {
           return errorResponse(id, name, 'Missing required parameter: description');

@@ -262,3 +262,41 @@ export function getControlBinding(engineId: string, controlId: string): ControlB
 export function getModelList(): { index: number; name: string; description: string }[] {
   return engines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
 }
+
+// --- Processor registry ---
+
+const processorInstruments = new Map<string, InstrumentDef>([
+  ['rings', ringsInstrument],
+]);
+
+/** Get the instrument definition for a processor type */
+export function getProcessorInstrument(type: string): InstrumentDef | undefined {
+  return processorInstruments.get(type);
+}
+
+/** Get valid control IDs for a processor type */
+export function getProcessorControlIds(type: string): string[] {
+  const inst = processorInstruments.get(type);
+  if (!inst || inst.engines.length === 0) return [];
+  return inst.engines[0].controls.map(c => c.id);
+}
+
+/** Get all registered processor type names */
+export function getRegisteredProcessorTypes(): string[] {
+  return Array.from(processorInstruments.keys());
+}
+
+/** Look up a processor engine (model/mode) by name, returning its index */
+export function getProcessorEngineByName(type: string, name: string): { index: number; engine: EngineDef } | undefined {
+  const inst = processorInstruments.get(type);
+  if (!inst) return undefined;
+  const index = inst.engines.findIndex(e => e.id === name);
+  if (index < 0) return undefined;
+  return { index, engine: inst.engines[index] };
+}
+
+/** Get the engine name for a processor type by index */
+export function getProcessorEngineName(type: string, index: number): string | undefined {
+  const inst = processorInstruments.get(type);
+  return inst?.engines[index]?.id;
+}

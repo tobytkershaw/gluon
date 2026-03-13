@@ -1,6 +1,6 @@
 // src/ai/state-compression.ts
 import type { Session, Voice } from '../engine/types';
-import { getModelName, runtimeParamToControlId } from '../audio/instrument-registry';
+import { getModelName, runtimeParamToControlId, getProcessorEngineName } from '../audio/instrument-registry';
 
 interface CompressedPattern {
   length: number;
@@ -15,7 +15,8 @@ interface CompressedPattern {
 interface CompressedProcessor {
   id: string;
   type: string;
-  model: number;
+  model: string;
+  params: Record<string, number>;
 }
 
 interface CompressedVoice {
@@ -130,7 +131,12 @@ export function compressState(session: Session): CompressedState {
       solo: voice.solo,
       pattern: compressPattern(voice),
       views: (voice.views ?? []).map(v => `${v.kind}:${v.id}`),
-      processors: (voice.processors ?? []).map(p => ({ id: p.id, type: p.type, model: p.model })),
+      processors: (voice.processors ?? []).map(p => ({
+        id: p.id,
+        type: p.type,
+        model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
+        params: Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, round2(v)])),
+      })),
     })),
     activeVoiceId: session.activeVoiceId,
     transport: {
