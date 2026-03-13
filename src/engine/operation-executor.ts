@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorConfig } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -115,6 +115,24 @@ export function prevalidateAction(
       // No agency check
       const views = voice.views ?? [];
       if (!views.some(v => v.id === action.viewId)) return `View not found: ${action.viewId}`;
+      return null;
+    }
+
+    case 'add_processor': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const validTypes = ['rings'];
+      if (!validTypes.includes(action.moduleType)) return `Unknown processor type: ${action.moduleType}. Must be one of: ${validTypes.join(', ')}`;
+      return null;
+    }
+
+    case 'remove_processor': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const processors = voice.processors ?? [];
+      if (!processors.some(p => p.id === action.processorId)) return `Processor not found: ${action.processorId}`;
       return null;
     }
 
@@ -470,6 +488,53 @@ export function executeOperations(
         };
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed view ${action.viewId}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'add_processor': {
+        const voice = getVoice(next, action.voiceId);
+        const prevProcessors = [...(voice.processors ?? [])];
+        const newProcessor: ProcessorConfig = {
+          id: action.processorId,
+          type: action.moduleType as ProcessorConfig['type'],
+          model: 0,
+          params: {},
+        };
+        const snapshot: ProcessorSnapshot = {
+          kind: 'processor',
+          voiceId: action.voiceId,
+          prevProcessors,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateVoice(next, action.voiceId, { processors: [...prevProcessors, newProcessor] }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'remove_processor': {
+        const voice = getVoice(next, action.voiceId);
+        const prevProcessors = [...(voice.processors ?? [])];
+        const snapshot: ProcessorSnapshot = {
+          kind: 'processor',
+          voiceId: action.voiceId,
+          prevProcessors,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        const filtered = prevProcessors.filter(p => p.id !== action.processorId);
+        next = {
+          ...updateVoice(next, action.voiceId, { processors: filtered }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}` });
         accepted.push(action);
         break;
       }

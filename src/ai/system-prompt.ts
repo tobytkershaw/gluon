@@ -2,7 +2,7 @@
 
 import type { Session } from '../engine/types';
 import { VOICE_LABELS } from '../engine/voice-labels';
-import { getModelList, getEngineByIndex, isPercussion } from '../audio/instrument-registry';
+import { getModelList, getEngineByIndex, isPercussion, getRingsModelList } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
   return getModelList()
@@ -26,7 +26,9 @@ function generateVoiceSetup(session: Session): string {
     const engineId = engine?.id ?? '';
     const classification = isPercussion(engineId) ? 'percussion' : 'melodic';
     const agency = v.agency === 'ON' ? 'agency ON' : 'agency OFF';
-    return `- ${v.id} (${label}): ${engineLabel} (${classification}) — ${agency}`;
+    const procs = (v.processors ?? []).map(p => `${p.type}(${p.id})`).join(', ');
+    const chainSuffix = procs ? ` → [${procs}]` : '';
+    return `- ${v.id} (${label}): ${engineLabel} (${classification}) — ${agency}${chainSuffix}`;
   }).join('\n');
 
   return `${session.voices.length} voices:
@@ -59,7 +61,14 @@ ${generateVoiceSetup(session)}
 ${generateModelReference()}
 
 ## Parameter Space (semantic controls)
-${generateParameterSection()}`;
+${generateParameterSection()}
+
+## Processor Modules
+Available processor types you can add to a voice's signal chain using add_processor:
+- **rings** — Mutable Instruments Rings physical modelling resonator. Models: ${getRingsModelList().map(m => m.name).join(', ')}.
+  Processes the voice's audio through resonant body simulation. Great for adding metallic, string, or bell-like resonance to any source.
+
+Use add_processor to insert a processor into a voice's chain. Use remove_processor to take it out. Chain operations are undoable.`;
 }
 
 /** @deprecated Use buildSystemPrompt(session) instead */

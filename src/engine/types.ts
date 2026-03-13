@@ -110,7 +110,15 @@ export interface ViewSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot;
+export interface ProcessorSnapshot {
+  kind: 'processor';
+  voiceId: string;
+  prevProcessors: ProcessorConfig[];
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -183,7 +191,22 @@ export interface AIRemoveViewAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction;
+export interface AIAddProcessorAction {
+  type: 'add_processor';
+  voiceId: string;
+  moduleType: string;  // processor type from registry (e.g. "rings")
+  processorId: string; // assigned at tool-call time; used by projection + execution
+  description: string;
+}
+
+export interface AIRemoveProcessorAction {
+  type: 'remove_processor';
+  voiceId: string;
+  processorId: string;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction;
 
 // --- Session ---
 

@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, ProcessorConfig } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
 import { controlIdToRuntimeParam, getEngineById, plaitsInstrument } from '../audio/instrument-registry';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -100,6 +100,23 @@ function projectAction(session: Session, action: AIAction): Session {
       const voice = getVoice(session, action.voiceId);
       const views = (voice.views ?? []).filter(v => v.id !== action.viewId);
       return updateVoice(session, action.voiceId, { views });
+    }
+    case 'add_processor': {
+      const voice = getVoice(session, action.voiceId);
+      const processors = [...(voice.processors ?? [])];
+      const newProc: ProcessorConfig = {
+        id: action.processorId,
+        type: action.moduleType as ProcessorConfig['type'],
+        model: 0,
+        params: {},
+      };
+      processors.push(newProc);
+      return updateVoice(session, action.voiceId, { processors });
+    }
+    case 'remove_processor': {
+      const voice = getVoice(session, action.voiceId);
+      const processors = (voice.processors ?? []).filter(p => p.id !== action.processorId);
+      return updateVoice(session, action.voiceId, { processors });
     }
     case 'say':
     default:
@@ -572,6 +589,77 @@ export class GluonAI {
             applied: true,
             voiceId: removeViewAction.voiceId,
             viewId: removeViewAction.viewId,
+          }),
+        };
+      }
+
+      case 'add_processor': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.moduleType !== 'string' || !args.moduleType) {
+          return errorResponse(id, name, 'Missing required parameter: moduleType');
+        }
+        const validProcessorTypes = ['rings'];
+        if (!validProcessorTypes.includes(args.moduleType as string)) {
+          return errorResponse(id, name, `Unknown moduleType: ${args.moduleType}. Must be one of: ${validProcessorTypes.join(', ')}`);
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        // Generate the processor ID once — used by projection, execution, and response
+        const assignedProcessorId = `${args.moduleType}-${Date.now()}`;
+
+        const addProcAction: AIAddProcessorAction = {
+          type: 'add_processor',
+          voiceId: args.voiceId as string,
+          moduleType: args.moduleType as string,
+          processorId: assignedProcessorId,
+          description: args.description as string,
+        };
+
+        const addProcRejection = ctx?.validateAction?.(addProcAction);
+        if (addProcRejection) return errorResponse(id, name, addProcRejection);
+
+        return {
+          actions: [addProcAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            voiceId: addProcAction.voiceId,
+            moduleType: addProcAction.moduleType,
+            processorId: assignedProcessorId,
+          }),
+        };
+      }
+
+      case 'remove_processor': {
+        if (typeof args.voiceId !== 'string' || !args.voiceId) {
+          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        }
+        if (typeof args.processorId !== 'string' || !args.processorId) {
+          return errorResponse(id, name, 'Missing required parameter: processorId');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        const removeProcAction: AIRemoveProcessorAction = {
+          type: 'remove_processor',
+          voiceId: args.voiceId as string,
+          processorId: args.processorId as string,
+          description: args.description as string,
+        };
+
+        const removeProcRejection = ctx?.validateAction?.(removeProcAction);
+        if (removeProcRejection) return errorResponse(id, name, removeProcRejection);
+
+        return {
+          actions: [removeProcAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            voiceId: removeProcAction.voiceId,
+            processorId: removeProcAction.processorId,
           }),
         };
       }
