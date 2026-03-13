@@ -11,6 +11,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "qa:preflight": "bash scripts/qa-preflight.sh",
+    "qa:smoke": "bash scripts/qa-playwright-smoke.sh",
     "wasm:build": "bash scripts/wasm-build.sh",
     "wasm:build:docker": "bash scripts/wasm-build-docker.sh"
   },

@@ -27,6 +27,7 @@ import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
 import type { ViewMode } from './view-types';
+import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
 const plaitsAdapter = createPlaitsAdapter();
 
@@ -66,6 +67,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [session]);
 
+  useEffect(() => {
+    clearQaAudioTrace();
+  }, []);
+
   const schedulerRef = useRef<Scheduler | null>(null);
 
   const ensureAudio = useCallback(async () => {
@@ -102,7 +107,21 @@ export default function App() {
       schedulerRef.current.stop();
       audioRef.current.silenceAll();
     }
+    recordQaAudioTrace({
+      type: 'transport.state',
+      playing: session.transport.playing,
+      bpm: session.transport.bpm,
+      swing: session.transport.swing,
+    });
   }, [session.transport.playing]);
+
+  useEffect(() => {
+    recordQaAudioTrace({
+      type: 'transport.settings',
+      bpm: session.transport.bpm,
+      swing: session.transport.swing,
+    });
+  }, [session.transport.bpm, session.transport.swing]);
 
   // Sync audio params for all voices when session changes
   useEffect(() => {
@@ -397,6 +416,11 @@ export default function App() {
     if (recording) {
       const blob = await exporterRef.current.stop();
       setRecording(false);
+      recordQaAudioTrace({
+        type: 'recording.state',
+        recording: false,
+        reason: 'stop',
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -409,6 +433,17 @@ export default function App() {
       if (dest) {
         exporterRef.current.start(dest);
         setRecording(true);
+        recordQaAudioTrace({
+          type: 'recording.state',
+          recording: true,
+          reason: 'start',
+        });
+      } else {
+        recordQaAudioTrace({
+          type: 'recording.state',
+          recording: false,
+          reason: 'no-destination',
+        });
       }
     }
   }, [recording, ensureAudio]);

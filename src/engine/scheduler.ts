@@ -4,6 +4,7 @@ import type { ScheduledNote } from './sequencer-types';
 import type { MusicalEvent, TriggerEvent, NoteEvent } from './canonical-types';
 import { getAudibleVoices, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { recordQaAudioTrace } from '../qa/audio-trace';
 
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
@@ -184,6 +185,16 @@ export class Scheduler {
             accent,
             params: resolvedParams,
             baseParams: voice.params,
+          });
+          recordQaAudioTrace({
+            type: 'scheduler.note',
+            voiceId: voice.id,
+            eventKind: event.kind,
+            at: event.at,
+            absoluteStep,
+            noteTime,
+            gateOffTime,
+            accent,
           });
         }
       }
