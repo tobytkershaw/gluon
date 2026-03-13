@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorConfig } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Voice, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -9,7 +9,8 @@ import { eventsToSteps } from './event-conversion';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
 import { VOICE_LABELS } from './voice-labels';
-import { getEngineById, plaitsInstrument } from '../audio/instrument-registry';
+import { getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName } from '../audio/instrument-registry';
+import { validateChainMutation, validateProcessorTarget } from './chain-validation';
 
 export interface OperationExecutionReport {
   session: Session;
@@ -67,6 +68,15 @@ export function prevalidateAction(
       if (!voice) return `Voice not found: ${voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${voiceId} has agency OFF`;
 
+      // Processor path: validate against processor registry via chain-validation
+      if (action.processorId) {
+        if (action.over) return `Timed moves (over) are not supported for processor controls`;
+        const targetResult = validateProcessorTarget(voice, action.processorId, { param: action.param });
+        if (!targetResult.valid) return targetResult.errors[0];
+        return null;
+      }
+
+      // Source path: resolve through adapter
       const resolved = resolveMoveParam(action.param, adapter);
       if (!resolved) return `Unknown control: ${action.param}`;
 
@@ -90,6 +100,15 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+
+      // Processor path: resolve model against processor type's engine list via chain-validation
+      if (action.processorId) {
+        const targetResult = validateProcessorTarget(voice, action.processorId, { model: action.model });
+        if (!targetResult.valid) return targetResult.errors[0];
+        return null;
+      }
+
+      // Source path: resolve against Plaits engines
       const engine = getEngineById(action.model);
       if (!engine) return `Unknown model: ${action.model}`;
       return null;
@@ -122,8 +141,8 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const validTypes = ['rings'];
-      if (!validTypes.includes(action.moduleType)) return `Unknown processor type: ${action.moduleType}. Must be one of: ${validTypes.join(', ')}`;
+      const chainResult = validateChainMutation(voice, { kind: 'add', type: action.moduleType });
+      if (!chainResult.valid) return chainResult.errors[0];
       return null;
     }
 
@@ -131,8 +150,8 @@ export function prevalidateAction(
       const voice = session.voices.find(v => v.id === action.voiceId);
       if (!voice) return `Voice not found: ${action.voiceId}`;
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const processors = voice.processors ?? [];
-      if (!processors.some(p => p.id === action.processorId)) return `Processor not found: ${action.processorId}`;
+      const chainResult = validateChainMutation(voice, { kind: 'remove', processorId: action.processorId });
+      if (!chainResult.valid) return chainResult.errors[0];
       return null;
     }
 
@@ -170,10 +189,44 @@ export function executeOperations(
       case 'move': {
         const voiceId = action.voiceId ?? next.activeVoiceId;
         const voice = getVoice(next, voiceId);
+        const vLabel = VOICE_LABELS[voiceId]?.toUpperCase() ?? voiceId;
+
+        // Processor path: write directly to processor.params
+        if (action.processorId) {
+          const processors = voice.processors ?? [];
+          const procIndex = processors.findIndex(p => p.id === action.processorId);
+          const proc = processors[procIndex];
+          const currentVal = proc.params[action.param] ?? 0;
+          const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+          const targetVal = Math.max(0, Math.min(1, rawTarget));
+
+          const snapshot: ProcessorStateSnapshot = {
+            kind: 'processor-state',
+            voiceId,
+            processorId: action.processorId,
+            prevParams: { ...proc.params },
+            prevModel: proc.model,
+            timestamp: Date.now(),
+            description: `AI processor move: ${action.param} ${currentVal.toFixed(2)} -> ${targetVal.toFixed(2)}`,
+          };
+
+          const updatedProc = { ...proc, params: { ...proc.params, [action.param]: targetVal } };
+          const newProcessors = [...processors];
+          newProcessors[procIndex] = updatedProc;
+
+          next = {
+            ...updateVoice(next, voiceId, { processors: newProcessors }),
+            undoStack: [...next.undoStack, snapshot],
+          };
+
+          log.push({ voiceId, voiceLabel: vLabel, description: `${proc.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}` });
+          accepted.push(action);
+          break;
+        }
+
+        // Source path: resolve through adapter
         const resolved = resolveMoveParam(action.param, adapter)!;
         const { runtimeParam, controlId } = resolved;
-
-        const vLabel = VOICE_LABELS[voiceId]?.toUpperCase() ?? voiceId;
 
         if (action.over) {
           // Drift move: record snapshot + provenance, but actual animation is handled by caller
@@ -340,6 +393,40 @@ export function executeOperations(
 
       case 'set_model': {
         const voice = getVoice(next, action.voiceId);
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+
+        // Processor path: switch processor mode
+        if (action.processorId) {
+          const processors = voice.processors ?? [];
+          const procIndex = processors.findIndex(p => p.id === action.processorId);
+          const proc = processors[procIndex];
+          const result = getProcessorEngineByName(proc.type, action.model)!;
+
+          const snapshot: ProcessorStateSnapshot = {
+            kind: 'processor-state',
+            voiceId: action.voiceId,
+            processorId: action.processorId,
+            prevParams: { ...proc.params },
+            prevModel: proc.model,
+            timestamp: Date.now(),
+            description: `AI processor model: ${proc.type} mode → ${result.engine.label}`,
+          };
+
+          const updatedProc = { ...proc, model: result.index };
+          const newProcessors = [...processors];
+          newProcessors[procIndex] = updatedProc;
+
+          next = {
+            ...updateVoice(next, action.voiceId, { processors: newProcessors }),
+            undoStack: [...next.undoStack, snapshot],
+          };
+
+          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${proc.type} mode → ${result.engine.label}` });
+          accepted.push(action);
+          break;
+        }
+
+        // Source path: switch voice synthesis engine
         const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
         const engineDef = plaitsInstrument.engines[engineIndex];
         const prevModel = voice.model;
@@ -362,7 +449,6 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
 
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `model → ${engineDef.label}` });
         accepted.push(action);
         break;

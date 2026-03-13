@@ -23,7 +23,7 @@ export interface SynthParamValues {
 
 export interface ProcessorConfig {
   id: string;
-  type: 'rings';
+  type: string;
   model: number;
   params: Record<string, number>;
 }
@@ -118,7 +118,17 @@ export interface ProcessorSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot;
+export interface ProcessorStateSnapshot {
+  kind: 'processor-state';
+  voiceId: string;
+  processorId: string;
+  prevParams: Record<string, number>;
+  prevModel: number;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -134,6 +144,8 @@ export type UndoEntry = Snapshot | ActionGroupSnapshot;
 export interface AIMoveAction {
   type: 'move';
   voiceId?: string;
+  /** When present, targets a processor control instead of a voice/source control */
+  processorId?: string;
   /** Runtime param key (legacy) or canonical controlId */
   param: string;
   target: { absolute: number } | { relative: number };
@@ -165,7 +177,9 @@ export interface AITransportAction {
 export interface AISetModelAction {
   type: 'set_model';
   voiceId: string;
-  model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum")
+  /** When present, switches the processor's mode instead of the voice's synthesis engine */
+  processorId?: string;
+  model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum" for voice, "modal" for Rings)
 }
 
 export interface AITransformAction {

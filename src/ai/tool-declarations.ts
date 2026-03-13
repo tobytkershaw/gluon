@@ -7,13 +7,13 @@ import { Type } from '@google/genai';
 const moveTool: FunctionDeclaration = {
   name: 'move',
   description:
-    'Change a control parameter value on a voice. Immediately audible. Takes effect after this response.',
+    'Move a normalized control to a target value. Targets a voice source control by default, or a processor control when processorId is provided. Immediately audible. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
       param: {
         type: Type.STRING,
-        description: 'The control ID to change (e.g. "brightness", "richness", "note").',
+        description: 'The control ID to change. For voice: "brightness", "richness", "texture", "pitch". For processors: depends on type (e.g. Rings: "structure", "brightness", "damping", "position").',
       },
       target: {
         type: Type.OBJECT,
@@ -26,6 +26,10 @@ const moveTool: FunctionDeclaration = {
       voiceId: {
         type: Type.STRING,
         description: 'Target voice ID (e.g. "v0"). Defaults to active voice if omitted.',
+      },
+      processorId: {
+        type: Type.STRING,
+        description: 'Processor ID to target (e.g. "rings-1710342000000"). When provided, moves a control on the processor instead of the voice source.',
       },
       over: {
         type: Type.NUMBER,
@@ -143,7 +147,7 @@ const setTransportTool: FunctionDeclaration = {
 const setModelTool: FunctionDeclaration = {
   name: 'set_model',
   description:
-    'Change the synthesis engine/model for a voice. Takes effect after this response.',
+    'Switch the mode of a module. Without processorId, changes the voice synthesis engine. With processorId, changes the processor\'s mode (e.g. Rings resonator type). Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -154,10 +158,14 @@ const setModelTool: FunctionDeclaration = {
       model: {
         type: Type.STRING,
         description:
-          'Engine ID to switch to. Available: ' +
-          'virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
+          'Model/mode ID. For voice: virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
           'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
-          'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat.',
+          'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat. ' +
+          'For Rings processor: modal, sympathetic-string, string, fm-voice, sympathetic-quantized, string-and-reverb.',
+      },
+      processorId: {
+        type: Type.STRING,
+        description: 'Processor ID to target. When provided, switches the processor\'s mode instead of the voice\'s synthesis engine.',
       },
     },
     required: ['voiceId', 'model'],
