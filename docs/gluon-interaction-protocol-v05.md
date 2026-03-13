@@ -296,27 +296,28 @@ set_model {
 }
 ```
 
-#### `add_module` (future)
+#### `add_processor`
 
 Add a processor module to a voice's chain.
 
 ```
-add_module {
+add_processor {
   voiceId: VoiceID
   moduleType: ModuleType     // "rings", "clouds", etc.
-  position: int?             // Insert position in processor chain
   description: string
 }
 ```
 
-#### `remove_module` (future)
+Returns `{ processorId }` so the AI can reference the new processor in later same-turn calls.
+
+#### `remove_processor`
 
 Remove a processor module from a voice's chain.
 
 ```
-remove_module {
+remove_processor {
   voiceId: VoiceID
-  moduleId: ModuleID
+  processorId: ProcessorID
   description: string
 }
 ```
@@ -412,11 +413,11 @@ remove_view {
 
 The curated surfaces RFC defines additional operations for when voices have multi-module chains:
 
-- **`propose_surface`** — propose semantic control aggregation across chain modules (e.g., "Brightness" maps to Plaits timbre + Rings brightness + Clouds feedback). Requires human approval.
-- **`suggest_pin`** — suggest surfacing a raw module control for direct access
-- **`label_axes`** — suggest XY pad axis bindings
+- **`set_surface`** — set semantic control aggregation across chain modules (e.g., "Brightness" maps to Plaits timbre + Rings brightness + Clouds feedback). Immediate and undoable, like all other AI actions.
+- **`pin`** / **`unpin`** — surface or remove a raw module control for direct access
+- **`label_axes`** — set XY pad axis bindings
 
-These have approval gates because they change the meaning of controls, not just which projections are visible. Showing a step grid is low-risk; redefining what "Brightness" does is not.
+These follow the same pattern as all other AI operations: immediate, undoable, no approval gate. The human undoes if they don't like the result.
 
 ### Communication
 
@@ -432,7 +433,7 @@ When the AI makes a coordinated change across multiple parameters or voices, tho
 
 The AI should group actions when they are musically related. "Make it darker" might touch controls on three voices — that's one undo group.
 
-UI curation actions (add_view, remove_view) create their own undo entries, separate from programming or structure actions in the same response. Adding a step grid and sketching a pattern are related but independently valuable — the human might want to keep one and undo the other.
+UI curation actions (add_view, remove_view, set_surface, pin, unpin, label_axes) are grouped with other operations from the same AI response into a single undo entry, following the standard action group pattern.
 
 ---
 
