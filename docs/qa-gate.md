@@ -83,7 +83,6 @@ These issues should be checked deliberately during each QA cycle instead of bein
 
 - [#120](https://github.com/tobytkershaw/gluon/issues/120) BPM change path broken
 - [#121](https://github.com/tobytkershaw/gluon/issues/121) agency control missing in some views
-- [#129](https://github.com/tobytkershaw/gluon/issues/129) first-step transport start issue
 - [#130](https://github.com/tobytkershaw/gluon/issues/130) controls revert on mouse-up
 - [#131](https://github.com/tobytkershaw/gluon/issues/131) non-primary voices only sound momentarily
 - [#132](https://github.com/tobytkershaw/gluon/issues/132) spontaneous delayed parameter changes

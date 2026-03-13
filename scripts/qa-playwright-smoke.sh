@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Maintenance note:
+# This runner intentionally uses the existing Playwright CLI wrapper rather than
+# a separate browser test framework, but that makes it coupled to two unstable
+# surfaces:
+# 1. accessibility snapshot formatting, which several selector helpers parse
+# 2. the CLI wrapper's markdown-style output, which eval_js parses to recover
+#    JavaScript results
+# If the Playwright CLI snapshot or result format changes, the helper functions
+# near the top of this script are the first place to check.
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
@@ -573,7 +583,7 @@ PY
   done
 
   if [[ "$failures" -gt 0 ]]; then
-    record_result "first_step_start" "reproduces" "${failures}/${attempts} repeated start attempts did not confirm both scheduler step-0 and audio trigger trace; matches known issues #129/#153."
+    record_result "first_step_start" "reproduces" "${failures}/${attempts} repeated start attempts did not confirm both scheduler step-0 and audio trigger trace; matches known issue #153."
   else
     record_result "first_step_start" "pass" "All ${attempts} repeated start attempts confirmed first-step scheduling and audio trigger."
   fi
