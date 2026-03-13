@@ -8,6 +8,7 @@ interface Props {
   onSelectVoice: (voiceId: string) => void;
   onToggleMute: (voiceId: string) => void;
   onToggleSolo: (voiceId: string) => void;
+  onToggleAgency?: (voiceId: string) => void;
   compact?: boolean;
 }
 
@@ -16,7 +17,7 @@ const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
   ON:  { label: '',   color: '' },
 };
 
-export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMute, onToggleSolo, compact }: Props) {
+export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency, compact }: Props) {
   return (
     <div className="flex gap-1">
       {voices.map((voice, i) => {
@@ -54,8 +55,18 @@ export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMu
               >
                 S
               </button>
-              {voice.agency === 'OFF' && (
-                <span className="text-[9px] text-amber-400">{'\u{1F512}'}</span>
+              {onToggleAgency && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onToggleAgency(voice.id); }}
+                  title={voice.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
+                  className={`text-[10px] px-0.5 rounded ${
+                    voice.agency === 'OFF'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'text-zinc-600 hover:text-zinc-400'
+                  }`}
+                >
+                  C
+                </button>
               )}
             </div>
           );

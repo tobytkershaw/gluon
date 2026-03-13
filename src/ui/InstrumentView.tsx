@@ -9,7 +9,7 @@ import { UndoButton } from './UndoButton';
 import { TransportBar } from './TransportBar';
 import { ParameterSpace } from './ParameterSpace';
 import { ModelSelector } from './ModelSelector';
-import { AgencyToggle } from './AgencyToggle';
+import type { Agency } from '../engine/types';
 import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
 import { ChatPanel } from './ChatPanel';
@@ -105,6 +105,10 @@ export function InstrumentView({
           onSelectVoice={onSelectVoice}
           onToggleMute={onToggleMute}
           onToggleSolo={onToggleSolo}
+          onToggleAgency={(voiceId) => {
+            const voice = session.voices.find(v => v.id === voiceId);
+            if (voice) onAgencyChange(voice.agency === 'OFF' ? 'ON' : 'OFF');
+          }}
           compact
         />
         <div className="flex-1" />
@@ -132,10 +136,7 @@ export function InstrumentView({
             onToggleRecord={onToggleRecord}
           />
 
-          <div className="flex items-center gap-4">
-            <ModelSelector model={activeVoice.model} onChange={onModelChange} />
-            <AgencyToggle value={activeVoice.agency} onChange={onAgencyChange} />
-          </div>
+          <ModelSelector model={activeVoice.model} onChange={onModelChange} />
 
           <ChainStrip
             voice={activeVoice}
