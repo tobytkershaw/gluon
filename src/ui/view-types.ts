@@ -1,2 +1,2 @@
 // src/ui/view-types.ts
-export type ViewMode = 'chat' | 'instrument';
+export type ViewMode = 'chat' | 'instrument' | 'tracker';

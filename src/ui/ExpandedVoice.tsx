@@ -1,15 +1,12 @@
 // src/ui/ExpandedVoice.tsx
 // Layer 2: expanded voice layout with module-grouped controls.
 import type { Session, Voice, Agency, SequencerViewKind, ModulationTarget } from '../engine/types';
-import type { MusicalEvent } from '../engine/canonical-types';
-import type { EventSelector } from '../engine/event-primitives';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { TransportBar } from './TransportBar';
 import { ParameterSpace } from './ParameterSpace';
 import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
-import { Tracker } from './Tracker';
 import { SequencerViewSlot } from './SequencerViewSlot';
 import { ChainStrip } from './ChainStrip';
 import { ControlSection } from './ControlSection';
@@ -61,9 +58,6 @@ interface ExpandedVoiceProps {
   onPatternLength: (length: number) => void;
   onPageChange: (page: number) => void;
   onClearPattern: () => void;
-  // Tracker editing
-  onEventUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
-  onEventDelete?: (selector: EventSelector) => void;
   // Views
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
@@ -133,7 +127,7 @@ export function ExpandedVoice({
   selectedModulatorId, onSelectModulator,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
-  onEventUpdate, onEventDelete, onAddView, onRemoveView,
+  onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
   deepViewModuleId, onOpenDeepView,
@@ -313,17 +307,6 @@ export function ExpandedVoice({
             />
           </div>
         </>
-      )}
-
-      {/* Sequencer */}
-      {activeVoice.regions.length > 0 && (
-        <Tracker
-          region={activeVoice.regions[0]}
-          currentStep={currentStep}
-          playing={playing}
-          onUpdate={onEventUpdate}
-          onDelete={onEventDelete}
-        />
       )}
 
       {(activeVoice.views ?? []).map((viewConfig) => (

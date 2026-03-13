@@ -34,11 +34,10 @@ function eventKey(event: MusicalEvent, index: number): string {
 }
 
 export function Tracker({ region, currentStep, playing, onUpdate, onDelete }: Props) {
-  const scrollRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
-    if (playing && playheadRef.current && scrollRef.current) {
+    if (playing && playheadRef.current) {
       playheadRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [currentStep, playing]);
@@ -47,10 +46,6 @@ export function Tracker({ region, currentStep, playing, onUpdate, onDelete }: Pr
   const playheadAt = currentStep % region.duration;
 
   return (
-    <div
-      ref={scrollRef}
-      className="overflow-y-auto max-h-52 rounded border border-zinc-800/50 bg-zinc-900/40"
-    >
       <table className="w-full border-collapse select-none">
         <thead>
           <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
@@ -88,6 +83,5 @@ export function Tracker({ region, currentStep, playing, onUpdate, onDelete }: Pr
           )}
         </tbody>
       </table>
-    </div>
   );
 }
