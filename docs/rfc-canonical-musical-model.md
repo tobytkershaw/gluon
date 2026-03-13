@@ -8,9 +8,9 @@ Related docs:
 
 - `docs/gluon-interaction-protocol-v05.md`
 - `docs/gluon-architecture.md`
-- `docs/gluon-phase3-build.md`
 - `docs/gluon-phase4a-rfc.md`
 - `docs/gluon_modular_roadmap.md`
+- `docs/ai-musical-environment.md`
 
 ---
 
@@ -88,6 +88,27 @@ DSP wrappers, CC numbers, API calls, and node graphs do not leak into the AI-fac
 ### 8. The human's hands still win
 
 This RFC does not change arbitration, undo, or per-voice AI permissions. It only defines what kind of objects those rules apply to.
+
+---
+
+## State Ownership
+
+All persisted project state falls into one of five categories. This classification governs what gets saved, what gets sent to the AI, what gets undone, and what gets derived at runtime. The boundaries matter because mixing categories leads to over-persisting noise, under-modelling important state, or exposing implementation details to the AI.
+
+| Category | What it contains | Persisted | Sent to AI | Undoable | Example |
+|----------|-----------------|-----------|------------|----------|---------|
+| **Canonical musical state** | The musical content and instrument configuration. Voices, regions, events, parameters, processor chains, models, transport, agency. This is the source of truth for what the instrument *is* and what it *plays*. | Yes | Yes (compressed) | Yes | `voice.regions[0].events`, `voice.params`, `voice.processors`, `transport.bpm` |
+| **Provenance state** | Who set each value (human, AI, or default) and when. Drives undo source attribution and UI feedback. Not used for arbitration (which has its own runtime system). | Yes | No (internal) | Yes (restored alongside values) | `voice.controlProvenance` |
+| **Persistent presentation state** | What the human sees. Sequencer views, surface configurations (future), pinned controls (future), XY axis bindings (future). Persisted because losing your UI layout across sessions is bad UX, but not part of musical content. | Yes | Yes (compressed) | Yes | `voice.views`, `VoiceSurface` (future) |
+| **Collaboration state** (future) | Project phase, approved directions, rejected directions, preserved material, active brief. The shared understanding between human and AI about where the project is and what has been decided. Not yet implemented — defined in [ai-musical-environment.md](./ai-musical-environment.md). | Yes (when implemented) | Yes | Yes | `project.phase`, `project.approved_directions` |
+| **Ephemeral state** | Derived at runtime, never persisted. Undo stack (contains closures), recent human actions (short-lived), activity pulse, thumbprint colour, hover/focus state, arbitration cooldowns. | No | Partial (`undo_depth`, `recent_human_actions`) | N/A | `session.undoStack`, `session.recentHumanActions` |
+
+### What this means in practice
+
+- **`voice.pattern`** is derived (projected from `voice.regions`), not canonical. It is not persisted as authoritative. On load, it is always re-projected from regions.
+- **`voice.views`** is persistent presentation state. It rides on the Voice type for convenience but is not musical state — removing a step-grid view doesn't change the pattern.
+- **The AI sees compressed canonical state + compressed presentation state + selected ephemeral state** (`undo_depth`, `recent_human_actions`). It does not see provenance, raw engine parameters, or runtime arbitration state.
+- **Collaboration state does not exist yet.** When it does, it will be persisted, sent to the AI, and undoable — following the same rules as musical state. The migration path from "no collaboration state" to "collaboration state exists" should not require restructuring the existing state model.
 
 ---
 
@@ -765,8 +786,7 @@ These questions are important but do not block the core direction.
 
 ## Relationship to Other Documents
 
-- **Protocol (v0.4.0)**: This RFC extends the protocol's voice model with semantic controls and abstract events. The protocol's principles (human wins, AI acts when asked, undo is one action away) are unchanged.
-- **Phase 3 build doc**: Current work. This RFC doesn't block Phase 3 completion but should inform the instrument registry work.
-- **Phase 4A RFC**: The patch-chain model fits inside this RFC's voice model. Phase 4A implementation should use this as its data model foundation.
+- **Protocol (v0.5.0)**: This RFC extends the protocol's voice model with semantic controls and abstract events. The protocol's principles (human wins, AI acts when asked, undo is one action away) are unchanged.
+- **Phase 4A RFC**: The patch-chain model fits inside this RFC's voice model. Phase 4A implementation uses this as its data model foundation.
 - **Modular roadmap**: The long-term vision (Phases 4B–6) is enabled by this abstraction layer. The north-star section of this RFC maps directly onto the modular roadmap's later phases.
 - **Architecture doc**: The hardware profiles section already describes semantic parameter mapping for MIDI devices. This RFC formalises that into a shared registry covering all source types.
