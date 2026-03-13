@@ -13,6 +13,6 @@ export async function createPreferredSynth(ctx: AudioContext, output: AudioNode)
   }
 }
 
-export async function createRingsProcessor(ctx: AudioContext, output: AudioNode): Promise<RingsEngine> {
-  return RingsSynth.create(ctx, output);
+export async function createRingsProcessor(ctx: AudioContext): Promise<RingsEngine> {
+  return RingsSynth.create(ctx);
 }

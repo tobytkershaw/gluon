@@ -21,6 +21,13 @@ export interface SynthParamValues {
   [key: string]: number;
 }
 
+export interface ProcessorConfig {
+  id: string;
+  type: 'rings';
+  model: number;
+  params: Record<string, number>;
+}
+
 export interface Voice {
   id: string;
   engine: string;
@@ -36,6 +43,8 @@ export interface Voice {
   views?: SequencerViewConfig[];
   /** Events hidden by setPatternLength, restored on expand. Persisted to prevent data loss. */
   _hiddenEvents?: CanonicalMusicalEvent[];
+  /** Processor chain (effects applied after source). */
+  processors?: ProcessorConfig[];
 }
 
 export interface MusicalContext {

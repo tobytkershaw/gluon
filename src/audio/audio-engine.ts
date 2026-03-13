@@ -153,8 +153,7 @@ export class AudioEngine {
 
     if (processorType === 'rings') {
       const { createRingsProcessor } = await import('./create-synth');
-      // Create with a dummy destination — rebuildChain will wire it correctly
-      const rings = await createRingsProcessor(this.ctx, slot.accentGain);
+      const rings = await createRingsProcessor(this.ctx);
       slot.processors.push({ id: processorId, type: 'rings', engine: rings });
       this.rebuildChain(slot);
     }

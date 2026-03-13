@@ -21,10 +21,10 @@ export class RingsSynth implements RingsEngine {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
   private static wasmBinaryLoad: Promise<ArrayBuffer> | null = null;
 
-  static async create(ctx: AudioContext, output: AudioNode): Promise<RingsSynth> {
+  static async create(ctx: AudioContext): Promise<RingsSynth> {
     await this.ensureWorkletModule(ctx);
     const wasmBinary = await this.loadWasmBinary();
-    const synth = new RingsSynth(ctx, output, wasmBinary);
+    const synth = new RingsSynth(ctx, wasmBinary);
     await synth.waitUntilReady();
     return synth;
   }
@@ -69,7 +69,7 @@ export class RingsSynth implements RingsEngine {
   private currentPatch: RingsPatchParams = { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 };
   private currentModel = 0;
 
-  private constructor(ctx: AudioContext, output: AudioNode, wasmBinary: ArrayBuffer) {
+  private constructor(ctx: AudioContext, wasmBinary: ArrayBuffer) {
     this.node = new AudioWorkletNode(ctx, 'rings-processor', {
       numberOfInputs: 1,
       numberOfOutputs: 1,
@@ -77,8 +77,7 @@ export class RingsSynth implements RingsEngine {
       processorOptions: { wasmBinary },
     });
 
-    this.node.connect(output);
-
+    // Do NOT connect output here — AudioEngine.rebuildChain() manages all connections
     this.ready = new Promise<void>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
         reject(new Error('Timed out waiting for Rings processor'));

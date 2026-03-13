@@ -1,7 +1,7 @@
 // src/engine/session.ts
-import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ParamSnapshot } from './types';
+import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ParamSnapshot, ProcessorConfig } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateVoice } from './types';
+import { updateVoice, getVoice } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
@@ -174,4 +174,56 @@ export function togglePlaying(session: Session): Session {
     ...session,
     transport: { ...session.transport, playing: !session.transport.playing },
   };
+}
+
+// --- Processor chain helpers ---
+
+export function addVoiceProcessor(
+  session: Session,
+  voiceId: string,
+  processor: ProcessorConfig,
+): Session {
+  const voice = getVoice(session, voiceId);
+  return updateVoice(session, voiceId, {
+    processors: [...(voice.processors ?? []), processor],
+  });
+}
+
+export function removeVoiceProcessor(
+  session: Session,
+  voiceId: string,
+  processorId: string,
+): Session {
+  const voice = getVoice(session, voiceId);
+  return updateVoice(session, voiceId, {
+    processors: (voice.processors ?? []).filter(p => p.id !== processorId),
+  });
+}
+
+export function updateProcessorParams(
+  session: Session,
+  voiceId: string,
+  processorId: string,
+  params: Record<string, number>,
+): Session {
+  const voice = getVoice(session, voiceId);
+  return updateVoice(session, voiceId, {
+    processors: (voice.processors ?? []).map(p =>
+      p.id === processorId ? { ...p, params: { ...p.params, ...params } } : p,
+    ),
+  });
+}
+
+export function setProcessorModel(
+  session: Session,
+  voiceId: string,
+  processorId: string,
+  model: number,
+): Session {
+  const voice = getVoice(session, voiceId);
+  return updateVoice(session, voiceId, {
+    processors: (voice.processors ?? []).map(p =>
+      p.id === processorId ? { ...p, model } : p,
+    ),
+  });
 }
