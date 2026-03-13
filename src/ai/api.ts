@@ -105,7 +105,7 @@ function projectAction(session: Session, action: AIAction): Session {
       const voice = getVoice(session, action.voiceId);
       const processors = [...(voice.processors ?? [])];
       const newProc: ProcessorConfig = {
-        id: `${action.moduleType}-proj-${Date.now()}`,
+        id: action.processorId,
         type: action.moduleType as ProcessorConfig['type'],
         model: 0,
         params: {},
@@ -608,10 +608,14 @@ export class GluonAI {
           return errorResponse(id, name, 'Missing required parameter: description');
         }
 
+        // Generate the processor ID once — used by projection, execution, and response
+        const assignedProcessorId = `${args.moduleType}-${Date.now()}`;
+
         const addProcAction: AIAddProcessorAction = {
           type: 'add_processor',
           voiceId: args.voiceId as string,
           moduleType: args.moduleType as string,
+          processorId: assignedProcessorId,
           description: args.description as string,
         };
 
@@ -624,6 +628,7 @@ export class GluonAI {
             applied: true,
             voiceId: addProcAction.voiceId,
             moduleType: addProcAction.moduleType,
+            processorId: assignedProcessorId,
           }),
         };
       }

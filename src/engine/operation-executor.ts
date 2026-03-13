@@ -495,9 +495,8 @@ export function executeOperations(
       case 'add_processor': {
         const voice = getVoice(next, action.voiceId);
         const prevProcessors = [...(voice.processors ?? [])];
-        const processorId = `${action.moduleType}-${Date.now()}`;
         const newProcessor: ProcessorConfig = {
-          id: processorId,
+          id: action.processorId,
           type: action.moduleType as ProcessorConfig['type'],
           model: 0,
           params: {},
@@ -514,7 +513,7 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${processorId})` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})` });
         accepted.push(action);
         break;
       }

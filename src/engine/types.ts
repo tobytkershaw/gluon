@@ -195,6 +195,7 @@ export interface AIAddProcessorAction {
   type: 'add_processor';
   voiceId: string;
   moduleType: string;  // processor type from registry (e.g. "rings")
+  processorId: string; // assigned at tool-call time; used by projection + execution
   description: string;
 }
 
