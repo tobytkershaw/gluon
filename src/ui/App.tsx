@@ -404,13 +404,14 @@ export default function App() {
       a.click();
       URL.revokeObjectURL(url);
     } else {
+      await ensureAudio();
       const dest = audioRef.current.getMediaStreamDestination();
       if (dest) {
         exporterRef.current.start(dest);
         setRecording(true);
       }
     }
-  }, [recording]);
+  }, [recording, ensureAudio]);
 
   const handleSelectVoice = useCallback((voiceId: string) => {
     setSession((s) => setActiveVoice(s, voiceId));
@@ -574,22 +575,43 @@ export default function App() {
       const voice = getVoice(s, vid);
       const processors = voice.processors ?? [];
       if (!processors.some(p => p.id === processorId)) return s;
+      const prevModulations = voice.modulations ?? [];
+      const filteredModulations = prevModulations.filter(
+        route => route.target.kind !== 'processor' || route.target.processorId !== processorId,
+      );
 
-      const snapshot: ProcessorSnapshot = {
+      const processorSnapshot: ProcessorSnapshot = {
         kind: 'processor',
         voiceId: vid,
         prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
         timestamp: Date.now(),
         description: `Remove processor`,
       };
+      const snapshots: UndoEntry[] = [processorSnapshot];
+      if (filteredModulations.length !== prevModulations.length) {
+        snapshots.push({
+          kind: 'modulation-routing',
+          voiceId: vid,
+          prevModulations: prevModulations.map(route => ({ ...route })),
+          timestamp: Date.now(),
+          description: `Remove processor routings`,
+        });
+      }
       const updatedVoice = {
         ...voice,
         processors: processors.filter(p => p.id !== processorId),
+        modulations: filteredModulations,
       };
+      const undoEntry: UndoEntry = snapshots.length === 1 ? snapshots[0] : {
+        kind: 'group',
+        snapshots,
+        timestamp: Date.now(),
+        description: 'Remove processor and dependent modulation routes',
+      } as ActionGroupSnapshot;
       return {
         ...s,
         voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
-        undoStack: [...s.undoStack, snapshot],
+        undoStack: [...s.undoStack, undoEntry],
       };
     });
     setSelectedProcessorId(null);

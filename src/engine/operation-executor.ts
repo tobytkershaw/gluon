@@ -737,7 +737,11 @@ export function executeOperations(
       case 'remove_processor': {
         const voice = getVoice(next, action.voiceId);
         const prevProcessors = [...(voice.processors ?? [])];
-        const snapshot: ProcessorSnapshot = {
+        const prevModulations = [...(voice.modulations ?? [])];
+        const filteredModulations = prevModulations.filter(
+          route => route.target.kind !== 'processor' || route.target.processorId !== action.processorId,
+        );
+        const processorSnapshot: ProcessorSnapshot = {
           kind: 'processor',
           voiceId: action.voiceId,
           prevProcessors,
@@ -745,9 +749,24 @@ export function executeOperations(
           description: action.description,
         };
         const filtered = prevProcessors.filter(p => p.id !== action.processorId);
+        const snapshots: (ProcessorSnapshot | ModulationRoutingSnapshot)[] = [processorSnapshot];
+        if (filteredModulations.length !== prevModulations.length) {
+          snapshots.push({
+            kind: 'modulation-routing',
+            voiceId: action.voiceId,
+            prevModulations,
+            timestamp: Date.now(),
+            description: `${action.description} (clear dependent modulation routes)`,
+          });
+        }
         next = {
-          ...updateVoice(next, action.voiceId, { processors: filtered }),
-          undoStack: [...next.undoStack, snapshot],
+          ...updateVoice(next, action.voiceId, { processors: filtered, modulations: filteredModulations }),
+          undoStack: [...next.undoStack, snapshots.length === 1 ? snapshots[0] : {
+            kind: 'group',
+            snapshots,
+            timestamp: Date.now(),
+            description: action.description,
+          }],
         };
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}` });
@@ -758,9 +777,10 @@ export function executeOperations(
       case 'replace_processor': {
         const voice = getVoice(next, action.voiceId);
         const prevProcessors = [...(voice.processors ?? [])];
+        const prevModulations = [...(voice.modulations ?? [])];
         const idx = prevProcessors.findIndex(p => p.id === action.processorId);
         if (idx === -1) break; // Should not happen after prevalidation
-        const snapshot: ProcessorSnapshot = {
+        const processorSnapshot: ProcessorSnapshot = {
           kind: 'processor',
           voiceId: action.voiceId,
           prevProcessors,
@@ -775,9 +795,27 @@ export function executeOperations(
         };
         const newProcessors = [...prevProcessors];
         newProcessors[idx] = newProcessor;
+        const filteredModulations = prevModulations.filter(
+          route => route.target.kind !== 'processor' || route.target.processorId !== action.processorId,
+        );
+        const snapshots: (ProcessorSnapshot | ModulationRoutingSnapshot)[] = [processorSnapshot];
+        if (filteredModulations.length !== prevModulations.length) {
+          snapshots.push({
+            kind: 'modulation-routing',
+            voiceId: action.voiceId,
+            prevModulations,
+            timestamp: Date.now(),
+            description: `${action.description} (clear dependent modulation routes)`,
+          });
+        }
         next = {
-          ...updateVoice(next, action.voiceId, { processors: newProcessors }),
-          undoStack: [...next.undoStack, snapshot],
+          ...updateVoice(next, action.voiceId, { processors: newProcessors, modulations: filteredModulations }),
+          undoStack: [...next.undoStack, snapshots.length === 1 ? snapshots[0] : {
+            kind: 'group',
+            snapshots,
+            timestamp: Date.now(),
+            description: action.description,
+          }],
         };
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}` });
