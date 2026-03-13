@@ -345,16 +345,10 @@ Sequencer view operations should be:
 
 - immediate
 - reversible
-- session-local
-- undoable when initiated by the AI
+- persistent (persisted with the session, but not part of musical state)
+- undoable
 
-This differs from larger persistent surface proposals in the curated-surfaces RFC, which may require explicit approval.
-
-The reasoning is narrower here:
-
-- adding a sequencer view is low-risk
-- it is easily dismissed by the human
-- its purpose is legibility, not structural UI redefinition
+This is consistent with surface operations in the curated-surfaces RFC, which follow the same pattern: immediate, undoable, no approval gate.
 
 ---
 

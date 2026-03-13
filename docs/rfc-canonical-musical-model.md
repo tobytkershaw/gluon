@@ -227,7 +227,7 @@ type ControlState = Record<string, ControlValue>;   // controlId → current sta
 **Why provenance matters**: Gluon's arbitration model says the human's hands always win. Knowing whether a value was set by the human or the AI is essential for:
 
 - **Arbitration**: When both human and AI touch the same parameter, the human's value takes precedence. Provenance tells the system whose value is current.
-- **Undo**: The undo system reverses AI actions only. Provenance tells it which values to restore.
+- **Undo**: The undo system reverses all actions (human and AI) in LIFO order. Provenance tells it which values to restore.
 - **UI feedback**: The interface can show which parameters the AI changed in its last action.
 
 ### Examples

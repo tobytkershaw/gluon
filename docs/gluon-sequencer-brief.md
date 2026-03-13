@@ -11,7 +11,7 @@ The aim is not to build a general-purpose DAW sequencer inside Gluon. The aim is
 
 - AI-editable musical structure
 - human-first arbitration
-- one-step undo for AI actions
+- unified undo for all actions (human and AI)
 - multiple editing surfaces over shared musical data
 - adapters to external runtimes such as Mutable-derived generators and Ableton Live
 
@@ -81,7 +81,7 @@ As of March 11, 2026, Gluon has:
 - per-step gates, accents, and parameter locks
 - transport BPM and swing
 - AI sketching over musical events with conversion back to steps
-- undo grouped around AI actions
+- unified undo for all actions (human and AI), with AI actions grouped per turn
 
 The current sequencer implementation is deliberately simple:
 
@@ -148,7 +148,7 @@ Most sequencers assume one or more of the following:
 
 - the sequencer owns the source of truth
 - the user edits directly, not through an AI contract
-- undo is action-local and user-driven, not grouped AI-driven
+- undo does not typically cover both human and AI actions in a unified stack
 - timing/edit semantics are tightly coupled to a specific UI paradigm
 - project structure is designed around clips, patterns, rows, or MIDI regions specific to that product
 
@@ -239,7 +239,7 @@ Any sequencing evolution must preserve arbitration rules and protect human input
 
 ### 4. Undo stays one action away
 
-AI-generated sequencing changes must remain undoable as coherent action groups, regardless of how many events or voices they touch.
+All sequencing changes (human and AI) must remain undoable. AI-generated changes are grouped into coherent action groups, regardless of how many events or voices they touch.
 
 ### 5. Native sequencing must remain musically useful
 

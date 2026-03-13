@@ -98,11 +98,11 @@ The AI reads the full project state and responds with structured changes.
 
 #### `undo`
 
-Go back one step. The most recent AI action (or action group) is reversed. If the AI made a coordinated change across three voices, undo reverses all three at once.
+Go back one step. The most recent action (or action group) is reversed. If the AI made a coordinated change across three voices, undo reverses all three at once.
 
-Multiple undos walk back through the stack. Undo never reverses the human's own actions, only the AI's.
+Multiple undos walk back through the stack. All actions — human and AI — are undoable in LIFO order.
 
-There is no pending/commit/dismiss flow. AI changes are applied immediately and the human hears them. If it sounds wrong, undo. If it sounds right, keep going. This matches how a session musician works: they play something, you either nod or say "not that."
+There is no pending/commit/dismiss flow. Changes are applied immediately and the human hears them. If it sounds wrong, undo. If it sounds right, keep going. This matches how a session musician works: they play something, you either nod or say "not that."
 
 ---
 

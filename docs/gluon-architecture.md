@@ -145,7 +145,7 @@ The AI can "hear" its own work by rendering a few bars of audio and sending the 
 
 **Model strategy:**
 
-One capable model handles all reasoning: understanding prompts, reading project state, making structured changes, and conversing with the human. No need for separate Thinker/Listener/Generator/Reflex roles. The multimodal audio evaluation is an optional second model call (Gemini native audio) used when the AI wants to check its work.
+The architecture defines stable internal roles (planner, editor, listener, engine) rather than stable provider choices. One capable model currently handles reasoning, structured edits, and conversation; a multimodal audio model handles audio evaluation. Model and provider choice is an open investigation — the collaboration behavior contract (see `ai-collaboration-model.md`) comes first, and models are evaluated against it.
 
 **Taste and memory:** The AI develops understanding of the user's preferences through conversation context, not through a separate taste model. Session history provides this naturally.
 
@@ -241,7 +241,7 @@ The interface is built around the conversation. The chat panel is the primary in
 - **Voice selector**: 4 voice slots with model, mute/solo, and agency (OFF/ON)
 - **Transport**: Play/stop, BPM, swing
 - **Model selector**: Plaits synthesis model picker per voice
-- **Undo**: Reverses AI actions (essential for the iterate-and-refine loop)
+- **Undo**: Reverses all actions in LIFO order (essential for the iterate-and-refine loop)
 - **Audio export**: Record and download
 
 The UI should feel like an instrument, not a productivity app. Dark theme. Musical aesthetic. The AI's changes should be visible and transparent — you should always be able to see what it changed and undo it.
@@ -306,46 +306,37 @@ The only non-open component is the LLM API call, which is a service dependency. 
 
 ---
 
-## Development Phases
+## Development Milestones
 
 ### Phase 1: Proof of Concept (COMPLETE)
-- Mutable Instruments Plaits compiled and running as WASM in the browser
-- 2D parameter space UI, model selector, pitch/harmonics controls
-- AI integration via Gemini API for parameter reasoning
-- Single synth voice, basic chat panel, undo
+Plaits WASM in browser, 2D parameter space UI, AI integration via Gemini, single voice, basic chat, undo.
 
 ### Phase 2: Sequence & Layers (COMPLETE)
-- 4 voice slots with step sequencer (16-step, variable to 64)
-- Parameter locks (Elektron-style per-step overrides)
-- Transport (play/stop, BPM, swing)
-- AI can write patterns via sketch actions
-- Audio export via MediaRecorder
-- Voice mute/solo, pattern length, clear
+4-voice step sequencer, parameter locks, transport, AI sketch actions, audio export, mute/solo.
 
-### Phase 3: Agentic Music Assistant
-- **The pivot:** Reframe AI from live jam partner to agentic assistant ("Claude Code for music")
-- Chat panel becomes the primary interface for directing the AI
-- AI reads full project state and makes multi-step structured edits per request
-- Audio snapshots: render N bars, send to Gemini native audio model for self-evaluation
-- Simplify agency to OFF/ON per voice (AI only acts when asked)
-- Remove leash slider, reactive loop, continuous streaming
-- Improve undo UX: clear action log showing what the AI changed
+### Phase 3: Agentic Music Assistant (COMPLETE)
+Pivoted AI from live jam partner to agentic assistant. Chat as primary interface, multi-step structured edits, audio snapshots for AI self-evaluation, simplified agency (OFF/ON), unified undo.
 
-### Phase 4: MIDI Bridge
-- MIDI output to hardware synths
-- Hardware profile system
-- AI can reason about external hardware parameters
+### M0: Stabilization (COMPLETE)
+Canonical musical model foundations, session persistence, agency default inversion.
 
-### Phase 5: DAW Integration
-- Ableton Live integration
-- AI can write MIDI clips and automation
-- Arrangement sketching
-- Session memory across conversations
+### M1: Sequencer Foundations (COMPLETE)
+Canonical regions/events as sequencing source of truth. `voice.pattern` becomes a derived projection.
 
-### Phase 6: Community and Ecosystem
-- Community-contributed hardware profiles
-- Plugin format (VST3/AU) for MI engines
-- Mobile/tablet-optimised UI
+### M2: Sequencer Expressivity (COMPLETE)
+Microtiming, sub-step scheduling, transformation primitives (`rotate`, `transpose`, `reverse`, `duplicate`), dynamic voice-setup prompt, canonical state compression.
+
+### M3: Sequencer Surfaces (COMPLETE)
+Event-centric tracker as canonical truth view, addable sequencer views (step grid, piano roll placeholder), AI view operations (`add_view`, `remove_view`).
+
+### M4: First Chain (IN PROGRESS)
+Rings WASM resonator, processor chain architecture (source → processors → gain staging), AI structure tools (`add_processor`, `remove_processor`), undoable `ProcessorSnapshot`.
+
+### M5: UI Layers (PLANNED)
+Three-layer UI model from AI-Curated Surfaces RFC. Runs in parallel with remaining M4 work.
+
+### Future: External Integration
+MIDI output to hardware synths, hardware profiles, DAW integration (Ableton), arrangement sketching, community ecosystem.
 
 ---
 
