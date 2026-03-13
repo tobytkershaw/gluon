@@ -91,13 +91,17 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
-  - `M1–M3` — complete (sequencer foundations, expressivity, surfaces)
-  - `M4: First Chain` — prove modular chains end-to-end (Rings, structure tools, human undo)
-  - `M5: UI Layers` — UI foundation from curated surfaces RFC + external adapters
+  - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
+  - `M0: Stabilization` (current) — pre-M5 QA bug fixes
+  - `M5: UI Layers` — project foundation, parameter/patch navigation, AI-curated surfaces, listen tool
+  - `M6: Collaboration` — preservation contracts, aesthetic direction, structured listening
+  - `M7: External Integration` — MIDI output, hardware profiles, DAW integration
+  - See `docs/roadmap.md` for the full implementation roadmap
 - Do not create GitHub Projects or expand the label taxonomy unless explicitly asked.
 
 ## Reference Docs
 
+- `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
 - `docs/status.md` - Current build status and milestone tracking
@@ -109,13 +113,15 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 
 ### AI Contract (`docs/ai/`)
 - `docs/ai/ai-contract.md` - What the AI agent needs at inference time: tools, state format, validation rules.
-- `docs/ai/ai-musical-environment.md` - Target AI environment: layered state, layered actions, tool families, loop-native structure.
+- `docs/ai/ai-musical-environment.md` - Target AI environment: layered state, layered actions, tool families, structured listening, loop-native structure.
+- `docs/ai/aesthetic-direction.md` - How taste emerges from enriched collaboration state: reaction history, observed patterns, restraint guidance, prompt rules. No standalone taste subsystem.
 
 ### RFCs (`docs/rfcs/`)
 - `docs/rfcs/canonical-musical-model.md` - Canonical musical model: Voice, Region, MusicalEvent, ControlSchema, SourceAdapter.
 - `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, views, pins.
 - `docs/rfcs/sequencer-view-layer.md` - Sequencer views as projections over canonical events.
 - `docs/rfcs/phase4a.md` - Phase 4A: constrained patch chains.
+- `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
 
 ### Briefs (`docs/briefs/`)
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
