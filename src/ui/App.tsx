@@ -27,6 +27,7 @@ import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
 import type { ViewMode } from './view-types';
+import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
 const plaitsAdapter = createPlaitsAdapter();
 
@@ -66,6 +67,10 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [session]);
 
+  useEffect(() => {
+    clearQaAudioTrace();
+  }, []);
+
   const schedulerRef = useRef<Scheduler | null>(null);
 
   const ensureAudio = useCallback(async () => {
@@ -98,11 +103,29 @@ export default function App() {
     if (session.transport.playing) {
       audioRef.current.restoreBaseline();
       schedulerRef.current.start();
+      recordQaAudioTrace({
+        type: 'transport.play-start',
+        audioTime: audioRef.current.getCurrentTime(),
+      });
     } else {
       schedulerRef.current.stop();
       audioRef.current.silenceAll();
     }
+    recordQaAudioTrace({
+      type: 'transport.state',
+      playing: session.transport.playing,
+      bpm: session.transport.bpm,
+      swing: session.transport.swing,
+    });
   }, [session.transport.playing]);
+
+  useEffect(() => {
+    recordQaAudioTrace({
+      type: 'transport.settings',
+      bpm: session.transport.bpm,
+      swing: session.transport.swing,
+    });
+  }, [session.transport.bpm, session.transport.swing]);
 
   // Sync audio params for all voices when session changes
   useEffect(() => {
@@ -228,6 +251,7 @@ export default function App() {
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
           autoRef.current.start(runtimeParam, currentVal, targetVal, action.over, (p, value) => {
+            if (!arbRef.current.canAIAct(vid, p)) return;
             setSession((s2) => applyParamDirect(s2, vid, p, value));
           });
           autoRef.current.startLoop();
@@ -390,6 +414,9 @@ export default function App() {
 
   const handleTogglePlay = useCallback(async () => {
     await ensureAudio();
+    // Resume AudioContext if browser auto-suspended it after idle.
+    // Must happen during user gesture to satisfy autoplay policy.
+    await audioRef.current.resume();
     setSession((s) => togglePlaying(s));
   }, [ensureAudio]);
 
@@ -397,6 +424,11 @@ export default function App() {
     if (recording) {
       const blob = await exporterRef.current.stop();
       setRecording(false);
+      recordQaAudioTrace({
+        type: 'recording.state',
+        recording: false,
+        reason: 'stop',
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -404,13 +436,25 @@ export default function App() {
       a.click();
       URL.revokeObjectURL(url);
     } else {
+      await ensureAudio();
       const dest = audioRef.current.getMediaStreamDestination();
       if (dest) {
         exporterRef.current.start(dest);
         setRecording(true);
+        recordQaAudioTrace({
+          type: 'recording.state',
+          recording: true,
+          reason: 'start',
+        });
+      } else {
+        recordQaAudioTrace({
+          type: 'recording.state',
+          recording: false,
+          reason: 'start-failed',
+        });
       }
     }
-  }, [recording]);
+  }, [recording, ensureAudio]);
 
   const handleSelectVoice = useCallback((voiceId: string) => {
     setSession((s) => setActiveVoice(s, voiceId));
@@ -574,22 +618,43 @@ export default function App() {
       const voice = getVoice(s, vid);
       const processors = voice.processors ?? [];
       if (!processors.some(p => p.id === processorId)) return s;
+      const prevModulations = voice.modulations ?? [];
+      const filteredModulations = prevModulations.filter(
+        route => route.target.kind !== 'processor' || route.target.processorId !== processorId,
+      );
 
-      const snapshot: ProcessorSnapshot = {
+      const processorSnapshot: ProcessorSnapshot = {
         kind: 'processor',
         voiceId: vid,
         prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
         timestamp: Date.now(),
         description: `Remove processor`,
       };
+      const snapshots: UndoEntry[] = [processorSnapshot];
+      if (filteredModulations.length !== prevModulations.length) {
+        snapshots.push({
+          kind: 'modulation-routing',
+          voiceId: vid,
+          prevModulations: prevModulations.map(route => ({ ...route })),
+          timestamp: Date.now(),
+          description: `Remove processor routings`,
+        });
+      }
       const updatedVoice = {
         ...voice,
         processors: processors.filter(p => p.id !== processorId),
+        modulations: filteredModulations,
       };
+      const undoEntry: UndoEntry = snapshots.length === 1 ? snapshots[0] : {
+        kind: 'group',
+        snapshots,
+        timestamp: Date.now(),
+        description: 'Remove processor and dependent modulation routes',
+      } as ActionGroupSnapshot;
       return {
         ...s,
         voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
-        undoStack: [...s.undoStack, snapshot],
+        undoStack: [...s.undoStack, undoEntry],
       };
     });
     setSelectedProcessorId(null);
@@ -812,9 +877,14 @@ export default function App() {
             onSelectVoice={handleSelectVoice}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
+            onToggleAgency={(voiceId) => {
+              const voice = session.voices.find(v => v.id === voiceId);
+              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+            }}
             onParamChange={handleParamChange}
             onInteractionStart={() => {
               arbRef.current.humanInteractionStart();
+              autoRef.current.cancelAll();
               const s = sessionRef.current;
               const voice = getActiveVoice(s);
               const prevProvenance: Partial<ControlState> = {};
@@ -950,6 +1020,10 @@ export default function App() {
             onSelectVoice={handleSelectVoice}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
+            onToggleAgency={(voiceId) => {
+              const voice = session.voices.find(v => v.id === voiceId);
+              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+            }}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
             onUndo={handleUndo}
