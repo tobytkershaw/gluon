@@ -134,7 +134,8 @@ export class PlaitsSynth implements SynthEngine {
     // Base voice params are kept in sync via the real-time sync effect,
     // so sending them on every note would override interactive changes.
     if (note.baseParams) {
-      const hasOverrides = Object.keys(note.params).some(
+      const allKeys = new Set([...Object.keys(note.params), ...Object.keys(note.baseParams)]);
+      const hasOverrides = [...allKeys].some(
         k => Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001,
       );
       if (hasOverrides) {
@@ -150,8 +151,8 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   silence(): void {
-    this.post({ type: 'set-gate', open: false });
     this.post({ type: 'clear-scheduled' });
+    this.post({ type: 'set-gate', open: false });
   }
 
   destroy(): void {

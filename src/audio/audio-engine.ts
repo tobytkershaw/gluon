@@ -174,11 +174,12 @@ export class AudioEngine {
   }
 
   silenceAll(): void {
+    const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.voices.values()) {
       slot.synth.silence();
       // Cancel pending accent automation and restore baseline
-      slot.accentGain.gain.cancelScheduledValues(0);
-      slot.accentGain.gain.value = 0.3;
+      slot.accentGain.gain.cancelAndHoldAtTime(now);
+      slot.accentGain.gain.setValueAtTime(0.3, now);
       // Clear scheduled events in downstream processors
       for (const proc of slot.processors) {
         proc.engine.silence();
