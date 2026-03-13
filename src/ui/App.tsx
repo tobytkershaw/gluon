@@ -97,11 +97,7 @@ export default function App() {
     return () => { schedulerRef.current?.stop(); };
   }, [audioStarted]);
 
-  // Control scheduler from transport state.
-  // Returns a cleanup so React StrictMode's unmount→remount cycle resets the
-  // scheduler before re-running, preventing a startTime mismatch where the
-  // second restoreBaseline cancels the first's gain automation while the
-  // scheduler still holds the first startTime.
+  // Control scheduler from transport state
   useEffect(() => {
     if (!schedulerRef.current) return;
     if (session.transport.playing) {
@@ -111,10 +107,6 @@ export default function App() {
         type: 'transport.play-start',
         audioTime: audioRef.current.getCurrentTime(),
       });
-      return () => {
-        schedulerRef.current?.stop();
-        audioRef.current.silenceAll();
-      };
     } else {
       schedulerRef.current.stop();
       audioRef.current.silenceAll();

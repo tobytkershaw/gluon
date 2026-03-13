@@ -186,6 +186,7 @@ export class Scheduler {
             params: resolvedParams,
             baseParams: voice.params,
           });
+
           recordQaAudioTrace({
             type: 'scheduler.note',
             voiceId: voice.id,
@@ -220,10 +221,16 @@ export class Scheduler {
 
     for (let cycle = startCycle; cycle <= endCycle; cycle++) {
       const cycleStart = cycle * regionLen;
-      const cycleEnd = (cycle + 1) * regionLen;
-
-      const localStart = Math.max(0, absStart - cycleStart);
+      let localStart = Math.max(0, absStart - cycleStart);
       const localEnd = Math.min(regionLen, absEnd - cycleStart);
+
+      // Guard against floating-point dust at loop boundaries: the cursor
+      // accumulates lookaheadSteps each tick via addition, and 0.1/stepDuration
+      // is not exactly representable in float64.  After many ticks the cursor
+      // overshoots exact multiples of regionLen by ~1e-15, producing a
+      // localStart just above 0.  lowerBound then skips events at position 0,
+      // silencing the first step on subsequent loops.
+      if (localStart > 0 && localStart < 1e-9) localStart = 0;
 
       if (localEnd > localStart) {
         segments.push({ localStart, localEnd, loopCycle: cycle });
