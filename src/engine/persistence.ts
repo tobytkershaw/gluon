@@ -9,7 +9,7 @@ import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 interface PersistedSession {
   version: number;
@@ -112,9 +112,22 @@ function migrateVoice(voice: Voice): Voice {
     }
   }
 
+  // Hydrate surface for voices without one (v2 → v3 migration)
+  let surfaced = { ...voice, regions };
+  if (!surfaced.surface) {
+    surfaced = {
+      ...surfaced,
+      surface: {
+        semanticControls: [],
+        pinnedControls: [],
+        xyAxes: { x: 'brightness', y: 'texture' },
+        thumbprint: { type: 'static-color' },
+      },
+    };
+  }
+
   // Always re-project pattern from regions (pattern is derived, never trusted from save)
-  const migrated = { ...voice, regions };
-  return reprojectVoicePattern(migrated, defaultInverseOpts);
+  return reprojectVoicePattern(surfaced, defaultInverseOpts);
 }
 
 export function saveSession(session: Session): void {

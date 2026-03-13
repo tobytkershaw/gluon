@@ -43,6 +43,8 @@ export default function App() {
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>('chat');
   const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
+  const [activityMap, setActivityMap] = useState<Record<string, number>>({});
+  const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
   const arbRef = useRef(new Arbitrator());
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
@@ -169,6 +171,22 @@ export default function App() {
           });
           autoRef.current.startLoop();
         }
+      }
+
+      // Track activity for touched voices (skip say-only actions)
+      const now = Date.now();
+      const touchedVoices = new Set<string>();
+      for (const action of report.accepted) {
+        if (action.type === 'say') continue;
+        const vid = ('voiceId' in action && action.voiceId) ? action.voiceId : s.activeVoiceId;
+        touchedVoices.add(vid);
+      }
+      if (touchedVoices.size > 0) {
+        setActivityMap(prev => {
+          const next = { ...prev };
+          for (const vid of touchedVoices) next[vid] = now;
+          return next;
+        });
       }
 
       return report.session;
@@ -337,6 +355,7 @@ export default function App() {
     setSession((s) => setActiveVoice(s, voiceId));
     setStepPage(0);
     setSelectedProcessorId(null);
+    setDeepViewModuleId(null);
   }, []);
 
   const handleToggleMute = useCallback((voiceId: string) => {
@@ -566,6 +585,10 @@ export default function App() {
             onSelectVoice={handleSelectVoice}
             onToggleMute={handleToggleMute}
             onToggleSolo={handleToggleSolo}
+            onToggleAgency={(voiceId) => {
+              const voice = session.voices.find(v => v.id === voiceId);
+              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+            }}
             onUndo={handleUndo}
             onSend={handleSend}
             onTogglePlay={handleTogglePlay}
@@ -573,6 +596,7 @@ export default function App() {
             bpm={session.transport.bpm}
             isThinking={isThinking}
             isListening={isListening}
+            activityMap={activityMap}
           />
         ) : (
           <InstrumentView
@@ -580,6 +604,7 @@ export default function App() {
             activeVoice={activeVoice}
             view={view}
             onViewChange={setView}
+            activityMap={activityMap}
             playing={session.transport.playing}
             bpm={session.transport.bpm}
             swing={session.transport.swing}
@@ -702,6 +727,8 @@ export default function App() {
             onSend={handleSend}
             isThinking={isThinking}
             isListening={isListening}
+            deepViewModuleId={deepViewModuleId}
+            onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
           />
         )}
