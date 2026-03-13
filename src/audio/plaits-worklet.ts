@@ -42,7 +42,8 @@ type ScheduledEvent =
   | { type: 'set-model'; time?: number; seq: number; model: number }
   | { type: 'set-patch'; time?: number; seq: number; patch: SynthPatch }
   | { type: 'trigger'; time: number; seq: number; accentLevel: number }
-  | { type: 'set-gate'; time: number; seq: number; open: boolean }
+  | { type: 'set-gate'; time?: number; seq: number; open: boolean }
+  | { type: 'clear-scheduled'; time?: undefined; seq: number }
   | { type: 'destroy'; time?: undefined; seq: number };
 
 class PlaitsProcessor extends AudioWorkletProcessor {
@@ -140,6 +141,10 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       case 'set-gate':
         this.wasm._plaits_set_gate(this.handle, event.open ? 1 : 0);
         break;
+      case 'clear-scheduled':
+        // Remove all future timed events from the queue
+        this.queue = this.queue.filter(e => e.time === undefined);
+        break;
       case 'destroy':
         this.destroyWasm();
         break;
@@ -203,6 +208,12 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     const blockEnd = blockStart + blockDuration;
 
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
+      this.applyEvent(this.queue.shift()!);
+    }
+
+    // Drain stale events that were scheduled before this block
+    // (prevents first-step silence and stale event accumulation)
+    while (this.queue.length > 0 && this.queue[0].time !== undefined && this.queue[0].time! < blockStart) {
       this.applyEvent(this.queue.shift()!);
     }
 

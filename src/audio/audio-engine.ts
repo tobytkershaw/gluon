@@ -173,6 +173,29 @@ export class AudioEngine {
     slot.synth.scheduleNote(note);
   }
 
+  silenceAll(): void {
+    const now = this.ctx?.currentTime ?? 0;
+    for (const slot of this.voices.values()) {
+      slot.synth.silence();
+      // Cancel pending accent automation and hard-mute the voice chain.
+      // Setting gain to 0 (not baseline 0.3) ensures processor tails
+      // (Rings resonance, Clouds reverb) are silenced immediately.
+      // The scheduler restores gain via setValueAtTime on the next note.
+      slot.accentGain.gain.cancelAndHoldAtTime(now);
+      slot.accentGain.gain.setValueAtTime(0, now);
+      // Clear scheduled events in downstream processors
+      for (const proc of slot.processors) {
+        proc.engine.silence();
+      }
+    }
+    // Clear scheduled events in modulators
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.silence();
+      }
+    }
+  }
+
   getCurrentTime(): number {
     return this.ctx?.currentTime ?? 0;
   }

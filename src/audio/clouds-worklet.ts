@@ -41,6 +41,7 @@ type ScheduledEvent =
   | { type: 'set-mode'; time?: number; seq: number; mode: number }
   | { type: 'set-patch'; time?: number; seq: number; patch: CloudsPatch }
   | { type: 'set-freeze'; time?: number; seq: number; freeze: boolean }
+  | { type: 'clear-scheduled'; time?: undefined; seq: number }
   | { type: 'destroy'; time?: undefined; seq: number };
 
 class CloudsProcessor extends AudioWorkletProcessor {
@@ -145,6 +146,9 @@ class CloudsProcessor extends AudioWorkletProcessor {
       case 'set-freeze':
         this.wasm._clouds_set_freeze(this.handle, event.freeze ? 1 : 0);
         break;
+      case 'clear-scheduled':
+        this.queue = this.queue.filter(e => e.time === undefined);
+        break;
       case 'destroy':
         this.destroyWasm();
         break;
@@ -221,6 +225,11 @@ class CloudsProcessor extends AudioWorkletProcessor {
 
     // Process immediate (untimed) events first
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
+      this.applyEvent(this.queue.shift()!);
+    }
+
+    // Drain stale events that were scheduled before this block
+    while (this.queue.length > 0 && this.queue[0].time !== undefined && this.queue[0].time! < blockStart) {
       this.applyEvent(this.queue.shift()!);
     }
 

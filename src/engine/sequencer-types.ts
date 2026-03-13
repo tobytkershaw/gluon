@@ -25,6 +25,8 @@ export interface ScheduledNote {
   gateOffTime: number;
   accent: boolean;
   params: SynthParamValues;
+  /** Base voice params — if params matches this, no set-patch is sent (sync effect handles it). */
+  baseParams?: SynthParamValues;
 }
 
 export interface PatternSketch {

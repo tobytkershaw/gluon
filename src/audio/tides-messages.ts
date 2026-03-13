@@ -11,6 +11,10 @@ export interface TidesModeMessage {
   mode: number;  // 0=AD, 1=Looping, 2=AR
 }
 
+export interface TidesClearScheduledMessage {
+  type: 'clear-scheduled';
+}
+
 export interface TidesDestroyMessage {
   type: 'destroy';
 }
@@ -18,6 +22,7 @@ export interface TidesDestroyMessage {
 export type TidesProcessorCommand =
   | TidesPatchMessage
   | TidesModeMessage
+  | TidesClearScheduledMessage
   | TidesDestroyMessage;
 
 export interface TidesProcessorReady {

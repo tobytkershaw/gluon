@@ -16,6 +16,10 @@ export interface CloudsFreezeMessage {
   time?: number;
 }
 
+export interface CloudsClearScheduledMessage {
+  type: 'clear-scheduled';
+}
+
 export interface CloudsDestroyMessage {
   type: 'destroy';
 }
@@ -24,6 +28,7 @@ export type CloudsProcessorCommand =
   | CloudsPatchMessage
   | CloudsModeMessage
   | CloudsFreezeMessage
+  | CloudsClearScheduledMessage
   | CloudsDestroyMessage;
 
 export interface CloudsProcessorReady {

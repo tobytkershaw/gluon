@@ -34,6 +34,7 @@ interface TidesWasm {
 type ProcessorCommand =
   | { type: 'set-patch'; frequency: number; shape: number; slope: number; smoothness: number }
   | { type: 'set-mode'; mode: number }
+  | { type: 'clear-scheduled' }
   | { type: 'destroy' };
 
 class TidesProcessor extends AudioWorkletProcessor {
@@ -68,6 +69,9 @@ class TidesProcessor extends AudioWorkletProcessor {
           if (this.wasm && this.handle) {
             this.wasm._tides_set_mode(this.handle, data.mode);
           }
+          break;
+        case 'clear-scheduled':
+          // Tides has no event queue — no-op
           break;
         case 'destroy':
           this.destroyWasm();

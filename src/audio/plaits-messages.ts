@@ -20,8 +20,12 @@ export interface PlaitsTriggerMessage {
 
 export interface PlaitsGateMessage {
   type: 'set-gate';
-  time: number;
+  time?: number;
   open: boolean;
+}
+
+export interface PlaitsClearScheduledMessage {
+  type: 'clear-scheduled';
 }
 
 export interface PlaitsDestroyMessage {
@@ -33,6 +37,7 @@ export type PlaitsProcessorCommand =
   | PlaitsModelMessage
   | PlaitsTriggerMessage
   | PlaitsGateMessage
+  | PlaitsClearScheduledMessage
   | PlaitsDestroyMessage;
 
 export interface PlaitsProcessorReady {

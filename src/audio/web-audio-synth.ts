@@ -68,6 +68,11 @@ export class WebAudioSynth implements SynthEngine {
     this.releaseAt(note.gateOffTime);
   }
 
+  silence(): void {
+    this.envelope.gain.cancelScheduledValues(0);
+    this.envelope.gain.setValueAtTime(0, 0);
+  }
+
   destroy(): void {
     this.oscillator.stop();
     this.oscillator.disconnect();

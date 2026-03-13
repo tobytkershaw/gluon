@@ -130,10 +130,29 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   scheduleNote(note: ScheduledNote): void {
-    this.post({ type: 'set-patch', patch: note.params, time: note.time });
+    // Only send set-patch if this note has per-step overrides (param locks).
+    // Base voice params are kept in sync via the real-time sync effect,
+    // so sending them on every note would override interactive changes.
+    if (note.baseParams) {
+      const allKeys = new Set([...Object.keys(note.params), ...Object.keys(note.baseParams)]);
+      const hasOverrides = [...allKeys].some(
+        k => Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001,
+      );
+      if (hasOverrides) {
+        this.post({ type: 'set-patch', patch: note.params, time: note.time });
+      }
+    } else {
+      // No baseParams provided — send set-patch for backwards compatibility
+      this.post({ type: 'set-patch', patch: note.params, time: note.time });
+    }
     this.post({ type: 'trigger', time: note.time, accentLevel: note.accent ? 1.0 : 0.8 });
     this.post({ type: 'set-gate', time: note.time, open: true });
     this.post({ type: 'set-gate', time: note.gateOffTime, open: false });
+  }
+
+  silence(): void {
+    this.post({ type: 'clear-scheduled' });
+    this.post({ type: 'set-gate', open: false });
   }
 
   destroy(): void {

@@ -10,6 +10,8 @@ export interface TidesEngine {
   readonly outputNode: AudioNode;
   setMode(mode: number): void;
   setPatch(params: TidesPatchParams): void;
+  /** Clear all scheduled events from the worklet queue. */
+  silence(): void;
   destroy(): void;
 }
 
@@ -119,6 +121,11 @@ export class TidesSynth implements TidesEngine {
       slope: params.slope ?? 0.5,
       smoothness: params.smoothness ?? 0.5,
     });
+  }
+
+  silence(): void {
+    // Tides has no scheduled events, but clear any pending messages
+    this.post({ type: 'clear-scheduled' });
   }
 
   destroy(): void {
