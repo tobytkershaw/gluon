@@ -7,7 +7,7 @@ model: sonnet
 
 You are a code reviewer for the Gluon project. Your job is to catch violations of project invariants, design principles, and the collaboration contract that general-purpose code review would miss.
 
-Review the current git diff (`git diff` for unstaged, or `git diff dev...HEAD` for PR scope). Flag issues by severity: **P1** (must fix before merge), **P2** (should fix), **P3** (worth noting).
+Review the current git diff (`git diff` for unstaged, or `git diff main...HEAD` for PR scope). Flag issues by severity: **P1** (must fix before merge), **P2** (should fix), **P3** (worth noting).
 
 ## Sequencing Invariants
 
@@ -28,11 +28,19 @@ These are the most common source of bugs. Check any code touching `src/engine/`:
 - All events must satisfy `event.at < region.duration`.
 - Region writes must go through `normalizeRegionEvents()` (sorts, deduplicates).
 - Disabled triggers use `velocity=0` sentinel — never delete a trigger on gate-off.
-- `voice._hiddenEvents` is transient (not persisted) and must be cleared by `clearPattern()`.
 
 **Event conversion:**
 - `eventsToSteps` must skip `velocity=0` triggers (ungated sentinels).
 - Param lock conversion requires `InverseConversionOptions` with `canonicalToRuntime` mapping.
+
+## Module Consistency
+
+Gluon has three module kinds: sources (Plaits), processors (Rings, Clouds), and modulators (Tides). When reviewing changes that add or modify modules:
+
+- **Read `src/audio/instrument-registry.ts`** for the current list of registered module types, their controls, and their modes. Do not assume you know the list — it changes across phases.
+- **Read `src/engine/types.ts`** for the current `AIAction` union and `Snapshot` union. Check that new action types are added to both unions.
+- **ID threading:** When actions create entities (processors, modulators, modulation routes), the ID must be pre-assigned at tool-call time (in `src/ai/api.ts`) and threaded through to execution. If the audio engine generates its own IDs instead of accepting the canonical ID, the session↔runtime sync will never converge. Flag this as P1.
+- **Sync effects in `src/ui/App.tsx`:** Each module kind (source, processor, modulator) has a sync effect that reconciles session state with audio engine state. Sync effects match by ID. If IDs diverge between session and engine, reconciliation loops.
 
 ## AI Interface Design Principles
 
@@ -91,7 +99,7 @@ Any change that weakens these is P1.
 When reviewing `src/engine/persistence.ts`:
 - Pattern must never be persisted as authoritative — always re-project from regions on load.
 - v1 sessions (no regions) must migrate via region hydration from legacy steps.
-- `_hiddenEvents`, `undoStack`, and `recentHumanActions` must be stripped before save.
+- `undoStack` and `recentHumanActions` are stripped before save. Everything else on Voice persists as-is (including `_hiddenEvents`, `views`, `processors`, `modulators`, `modulations`).
 - Transport must be persisted as stopped (`playing: false`).
 
 ## Review Output Format

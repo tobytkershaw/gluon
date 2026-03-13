@@ -54,6 +54,8 @@ Voice {
   regions: [Region]                // Sequencing content (source of truth)
   pattern: Pattern                 // Derived step-grid cache (never authoritative)
   views: [SequencerViewConfig]     // Active sequencer projections
+  modulators: [ModulatorConfig]    // LFO/envelope modules (e.g. Tides)
+  modulations: [ModulationRouting] // Modulator → param routings
   muted: bool
   solo: bool
 }
@@ -287,23 +289,25 @@ Change what the instrument is — its modules, signal chain, and configuration. 
 
 #### `set_model`
 
-Change the synthesis engine (source module) for a voice.
+Change the mode of a module. Without `processorId`/`modulatorId`, changes the voice synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode.
 
 ```
 set_model {
   voiceId: VoiceID
   model: EngineID
+  processorId: ProcessorID?    // Target a processor's mode
+  modulatorId: ModulatorID?    // Target a modulator's mode
 }
 ```
 
 #### `add_processor`
 
-Add a processor module to a voice's chain.
+Add a processor module to a voice's chain. Max 2 per voice.
 
 ```
 add_processor {
   voiceId: VoiceID
-  moduleType: ModuleType     // "rings", "clouds", etc.
+  moduleType: ModuleType     // "rings", "clouds"
   description: string
 }
 ```
@@ -322,15 +326,73 @@ remove_processor {
 }
 ```
 
-#### `patch` (future)
+#### `replace_processor`
 
-Connect a module output to a module input — modulation routing, CV patching, sidechain connections.
+Atomically swap one processor for another type. Keeps chain position.
 
 ```
-patch {
-  source: { moduleId: ModuleID, output: OutputID }
-  target: { moduleId: ModuleID, input: InputID }
-  amount: f32?               // Modulation depth
+replace_processor {
+  voiceId: VoiceID
+  processorId: ProcessorID     // Existing processor to replace
+  newModuleType: ModuleType    // "rings", "clouds"
+  description: string
+}
+```
+
+Returns `{ newProcessorId }` for same-turn configuration.
+
+#### `add_modulator`
+
+Add a modulator module (LFO/envelope) to a voice. Max 2 per voice. Use `connect_modulator` to wire it to parameters.
+
+```
+add_modulator {
+  voiceId: VoiceID
+  moduleType: ModuleType     // "tides"
+  description: string
+}
+```
+
+Returns `{ modulatorId }` for same-turn configuration.
+
+#### `remove_modulator`
+
+Remove a modulator from a voice. Cascades: all routings from this modulator are also removed.
+
+```
+remove_modulator {
+  voiceId: VoiceID
+  modulatorId: ModulatorID
+  description: string
+}
+```
+
+#### `connect_modulator`
+
+Route a modulator's output to a target parameter. Idempotent — calling with the same modulator + target updates the depth.
+
+```
+connect_modulator {
+  voiceId: VoiceID
+  modulatorId: ModulatorID
+  targetKind: "source" | "processor"
+  processorId: ProcessorID?    // Required when targetKind is "processor"
+  targetParam: ControlID       // e.g. "brightness", "position"
+  depth: f32                   // -1.0 to 1.0 (bipolar)
+  description: string
+}
+```
+
+Returns `{ modulationId }` for same-turn disconnect. Human sets center, modulation adds around it. Multiple routings to the same param sum additively.
+
+#### `disconnect_modulator`
+
+Remove a modulation routing by its ID.
+
+```
+disconnect_modulator {
+  voiceId: VoiceID
+  modulationId: ModulationID
   description: string
 }
 ```
@@ -460,6 +522,8 @@ The AI receives a compressed, semantically-named representation of the session. 
 Per voice:
 - Identity: id, label, agency state
 - Chain: source module and processors, in signal order
+- Modulators: LFO/envelope modules with current parameters and mode
+- Modulations: routing connections from modulators to parameters, with depth
 - Controls: semantic parameter values (brightness, richness, texture, pitch)
 - Pattern summary: event count, trigger positions, note pitches, accent positions, density
 - Views: active sequencer projections
@@ -523,7 +587,7 @@ Undo for native modules is exact — restore previous parameter values. Undo for
 
 ## The Whole Thing on One Page
 
-A Gluon session has **voices** (things that make sound). Each voice is a **chain** of **modules** (sources and processors) with **agency** (OFF / ON), **regions** (canonical sequencing content), and optional **views** (UI projections over that content). **Adapters** bridge between the canonical model and native instruments — hardware, software, or anything with parameters.
+A Gluon session has **voices** (things that make sound). Each voice is a **chain** of **modules** (sources, processors, and modulators) with **agency** (OFF / ON), **regions** (canonical sequencing content), **modulation routings** (LFO/envelope connections to parameters), and optional **views** (UI projections over that content). **Adapters** bridge between the canonical model and native instruments — hardware, software, or anything with parameters.
 
 The human **plays** (direct manipulation), **asks** (natural language), and **undoes**.
 
@@ -532,10 +596,10 @@ The AI's tools fall into five categories:
 | Category | Tools | Agency? | Changes sound? |
 |----------|-------|---------|----------------|
 | **Program** | move, sketch, transform | Yes | Yes |
-| **Structure** | set_model, add_module, patch, create_voice | Yes | Yes |
+| **Structure** | set_model, add/remove/replace_processor, add/remove_modulator, connect/disconnect_modulator | Yes | Yes |
 | **Transport** | set_transport | No | Yes |
 | **Observation** | listen | No | No |
-| **UI curation** | add_view, remove_view, propose_surface | No | No |
+| **UI curation** | add_view, remove_view | No | No |
 
 Plus **say** — talk back to the human.
 
