@@ -1,14 +1,13 @@
-## Plaits WASM
+## WASM Modules
 
-This directory vendors the minimum Mutable Instruments Plaits source needed to
-build the browser audio engine used by Gluon.
+This directory vendors the minimum Mutable Instruments source needed to
+build the browser audio modules used by Gluon.
 
 Vendored source:
 
-- `plaits/dsp/**`
-- `plaits/resources.cc`
-- `plaits/resources.h`
-- `plaits/user_data.h`
+- `plaits/dsp/**`, `plaits/resources.*`, `plaits/user_data.h`
+- `rings/dsp/**`, `rings/resources.*`
+- `clouds/dsp/**`, `clouds/resources.*`, `clouds/drivers/debug_pin.h`
 - `stmlib/**`
 
 Gluon wraps the upstream DSP with `gluon_plaits.cpp`, which exposes a small C
@@ -46,9 +45,9 @@ The Docker build uses `emscripten/emsdk:4.0.7` by default. Override it with
 
 This produces:
 
-- `public/audio/plaits-module.js`
-- `public/audio/plaits.wasm`
-- `public/audio/plaits-worklet.js`
+- `public/audio/plaits-module.js` + `plaits.wasm` + `plaits-worklet.js`
+- `public/audio/rings-module.js` + `rings.wasm` + `rings-worklet.js`
+- `public/audio/clouds-module.js` + `clouds.wasm` + `clouds-worklet.js`
 
 ### Native Reference Audit
 
@@ -75,5 +74,5 @@ discontinuities.
 
 ### Attribution
 
-Mutable Instruments Plaits source is copyright Mutable Instruments and used
-under the MIT license. See `wasm/LICENSE.mi-plaits`.
+Mutable Instruments source (Plaits, Rings, Clouds) is copyright Mutable
+Instruments and used under the MIT license. See `wasm/LICENSE.mi-plaits`.

@@ -4,15 +4,17 @@ import { DEFAULT_PARAMS } from './synth-interface';
 import type { SynthEngine } from './synth-interface';
 import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';
-import type { RingsPatchParams } from './rings-messages';
+import type { CloudsEngine } from './clouds-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
 
+type ProcessorEngine = RingsEngine | CloudsEngine;
+
 interface ProcessorSlot {
   id: string;
-  type: 'rings';
-  engine: RingsEngine;
+  type: string;
+  engine: ProcessorEngine;
 }
 
 interface VoiceSlot {
@@ -150,7 +152,7 @@ export class AudioEngine {
 
   // --- Processor chain ---
 
-  async addProcessor(voiceId: string, processorType: 'rings', processorId: string): Promise<void> {
+  async addProcessor(voiceId: string, processorType: string, processorId: string): Promise<void> {
     const key = `${voiceId}:${processorId}`;
     if (this.pendingProcessors.has(key)) return;
 
@@ -158,22 +160,28 @@ export class AudioEngine {
     if (!slot || !this.ctx) return;
     if (slot.processors.some(p => p.id === processorId)) return;
 
-    if (processorType === 'rings') {
-      this.pendingProcessors.add(key);
-      try {
+    this.pendingProcessors.add(key);
+    try {
+      let engine: ProcessorEngine;
+      if (processorType === 'rings') {
         const { createRingsProcessor } = await import('./create-synth');
-        const rings = await createRingsProcessor(this.ctx);
-        // After async gap: only insert if still wanted (key not cancelled
-        // by removeProcessor) and not already present (dedupe).
-        if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
-          slot.processors.push({ id: processorId, type: 'rings', engine: rings });
-          this.rebuildChain(slot);
-        } else {
-          rings.destroy();
-        }
-      } finally {
-        this.pendingProcessors.delete(key);
+        engine = await createRingsProcessor(this.ctx);
+      } else if (processorType === 'clouds') {
+        const { createCloudsProcessor } = await import('./create-synth');
+        engine = await createCloudsProcessor(this.ctx);
+      } else {
+        return;
       }
+      // After async gap: only insert if still wanted (key not cancelled
+      // by removeProcessor) and not already present (dedupe).
+      if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
+        slot.processors.push({ id: processorId, type: processorType, engine });
+        this.rebuildChain(slot);
+      } else {
+        engine.destroy();
+      }
+    } finally {
+      this.pendingProcessors.delete(key);
     }
   }
 
@@ -192,20 +200,29 @@ export class AudioEngine {
     this.rebuildChain(slot);
   }
 
-  setProcessorPatch(voiceId: string, processorId: string, params: RingsPatchParams): void {
+  setProcessorPatch(voiceId: string, processorId: string, params: Record<string, number>): void {
     const slot = this.voices.get(voiceId);
     if (!slot) return;
     const proc = slot.processors.find(p => p.id === processorId);
-    if (!proc || proc.type !== 'rings') return;
-    proc.engine.setPatch(params);
+    if (!proc) return;
+    // Each processor type has its own setPatch shape — dispatch by type
+    if (proc.type === 'rings') {
+      (proc.engine as import('./rings-synth').RingsEngine).setPatch(params as import('./rings-messages').RingsPatchParams);
+    } else if (proc.type === 'clouds') {
+      (proc.engine as import('./clouds-synth').CloudsEngine).setPatch(params as import('./clouds-messages').CloudsPatchParams);
+    }
   }
 
   setProcessorModel(voiceId: string, processorId: string, model: number): void {
     const slot = this.voices.get(voiceId);
     if (!slot) return;
     const proc = slot.processors.find(p => p.id === processorId);
-    if (!proc || proc.type !== 'rings') return;
-    proc.engine.setModel(model);
+    if (!proc) return;
+    if (proc.type === 'rings') {
+      (proc.engine as import('./rings-synth').RingsEngine).setModel(model);
+    } else if (proc.type === 'clouds') {
+      (proc.engine as import('./clouds-synth').CloudsEngine).setMode(model);
+    }
   }
 
   getProcessors(voiceId: string): { id: string; type: string }[] {
@@ -216,7 +233,7 @@ export class AudioEngine {
     for (const key of this.pendingProcessors) {
       const [vid, pid] = key.split(':');
       if (vid === voiceId && !result.some(p => p.id === pid)) {
-        result.push({ id: pid!, type: 'rings' });
+        result.push({ id: pid!, type: 'unknown' });
       }
     }
     return result;

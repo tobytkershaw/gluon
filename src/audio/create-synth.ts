@@ -3,6 +3,8 @@ import { PlaitsSynth } from './plaits-synth';
 import { WebAudioSynth } from './web-audio-synth';
 import type { RingsEngine } from './rings-synth';
 import { RingsSynth } from './rings-synth';
+import type { CloudsEngine } from './clouds-synth';
+import { CloudsSynth } from './clouds-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -15,4 +17,8 @@ export async function createPreferredSynth(ctx: AudioContext, output: AudioNode)
 
 export async function createRingsProcessor(ctx: AudioContext): Promise<RingsEngine> {
   return RingsSynth.create(ctx);
+}
+
+export async function createCloudsProcessor(ctx: AudioContext): Promise<CloudsEngine> {
+  return CloudsSynth.create(ctx);
 }

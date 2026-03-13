@@ -155,6 +155,21 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'replace_processor': {
+      const voice = session.voices.find(v => v.id === action.voiceId);
+      if (!voice) return `Voice not found: ${action.voiceId}`;
+      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      // Validate old processor exists
+      const removeResult = validateChainMutation(voice, { kind: 'remove', processorId: action.processorId });
+      if (!removeResult.valid) return removeResult.errors[0];
+      // Validate new type is valid (use a simulated chain without the old one for the add check)
+      const filteredProcessors = (voice.processors ?? []).filter(p => p.id !== action.processorId);
+      const simulatedVoice = { ...voice, processors: filteredProcessors };
+      const addResult = validateChainMutation(simulatedVoice, { kind: 'add', type: action.newModuleType });
+      if (!addResult.valid) return addResult.errors[0];
+      return null;
+    }
+
     case 'set_transport':
     case 'say':
       return null;
@@ -621,6 +636,36 @@ export function executeOperations(
         };
         const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'replace_processor': {
+        const voice = getVoice(next, action.voiceId);
+        const prevProcessors = [...(voice.processors ?? [])];
+        const idx = prevProcessors.findIndex(p => p.id === action.processorId);
+        if (idx === -1) break; // Should not happen after prevalidation
+        const snapshot: ProcessorSnapshot = {
+          kind: 'processor',
+          voiceId: action.voiceId,
+          prevProcessors,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        const newProcessor: ProcessorConfig = {
+          id: action.newProcessorId,
+          type: action.newModuleType,
+          model: 0,
+          params: {},
+        };
+        const newProcessors = [...prevProcessors];
+        newProcessors[idx] = newProcessor;
+        next = {
+          ...updateVoice(next, action.voiceId, { processors: newProcessors }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}` });
         accepted.push(action);
         break;
       }

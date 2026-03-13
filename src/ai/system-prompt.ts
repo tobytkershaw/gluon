@@ -2,7 +2,7 @@
 
 import type { Session } from '../engine/types';
 import { VOICE_LABELS } from '../engine/voice-labels';
-import { getModelList, getEngineByIndex, isPercussion, getRingsModelList, getProcessorInstrument } from '../audio/instrument-registry';
+import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
   return getModelList()
@@ -65,10 +65,13 @@ ${generateParameterSection()}
 
 ## Processor Modules
 Available processor types you can add to a voice's signal chain using add_processor:
-- **rings** — Mutable Instruments Rings physical modelling resonator.
-  Models: ${getRingsModelList().map(m => m.name).join(', ')}.
-  Controls: ${(() => { const inst = getProcessorInstrument('rings'); return inst?.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? ''; })()}.
-  Processes the voice's audio through resonant body simulation. Great for adding metallic, string, or bell-like resonance to any source.
+${getRegisteredProcessorTypes().map(type => {
+  const inst = getProcessorInstrument(type);
+  if (!inst) return '';
+  const models = inst.engines.map(e => e.label).join(', ');
+  const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
+  return `- **${type}** — ${inst.label}.\n  Models: ${models}.\n  Controls: ${controls}.`;
+}).filter(Boolean).join('\n')}
 
 Use add_processor to insert a processor, remove_processor to take it out.
 To adjust processor controls, use **move** with the processorId parameter (e.g. move param="brightness" target={absolute: 0.7} processorId="rings-xxx").

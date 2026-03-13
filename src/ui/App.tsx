@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
 import { getActiveVoice, getVoice } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
@@ -42,6 +42,7 @@ export default function App() {
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>('chat');
+  const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const arbRef = useRef(new Arbitrator());
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
@@ -136,22 +137,12 @@ export default function App() {
         if (!engineProcs.some(ep => ep.id === sp.id)) {
           void audio.addProcessor(voice.id, sp.type, sp.id).then(() => {
             audio.setProcessorModel(voice.id, sp.id, sp.model);
-            audio.setProcessorPatch(voice.id, sp.id, {
-              structure: sp.params.structure ?? 0.5,
-              brightness: sp.params.brightness ?? 0.5,
-              damping: sp.params.damping ?? 0.7,
-              position: sp.params.position ?? 0.5,
-            });
+            audio.setProcessorPatch(voice.id, sp.id, sp.params);
           });
         } else {
           // Sync params/model for existing processors
           audio.setProcessorModel(voice.id, sp.id, sp.model);
-          audio.setProcessorPatch(voice.id, sp.id, {
-            structure: sp.params.structure ?? 0.5,
-            brightness: sp.params.brightness ?? 0.5,
-            damping: sp.params.damping ?? 0.7,
-            position: sp.params.position ?? 0.5,
-          });
+          audio.setProcessorPatch(voice.id, sp.id, sp.params);
         }
       }
     }
@@ -345,6 +336,7 @@ export default function App() {
   const handleSelectVoice = useCallback((voiceId: string) => {
     setSession((s) => setActiveVoice(s, voiceId));
     setStepPage(0);
+    setSelectedProcessorId(null);
   }, []);
 
   const handleToggleMute = useCallback((voiceId: string) => {
@@ -393,6 +385,134 @@ export default function App() {
   const handleRemoveView = useCallback((viewId: string) => {
     setSession((s) => removeView(s, s.activeVoiceId, viewId));
   }, []);
+
+  // Capture processor state at drag start for single-gesture undo
+  const processorUndoRef = useRef<{
+    voiceId: string;
+    processorId: string;
+    prevParams: Record<string, number>;
+    prevModel: number;
+  } | null>(null);
+
+  const handleProcessorInteractionStart = useCallback((processorId: string) => {
+    const s = sessionRef.current;
+    const voice = getActiveVoice(s);
+    const proc = (voice.processors ?? []).find(p => p.id === processorId);
+    if (!proc) return;
+    processorUndoRef.current = {
+      voiceId: s.activeVoiceId,
+      processorId,
+      prevParams: { ...proc.params },
+      prevModel: proc.model,
+    };
+  }, []);
+
+  const handleProcessorInteractionEnd = useCallback((processorId: string) => {
+    const captured = processorUndoRef.current;
+    if (!captured || captured.processorId !== processorId) return;
+    processorUndoRef.current = null;
+    setSession((s) => {
+      const voice = getVoice(s, captured.voiceId);
+      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      if (!proc) return s;
+      // Check if anything actually changed
+      const changed = Object.keys(captured.prevParams).some(
+        k => Math.abs((proc.params[k] ?? 0) - captured.prevParams[k]) > 0.001
+      );
+      if (!changed) return s;
+      const snapshot: ProcessorStateSnapshot = {
+        kind: 'processor-state',
+        voiceId: captured.voiceId,
+        processorId,
+        prevParams: captured.prevParams,
+        prevModel: captured.prevModel,
+        timestamp: Date.now(),
+        description: `Processor param change`,
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
+
+  const handleProcessorParamChange = useCallback((processorId: string, param: string, value: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      if (!proc) return s;
+
+      const prevValue = proc.params[param] ?? 0;
+      if (Math.abs(value - prevValue) < 0.001) return s;
+
+      const updatedProc = { ...proc, params: { ...proc.params, [param]: value } };
+      const updatedVoice = {
+        ...voice,
+        processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleProcessorModelChange = useCallback((processorId: string, model: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      if (!proc || proc.model === model) return s;
+
+      const updatedProc = { ...proc, model };
+      const updatedVoice = {
+        ...voice,
+        processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
+      };
+      const snapshot: ProcessorStateSnapshot = {
+        kind: 'processor-state',
+        voiceId: vid,
+        processorId,
+        prevParams: { ...proc.params },
+        prevModel: proc.model,
+        timestamp: Date.now(),
+        description: `Processor model change`,
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleRemoveProcessor = useCallback((processorId: string) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeVoiceId;
+      const voice = getVoice(s, vid);
+      const processors = voice.processors ?? [];
+      if (!processors.some(p => p.id === processorId)) return s;
+
+      const snapshot: ProcessorSnapshot = {
+        kind: 'processor',
+        voiceId: vid,
+        prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
+        timestamp: Date.now(),
+        description: `Remove processor`,
+      };
+      const updatedVoice = {
+        ...voice,
+        processors: processors.filter(p => p.id !== processorId),
+      };
+      return {
+        ...s,
+        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+    setSelectedProcessorId(null);
+  }, [ensureAudio]);
 
   // Focus-safe keyboard shortcuts
   useEffect(() => {
@@ -559,6 +679,13 @@ export default function App() {
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
+            selectedProcessorId={selectedProcessorId}
+            onSelectProcessor={setSelectedProcessorId}
+            onProcessorParamChange={handleProcessorParamChange}
+            onProcessorInteractionStart={handleProcessorInteractionStart}
+            onProcessorInteractionEnd={handleProcessorInteractionEnd}
+            onProcessorModelChange={handleProcessorModelChange}
+            onRemoveProcessor={handleRemoveProcessor}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
             onAddView={handleAddView}

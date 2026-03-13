@@ -15,6 +15,8 @@ import { PitchControl } from './PitchControl';
 import { ChatPanel } from './ChatPanel';
 import { Tracker } from './Tracker';
 import { SequencerViewSlot } from './SequencerViewSlot';
+import { ChainStrip } from './ChainStrip';
+import { ModuleInspector } from './ModuleInspector';
 
 interface Props {
   session: Session;
@@ -43,6 +45,14 @@ interface Props {
   onAgencyChange: (agency: 'OFF' | 'ON') => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
+  // Processor editing
+  selectedProcessorId: string | null;
+  onSelectProcessor: (processorId: string | null) => void;
+  onProcessorParamChange: (processorId: string, param: string, value: number) => void;
+  onProcessorInteractionStart: (processorId: string) => void;
+  onProcessorInteractionEnd: (processorId: string) => void;
+  onProcessorModelChange: (processorId: string, model: number) => void;
+  onRemoveProcessor: (processorId: string) => void;
   // Pattern
   stepPage: number;
   onStepToggle: (stepIndex: number) => void;
@@ -74,6 +84,9 @@ export function InstrumentView({
   onSelectVoice, onToggleMute, onToggleSolo,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
+  selectedProcessorId, onSelectProcessor,
+  onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
+  onProcessorModelChange, onRemoveProcessor,
   onEventUpdate, onEventDelete, onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
@@ -123,6 +136,26 @@ export function InstrumentView({
             <ModelSelector model={activeVoice.model} onChange={onModelChange} />
             <AgencyToggle value={activeVoice.agency} onChange={onAgencyChange} />
           </div>
+
+          <ChainStrip
+            voice={activeVoice}
+            selectedProcessorId={selectedProcessorId}
+            onSelectProcessor={onSelectProcessor}
+          />
+
+          {selectedProcessorId && (() => {
+            const proc = (activeVoice.processors ?? []).find(p => p.id === selectedProcessorId);
+            return proc ? (
+              <ModuleInspector
+                processor={proc}
+                onParamChange={onProcessorParamChange}
+                onParamInteractionStart={onProcessorInteractionStart}
+                onParamInteractionEnd={onProcessorInteractionEnd}
+                onModelChange={onProcessorModelChange}
+                onRemove={onRemoveProcessor}
+              />
+            ) : null;
+          })()}
 
           <div className="relative flex-1 min-h-[200px]">
             <ParameterSpace

@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 if command -v emcc >/dev/null 2>&1; then
   bash "$ROOT_DIR/wasm/build.sh"
   bash "$ROOT_DIR/wasm/build-rings.sh"
+  bash "$ROOT_DIR/wasm/build-clouds.sh"
   exit 0
 fi
 
