@@ -1,6 +1,7 @@
 type AutomationCallback = (param: string, value: number) => void;
 
 interface ActiveAutomation {
+  voiceId: string;
   param: string;
   startValue: number;
   endValue: number;
@@ -9,18 +10,24 @@ interface ActiveAutomation {
   callback: AutomationCallback;
 }
 
+function automationKey(voiceId: string, param: string): string {
+  return `${voiceId}:${param}`;
+}
+
 export class AutomationEngine {
   private automations: Map<string, ActiveAutomation> = new Map();
   private rafId: number | null = null;
 
   start(
+    voiceId: string,
     param: string,
     startValue: number,
     endValue: number,
     durationMs: number,
     callback: AutomationCallback,
   ): void {
-    this.automations.set(param, {
+    this.automations.set(automationKey(voiceId, param), {
+      voiceId,
       param,
       startValue,
       endValue,
@@ -30,8 +37,8 @@ export class AutomationEngine {
     });
   }
 
-  cancel(param: string): void {
-    this.automations.delete(param);
+  cancel(voiceId: string, param: string): void {
+    this.automations.delete(automationKey(voiceId, param));
   }
 
   cancelAll(): void {

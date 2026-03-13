@@ -256,7 +256,7 @@ export default function App() {
           const currentVal = voice.params[runtimeParam] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
-          autoRef.current.start(runtimeParam, currentVal, targetVal, action.over, (p, value) => {
+          autoRef.current.start(vid, runtimeParam, currentVal, targetVal, action.over, (p, value) => {
             if (!arbRef.current.canAIAct(vid, p)) return;
             setSession((s2) => applyParamDirect(s2, vid, p, value));
           });
@@ -286,9 +286,9 @@ export default function App() {
 
   const handleParamChange = useCallback((timbre: number, morph: number) => {
     ensureAudio();
-    autoRef.current.cancel('timbre');
-    autoRef.current.cancel('morph');
     const vid = sessionRef.current.activeVoiceId;
+    autoRef.current.cancel(vid, 'timbre');
+    autoRef.current.cancel(vid, 'morph');
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
     setSession((s) => {
@@ -305,8 +305,8 @@ export default function App() {
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
-    autoRef.current.cancel('note');
     const vid = sessionRef.current.activeVoiceId;
+    autoRef.current.cancel(vid, 'note');
     arbRef.current.humanTouched(vid, 'note', note);
     setSession((s) => {
       const voice = getVoice(s, vid);
@@ -330,8 +330,8 @@ export default function App() {
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
-    autoRef.current.cancel('harmonics');
     const vid = sessionRef.current.activeVoiceId;
+    autoRef.current.cancel(vid, 'harmonics');
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
     setSession((s) => {
       const voice = getVoice(s, vid);
