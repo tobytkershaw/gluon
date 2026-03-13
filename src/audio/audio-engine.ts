@@ -10,6 +10,7 @@ import type { ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
 import type { TidesPatchParams } from './tides-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
+import { recordQaAudioTrace } from '../qa/audio-trace';
 
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
 
@@ -171,6 +172,13 @@ export class AudioEngine {
       slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
     }
     slot.synth.scheduleNote(note);
+    recordQaAudioTrace({
+      type: 'audio.note',
+      voiceId: note.voiceId,
+      time: note.time,
+      gateOffTime: note.gateOffTime,
+      accent: note.accent,
+    });
   }
 
   /** Restore accent gains to baseline after silenceAll() zeroed them. */
@@ -436,6 +444,15 @@ export class AudioEngine {
     const routes = this.modulationRouteSlots.get(voiceId) ?? [];
     routes.push({ id: routeId, modulatorSlotId: modulatorId, depthGain, targetNode: resolved.targetNode, targetParam: resolved.paramName });
     this.modulationRouteSlots.set(voiceId, routes);
+    recordQaAudioTrace({
+      type: 'modulation.route.add',
+      voiceId,
+      routeId,
+      modulatorId,
+      target,
+      depth,
+      targetParam: resolved.paramName,
+    });
   }
 
   removeModulationRoute(voiceId: string, routeId: string): void {
@@ -444,6 +461,13 @@ export class AudioEngine {
     const idx = routes.findIndex(r => r.id === routeId);
     if (idx === -1) return;
     routes[idx].depthGain.disconnect();
+    recordQaAudioTrace({
+      type: 'modulation.route.remove',
+      voiceId,
+      routeId,
+      modulatorId: routes[idx].modulatorSlotId,
+      targetParam: routes[idx].targetParam,
+    });
     routes.splice(idx, 1);
   }
 
@@ -453,6 +477,14 @@ export class AudioEngine {
     const route = routes.find(r => r.id === routeId);
     if (!route) return;
     route.depthGain.gain.value = depth;
+    recordQaAudioTrace({
+      type: 'modulation.route.depth',
+      voiceId,
+      routeId,
+      modulatorId: route.modulatorSlotId,
+      depth,
+      targetParam: route.targetParam,
+    });
   }
 
   getModulators(voiceId: string): { id: string; type: string }[] {

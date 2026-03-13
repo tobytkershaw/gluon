@@ -45,3 +45,4 @@ Thumbs.db
 
 # Playwright
 .playwright-cli/
+output/playwright/
