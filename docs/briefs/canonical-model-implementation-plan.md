@@ -2,7 +2,7 @@
 
 ## Context
 
-The canonical musical model RFC (`docs/rfc-canonical-musical-model.md`) defines the abstraction layer between Gluon's AI agent and its runtime backends. This plan implements the RFC across small, reviewable PRs that can run in parallel workstreams without conflicting with ongoing Phase 3 work.
+The canonical musical model RFC (`docs/rfcs/canonical-musical-model.md`) defines the abstraction layer between Gluon's AI agent and its runtime backends. This plan implements the RFC across small, reviewable PRs that can run in parallel workstreams without conflicting with ongoing Phase 3 work.
 
 The backlog is issues #18–#22 plus housekeeping. The plan sequences these into 8 PRs across 3 workstreams.
 
@@ -39,12 +39,12 @@ The backlog is issues #18–#22 plus housekeeping. The plan sequences these into
 **Dependencies:** None
 
 Commits the doc changes already made in this session:
-- `docs/rfc-canonical-musical-model.md` (new — the combined RFC)
+- `docs/rfcs/canonical-musical-model.md` (new — the combined RFC)
 - `docs/archive/rfc-musical-data-model.md` (moved)
 - `docs/archive/gluon-canonical-musical-model-rfc.md` (moved)
-- `docs/gluon-phase4a-rfc.md` (updated status section)
+- `docs/rfcs/phase4a.md` (updated status section)
 - `docs/status.md` (updated header)
-- `docs/canonical-model-implementation-plan.md` (this plan)
+- `docs/briefs/canonical-model-implementation-plan.md` (this plan)
 
 **Verification:** `npx tsc --noEmit` and `npx vitest run` pass.
 
@@ -315,7 +315,7 @@ This is where the full AI-facing protocol shifts to the canonical shape. Both `m
 **Dependencies:** PR-5 merged (needs final action syntax). Can be **drafted in parallel**; finalised after PR-5.
 
 **New files:**
-- `docs/ai-contract.md` — What the agent needs at inference time:
+- `docs/ai/ai-contract.md` — What the agent needs at inference time:
   - Type definitions for build-now layer
   - Serialised state format (example JSON)
   - 3+ worked round-trip examples (state → reasoning → operation)

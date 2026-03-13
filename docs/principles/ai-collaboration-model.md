@@ -235,4 +235,4 @@ If the system cannot answer those questions clearly, it is probably acting at th
 
 - [ai-capability-doctrine](./ai-capability-doctrine.md) — where to draw the line between constraint and empowerment
 - [ai-interface-design-principles](./ai-interface-design-principles.md) — how to build AI interfaces that respect model intelligence
-- [ai-musical-environment](./ai-musical-environment.md) — what the AI's world should look like: layered state, actions, and structure
+- [ai-musical-environment](../ai/ai-musical-environment.md) — what the AI's world should look like: layered state, actions, and structure

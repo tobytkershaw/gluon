@@ -1,5 +1,5 @@
 # Gluon Sequencer Implementation Plan
-## Roadmap Derived from `docs/gluon-sequencer-brief.md`
+## Roadmap Derived from `docs/briefs/sequencer.md`
 
 ---
 

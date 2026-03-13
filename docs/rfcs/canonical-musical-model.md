@@ -8,9 +8,9 @@ Related docs:
 
 - `docs/gluon-interaction-protocol-v05.md`
 - `docs/gluon-architecture.md`
-- `docs/gluon-phase4a-rfc.md`
-- `docs/gluon_modular_roadmap.md`
-- `docs/ai-musical-environment.md`
+- `docs/rfcs/phase4a.md`
+- `docs/briefs/modular-roadmap.md`
+- `docs/ai/ai-musical-environment.md`
 
 ---
 
@@ -100,7 +100,7 @@ All persisted project state falls into one of five categories. This classificati
 | **Canonical musical state** | The musical content and instrument configuration. Voices, regions, events, parameters, processor chains, models, transport, agency. This is the source of truth for what the instrument *is* and what it *plays*. | Yes | Yes (compressed) | Yes | `voice.regions[0].events`, `voice.params`, `voice.processors`, `transport.bpm` |
 | **Provenance state** | Who set each value (human, AI, or default) and when. Drives undo source attribution and UI feedback. Not used for arbitration (which has its own runtime system). | Yes | No (internal) | Yes (restored alongside values) | `voice.controlProvenance` |
 | **Persistent presentation state** | What the human sees. Sequencer views, surface configurations (future), pinned controls (future), XY axis bindings (future). Persisted because losing your UI layout across sessions is bad UX, but not part of musical content. | Yes | Yes (compressed) | Yes | `voice.views`, `VoiceSurface` (future) |
-| **Collaboration state** (future) | Project phase, approved directions, rejected directions, preserved material, active brief. The shared understanding between human and AI about where the project is and what has been decided. Not yet implemented — defined in [ai-musical-environment.md](./ai-musical-environment.md). | Yes (when implemented) | Yes | Yes | `project.phase`, `project.approved_directions` |
+| **Collaboration state** (future) | Project phase, approved directions, rejected directions, preserved material, active brief. The shared understanding between human and AI about where the project is and what has been decided. Not yet implemented — defined in [ai-musical-environment.md](../ai/ai-musical-environment.md). | Yes (when implemented) | Yes | Yes | `project.phase`, `project.approved_directions` |
 | **Ephemeral state** | Derived at runtime, never persisted. Undo stack (contains closures), recent human actions (short-lived), activity pulse, thumbprint colour, hover/focus state, arbitration cooldowns. | No | Partial (`undo_depth`, `recent_human_actions`) | N/A | `session.undoStack`, `session.recentHumanActions` |
 
 ### What this means in practice

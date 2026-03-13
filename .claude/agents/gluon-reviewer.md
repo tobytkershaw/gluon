@@ -36,7 +36,7 @@ These are the most common source of bugs. Check any code touching `src/engine/`:
 
 ## AI Interface Design Principles
 
-Read `docs/ai-interface-design-principles.md` if you haven't. These 10 rules govern any change to `src/ai/`:
+Read `docs/principles/ai-interface-design-principles.md` if you haven't. These 10 rules govern any change to `src/ai/`:
 
 1. **Expose capabilities, not output formats** — tools and structured state, not text parsing instructions.
 2. **Action space matches the task** — if the AI conceptually can do something, it should be a real tool.
@@ -53,7 +53,7 @@ When reviewing `src/ai/` changes, check: Does this new code introduce a capabili
 
 ## AI Capability Doctrine
 
-Read `docs/ai-capability-doctrine.md`. The short version:
+Read `docs/principles/ai-capability-doctrine.md`. The short version:
 
 **Constrain at the product boundary. Empower aggressively inside it.**
 
@@ -67,7 +67,7 @@ Default posture: if a restriction doesn't protect a hard boundary, replace it wi
 
 When reviewing, ask: Is this change restricting the AI to compensate for a weak interface? Could the AI succeed here if state/tools/feedback were better?
 
-## AI Contract (`docs/ai-contract.md`)
+## AI Contract (`docs/ai/ai-contract.md`)
 
 The inference-time contract. Check changes to `src/ai/` against:
 - Tool declarations must match what the contract documents

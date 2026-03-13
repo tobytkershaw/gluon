@@ -6,10 +6,10 @@ Draft RFC for architectural alignment.
 
 Related docs:
 
-- `docs/rfc-canonical-musical-model.md` — canonical data model (semantic controls, adapters, control schema)
-- `docs/rfc-sequencer-view-layer.md` — sequencer views as addable projections (same pattern applied to sequencing)
-- `docs/gluon-phase4a-rfc.md` — constrained patch chains (the module expansion this RFC builds on top of)
-- `docs/ai-interface-design-principles.md` — AI interface posture
+- `docs/rfcs/canonical-musical-model.md` — canonical data model (semantic controls, adapters, control schema)
+- `docs/rfcs/sequencer-view-layer.md` — sequencer views as addable projections (same pattern applied to sequencing)
+- `docs/rfcs/phase4a.md` — constrained patch chains (the module expansion this RFC builds on top of)
+- `docs/principles/ai-interface-design-principles.md` — AI interface posture
 - `docs/gluon-interaction-protocol-v05.md` — interaction protocol (v0.5.0)
 
 ---

@@ -78,9 +78,19 @@ npm run wasm:build
 
 - [`docs/gluon-architecture.md`](./docs/gluon-architecture.md) — Full vision and architecture
 - [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md) — Protocol spec (v0.5.0)
-- [`docs/ai-capability-doctrine.md`](./docs/ai-capability-doctrine.md) — AI product posture: hard boundaries, then maximize usefulness
-- [`docs/ai-interface-design-principles.md`](./docs/ai-interface-design-principles.md) — How the AI layer exposes state, tools, and feedback
-- [`docs/ai-collaboration-model.md`](./docs/ai-collaboration-model.md) — Collaboration phases, posture, roles, and model evaluation
-- [`docs/ai-musical-environment.md`](./docs/ai-musical-environment.md) — Target AI environment: layered state, actions, and structure
-- [`docs/rfc-canonical-musical-model.md`](./docs/rfc-canonical-musical-model.md) — Canonical musical model: Voice, Region, MusicalEvent, ControlSchema
 - [`docs/status.md`](./docs/status.md) — Current build status and milestone tracking
+
+### Principles — [`docs/principles/`](./docs/principles/)
+- [`ai-capability-doctrine.md`](./docs/principles/ai-capability-doctrine.md) — AI product posture: hard boundaries, then maximize usefulness
+- [`ai-interface-design-principles.md`](./docs/principles/ai-interface-design-principles.md) — How the AI layer exposes state, tools, and feedback
+- [`ai-collaboration-model.md`](./docs/principles/ai-collaboration-model.md) — Collaboration phases, posture, roles, and model evaluation
+
+### AI Contract — [`docs/ai/`](./docs/ai/)
+- [`ai-contract.md`](./docs/ai/ai-contract.md) — What the AI needs at inference time: tools, state, validation
+- [`ai-musical-environment.md`](./docs/ai/ai-musical-environment.md) — Target AI environment: layered state, actions, and structure
+
+### RFCs — [`docs/rfcs/`](./docs/rfcs/)
+- [`canonical-musical-model.md`](./docs/rfcs/canonical-musical-model.md) — Canonical musical model: Voice, Region, MusicalEvent, ControlSchema
+- [`ai-curated-surfaces.md`](./docs/rfcs/ai-curated-surfaces.md) — AI-curated UI surfaces
+- [`sequencer-view-layer.md`](./docs/rfcs/sequencer-view-layer.md) — Sequencer views as projections over canonical events
+- [`phase4a.md`](./docs/rfcs/phase4a.md) — Phase 4A: constrained patch chains

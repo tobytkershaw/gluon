@@ -6,11 +6,11 @@ Draft RFC for architectural alignment.
 
 Related docs:
 
-- `docs/rfc-canonical-musical-model.md` — canonical event model and “editors are views” principle
-- `docs/gluon-sequencer-brief.md` — sequencing strategy and product boundaries
-- `docs/gluon-sequencer-implementation-plan.md` — phased sequencing roadmap
-- `docs/rfc-ai-curated-surfaces.md` — UI curation model and voice-surface architecture
-- `docs/ai-interface-design-principles.md` — AI interface posture
+- `docs/rfcs/canonical-musical-model.md` — canonical event model and “editors are views” principle
+- `docs/briefs/sequencer.md` — sequencing strategy and product boundaries
+- `docs/briefs/sequencer-implementation-plan.md` — phased sequencing roadmap
+- `docs/rfcs/ai-curated-surfaces.md` — UI curation model and voice-surface architecture
+- `docs/principles/ai-interface-design-principles.md` — AI interface posture
 
 ---
 

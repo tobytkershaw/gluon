@@ -339,7 +339,7 @@ The AI's working environment exists at three levels. Each is documented, each is
 | Layer | What it is | Document | Status |
 |-------|-----------|----------|--------|
 | **Current contract** | The tools, state format, and validation rules the AI operates with today. 10 tools, 4-voice Plaits/Rings, canonical events, semantic controls. | [ai-contract.md](./ai-contract.md) | Implemented |
-| **Canonical model** | The data model that all current and future tools operate on. Voices, regions, events, control schemas, adapters, provenance. Defines the stable internal vocabulary. | [rfc-canonical-musical-model.md](./rfc-canonical-musical-model.md) | Partially implemented (regions, events, provenance landed; adapters, full schema in progress) |
+| **Canonical model** | The data model that all current and future tools operate on. Voices, regions, events, control schemas, adapters, provenance. Defines the stable internal vocabulary. | [canonical-musical-model.md](../rfcs/canonical-musical-model.md) | Partially implemented (regions, events, provenance landed; adapters, full schema in progress) |
 | **Musical environment** (this document) | The target environment where the AI reasons about project phase, voice roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — not yet implemented |
 
 The current contract is what the AI sees today. The canonical model is the platform being built underneath it. This document is where the environment is headed once the canonical model is stable.
@@ -360,6 +360,6 @@ Connected to project milestones:
 
 ## Relationship To Other AI Docs
 
-- [ai-capability-doctrine](./ai-capability-doctrine.md) — where to draw the line between constraint and empowerment
-- [ai-interface-design-principles](./ai-interface-design-principles.md) — how to build AI interfaces that respect model intelligence
-- [ai-collaboration-model](./ai-collaboration-model.md) — what good collaboration looks like: phases, posture, roles
+- [ai-capability-doctrine](../principles/ai-capability-doctrine.md) — where to draw the line between constraint and empowerment
+- [ai-interface-design-principles](../principles/ai-interface-design-principles.md) — how to build AI interfaces that respect model intelligence
+- [ai-collaboration-model](../principles/ai-collaboration-model.md) — what good collaboration looks like: phases, posture, roles

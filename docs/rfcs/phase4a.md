@@ -7,13 +7,13 @@
 
 Draft RFC for implementation planning.
 
-**Data model:** The data model for Phase 4A (types, control schemas, adapter interfaces) is now defined in `docs/rfc-canonical-musical-model.md`. This document retains ownership of product scope, UI constraints, module set, performance budgets, and the Phase 4B decision gate.
+**Data model:** The data model for Phase 4A (types, control schemas, adapter interfaces) is now defined in `docs/rfcs/canonical-musical-model.md`. This document retains ownership of product scope, UI constraints, module set, performance budgets, and the Phase 4B decision gate.
 
 Related docs:
 
-- `docs/rfc-canonical-musical-model.md` — canonical data model (supersedes the type definitions in this doc)
-- `docs/gluon-phase3-build.md`
-- `docs/gluon_modular_roadmap.md`
+- `docs/rfcs/canonical-musical-model.md` — canonical data model (supersedes the type definitions in this doc)
+- `docs/archive/gluon-phase3-build.md`
+- `docs/briefs/modular-roadmap.md`
 
 Related issue:
 

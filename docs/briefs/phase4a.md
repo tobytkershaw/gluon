@@ -30,7 +30,7 @@ The "First Chain" milestone proved modular chains end-to-end:
 
 ## What Remains for Phase 4A Completion
 
-The RFC (`docs/gluon-phase4a-rfc.md`) defines Phase 4A as: "each voice = one small, legible signal chain" with source → up to 2 processors → modulation, plus chain UI.
+The RFC (`docs/rfcs/phase4a.md`) defines Phase 4A as: "each voice = one small, legible signal chain" with source → up to 2 processors → modulation, plus chain UI.
 
 ### Slice 1: Second Processor Module (Clouds/Beads)
 
