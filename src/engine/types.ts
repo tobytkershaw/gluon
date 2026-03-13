@@ -1,6 +1,6 @@
 // src/engine/types.ts
 import type { Pattern, PatternSketch, Step, Transport } from './sequencer-types';
-import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent } from './canonical-types';
+import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
 
@@ -28,6 +28,42 @@ export interface ProcessorConfig {
   params: Record<string, number>;
 }
 
+// --- Voice Surface (Layer model for UI, Steps 5+ activate semantic controls) ---
+
+export type SemanticTransform = 'linear' | 'inverse' | 'bipolar';
+
+export interface SemanticControlWeight {
+  moduleId: string;
+  controlId: string;
+  weight: number;
+  transform: SemanticTransform;
+}
+
+export interface SemanticControlDef {
+  id: string;
+  name: string;
+  semanticRole: SemanticRole | null;
+  description: string;
+  weights: SemanticControlWeight[];
+  range: { min: number; max: number; default: number };
+}
+
+export interface ThumbprintConfig {
+  type: 'static-color';
+}
+
+export interface PinnedControl {
+  moduleId: string;
+  controlId: string;
+}
+
+export interface VoiceSurface {
+  semanticControls: SemanticControlDef[];
+  pinnedControls: PinnedControl[];
+  xyAxes: { x: string; y: string };
+  thumbprint: ThumbprintConfig;
+}
+
 export interface Voice {
   id: string;
   engine: string;
@@ -45,6 +81,8 @@ export interface Voice {
   _hiddenEvents?: CanonicalMusicalEvent[];
   /** Processor chain (effects applied after source). */
   processors?: ProcessorConfig[];
+  /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
+  surface: VoiceSurface;
 }
 
 export interface MusicalContext {

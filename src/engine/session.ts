@@ -41,6 +41,12 @@ function createVoice(index: number): Voice {
     muted: false,
     solo: false,
     controlProvenance: buildDefaultProvenance(defaults.model),
+    surface: {
+      semanticControls: [],
+      pinnedControls: [],
+      xyAxes: { x: 'brightness', y: 'texture' },
+      thumbprint: { type: 'static-color' },
+    },
   };
 }
 

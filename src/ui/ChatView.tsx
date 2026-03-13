@@ -2,7 +2,7 @@
 import type { Session, Voice } from '../engine/types';
 import type { ViewMode } from './view-types';
 import { ViewToggle } from './ViewToggle';
-import { VoiceSelector } from './VoiceSelector';
+import { VoiceStage } from './VoiceStage';
 import { UndoButton } from './UndoButton';
 import { ApiKeyInput } from './ApiKeyInput';
 import { ChatPanel } from './ChatPanel';
@@ -17,6 +17,7 @@ interface Props {
   onSelectVoice: (voiceId: string) => void;
   onToggleMute: (voiceId: string) => void;
   onToggleSolo: (voiceId: string) => void;
+  onToggleAgency: (voiceId: string) => void;
   onUndo: () => void;
   onSend: (message: string) => void;
   onTogglePlay: () => void;
@@ -24,12 +25,14 @@ interface Props {
   bpm: number;
   isThinking?: boolean;
   isListening?: boolean;
+  activityMap: Record<string, number>;
 }
 
 export function ChatView({
   session, view, onViewChange, apiConfigured, onApiKey,
-  onSelectVoice, onToggleMute, onToggleSolo, onUndo, onSend,
+  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency, onUndo, onSend,
   onTogglePlay, playing, bpm, isThinking = false, isListening = false,
+  activityMap,
 }: Props) {
   return (
     <div className="flex flex-col h-full">
@@ -58,13 +61,14 @@ export function ChatView({
         </button>
         <span className="text-zinc-400 text-xs font-mono tabular-nums">{bpm}</span>
 
-        <VoiceSelector
+        <VoiceStage
           voices={session.voices}
           activeVoiceId={session.activeVoiceId}
+          activityMap={activityMap}
           onSelectVoice={onSelectVoice}
           onToggleMute={onToggleMute}
           onToggleSolo={onToggleSolo}
-          compact
+          onToggleAgency={onToggleAgency}
         />
 
         <div className="flex-1" />

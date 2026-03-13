@@ -1,28 +1,22 @@
 // src/ui/InstrumentView.tsx
+// Thin shell: top bar + ExpandedVoice + ChatPanel
 import type { Session, Voice, SequencerViewKind } from '../engine/types';
 import type { MusicalEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import type { ViewMode } from './view-types';
-import { ViewToggle } from './ViewToggle';
-import { VoiceSelector } from './VoiceSelector';
-import { UndoButton } from './UndoButton';
-import { TransportBar } from './TransportBar';
-import { ParameterSpace } from './ParameterSpace';
-import { ModelSelector } from './ModelSelector';
 import type { Agency } from '../engine/types';
-import { Visualiser } from './Visualiser';
-import { PitchControl } from './PitchControl';
+import { ViewToggle } from './ViewToggle';
+import { VoiceStage } from './VoiceStage';
+import { UndoButton } from './UndoButton';
 import { ChatPanel } from './ChatPanel';
-import { Tracker } from './Tracker';
-import { SequencerViewSlot } from './SequencerViewSlot';
-import { ChainStrip } from './ChainStrip';
-import { ModuleInspector } from './ModuleInspector';
+import { ExpandedVoice } from './ExpandedVoice';
 
 interface Props {
   session: Session;
   activeVoice: Voice;
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
+  activityMap: Record<string, number>;
   // Transport
   playing: boolean;
   bpm: number;
@@ -42,7 +36,7 @@ interface Props {
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   onModelChange: (model: number) => void;
-  onAgencyChange: (agency: 'OFF' | 'ON') => void;
+  onAgencyChange: (agency: Agency) => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
   // Processor editing
@@ -73,12 +67,15 @@ interface Props {
   onSend: (message: string) => void;
   isThinking?: boolean;
   isListening?: boolean;
+  // Deep view
+  deepViewModuleId: string | null;
+  onOpenDeepView: (moduleId: string | null) => void;
   // Audio
   analyser: AnalyserNode | null;
 }
 
 export function InstrumentView({
-  session, activeVoice, view, onViewChange,
+  session, activeVoice, view, onViewChange, activityMap,
   playing, bpm, swing, recording, globalStep,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
   onSelectVoice, onToggleMute, onToggleSolo,
@@ -90,26 +87,22 @@ export function InstrumentView({
   onEventUpdate, onEventDelete, onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
-  onUndo, onSend, isThinking = false, isListening = false, analyser,
+  onUndo, onSend, isThinking = false, isListening = false,
+  deepViewModuleId, onOpenDeepView,
+  analyser,
 }: Props) {
-  const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
-
   return (
     <div className="flex flex-col h-full">
       {/* Top bar */}
       <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/50">
         <ViewToggle view={view} onViewChange={onViewChange} />
-        <VoiceSelector
+        <VoiceStage
           voices={session.voices}
           activeVoiceId={session.activeVoiceId}
+          activityMap={activityMap}
           onSelectVoice={onSelectVoice}
           onToggleMute={onToggleMute}
           onToggleSolo={onToggleSolo}
-          onToggleAgency={(voiceId) => {
-            const voice = session.voices.find(v => v.id === voiceId);
-            if (voice) onAgencyChange(voice.agency === 'OFF' ? 'ON' : 'OFF');
-          }}
-          compact
         />
         <div className="flex-1" />
         <UndoButton
@@ -121,105 +114,48 @@ export function InstrumentView({
 
       {/* Main content: instrument left, chat right */}
       <div className="flex-1 min-h-0 flex">
-        {/* Instrument controls */}
-        <div className="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-y-auto">
-          <TransportBar
-            playing={playing}
-            bpm={bpm}
-            swing={swing}
-            recording={recording}
-            globalStep={globalStep}
-            patternLength={activeVoice.pattern.length}
-            onTogglePlay={onTogglePlay}
-            onBpmChange={onBpmChange}
-            onSwingChange={onSwingChange}
-            onToggleRecord={onToggleRecord}
-          />
-
-          <ModelSelector model={activeVoice.model} onChange={onModelChange} />
-
-          <ChainStrip
-            voice={activeVoice}
-            selectedProcessorId={selectedProcessorId}
-            onSelectProcessor={onSelectProcessor}
-          />
-
-          {selectedProcessorId && (() => {
-            const proc = (activeVoice.processors ?? []).find(p => p.id === selectedProcessorId);
-            return proc ? (
-              <ModuleInspector
-                processor={proc}
-                onParamChange={onProcessorParamChange}
-                onParamInteractionStart={onProcessorInteractionStart}
-                onParamInteractionEnd={onProcessorInteractionEnd}
-                onModelChange={onProcessorModelChange}
-                onRemove={onRemoveProcessor}
-              />
-            ) : null;
-          })()}
-
-          <div className="relative flex-1 min-h-[200px]">
-            <ParameterSpace
-              timbre={activeVoice.params.timbre}
-              morph={activeVoice.params.morph}
-              onChange={onParamChange}
-              onInteractionStart={onInteractionStart}
-              onInteractionEnd={onInteractionEnd}
-            />
-          </div>
-
-          {activeVoice.regions.length > 0 && (
-            <Tracker
-              region={activeVoice.regions[0]}
-              currentStep={currentStep}
-              playing={playing}
-              onUpdate={onEventUpdate}
-              onDelete={onEventDelete}
-            />
-          )}
-
-          {(activeVoice.views ?? []).map((viewConfig) => (
-            <SequencerViewSlot
-              key={viewConfig.id}
-              config={viewConfig}
-              onRemove={onRemoveView ?? (() => {})}
-              pattern={activeVoice.pattern}
-              currentStep={currentStep}
-              playing={playing}
-              stepPage={stepPage}
-              selectedStep={selectedStep}
-              onStepToggle={onStepToggle}
-              onStepAccent={onStepAccent}
-              onStepSelect={onStepSelect}
-              onPatternLength={onPatternLength}
-              onPageChange={onPageChange}
-              onClearPattern={onClearPattern}
-            />
-          ))}
-
-          {onAddView && (
-            <div className="flex items-center gap-2">
-              <button
-                className="text-[9px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-colors"
-                onClick={() => onAddView('step-grid')}
-              >
-                + Step Grid
-              </button>
-            </div>
-          )}
-
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <Visualiser analyser={analyser} />
-            </div>
-            <PitchControl
-              note={activeVoice.params.note}
-              harmonics={activeVoice.params.harmonics}
-              onNoteChange={onNoteChange}
-              onHarmonicsChange={onHarmonicsChange}
-            />
-          </div>
-        </div>
+        <ExpandedVoice
+          session={session}
+          activeVoice={activeVoice}
+          playing={playing}
+          bpm={bpm}
+          swing={swing}
+          recording={recording}
+          globalStep={globalStep}
+          onTogglePlay={onTogglePlay}
+          onBpmChange={onBpmChange}
+          onSwingChange={onSwingChange}
+          onToggleRecord={onToggleRecord}
+          onParamChange={onParamChange}
+          onInteractionStart={onInteractionStart}
+          onInteractionEnd={onInteractionEnd}
+          onModelChange={onModelChange}
+          onAgencyChange={onAgencyChange}
+          onNoteChange={onNoteChange}
+          onHarmonicsChange={onHarmonicsChange}
+          selectedProcessorId={selectedProcessorId}
+          onSelectProcessor={onSelectProcessor}
+          onProcessorParamChange={onProcessorParamChange}
+          onProcessorInteractionStart={onProcessorInteractionStart}
+          onProcessorInteractionEnd={onProcessorInteractionEnd}
+          onProcessorModelChange={onProcessorModelChange}
+          onRemoveProcessor={onRemoveProcessor}
+          stepPage={stepPage}
+          onStepToggle={onStepToggle}
+          onStepAccent={onStepAccent}
+          selectedStep={selectedStep}
+          onStepSelect={onStepSelect}
+          onPatternLength={onPatternLength}
+          onPageChange={onPageChange}
+          onClearPattern={onClearPattern}
+          onEventUpdate={onEventUpdate}
+          onEventDelete={onEventDelete}
+          onAddView={onAddView}
+          onRemoveView={onRemoveView}
+          deepViewModuleId={deepViewModuleId}
+          onOpenDeepView={onOpenDeepView}
+          analyser={analyser}
+        />
 
         {/* Chat panel — right side */}
         <div className="w-80 border-l border-zinc-800/50 flex flex-col min-h-0">

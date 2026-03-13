@@ -7,6 +7,7 @@ interface Props {
   voice: Voice;
   selectedProcessorId?: string | null;
   onSelectProcessor?: (processorId: string | null) => void;
+  onNodeClick?: (moduleId: string) => void;
 }
 
 function getProcessorLabel(type: string, modelIndex: number): string {
@@ -16,15 +17,31 @@ function getProcessorLabel(type: string, modelIndex: number): string {
   return engine ? `${inst.label}: ${engine.label}` : inst.label;
 }
 
-export function ChainStrip({ voice, selectedProcessorId, onSelectProcessor }: Props) {
+function ChevronButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="ml-1 text-zinc-600 hover:text-zinc-300 transition-colors"
+    >
+      <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 10 10">
+        <path d="M3 2L7 5L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
+export function ChainStrip({ voice, selectedProcessorId, onSelectProcessor, onNodeClick }: Props) {
   const processors = voice.processors ?? [];
   const sourceLabel = getModelName(voice.model);
 
   return (
     <div className="flex items-center gap-1.5 text-[10px]">
       {/* Source badge */}
-      <span className="px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300 font-medium truncate max-w-[140px]">
+      <span className="flex items-center px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300 font-medium truncate max-w-[140px]">
         {sourceLabel}
+        {onNodeClick && (
+          <ChevronButton onClick={() => onNodeClick('source')} />
+        )}
       </span>
 
       {processors.map((proc) => {
@@ -36,13 +53,16 @@ export function ChainStrip({ voice, selectedProcessorId, onSelectProcessor }: Pr
             </svg>
             <button
               onClick={() => onSelectProcessor?.(isSelected ? null : proc.id)}
-              className={`px-2 py-0.5 rounded font-medium truncate max-w-[180px] transition-colors ${
+              className={`flex items-center px-2 py-0.5 rounded font-medium truncate max-w-[180px] transition-colors ${
                 isSelected
                   ? 'bg-sky-400/20 border border-sky-400/40 text-sky-200'
                   : 'bg-sky-400/10 border border-sky-400/20 text-sky-300 hover:bg-sky-400/15 hover:border-sky-400/30'
               }`}
             >
               {getProcessorLabel(proc.type, proc.model)}
+              {onNodeClick && (
+                <ChevronButton onClick={() => onNodeClick(proc.id)} />
+              )}
             </button>
           </div>
         );
