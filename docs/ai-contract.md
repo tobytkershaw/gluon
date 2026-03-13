@@ -111,7 +111,7 @@ Fields:
 - **pattern.locks** — per-step parameter overrides, keyed by step index, using semantic control names
 - **transport** — tempo, swing, and playing state
 - **context** — global energy and density (0.0–1.0)
-- **undo_depth** — how many AI action groups can be undone
+- **undo_depth** — how many action groups can be undone
 - **recent_human_actions** — last 5 parameter changes with voice, semantic param name, values, and age
 
 ---
@@ -152,9 +152,10 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 ## Undo
 
-- AI actions are grouped per turn into a single undo entry
+- All actions (human and AI) push undo snapshots in LIFO order
+- AI actions are grouped per turn into a single undo entry; human edits push individual snapshots
 - Transport changes are included in the undo group
-- The human can undo with Cmd+Z; one press reverts the entire AI turn
+- The human can undo with Cmd+Z; one press reverts the most recent action or action group
 - `undo_depth` in the state tells the model how many groups can be undone
 
 ---

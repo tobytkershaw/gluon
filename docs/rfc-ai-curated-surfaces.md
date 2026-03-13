@@ -22,7 +22,7 @@ Gluon has something those instruments don't: an AI that understands the instrume
 
 The core idea of this RFC: **the AI's toolkit includes UI curation, not just parameter manipulation.** The AI doesn't just play the instrument — it also sets up the mixing desk for the human.
 
-This extends the AI interface design principles naturally. The AI already reasons about music through semantic controls, acts through structured operations, and respects the human's authority. UI curation is a new category of structured operation, subject to the same rules: the AI proposes, the human approves, undo reverts.
+This extends the AI interface design principles naturally. The AI already reasons about music through semantic controls, acts through structured operations, and respects the human's authority. UI curation is a new category of structured operation, subject to the same rules: the AI acts, the change is immediate, undo reverts.
 
 ### This RFC produces two outputs
 
@@ -46,15 +46,15 @@ The implementation plan is designed so that every piece of it migrates cleanly i
 
 ## Design Principles
 
-### 1. The AI proposes, the human's layout is stable
+### 1. The AI sets up the instrument, the human keeps control
 
-The AI can suggest surface changes but never reconfigures the UI unsolicited. Muscle memory matters more than optimal layout. The visible surface should not keep reconfiguring itself so much that the user loses spatial memory.
+The AI configures both the sound and the surface as part of the same action. When it adds Rings to a voice, it also sets up the controls for Rings. These are part of the same gesture — the musician doesn't want to approve a processor and then separately approve its knobs.
 
 What this means in practice:
 - A stable default semantic surface per voice, set when the voice/chain is created
-- AI suggestions to pin, add, or swap controls require human approval
+- Surface changes apply immediately and are undoable, just like all other AI actions
+- Constant spontaneous rearrangement is not allowed — surfaces change when chains change, not continuously
 - Some adaptive behaviour (highlighting what just changed) is allowed
-- Constant spontaneous rearrangement is not
 
 The user should feel the UI is evolving with them, not shape-shifting under them.
 
@@ -214,7 +214,7 @@ The registry stores surface templates for known chain configurations. When a cha
 
 1. Check if a registry template matches the new chain signature.
 2. If yes, apply the template as the default surface. No AI proposal needed — the surface just appears.
-3. If no template matches, the AI proposes a surface (the existing `propose_surface` flow).
+3. If no template matches, the AI sets up a surface (using the `set_surface` operation).
 
 The AI's role shifts from "invent a surface every time" to "propose surfaces for novel chain configurations." For common chains, the experience is instant and deterministic. For unusual combinations, the AI fills the gap.
 
@@ -270,7 +270,7 @@ When a voice is created, it gets a default surface:
 - XY axes set to `brightness` × `texture` (the current default)
 - Thumbprint set to `static-color`
 
-When a processor is added to the chain, the AI proposes a new surface with semantic controls (unless a registry template exists for the chain configuration). The human can accept, modify, or dismiss.
+When a processor is added to the chain, the surface updates automatically: if a registry template matches the new chain, it is applied immediately; otherwise the AI sets up a surface as part of the same action. The human can undo or ask for a different arrangement.
 
 ---
 
@@ -279,14 +279,10 @@ When a processor is added to the chain, the AI proposes a new surface with seman
 Surface-related state falls into three categories with different persistence and undo behaviour. Keeping these boundaries clear prevents over-persisting visual noise or under-modelling meaningful UI collaboration.
 
 **Project state** — persisted and undoable:
-- Accepted semantic surface definitions (`VoiceSurface.semanticControls`)
+- Semantic surface definitions (`VoiceSurface.semanticControls`)
 - Pinned controls
-- Accepted XY axis bindings
+- XY axis bindings
 - Thumbprint configuration
-
-**Transient proposal state** — not persisted, not undoable:
-- Pending AI surface proposals (awaiting human accept/dismiss)
-- Temporary visual emphasis around recent suggestions
 
 **Render-only state** — derived at runtime, never persisted:
 - Activity pulse
@@ -294,7 +290,7 @@ Surface-related state falls into three categories with different persistence and
 - Hover/focus state
 - Deep view open/closed state
 
-The `VoiceSurface` type captures project state only. Transient proposals are held in UI component state until accepted (at which point they become project state via the normal undo-entry path). Render-only state is never serialised.
+The `VoiceSurface` type captures project state only. Render-only state is never serialised.
 
 ---
 
@@ -304,25 +300,27 @@ The AI's UI toolkit is a new category of operations, subject to the same rules a
 
 ```ts
 // --- Surface operations (new) ---
+// All surface operations apply immediately and are undoable,
+// following the same pattern as move, sketch, and add_processor.
 
-interface ProposeSurfaceOp {
-  type: 'propose_surface';
+interface SetSurfaceOp {
+  type: 'set_surface';
   voiceId: string;
   semanticControls: SemanticControlDef[];
   xyAxes?: { x: string; y: string };
-  description: string;         // "Proposed Brightness/Space/Movement for Plaits→Rings→Clouds chain"
+  description: string;         // "Set up Brightness/Space/Movement for Plaits→Rings→Clouds chain"
 }
 
-interface SuggestPinOp {
-  type: 'suggest_pin';
+interface PinOp {
+  type: 'pin';
   voiceId: string;
   moduleId: string;
   controlId: string;
   reason: string;              // "You've adjusted Clouds decay 4 times in this session"
 }
 
-interface SuggestUnpinOp {
-  type: 'suggest_unpin';
+interface UnpinOp {
+  type: 'unpin';
   voiceId: string;
   moduleId: string;
   controlId: string;
@@ -338,39 +336,38 @@ interface LabelAxesOp {
 }
 
 type AISurfaceOp =
-  | ProposeSurfaceOp
-  | SuggestPinOp
-  | SuggestUnpinOp
+  | SetSurfaceOp
+  | PinOp
+  | UnpinOp
   | LabelAxesOp;
 ```
 
 #### Operation Semantics
 
-**`propose_surface`**: The AI proposes a complete semantic surface for a voice. This happens when:
-- A processor is added to a chain (the AI should propose a surface that covers the new chain)
+All surface operations apply immediately and are undoable, just like `move`, `sketch`, and `add_processor`. There is no approval gate. If the human doesn't like a surface change, they undo it — the same pattern as every other AI action.
+
+**`set_surface`**: The AI sets a complete semantic surface for a voice. This happens when:
+- A processor is added to a chain (the AI should set up a surface that covers the new chain)
 - The human asks the AI to "set up controls for this voice"
 - The human asks for a different organisation of the controls
 
-The proposal is shown to the human as a notification or inline in the chat: "I've set up Brightness, Space, and Movement controls for the lead. These map across your Plaits → Rings → Clouds chain. [Accept] [Customise] [Dismiss]"
+The AI explains what it did in the chat: "I've set up Brightness, Space, and Movement controls for the lead. These map across your Plaits → Rings → Clouds chain." The human can undo if they prefer the previous arrangement.
 
-If accepted, the surface is applied and an undo entry is created. If dismissed, the voice keeps its previous surface.
+**`pin`**: The AI surfaces a raw control. This should be infrequent — only when the AI has evidence that the human wants direct access (e.g., they've asked about a specific parameter, or they've been adjusting it via the deep view).
 
-**`suggest_pin`**: The AI suggests surfacing a raw control. This should be infrequent — only when the AI has evidence that the human wants direct access (e.g., they've asked about a specific parameter, or they've been adjusting it via the deep view). The suggestion appears as a non-blocking notification.
+**`unpin`**: The AI removes a pinned control. Same pattern — immediate, undoable.
 
-**`suggest_unpin`**: The AI suggests removing a pinned control that hasn't been used in a while. Same approval flow.
-
-**`label_axes`**: The AI suggests different XY pad axes based on context. For example, if the human is working on the spatial qualities of a pad, the AI might suggest X=Space, Y=Movement instead of the default X=Brightness, Y=Texture.
+**`label_axes`**: The AI sets different XY pad axes based on context. For example, if the human is working on the spatial qualities of a pad, the AI might set X=Space, Y=Movement instead of the default X=Brightness, Y=Texture.
 
 #### What the AI Cannot Do
 
 The AI cannot:
-- Apply a surface change without human approval (except `activity_pulse`, which is ephemeral)
-- Remove a pinned control without asking
 - Change a semantic control's weight mapping without a chain structure change
 - Rearrange the order of controls on the surface
 - Change the thumbprint
 - Hide the deep view or any information the human asked to see
 - Make sound-affecting changes to voices with agency OFF (surface/view changes are allowed — they don't affect sound)
+- Spontaneously rearrange surfaces without a chain change or human request (see Trigger Discipline)
 
 #### Trigger Discipline
 
@@ -382,7 +379,7 @@ The AI should not constantly suggest surface changes. Guidelines for the AI cont
 - Never propose more than one surface change per response unless the human asked for a reorganisation.
 - When in doubt, don't suggest. The human can always ask.
 
-**Why this is prompt guidance, not a runtime constraint.** The AI interface design principles (Rule 4) say to put constraints in the environment, not only in prose. Trigger discipline is an intentional exception. "Don't propose too frequently" is a nuanced, context-dependent judgment — encoding it as a hard runtime limit (e.g., "max 1 surface proposal per N responses") would be brittle and prevent the AI from responding well to legitimate requests like "reorganise all my controls." The approval gate on `propose_surface` is the runtime safety net: even if the AI over-suggests, the human simply dismisses. The prompt guidance shapes behaviour; the approval gate enforces the boundary.
+**Why this is prompt guidance, not a runtime constraint.** The AI interface design principles (Rule 4) say to put constraints in the environment, not only in prose. Trigger discipline is an intentional exception. "Don't rearrange too frequently" is a nuanced, context-dependent judgment — encoding it as a hard runtime limit (e.g., "max 1 surface change per N responses") would be brittle and prevent the AI from responding well to legitimate requests like "reorganise all my controls." The runtime safety net is undo: if the AI changes the surface and the human doesn't like it, they undo. The prompt guidance shapes behaviour; undo enforces the boundary. This is the same contract as every other AI action.
 
 ---
 
@@ -427,37 +424,30 @@ The AI interface design principles (Rule 6) require that tool responses return c
 ```ts
 interface SurfaceOpResult {
   op: AISurfaceOp;
-  outcome: 'accepted' | 'dismissed' | 'rejected';
-  reason?: string;                // why it was rejected (validation failure) or dismissed (human choice)
-  resultingSurface?: VoiceSurface; // the surface state after application, if accepted
+  outcome: 'applied' | 'rejected';
+  reason?: string;                // why it was rejected (validation failure)
+  resultingSurface?: VoiceSurface; // the surface state after application
 }
 ```
 
 **What the AI receives after each surface operation type:**
 
-`propose_surface` — accepted:
+`set_surface` — applied:
 ```
-Surface accepted for LEAD: Brightness, Space, Movement. XY axes set to Brightness × Space.
-```
-
-`propose_surface` — dismissed:
-```
-Surface dismissed for LEAD. Previous surface retained (raw controls: brightness, texture, richness, pitch).
+Surface set for LEAD: Brightness, Space, Movement. XY axes set to Brightness × Space.
 ```
 
-The AI should not retry a dismissed proposal in the same response. If the human wants a different arrangement, they'll ask. A dismissal is information: the human prefers the current surface, or the proposal didn't match their needs. The AI can ask "would you like a different arrangement?" but should not re-propose unprompted.
+`set_surface` — rejected (validation):
+```
+Surface rejected: voice LEAD does not exist.
+```
 
-`suggest_pin` — accepted:
+`pin` — applied:
 ```
 Pinned Clouds:decay on LEAD. Surface now has 2 semantic controls + 1 pinned control.
 ```
 
-`suggest_pin` — dismissed:
-```
-Pin suggestion dismissed for Clouds:decay on LEAD.
-```
-
-`suggest_pin` — rejected (validation):
+`pin` — rejected (validation):
 ```
 Pin rejected: LEAD already has 4 pinned controls (maximum).
 ```
@@ -473,12 +463,10 @@ The existing action log shows entries like "KICK: moved brightness +0.3". Surfac
 **Action log entry types for surface operations:**
 
 ```
-AI proposed surface for LEAD: Brightness, Space, Movement     ← pending proposal
-Surface accepted for LEAD: Brightness, Space, Movement        ← human accepted
-Surface dismissed for LEAD                                    ← human dismissed
-Pinned Clouds:decay on LEAD (AI suggestion)                   ← accepted pin
-Unpinned Rings:brightness from LEAD                           ← human or accepted AI unpin
-XY axes changed on LEAD: Space × Movement                     ← accepted axis change
+Surface set for LEAD: Brightness, Space, Movement             ← AI set up surface
+Pinned Clouds:decay on LEAD                                   ← AI or human pinned
+Unpinned Rings:brightness from LEAD                           ← AI or human unpinned
+XY axes changed on LEAD: Space × Movement                     ← AI or human changed axes
 Surface degraded on LEAD: removed Space (Clouds removed)      ← automatic chain-change degradation
 ```
 
@@ -486,38 +474,29 @@ These entries use the existing `ActionLogEntry` structure but are visually disti
 
 ---
 
-### Composability: Immediate and Deferred Operations
+### Composability: Surface and Structure Operations
 
-The AI interface design principles (Rule 8) require composable primitives. Surface operations introduce a new pattern: **deferred operations** that require human approval before application. This creates a timing question when surface operations appear in the same response as immediate operations like `move` or `sketch`.
+The AI interface design principles (Rule 8) require composable primitives. When the AI adds a processor and sets up a surface in the same response, both operations apply immediately in order — no deferred operations, no approval gates.
 
-**The rule: immediate operations apply immediately; surface proposals queue as non-blocking follow-ups.**
+**Undo grouping:**
 
-When the AI's response contains both immediate and deferred operations:
-
-1. Immediate operations (`move`, `sketch`, `set_transport`, `add_processor`) execute in order and are applied to state.
-2. Surface operations (`propose_surface`, `suggest_pin`, `suggest_unpin`, `label_axes`) are presented to the human as pending proposals after the immediate operations complete.
-3. The human can accept or dismiss each proposal independently.
-
-**Undo consequences:**
-
-Immediate operations and surface operations create **separate undo entries**, even when they originate from the same AI response. This is a deliberate departure from the general principle that one AI response = one undo group.
-
-Rationale: If the AI adds a processor and proposes a surface in the same response, the human might want to keep the processor but dismiss the surface (or accept the surface but later undo the processor). Coupling them into one undo group would force all-or-nothing reversal, which doesn't match how the human thinks about these changes. "Add Rings" is a structural change; "set up Brightness/Space controls" is a presentation change. They're related but independently valuable.
+When a structure change (e.g., `add_processor`) and a surface change (e.g., `set_surface`) appear in the same AI response, they are grouped into a **single undo entry**. Adding Rings and setting up its controls is one gesture from the musician's perspective — one undo should revert both.
 
 The undo stack after such a response looks like:
 
 ```
-[top]  Surface: "Accepted Brightness/Space/Movement for LEAD"    ← undo reverts surface only
-       Group: "Added Rings to LEAD, set brightness to 0.4"       ← undo reverts processor + params
+[top]  Group: "Added Rings to LEAD, set up Brightness/Space/Movement"  ← undo reverts processor + surface
 ```
 
-**What if the human dismisses the surface proposal but keeps the processor?** The voice retains its previous surface (or falls back to showing raw controls if the chain now has too many parameters for the expanded card). The AI may propose a new surface later if the human asks, or the human can use the deep view to pin individual controls.
+This follows the existing principle: one AI response = one undo group. Surface operations are not special-cased.
+
+**What if the human wants to keep the processor but change the surface?** They ask the AI for a different arrangement, or they customise it from the deep view. They don't need to undo-and-redo to get a different surface — they just tell the AI what they want, which is the normal collaboration flow.
 
 ---
 
 ### Activity Pulse
 
-The activity pulse is the one visual feedback mechanism that happens without human approval. When the AI changes parameters on a voice, that voice's compact card (and expanded card header) briefly glows — ~2 seconds, ease-out fade.
+The activity pulse is a purely ephemeral visual feedback mechanism. When the AI changes parameters on a voice, that voice's compact card (and expanded card header) briefly glows — ~2 seconds, ease-out fade.
 
 This is purely ephemeral and carries no state. It is not an AI operation — it's a rendering concern driven by the existing action log. If an `AIAction` targets a voice, that voice's card pulses. No new types needed.
 
@@ -580,7 +559,7 @@ Pinning is how the human bridges between the semantic surface and raw control.
 
 **Pin sources:**
 - From the deep view: click a "pin" icon on any raw control
-- From conversation: "I want direct control over the reverb tail" → AI uses `suggest_pin`
+- From conversation: "I want direct control over the reverb tail" → AI uses `pin`
 - Drag from deep view to the expanded card surface (stretch goal)
 
 **Pin display:**
@@ -618,7 +597,7 @@ interface SurfaceSnapshot {
 }
 ```
 
-This type is added to the existing `Snapshot` discriminated union. Surface snapshots are **separate undo entries** from immediate operations, even when they originate from the same AI response. See the Composability section for rationale and the undo stack layout.
+This type is added to the existing `Snapshot` discriminated union. Surface snapshots are grouped with other operations from the same AI response into a single undo entry, following the standard action group pattern.
 
 ---
 
@@ -686,7 +665,7 @@ When an LFO is sweeping a parameter that contributes to a semantic control, the 
    - After degradation, if a registry template matches the new chain, it is offered as a replacement. Otherwise the AI is prompted to propose a revised surface.
 3. **Pinned controls must reference existing modules and controls.** When a module is removed, pins targeting it are automatically removed (with an undo entry).
 4. **UI curation operations do not require agency.** Agency gates sound mutation (params, patterns, transforms, chain structure), not presentation. The AI should be able to help the human inspect and organise any voice regardless of agency. OFF means "don't change my sound," not "don't help me look at this voice." This aligns with the sequencer view layer RFC, where `add_view`/`remove_view` are explicitly not agency-gated.
-5. **`propose_surface` requires human approval before application.** The UI must present the proposal and wait for accept/dismiss. This is not optional.
+5. **Surface operations apply immediately and are undoable.** They follow the same pattern as all other AI actions — no approval gate, no deferred flow.
 6. **Maximum 4 pinned controls per voice.** Enforced at the model layer.
 7. **The activity pulse carries no state.** It is purely a rendering effect driven by the action log. It cannot be undone, persisted, or referenced by other operations.
 
@@ -714,11 +693,11 @@ Add the disclosure toggle on chain nodes. The deep view shows per-module raw con
 
 ### Step 5: Implement semantic controls
 
-Add the `SemanticControlDef` rendering: a slider that fans out to weighted raw controls. Add the inspection popover that shows the mapping. Wire the AI `propose_surface` operation. This is the first step where the AI curates the surface.
+Add the `SemanticControlDef` rendering: a slider that fans out to weighted raw controls. Add the inspection popover that shows the mapping. Wire the AI `set_surface` operation. This is the first step where the AI curates the surface.
 
 ### Step 6: Implement pinning
 
-Wire the pin mechanism: from deep view, from AI suggestion, from conversation. Add the `suggest_pin` operation to the AI's toolkit. Add pin rendering on the expanded card.
+Wire the pin mechanism: from deep view, from AI action, from conversation. Add the `pin` operation to the AI's toolkit. Add pin rendering on the expanded card.
 
 ### Step 7: Wire AI trigger discipline
 
@@ -735,13 +714,13 @@ Add the contextual rules: propose a surface when a chain changes, suggest pins a
 3. The deep view exposes every raw parameter on every module in the chain.
 4. Semantic controls are inspectable — the user can see the weight mapping.
 5. Semantic control mappings are stable: they don't change unless the chain changes.
-6. The AI can propose surfaces, and proposals require human approval.
+6. The AI can set up surfaces, and surface changes apply immediately and are undoable.
 7. Pinned controls work and respect the 4-pin limit.
-8. Surface changes are undoable, with separate undo entries from immediate operations in the same response.
+8. Surface changes are undoable, grouped with other operations from the same AI response.
 9. The activity pulse fires on AI parameter changes and fades naturally.
 10. The AI does not spontaneously rearrange the surface without asking.
 11. The AI receives compressed surface state per voice and can reason about the current surface.
-12. Surface operation results return meaningful feedback (accepted/dismissed/rejected with reason).
+12. Surface operation results return meaningful feedback (applied/rejected with reason).
 
 ### North star (prove later)
 
@@ -777,7 +756,7 @@ Add the contextual rules: propose a surface when a chain changes, suggest pins a
 
 5. **Human weight editing UX**: The RFC allows humans to override semantic control weights from the deep view. What's the interaction? Sliders per weight? A matrix? Or just "the AI proposes, and if you don't like it, tell the AI"?
 
-6. **Surface proposals in chat vs. inline**: Should `propose_surface` results appear as chat messages (with accept/dismiss buttons) or as inline UI notifications on the voice card? Chat is more conversational; inline is more spatial.
+6. **Surface changes in chat vs. inline**: Should `set_surface` results appear as chat messages or as inline UI notifications on the voice card? Chat is more conversational; inline is more spatial.
 
 These questions are important but do not block the core direction. They can be resolved during implementation of the relevant steps.
 
@@ -787,5 +766,5 @@ These questions are important but do not block the core direction. They can be r
 
 - **Canonical Model RFC**: This RFC builds on `ControlSchema`, `SemanticRole`, `Processor`, and the adapter interface. Semantic controls aggregate canonical controls. The two RFCs are complementary — canonical model defines what the AI reasons about, this RFC defines what the human sees.
 - **Phase 4A RFC**: The chain UI elements (chain strip, module inspector, deep view) are the UI counterpart of Phase 4A's patch chain model. This RFC should be implemented alongside or shortly after Phase 4A's runtime work.
-- **AI Interface Design Principles**: This RFC was audited against all 10 design rules and the 7-point heuristic for new AI features. Surface operations are first-class structured tools (Rule 1), the action space matches the task (Rule 2), state compression includes surface state (Rule 3), constraints are enforced at the model layer via validation invariants with the approval gate as the runtime boundary (Rule 4), the AI chooses whether to propose or not (Rule 5), execution reports return consequences (Rule 6), conceptual and operational truth are aligned across types/validation/undo/agency (Rule 7), surface operations compose with immediate operations via the deferred-operation pattern (Rule 8), human authority is explicit throughout (Rule 9), and all operations are coherent affordances, not hacks (Rule 10). The one intentional deviation is trigger discipline (Rule 4): frequency guidance is prompt-level, with the approval gate as the runtime safety net. This is documented and justified in the Trigger Discipline section.
-- **Interaction Protocol**: The protocol's principles (human wins, AI acts when asked, undo is one action away) extend to surface operations unchanged. `propose_surface` is an AI action like `move` or `sketch` — it's undoable and inspectable. Unlike sound-mutation tools, UI curation operations (views, surfaces, pins) do not require agency — they change presentation, not sound.
+- **AI Interface Design Principles**: This RFC was audited against all 10 design rules and the 7-point heuristic for new AI features. Surface operations are first-class structured tools (Rule 1), the action space matches the task (Rule 2), state compression includes surface state (Rule 3), constraints are enforced at the model layer via validation invariants with undo as the runtime boundary (Rule 4), the AI chooses whether to propose or not (Rule 5), execution reports return consequences (Rule 6), conceptual and operational truth are aligned across types/validation/undo/agency (Rule 7), surface operations compose with immediate operations via the deferred-operation pattern (Rule 8), human authority is explicit throughout (Rule 9), and all operations are coherent affordances, not hacks (Rule 10). The one intentional deviation is trigger discipline (Rule 4): frequency guidance is prompt-level, with undo as the runtime safety net. This is documented and justified in the Trigger Discipline section.
+- **Interaction Protocol**: The protocol's principles (human wins, AI acts when asked, undo is one action away) extend to surface operations unchanged. `set_surface` is an AI action like `move` or `sketch` — it's immediate, undoable, and inspectable. Unlike sound-mutation tools, UI curation operations (views, surfaces, pins) do not require agency — they change presentation, not sound.

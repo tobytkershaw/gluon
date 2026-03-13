@@ -34,10 +34,22 @@ Because the core is legible and structured, you can glue other things onto it:
 - The AI can hear its own work.
 - Undo is always one action away.
 
+## Current State
+
+- 4-voice Plaits WASM synthesis with Rings resonator as first processor module
+- Processor chain architecture: source → processor(s) → gain staging
+- Canonical region/event sequencing with event-centric tracker and addable views
+- AI tool loop: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`
+- Unified undo: all actions (human and AI) reversible in LIFO order
+- Per-voice agency (AI-editable by default, human-protectable)
+- Audio snapshot evaluation for AI self-assessment
+
+See [`docs/status.md`](./docs/status.md) for detailed build status and milestone tracking.
+
 ## Architecture
 
 - **Browser-based**: React + TypeScript + Vite
-- **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
+- **Audio**: Mutable Instruments Plaits and Rings DSP compiled to WebAssembly via Emscripten, running in AudioWorklets
 - **AI (reasoning)**: Google Gemini API (`@google/genai`) for project-state reasoning and structured edits
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
 - **Protocol**: Custom interaction protocol in [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md)
@@ -64,6 +76,11 @@ npm run wasm:build
 
 ## Reference Docs
 
-- [`docs/gluon-architecture.md`](./docs/gluon-architecture.md)
-- [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md)
-- [`docs/gluon-phase1-build.md`](./docs/gluon-phase1-build.md)
+- [`docs/gluon-architecture.md`](./docs/gluon-architecture.md) — Full vision and architecture
+- [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md) — Protocol spec (v0.5.0)
+- [`docs/ai-capability-doctrine.md`](./docs/ai-capability-doctrine.md) — AI product posture: hard boundaries, then maximize usefulness
+- [`docs/ai-interface-design-principles.md`](./docs/ai-interface-design-principles.md) — How the AI layer exposes state, tools, and feedback
+- [`docs/ai-collaboration-model.md`](./docs/ai-collaboration-model.md) — Collaboration phases, posture, roles, and model evaluation
+- [`docs/ai-musical-environment.md`](./docs/ai-musical-environment.md) — Target AI environment: layered state, actions, and structure
+- [`docs/rfc-canonical-musical-model.md`](./docs/rfc-canonical-musical-model.md) — Canonical musical model: Voice, Region, MusicalEvent, ControlSchema
+- [`docs/status.md`](./docs/status.md) — Current build status and milestone tracking

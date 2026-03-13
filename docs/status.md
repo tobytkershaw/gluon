@@ -4,7 +4,7 @@
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity)
 **Current product state:** Phase 3 core shipped, M0–M2 complete, M3 view layer landed, M4 in progress
 **Near-term focus:** M4 First Chain (Rings WASM, chain routing, structure tools) + M5 UI layers
-**Latest milestone:** Unified undo (#89 / PR #97), Rings WASM + processor chain (PR #98 in review)
+**Latest milestone:** AI structure tools — add_processor/remove_processor (PR #99), Rings WASM + processor chain (PR #98)
 **Data model direction:** Canonical regions/events are the sequencing authority — `voice.pattern` is a derived projection. Tracker is the canonical truth view; step grid and other editors are addable surfaces.
 
 ---
@@ -14,20 +14,21 @@
 Gluon is a browser-based, AI-assisted instrument with:
 
 - 4-voice Plaits WASM synthesis
-- Rings WASM resonator as first processor module (PR #98 in review)
+- Rings WASM resonator as first processor module
 - processor chain architecture: source → processor(s) → gain staging
+- AI structure tools: add_processor / remove_processor with undoable ProcessorSnapshot
 - canonical region/event sequencing with step-grid projection
 - event-centric tracker showing full canonical event list with inline editing
 - addable sequencer views (step grid as default, piano roll placeholder)
 - AI view operations (add_view, remove_view) — UI curation, no agency check
 - microtiming, sub-step scheduling, and transformation primitives (M2)
 - region invariants with validation and normalization
-- session persistence with v1→v2 migration (views stripped as session-local)
+- session persistence with v1→v2 migration
 - per-voice agency (AI-editable by default, human-protectable)
 - unified undo: all actions (human and AI) reversible in LIFO order, with action groups
 - multi-view UI (Chat + Instrument)
 - audio snapshot evaluation
-- native Gemini function calling with tool use (move, sketch, listen, set_transport, set_model, transform, add_view, remove_view)
+- native Gemini function calling with tool use (move, sketch, listen, set_transport, set_model, transform, add_view, remove_view, add_processor, remove_processor)
 
 ---
 
@@ -35,6 +36,8 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 | PR | Description | Merged |
 |---|---|---|
+| PR #99 | AI structure tools: add_processor / remove_processor (#96) | 2026-03-13 |
+| PR #98 | Rings WASM + processor chain + audio engine integration (#94, #95) | 2026-03-13 |
 | PR #97 | Unified undo: make human edits undoable (#89) | 2026-03-13 |
 | PR #88 | M3: sequencer view layer — tracker + addable views (#48, #49) | 2026-03-12 |
 | PR #87 | M2: sequencer expressivity (#44, #45, #46, #47, #64, #84) | 2026-03-12 |
@@ -46,17 +49,29 @@ Gluon is a browser-based, AI-assisted instrument with:
 | PR #38 | Gemini native function calling, tool loop, listen tool, AI transport tools | 2026-03-11 |
 | PR #36 | Audio snapshot evaluation / listen mode | 2026-03-11 |
 
-## In Review
-
-| PR | Description | Status |
-|---|---|---|
-| PR #98 | Rings WASM + processor chain + audio engine integration (#94) | In review |
-
 ---
 
 ## M4: First Chain — In Progress
 
 Prove modular chains end-to-end: Rings as first processor module, chain routing, human undo across the stack.
+
+### Landed: AI Structure Tools (PR #99)
+
+`add_processor` / `remove_processor` in the AI tool loop so the AI can wire up processor modules on a voice's chain.
+
+- `AIAddProcessorAction` / `AIRemoveProcessorAction` with prevalidation (agency check, type/ID validity)
+- `ProcessorSnapshot` for undoable chain operations
+- Processor ID generated once in tool loop, reused by projection and execution (closes same-turn composition gap)
+- Compressed state includes `processors` array per voice; system prompt documents Rings models and chain guidance
+- Function response returns assigned `processorId` so AI can reference it in later same-turn calls
+
+### Landed: Rings WASM + Processor Chain (PR #98)
+
+- Mutable Instruments Rings compiled to WASM (57KB binary)
+- AudioWorklet with sub-block event scheduling, C ABI wrapper with smoothed params
+- Audio engine processor chain: `sourceOut` routing, `addProcessor`/`removeProcessor` with async in-flight dedupe
+- 6 resonator models, 4 normalized controls, SourceAdapter with 1:1 control mapping
+- Session sync via `voice.processors` → audio engine reconciliation
 
 ### Landed: Unified Undo (PR #97)
 
@@ -68,23 +83,8 @@ All edits (human and AI) push undo snapshots. Replaces the old AI-only undo cont
 - `setStepParamLock` suppresses per-frame undo during continuous drags
 - View add/remove push `ViewSnapshot`
 
-### In Review: Rings WASM + Processor Chain (PR #98)
-
-- **Rings WASM compilation**: Mutable Instruments Rings compiled to WebAssembly (57KB binary)
-- **C ABI wrapper** (`gluon_rings.cpp`): smoothed params, strum trigger, audio input passthrough
-- **AudioWorklet** (`rings-worklet.ts`): sub-block event scheduling, 48kHz sample rate validation, HEAPF32 memory growth safety
-- **Runtime class** (`rings-synth.ts`): no eager output connect — `rebuildChain()` manages all audio graph connections
-- **Adapter** (`rings-adapter.ts`): SourceAdapter implementation with 1:1 control mapping
-- **Instrument registry**: 6 resonator models (modal, sympathetic string, string, FM voice, sympathetic quantized, string+reverb), 4 controls (structure, brightness, damping, position)
-- **Audio engine processor chain**: `sourceOut` routing node, `addProcessor`/`removeProcessor` with async in-flight dedupe and cancellation guard
-- **Session integration**: `ProcessorConfig` on `Voice`, CRUD helpers, App.tsx sync effect reconciling session processors to audio engine
-- **Reference render binary** for offline testing (internal exciter and Plaits-fed modes)
-- 415 tests passing (33 new)
-
 ### Remaining M4 Issues
 
-- #95 — Audio engine chain routing (source → processor signal path) — largely done in PR #98
-- #96 — PatchChain type + structure tools (add_processor/remove_processor AI tools)
 - #22 — Phase 4A implementation brief
 
 ---
@@ -106,11 +106,11 @@ Unified view layer architecture where the tracker is the canonical truth view an
 - `SequencerViewConfig` on Voice with `views?: SequencerViewConfig[]`
 - Step grid renders via `SequencerViewSlot` — add/remove with UI controls
 - Transitional default: all voices start with a step-grid view for backward compatibility
-- View state is presentation-only — not serialized, not part of musical state
+- View state is presentation-only — persisted but not part of musical state
 
 **AI view operations:**
 - `add_view` / `remove_view` tools — no agency check (UI curation, not musical mutation)
-- `ViewSnapshot` for undo (AI view changes are undoable, human view changes are not)
+- `ViewSnapshot` for undo (view changes are undoable)
 - Views included in state compression so AI sees current view list
 - Contextual prompt guidance: add step-grid after percussion sketches
 
@@ -153,7 +153,7 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 - Backoff/rate-limit handling
 
 **Tool Calling (`tool-declarations.ts`)**
-- Declared tools: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`
+- Declared tools: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`
 - Tool responses are prevalidated against live session state before returning success to the model
 - `listen` is model-invoked rather than routed by regex intent detection
 
@@ -167,7 +167,7 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 
 **State Compression (`state-compression.ts`)**
 - Compact project-state payload for each AI call
-- Includes voices, pattern summaries, transport, undo depth, recent human actions, and view list per voice
+- Includes voices, pattern summaries, transport, undo depth, recent human actions, view list, and processor chain per voice
 
 ### Engine / Protocol (`src/engine/`)
 
@@ -175,8 +175,8 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 - `Agency`: `'OFF' | 'ON'`
 - `SequencerViewKind`, `SequencerViewConfig` — presentation state types
 - `ProcessorConfig` — processor chain state per voice
-- `AIAction` union includes `move`, `say`, `sketch`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`
-- Undo snapshots: `ParamSnapshot`, `PatternSnapshot`, `TransportSnapshot`, `ModelSnapshot`, `RegionSnapshot`, `ViewSnapshot`, `ActionGroupSnapshot`
+- `AIAction` union includes `move`, `say`, `sketch`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`
+- Undo snapshots: `ParamSnapshot`, `PatternSnapshot`, `TransportSnapshot`, `ModelSnapshot`, `RegionSnapshot`, `ViewSnapshot`, `ProcessorSnapshot`, `ActionGroupSnapshot`
 - `Voice` includes `regions`, `views?`, `processors?`, `_hiddenEvents?`, `controlProvenance?`
 
 **Undo**
@@ -198,7 +198,7 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 **Plaits Runtime**
 - Parameter smoothing, trigger/gate separation, HEAPF32 compatibility
 
-**Rings Runtime** (PR #98)
+**Rings Runtime**
 - WASM resonator processor taking audio input
 - Sub-block event scheduling in AudioWorklet
 - 6 resonator models, 4 normalized controls
@@ -208,10 +208,8 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 
 ## Open Backlog
 
-### M4: First Chain (3 remaining issues)
+### M4: First Chain (1 remaining issue)
 
-- #95 — Audio engine chain routing (largely done in PR #98)
-- #96 — PatchChain type + structure tools
 - #22 — Phase 4A implementation brief
 
 ### M3: Sequencer Surfaces (1 remaining issue)
@@ -233,7 +231,7 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 
 ### Two Parallel Streams
 
-**Stream A — First Chain (M4):** Rings WASM and processor chain landed (PR #98). Next: PatchChain type and AI structure tools (#96) so AI can add/remove processors via tool calls. Then implementation brief (#22).
+**Stream A — First Chain (M4):** Rings WASM, processor chain, and AI structure tools all landed (PRs #98, #99). The AI can now add/remove Rings on any voice. Remaining: implementation brief (#22).
 
 **Stream B — UI Layers (M5):** Three-layer UI model from the AI-Curated Surfaces RFC. Compact cards, expanded card layout, deep view. Issue #73. Primarily `src/ui/`. Runs in parallel — different module boundaries.
 
@@ -247,6 +245,6 @@ Dependency graph:
 M0 ✓  M1 ✓  M2 ✓
   ├── M3 (Sequencer surfaces — view layer ✓, adapter spike remaining)
   ├── M5 (UI Layers — parallel with sequencer)
-  └── M4 (First Chain — Rings WASM ✓, chain routing ✓, structure tools next)
+  └── M4 (First Chain — Rings WASM ✓, chain routing ✓, structure tools ✓)
         └── AI-Curated Surfaces (needs chains + UI Layers)
 ```

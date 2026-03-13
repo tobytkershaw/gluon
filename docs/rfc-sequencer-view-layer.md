@@ -345,8 +345,8 @@ Sequencer view operations should be:
 
 - immediate
 - reversible
-- session-local
-- undoable when initiated by the AI
+- persistent (persisted with the session, but not part of musical state)
+- undoable
 
 This differs from larger persistent surface proposals in the curated-surfaces RFC, which may require explicit approval.
 

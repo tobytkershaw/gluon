@@ -100,6 +100,8 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
-- `docs/gluon-phase1-build.md` - Phase 1 implementation brief
 - `docs/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.
 - `docs/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.
+- `docs/ai-collaboration-model.md` - What good human-AI collaboration looks like: phases, posture, roles, model evaluation criteria.
+- `docs/ai-musical-environment.md` - Target AI environment: layered state, layered actions, tool families, loop-native structure.
+- `docs/rfc-canonical-musical-model.md` - Canonical musical model RFC: Voice, Region, MusicalEvent, ControlSchema, SourceAdapter.
