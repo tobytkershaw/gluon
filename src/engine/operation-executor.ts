@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, ActionDiff } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -329,7 +329,7 @@ export function executeOperations(
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${mod.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}` });
+          log.push({ voiceId, voiceLabel: vLabel, description: `${mod.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: `${mod.type}/${action.param}`, from: currentVal, to: targetVal } });
           accepted.push(action);
           break;
         }
@@ -362,7 +362,7 @@ export function executeOperations(
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${proc.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}` });
+          log.push({ voiceId, voiceLabel: vLabel, description: `${proc.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: `${proc.type}/${action.param}`, from: currentVal, to: targetVal } });
           accepted.push(action);
           break;
         }
@@ -404,7 +404,7 @@ export function executeOperations(
             });
           }
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)} (drift ${action.over}ms)` });
+          log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)} (drift ${action.over}ms)`, diff: { kind: 'param-change', controlId, from: currentVal, to: targetVal } });
           resolvedParams.set(accepted.length, runtimeParam);
           accepted.push(action);
         } else {
@@ -439,7 +439,7 @@ export function executeOperations(
             });
           }
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${beforeVal.toFixed(2)} → ${afterVal.toFixed(2)}` });
+          log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${beforeVal.toFixed(2)} → ${afterVal.toFixed(2)}`, diff: { kind: 'param-change', controlId, from: beforeVal, to: afterVal } });
           resolvedParams.set(accepted.length, runtimeParam);
           accepted.push(action);
         }
@@ -448,6 +448,8 @@ export function executeOperations(
 
       case 'sketch': {
         const voice = getVoice(next, action.voiceId);
+        const eventsBefore = voice.regions[0]?.events?.length ?? 0;
+        let eventsAfter = eventsBefore;
 
         if (action.events) {
           // Canonical sketch: write events to region first (source of truth),
@@ -495,16 +497,18 @@ export function executeOperations(
             ...updateVoice(next, action.voiceId, { regions: newRegions, pattern }),
             undoStack: [...next.undoStack, snapshot],
           };
+          eventsAfter = updatedRegion.events.length;
         } else if (action.pattern) {
           // Legacy sketch: pass through directly (writes only to pattern, not regions)
           next = applySketch(next, action.voiceId, action.description, action.pattern);
+          eventsAfter = action.pattern.steps?.filter(s => s.on).length ?? eventsBefore;
         } else {
           rejected.push({ op: action, reason: 'Sketch has neither events nor pattern' });
           break;
         }
 
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `pattern: ${action.description}` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `pattern: ${action.description}`, diff: { kind: 'pattern-change', eventsBefore, eventsAfter, description: action.description } });
         accepted.push(action);
         break;
       }
@@ -529,7 +533,16 @@ export function executeOperations(
         };
         next = { ...next, transport: newTransport, undoStack: [...next.undoStack, snapshot] };
 
-        log.push({ voiceId: '', voiceLabel: 'TRANSPORT', description: snapshot.description });
+        // Build transport diff from the first changed field
+        let transportDiff: ActionDiff | undefined;
+        if (action.bpm !== undefined && newTransport.bpm !== prev.bpm) {
+          transportDiff = { kind: 'transport-change', field: 'bpm', from: prev.bpm, to: newTransport.bpm };
+        } else if (action.swing !== undefined && newTransport.swing !== prev.swing) {
+          transportDiff = { kind: 'transport-change', field: 'swing', from: prev.swing, to: newTransport.swing };
+        } else if (action.playing !== undefined && newTransport.playing !== prev.playing) {
+          transportDiff = { kind: 'transport-change', field: 'playing', from: prev.playing ? 'playing' : 'stopped', to: newTransport.playing ? 'playing' : 'stopped' };
+        }
+        log.push({ voiceId: '', voiceLabel: 'TRANSPORT', description: snapshot.description, diff: transportDiff });
         accepted.push(action);
         break;
       }
@@ -564,7 +577,7 @@ export function executeOperations(
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${mod.type} mode → ${result.engine.label}` });
+          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${mod.type} mode → ${result.engine.label}`, diff: { kind: 'model-change', from: mod.type, to: result.engine.label } });
           accepted.push(action);
           break;
         }
@@ -595,7 +608,7 @@ export function executeOperations(
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${proc.type} mode → ${result.engine.label}` });
+          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${proc.type} mode → ${result.engine.label}`, diff: { kind: 'model-change', from: proc.type, to: result.engine.label } });
           accepted.push(action);
           break;
         }
@@ -623,7 +636,7 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
 
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `model → ${engineDef.label}` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `model → ${engineDef.label}`, diff: { kind: 'model-change', from: plaitsInstrument.engines[prevModel]?.label ?? String(prevModel), to: engineDef.label } });
         accepted.push(action);
         break;
       }
@@ -701,7 +714,7 @@ export function executeOperations(
         };
 
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `transform ${action.operation}: ${action.description}` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `transform ${action.operation}: ${action.description}`, diff: { kind: 'transform', operation: action.operation, description: action.description } });
         accepted.push(action);
         break;
       }
@@ -773,7 +786,7 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})`, diff: { kind: 'processor-add', processorType: action.moduleType } });
         accepted.push(action);
         break;
       }
@@ -813,7 +826,8 @@ export function executeOperations(
           }],
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}` });
+        const removedProc = prevProcessors.find(p => p.id === action.processorId);
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}`, diff: { kind: 'processor-remove', processorType: removedProc?.type ?? action.processorId } });
         accepted.push(action);
         break;
       }
@@ -862,7 +876,7 @@ export function executeOperations(
           }],
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}`, diff: { kind: 'processor-replace', fromType: prevProcessors[idx].type, toType: action.newModuleType } });
         accepted.push(action);
         break;
       }
@@ -890,7 +904,7 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} modulator (${action.modulatorId})` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} modulator (${action.modulatorId})`, diff: { kind: 'modulator-add', modulatorType: action.moduleType } });
         accepted.push(action);
         break;
       }
@@ -915,7 +929,8 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed modulator ${action.modulatorId}` });
+        const removedMod = prevModulators.find(m => m.id === action.modulatorId);
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed modulator ${action.modulatorId}`, diff: { kind: 'modulator-remove', modulatorType: removedMod?.type ?? action.modulatorId } });
         accepted.push(action);
         break;
       }
@@ -958,7 +973,7 @@ export function executeOperations(
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         const targetStr = action.target.kind === 'source' ? `source:${action.target.param}` : `${action.target.processorId}:${action.target.param}`;
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${existingIdx >= 0 ? 'updated' : 'connected'} modulation → ${targetStr} (${action.depth.toFixed(2)})` });
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${existingIdx >= 0 ? 'updated' : 'connected'} modulation → ${targetStr} (${action.depth.toFixed(2)})`, diff: { kind: 'modulation-connect', modulatorId: action.modulatorId, target: targetStr, depth: action.depth } });
         accepted.push(action);
         break;
       }
@@ -979,7 +994,11 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
         const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `disconnected modulation ${action.modulationId}` });
+        const disconnectedRoute = prevModulations.find(r => r.id === action.modulationId);
+        const disconnectTargetStr = disconnectedRoute
+          ? (disconnectedRoute.target.kind === 'source' ? `source:${disconnectedRoute.target.param}` : `${disconnectedRoute.target.processorId}:${disconnectedRoute.target.param}`)
+          : action.modulationId;
+        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `disconnected modulation ${action.modulationId}`, diff: { kind: 'modulation-disconnect', target: disconnectTargetStr } });
         accepted.push(action);
         break;
       }

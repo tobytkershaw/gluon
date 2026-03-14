@@ -378,10 +378,25 @@ export interface Session {
   recentHumanActions: HumanAction[];
 }
 
+export type ActionDiff =
+  | { kind: 'param-change'; controlId: string; from: number; to: number }
+  | { kind: 'pattern-change'; eventsBefore: number; eventsAfter: number; description: string }
+  | { kind: 'transport-change'; field: string; from: string | number; to: string | number }
+  | { kind: 'model-change'; from: string; to: string }
+  | { kind: 'processor-add'; processorType: string }
+  | { kind: 'processor-remove'; processorType: string }
+  | { kind: 'processor-replace'; fromType: string; toType: string }
+  | { kind: 'modulator-add'; modulatorType: string }
+  | { kind: 'modulator-remove'; modulatorType: string }
+  | { kind: 'modulation-connect'; modulatorId: string; target: string; depth: number }
+  | { kind: 'modulation-disconnect'; target: string }
+  | { kind: 'transform'; operation: string; description: string };
+
 export interface ActionLogEntry {
   voiceId: string;
   voiceLabel: string;
   description: string;
+  diff?: ActionDiff;
 }
 
 export interface ChatMessage {

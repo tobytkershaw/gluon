@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import type { ChatMessage } from '../engine/types';
+import { ActionDiffView } from './ActionDiffView';
 
 interface Props {
   messages: ChatMessage[];
@@ -57,10 +58,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
             {msg.actions && msg.actions.length > 0 && (
               <div className="mt-2 space-y-px">
                 {msg.actions.map((a, j) => (
-                  <div key={j} className="flex items-baseline gap-1.5 text-[10px] font-mono">
-                    <span className="text-teal-500/50">{a.voiceLabel}</span>
-                    <span className="text-zinc-600">{a.description}</span>
-                  </div>
+                  <ActionDiffView key={j} entry={a} />
                 ))}
               </div>
             )}
