@@ -1,7 +1,7 @@
 // src/ui/AppShell.tsx
 // Three-column layout shell: TrackList | main content | ChatSidebar
 // Handles responsive collapse thresholds via ResizeObserver.
-import { useRef, useEffect, useState, type ReactNode } from 'react';
+import { useRef, useEffect, type ReactNode } from 'react';
 import type { Voice, ChatMessage } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import { TrackList } from './TrackList';

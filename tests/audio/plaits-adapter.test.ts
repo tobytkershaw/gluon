@@ -62,6 +62,7 @@ describe('plaits-adapter', () => {
       type: 'move', voiceId: 'v0', controlId: 'brightness',
       target: { absolute: 0.5 },
       // Simulate what executor passes: raw AIAction with param instead of controlId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing legacy AIAction shape
     } as any);
     expect(result.valid).toBe(true);
 
@@ -69,6 +70,7 @@ describe('plaits-adapter', () => {
     const result2 = adapter.validateOperation({
       type: 'move', voiceId: 'v0', param: 'timbre',
       target: { absolute: 0.5 },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing legacy AIAction shape
     } as any);
     expect(result2.valid).toBe(true);
   });

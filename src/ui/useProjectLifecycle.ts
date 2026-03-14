@@ -54,11 +54,18 @@ export function useProjectLifecycle(
   const loadingRef = useRef(true);
   const failureCountRef = useRef(0);
   const sessionRef = useRef(session);
-  sessionRef.current = session;
   const projectIdRef = useRef(projectId);
-  projectIdRef.current = projectId;
   const projectNameRef = useRef(projectName);
-  projectNameRef.current = projectName;
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+  useEffect(() => {
+    projectIdRef.current = projectId;
+  }, [projectId]);
+  useEffect(() => {
+    projectNameRef.current = projectName;
+  }, [projectName]);
 
   const refreshProjects = useCallback(async () => {
     try {

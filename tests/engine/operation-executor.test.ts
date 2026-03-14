@@ -3,7 +3,7 @@ import { executeOperations } from '../../src/engine/operation-executor';
 import { createSession, setAgency } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
-import type { AIAction, AITransformAction } from '../../src/engine/types';
+import type { AIAction } from '../../src/engine/types';
 import { applyUndo } from '../../src/engine/primitives';
 
 function createTestAdapter(): SourceAdapter {

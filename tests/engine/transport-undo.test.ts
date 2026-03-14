@@ -5,7 +5,7 @@ import { applyUndo } from '../../src/engine/primitives';
 import { createSession } from '../../src/engine/session';
 import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
 import { Arbitrator } from '../../src/engine/arbitration';
-import type { AIAction, AITransportAction } from '../../src/engine/types';
+import type { AIAction } from '../../src/engine/types';
 
 const adapter = createPlaitsAdapter();
 

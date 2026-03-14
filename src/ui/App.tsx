@@ -12,7 +12,6 @@ import {
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
-import { ProjectMenu } from './ProjectMenu';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
@@ -126,6 +125,7 @@ export default function App() {
       bpm: session.transport.bpm,
       swing: session.transport.swing,
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bpm/swing logged as context, not dependencies
   }, [session.transport.playing]);
 
   useEffect(() => {
@@ -304,7 +304,7 @@ export default function App() {
 
       return next;
     });
-  }, [selectedStep]);
+  }, [selectedStep, ensureAudio]);
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();

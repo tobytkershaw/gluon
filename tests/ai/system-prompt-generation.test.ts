@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, GLUON_SYSTEM_PROMPT } from '../../src/ai/system-prompt';
 import { createSession, setAgency } from '../../src/engine/session';
-import type { Session } from '../../src/engine/types';
 
 function defaultPrompt(): string {
   return buildSystemPrompt(createSession());
@@ -31,7 +30,7 @@ describe('system prompt generation', () => {
 
   it('includes parameter ranges', () => {
     const prompt = defaultPrompt();
-    expect(prompt).toMatch(/0[\.\s]*[-–]\s*1/);
+    expect(prompt).toMatch(/0[.\s]*[-–]\s*1/);
   });
 
   it('mentions tool-based workflow', () => {

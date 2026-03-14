@@ -1,30 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import type {
-  ControlKind,
-  SemanticRole,
   ControlSchema,
-  ControlBinding,
-  ControlValue,
   ControlState,
-  SoundSource,
-  Processor,
-  RegionKind,
   Region,
   NoteEvent,
   TriggerEvent,
   ParameterEvent,
   MusicalEvent,
   InstrumentDef,
-  EngineDef,
   MoveOp,
   SketchOp,
   SayOp,
   AIOperation,
   ExecutionReport,
-  SourceAdapter,
 } from '../../src/engine/canonical-types';
 
 // Type-level assertion helper
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function assertType<T>(_value: T): void {}
 
 describe('canonical-types', () => {

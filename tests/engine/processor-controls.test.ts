@@ -22,7 +22,6 @@ function makeArbitrator(canAct = true) {
 /** Create a session with a Rings processor on v0 */
 function sessionWithProcessor(): Session {
   const session = createSession();
-  const voice = getVoice(session, 'v0');
   const proc: ProcessorConfig = {
     id: 'rings-test-1',
     type: 'rings',
