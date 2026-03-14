@@ -2,7 +2,7 @@
 // Three-column layout shell: TrackList | main content | ChatSidebar
 // Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
 // Handles responsive collapse thresholds via ResizeObserver.
-import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
+import { useRef, useEffect, useCallback, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
@@ -97,6 +97,12 @@ export function AppShell({
   const shellRef = useRef<HTMLDivElement>(null);
   const prevNarrowRef = useRef(false);
 
+  // Sending from the collapsed footer composer reopens the sidebar
+  const handleFooterSend = useCallback((message: string) => {
+    onSend(message);
+    if (!chatOpen) onChatToggle();
+  }, [onSend, chatOpen, onChatToggle]);
+
   // Responsive: auto-collapse chat when crossing below threshold.
   // Only triggers the collapse on the transition from wide -> narrow,
   // not continuously — so the user can manually reopen below 1280px.
@@ -183,6 +189,7 @@ export function AppShell({
         {/* Left: Chat sidebar */}
         <ChatSidebar
           messages={messages}
+          onSend={onSend}
           isThinking={isThinking}
           isListening={isListening}
           apiConfigured={apiConfigured}
@@ -211,37 +218,31 @@ export function AppShell({
         />
       </div>
 
-      {/* Global footer bar — persistent composer strip */}
+      {/* Global footer bar — composer here only when chat is collapsed */}
       <div className="flex items-center h-10 border-t border-zinc-800/50 shrink-0">
-        {/* Chat-column zone: composer + controls */}
-        <div
-          style={chatOpen ? { width: chatWidth } : undefined}
-          className={`shrink-0 flex items-center ${chatOpen ? 'border-r border-zinc-800/30' : ''}`}
-        >
-          <ChatComposer onSend={onSend} disabled={isThinking || isListening} />
-          {/* Status indicators */}
-          <div className="flex items-center gap-1.5 pr-2">
+        {!chatOpen && (
+          <div className="shrink-0 flex items-center">
+            {/* Expand chat toggle */}
+            <button
+              onClick={onChatToggle}
+              className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
+              title="Expand chat (Cmd+/)"
+            >
+              <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <ChatComposer onSend={handleFooterSend} disabled={isThinking || isListening} variant="footer" />
             {(isThinking || isListening) && (
               <span
-                className="w-2 h-2 rounded-full bg-amber-400"
+                className="shrink-0 w-2 h-2 rounded-full bg-amber-400 mr-2"
                 style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
                 title={isListening ? 'Listening...' : 'Thinking...'}
               />
             )}
-            {!chatOpen && (
-              <button
-                onClick={onChatToggle}
-                className="group p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
-                title="Expand chat (Cmd+/)"
-              >
-                <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
-                  <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )}
           </div>
-        </div>
-        {/* Content-column zone: master channel strip */}
+        )}
+        {/* Master channel strip */}
         <div className="flex-1 flex items-center justify-end">
           <MasterStrip
             volume={masterVolume}
@@ -251,7 +252,6 @@ export function AppShell({
             onPanChange={onMasterPanChange}
           />
         </div>
-        {/* Track-list-column zone: empty for now */}
       </div>
     </div>
   );
