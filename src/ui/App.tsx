@@ -80,7 +80,7 @@ export default function App() {
   }, []);
 
   // Dirty-check refs for sync effects (#142)
-  const prevVoiceStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
+  const prevVoiceStateRef = useRef<Map<string, { model: number; params?: Record<string, number> }>>(new Map());
   const prevProcessorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
   const prevModulatorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
 
@@ -171,13 +171,13 @@ export default function App() {
       if (!prev || prev.model !== voice.model) {
         audioRef.current.setVoiceModel(voice.id, voice.model);
       }
-      if (!holding && (!prev || !shallowEqual(prev.params, voice.params))) {
+      if (!holding && (!prev || !prev.params || !shallowEqual(prev.params, voice.params))) {
         audioRef.current.setVoiceParams(voice.id, voice.params);
       }
       // Only advance cache for dimensions that were actually written
       prevVoiceStateRef.current.set(key, {
         model: voice.model,
-        params: holding ? (prev?.params ?? { ...voice.params }) : { ...voice.params },
+        params: holding ? (prev?.params ?? undefined) : { ...voice.params },
       });
     }
   }, [session.voices, audioStarted, holdGeneration]);
