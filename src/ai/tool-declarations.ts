@@ -445,6 +445,117 @@ const disconnectModulatorTool: FunctionDeclaration = {
   },
 };
 
+const setSurfaceTool: FunctionDeclaration = {
+  name: 'set_surface',
+  description:
+    'Define semantic controls for a track\'s UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters. Does not require agency. Takes effect after this response.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      trackId: {
+        type: Type.STRING,
+        description: 'Target track ID (e.g. "v0").',
+      },
+      semanticControls: {
+        type: Type.ARRAY,
+        description: 'Array of semantic control definitions. Each control blends one or more underlying parameters via weighted sums.',
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            name: {
+              type: Type.STRING,
+              description: 'Human-readable label for the control (e.g. "Warmth", "Attack").',
+            },
+            weights: {
+              type: Type.ARRAY,
+              description: 'Weighted parameter mappings. Weights must sum to 1.0.',
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  moduleId: { type: Type.STRING, description: '"source" for track params, or a processor ID.' },
+                  controlId: { type: Type.STRING, description: 'The parameter to blend (e.g. "brightness", "structure").' },
+                  weight: { type: Type.NUMBER, description: 'Blend weight (0.0-1.0). All weights in one control must sum to 1.0.' },
+                  transform: { type: Type.STRING, description: 'Transform: "linear" (default), "inverse", or "bipolar".' },
+                },
+                required: ['moduleId', 'controlId', 'weight'],
+              },
+            },
+            range: {
+              type: Type.OBJECT,
+              description: 'Optional value range override.',
+              properties: {
+                min: { type: Type.NUMBER },
+                max: { type: Type.NUMBER },
+                default: { type: Type.NUMBER },
+              },
+            },
+          },
+          required: ['name', 'weights'],
+        },
+      },
+      xyAxes: {
+        type: Type.OBJECT,
+        description: 'Optional axis labels for the XY pad.',
+        properties: {
+          x: { type: Type.STRING, description: 'X-axis semantic label.' },
+          y: { type: Type.STRING, description: 'Y-axis semantic label.' },
+        },
+        required: ['x', 'y'],
+      },
+      description: {
+        type: Type.STRING,
+        description: 'Short description of the surface configuration.',
+      },
+    },
+    required: ['trackId', 'semanticControls', 'description'],
+  },
+};
+
+const pinTool: FunctionDeclaration = {
+  name: 'pin',
+  description:
+    'Pin a raw module control to the track\'s surface for direct access. Max 4 pins per track. Does not require agency.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      trackId: { type: Type.STRING, description: 'Target track ID (e.g. "v0").' },
+      moduleId: { type: Type.STRING, description: '"source" for track params, or a processor ID.' },
+      controlId: { type: Type.STRING, description: 'The control to pin (e.g. "brightness", "structure").' },
+    },
+    required: ['trackId', 'moduleId', 'controlId'],
+  },
+};
+
+const unpinTool: FunctionDeclaration = {
+  name: 'unpin',
+  description:
+    'Remove a pinned control from the track\'s surface. Does not require agency.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      trackId: { type: Type.STRING, description: 'Target track ID (e.g. "v0").' },
+      moduleId: { type: Type.STRING, description: '"source" for track params, or a processor ID.' },
+      controlId: { type: Type.STRING, description: 'The control to unpin.' },
+    },
+    required: ['trackId', 'moduleId', 'controlId'],
+  },
+};
+
+const labelAxesTool: FunctionDeclaration = {
+  name: 'label_axes',
+  description:
+    'Set semantic labels for the track\'s XY pad axes. Does not require agency.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      trackId: { type: Type.STRING, description: 'Target track ID (e.g. "v0").' },
+      x: { type: Type.STRING, description: 'X-axis semantic label (e.g. "Brightness").' },
+      y: { type: Type.STRING, description: 'Y-axis semantic label (e.g. "Texture").' },
+    },
+    required: ['trackId', 'x', 'y'],
+  },
+};
+
 export const GLUON_TOOLS: FunctionDeclaration[] = [
   moveTool,
   sketchTool,
@@ -461,4 +572,8 @@ export const GLUON_TOOLS: FunctionDeclaration[] = [
   removeModulatorTool,
   connectModulatorTool,
   disconnectModulatorTool,
+  setSurfaceTool,
+  pinTool,
+  unpinTool,
+  labelAxesTool,
 ];
