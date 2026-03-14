@@ -18,6 +18,8 @@ interface Props {
   // Tracker editing
   onEventUpdate: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onEventDelete: (selector: EventSelector) => void;
+  /** Quantize all events in the active region to the nearest grid position. */
+  onQuantize?: () => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
 }
@@ -26,9 +28,11 @@ export function TrackerView({
   session, activeTrack,
   playing, globalStep,
   onEventUpdate, onEventDelete,
+  onQuantize,
   cancelEditRef,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
+  const hasEvents = activeTrack.regions.length > 0 && activeTrack.regions[0].events.length > 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -43,7 +47,16 @@ export function TrackerView({
             <span className="text-[10px] text-zinc-500">
               {getModelName(activeTrack.model)}
             </span>
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              {onQuantize && hasEvents && (
+                <button
+                  className="px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
+                  onClick={onQuantize}
+                  title="Snap all events to the nearest grid position (undoable)"
+                >
+                  Quantize
+                </button>
+              )}
               <TrackerCheatSheet />
             </div>
           </div>
