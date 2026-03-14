@@ -1,5 +1,5 @@
 // src/engine/pattern-primitives.ts
-import type { Session, SynthParamValues, RegionSnapshot } from './types';
+import type { Session, SynthParamValues, RegionSnapshot, PatternSnapshot } from './types';
 import { getVoice, updateVoice } from './types';
 import type { TriggerEvent, ParameterEvent, MusicalEvent } from './canonical-types';
 import { createDefaultStep } from './sequencer-helpers';
@@ -247,10 +247,20 @@ export function setPatternLength(session: Session, voiceId: string, length: numb
     return result;
   }
 
-  // Fallback
+  // Fallback: push undo snapshot so length changes are undoable (#210)
+  const snapshot: PatternSnapshot = {
+    kind: 'pattern',
+    voiceId,
+    prevSteps: [],
+    prevLength: voice.pattern.length,
+    prevHiddenEvents: voice._hiddenEvents ? [...voice._hiddenEvents] : undefined,
+    timestamp: Date.now(),
+    description: `Set pattern length to ${clamped}`,
+  };
   const newSteps = [...voice.pattern.steps];
   while (newSteps.length < clamped) newSteps.push(createDefaultStep());
-  return updateVoice(session, voiceId, { pattern: { steps: newSteps, length: clamped } });
+  const result = updateVoice(session, voiceId, { pattern: { steps: newSteps, length: clamped } });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
 export function clearPattern(session: Session, voiceId: string): Session {

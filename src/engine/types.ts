@@ -135,6 +135,10 @@ export interface PatternSnapshot {
   voiceId: string;
   prevSteps: { index: number; step: Step }[];
   prevLength?: number;
+  /** Region events before the legacy sketch was applied (for full undo). */
+  prevEvents?: CanonicalMusicalEvent[];
+  /** Hidden events before the legacy sketch was applied (for length undo). */
+  prevHiddenEvents?: CanonicalMusicalEvent[];
   timestamp: number;
   description: string;
 }
