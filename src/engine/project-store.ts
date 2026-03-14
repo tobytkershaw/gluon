@@ -2,7 +2,7 @@
 // IndexedDB-backed multi-project storage.
 import type { Session } from './types';
 import { createSession } from './session';
-import { loadSession as loadLegacySession, stripForPersistence, migrateVoice } from './persistence';
+import { loadSession as loadLegacySession, stripForPersistence, migrateVoice, isValidSession, CURRENT_VERSION } from './persistence';
 
 export interface ProjectMeta {
   id: string;
@@ -65,7 +65,12 @@ export async function loadProject(id: string): Promise<PersistedProject | null> 
   const db = await openDB();
   const result = await req<PersistedProject | undefined>(tx(db, 'readonly').get(id));
   db.close();
-  return result ?? null;
+  if (!result) return null;
+  // Reject future versions we don't know how to read
+  if (result.version > CURRENT_VERSION) return null;
+  // Validate session shape
+  if (!isValidSession(result.session)) return null;
+  return result;
 }
 
 export async function saveProject(id: string, name: string, session: Session): Promise<void> {
@@ -74,7 +79,7 @@ export async function saveProject(id: string, name: string, session: Session): P
   const now = Date.now();
   const project: PersistedProject = {
     id,
-    version: 3,
+    version: CURRENT_VERSION,
     meta: {
       id,
       name,
@@ -131,7 +136,7 @@ export async function exportProject(id: string): Promise<string> {
   if (!project) throw new Error(`Project ${id} not found`);
   return JSON.stringify({
     format: 'gluon-project',
-    version: project.version,
+    version: CURRENT_VERSION,
     name: project.meta.name,
     exportedAt: Date.now(),
     session: project.session,
@@ -150,6 +155,12 @@ export async function importProject(json: string): Promise<{ id: string; name: s
   }
   if (!parsed.session || typeof parsed.session !== 'object') {
     throw new Error('Project file has no session data');
+  }
+  if (typeof parsed.version === 'number' && parsed.version > CURRENT_VERSION) {
+    throw new Error(`Project was saved with a newer version (v${parsed.version}). Update Gluon to open it.`);
+  }
+  if (!isValidSession(parsed.session)) {
+    throw new Error('Project file contains invalid session data');
   }
 
   const id = crypto.randomUUID();

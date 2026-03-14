@@ -9,7 +9,7 @@ import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/i
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
-const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 3;
 
 interface PersistedSession {
   version: number;
@@ -61,7 +61,7 @@ function isNonDefault(session: Session): boolean {
 }
 
 /** Validate that a loaded object looks like a Session. */
-function isValidSession(obj: unknown): obj is Session {
+export function isValidSession(obj: unknown): obj is Session {
   if (typeof obj !== 'object' || obj === null) return false;
   const s = obj as Record<string, unknown>;
   return (
