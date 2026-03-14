@@ -48,7 +48,7 @@ export default function App() {
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('gluon-view');
-    return saved === 'tracker' ? 'tracker' : 'instrument';
+    return saved === 'tracker' ? 'tracker' : 'control';
   });
   const [chatOpen, setChatOpen] = useState(() => {
     const saved = localStorage.getItem('gluon-chat-open');
@@ -836,7 +836,7 @@ export default function App() {
       onProjectExport={project.exportActiveProject}
       onProjectImport={project.importProject}
     >
-        {view === 'instrument' ? (
+        {view === 'control' ? (
           <InstrumentView
             session={session}
             activeVoice={activeVoice}
