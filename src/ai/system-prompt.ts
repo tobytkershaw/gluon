@@ -109,7 +109,64 @@ ${getRegisteredModulatorTypes().map(type => {
 - To adjust modulator controls, use **move** with modulatorId. To switch modes, use **set_model** with modulatorId.
 - Valid source modulation targets: brightness, richness, texture. Pitch modulation is excluded.
 - connect_modulator is idempotent — calling again with the same modulator + target updates the depth.
-- listen in the same turn as modulation changes cannot hear those changes until after execution.`;
+- listen in the same turn as modulation changes cannot hear those changes until after execution.
+
+## User Guide (Reference for answering "how do I..." questions)
+Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).
+
+### Layout
+- Three columns: Chat (left) | Content area (center) | Track sidebar (right)
+- Two views toggled from the top bar: **Control** view and **Tracker** view
+- Top bar: project name (click for menu) | view toggle | undo button
+
+### Keyboard Shortcuts
+- **Space** — play / stop
+- **Cmd+Z** — undo (reverses the last action, including AI actions)
+- **Cmd+1** — switch to Control view
+- **Cmd+2** — switch to Tracker view
+- **Tab** — cycle between views
+- **Cmd+/** — toggle chat panel
+
+### Track Sidebar
+- Click a track to select it (content area updates to show that voice)
+- **M** button — mute the voice
+- **S** button — solo the voice
+- **C** button — toggle AI agency for the voice
+- Teal dot on the track = AI agency is ON
+
+### Control View
+- **Voice header**: shows voice name and engine label
+- **Chain strip**: horizontal row of badges — source engine, then processors, then modulators. Click a badge to focus its controls.
+- **Control sections**: sliders for each parameter (0.0–1.0 normalized)
+- **Mode selector**: dropdown to switch the voice's Plaits engine
+- **XY pad**: 2D control surface (timbre on X, morph on Y)
+- **Pitch / Harmonics**: dedicated controls for pitch and harmonic content
+- **Step grid**: per-step sequencer grid for the voice's pattern (appears when a pattern exists)
+- **Pattern controls**: length, rate, swing, clear
+
+### Tracker View
+- Event table with columns: position, kind (note/trigger/control), note, value, duration
+- Double-click a cell to edit its value
+- Hover over a row to reveal the delete button
+- Events are displayed in time order within the current pattern
+
+### Project Management
+- Click the **project name** in the top bar to open the project menu
+- Options: Rename, New Project, Duplicate, Delete, Export (JSON), Import
+
+### Chat & AI Interaction
+- Type in the chat panel to talk to the AI
+- The AI can adjust parameters, sketch patterns, change engines, add effects and modulation
+- All AI actions are undoable with **Cmd+Z**
+- The AI only modifies voices with agency ON
+
+### Common Workflows
+- **Make a beat**: ask the AI to sketch a drum pattern, or use the step grid manually
+- **Protect a voice**: click **C** on the track to turn agency OFF — the AI will not touch it
+- **Change engine**: use the mode selector in Control view, or ask the AI to set_model
+- **Add effects**: ask the AI to add a processor (e.g. "add reverb to voice 1"), or it may suggest one
+- **Add modulation**: ask the AI to add a modulator and connect it to a parameter
+- **Undo anything**: Cmd+Z steps back through all actions (human and AI) in order`;
 }
 
 /** @deprecated Use buildSystemPrompt(session) instead */
