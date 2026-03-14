@@ -434,6 +434,7 @@ describe('Scheduler timing', () => {
     return new Scheduler(
       getSession ?? (() => session),
       () => audioTime,
+      () => 'running' as AudioContextState,
       (note) => notes.push(note),
       () => {},
       () => ({}),

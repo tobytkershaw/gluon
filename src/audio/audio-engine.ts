@@ -256,6 +256,10 @@ export class AudioEngine {
     return this.ctx?.currentTime ?? 0;
   }
 
+  getState(): AudioContextState | undefined {
+    return this.ctx?.state;
+  }
+
   /** Ensure AudioContext is running (may have been auto-suspended by the browser). */
   async resume(): Promise<void> {
     if (this.ctx && this.ctx.state === 'suspended') {
