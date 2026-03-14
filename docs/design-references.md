@@ -107,6 +107,23 @@ Smart Controls (up to 12 mapped controls) vs full plugin UI. Very clear curated/
 
 **Relevant for:** #73 (curated surfaces)
 
+### SuperCollider (scsynth server architecture)
+
+Not a UI reference — a signal routing model reference. scsynth's server architecture has the cleanest separation of concerns for audio graph execution in any open source system. The key abstractions:
+
+- **Buses** — named routing points for audio and control signals. Audio buses carry multi-channel signal between nodes. Control buses carry single-sample values (parameter data, modulation). Buses are the only way nodes communicate — there is no direct node-to-node wiring. This forces all routing to be explicit and inspectable.
+- **Groups** — ordered containers of nodes. Execution order within a group is guaranteed (top to bottom). Groups can nest. This solves the "voice A's output must exist before voice B's sidechain compressor reads it" problem cleanly — put A's group before B's group.
+- **Nodes** — either a Synth (DSP unit) or a Group. The entire audio graph is a tree of nodes. Synths read from input buses, process, write to output buses. The tree determines execution order.
+- **SynthDefs** — compiled DSP templates, instantiated as Synths at runtime. Separation of instrument definition from instance mirrors Gluon's InstrumentDef/Voice split.
+
+The routing model for sends and sidechains is particularly clean: a sidechain is just "Synth A writes to Bus 10, Synth B reads from Bus 10 as a control input." No special sidechain type, no separate routing API. The bus abstraction unifies audio sends, sidechain inputs, and modulation routing into one concept.
+
+**Why it matters for Gluon:** When Gluon needs Routes (the north star in the canonical model RFC), the bus concept maps well. A Route is essentially a named bus: `{ sourceTargetId, destinationTargetId, kind }`. The execution ordering problem (which node runs first when there's a dependency) is solved by scsynth's group ordering — Gluon will need an equivalent when chains have cross-voice dependencies like sidechains. The SynthDef/Synth separation validates the InstrumentDef/Voice pattern already in the canonical model.
+
+**What doesn't transfer:** scsynth's OSC command protocol, sample-accurate scheduling (Web Audio handles this), audio-rate vs control-rate distinction (Web Audio's AudioParam system covers this differently), and the language/server split (sclang is irrelevant to Gluon).
+
+**Relevant for:** Routes north star (canonical model RFC), sidechain/send routing, execution ordering for cross-voice signal dependencies
+
 ## Parameter Ground Truth
 
 The industry uses two models for complete parameter views:
