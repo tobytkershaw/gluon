@@ -10,14 +10,14 @@ export function ViewToggle({ view, onViewChange }: Props) {
   return (
     <div className="flex gap-0.5 bg-zinc-900 rounded p-0.5">
       <button
-        onClick={() => onViewChange('instrument')}
+        onClick={() => onViewChange('control')}
         className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
-          view === 'instrument'
+          view === 'control'
             ? 'bg-amber-400/15 text-amber-400'
             : 'text-zinc-500 hover:text-zinc-300'
         }`}
       >
-        Inst
+        Control
       </button>
       <button
         onClick={() => onViewChange('tracker')}
