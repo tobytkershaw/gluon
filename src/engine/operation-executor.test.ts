@@ -89,15 +89,17 @@ describe('executeOperations — undo group collapsing', () => {
     const group = undoStack[0] as ActionGroupSnapshot;
     expect(group.kind).toBe('group');
 
-    // The group should contain 3 flattened snapshots:
+    // The group should contain 4 flattened snapshots:
     //   1. ProcessorSnapshot (from remove_processor)
     //   2. ModulationRoutingSnapshot (cascaded route removal, was inside the nested group)
-    //   3. TransportSnapshot (from set_transport)
-    expect(group.snapshots).toHaveLength(3);
+    //   3. SurfaceSnapshot (auto-applied surface template after chain change)
+    //   4. TransportSnapshot (from set_transport)
+    expect(group.snapshots).toHaveLength(4);
 
     const kinds = group.snapshots.map(s => s.kind);
     expect(kinds).toContain('processor');
     expect(kinds).toContain('modulation-routing');
+    expect(kinds).toContain('surface');
     expect(kinds).toContain('transport');
 
     // Crucially: no nested groups remain

@@ -1,5 +1,6 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, ActionDiff } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ActionDiff } from './types';
+import { applySurfaceTemplate } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getTrack, updateTrack } from './types';
@@ -270,6 +271,47 @@ export function prevalidateAction(
     case 'say':
       return null;
   }
+}
+
+/**
+ * Auto-apply a surface template after a chain mutation.
+ * If a template matches the track's new chain, applies it and pushes a SurfaceSnapshot.
+ * The snapshot is grouped with the preceding chain mutation on undo.
+ */
+function maybeApplySurfaceTemplate(session: Session, trackId: string, description: string): Session {
+  const track = getTrack(session, trackId);
+  const newSurface = applySurfaceTemplate(track);
+  if (!newSurface) return session;
+
+  const surfaceSnapshot: SurfaceSnapshot = {
+    kind: 'surface',
+    trackId,
+    prevSurface: track.surface,
+    timestamp: Date.now(),
+    description: `${description} (auto-apply surface template)`,
+  };
+
+  // Group the surface snapshot with the most recent undo entry
+  const undoStack = [...session.undoStack];
+  const lastEntry = undoStack[undoStack.length - 1];
+  if (lastEntry) {
+    const existingSnapshots: Snapshot[] = lastEntry.kind === 'group'
+      ? lastEntry.snapshots
+      : [lastEntry as Snapshot];
+    undoStack[undoStack.length - 1] = {
+      kind: 'group',
+      snapshots: [...existingSnapshots, surfaceSnapshot],
+      timestamp: Date.now(),
+      description,
+    };
+  } else {
+    undoStack.push(surfaceSnapshot);
+  }
+
+  return {
+    ...updateTrack(session, trackId, { surface: newSurface }),
+    undoStack,
+  };
 }
 
 export function executeOperations(
@@ -789,6 +831,8 @@ export function executeOperations(
           ...updateTrack(next, action.trackId, { processors: [...prevProcessors, newProcessor] }),
           undoStack: [...next.undoStack, snapshot],
         };
+        // Auto-apply surface template for the new chain configuration
+        next = maybeApplySurfaceTemplate(next, action.trackId, action.description);
         const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})`, diff: { kind: 'processor-add', processorType: action.moduleType } });
         accepted.push(action);
@@ -829,9 +873,11 @@ export function executeOperations(
             description: action.description,
           }],
         };
-        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        // Auto-apply surface template for the new chain configuration
+        next = maybeApplySurfaceTemplate(next, action.trackId, action.description);
+        const vLabel2 = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const removedProc = prevProcessors.find(p => p.id === action.processorId);
-        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `removed processor ${action.processorId}`, diff: { kind: 'processor-remove', processorType: removedProc?.type ?? action.processorId } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel2, description: `removed processor ${action.processorId}`, diff: { kind: 'processor-remove', processorType: removedProc?.type ?? action.processorId } });
         accepted.push(action);
         break;
       }
@@ -879,8 +925,10 @@ export function executeOperations(
             description: action.description,
           }],
         };
-        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
-        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}`, diff: { kind: 'processor-replace', fromType: prevProcessors[idx].type, toType: action.newModuleType } });
+        // Auto-apply surface template for the new chain configuration
+        next = maybeApplySurfaceTemplate(next, action.trackId, action.description);
+        const vLabel3 = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel3, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}`, diff: { kind: 'processor-replace', fromType: prevProcessors[idx].type, toType: action.newModuleType } });
         accepted.push(action);
         break;
       }
