@@ -221,6 +221,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return { ...session, master: snapshot.prevMaster };
   }
 
+  if (snapshot.kind === 'surface') {
+    return updateTrack(session, snapshot.trackId, { surface: snapshot.prevSurface });
+  }
+
   if (snapshot.kind === 'region') {
     const track = getTrack(session, snapshot.trackId);
     if (track.regions.length === 0) return session;
