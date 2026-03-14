@@ -935,8 +935,11 @@ export default function App() {
       onToggleSolo={handleToggleSolo}
       onRenameVoice={handleRenameVoice}
       onToggleAgency={(voiceId) => {
-        const voice = session.voices.find(v => v.id === voiceId);
-        if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+        setSession(s => {
+          const voice = s.voices.find(v => v.id === voiceId);
+          if (!voice) return s;
+          return setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF');
+        });
       }}
       messages={session.messages}
       onSend={handleSend}
