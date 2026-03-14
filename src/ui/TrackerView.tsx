@@ -6,6 +6,7 @@ import type { EventSelector } from '../engine/event-primitives';
 import { getModelName } from '../audio/instrument-registry';
 import { getVoiceLabel } from '../engine/voice-labels';
 import { Tracker } from './Tracker';
+import { TrackerCheatSheet } from './TrackerCheatSheet';
 
 interface Props {
   session: Session;
@@ -38,6 +39,9 @@ export function TrackerView({
             <span className="text-[10px] text-zinc-500">
               {getModelName(activeVoice.model)}
             </span>
+            <div className="ml-auto">
+              <TrackerCheatSheet />
+            </div>
           </div>
 
           {/* Full-height tracker scroll container */}
