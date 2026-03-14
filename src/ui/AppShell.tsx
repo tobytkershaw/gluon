@@ -55,6 +55,7 @@ interface Props {
   globalStep: number;
   patternLength: number;
   onTogglePlay: () => void;
+  onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
   onSwingChange: (swing: number) => void;
   onToggleRecord: () => void;
@@ -87,7 +88,7 @@ export function AppShell({
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
   playing, bpm, swing, recordArmed, globalStep, patternLength,
-  onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
+  onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   view, onViewChange,
   undoStack, onUndo,
   cancelEditRef,
@@ -171,6 +172,7 @@ export function AppShell({
             globalStep={globalStep}
             patternLength={patternLength}
             onTogglePlay={onTogglePlay}
+            onHardStop={onHardStop}
             onBpmChange={onBpmChange}
             onSwingChange={onSwingChange}
             onToggleRecord={onToggleRecord}
