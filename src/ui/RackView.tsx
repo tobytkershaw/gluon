@@ -1,10 +1,12 @@
 // src/ui/RackView.tsx
 // Rack view: Guitar Rig-style vertical stack of module panels for the active track.
+import { useState } from 'react';
 import type { Session, Track, ModulationTarget } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { ControlSection } from './ControlSection';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
+import { ModuleBrowser } from './ModuleBrowser';
 
 interface RackViewProps {
   session: Session;
@@ -28,6 +30,9 @@ interface RackViewProps {
   onModulatorInteractionEnd: (modulatorId: string) => void;
   onModulatorModelChange: (modulatorId: string, model: number) => void;
   onRemoveModulator: (modulatorId: string) => void;
+  // Module browser
+  onAddProcessor: (type: string) => void;
+  onAddModulator: (type: string) => void;
 }
 
 /** Human-readable label for a modulation target */
@@ -48,7 +53,10 @@ export function RackView({
   onProcessorModelChange, onRemoveProcessor,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
+  onAddProcessor, onAddModulator,
 }: RackViewProps) {
+  const [browserOpen, setBrowserOpen] = useState(false);
+
   const processors = activeTrack.processors ?? [];
   const modulators = activeTrack.modulators ?? [];
   const modulations = activeTrack.modulations ?? [];
@@ -151,11 +159,24 @@ export function RackView({
         );
       })}
 
-      {/* Empty state */}
-      {processors.length === 0 && modulators.length === 0 && (
-        <div className="text-center text-zinc-600 text-[10px] uppercase tracking-wider py-4">
-          Source only — add processors or modulators via the AI
-        </div>
+      {/* Add module button */}
+      <button
+        type="button"
+        onClick={() => setBrowserOpen(true)}
+        className="flex items-center justify-center gap-1.5 py-2 rounded border border-dashed border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50 transition-colors text-[10px] font-mono uppercase tracking-wider"
+      >
+        <span className="text-sm leading-none">+</span>
+        Add Module
+      </button>
+
+      {/* Module browser slide-out */}
+      {browserOpen && (
+        <ModuleBrowser
+          activeTrack={activeTrack}
+          onAddProcessor={onAddProcessor}
+          onAddModulator={onAddModulator}
+          onClose={() => setBrowserOpen(false)}
+        />
       )}
     </div>
   );
