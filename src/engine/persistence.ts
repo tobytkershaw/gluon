@@ -9,7 +9,8 @@ import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/i
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
+export const MAX_PERSISTED_UNDO = 50;
 
 interface PersistedSession {
   version: number;
@@ -22,11 +23,11 @@ const defaultInverseOpts: InverseConversionOptions = {
   canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
 };
 
-/** Strip undo stack (contains closures) and recentHumanActions before saving. */
+/** Trim undo stack to most recent entries and strip recentHumanActions before saving. */
 export function stripForPersistence(session: Session): Session {
   return {
     ...session,
-    undoStack: [],
+    undoStack: session.undoStack.slice(-MAX_PERSISTED_UNDO),
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
     transport: { ...session.transport, playing: false },
@@ -172,7 +173,7 @@ export function loadSession(): Session | null {
     return {
       ...session,
       voices: migratedVoices,
-      undoStack: [],
+      undoStack: session.undoStack ?? [],
       recentHumanActions: session.recentHumanActions ?? [],
     };
   } catch {
