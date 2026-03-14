@@ -2,7 +2,7 @@
 // Three-column layout shell: TrackList | main content | ChatSidebar
 // Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
 // Handles responsive collapse thresholds via ResizeObserver.
-import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
+import { useRef, useEffect, useCallback, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
@@ -96,6 +96,12 @@ export function AppShell({
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const prevNarrowRef = useRef(false);
+
+  // Sending from the collapsed footer composer reopens the sidebar
+  const handleFooterSend = useCallback((message: string) => {
+    onSend(message);
+    if (!chatOpen) onChatToggle();
+  }, [onSend, chatOpen, onChatToggle]);
 
   // Responsive: auto-collapse chat when crossing below threshold.
   // Only triggers the collapse on the transition from wide -> narrow,
@@ -226,7 +232,7 @@ export function AppShell({
                 <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
-            <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="footer" />
+            <ChatComposer onSend={handleFooterSend} disabled={isThinking || isListening} variant="footer" />
             {(isThinking || isListening) && (
               <span
                 className="shrink-0 w-2 h-2 rounded-full bg-amber-400 mr-2"

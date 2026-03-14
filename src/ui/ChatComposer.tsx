@@ -47,13 +47,13 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
     );
   }
 
-  // Footer variant: compact inline strip
+  // Footer variant: prominent but compact
   return (
     <form
       onSubmit={handleSubmit}
       className="flex-1 flex items-center gap-1.5 px-2"
     >
-      <div className="flex-1 flex items-center gap-1.5 bg-zinc-900/80 border border-zinc-800/60 rounded px-2 py-1">
+      <div className="flex-1 flex items-center gap-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-md px-2.5 py-1.5">
         <input
           ref={inputRef}
           type="text"
@@ -62,7 +62,7 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
           placeholder={disabled ? 'Thinking...' : 'Describe what you want...'}
           disabled={disabled}
           autoComplete="off"
-          className="flex-1 bg-transparent text-zinc-200 placeholder:text-zinc-600 outline-none font-mono min-w-0 text-[11px]"
+          className="flex-1 bg-transparent text-zinc-200 placeholder:text-zinc-500 outline-none font-mono min-w-0 text-xs"
         />
         <button
           type="submit"
