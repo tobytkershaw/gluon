@@ -17,7 +17,7 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 - **Voices**: Things that make sound, with parameters normalised 0.0-1.0
 - **Agency**: Per-voice AI permission (OFF / ON) — AI only modifies voices with agency ON, and only when asked
 - **Arbitration**: Human's hands always win when both touch the same parameter
-- **Undo**: Reverses AI actions only, grouped by action groups
+- **Undo**: Reverses all actions (human and AI) in LIFO order, grouped by action groups
 - **Audio snapshots**: Rendered clips sent to multimodal model for AI self-evaluation
 
 ## Project Structure
@@ -59,17 +59,23 @@ npm run wasm:build   # Compile Plaits to WASM
 
 This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. Rules:
 
-### Branching
-- `dev` is the integration branch — treat it as read-only during active work
-- One task per branch, one agent per branch
-- Rebase onto `dev` before opening a PR, not during parallel editing
-- Merge small PRs frequently rather than letting branches drift
+### Worktrees Are Mandatory
 
-### Worktrees
-- Each agent uses its own worktree directory (auto-managed)
+**Every agent MUST work in a worktree, never in the main checkout.** The main checkout is shared — if one agent switches branches or leaves modified files, it breaks every other agent.
+
+- **Codex:** Always use `.codex-worktrees/` (auto-managed). Never modify files in the root checkout directly.
+- **Claude Code:** Uses `.claude/worktrees/` or `isolation: "worktree"` on Agent tool calls.
 - Both `.claude/worktrees/` and `.codex-worktrees/` are gitignored
 - Vitest excludes worktree directories (see `vite.config.ts`)
 - Clean up stale worktrees periodically: `git worktree prune`
+
+**Why this matters:** We have had incidents where agent work switched the branch in the main checkout mid-session, causing commits to land on wrong branches and modified files to contaminate unrelated work. Worktrees prevent this entirely.
+
+### Branching
+- `main` is the integration branch — never commit directly during parallel work
+- One task per branch, one agent per branch
+- Rebase onto `main` before opening a PR, not during parallel editing
+- Merge small PRs frequently rather than letting branches drift
 
 ### Avoiding Conflicts
 - Split work by **module boundary** (`src/audio/`, `src/ai/`, `src/engine/`, `src/ui/`), not by task type
@@ -91,15 +97,20 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
-  - `M0: Stabilization + Backlog Hygiene` for cleanup, QA, and stabilization work
-  - `M1: Sequencer Foundations` for sequencing foundation issues
-  - `M2: Sequencer Expressivity` for timing/groove/transformation work
-  - `M3: Sequencer Surfaces + Integrations` for editor-surface and adapter work
-  - `M4: Phase 4A Discovery` for exploratory Phase 4A work
+  - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
+  - `M0: Stabilization` (current) — pre-M5 QA bug fixes
+  - `M5: UI Layers` — project foundation, parameter/patch navigation, AI-curated surfaces, listen tool
+  - `M6: Collaboration` — preservation contracts, aesthetic direction, structured listening
+  - `M7: External Integration` — MIDI output, hardware profiles, DAW integration
+  - See `docs/roadmap.md` for the full implementation roadmap
 - Do not create GitHub Projects or expand the label taxonomy unless explicitly asked.
 
 ## Reference Docs
 
+- `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
-- `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.
+- `docs/status.md` - Current build status and milestone tracking
+- `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback.
+- `docs/principles/ai-capability-doctrine.md` - Hard boundaries, then maximize AI usefulness inside them.
+- `docs/principles/ai-collaboration-model.md` - What good human-AI collaboration looks like.
