@@ -1,7 +1,7 @@
 // src/engine/scheduler.ts
 import type { Session, SynthParamValues } from './types';
 import type { ScheduledNote } from './sequencer-types';
-import type { MusicalEvent, TriggerEvent, NoteEvent } from './canonical-types';
+import type { MusicalEvent, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
@@ -35,6 +35,7 @@ export class Scheduler {
   private onNote: (note: ScheduledNote) => void;
   private onPositionChange: (globalStep: number) => void;
   private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
+  private onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
 
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private cursor = 0; // absolute step units (fractional)
@@ -48,6 +49,7 @@ export class Scheduler {
     onNote: (note: ScheduledNote) => void,
     onPositionChange: (globalStep: number) => void,
     getHeldParams: (trackId: string) => Partial<SynthParamValues>,
+    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void,
   ) {
     this.getSession = getSession;
     this.getAudioTime = getAudioTime;
@@ -55,6 +57,7 @@ export class Scheduler {
     this.onNote = onNote;
     this.onPositionChange = onPositionChange;
     this.getHeldParams = getHeldParams;
+    this.onParameterEvent = onParameterEvent;
   }
 
   start(startOffset = START_OFFSET_SEC): void {
@@ -140,8 +143,16 @@ export class Scheduler {
           if (event.at >= seg.localEnd) break;
           if (event.at < seg.localStart) continue;
 
-          // Only schedule trigger and note events (parameter events are resolved inline)
-          if (event.kind === 'parameter') continue;
+          // Standalone parameter events: fire callback to apply automation values.
+          // Parameter events co-located with triggers/notes are still resolved
+          // inline via resolveEventParams below.
+          if (event.kind === 'parameter') {
+            if (this.onParameterEvent) {
+              const pe = event as ParameterEvent;
+              this.onParameterEvent(track.id, pe.controlId, pe.value);
+            }
+            continue;
+          }
           // velocity=0 is the "ungated" sentinel — trigger exists to preserve
           // accent state but should not produce a gate (matches event-conversion.ts)
           if (event.kind === 'trigger' && (event as TriggerEvent).velocity === 0) continue;

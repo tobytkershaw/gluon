@@ -263,6 +263,48 @@ export function setPatternLength(session: Session, trackId: string, length: numb
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
+/**
+ * Insert a ParameterEvent at a fractional beat position during live recording.
+ * Deduplicates: if an event for the same controlId at the same position exists
+ * (within tolerance), it is replaced. Does NOT push an undo snapshot — the
+ * caller is responsible for the recording-session-level snapshot.
+ */
+export function insertAutomationEvent(
+  session: Session,
+  trackId: string,
+  at: number,
+  controlId: string,
+  value: number,
+): Session {
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
+
+  const region = track.regions[0];
+  // Wrap position into region (loop-aware)
+  const wrappedAt = ((at % region.duration) + region.duration) % region.duration;
+
+  const events = [...region.events];
+  const idx = findParamAt(events, wrappedAt, controlId);
+
+  if (idx >= 0) {
+    // Replace existing event at same position for same control
+    events[idx] = { ...events[idx], value } as ParameterEvent;
+  } else {
+    const newEvent: ParameterEvent = {
+      kind: 'parameter',
+      at: wrappedAt,
+      controlId,
+      value,
+    };
+    const insertIdx = events.findIndex(e => e.at > wrappedAt);
+    if (insertIdx === -1) events.push(newEvent);
+    else events.splice(insertIdx, 0, newEvent);
+  }
+
+  // No undo snapshot — covered by the recording session snapshot
+  return applyRegionEdit(session, trackId, events);
+}
+
 export function clearPattern(session: Session, trackId: string): Session {
   const track = getTrack(session, trackId);
 
