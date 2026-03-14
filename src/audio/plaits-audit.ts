@@ -1,11 +1,11 @@
-import type { SynthParams } from './synth-interface';
+import type { SynthParamValues } from '../engine/types';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
 export interface PlaitsAuditScenario {
   id: string;
   durationSeconds: number;
   model: number;
-  baseParams: SynthParams;
+  baseParams: SynthParamValues;
   notes: ScheduledNote[];
 }
 
@@ -76,7 +76,7 @@ export async function runAuditSuite(
 // 12: Modal (resonator) 13: Bass drum     14: Snare drum
 // 15: Hi-hat
 
-function sustainNote(model: number, params: SynthParams, dur = 1.6): PlaitsAuditScenario {
+function sustainNote(model: number, params: SynthParamValues, dur = 1.6): PlaitsAuditScenario {
   return {
     id: `model-${model}-sustain`,
     durationSeconds: dur + 0.4,
@@ -92,7 +92,7 @@ function sustainNote(model: number, params: SynthParams, dur = 1.6): PlaitsAudit
   };
 }
 
-function percHits(model: number, params: SynthParams): PlaitsAuditScenario {
+function percHits(model: number, params: SynthParamValues): PlaitsAuditScenario {
   return {
     id: `model-${model}-perc`,
     durationSeconds: 1.2,
@@ -106,7 +106,7 @@ function percHits(model: number, params: SynthParams): PlaitsAuditScenario {
   };
 }
 
-function paramSweep(model: number, base: SynthParams): PlaitsAuditScenario {
+function paramSweep(model: number, base: SynthParamValues): PlaitsAuditScenario {
   return {
     id: `model-${model}-sweep`,
     durationSeconds: 2.5,
@@ -120,7 +120,7 @@ function paramSweep(model: number, base: SynthParams): PlaitsAuditScenario {
   };
 }
 
-const mid: SynthParams = { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 };
+const mid: SynthParamValues = { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 };
 
 export const DEFAULT_AUDIT_SCENARIOS: PlaitsAuditScenario[] = [
   // Tonal models — sustain + param sweep to test smoothing

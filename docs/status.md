@@ -4,7 +4,7 @@
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5 Steps 1-4 (UI Layers foundation)
 **Current product state:** Phase 3 core shipped, M0–M4 complete, Phase 4B complete, M5 structural UI in place
 **Near-term focus:** M5 Steps 5-7 (AI-curated surfaces)
-**Latest milestone:** Phase 4B — Tides modulation runtime, AI modulation tools, modulator UI (PR #113)
+**Latest milestone:** M0 Stabilization — scheduler float-point fix, voice-scoped automation, agency button wiring (PR #168)
 **Data model direction:** Canonical regions/events are the sequencing authority — `voice.pattern` is a derived projection. Tracker is the canonical truth view; step grid and other editors are addable surfaces.
 
 ---
@@ -42,6 +42,8 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 | PR | Description | Merged |
 |---|---|---|
+| PR #168 | M0 Stabilization: scheduler float-fix, voice-scoped automation, agency button | 2026-03-13 |
+| PR #133 | fix: scheduler skips disabled steps, first-beat timing race, accent restore | 2026-03-13 |
 | PR #113 | Phase 4B: Tides WASM modulation, AI modulation tools, modulator UI | 2026-03-13 |
 | PR #112 | M5 Steps 1-4: VoiceSurface types, VoiceStage, ExpandedVoice, DeepView | 2026-03-13 |
 | PR #111 | Phase 4A: Clouds WASM, module inspector, chain editing, replace_processor (#102–#104) | 2026-03-13 |
@@ -58,6 +60,22 @@ Gluon is a browser-based, AI-assisted instrument with:
 | PR #39 | Docs positioning refresh | 2026-03-11 |
 | PR #38 | Gemini native function calling, tool loop, listen tool, AI transport tools | 2026-03-11 |
 | PR #36 | Audio snapshot evaluation / listen mode | 2026-03-11 |
+
+---
+
+## M0: Stabilization — Complete
+
+Pre-M5 QA pass fixing priority:now blockers.
+
+### Landed: M0 Blocker Burn-Down (PR #168)
+
+- **#121 — Agency button missing in Instrument/Tracker views:** `onToggleAgency` prop threaded through InstrumentView and TrackerView to VoiceStage. Agency (C) button now visible and functional in all view modes.
+- **#130 — XY pad / slider values revert on mouse-up:** AutomationEngine rewritten to key by `(voiceId, param)` instead of param-only. Each param handler cancels only the exact automation being touched. `arbRef.current.canAIAct(voiceId, param)` guards automation callbacks as second defense. Fixes #132 (spontaneous param drift) as a side-effect.
+- **#153 — First sequencer step silent on loops 2-3:** Root cause: IEEE 754 floating-point accumulation in scheduler cursor. After ~20 ticks, cursor overshoots exact multiples of regionLen by ~1e-15, causing `lowerBound` to skip events at step 0. Fixed with epsilon guard in `getLocalSegments`: `if (localStart > 0 && localStart < 1e-9) localStart = 0`.
+
+### Landed: QA Audio Fixes (PR #133)
+
+- Transport stop reliability, first-step silence on initial play, accent gain restore after stop/start cycles.
 
 ---
 
@@ -295,10 +313,6 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 ### M5: UI Layers (Steps 5-7 remaining)
 
 - #73 — Steps 1-4 landed (PR #112). Remaining: semantic controls, pin mechanism, AI surface curation tools, configurable XY axes, processor provenance tracking. Ready to implement now that chains include modulators.
-
-### Docs / Tooling
-
-- #114 — Update gluon-reviewer agent and docs for Phase 4B (in progress)
 
 ### Unassigned
 

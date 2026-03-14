@@ -10,7 +10,9 @@ import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
-import { saveSession, loadSession } from '../engine/persistence';
+import { loadSession } from '../engine/persistence';
+import { useProjectLifecycle } from './useProjectLifecycle';
+import { ProjectMenu } from './ProjectMenu';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
@@ -23,9 +25,10 @@ import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { Scheduler } from '../engine/scheduler';
-import { ChatView } from './ChatView';
 import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
+import { AppShell } from './AppShell';
+import { useShortcuts } from './useShortcuts';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
@@ -37,13 +40,21 @@ export default function App() {
   const aiRef = useRef(new GluonAI());
 
   const [session, setSession] = useState<Session>(() => loadSession() ?? createSession());
+  const project = useProjectLifecycle(session, setSession);
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
   const [recording, setRecording] = useState(false);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
-  const [view, setView] = useState<ViewMode>('chat');
+  const [view, setView] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem('gluon-view');
+    return saved === 'tracker' ? 'tracker' : 'instrument';
+  });
+  const [chatOpen, setChatOpen] = useState(() => {
+    const saved = localStorage.getItem('gluon-chat-open');
+    return saved !== 'false'; // default open
+  });
   const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
@@ -61,11 +72,9 @@ export default function App() {
     prevEvents?: CanonicalMusicalEvent[];
   } | null>(null);
 
-  // Auto-save session to localStorage (debounced)
-  useEffect(() => {
-    const timer = setTimeout(() => saveSession(session), 500);
-    return () => clearTimeout(timer);
-  }, [session]);
+  // Persist view and chat state to localStorage
+  useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
+  useEffect(() => { localStorage.setItem('gluon-chat-open', String(chatOpen)); }, [chatOpen]);
 
   useEffect(() => {
     clearQaAudioTrace();
@@ -793,82 +802,46 @@ export default function App() {
     setSelectedModulatorId(null);
   }, [ensureAudio]);
 
-  // Focus-safe keyboard shortcuts
-  useEffect(() => {
-    const isEditable = () => {
-      const el = document.activeElement;
-      if (!el) return false;
-      const tag = el.tagName;
-      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
-    };
-
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        e.preventDefault();
-        handleUndo();
-      }
-      // Cmd+1 / Cmd+2 / Cmd+3 for view switching (gated on editable focus)
-      if ((e.metaKey || e.ctrlKey) && e.key === '1' && !isEditable()) {
-        e.preventDefault();
-        setView('chat');
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === '2' && !isEditable()) {
-        e.preventDefault();
-        setView('instrument');
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === '3' && !isEditable()) {
-        e.preventDefault();
-        setView('tracker');
-      }
-      // Tab cycles views: chat → instrument → tracker → chat
-      if (e.key === 'Tab' && !isEditable()) {
-        e.preventDefault();
-        setView((v) => v === 'chat' ? 'instrument' : v === 'instrument' ? 'tracker' : 'chat');
-      }
-      // Space for play/stop — only when not in editable
-      if (e.key === ' ' && !e.repeat && !isEditable()) {
-        e.preventDefault();
-        handleTogglePlay();
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [handleUndo, handleTogglePlay]);
+  // Global keyboard shortcuts (extracted to hook)
+  useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, setView, setChatOpen });
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <div className="h-screen">
-        {view === 'chat' ? (
-          <ChatView
-            session={session}
-            activeVoice={activeVoice}
-            view={view}
-            onViewChange={setView}
-            apiConfigured={apiConfigured}
-            onApiKey={handleApiKey}
-            onSelectVoice={handleSelectVoice}
-            onToggleMute={handleToggleMute}
-            onToggleSolo={handleToggleSolo}
-            onToggleAgency={(voiceId) => {
-              const voice = session.voices.find(v => v.id === voiceId);
-              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
-            }}
-            onUndo={handleUndo}
-            onSend={handleSend}
-            onTogglePlay={handleTogglePlay}
-            playing={session.transport.playing}
-            bpm={session.transport.bpm}
-            isThinking={isThinking}
-            isListening={isListening}
-            activityMap={activityMap}
-          />
-        ) : view === 'instrument' ? (
+    <AppShell
+      voices={session.voices}
+      activeVoiceId={session.activeVoiceId}
+      activityMap={activityMap}
+      onSelectVoice={handleSelectVoice}
+      onToggleMute={handleToggleMute}
+      onToggleSolo={handleToggleSolo}
+      onToggleAgency={(voiceId) => {
+        const voice = session.voices.find(v => v.id === voiceId);
+        if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
+      }}
+      messages={session.messages}
+      onSend={handleSend}
+      isThinking={isThinking}
+      isListening={isListening}
+      apiConfigured={apiConfigured}
+      onApiKey={handleApiKey}
+      chatOpen={chatOpen}
+      onChatToggle={() => setChatOpen(o => !o)}
+      projectName={project.projectName}
+      projects={project.projects}
+      saveError={project.saveError}
+      onProjectRename={project.renameActiveProject}
+      onProjectNew={() => project.createProject()}
+      onProjectOpen={project.switchProject}
+      onProjectDuplicate={project.duplicateActiveProject}
+      onProjectDelete={project.deleteActiveProject}
+      onProjectExport={project.exportActiveProject}
+      onProjectImport={project.importProject}
+    >
+        {view === 'instrument' ? (
           <InstrumentView
             session={session}
             activeVoice={activeVoice}
             view={view}
             onViewChange={setView}
-            activityMap={activityMap}
             playing={session.transport.playing}
             bpm={session.transport.bpm}
             swing={session.transport.swing}
@@ -878,13 +851,6 @@ export default function App() {
             onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
             onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
-            onSelectVoice={handleSelectVoice}
-            onToggleMute={handleToggleMute}
-            onToggleSolo={handleToggleSolo}
-            onToggleAgency={(voiceId) => {
-              const voice = session.voices.find(v => v.id === voiceId);
-              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
-            }}
             onParamChange={handleParamChange}
             onInteractionStart={() => {
               arbRef.current.humanInteractionStart();
@@ -997,9 +963,6 @@ export default function App() {
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
             onUndo={handleUndo}
-            onSend={handleSend}
-            isThinking={isThinking}
-            isListening={isListening}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
@@ -1010,7 +973,6 @@ export default function App() {
             activeVoice={activeVoice}
             view={view}
             onViewChange={setView}
-            activityMap={activityMap}
             playing={session.transport.playing}
             bpm={session.transport.bpm}
             swing={session.transport.swing}
@@ -1020,22 +982,11 @@ export default function App() {
             onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
             onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
             onToggleRecord={handleToggleRecord}
-            onSelectVoice={handleSelectVoice}
-            onToggleMute={handleToggleMute}
-            onToggleSolo={handleToggleSolo}
-            onToggleAgency={(voiceId) => {
-              const voice = session.voices.find(v => v.id === voiceId);
-              if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));
-            }}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
             onUndo={handleUndo}
-            onSend={handleSend}
-            isThinking={isThinking}
-            isListening={isListening}
           />
         )}
-      </div>
-    </div>
+    </AppShell>
   );
 }

@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ParamSnapshot, ProcessorConfig } from './types';
+import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ProcessorConfig } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateVoice, getVoice } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';

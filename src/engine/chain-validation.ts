@@ -7,7 +7,6 @@ import type { Voice, ModulationTarget } from './types';
 import {
   getRegisteredProcessorTypes, getProcessorControlIds, getProcessorEngineByName,
   getRegisteredModulatorTypes, getModulatorControlIds, getModulatorEngineByName,
-  controlIdToRuntimeParam,
 } from '../audio/instrument-registry';
 
 const MAX_PROCESSORS = 2;

@@ -9,7 +9,7 @@ import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/i
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
-const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 3;
 
 interface PersistedSession {
   version: number;
@@ -23,7 +23,7 @@ const defaultInverseOpts: InverseConversionOptions = {
 };
 
 /** Strip undo stack (contains closures) and recentHumanActions before saving. */
-function stripForPersistence(session: Session): Session {
+export function stripForPersistence(session: Session): Session {
   return {
     ...session,
     undoStack: [],
@@ -61,7 +61,7 @@ function isNonDefault(session: Session): boolean {
 }
 
 /** Validate that a loaded object looks like a Session. */
-function isValidSession(obj: unknown): obj is Session {
+export function isValidSession(obj: unknown): obj is Session {
   if (typeof obj !== 'object' || obj === null) return false;
   const s = obj as Record<string, unknown>;
   return (
@@ -92,7 +92,7 @@ function hydrateRegionsFromPattern(voice: Voice): Region[] {
  * 3. Regions invalid but pattern exists → warn, hydrate from pattern
  * 4. Neither recoverable → fall back to empty default region
  */
-function migrateVoice(voice: Voice): Voice {
+export function migrateVoice(voice: Voice): Voice {
   let regions = voice.regions;
 
   if (!regions || !Array.isArray(regions) || regions.length === 0) {

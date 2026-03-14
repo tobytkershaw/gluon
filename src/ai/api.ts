@@ -2,10 +2,10 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulationTarget } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, ProcessorConfig, ModulatorConfig, ModulationTarget } from '../engine/types';
 import { getVoice, updateVoice } from '../engine/types';
-import { controlIdToRuntimeParam, getEngineById, plaitsInstrument, getProcessorControlIds, getProcessorEngineByName, getProcessorEngineName, getRegisteredProcessorTypes, getModulatorEngineByName } from '../audio/instrument-registry';
-import { validateChainMutation, validateModulatorMutation, validateModulationTarget } from '../engine/chain-validation';
+import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
+import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { projectRegionToPattern } from '../engine/region-projection';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
@@ -376,7 +376,7 @@ export class GluonAI {
         contents.push(modelContent);
 
         // Collect text parts as say actions (skip thought parts)
-        for (const part of modelContent.parts) {
+        for (const part of modelContent.parts ?? []) {
           if (part.text && !('thought' in part && part.thought)) {
             collectedActions.push({ type: 'say', text: part.text });
           }
@@ -468,10 +468,14 @@ export class GluonAI {
           return errorResponse(id, name, 'Missing required parameter: target (needs absolute or relative number)');
         }
 
+        const targetValue = typeof target.absolute === 'number'
+          ? { absolute: target.absolute }
+          : { relative: target.relative as number };
+
         const action: AIMoveAction = {
           type: 'move',
           param: args.param as string,
-          target: target as { absolute?: number; relative?: number },
+          target: targetValue,
           ...(args.voiceId ? { voiceId: args.voiceId as string } : {}),
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
           ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),

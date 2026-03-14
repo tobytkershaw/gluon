@@ -329,14 +329,25 @@ Microtiming, sub-step scheduling, transformation primitives (`rotate`, `transpos
 ### M3: Sequencer Surfaces (COMPLETE)
 Event-centric tracker as canonical truth view, addable sequencer views (step grid, piano roll placeholder), AI view operations (`add_view`, `remove_view`).
 
-### M4: First Chain (IN PROGRESS)
-Rings WASM resonator, processor chain architecture (source → processors → gain staging), AI structure tools (`add_processor`, `remove_processor`), undoable `ProcessorSnapshot`.
+### M4: First Chain (COMPLETE)
+Rings and Clouds WASM processors, processor chain architecture (source → processors → gain staging), AI structure tools, module inspector, chain editing, replace_processor, chain validation.
+
+### Phase 4B: Modulation (COMPLETE)
+Tides WASM function generator, modulation routing (modulator → GainNode depth → target AudioParam), AI modulation tools (`add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`).
+
+### M0: Stabilization (IN PROGRESS)
+Pre-M5 QA sweep: fix audio pipeline bugs, UI state issues, transport crashes, and worklet edge cases.
 
 ### M5: UI Layers (PLANNED)
-Three-layer UI model from AI-Curated Surfaces RFC. Runs in parallel with remaining M4 work.
+Project persistence, parameter and patch navigation, AI-curated surfaces, offline listen tool, AI action legibility.
 
-### Future: External Integration
-MIDI output to hardware synths, hardware profiles, DAW integration (Ableton), arrangement sketching, community ecosystem.
+### M6: AI Collaboration Quality (PLANNED)
+Preservation contracts, aesthetic direction, structured listening, environment legibility.
+
+### M7: External Integration (FUTURE)
+MIDI output to hardware synths, hardware profiles, DAW integration (Ableton), external sequencer adapters, community ecosystem.
+
+See `docs/roadmap.md` for the full implementation roadmap with dependencies and design doc mapping.
 
 ---
 

@@ -1,8 +1,7 @@
 // src/engine/primitives.ts
 import type {
-  Session, ParamSnapshot, PatternSnapshot, TransportSnapshot, Snapshot,
-  SynthParamValues, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot,
-  ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot,
+  Session, ParamSnapshot, PatternSnapshot, Snapshot,
+  SynthParamValues,
 } from './types';
 import { getVoice, updateVoice } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
@@ -264,9 +263,14 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   const updates: Partial<import('./types').Voice> = { params: newParams };
   if (snapshot.prevProvenance && voice.controlProvenance) {
+    const restoredProvenance = Object.fromEntries(
+      Object.entries({
+        ...voice.controlProvenance,
+        ...snapshot.prevProvenance,
+      }).filter(([, value]) => value !== undefined),
+    ) as import('./canonical-types').ControlState;
     updates.controlProvenance = {
-      ...voice.controlProvenance,
-      ...snapshot.prevProvenance,
+      ...restoredProvenance,
     };
   }
 

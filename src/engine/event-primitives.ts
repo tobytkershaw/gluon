@@ -1,7 +1,7 @@
 // src/engine/event-primitives.ts
 import type { Session, RegionSnapshot } from './types';
 import { getVoice } from './types';
-import type { MusicalEvent, EventKind, ParameterEvent } from './canonical-types';
+import type { MusicalEvent, ParameterEvent } from './canonical-types';
 import { normalizeRegionEvents } from './region-helpers';
 import { reprojectVoicePattern } from './region-projection';
 import { updateVoice } from './types';

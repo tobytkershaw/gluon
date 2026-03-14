@@ -65,7 +65,7 @@ export function DeepView({ voice, focusedModuleId, onClose }: DeepViewProps) {
         >
           {sourceEngine.controls.map(control => {
             const runtimeParam = controlIdToRuntimeParam[control.id] ?? control.id;
-            const value = voice.params[runtimeParam] ?? control.range.default;
+            const value = voice.params[runtimeParam] ?? control.range?.default ?? 0.5;
             const provenance = getSourceProvenance(voice, control.id);
             return (
               <ControlRow
@@ -94,7 +94,7 @@ export function DeepView({ voice, focusedModuleId, onClose }: DeepViewProps) {
               <ControlRow
                 key={control.id}
                 name={control.name}
-                value={proc.params[control.id] ?? control.range.default}
+                value={proc.params[control.id] ?? control.range?.default ?? 0.5}
               />
             ))}
           </ModuleBlock>

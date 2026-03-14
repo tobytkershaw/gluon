@@ -65,7 +65,16 @@ Musically legible summary of each voice:
 - rhythmic function: anchor, syncopated support, offbeat pulse, fill, sparse punctuation
 - density and stability estimates
 - foreground vs support
-- status: exploratory, approved, or protected
+- status: exploratory, liked, approved, anchor (see [preservation-contracts.md](../rfcs/preservation-contracts.md))
+
+Each voice should also expose **importance metadata** — why the voice matters and what must survive edits:
+
+- function: what role this voice plays in the overall piece (e.g. "core identity carrier", "textural bed", "rhythmic anchor")
+- must_preserve: specific aspects that define this voice's identity (e.g. "descending contour", "sub weight", "bar-4 anticipation")
+- may_change: aspects explicitly open for modification (e.g. "surface texture", "stereo width")
+- risk_if_changed: what the piece loses if this voice is altered carelessly (e.g. "drop loses heaviness", "groove loses momentum")
+
+This reduces guesswork when the model edits voices that interact with approved material.
 
 ### 3. Pattern and phrase layer
 
@@ -84,11 +93,33 @@ The project as an evolving collaboration:
 
 - current project phase: framing, sketching, guided_iteration, expansion, refinement
 - active brief
-- approved and rejected directions
+- approved and rejected directions (with rationale — see [aesthetic-direction.md](./aesthetic-direction.md))
 - current comparison candidates
-- latest human reactions in musical terms
+- reaction history: rolling log of concrete human reactions with context
+- observed patterns: natural-language summary of recurring aesthetic tendencies
+- restraint guidance: current intervention size bias and its evidence basis
 - latest listener observations
 - undo depth
+- open decisions: unresolved aesthetic or structural questions the model should surface
+
+Open decisions help the model ask useful questions rather than guessing:
+
+```json
+{
+  "open_decisions": [
+    {
+      "kind": "taste",
+      "question": "Should the bass stay dry or widen in the high-energy variant?",
+      "affects": ["loop_b"]
+    },
+    {
+      "kind": "structure",
+      "question": "Is the turnaround every 8 bars too frequent?",
+      "affects": ["loop_a", "loop_b"]
+    }
+  ]
+}
+```
 
 ### 5. Structural layer
 
@@ -252,6 +283,67 @@ This helps the model continue collaborating rather than chaining tool calls blin
 
 ---
 
+## Structured Listening
+
+Listening should support decisions rather than produce vague feedback. The `listen` and `compare` tools should be question-oriented.
+
+### Question-based listening
+
+Every listen call should target a specific question:
+
+```
+listen(question="Did the bass widening reduce kick punch?")
+compare(candidates=["loop_a", "loop_b"], question="Which groove feels tighter?")
+```
+
+Open-ended listening ("how does it sound?") is appropriate early in a session but becomes less useful as the piece develops. As material matures, listening should get more specific.
+
+### Listening lenses
+
+When evaluating, the listener should focus on specific dimensions relevant to the question:
+
+- low-end separation
+- punch and transient clarity
+- groove stability and swing feel
+- variation salience (can you hear the difference?)
+- energy progression
+- frequency masking between voices
+
+### When to listen
+
+Listening should typically occur:
+
+- after edits, to check for regressions
+- during candidate comparison, to inform selection
+- during refinement, to diagnose specific issues
+
+It should **not** occur automatically every turn. The model should listen when it has a specific question, not as a habit.
+
+### Listener output
+
+Listener responses should be structured enough to act on:
+
+```json
+{
+  "comparison": "loop_a vs loop_b",
+  "observations": [
+    {
+      "lens": "punch",
+      "winner": "loop_a",
+      "confidence": "high",
+      "reason": "bass in loop_b masks kick transient"
+    }
+  ],
+  "uncertainties": [
+    "difference may shrink if bass width is reduced in loop_b"
+  ]
+}
+```
+
+The model should report listener findings to the human but never substitute them for human judgment. The listener is a diagnostic tool, not a taste arbiter.
+
+---
+
 ## Loop-Native Structure
 
 Song structure should not be reduced to traditional verse/chorus arrangement thinking.
@@ -363,3 +455,5 @@ Connected to project milestones:
 - [ai-capability-doctrine](../principles/ai-capability-doctrine.md) — where to draw the line between constraint and empowerment
 - [ai-interface-design-principles](../principles/ai-interface-design-principles.md) — how to build AI interfaces that respect model intelligence
 - [ai-collaboration-model](../principles/ai-collaboration-model.md) — what good collaboration looks like: phases, posture, roles
+- [aesthetic-direction](./aesthetic-direction.md) — how taste emerges from enriched collaboration state
+- [preservation-contracts](../rfcs/preservation-contracts.md) — runtime enforcement of approved material during AI edits
