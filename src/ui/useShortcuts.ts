@@ -24,12 +24,20 @@ export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: Sho
         e.preventDefault();
         onUndo();
       }
-      // Cmd+1 / Cmd+2 for view switching
+      // Cmd+1–4 for view switching
       if ((e.metaKey || e.ctrlKey) && e.key === '1' && !isEditable()) {
         e.preventDefault();
-        setView('control');
+        setView('surface');
       }
       if ((e.metaKey || e.ctrlKey) && e.key === '2' && !isEditable()) {
+        e.preventDefault();
+        setView('rack');
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '3' && !isEditable()) {
+        e.preventDefault();
+        setView('patch');
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === '4' && !isEditable()) {
         e.preventDefault();
         setView('tracker');
       }
@@ -38,10 +46,11 @@ export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: Sho
         e.preventDefault();
         setChatOpen((o: boolean) => !o);
       }
-      // Tab cycles views: control ↔ tracker
+      // Tab cycles views: surface → rack → patch → tracker → surface
       if (e.key === 'Tab' && !isEditable()) {
         e.preventDefault();
-        setView((v: ViewMode) => v === 'control' ? 'tracker' : 'control');
+        const order: ViewMode[] = ['surface', 'rack', 'patch', 'tracker'];
+        setView((v: ViewMode) => order[(order.indexOf(v) + 1) % order.length]);
       }
       // Space for play/stop
       if (e.key === ' ' && !e.repeat && !isEditable()) {

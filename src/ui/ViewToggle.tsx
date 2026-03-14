@@ -9,6 +9,13 @@ interface Props {
   cancelEditRef?: MutableRefObject<boolean>;
 }
 
+const tabs: { key: ViewMode; label: string }[] = [
+  { key: 'surface', label: 'Surface' },
+  { key: 'rack', label: 'Rack' },
+  { key: 'patch', label: 'Patch' },
+  { key: 'tracker', label: 'Tracker' },
+];
+
 export function ViewToggle({ view, onViewChange, cancelEditRef }: Props) {
   const handleMouseDown = () => {
     if (cancelEditRef) cancelEditRef.current = true;
@@ -22,28 +29,20 @@ export function ViewToggle({ view, onViewChange, cancelEditRef }: Props) {
 
   return (
     <div className="flex gap-0.5 bg-zinc-900 rounded p-0.5">
-      <button
-        onMouseDown={handleMouseDown}
-        onClick={() => handleClick('control')}
-        className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
-          view === 'control'
-            ? 'bg-amber-400/15 text-amber-400'
-            : 'text-zinc-500 hover:text-zinc-300'
-        }`}
-      >
-        Control
-      </button>
-      <button
-        onMouseDown={handleMouseDown}
-        onClick={() => handleClick('tracker')}
-        className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
-          view === 'tracker'
-            ? 'bg-amber-400/15 text-amber-400'
-            : 'text-zinc-500 hover:text-zinc-300'
-        }`}
-      >
-        Tracker
-      </button>
+      {tabs.map(({ key, label }) => (
+        <button
+          key={key}
+          onMouseDown={handleMouseDown}
+          onClick={() => handleClick(key)}
+          className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
+            view === key
+              ? 'bg-amber-400/15 text-amber-400'
+              : 'text-zinc-500 hover:text-zinc-300'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
