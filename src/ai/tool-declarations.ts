@@ -111,8 +111,9 @@ const sketchTool: FunctionDeclaration = {
 const listenTool: FunctionDeclaration = {
   name: 'listen',
   description:
-    'Capture a few bars of audio and evaluate how it sounds. ' +
-    'Captures what\'s currently playing. Changes you make in this turn aren\'t audible yet — listen in a follow-up turn to hear your edits.',
+    'Render audio offline and evaluate how it sounds. ' +
+    'Works whether or not the transport is playing. ' +
+    'Changes you make in this turn aren\'t audible yet — listen in a follow-up turn to hear your edits.',
   parameters: {
     type: Type.OBJECT,
     properties: {
@@ -122,12 +123,12 @@ const listenTool: FunctionDeclaration = {
       },
       bars: {
         type: Type.INTEGER,
-        description: 'Number of bars to capture (1-16, default 2).',
+        description: 'Number of bars to render (1-16, default 2).',
       },
       voiceIds: {
         type: Type.ARRAY,
         items: { type: Type.STRING },
-        description: 'Optional voice IDs to isolate (e.g. ["v0", "v1"]). Omit to hear all unmuted voices.',
+        description: 'Optional voice IDs to render in isolation (e.g. ["v0", "v1"]). Omit to hear all unmuted voices.',
       },
     },
     required: ['question'],
