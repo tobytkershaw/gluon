@@ -1,6 +1,6 @@
 // src/ui/TrackRow.tsx
 // Horizontal track row for the vertical track sidebar.
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Voice } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
 
@@ -13,13 +13,17 @@ interface Props {
   onToggleMute: () => void;
   onToggleSolo: () => void;
   onToggleAgency?: () => void;
+  onRename?: (name: string) => void;
 }
 
 export function TrackRow({
   voice, label, isActive, activityTimestamp,
-  onClick, onToggleMute, onToggleSolo, onToggleAgency,
+  onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!activityTimestamp) return;
@@ -28,6 +32,42 @@ export function TrackRow({
     const timer = setTimeout(() => setPulsing(false), 2000);
     return () => clearTimeout(timer);
   }, [activityTimestamp]);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  const commitRename = useCallback(() => {
+    const trimmed = editValue.trim();
+    if (trimmed && onRename) {
+      onRename(trimmed);
+    }
+    setEditing(false);
+  }, [editValue, onRename]);
+
+  const cancelRename = useCallback(() => {
+    setEditing(false);
+  }, []);
+
+  const handleDoubleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!onRename) return;
+    setEditValue(label);
+    setEditing(true);
+  }, [onRename, label]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRename();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRename();
+    }
+  }, [commitRename, cancelRename]);
 
   const thumbColor = computeThumbprintColor(voice);
 
@@ -56,11 +96,27 @@ export function TrackRow({
       />
 
       {/* Voice label */}
-      <span className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
-        voice.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
-      }`}>
-        {label}
-      </span>
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="text-[10px] font-mono uppercase tracking-wider flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={handleKeyDown}
+          onClick={(e) => e.stopPropagation()}
+          maxLength={20}
+        />
+      ) : (
+        <span
+          className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
+            voice.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
+          }`}
+          onDoubleClick={handleDoubleClick}
+        >
+          {label}
+        </span>
+      )}
 
       {/* Agency indicator */}
       {voice.agency === 'ON' && (

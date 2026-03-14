@@ -1,6 +1,6 @@
 // src/ui/VoiceSelector.tsx
 import type { Voice } from '../engine/types';
-import { VOICE_LABELS } from '../engine/voice-labels';
+import { getVoiceLabel } from '../engine/voice-labels';
 
 interface Props {
   voices: Voice[];
@@ -23,7 +23,7 @@ export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMu
       {voices.map((voice, i) => {
         const isActive = voice.id === activeVoiceId;
         const badge = AGENCY_BADGE[voice.agency] ?? AGENCY_BADGE.OFF;
-        const label = VOICE_LABELS[voice.id]?.toUpperCase() ?? `V${i}`;
+        const label = getVoiceLabel(voice).toUpperCase();
 
         if (compact) {
           return (

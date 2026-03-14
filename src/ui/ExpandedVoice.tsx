@@ -3,6 +3,7 @@
 import type { Session, Voice, Agency, SequencerViewKind, ModulationTarget } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { getVoiceLabel } from '../engine/voice-labels';
 import { TransportBar } from './TransportBar';
 import { ParameterSpace } from './ParameterSpace';
 import { Visualiser } from './Visualiser';
@@ -153,7 +154,7 @@ export function ExpandedVoice({
         onDoubleClick={() => onOpenDeepView('all')}
       >
         <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
-          {activeVoice.id}
+          {getVoiceLabel(activeVoice)}
         </span>
         <span className="text-[10px] text-zinc-500">
           {getModelName(activeVoice.model)}

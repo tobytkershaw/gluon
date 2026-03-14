@@ -5,6 +5,7 @@ import type { MusicalEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import type { ViewMode } from './view-types';
 import { getModelName } from '../audio/instrument-registry';
+import { getVoiceLabel } from '../engine/voice-labels';
 import { ViewToggle } from './ViewToggle';
 import { UndoButton } from './UndoButton';
 import { TransportBar } from './TransportBar';
@@ -60,7 +61,7 @@ export function TrackerView({
           {/* Voice header */}
           <div className="flex items-center gap-3">
             <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
-              {activeVoice.id}
+              {getVoiceLabel(activeVoice)}
             </span>
             <span className="text-[10px] text-zinc-500">
               {getModelName(activeVoice.model)}

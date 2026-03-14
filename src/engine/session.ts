@@ -161,6 +161,10 @@ export function toggleSolo(session: Session, voiceId: string): Session {
   return updateVoice(session, voiceId, { solo: !voice.solo });
 }
 
+export function renameVoice(session: Session, voiceId: string, name: string): Session {
+  return updateVoice(session, voiceId, { name });
+}
+
 export function setTransportBpm(session: Session, bpm: number): Session {
   return {
     ...session,
