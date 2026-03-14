@@ -72,6 +72,9 @@ export function prevalidateAction(
         if (action.over) return `Timed moves (over) are not supported for modulator controls`;
         const targetResult = validateModulatorTarget(voice, action.modulatorId, { param: action.param });
         if (!targetResult.valid) return targetResult.errors[0];
+        if (!arbitrator.canAIAct(voiceId, `modulator:${action.modulatorId}:${action.param}`)) {
+          return `Arbitration: human is currently interacting with ${action.modulatorId}:${action.param} on ${voiceId}`;
+        }
         return null;
       }
 
@@ -80,6 +83,9 @@ export function prevalidateAction(
         if (action.over) return `Timed moves (over) are not supported for processor controls`;
         const targetResult = validateProcessorTarget(voice, action.processorId, { param: action.param });
         if (!targetResult.valid) return targetResult.errors[0];
+        if (!arbitrator.canAIAct(voiceId, `processor:${action.processorId}:${action.param}`)) {
+          return `Arbitration: human is currently interacting with ${action.processorId}:${action.param} on ${voiceId}`;
+        }
         return null;
       }
 
@@ -121,6 +127,9 @@ export function prevalidateAction(
       if (action.modulatorId) {
         const targetResult = validateModulatorTarget(voice, action.modulatorId, { model: action.model });
         if (!targetResult.valid) return targetResult.errors[0];
+        if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+          return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+        }
         return null;
       }
 
@@ -128,12 +137,18 @@ export function prevalidateAction(
       if (action.processorId) {
         const targetResult = validateProcessorTarget(voice, action.processorId, { model: action.model });
         if (!targetResult.valid) return targetResult.errors[0];
+        if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+          return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+        }
         return null;
       }
 
       // Source path: resolve against Plaits engines
       const engine = getEngineById(action.model);
       if (!engine) return `Unknown model: ${action.model}`;
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -166,6 +181,9 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const chainResult = validateChainMutation(voice, { kind: 'add', type: action.moduleType });
       if (!chainResult.valid) return chainResult.errors[0];
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -175,6 +193,9 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const chainResult = validateChainMutation(voice, { kind: 'remove', processorId: action.processorId });
       if (!chainResult.valid) return chainResult.errors[0];
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -190,6 +211,9 @@ export function prevalidateAction(
       const simulatedVoice = { ...voice, processors: filteredProcessors };
       const addResult = validateChainMutation(simulatedVoice, { kind: 'add', type: action.newModuleType });
       if (!addResult.valid) return addResult.errors[0];
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -199,6 +223,9 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const modResult = validateModulatorMutation(voice, { kind: 'add', type: action.moduleType });
       if (!modResult.valid) return modResult.errors[0];
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -208,6 +235,9 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const modResult = validateModulatorMutation(voice, { kind: 'remove', modulatorId: action.modulatorId });
       if (!modResult.valid) return modResult.errors[0];
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -217,6 +247,9 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const routeResult = validateModulationTarget(voice, { modulatorId: action.modulatorId, target: action.target, depth: action.depth });
       if (!routeResult.valid) return routeResult.errors[0];
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 
@@ -226,6 +259,9 @@ export function prevalidateAction(
       if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
       const modulations = voice.modulations ?? [];
       if (!modulations.some(m => m.id === action.modulationId)) return `Modulation routing not found: ${action.modulationId}`;
+      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
+        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      }
       return null;
     }
 

@@ -58,6 +58,19 @@ export class Arbitrator {
     return true;
   }
 
+  /** Returns false if the human has any active touch on any parameter of this voice (within cooldown). */
+  canAIActOnVoice(voiceId: string): boolean {
+    if (this.activeVoice === voiceId) return false;
+    const now = Date.now();
+    const prefix = `${voiceId}:`;
+    for (const [k, record] of this.touches) {
+      if (k.startsWith(prefix) && now - record.timestamp <= this.cooldownMs) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   /** Legacy — returns all held source params. Used by scheduler. Do not expand usage. */
   getHeldParams(voiceId: string): Partial<SynthParamValues> {
     return this.getHeldSourceParams(voiceId);

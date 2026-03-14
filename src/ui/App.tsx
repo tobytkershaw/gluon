@@ -660,6 +660,8 @@ export default function App() {
 
   const handleProcessorParamChange = useCallback((processorId: string, param: string, value: number) => {
     ensureAudio();
+    const vid = sessionRef.current.activeVoiceId;
+    arbRef.current.humanTouched(vid, param, value, `processor:${processorId}`);
     setSession((s) => {
       const vid = s.activeVoiceId;
       const voice = getVoice(s, vid);
@@ -808,6 +810,8 @@ export default function App() {
 
   const handleModulatorParamChange = useCallback((modulatorId: string, param: string, value: number) => {
     ensureAudio();
+    const vid = sessionRef.current.activeVoiceId;
+    arbRef.current.humanTouched(vid, param, value, `modulator:${modulatorId}`);
     setSession((s) => {
       const vid = s.activeVoiceId;
       const voice = getVoice(s, vid);
