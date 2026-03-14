@@ -85,6 +85,8 @@ export interface VoiceSurface {
 
 export interface Voice {
   id: string;
+  /** Human-assigned display name. When absent, derived from the engine model. */
+  name?: string;
   engine: string;
   model: number;
   params: SynthParamValues;

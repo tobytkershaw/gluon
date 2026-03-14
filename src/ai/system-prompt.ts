@@ -1,7 +1,7 @@
 // src/ai/system-prompt.ts
 
 import type { Session } from '../engine/types';
-import { VOICE_LABELS } from '../engine/voice-labels';
+import { getVoiceLabel } from '../engine/voice-labels';
 import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
@@ -20,7 +20,7 @@ function generateParameterSection(): string {
 
 function generateVoiceSetup(session: Session): string {
   const voiceLines = session.voices.map(v => {
-    const label = VOICE_LABELS[v.id] ?? v.id;
+    const label = getVoiceLabel(v);
     const engine = getEngineByIndex(v.model);
     const engineLabel = engine?.label ?? `Model ${v.model}`;
     const engineId = engine?.id ?? '';

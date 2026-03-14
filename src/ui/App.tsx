@@ -9,6 +9,7 @@ import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
+  renameVoice,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -569,6 +570,10 @@ export default function App() {
     setSession((s) => toggleSolo(s, voiceId));
   }, [ensureAudio]);
 
+  const handleRenameVoice = useCallback((voiceId: string, name: string) => {
+    setSession((s) => renameVoice(s, voiceId, name));
+  }, []);
+
   const handleStepToggle = useCallback((stepIndex: number) => {
     ensureAudio();
     setSession((s) => toggleStepGate(s, s.activeVoiceId, stepIndex));
@@ -895,6 +900,7 @@ export default function App() {
       onSelectVoice={handleSelectVoice}
       onToggleMute={handleToggleMute}
       onToggleSolo={handleToggleSolo}
+      onRenameVoice={handleRenameVoice}
       onToggleAgency={(voiceId) => {
         const voice = session.voices.find(v => v.id === voiceId);
         if (voice) setSession(s => setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF'));

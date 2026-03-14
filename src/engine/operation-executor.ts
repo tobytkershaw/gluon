@@ -7,7 +7,7 @@ import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
-import { VOICE_LABELS } from './voice-labels';
+import { getVoiceLabel } from './voice-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 
@@ -263,7 +263,7 @@ export function executeOperations(
       case 'move': {
         const voiceId = action.voiceId ?? next.activeVoiceId;
         const voice = getVoice(next, voiceId);
-        const vLabel = VOICE_LABELS[voiceId]?.toUpperCase() ?? voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, voiceId)).toUpperCase();
 
         // Modulator path: write directly to modulator.params
         if (action.modulatorId) {
@@ -467,7 +467,7 @@ export function executeOperations(
           break;
         }
 
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `pattern: ${action.description}` });
         accepted.push(action);
         break;
@@ -500,7 +500,7 @@ export function executeOperations(
 
       case 'set_model': {
         const voice = getVoice(next, action.voiceId);
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
 
         // Modulator path: switch modulator mode
         if (action.modulatorId) {
@@ -664,7 +664,7 @@ export function executeOperations(
           undoStack: [...next.undoStack, snapshot],
         };
 
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `transform ${action.operation}: ${action.description}` });
         accepted.push(action);
         break;
@@ -685,7 +685,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { views: [...prevViews, newView] }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.viewKind} view` });
         accepted.push(action);
         break;
@@ -710,7 +710,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { views: filtered }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed view ${action.viewId}` });
         accepted.push(action);
         break;
@@ -736,7 +736,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { processors: [...prevProcessors, newProcessor] }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})` });
         accepted.push(action);
         break;
@@ -776,7 +776,7 @@ export function executeOperations(
             description: action.description,
           }],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}` });
         accepted.push(action);
         break;
@@ -825,7 +825,7 @@ export function executeOperations(
             description: action.description,
           }],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}` });
         accepted.push(action);
         break;
@@ -853,7 +853,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { modulators: [...prevModulators, newModulator] }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} modulator (${action.modulatorId})` });
         accepted.push(action);
         break;
@@ -878,7 +878,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { modulators: filteredModulators, modulations: filteredModulations }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed modulator ${action.modulatorId}` });
         accepted.push(action);
         break;
@@ -920,7 +920,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { modulations: newModulations }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         const targetStr = action.target.kind === 'source' ? `source:${action.target.param}` : `${action.target.processorId}:${action.target.param}`;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${existingIdx >= 0 ? 'updated' : 'connected'} modulation → ${targetStr} (${action.depth.toFixed(2)})` });
         accepted.push(action);
@@ -942,7 +942,7 @@ export function executeOperations(
           ...updateVoice(next, action.voiceId, { modulations: filteredModulations }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = VOICE_LABELS[action.voiceId]?.toUpperCase() ?? action.voiceId;
+        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `disconnected modulation ${action.modulationId}` });
         accepted.push(action);
         break;

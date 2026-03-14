@@ -85,22 +85,22 @@ describe('dynamic voice setup', () => {
     let session = createSession();
     session = setAgency(session, 'v1', 'OFF');
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('v1 (bass): Virtual Analog (melodic) — agency OFF');
+    expect(prompt).toContain('v1 (VA): Virtual Analog (melodic) — agency OFF');
   });
 
   it('reflects agency ON in prompt', () => {
     const session = createSession();
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('v0 (kick): Analog Bass Drum (percussion) — agency ON');
+    expect(prompt).toContain('v0 (Kick): Analog Bass Drum (percussion) — agency ON');
   });
 
   it('shows correct model name for each voice', () => {
     const session = createSession();
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('v0 (kick): Analog Bass Drum');
-    expect(prompt).toContain('v1 (bass): Virtual Analog');
-    expect(prompt).toContain('v2 (lead): FM');
-    expect(prompt).toContain('v3 (pad): Harmonic');
+    expect(prompt).toContain('v0 (Kick): Analog Bass Drum');
+    expect(prompt).toContain('v1 (VA): Virtual Analog');
+    expect(prompt).toContain('v2 (FM): FM');
+    expect(prompt).toContain('v3 (Harmonic): Harmonic');
   });
 
   it('mentions transform tool', () => {

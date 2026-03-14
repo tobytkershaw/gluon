@@ -17,6 +17,7 @@ interface Props {
   onToggleMute: (voiceId: string) => void;
   onToggleSolo: (voiceId: string) => void;
   onToggleAgency: (voiceId: string) => void;
+  onRenameVoice: (voiceId: string, name: string) => void;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -47,7 +48,7 @@ const CHAT_COLLAPSE_WIDTH = 1280;
 
 export function AppShell({
   voices, activeVoiceId, activityMap,
-  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency,
+  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency, onRenameVoice,
   messages, onSend, isThinking, isListening,
   apiConfigured, onApiKey, chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError,
@@ -122,6 +123,7 @@ export function AppShell({
         onToggleMute={onToggleMute}
         onToggleSolo={onToggleSolo}
         onToggleAgency={onToggleAgency}
+        onRenameVoice={onRenameVoice}
       />
     </div>
   );

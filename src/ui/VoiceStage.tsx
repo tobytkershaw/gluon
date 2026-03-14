@@ -1,6 +1,6 @@
 // src/ui/VoiceStage.tsx
 import type { Voice } from '../engine/types';
-import { VOICE_LABELS } from '../engine/voice-labels';
+import { getVoiceLabel } from '../engine/voice-labels';
 import { VoiceCard } from './VoiceCard';
 
 interface VoiceStageProps {
@@ -23,7 +23,7 @@ export function VoiceStage({
         <VoiceCard
           key={voice.id}
           voice={voice}
-          label={VOICE_LABELS[voice.id]?.toUpperCase() ?? `V${i}`}
+          label={getVoiceLabel(voice).toUpperCase()}
           isActive={voice.id === activeVoiceId}
           activityTimestamp={activityMap[voice.id] ?? null}
           onClick={() => onSelectVoice(voice.id)}

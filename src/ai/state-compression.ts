@@ -1,6 +1,7 @@
 // src/ai/state-compression.ts
 import type { Session, Voice } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
+import { getVoiceLabel } from '../engine/voice-labels';
 
 interface CompressedPattern {
   length: number;
@@ -35,6 +36,7 @@ interface CompressedModulation {
 
 interface CompressedVoice {
   id: string;
+  label: string;
   model: string;
   params: Record<string, number>;
   agency: string;
@@ -135,6 +137,7 @@ export function compressState(session: Session): CompressedState {
   const result: CompressedState = {
     voices: session.voices.map(voice => ({
       id: voice.id,
+      label: getVoiceLabel(voice),
       model: modelName(voice.model),
       params: {
         brightness: round2(voice.params.timbre),
