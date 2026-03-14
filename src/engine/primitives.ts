@@ -135,6 +135,9 @@ export function applySketch(
     voiceId,
     prevSteps,
     prevLength,
+    // Capture region events so undo can fully restore them (#209, #214)
+    prevEvents: voice.regions.length > 0 ? [...voice.regions[0].events] : undefined,
+    prevHiddenEvents: voice._hiddenEvents ? [...voice._hiddenEvents] : undefined,
     timestamp: Date.now(),
     description,
   };
@@ -245,9 +248,43 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
       }
     }
     const newLength = snapshot.prevLength ?? voice.pattern.length;
-    return updateVoice(session, snapshot.voiceId, {
+    const updates: Partial<import('./types').Voice> = {
       pattern: { steps: newSteps, length: newLength },
-    });
+    };
+
+    // Restore region events if they were captured (#209, #214)
+    if (snapshot.prevEvents && voice.regions.length > 0) {
+      const restoredRegion = {
+        ...voice.regions[0],
+        events: snapshot.prevEvents,
+        ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
+      };
+      const updatedVoice = reprojectVoicePattern({
+        ...voice,
+        regions: [restoredRegion, ...voice.regions.slice(1)],
+      });
+      updates.regions = updatedVoice.regions;
+      updates.pattern = updatedVoice.pattern;
+    } else if (voice.regions.length > 0) {
+      // Old snapshot without prevEvents: best-effort region sync from restored steps.
+      // Uses stepsToEvents (lossy for NoteEvents — same limitation as the original sketch).
+      const events = stepsToEvents(newSteps.slice(0, newLength), {
+        runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
+      });
+      const region = normalizeRegionEvents({
+        ...voice.regions[0],
+        events,
+        ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
+      });
+      updates.regions = [region, ...voice.regions.slice(1)];
+    }
+
+    // Restore hidden events if captured (#210)
+    if ('prevHiddenEvents' in snapshot) {
+      updates._hiddenEvents = snapshot.prevHiddenEvents;
+    }
+
+    return updateVoice(session, snapshot.voiceId, updates);
   }
 
   // ParamSnapshot
