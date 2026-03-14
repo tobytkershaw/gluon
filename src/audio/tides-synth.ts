@@ -69,6 +69,7 @@ export class TidesSynth implements TidesEngine {
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
   private currentMode = 1;  // Default: Looping
+  private currentPatch: TidesPatchParams | null = null;
 
   private constructor(ctx: AudioContext, wasmBinary: ArrayBuffer) {
     this.node = new AudioWorkletNode(ctx, 'tides-processor', {
@@ -102,6 +103,10 @@ export class TidesSynth implements TidesEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
+    this.setMode(this.currentMode);
+    if (this.currentPatch) {
+      this.setPatch(this.currentPatch);
+    }
   }
 
   private post(message: TidesProcessorCommand): void {
@@ -118,6 +123,7 @@ export class TidesSynth implements TidesEngine {
   }
 
   setPatch(params: TidesPatchParams): void {
+    this.currentPatch = { ...params };
     this.post({
       type: 'set-patch',
       frequency: params.frequency ?? 0.5,
