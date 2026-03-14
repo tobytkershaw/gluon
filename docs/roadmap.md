@@ -334,6 +334,7 @@ Documents that inform this roadmap, grouped by the phase they primarily serve.
 - `docs/design-references.md` — NI, Bitwig, Reason, VCV Rack references (PR #165)
 - `docs/principles/human-capability-parity.md` — anything AI can do, human can do (PR #165)
 - `docs/briefs/offline-listen.md` — offline audio rendering implementation brief
+- `docs/briefs/visual-language.md` — AI-generated visual language for the Surface view
 
 ### M6: Collaboration
 - `docs/ai/aesthetic-direction.md` — taste through enriched collaboration state
