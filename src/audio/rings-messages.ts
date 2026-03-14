@@ -34,6 +34,10 @@ export interface RingsStrumMessage {
   time: number;
 }
 
+export interface RingsDampMessage {
+  type: 'damp';
+}
+
 export interface RingsClearScheduledMessage {
   type: 'clear-scheduled';
 }
@@ -49,6 +53,7 @@ export type RingsProcessorCommand =
   | RingsPolyphonyMessage
   | RingsInternalExciterMessage
   | RingsStrumMessage
+  | RingsDampMessage
   | RingsClearScheduledMessage
   | RingsDestroyMessage;
 
