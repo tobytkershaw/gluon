@@ -9,6 +9,7 @@ import { ViewToggle } from './ViewToggle';
 import { UndoButton } from './UndoButton';
 import { TransportBar } from './TransportBar';
 import { Tracker } from './Tracker';
+import { TrackerCheatSheet } from './TrackerCheatSheet';
 
 interface Props {
   session: Session;
@@ -47,6 +48,7 @@ export function TrackerView({
       <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/50">
         <ViewToggle view={view} onViewChange={onViewChange} />
         <div className="flex-1" />
+        <TrackerCheatSheet />
         <UndoButton
           onClick={onUndo}
           disabled={session.undoStack.length === 0}
