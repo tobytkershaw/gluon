@@ -2,7 +2,7 @@
 // IndexedDB-backed multi-project storage.
 import type { Session } from './types';
 import { createSession } from './session';
-import { loadSession as loadLegacySession } from './persistence';
+import { loadSession as loadLegacySession, stripForPersistence, migrateVoice } from './persistence';
 
 export interface ProjectMeta {
   id: string;
@@ -48,19 +48,6 @@ function req<T>(request: IDBRequest<T>): Promise<T> {
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
-}
-
-// --- Serialization boundary ---
-
-/** Strip undo stack, recent actions, and playing state before saving. */
-function stripForPersistence(session: Session): Session {
-  return {
-    ...session,
-    undoStack: [],
-    recentHumanActions: [],
-    transport: { ...session.transport, playing: false },
-    voices: session.voices.map(v => ({ ...v })),
-  };
 }
 
 // --- Public API ---

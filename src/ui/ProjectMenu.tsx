@@ -13,7 +13,7 @@ interface Props {
   onDuplicate: () => void;
   onDelete: () => void;
   onExport: () => void;
-  onImport: (file: File) => void;
+  onImport: (file: File) => Promise<void>;
 }
 
 export function ProjectMenu({
@@ -23,6 +23,7 @@ export function ProjectMenu({
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(projectName);
+  const [importError, setImportError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -54,12 +55,17 @@ export function ProjectMenu({
     setEditing(false);
   };
 
-  const handleImportClick = () => fileRef.current?.click();
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportClick = () => { setImportError(null); fileRef.current?.click(); };
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      onImport(file);
-      setOpen(false);
+      try {
+        setImportError(null);
+        await onImport(file);
+        setOpen(false);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : 'Import failed');
+      }
     }
     // Reset so the same file can be re-imported
     e.target.value = '';
@@ -120,6 +126,9 @@ export function ProjectMenu({
             <MenuItem label="Export .gluon" onClick={() => { onExport(); setOpen(false); }} />
             <MenuItem label="Import .gluon" onClick={handleImportClick} />
             <input ref={fileRef} type="file" accept=".gluon,.json" className="hidden" onChange={handleFileChange} />
+            {importError && (
+              <div className="px-3 py-1.5 text-[10px] font-mono text-red-400/80">{importError}</div>
+            )}
             <div className="border-t border-zinc-800/60 my-1" />
             <MenuItem label="Delete project" onClick={() => { onDelete(); setOpen(false); }} danger />
           </div>

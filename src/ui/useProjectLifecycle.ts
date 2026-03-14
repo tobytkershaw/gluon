@@ -10,6 +10,7 @@ import {
   importProject as importProjectInDB, migrateLegacySession,
   type ProjectMeta,
 } from '../engine/project-store';
+import { migrateVoice } from '../engine/persistence';
 
 const ACTIVE_KEY = 'gluon-active-project';
 const AUTOSAVE_DELAY = 500;
@@ -264,10 +265,11 @@ export function useProjectLifecycle(
   };
 }
 
-/** Restore transient fields that aren't persisted. */
+/** Restore transient fields and run voice migration on load. */
 function restoreSession(session: Session): Session {
   return {
     ...session,
+    voices: session.voices.map(migrateVoice),
     undoStack: [],
     recentHumanActions: session.recentHumanActions ?? [],
   };

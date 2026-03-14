@@ -54,22 +54,26 @@ export function AppShell({
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
-  const [narrow, setNarrow] = useState(false);
+  const prevNarrowRef = useRef(false);
 
-  // Responsive: auto-collapse chat below threshold
+  // Responsive: auto-collapse chat when crossing below threshold.
+  // Only triggers the collapse on the transition from wide → narrow,
+  // not continuously — so the user can manually reopen below 1280px.
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setNarrow(entry.contentRect.width < CHAT_COLLAPSE_WIDTH);
+        const isNarrow = entry.contentRect.width < CHAT_COLLAPSE_WIDTH;
+        if (isNarrow && !prevNarrowRef.current && chatOpen) {
+          onChatToggle(); // auto-collapse once on transition
+        }
+        prevNarrowRef.current = isNarrow;
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
-
-  const effectiveChatOpen = narrow ? false : chatOpen;
+  }, [chatOpen, onChatToggle]);
 
   return (
     <div ref={shellRef} className="h-screen flex bg-zinc-950 text-zinc-100 relative">
@@ -81,7 +85,7 @@ export function AppShell({
         isListening={isListening}
         apiConfigured={apiConfigured}
         onApiKey={onApiKey}
-        open={effectiveChatOpen}
+        open={chatOpen}
         onToggle={onChatToggle}
       />
 

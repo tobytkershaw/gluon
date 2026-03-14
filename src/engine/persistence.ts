@@ -23,7 +23,7 @@ const defaultInverseOpts: InverseConversionOptions = {
 };
 
 /** Strip undo stack (contains closures) and recentHumanActions before saving. */
-function stripForPersistence(session: Session): Session {
+export function stripForPersistence(session: Session): Session {
   return {
     ...session,
     undoStack: [],
@@ -92,7 +92,7 @@ function hydrateRegionsFromPattern(voice: Voice): Region[] {
  * 3. Regions invalid but pattern exists → warn, hydrate from pattern
  * 4. Neither recoverable → fall back to empty default region
  */
-function migrateVoice(voice: Voice): Voice {
+export function migrateVoice(voice: Voice): Voice {
   let regions = voice.regions;
 
   if (!regions || !Array.isArray(regions) || regions.length === 0) {
