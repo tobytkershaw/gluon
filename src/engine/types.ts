@@ -110,6 +110,15 @@ export interface Voice {
   surface: VoiceSurface;
 }
 
+// --- Master channel ---
+
+export interface MasterChannel {
+  volume: number;  // 0.0–1.0 (linear gain), default 0.8
+  pan: number;     // -1.0 (left) to 1.0 (right), default 0.0
+}
+
+export const DEFAULT_MASTER: MasterChannel = { volume: 0.8, pan: 0.0 };
+
 export interface MusicalContext {
   key: string | null;
   scale: string | null;
@@ -222,7 +231,14 @@ export interface ModulationRoutingSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot;
+export interface MasterSnapshot {
+  kind: 'master';
+  prevMaster: MasterChannel;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -360,7 +376,13 @@ export interface AIDisconnectModulatorAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction;
+export interface AISetMasterAction {
+  type: 'set_master';
+  volume?: number;  // 0.0–1.0
+  pan?: number;     // -1.0 to 1.0
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction;
 
 // --- Session ---
 
@@ -376,6 +398,7 @@ export interface Session {
   voices: Voice[];
   activeVoiceId: string;
   transport: Transport;
+  master: MasterChannel;
   undoStack: UndoEntry[];
   context: MusicalContext;
   messages: ChatMessage[];
@@ -394,7 +417,8 @@ export type ActionDiff =
   | { kind: 'modulator-remove'; modulatorType: string }
   | { kind: 'modulation-connect'; modulatorId: string; target: string; depth: number }
   | { kind: 'modulation-disconnect'; target: string }
-  | { kind: 'transform'; operation: string; description: string };
+  | { kind: 'transform'; operation: string; description: string }
+  | { kind: 'master-change'; field: string; from: number; to: number };
 
 export interface ActionLogEntry {
   voiceId: string;

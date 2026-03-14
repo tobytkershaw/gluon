@@ -11,6 +11,7 @@ import {
   type ProjectMeta,
 } from '../engine/project-store';
 import { migrateVoice } from '../engine/persistence';
+import { DEFAULT_MASTER } from '../engine/types';
 
 const ACTIVE_KEY = 'gluon-active-project';
 const AUTOSAVE_DELAY = 500;
@@ -277,6 +278,7 @@ function restoreSession(session: Session): Session {
   return {
     ...session,
     voices: session.voices.map(migrateVoice),
+    master: session.master ?? { ...DEFAULT_MASTER },
     undoStack: session.undoStack ?? [],
     recentHumanActions: session.recentHumanActions ?? [],
   };

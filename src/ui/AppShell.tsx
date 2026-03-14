@@ -13,6 +13,7 @@ import { ProjectMenu } from './ProjectMenu';
 import { ViewToggle } from './ViewToggle';
 import { TransportStrip } from './TransportStrip';
 import { UndoButton } from './UndoButton';
+import { MasterStrip } from './MasterStrip';
 
 interface Props {
   // Track sidebar
@@ -65,6 +66,12 @@ interface Props {
   onUndo: () => void;
   /** Shared ref: when true on blur, in-progress inline edits discard instead of committing. */
   cancelEditRef?: MutableRefObject<boolean>;
+  // Master channel
+  masterVolume: number;
+  masterPan: number;
+  analyser: AnalyserNode | null;
+  onMasterVolumeChange: (v: number) => void;
+  onMasterPanChange: (p: number) => void;
   // Main content
   children: ReactNode;
 }
@@ -84,6 +91,7 @@ export function AppShell({
   view, onViewChange,
   undoStack, onUndo,
   cancelEditRef,
+  masterVolume, masterPan, analyser, onMasterVolumeChange, onMasterPanChange,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -233,8 +241,16 @@ export function AppShell({
             )}
           </div>
         </div>
-        {/* Content-column zone: empty for now */}
-        <div className="flex-1" />
+        {/* Content-column zone: master channel strip */}
+        <div className="flex-1 flex items-center justify-end">
+          <MasterStrip
+            volume={masterVolume}
+            pan={masterPan}
+            analyser={analyser}
+            onVolumeChange={onMasterVolumeChange}
+            onPanChange={onMasterPanChange}
+          />
+        </div>
         {/* Track-list-column zone: empty for now */}
       </div>
     </div>

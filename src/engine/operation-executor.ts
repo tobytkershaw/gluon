@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, ActionDiff } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, ActionDiff } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -266,6 +266,7 @@ export function prevalidateAction(
     }
 
     case 'set_transport':
+    case 'set_master':
     case 'say':
       return null;
   }
@@ -1002,6 +1003,35 @@ export function executeOperations(
           ? (disconnectedRoute.target.kind === 'source' ? `source:${disconnectedRoute.target.param}` : `${disconnectedRoute.target.processorId}:${disconnectedRoute.target.param}`)
           : action.modulationId;
         log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `disconnected modulation ${action.modulationId}`, diff: { kind: 'modulation-disconnect', target: disconnectTargetStr } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_master': {
+        const prevMaster = { ...next.master };
+        const newMaster = { ...prevMaster };
+        if (action.volume !== undefined) newMaster.volume = Math.max(0, Math.min(1, action.volume));
+        if (action.pan !== undefined) newMaster.pan = Math.max(-1, Math.min(1, action.pan));
+
+        const masterParts: string[] = [];
+        if (action.volume !== undefined && newMaster.volume !== prevMaster.volume) masterParts.push(`volume ${prevMaster.volume.toFixed(2)} → ${newMaster.volume.toFixed(2)}`);
+        if (action.pan !== undefined && newMaster.pan !== prevMaster.pan) masterParts.push(`pan ${prevMaster.pan.toFixed(2)} → ${newMaster.pan.toFixed(2)}`);
+
+        const masterSnapshot: MasterSnapshot = {
+          kind: 'master',
+          prevMaster,
+          timestamp: Date.now(),
+          description: `AI master: ${masterParts.join(', ') || 'no change'}`,
+        };
+        next = { ...next, master: newMaster, undoStack: [...next.undoStack, masterSnapshot] };
+
+        let masterDiff: ActionDiff | undefined;
+        if (action.volume !== undefined && newMaster.volume !== prevMaster.volume) {
+          masterDiff = { kind: 'master-change', field: 'volume', from: prevMaster.volume, to: newMaster.volume };
+        } else if (action.pan !== undefined && newMaster.pan !== prevMaster.pan) {
+          masterDiff = { kind: 'master-change', field: 'pan', from: prevMaster.pan, to: newMaster.pan };
+        }
+        log.push({ voiceId: '', voiceLabel: 'MASTER', description: masterSnapshot.description, diff: masterDiff });
         accepted.push(action);
         break;
       }

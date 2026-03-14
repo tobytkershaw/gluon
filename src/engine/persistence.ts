@@ -1,5 +1,6 @@
 // src/engine/persistence.ts
 import type { Session, Voice, ModulatorConfig, ModulationRouting } from './types';
+import { DEFAULT_MASTER } from './types';
 import type { Region } from './canonical-types';
 import { createSession } from './session';
 import { stepsToEvents } from './event-conversion';
@@ -173,6 +174,7 @@ export function loadSession(): Session | null {
     return {
       ...session,
       voices: migratedVoices,
+      master: session.master ?? { ...DEFAULT_MASTER },
       undoStack: session.undoStack ?? [],
       recentHumanActions: session.recentHumanActions ?? [],
     };
