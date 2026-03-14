@@ -8,7 +8,7 @@ import { createSession } from '../../src/engine/session';
 import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { AIAction, ProcessorConfig, ModulationRouting, Session } from '../../src/engine/types';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 
 const adapter = createPlaitsAdapter();
 
@@ -28,7 +28,7 @@ function sessionWithRings(): Session {
   };
   return {
     ...session,
-    voices: session.voices.map(v =>
+    tracks: session.tracks.map(v =>
       v.id === 'v0' ? { ...v, agency: 'ON' as const, processors: [proc] } : v,
     ),
   };
@@ -44,7 +44,7 @@ function sessionWithRingsAndRouting(): Session {
   };
   return {
     ...session,
-    voices: session.voices.map(v =>
+    tracks: session.tracks.map(v =>
       v.id === 'v0'
         ? {
             ...v,
@@ -62,7 +62,7 @@ describe('replace_processor', () => {
       const session = sessionWithRings();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-1',
@@ -75,7 +75,7 @@ describe('replace_processor', () => {
       const session = sessionWithRings();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'nonexistent',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-x',
@@ -88,7 +88,7 @@ describe('replace_processor', () => {
       const session = sessionWithRings();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'invalid',
         newProcessorId: 'invalid-replace-x',
@@ -101,11 +101,11 @@ describe('replace_processor', () => {
       const session = sessionWithRings();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
       };
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-x',
@@ -120,7 +120,7 @@ describe('replace_processor', () => {
       const session = sessionWithRings();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-1',
@@ -129,11 +129,11 @@ describe('replace_processor', () => {
       const report = executeOperations(session, [action], adapter, makeArbitrator());
       expect(report.accepted).toHaveLength(1);
 
-      const voice = getVoice(report.session, 'v0');
-      expect(voice.processors).toHaveLength(1);
-      expect(voice.processors![0].type).toBe('clouds');
-      expect(voice.processors![0].model).toBe(0);
-      expect(voice.processors![0].id).toBe('clouds-replace-1'); // uses pre-assigned ID
+      const track = getTrack(report.session, 'v0');
+      expect(track.processors).toHaveLength(1);
+      expect(track.processors![0].type).toBe('clouds');
+      expect(track.processors![0].model).toBe(0);
+      expect(track.processors![0].id).toBe('clouds-replace-1'); // uses pre-assigned ID
     });
 
     it('preserves chain position when multiple processors exist', () => {
@@ -145,33 +145,33 @@ describe('replace_processor', () => {
       };
       const s = {
         ...session,
-        voices: session.voices.map(v =>
+        tracks: session.tracks.map(v =>
           v.id === 'v0' ? { ...v, processors: [...(v.processors ?? []), proc2] } : v,
         ),
       };
 
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-2',
         description: 'swap first processor',
       };
       const report = executeOperations(s, [action], adapter, makeArbitrator());
-      const voice = getVoice(report.session, 'v0');
+      const track = getTrack(report.session, 'v0');
 
       // First processor replaced, second unchanged
-      expect(voice.processors).toHaveLength(2);
-      expect(voice.processors![0].type).toBe('clouds');
-      expect(voice.processors![1].id).toBe('clouds-test-1');
+      expect(track.processors).toHaveLength(2);
+      expect(track.processors![0].type).toBe('clouds');
+      expect(track.processors![1].id).toBe('clouds-test-1');
     });
 
     it('uses pre-assigned newProcessorId for same-turn composition', () => {
       const session = sessionWithRings();
       const replaceAction: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-composed-1',
@@ -180,7 +180,7 @@ describe('replace_processor', () => {
       // Follow-up action targets the new processor by its pre-assigned ID
       const moveAction: AIAction = {
         type: 'move',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'clouds-composed-1',
         param: 'position',
         target: { absolute: 0.8 },
@@ -189,41 +189,41 @@ describe('replace_processor', () => {
       const report = executeOperations(session, [replaceAction, moveAction], adapter, makeArbitrator());
       expect(report.accepted).toHaveLength(2);
 
-      const voice = getVoice(report.session, 'v0');
-      expect(voice.processors![0].id).toBe('clouds-composed-1');
-      expect(voice.processors![0].params.position).toBeCloseTo(0.8);
+      const track = getTrack(report.session, 'v0');
+      expect(track.processors![0].id).toBe('clouds-composed-1');
+      expect(track.processors![0].params.position).toBeCloseTo(0.8);
     });
 
     it('clears processor-targeted modulation routes when replacing a processor', () => {
       const session = sessionWithRingsAndRouting();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-3',
         description: 'swap Rings for Clouds',
       };
       const report = executeOperations(session, [action], adapter, makeArbitrator());
-      const voice = getVoice(report.session, 'v0');
+      const track = getTrack(report.session, 'v0');
 
-      expect(voice.processors?.[0].id).toBe('clouds-replace-3');
-      expect(voice.modulations ?? []).toHaveLength(0);
+      expect(track.processors?.[0].id).toBe('clouds-replace-3');
+      expect(track.modulations ?? []).toHaveLength(0);
     });
 
     it('clears processor-targeted modulation routes when removing a processor', () => {
       const session = sessionWithRingsAndRouting();
       const action: AIAction = {
         type: 'remove_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         description: 'remove Rings',
       };
       const report = executeOperations(session, [action], adapter, makeArbitrator());
-      const voice = getVoice(report.session, 'v0');
+      const track = getTrack(report.session, 'v0');
 
-      expect(voice.processors ?? []).toHaveLength(0);
-      expect(voice.modulations ?? []).toHaveLength(0);
+      expect(track.processors ?? []).toHaveLength(0);
+      expect(track.modulations ?? []).toHaveLength(0);
     });
   });
 
@@ -232,7 +232,7 @@ describe('replace_processor', () => {
       const session = sessionWithRings();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-1',
@@ -241,18 +241,18 @@ describe('replace_processor', () => {
       const report = executeOperations(session, [action], adapter, makeArbitrator());
       const undone = applyUndo(report.session);
 
-      const voice = getVoice(undone, 'v0');
-      expect(voice.processors).toHaveLength(1);
-      expect(voice.processors![0].type).toBe('rings');
-      expect(voice.processors![0].id).toBe('rings-test-1');
-      expect(voice.processors![0].params.structure).toBe(0.5);
+      const track = getTrack(undone, 'v0');
+      expect(track.processors).toHaveLength(1);
+      expect(track.processors![0].type).toBe('rings');
+      expect(track.processors![0].id).toBe('rings-test-1');
+      expect(track.processors![0].params.structure).toBe(0.5);
     });
 
     it('restores cleared processor-targeted modulation routes on undo', () => {
       const session = sessionWithRingsAndRouting();
       const action: AIAction = {
         type: 'replace_processor',
-        voiceId: 'v0',
+        trackId: 'v0',
         processorId: 'rings-test-1',
         newModuleType: 'clouds',
         newProcessorId: 'clouds-replace-4',
@@ -260,11 +260,11 @@ describe('replace_processor', () => {
       };
       const report = executeOperations(session, [action], adapter, makeArbitrator());
       const undone = applyUndo(report.session);
-      const voice = getVoice(undone, 'v0');
+      const track = getTrack(undone, 'v0');
 
-      expect(voice.processors?.[0].id).toBe('rings-test-1');
-      expect(voice.modulations ?? []).toHaveLength(1);
-      expect((voice.modulations ?? [])[0].target).toEqual({
+      expect(track.processors?.[0].id).toBe('rings-test-1');
+      expect(track.modulations ?? []).toHaveLength(1);
+      expect((track.modulations ?? [])[0].target).toEqual({
         kind: 'processor',
         processorId: 'rings-test-1',
         param: 'brightness',

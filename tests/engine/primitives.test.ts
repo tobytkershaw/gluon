@@ -3,55 +3,55 @@ import { describe, it, expect } from 'vitest';
 import {
   applyMove, applyMoveGroup, applySketch, applyUndo,
 } from '../../src/engine/primitives';
-import { createSession, updateVoiceParams } from '../../src/engine/session';
-import { getVoice } from '../../src/engine/types';
+import { createSession, updateTrackParams } from '../../src/engine/session';
+import { getTrack } from '../../src/engine/types';
 import type { PatternSnapshot, ActionGroupSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
 
 describe('Protocol Primitives (Phase 2)', () => {
   describe('applyMove', () => {
-    it('applies absolute move to active voice', () => {
+    it('applies absolute move to active track', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const result = applyMove(s, vid, 'timbre', { absolute: 0.8 });
-      expect(getVoice(result, vid).params.timbre).toBe(0.8);
+      expect(getTrack(result, vid).params.timbre).toBe(0.8);
       expect(result.undoStack.length).toBe(1);
       expect(result.undoStack[0].kind).toBe('param');
     });
 
     it('applies relative move', () => {
       let s = createSession();
-      const vid = s.activeVoiceId;
-      s = updateVoiceParams(s, vid, { timbre: 0.5 });
+      const vid = s.activeTrackId;
+      s = updateTrackParams(s, vid, { timbre: 0.5 });
       const result = applyMove(s, vid, 'timbre', { relative: 0.2 });
-      expect(getVoice(result, vid).params.timbre).toBeCloseTo(0.7);
+      expect(getTrack(result, vid).params.timbre).toBeCloseTo(0.7);
     });
 
     it('clamps values to 0-1', () => {
       let s = createSession();
-      const vid = s.activeVoiceId;
-      s = updateVoiceParams(s, vid, { timbre: 0.9 });
+      const vid = s.activeTrackId;
+      s = updateTrackParams(s, vid, { timbre: 0.9 });
       const result = applyMove(s, vid, 'timbre', { relative: 0.3 });
-      expect(getVoice(result, vid).params.timbre).toBe(1.0);
+      expect(getTrack(result, vid).params.timbre).toBe(1.0);
     });
   });
 
   describe('applyMoveGroup', () => {
     it('applies multiple moves as a single undo entry', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const result = applyMoveGroup(s, vid, [
         { param: 'timbre', target: { absolute: 0.8 } },
         { param: 'morph', target: { absolute: 0.3 } },
       ]);
-      expect(getVoice(result, vid).params.timbre).toBe(0.8);
-      expect(getVoice(result, vid).params.morph).toBe(0.3);
+      expect(getTrack(result, vid).params.timbre).toBe(0.8);
+      expect(getTrack(result, vid).params.morph).toBe(0.3);
       expect(result.undoStack.length).toBe(1);
     });
   });
 
   describe('applySketch', () => {
-    it('applies sketch pattern to voice and pushes PatternSnapshot', () => {
+    it('applies sketch pattern to track and pushes PatternSnapshot', () => {
       const s = createSession();
       const sketch: PatternSketch = {
         steps: [
@@ -61,11 +61,11 @@ describe('Protocol Primitives (Phase 2)', () => {
       };
       const result = applySketch(s, 'v0', 'kick', sketch);
 
-      const voice = getVoice(result, 'v0');
-      expect(voice.pattern.steps[0].gate).toBe(true);
-      expect(voice.pattern.steps[0].accent).toBe(true);
-      expect(voice.pattern.steps[4].gate).toBe(true);
-      expect(voice.pattern.steps[1].gate).toBe(false); // untouched
+      const track = getTrack(result, 'v0');
+      expect(track.pattern.steps[0].gate).toBe(true);
+      expect(track.pattern.steps[0].accent).toBe(true);
+      expect(track.pattern.steps[4].gate).toBe(true);
+      expect(track.pattern.steps[1].gate).toBe(false); // untouched
       expect(result.undoStack.length).toBe(1);
       expect(result.undoStack[0].kind).toBe('pattern');
     });
@@ -74,43 +74,43 @@ describe('Protocol Primitives (Phase 2)', () => {
   describe('applyUndo', () => {
     it('undoes a param snapshot', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const moved = applyMove(s, vid, 'timbre', { absolute: 0.8 });
       const undone = applyUndo(moved);
-      expect(getVoice(undone, vid).params.timbre).toBe(0.5);
+      expect(getTrack(undone, vid).params.timbre).toBe(0.5);
       expect(undone.undoStack.length).toBe(0);
     });
 
     it('undoes a pattern snapshot', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       // Simulate a pattern edit by pushing a PatternSnapshot
       const snapshot: PatternSnapshot = {
         kind: 'pattern',
-        voiceId: vid,
+        trackId: vid,
         prevSteps: [{ index: 0, step: { gate: false, accent: false, micro: 0 } }],
         timestamp: Date.now(),
         description: 'toggle step 0',
       };
       // Manually toggle step 0 gate on
-      const voice = getVoice(s, vid);
-      const newSteps = [...voice.pattern.steps];
+      const track = getTrack(s, vid);
+      const newSteps = [...track.pattern.steps];
       newSteps[0] = { ...newSteps[0], gate: true };
       const modified = {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? { ...v, pattern: { ...v.pattern, steps: newSteps } } : v),
+        tracks: s.tracks.map(v => v.id === vid ? { ...v, pattern: { ...v.pattern, steps: newSteps } } : v),
         undoStack: [...s.undoStack, snapshot],
       };
-      expect(getVoice(modified, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(modified, vid).pattern.steps[0].gate).toBe(true);
 
       const undone = applyUndo(modified);
-      expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(undone, vid).pattern.steps[0].gate).toBe(false);
       expect(undone.undoStack.length).toBe(0);
     });
 
     it('undoes an action group in one step', () => {
       const s = createSession();
-      // Apply moves to two different voices
+      // Apply moves to two different tracks
       let next = applyMove(s, 'v0', 'timbre', { absolute: 0.8 });
       next = applyMove(next, 'v1', 'morph', { absolute: 0.3 });
 
@@ -124,10 +124,10 @@ describe('Protocol Primitives (Phase 2)', () => {
       };
       const grouped = { ...next, undoStack: [group] };
 
-      // Single undo should revert both voices
+      // Single undo should revert both tracks
       const undone = applyUndo(grouped);
-      expect(getVoice(undone, 'v0').params.timbre).toBe(0.5);
-      expect(getVoice(undone, 'v1').params.morph).toBe(0.5);
+      expect(getTrack(undone, 'v0').params.timbre).toBe(0.5);
+      expect(getTrack(undone, 'v1').params.morph).toBe(0.5);
       expect(undone.undoStack.length).toBe(0);
     });
   });

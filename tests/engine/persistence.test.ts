@@ -4,7 +4,7 @@ import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_P
 import { createSession } from '../../src/engine/session';
 import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -57,7 +57,7 @@ describe('persistence', () => {
   it('returns null for invalid session shape', () => {
     store.set('gluon-session', JSON.stringify({
       version: 1,
-      session: { voices: 'not-an-array' },
+      session: { tracks: 'not-an-array' },
       savedAt: 1,
     }));
     expect(loadSession()).toBeNull();
@@ -85,7 +85,7 @@ describe('persistence', () => {
     const session = createSession();
     const modified = {
       ...session,
-      voices: session.voices.map((v, i) =>
+      tracks: session.tracks.map((v, i) =>
         i === 0
           ? {
               ...v,
@@ -107,7 +107,7 @@ describe('persistence', () => {
     const session = createSession();
     const modified = {
       ...session,
-      voices: session.voices.map((v, i) =>
+      tracks: session.tracks.map((v, i) =>
         i === 0
           ? {
               ...v,
@@ -129,7 +129,7 @@ describe('persistence', () => {
     const session = createSession();
     const modified = {
       ...session,
-      voices: session.voices.map((v, i) =>
+      tracks: session.tracks.map((v, i) =>
         i === 1
           ? {
               ...v,
@@ -151,7 +151,7 @@ describe('persistence', () => {
     const session = createSession();
     const modified = {
       ...session,
-      voices: session.voices.map((v, i) =>
+      tracks: session.tracks.map((v, i) =>
         i === 0 ? { ...v, pattern: createDefaultPattern(8) } : v,
       ),
     };
@@ -163,7 +163,7 @@ describe('persistence', () => {
     const session = createSession();
     const undoEntry = {
       kind: 'param' as const,
-      voiceId: 'v0',
+      trackId: 'v0',
       prevValues: { timbre: 0.5 },
       aiTargetValues: { timbre: 0.8 },
       timestamp: 1,
@@ -180,7 +180,7 @@ describe('persistence', () => {
     expect(loaded!.undoStack).toHaveLength(1);
     expect(loaded!.undoStack[0]).toMatchObject({
       kind: 'param',
-      voiceId: 'v0',
+      trackId: 'v0',
       prevValues: { timbre: 0.5 },
     });
   });
@@ -189,7 +189,7 @@ describe('persistence', () => {
     const session = createSession();
     const entries = Array.from({ length: MAX_PERSISTED_UNDO + 20 }, (_, i) => ({
       kind: 'param' as const,
-      voiceId: 'v0',
+      trackId: 'v0',
       prevValues: { timbre: i / 100 },
       aiTargetValues: { timbre: (i + 1) / 100 },
       timestamp: i,
@@ -211,7 +211,7 @@ describe('persistence', () => {
     const session = createSession();
     const undoEntry = {
       kind: 'param' as const,
-      voiceId: 'v0',
+      trackId: 'v0',
       prevValues: { timbre: 0.5, morph: 0.3 },
       aiTargetValues: { timbre: 0.8, morph: 0.6 },
       timestamp: 42,
@@ -256,23 +256,23 @@ describe('persistence', () => {
   it('loads v1 session (no regions) and hydrates regions from legacy steps', () => {
     // Simulate a v1 save: session with pattern but no regions
     const session = createSession();
-    const v1Voice = {
-      ...session.voices[0],
+    const v1Track = {
+      ...session.tracks[0],
       pattern: {
-        ...session.voices[0].pattern,
-        steps: session.voices[0].pattern.steps.map((s, j) =>
+        ...session.tracks[0].pattern,
+        steps: session.tracks[0].pattern.steps.map((s, j) =>
           j === 0 ? { ...s, gate: true } : j === 4 ? { ...s, gate: true, accent: true } : s,
         ),
       },
     };
     // Remove regions to simulate v1
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate legacy v1 data without regions
-    const v1VoiceNoRegions = { ...v1Voice } as any;
-    delete v1VoiceNoRegions.regions;
+    const v1TrackNoRegions = { ...v1Track } as any;
+    delete v1TrackNoRegions.regions;
 
     const v1Session = {
       ...session,
-      voices: [v1VoiceNoRegions, ...session.voices.slice(1)],
+      tracks: [v1TrackNoRegions, ...session.tracks.slice(1)],
     };
 
     store.set('gluon-session', JSON.stringify({
@@ -283,14 +283,14 @@ describe('persistence', () => {
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const voice = getVoice(loaded!, 'v0');
+    const track = getTrack(loaded!, 'v0');
     // Regions should be hydrated
-    expect(voice.regions).toBeDefined();
-    expect(voice.regions.length).toBeGreaterThan(0);
+    expect(track.regions).toBeDefined();
+    expect(track.regions.length).toBeGreaterThan(0);
     // Pattern should be re-projected from regions and match original gates
-    expect(voice.pattern.steps[0].gate).toBe(true);
-    expect(voice.pattern.steps[4].gate).toBe(true);
-    expect(voice.pattern.steps[4].accent).toBe(true);
+    expect(track.pattern.steps[0].gate).toBe(true);
+    expect(track.pattern.steps[4].gate).toBe(true);
+    expect(track.pattern.steps[4].accent).toBe(true);
   });
 
   it('loads v2 session: pattern is re-projected from regions, not from saved data', () => {
@@ -303,15 +303,15 @@ describe('persistence', () => {
 
     // Tamper with the saved pattern to prove it gets re-projected
     const raw = JSON.parse(store.get('gluon-session')!);
-    raw.session.voices[0].pattern.steps[0].gate = false; // corrupt pattern
+    raw.session.tracks[0].pattern.steps[0].gate = false; // corrupt pattern
     store.set('gluon-session', JSON.stringify(raw));
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const voice = getVoice(loaded!, 'v0');
+    const track = getTrack(loaded!, 'v0');
     // Pattern should be re-projected from regions (ignoring corrupted saved pattern)
-    expect(voice.pattern.steps[0].gate).toBe(true);
-    expect(voice.pattern.steps[4].gate).toBe(true);
+    expect(track.pattern.steps[0].gate).toBe(true);
+    expect(track.pattern.steps[4].gate).toBe(true);
   });
 
   it('round-trips v2 save: regions and projected pattern match', () => {
@@ -323,11 +323,11 @@ describe('persistence', () => {
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
 
-    const voice = getVoice(loaded!, 'v0');
-    expect(voice.regions[0].events.length).toBe(2);
-    expect(voice.pattern.steps[0].gate).toBe(true);
-    expect(voice.pattern.steps[8].gate).toBe(true);
-    expect(voice.pattern.steps[1].gate).toBe(false);
+    const track = getTrack(loaded!, 'v0');
+    expect(track.regions[0].events.length).toBe(2);
+    expect(track.pattern.steps[0].gate).toBe(true);
+    expect(track.pattern.steps[8].gate).toBe(true);
+    expect(track.pattern.steps[1].gate).toBe(false);
   });
 
   it('saves session when regions have events (non-default check)', () => {
@@ -339,22 +339,22 @@ describe('persistence', () => {
 
   it('recovery: regions missing but legacy pattern exists → hydrate from pattern', () => {
     const session = createSession();
-    const v1Voice = {
-      ...session.voices[0],
+    const v1Track = {
+      ...session.tracks[0],
       pattern: {
-        steps: session.voices[0].pattern.steps.map((s, j) =>
+        steps: session.tracks[0].pattern.steps.map((s, j) =>
           j === 2 ? { ...s, gate: true } : s,
         ),
         length: 16,
       },
     } as any; // eslint-disable-line @typescript-eslint/no-explicit-any -- simulate legacy v1 data
-    delete v1Voice.regions;
+    delete v1Track.regions;
 
     store.set('gluon-session', JSON.stringify({
       version: 1,
       session: {
         ...session,
-        voices: [v1Voice, ...session.voices.slice(1)],
+        tracks: [v1Track, ...session.tracks.slice(1)],
         undoStack: [],
         recentHumanActions: [],
       },
@@ -363,10 +363,10 @@ describe('persistence', () => {
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const voice = getVoice(loaded!, 'v0');
-    expect(voice.regions.length).toBe(1);
-    expect(voice.regions[0].events.some(e => e.kind === 'trigger' && Math.abs(e.at - 2) < 0.01)).toBe(true);
-    expect(voice.pattern.steps[2].gate).toBe(true);
+    const track = getTrack(loaded!, 'v0');
+    expect(track.regions.length).toBe(1);
+    expect(track.regions[0].events.some(e => e.kind === 'trigger' && Math.abs(e.at - 2) < 0.01)).toBe(true);
+    expect(track.pattern.steps[2].gate).toBe(true);
   });
 
   // --- Views and hidden events persistence ---
@@ -379,14 +379,14 @@ describe('persistence', () => {
       messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
     };
     // Verify default views are present
-    const v0 = getVoice(session, 'v0');
+    const v0 = getTrack(session, 'v0');
     expect(v0.views).toEqual([{ kind: 'step-grid', id: 'step-grid-v0' }]);
 
     saveSession(session);
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const loadedVoice = getVoice(loaded!, 'v0');
-    expect(loadedVoice.views).toEqual([{ kind: 'step-grid', id: 'step-grid-v0' }]);
+    const loadedTrack = getTrack(loaded!, 'v0');
+    expect(loadedTrack.views).toEqual([{ kind: 'step-grid', id: 'step-grid-v0' }]);
   });
 
   it('persists empty views array when user removed all views', () => {
@@ -394,7 +394,7 @@ describe('persistence', () => {
     session = {
       ...session,
       messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === 'v0' ? { ...v, views: [] } : v,
       ),
     };
@@ -402,8 +402,8 @@ describe('persistence', () => {
     saveSession(session);
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const loadedVoice = getVoice(loaded!, 'v0');
-    expect(loadedVoice.views).toEqual([]);
+    const loadedTrack = getTrack(loaded!, 'v0');
+    expect(loadedTrack.views).toEqual([]);
   });
 
   it('round-trips _hiddenEvents through save and load', () => {
@@ -413,7 +413,7 @@ describe('persistence', () => {
     const hiddenEvent: TriggerEvent = { kind: 'trigger', at: 12, velocity: 1, accent: false };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === 'v0' ? { ...v, _hiddenEvents: [hiddenEvent] } : v,
       ),
     };
@@ -421,24 +421,24 @@ describe('persistence', () => {
     saveSession(session);
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const loadedVoice = getVoice(loaded!, 'v0');
-    expect(loadedVoice._hiddenEvents).toBeDefined();
-    expect(loadedVoice._hiddenEvents).toHaveLength(1);
-    expect(loadedVoice._hiddenEvents![0]).toMatchObject({ kind: 'trigger', at: 12 });
+    const loadedTrack = getTrack(loaded!, 'v0');
+    expect(loadedTrack._hiddenEvents).toBeDefined();
+    expect(loadedTrack._hiddenEvents).toHaveLength(1);
+    expect(loadedTrack._hiddenEvents![0]).toMatchObject({ kind: 'trigger', at: 12 });
   });
 
   it('loads pre-views session and gets default views from migration', () => {
     // Simulate a session saved before views existed
     const session = createSession();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate pre-views data
-    const preViewsVoice = { ...session.voices[0] } as any;
-    delete preViewsVoice.views;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate pre-views save data
+    const preViewsTrack = { ...session.tracks[0] } as any;
+    delete preViewsTrack.views;
 
     store.set('gluon-session', JSON.stringify({
       version: 2,
       session: {
         ...session,
-        voices: [preViewsVoice, ...session.voices.slice(1)],
+        tracks: [preViewsTrack, ...session.tracks.slice(1)],
         undoStack: [],
         recentHumanActions: [],
       },
@@ -447,23 +447,23 @@ describe('persistence', () => {
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const voice = getVoice(loaded!, 'v0');
-    // Voice should load without error — views may be undefined but voice is usable
-    expect(voice.regions.length).toBeGreaterThan(0);
+    const track = getTrack(loaded!, 'v0');
+    // Track should load without error — views may be undefined but track is usable
+    expect(track.regions.length).toBeGreaterThan(0);
   });
 
   it('recovery: neither regions nor pattern → empty default region', () => {
     const session = createSession();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate broken legacy data
-    const brokenVoice = { ...session.voices[0] } as any;
-    delete brokenVoice.regions;
-    brokenVoice.pattern = { steps: [], length: 0 };
+    const brokenTrack = { ...session.tracks[0] } as any;
+    delete brokenTrack.regions;
+    brokenTrack.pattern = { steps: [], length: 0 };
 
     store.set('gluon-session', JSON.stringify({
       version: 1,
       session: {
         ...session,
-        voices: [brokenVoice, ...session.voices.slice(1)],
+        tracks: [brokenTrack, ...session.tracks.slice(1)],
         undoStack: [],
         recentHumanActions: [],
       },
@@ -472,8 +472,8 @@ describe('persistence', () => {
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
-    const voice = getVoice(loaded!, 'v0');
-    expect(voice.regions.length).toBe(1);
-    expect(voice.regions[0].events).toHaveLength(0);
+    const track = getTrack(loaded!, 'v0');
+    expect(track.regions.length).toBe(1);
+    expect(track.regions[0].events).toHaveLength(0);
   });
 });

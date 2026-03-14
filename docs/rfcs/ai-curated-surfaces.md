@@ -238,7 +238,7 @@ interface PinnedControl {
   controlId: string;
 }
 
-interface VoiceSurface {
+interface TrackSurface {
   semanticControls: SemanticControlDef[];   // empty for single-module voices
   pinnedControls: PinnedControl[];          // raw controls the human surfaced
   xyAxes: {
@@ -255,12 +255,12 @@ interface ThumbprintConfig {
 }
 ```
 
-The `VoiceSurface` lives on the `Voice` type:
+The `TrackSurface` lives on the `Voice` type:
 
 ```ts
 interface Voice {
   // ... existing fields ...
-  surface: VoiceSurface;
+  surface: TrackSurface;
 }
 ```
 
@@ -279,7 +279,7 @@ When a processor is added to the chain, the surface updates automatically: if a 
 Surface-related state falls into three categories with different persistence and undo behaviour. Keeping these boundaries clear prevents over-persisting visual noise or under-modelling meaningful UI collaboration.
 
 **Project state** — persisted and undoable:
-- Semantic surface definitions (`VoiceSurface.semanticControls`)
+- Semantic surface definitions (`TrackSurface.semanticControls`)
 - Pinned controls
 - XY axis bindings
 - Thumbprint configuration
@@ -290,7 +290,7 @@ Surface-related state falls into three categories with different persistence and
 - Hover/focus state
 - Deep view open/closed state
 
-The `VoiceSurface` type captures project state only. Render-only state is never serialised.
+The `TrackSurface` type captures project state only. Render-only state is never serialised.
 
 ---
 
@@ -305,7 +305,7 @@ The AI's UI toolkit is a new category of operations, subject to the same rules a
 
 interface SetSurfaceOp {
   type: 'set_surface';
-  voiceId: string;
+  trackId: string;
   semanticControls: SemanticControlDef[];
   xyAxes?: { x: string; y: string };
   description: string;         // "Set up Brightness/Space/Movement for Plaits→Rings→Clouds chain"
@@ -313,7 +313,7 @@ interface SetSurfaceOp {
 
 interface PinOp {
   type: 'pin';
-  voiceId: string;
+  trackId: string;
   moduleId: string;
   controlId: string;
   reason: string;              // "You've adjusted Clouds decay 4 times in this session"
@@ -321,7 +321,7 @@ interface PinOp {
 
 interface UnpinOp {
   type: 'unpin';
-  voiceId: string;
+  trackId: string;
   moduleId: string;
   controlId: string;
   reason: string;
@@ -329,7 +329,7 @@ interface UnpinOp {
 
 interface LabelAxesOp {
   type: 'label_axes';
-  voiceId: string;
+  trackId: string;
   x: string;                   // controlId or semanticControlId
   y: string;
   reason: string;
@@ -411,7 +411,7 @@ voice LEAD (agency: ON)
 - When the AI is about to propose a surface change
 - After a chain change invalidates the current surface
 
-The compressed format is generated from `VoiceSurface`, not hand-written. The same registry-driven generation principle from the canonical model RFC applies: the AI contract is produced from the data model, not maintained separately.
+The compressed format is generated from `TrackSurface`, not hand-written. The same registry-driven generation principle from the canonical model RFC applies: the AI contract is produced from the data model, not maintained separately.
 
 ---
 
@@ -426,7 +426,7 @@ interface SurfaceOpResult {
   op: AISurfaceOp;
   outcome: 'applied' | 'rejected';
   reason?: string;                // why it was rejected (validation failure)
-  resultingSurface?: VoiceSurface; // the surface state after application
+  resultingSurface?: TrackSurface; // the surface state after application
 }
 ```
 
@@ -590,8 +590,8 @@ Surface changes create undo entries, following the existing grouped-snapshot mod
 ```ts
 interface SurfaceSnapshot {
   kind: 'surface';
-  voiceId: string;
-  prevSurface: VoiceSurface;
+  trackId: string;
+  prevSurface: TrackSurface;
   timestamp: number;
   description: string;
 }
@@ -613,7 +613,7 @@ Canonical Model RFC          This RFC
 ControlSchema                SemanticControlDef (aggregates multiple ControlSchemas)
 SemanticRole                 Used as semantic control IDs where applicable
 ControlState                 Drives thumbprint colour, activity pulse
-Voice                        Extended with VoiceSurface
+Voice                        Extended with TrackSurface
 Processor                    Chain nodes in the chain strip
 InstrumentDef / EngineDef    Extended with ChainSurfaceTemplate (baseline surfaces)
 AIOperation                  Extended with AISurfaceOp
@@ -675,9 +675,9 @@ When an LFO is sweeping a parameter that contributes to a semantic control, the 
 
 Incremental. The existing UI continues to work at every step.
 
-### Step 1: Add VoiceSurface type and default surface
+### Step 1: Add TrackSurface type and default surface
 
-Add the `VoiceSurface`, `SemanticControlDef`, `PinnedControl`, and `ThumbprintConfig` types alongside the existing types. Every voice gets a default surface on creation: no semantic controls, no pins, default XY axes, static-color thumbprint. No visible UI changes — the existing parameter controls continue to render as they do today.
+Add the `TrackSurface`, `SemanticControlDef`, `PinnedControl`, and `ThumbprintConfig` types alongside the existing types. Every voice gets a default surface on creation: no semantic controls, no pins, default XY axes, static-color thumbprint. No visible UI changes — the existing parameter controls continue to render as they do today.
 
 ### Step 2: Implement compact cards (Layer 1)
 

@@ -1,10 +1,10 @@
 // src/engine/persistence.ts
-import type { Session, Voice, ModulatorConfig, ModulationRouting } from './types';
+import type { Session, Track, ModulatorConfig, ModulationRouting } from './types';
 import { DEFAULT_MASTER } from './types';
 import type { Region } from './canonical-types';
 import { createSession } from './session';
 import { stepsToEvents } from './event-conversion';
-import { reprojectVoicePattern } from './region-projection';
+import { reprojectTrackPattern } from './region-projection';
 import { createDefaultRegion } from './region-helpers';
 import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
@@ -32,7 +32,7 @@ export function stripForPersistence(session: Session): Session {
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
     transport: { ...session.transport, playing: false },
-    voices: session.voices.map(v => ({ ...v })),
+    tracks: session.tracks.map(v => ({ ...v })),
   };
 }
 
@@ -42,9 +42,9 @@ function isNonDefault(session: Session): boolean {
   if (session.messages.length > 0) return true;
   if (session.transport.bpm !== defaults.transport.bpm) return true;
   if (session.transport.swing !== defaults.transport.swing) return true;
-  for (let i = 0; i < session.voices.length; i++) {
-    const v = session.voices[i];
-    const d = defaults.voices[i];
+  for (let i = 0; i < session.tracks.length; i++) {
+    const v = session.tracks[i];
+    const d = defaults.tracks[i];
     if (!v || !d) continue;
     if (v.agency !== d.agency) return true;
     if (v.model !== d.model) return true;
@@ -67,9 +67,9 @@ export function isValidSession(obj: unknown): obj is Session {
   if (typeof obj !== 'object' || obj === null) return false;
   const s = obj as Record<string, unknown>;
   return (
-    Array.isArray(s.voices) &&
-    s.voices.length > 0 &&
-    typeof s.activeVoiceId === 'string' &&
+    Array.isArray(s.tracks) &&
+    s.tracks.length > 0 &&
+    typeof s.activeTrackId === 'string' &&
     typeof s.transport === 'object' &&
     s.transport !== null &&
     Array.isArray(s.messages)
@@ -77,45 +77,45 @@ export function isValidSession(obj: unknown): obj is Session {
 }
 
 /**
- * Hydrate regions for a voice that was saved without them (v1 legacy).
+ * Hydrate regions for a track that was saved without them (v1 legacy).
  * Converts step-grid pattern to canonical events in a default region.
  */
-function hydrateRegionsFromPattern(voice: Voice): Region[] {
-  const events = stepsToEvents(voice.pattern.steps);
-  const region = createDefaultRegion(voice.id, voice.pattern.length);
+function hydrateRegionsFromPattern(track: Track): Region[] {
+  const events = stepsToEvents(track.pattern.steps);
+  const region = createDefaultRegion(track.id, track.pattern.length);
   return [{ ...region, events }];
 }
 
 /**
- * Ensure voice has valid regions and re-project pattern from regions.
+ * Ensure track has valid regions and re-project pattern from regions.
  * Recovery hierarchy:
  * 1. Regions present and valid → use as-is, re-project pattern
  * 2. Regions missing but pattern exists → hydrate regions from pattern
  * 3. Regions invalid but pattern exists → warn, hydrate from pattern
  * 4. Neither recoverable → fall back to empty default region
  */
-export function migrateVoice(voice: Voice): Voice {
-  let regions = voice.regions;
+export function migrateTrack(track: Track): Track {
+  let regions = track.regions;
 
   if (!regions || !Array.isArray(regions) || regions.length === 0) {
     // No regions — hydrate from pattern if available
-    if (voice.pattern?.steps?.length > 0) {
-      regions = hydrateRegionsFromPattern(voice);
+    if (track.pattern?.steps?.length > 0) {
+      regions = hydrateRegionsFromPattern(track);
     } else {
-      regions = [createDefaultRegion(voice.id, 16)];
+      regions = [createDefaultRegion(track.id, 16)];
     }
   } else if (regions[0] && (!regions[0].events || !Array.isArray(regions[0].events))) {
     // Regions present but invalid
-    console.warn(`[persistence] Voice ${voice.id}: invalid regions, hydrating from pattern`);
-    if (voice.pattern?.steps?.length > 0) {
-      regions = hydrateRegionsFromPattern(voice);
+    console.warn(`[persistence] Track ${track.id}: invalid regions, hydrating from pattern`);
+    if (track.pattern?.steps?.length > 0) {
+      regions = hydrateRegionsFromPattern(track);
     } else {
-      regions = [createDefaultRegion(voice.id, 16)];
+      regions = [createDefaultRegion(track.id, 16)];
     }
   }
 
-  // Hydrate surface for voices without one (v2 → v3 migration)
-  let surfaced = { ...voice, regions };
+  // Hydrate surface for tracks without one (v2 → v3 migration)
+  let surfaced = { ...track, regions };
   if (!surfaced.surface) {
     surfaced = {
       ...surfaced,
@@ -140,7 +140,7 @@ export function migrateVoice(voice: Voice): Voice {
   surfaced = { ...surfaced, modulators: validModulators, modulations: validModulations };
 
   // Always re-project pattern from regions (pattern is derived, never trusted from save)
-  return reprojectVoicePattern(surfaced, defaultInverseOpts);
+  return reprojectTrackPattern(surfaced, defaultInverseOpts);
 }
 
 export function saveSession(session: Session): void {
@@ -167,13 +167,13 @@ export function loadSession(): Session | null {
     if (data.version > CURRENT_VERSION) return null;
     if (!isValidSession(data.session)) return null;
 
-    // Migrate all voices (handles both v1 and v2)
+    // Migrate all tracks (handles both v1 and v2)
     const session = data.session;
-    const migratedVoices = session.voices.map(migrateVoice);
+    const migratedTracks = session.tracks.map(migrateTrack);
 
     return {
       ...session,
-      voices: migratedVoices,
+      tracks: migratedTracks,
       master: session.master ?? { ...DEFAULT_MASTER },
       undoStack: session.undoStack ?? [],
       recentHumanActions: session.recentHumanActions ?? [],

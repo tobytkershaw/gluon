@@ -1,6 +1,6 @@
 // src/engine/sequencer-helpers.ts
 import type { Step, Pattern } from './sequencer-types';
-import type { Session, Voice, SynthParamValues } from './types';
+import type { Session, Track, SynthParamValues } from './types';
 import type { MusicalEvent, ParameterEvent } from './canonical-types';
 
 export function createDefaultStep(): Step {
@@ -15,21 +15,21 @@ export function createDefaultPattern(length = 16): Pattern {
   };
 }
 
-export function getAudibleVoices(session: Session): Voice[] {
-  const anySoloed = session.voices.some(v => v.solo);
+export function getAudibleTracks(session: Session): Track[] {
+  const anySoloed = session.tracks.some(v => v.solo);
   if (anySoloed) {
-    return session.voices.filter(v => v.solo);
+    return session.tracks.filter(v => v.solo);
   }
-  return session.voices.filter(v => !v.muted);
+  return session.tracks.filter(v => !v.muted);
 }
 
 export function resolveNoteParams(
-  voice: Voice,
+  track: Track,
   step: Step,
   heldParams: Partial<SynthParamValues>,
 ): SynthParamValues {
   return {
-    ...voice.params,
+    ...track.params,
     ...step.params,
     ...heldParams,
   } as SynthParamValues;
@@ -39,12 +39,12 @@ const AT_TOLERANCE = 0.001;
 
 /**
  * Collect ParameterEvents at the same position as `targetAt` (within tolerance),
- * and merge them with voice base params and held params.
+ * and merge them with track base params and held params.
  */
 export function resolveEventParams(
   events: MusicalEvent[],
   targetAt: number,
-  voiceParams: SynthParamValues,
+  trackParams: SynthParamValues,
   heldParams: Partial<SynthParamValues>,
   canonicalToRuntime?: (controlId: string) => string,
 ): SynthParamValues {
@@ -59,7 +59,7 @@ export function resolveEventParams(
   }
 
   return {
-    ...voiceParams,
+    ...trackParams,
     ...paramLocks,
     ...heldParams,
   } as SynthParamValues;

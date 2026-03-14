@@ -10,7 +10,7 @@ import {
   importProject as importProjectInDB, migrateLegacySession,
   type ProjectMeta,
 } from '../engine/project-store';
-import { migrateVoice } from '../engine/persistence';
+import { migrateTrack } from '../engine/persistence';
 import { DEFAULT_MASTER } from '../engine/types';
 
 const ACTIVE_KEY = 'gluon-active-project';
@@ -273,11 +273,11 @@ export function useProjectLifecycle(
   };
 }
 
-/** Restore transient fields and run voice migration on load. */
+/** Restore transient fields and run track migration on load. */
 function restoreSession(session: Session): Session {
   return {
     ...session,
-    voices: session.voices.map(migrateVoice),
+    tracks: session.tracks.map(migrateTrack),
     master: session.master ?? { ...DEFAULT_MASTER },
     undoStack: session.undoStack ?? [],
     recentHumanActions: session.recentHumanActions ?? [],

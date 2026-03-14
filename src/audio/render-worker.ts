@@ -1,11 +1,11 @@
 // src/audio/render-worker.ts
 // Web Worker that renders audio offline using Plaits/Rings/Clouds WASM.
-// Receives a RenderSpec via postMessage, renders all voices, mixes to mono,
+// Receives a RenderSpec via postMessage, renders all tracks, mixes to mono,
 // and posts back the PCM Float32Array as a transferable.
 
 import type {
   RenderSpec,
-  RenderVoiceSpec,
+  RenderTrackSpec,
   RenderProcessorSpec,
   RenderEvent,
   RenderSynthPatch,
@@ -151,11 +151,11 @@ function getHeapF32(wasm: { HEAPF32?: Float32Array; memory?: WebAssembly.Memory 
 }
 
 // ---------------------------------------------------------------------------
-// Per-voice rendering
+// Per-track rendering
 // ---------------------------------------------------------------------------
 
-async function renderVoice(
-  voice: RenderVoiceSpec,
+async function renderTrack(
+  track: RenderTrackSpec,
   sampleRate: number,
   bpm: number,
   totalSteps: number,
@@ -168,8 +168,8 @@ async function renderVoice(
   const pHandle = plaits._plaits_create(sampleRate);
   const pOutPtr = plaits._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
 
-  plaits._plaits_set_model(pHandle, voice.model);
-  const currentPatch: RenderSynthPatch = { ...voice.params };
+  plaits._plaits_set_model(pHandle, track.model);
+  const currentPatch: RenderSynthPatch = { ...track.params };
   plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
 
   // --- Load and init processors ---
@@ -182,7 +182,7 @@ async function renderVoice(
   }
   const procHandles: ProcessorHandle[] = [];
 
-  for (const proc of voice.processors) {
+  for (const proc of track.processors) {
     if (proc.type === 'rings') {
       const rings = await loadRingsModule();
       const rHandle = rings._rings_create();
@@ -205,7 +205,7 @@ async function renderVoice(
   }
 
   // --- Sort events and prepare ---
-  const sortedEvents = [...voice.events].sort((a, b) => a.beatTime - b.beatTime);
+  const sortedEvents = [...track.events].sort((a, b) => a.beatTime - b.beatTime);
   let eventIndex = 0;
 
   const output = new Float32Array(totalFrames);
@@ -310,24 +310,24 @@ function applyEvent(
 }
 
 // ---------------------------------------------------------------------------
-// Mix voices to mono
+// Mix tracks to mono
 // ---------------------------------------------------------------------------
 
-function mixVoices(voiceOutputs: Float32Array[]): Float32Array {
-  if (voiceOutputs.length === 0) return new Float32Array(0);
+function mixTracks(trackOutputs: Float32Array[]): Float32Array {
+  if (trackOutputs.length === 0) return new Float32Array(0);
 
-  const maxLen = Math.max(...voiceOutputs.map(v => v.length));
+  const maxLen = Math.max(...trackOutputs.map(v => v.length));
   const mix = new Float32Array(maxLen);
 
-  for (const voiceOut of voiceOutputs) {
-    for (let i = 0; i < voiceOut.length; i++) {
-      mix[i] += voiceOut[i];
+  for (const trackOut of trackOutputs) {
+    for (let i = 0; i < trackOut.length; i++) {
+      mix[i] += trackOut[i];
     }
   }
 
-  // Normalise to prevent clipping if multiple voices are loud
-  if (voiceOutputs.length > 1) {
-    const scale = 1 / Math.sqrt(voiceOutputs.length);
+  // Normalise to prevent clipping if multiple tracks are loud
+  if (trackOutputs.length > 1) {
+    const scale = 1 / Math.sqrt(trackOutputs.length);
     for (let i = 0; i < mix.length; i++) {
       mix[i] *= scale;
     }
@@ -347,11 +347,11 @@ self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
     const stepsPerBar = 16;
     const totalSteps = spec.bars * stepsPerBar;
 
-    const voiceOutputs = await Promise.all(
-      spec.voices.map(voice => renderVoice(voice, spec.sampleRate, spec.bpm, totalSteps)),
+    const trackOutputs = await Promise.all(
+      spec.tracks.map(track => renderTrack(track, spec.sampleRate, spec.bpm, totalSteps)),
     );
 
-    const pcm = mixVoices(voiceOutputs);
+    const pcm = mixTracks(trackOutputs);
 
     const response: RenderWorkerResponse = {
       type: 'done',

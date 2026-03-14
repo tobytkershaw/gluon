@@ -1,7 +1,7 @@
 // src/engine/region-projection.ts
 import type { Region } from './canonical-types';
 import type { Pattern } from './sequencer-types';
-import type { Voice } from './types';
+import type { Track } from './types';
 import { eventsToSteps, type InverseConversionOptions } from './event-conversion';
 
 /**
@@ -18,15 +18,15 @@ export function projectRegionToPattern(
 }
 
 /**
- * Convenience: re-project a voice's first region onto voice.pattern.
- * Returns a new Voice with updated pattern. No-op if voice has no regions.
+ * Convenience: re-project a track's first region onto track.pattern.
+ * Returns a new Track with updated pattern. No-op if track has no regions.
  */
-export function reprojectVoicePattern(
-  voice: Voice,
+export function reprojectTrackPattern(
+  track: Track,
   options?: InverseConversionOptions,
-): Voice {
-  if (voice.regions.length === 0) return voice;
-  const region = voice.regions[0];
+): Track {
+  if (track.regions.length === 0) return track;
+  const region = track.regions[0];
   const pattern = projectRegionToPattern(region, region.duration, options);
-  return { ...voice, pattern };
+  return { ...track, pattern };
 }

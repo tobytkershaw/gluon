@@ -1,11 +1,11 @@
 // src/ui/DeepView.tsx
 // Layer 3: read-only per-module inspector showing current values and provenance.
-import type { Voice } from '../engine/types';
+import type { Track } from '../engine/types';
 import { getEngineByIndex, getProcessorInstrument, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { getModelName } from '../audio/instrument-registry';
 
 interface DeepViewProps {
-  voice: Voice;
+  track: Track;
   focusedModuleId: string | null; // null = show all modules, 'source' = source only, processor ID = specific processor
   onClose: () => void;
 }
@@ -18,16 +18,16 @@ const PROVENANCE_STYLE: Record<Provenance, string> = {
   ai: 'text-teal-400',
 };
 
-function getSourceProvenance(voice: Voice, controlId: string): Provenance {
-  const entry = voice.controlProvenance?.[controlId];
+function getSourceProvenance(track: Track, controlId: string): Provenance {
+  const entry = track.controlProvenance?.[controlId];
   if (!entry) return 'default';
   return (entry.source as Provenance) ?? 'default';
 }
 
-export function DeepView({ voice, focusedModuleId, onClose }: DeepViewProps) {
+export function DeepView({ track, focusedModuleId, onClose }: DeepViewProps) {
   const showSource = focusedModuleId === null || focusedModuleId === 'source';
-  const processors = voice.processors ?? [];
-  const sourceEngine = getEngineByIndex(voice.model);
+  const processors = track.processors ?? [];
+  const sourceEngine = getEngineByIndex(track.model);
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-3 space-y-4">
@@ -37,7 +37,7 @@ export function DeepView({ voice, focusedModuleId, onClose }: DeepViewProps) {
           {focusedModuleId === null
             ? 'DEEP VIEW'
             : focusedModuleId === 'source'
-            ? `Plaits — ${getModelName(voice.model)}`
+            ? `Plaits — ${getModelName(track.model)}`
             : (() => {
                 const proc = processors.find(p => p.id === focusedModuleId);
                 if (!proc) return 'DEEP VIEW';
@@ -60,13 +60,13 @@ export function DeepView({ voice, focusedModuleId, onClose }: DeepViewProps) {
       {/* Source module */}
       {showSource && sourceEngine && (
         <ModuleBlock
-          label={`Plaits — ${getModelName(voice.model)}`}
+          label={`Plaits — ${getModelName(track.model)}`}
           accentColor="amber"
         >
           {sourceEngine.controls.map(control => {
             const runtimeParam = controlIdToRuntimeParam[control.id] ?? control.id;
-            const value = voice.params[runtimeParam] ?? control.range?.default ?? 0.5;
-            const provenance = getSourceProvenance(voice, control.id);
+            const value = track.params[runtimeParam] ?? control.range?.default ?? 0.5;
+            const provenance = getSourceProvenance(track, control.id);
             return (
               <ControlRow
                 key={control.id}

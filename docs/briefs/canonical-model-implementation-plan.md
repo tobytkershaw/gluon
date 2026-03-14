@@ -26,7 +26,7 @@ The backlog is issues #18–#22 plus housekeeping. The plan sequences these into
 
 9. **The full protocol migrates: parser, prompt, and types.** PR-5 migrates both `move` (param → controlId) and `sketch` (steps → events) in the parser, action types, and prompt action syntax. The AI emits the RFC shape; backward-compatible parsing accepts both legacy and canonical shapes during transition.
 
-10. **Human-write provenance is mapped in the engine layer.** `updateVoiceParams()` gains an optional `adapter?: SourceAdapter` parameter. When provided, it calls `adapter.mapRuntimeParamKey(paramKey)` for each changed bare runtime param key (e.g. `timbre`) to get the canonical controlId (e.g. `brightness`), then writes provenance internally. This is distinct from `ControlBinding.path` (a dotted path like `params.timbre`) which is used only by the executor's canonical→runtime resolution. The UI passes the adapter but never knows the mapping. When no adapter is provided (e.g. during early init), provenance is not tracked. This keeps adapter-specific knowledge out of the UI, consistent with decision 1.
+10. **Human-write provenance is mapped in the engine layer.** `updateTrackParams()` gains an optional `adapter?: SourceAdapter` parameter. When provided, it calls `adapter.mapRuntimeParamKey(paramKey)` for each changed bare runtime param key (e.g. `timbre`) to get the canonical controlId (e.g. `brightness`), then writes provenance internally. This is distinct from `ControlBinding.path` (a dotted path like `params.timbre`) which is used only by the executor's canonical→runtime resolution. The UI passes the adapter but never knows the mapping. When no adapter is provided (e.g. during early init), provenance is not tracked. This keeps adapter-specific knowledge out of the UI, consistent with decision 1.
 
 11. **One set of canonical types.** `src/engine/canonical-types.ts` is the single source of truth for canonical operation types (`MoveOp`, `SketchOp`, `AIOperation`, etc.). `src/engine/types.ts` re-exports or unions with legacy types for backward compatibility — it never redefines them.
 
@@ -156,7 +156,7 @@ This is the layer between AI action dispatch and existing primitives. It validat
   - `session`: the mutated session
   - `accepted`: operations that were applied
   - `rejected`: operations that were rejected, each with a reason string
-  - `log`: `ActionLogEntry[]` with voiceId, voiceLabel, description (including resolved before/after values)
+  - `log`: `ActionLogEntry[]` with trackId, trackLabel, description (including resolved before/after values)
 
   This gives the UI everything it needs for action logs and message synthesis without re-implementing executor logic.
 
@@ -168,16 +168,16 @@ Provenance is keyed by **canonical controlId** (e.g. `brightness`, `pitch`), not
 
 This means `Voice.params` (runtime: `{ timbre: 0.3 }`) and `Voice.controlProvenance` (canonical: `{ brightness: { value: 0.3, source: 'ai' } }`) use **different key namespaces intentionally**. The runtime params drive the audio engine; the provenance drives undo and source attribution. The adapter bridges the two namespaces. There is no mixing.
 
-**Provenance does NOT drive arbitration.** Arbitration remains its own runtime-param-keyed cooldown system (`Arbitrator` class). The executor passes the existing `Arbitrator` as a dependency and calls `canAIAct(voiceId, runtimeParam)` using the resolved runtime param name. A future PR may unify arbitration with provenance, but this plan keeps them separate.
+**Provenance does NOT drive arbitration.** Arbitration remains its own runtime-param-keyed cooldown system (`Arbitrator` class). The executor passes the existing `Arbitrator` as a dependency and calls `canAIAct(trackId, runtimeParam)` using the resolved runtime param name. A future PR may unify arbitration with provenance, but this plan keeps them separate.
 
 ### Human-write provenance
 
-`updateVoiceParams()` in `session.ts` gains an optional `adapter?: SourceAdapter` parameter. When provided, it calls `adapter.mapRuntimeParamKey(paramKey)` for each changed param to get the canonical controlId, then writes provenance as `source: 'human'`. The UI passes the adapter but never knows the mapping:
+`updateTrackParams()` in `session.ts` gains an optional `adapter?: SourceAdapter` parameter. When provided, it calls `adapter.mapRuntimeParamKey(paramKey)` for each changed param to get the canonical controlId, then writes provenance as `source: 'human'`. The UI passes the adapter but never knows the mapping:
 
 ```ts
-export function updateVoiceParams(
+export function updateTrackParams(
   session: Session,
-  voiceId: string,
+  trackId: string,
   params: Partial<SynthParamValues>,
   trackAsHuman = false,
   adapter?: SourceAdapter,  // NEW: optional, enables provenance tracking
@@ -190,7 +190,7 @@ App.tsx handlers pass the adapter:
 
 ```ts
 // In handleParamChange:
-next = updateVoiceParams(next, vid, { timbre, morph }, true, adapterRef.current);
+next = updateTrackParams(next, vid, { timbre, morph }, true, adapterRef.current);
 ```
 
 This keeps adapter-specific knowledge in the engine layer, consistent with decision 1 (no UI changes for a second adapter).
@@ -216,11 +216,11 @@ This keeps adapter-specific knowledge in the engine layer, consistent with decis
 
 **Modified files:**
 - `src/engine/types.ts` — Add `controlProvenance?: ControlState` to `Voice`. Add `prevProvenance?: Partial<ControlState>` to `ParamSnapshot`. Both additive-only.
-- `src/engine/session.ts` — `updateVoiceParams()` gains optional `adapter` parameter for provenance tracking. `createVoice()` initialises `controlProvenance` with all controls as `source: 'default'` using canonical IDs from the registry.
+- `src/engine/session.ts` — `updateTrackParams()` gains optional `adapter` parameter for provenance tracking. `createVoice()` initialises `controlProvenance` with all controls as `source: 'default'` using canonical IDs from the registry.
 - `src/engine/primitives.ts` — `applyMove`/`applyMoveGroup` gain optional `provenance` parameter (backward compatible). `revertSnapshot` checks for `prevProvenance` and restores it when present.
 - `src/ui/App.tsx` — Two changes:
   1. `dispatchAIActions` is simplified: creates adapter, calls `executeOperations()`, reads `ExecutionReport` for log entries and message synthesis. The inline agency checks, arbitration, move grouping, and snapshot collapsing are removed (executor handles all of it). Net simplification.
-  2. `handleParamChange`, `handleNoteChange`, `handleHarmonicsChange` pass the adapter to `updateVoiceParams()` to enable provenance tracking. The UI never sees canonical control IDs — the adapter handles the mapping internally.
+  2. `handleParamChange`, `handleNoteChange`, `handleHarmonicsChange` pass the adapter to `updateTrackParams()` to enable provenance tracking. The UI never sees canonical control IDs — the adapter handles the mapping internally.
 
 **Conflict risk:** Highest of all PRs — touches `types.ts`, `primitives.ts`, `session.ts`, `App.tsx`. The `App.tsx` change is large but is a net simplification. Time for Phase 3 gap.
 
@@ -284,7 +284,7 @@ This is where the full AI-facing protocol shifts to the canonical shape. Both `m
 
 - `src/ai/system-prompt.ts` — Update action syntax examples to teach canonical shapes:
   - `move`: `{ "type": "move", "controlId": "brightness", "target": { "absolute": 0.7 } }` (replaces `param: "timbre"`)
-  - `sketch`: `{ "type": "sketch", "voiceId": "v0", "description": "...", "mode": "replace", "events": [...] }` (replaces `pattern.steps`)
+  - `sketch`: `{ "type": "sketch", "trackId": "v0", "description": "...", "mode": "replace", "events": [...] }` (replaces `pattern.steps`)
   - Include `MusicalEvent` examples: `{ "kind": "trigger", "at": 0, "velocity": 1.0, "accent": true }`, `{ "kind": "note", "at": 0, "pitch": 60, "velocity": 0.8, "duration": 0.25 }`
   - Parameter section uses semantic names: "brightness (0.0–1.0)" instead of "timbre (0.0–1.0)"
 
@@ -386,9 +386,9 @@ Phase 4 — After PR-5 merge:
 
 2. **Decision 9 (new):** Full protocol migration in PR-5. Parser, prompt action syntax, and action types all migrate together. Both `move` (param → controlId) and `sketch` (steps → events) are migrated. Backward-compatible parsing accepts both shapes.
 
-3. **Decision 10 (new in v4, revised in v5):** Human-write provenance mapped in engine layer via optional adapter parameter on `updateVoiceParams()`.
+3. **Decision 10 (new in v4, revised in v5):** Human-write provenance mapped in engine layer via optional adapter parameter on `updateTrackParams()`.
 
-4. **PR-4 revised:** Provenance tracking via adapter in `updateVoiceParams()`. Clarified that arbitration is NOT derived from provenance.
+4. **PR-4 revised:** Provenance tracking via adapter in `updateTrackParams()`. Clarified that arbitration is NOT derived from provenance.
 
 5. **PR-5 revised:** Now includes parser migration (both move and sketch), action type additions to `types.ts`, and prompt action syntax update. PR-7 dependency changed from PR-3 to PR-5.
 
@@ -398,7 +398,7 @@ Phase 4 — After PR-5 merge:
 
 1. **Decision 2 rewritten:** Executor uses per-action validation, not batch-atomic. Invalid actions are rejected individually; valid actions proceed. This matches current behaviour and is better UX. The headline and PR-4 description are now consistent.
 
-2. **Decision 10 rewritten:** Human-write provenance mapping moved from UI (App.tsx) to engine layer. `updateVoiceParams()` gains optional `adapter?: SourceAdapter` parameter. The UI passes the adapter but never sees canonical control IDs. This is consistent with decision 1 (no UI changes for a second adapter).
+2. **Decision 10 rewritten:** Human-write provenance mapping moved from UI (App.tsx) to engine layer. `updateTrackParams()` gains optional `adapter?: SourceAdapter` parameter. The UI passes the adapter but never sees canonical control IDs. This is consistent with decision 1 (no UI changes for a second adapter).
 
 3. **Decision 11 (new):** One set of canonical types. `canonical-types.ts` is the single source. `types.ts` re-exports or aliases — never redefines. PR-5's type additions reference `canonical-types.ts` instead of creating parallel definitions.
 

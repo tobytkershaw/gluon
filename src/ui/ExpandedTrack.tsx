@@ -1,9 +1,9 @@
-// src/ui/ExpandedVoice.tsx
-// Layer 2: expanded voice layout with module-grouped controls.
-import type { Session, Voice, Agency, SequencerViewKind, ModulationTarget } from '../engine/types';
+// src/ui/ExpandedTrack.tsx
+// Layer 2: expanded track layout with module-grouped controls.
+import type { Session, Track, Agency, SequencerViewKind, ModulationTarget } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
-import { getVoiceLabel } from '../engine/voice-labels';
+import { getTrackLabel } from '../engine/track-labels';
 import { ParameterSpace } from './ParameterSpace';
 import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
@@ -12,9 +12,9 @@ import { ChainStrip } from './ChainStrip';
 import { ControlSection } from './ControlSection';
 import { DeepView } from './DeepView';
 
-interface ExpandedVoiceProps {
+interface ExpandedTrackProps {
   session: Session;
-  activeVoice: Voice;
+  activeTrack: Track;
   // Transport (position only — play/bpm/swing/record moved to global top bar)
   playing: boolean;
   globalStep: number;
@@ -62,13 +62,13 @@ interface ExpandedVoiceProps {
 }
 
 /** Build source controls from instrument registry */
-function getSourceControls(voice: Voice) {
-  const engine = getEngineByIndex(voice.model);
+function getSourceControls(track: Track) {
+  const engine = getEngineByIndex(track.model);
   if (!engine) return [];
   return engine.controls.map(c => ({
     id: c.id,
     name: c.name,
-    value: voice.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
+    value: track.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
   }));
 }
 
@@ -99,17 +99,17 @@ function getModulatorControls(mod: { type: string; model: number; params: Record
 }
 
 /** Human-readable label for a modulation target */
-function formatRoutingTarget(target: ModulationTarget, voice: Voice): string {
+function formatRoutingTarget(target: ModulationTarget, track: Track): string {
   if (target.kind === 'source') {
     return `Source / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
   }
-  const proc = (voice.processors ?? []).find(p => p.id === target.processorId);
+  const proc = (track.processors ?? []).find(p => p.id === target.processorId);
   const procLabel = proc ? getProcessorInstrument(proc.type)?.label ?? proc.type : target.processorId;
   return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
 }
 
-export function ExpandedVoice({
-  activeVoice,
+export function ExpandedTrack({
+  activeTrack,
   playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
@@ -124,12 +124,12 @@ export function ExpandedVoice({
   onPatternLength, onPageChange, onClearPattern,
   deepViewModuleId, onOpenDeepView,
   analyser,
-}: ExpandedVoiceProps) {
-  const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
-  const processors = activeVoice.processors ?? [];
-  const modulators = activeVoice.modulators ?? [];
-  const modulations = activeVoice.modulations ?? [];
-  const sourceLabel = `Plaits (${getModelName(activeVoice.model)})`;
+}: ExpandedTrackProps) {
+  const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
+  const processors = activeTrack.processors ?? [];
+  const modulators = activeTrack.modulators ?? [];
+  const modulations = activeTrack.modulations ?? [];
+  const sourceLabel = `Plaits (${getModelName(activeTrack.model)})`;
 
   // Build source engine list for mode selector
   const sourceEngines = Array.from({ length: 16 }, (_, i) => {
@@ -139,33 +139,33 @@ export function ExpandedVoice({
 
   return (
     <div className="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-y-auto">
-      {/* Voice header: label, engine, agency toggle */}
+      {/* Track header: label, engine, agency toggle */}
       <div
         className="flex items-center gap-3"
         onDoubleClick={() => onOpenDeepView('all')}
       >
         <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
-          {getVoiceLabel(activeVoice)}
+          {getTrackLabel(activeTrack)}
         </span>
         <span className="text-[10px] text-zinc-500">
-          {getModelName(activeVoice.model)}
+          {getModelName(activeTrack.model)}
         </span>
         <button
-          onClick={() => onAgencyChange(activeVoice.agency === 'OFF' ? 'ON' : 'OFF')}
+          onClick={() => onAgencyChange(activeTrack.agency === 'OFF' ? 'ON' : 'OFF')}
           className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
-            activeVoice.agency === 'ON'
+            activeTrack.agency === 'ON'
               ? 'bg-teal-400/20 text-teal-400'
               : 'bg-zinc-800 text-zinc-500'
           }`}
         >
-          {activeVoice.agency === 'ON' ? 'AI ON' : 'AI OFF'}
+          {activeTrack.agency === 'ON' ? 'AI ON' : 'AI OFF'}
         </button>
       </div>
 
       {/* Chain strip (if processors or modulators exist) */}
       {(processors.length > 0 || modulators.length > 0) && (
         <ChainStrip
-          voice={activeVoice}
+          track={activeTrack}
           selectedProcessorId={selectedProcessorId}
           selectedModulatorId={selectedModulatorId}
           onSelectProcessor={onSelectProcessor}
@@ -177,7 +177,7 @@ export function ExpandedVoice({
       {/* Deep view or control area */}
       {deepViewModuleId !== null ? (
         <DeepView
-          voice={activeVoice}
+          track={activeTrack}
           focusedModuleId={deepViewModuleId === 'all' ? null : deepViewModuleId}
           onClose={() => onOpenDeepView(null)}
         />
@@ -187,13 +187,13 @@ export function ExpandedVoice({
           <ControlSection
             label={sourceLabel}
             accentColor="amber"
-            controls={getSourceControls(activeVoice)}
+            controls={getSourceControls(activeTrack)}
             onParamChange={(controlId, value) => {
               const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
               if (runtimeParam === 'timbre') {
-                onParamChange(value, activeVoice.params.morph);
+                onParamChange(value, activeTrack.params.morph);
               } else if (runtimeParam === 'morph') {
-                onParamChange(activeVoice.params.timbre, value);
+                onParamChange(activeTrack.params.timbre, value);
               } else if (runtimeParam === 'note') {
                 onNoteChange(value);
               } else if (runtimeParam === 'harmonics') {
@@ -203,7 +203,7 @@ export function ExpandedVoice({
             onInteractionStart={onInteractionStart}
             onInteractionEnd={onInteractionEnd}
             engines={sourceEngines}
-            currentModel={activeVoice.model}
+            currentModel={activeTrack.model}
             onModelChange={onModelChange}
           />
 
@@ -265,7 +265,7 @@ export function ExpandedVoice({
                         key={r.id}
                         className="text-[9px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
                       >
-                        → {formatRoutingTarget(r.target, activeVoice)} ({r.depth > 0 ? '+' : ''}{r.depth.toFixed(2)})
+                        → {formatRoutingTarget(r.target, activeTrack)} ({r.depth > 0 ? '+' : ''}{r.depth.toFixed(2)})
                       </span>
                     ))}
                   </div>
@@ -277,8 +277,8 @@ export function ExpandedVoice({
           {/* XY pad */}
           <div className="relative flex-1 min-h-[200px]">
             <ParameterSpace
-              timbre={activeVoice.params.timbre}
-              morph={activeVoice.params.morph}
+              timbre={activeTrack.params.timbre}
+              morph={activeTrack.params.morph}
               onChange={onParamChange}
               onInteractionStart={onInteractionStart}
               onInteractionEnd={onInteractionEnd}
@@ -287,12 +287,12 @@ export function ExpandedVoice({
         </>
       )}
 
-      {(activeVoice.views ?? []).map((viewConfig) => (
+      {(activeTrack.views ?? []).map((viewConfig) => (
         <SequencerViewSlot
           key={viewConfig.id}
           config={viewConfig}
           onRemove={onRemoveView ?? (() => {})}
-          pattern={activeVoice.pattern}
+          pattern={activeTrack.pattern}
           currentStep={currentStep}
           playing={playing}
           stepPage={stepPage}
@@ -322,8 +322,8 @@ export function ExpandedVoice({
           <Visualiser analyser={analyser} />
         </div>
         <PitchControl
-          note={activeVoice.params.note}
-          harmonics={activeVoice.params.harmonics}
+          note={activeTrack.params.note}
+          harmonics={activeTrack.params.harmonics}
           onNoteChange={onNoteChange}
           onHarmonicsChange={onHarmonicsChange}
         />

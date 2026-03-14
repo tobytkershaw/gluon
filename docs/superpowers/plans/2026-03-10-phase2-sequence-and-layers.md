@@ -17,7 +17,7 @@
 | File | Responsibility |
 |------|---------------|
 | `src/engine/sequencer-types.ts` | Step, Pattern, Transport, ScheduledNote, PatternSketch, StepSketch types |
-| `src/engine/sequencer-helpers.ts` | `createDefaultStep()`, `createDefaultPattern()`, `getAudibleVoices()`, `resolveNoteParams()` |
+| `src/engine/sequencer-helpers.ts` | `createDefaultStep()`, `createDefaultPattern()`, `getAudibleTracks()`, `resolveNoteParams()` |
 | `src/engine/pattern-primitives.ts` | Pattern editing: toggle step, set param lock, clear lock, change length, clear pattern, apply sketch |
 | `src/engine/scheduler.ts` | Scheduler class: tick loop, lookahead, note emission, swing, BPM reanchor |
 | `src/audio/audio-exporter.ts` | `AudioExporter` class wrapping `MediaRecorder` |
@@ -34,10 +34,10 @@
 
 | File | What changes |
 |------|-------------|
-| `src/engine/types.ts` | Replace `Snapshot`, `PendingAction`, `AISketchAction` types. Change `Session.voice` → `Session.voices` + `activeVoiceId` + `transport`. Extend `Voice` with `pattern`, `muted`, `solo`. |
-| `src/engine/session.ts` | `createSession()` creates 4 voices with patterns. Add `setTransportBpm()`, `setTransportSwing()`, `togglePlaying()`, `setActiveVoice()`, `toggleMute()`, `toggleSolo()`. Update `setAgency()`, `updateVoiceParams()`, `setModel()` to take voiceId. |
+| `src/engine/types.ts` | Replace `Snapshot`, `PendingAction`, `AISketchAction` types. Change `Session.voice` → `Session.tracks` + `activeTrackId` + `transport`. Extend `Voice` with `pattern`, `muted`, `solo`. |
+| `src/engine/session.ts` | `createSession()` creates 4 voices with patterns. Add `setTransportBpm()`, `setTransportSwing()`, `togglePlaying()`, `setActiveVoice()`, `toggleMute()`, `toggleSolo()`. Update `setAgency()`, `updateTrackParams()`, `setModel()` to take trackId. |
 | `src/engine/primitives.ts` | All functions switch from `session.voice` to voice lookup by ID. `applyUndo()` switches on `snapshot.kind`. `commitPending`/`dismissPending` handle sketch kind. |
-| `src/engine/arbitration.ts` | `humanTouched(param, value)` stores value. Add `getHeldParams(voiceId)`. |
+| `src/engine/arbitration.ts` | `humanTouched(param, value)` stores value. Add `getHeldParams(trackId)`. |
 | `src/audio/synth-interface.ts` | Add `trigger()` and `setGateOpen()` to `SynthEngine`. |
 | `src/audio/web-audio-synth.ts` | Implement `trigger()` and `setGateOpen()`. Accept output GainNode in constructor instead of connecting to `ctx.destination`. |
 | `src/audio/audio-engine.ts` | Manage 4 synth instances with per-voice GainNodes. Add `scheduleNote()`, `setVoiceParams()`, `setVoiceModel()`, `muteVoice()`, `getCurrentTime()`, `getMediaStreamDestination()`. |
@@ -45,7 +45,7 @@
 | `src/ai/state-compression.ts` | Compress 4 voices with patterns (active steps, accents, locks). |
 | `src/ai/response-parser.ts` | Validate new `AISketchAction` shape with `PatternSketch`. |
 | `src/ai/api.ts` | `react()` checks per-voice agencies. |
-| `src/ui/App.tsx` | Wire 4 voices, activeVoiceId, transport, scheduler lifecycle, new UI components. |
+| `src/ui/App.tsx` | Wire 4 voices, activeTrackId, transport, scheduler lifecycle, new UI components. |
 | `tests/engine/session.test.ts` | Update for multi-voice session structure. |
 | `tests/engine/primitives.test.ts` | Update all `session.voice` refs to voice lookup. Add pattern snapshot tests. |
 | `tests/engine/undo.test.ts` | Add PatternSnapshot undo tests. |
@@ -133,7 +133,7 @@ export interface Transport {
 }
 
 export interface ScheduledNote {
-  voiceId: string;
+  trackId: string;
   time: number;
   gateOffTime: number;
   accent: boolean;
@@ -221,23 +221,23 @@ describe('Phase 2 type shapes', () => {
     expect(voice.muted).toBe(false);
   });
 
-  it('ParamSnapshot has kind and voiceId', () => {
+  it('ParamSnapshot has kind and trackId', () => {
     const snapshot: ParamSnapshot = {
       kind: 'param',
-      voiceId: 'v0',
+      trackId: 'v0',
       prevValues: { timbre: 0.5 },
       aiTargetValues: { timbre: 0.8 },
       timestamp: Date.now(),
       description: 'test',
     };
     expect(snapshot.kind).toBe('param');
-    expect(snapshot.voiceId).toBe('v0');
+    expect(snapshot.trackId).toBe('v0');
   });
 
   it('PatternSnapshot stores changed steps', () => {
     const snapshot: PatternSnapshot = {
       kind: 'pattern',
-      voiceId: 'v0',
+      trackId: 'v0',
       prevSteps: [{ index: 0, step: { gate: false, accent: false, micro: 0 } }],
       timestamp: Date.now(),
       description: 'test',
@@ -250,7 +250,7 @@ describe('Phase 2 type shapes', () => {
     const pending: SketchPendingAction = {
       id: 'p1',
       kind: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'four on the floor',
       pattern: { steps: [{ index: 0, gate: true }] },
       expiresAt: Date.now() + 15000,
@@ -259,10 +259,10 @@ describe('Phase 2 type shapes', () => {
     expect(pending.pattern.steps).toHaveLength(1);
   });
 
-  it('AISketchAction has voiceId and PatternSketch', () => {
+  it('AISketchAction has trackId and PatternSketch', () => {
     const action: AISketchAction = {
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'kick pattern',
       pattern: {
         length: 16,
@@ -278,10 +278,10 @@ describe('Phase 2 type shapes', () => {
     expect(action.pattern.steps).toHaveLength(4);
   });
 
-  it('Session has voices array, activeVoiceId, transport', () => {
+  it('Session has voices array, activeTrackId, transport', () => {
     const session: Session = {
-      voices: [],
-      activeVoiceId: 'v0',
+      tracks: [],
+      activeTrackId: 'v0',
       transport: { playing: false, bpm: 120, swing: 0 },
       leash: 0.5,
       undoStack: [],
@@ -290,7 +290,7 @@ describe('Phase 2 type shapes', () => {
       messages: [],
       recentHumanActions: [],
     };
-    expect(session.activeVoiceId).toBe('v0');
+    expect(session.activeTrackId).toBe('v0');
     expect(session.transport.bpm).toBe(120);
   });
 });
@@ -342,7 +342,7 @@ export interface MusicalContext {
 
 export interface ParamSnapshot {
   kind: 'param';
-  voiceId: string;
+  trackId: string;
   prevValues: Partial<SynthParamValues>;
   aiTargetValues: Partial<SynthParamValues>;
   timestamp: number;
@@ -351,7 +351,7 @@ export interface ParamSnapshot {
 
 export interface PatternSnapshot {
   kind: 'pattern';
-  voiceId: string;
+  trackId: string;
   prevSteps: { index: number; step: Step }[];
   prevLength?: number;
   timestamp: number;
@@ -365,7 +365,7 @@ export type Snapshot = ParamSnapshot | PatternSnapshot;
 export interface ParamPendingAction {
   id: string;
   kind: 'suggestion' | 'audition';
-  voiceId: string;
+  trackId: string;
   changes: Partial<SynthParamValues>;
   reason?: string;
   expiresAt: number;
@@ -375,7 +375,7 @@ export interface ParamPendingAction {
 export interface SketchPendingAction {
   id: string;
   kind: 'sketch';
-  voiceId: string;
+  trackId: string;
   description: string;
   pattern: PatternSketch;
   expiresAt: number;
@@ -411,7 +411,7 @@ export interface AISayAction {
 
 export interface AISketchAction {
   type: 'sketch';
-  voiceId: string;
+  trackId: string;
   description: string;
   pattern: PatternSketch;
 }
@@ -421,7 +421,7 @@ export type AIAction = AIMoveAction | AISuggestAction | AIAuditionAction | AISay
 // --- Session ---
 
 export interface HumanAction {
-  voiceId: string;
+  trackId: string;
   param: string;
   from: number;
   to: number;
@@ -429,8 +429,8 @@ export interface HumanAction {
 }
 
 export interface Session {
-  voices: Voice[];
-  activeVoiceId: string;
+  tracks: Voice[];
+  activeTrackId: string;
   transport: Transport;
   leash: number;
   undoStack: Snapshot[];
@@ -448,20 +448,20 @@ export interface ChatMessage {
 
 // --- Helpers ---
 
-export function getVoice(session: Session, voiceId: string): Voice {
-  const voice = session.voices.find(v => v.id === voiceId);
-  if (!voice) throw new Error(`Voice not found: ${voiceId}`);
+export function getTrack(session: Session, trackId: string): Voice {
+  const voice = session.tracks.find(v => v.id === trackId);
+  if (!voice) throw new Error(`Voice not found: ${trackId}`);
   return voice;
 }
 
-export function getActiveVoice(session: Session): Voice {
-  return getVoice(session, session.activeVoiceId);
+export function getActiveTrack(session: Session): Voice {
+  return getTrack(session, session.activeTrackId);
 }
 
-export function updateVoice(session: Session, voiceId: string, update: Partial<Voice>): Session {
+export function updateTrack(session: Session, trackId: string, update: Partial<Voice>): Session {
   return {
     ...session,
-    voices: session.voices.map(v => v.id === voiceId ? { ...v, ...update } : v),
+    tracks: session.tracks.map(v => v.id === trackId ? { ...v, ...update } : v),
   };
 }
 
@@ -501,29 +501,29 @@ Replace `tests/engine/session.test.ts`:
 // tests/engine/session.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createSession, setLeash, setAgency, updateVoiceParams, setModel,
+  createSession, setLeash, setAgency, updateTrackParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../../src/engine/session';
 
 describe('Session (Phase 2)', () => {
   it('creates a session with 4 voices', () => {
     const session = createSession();
-    expect(session.voices).toHaveLength(4);
-    expect(session.activeVoiceId).toBe(session.voices[0].id);
+    expect(session.tracks).toHaveLength(4);
+    expect(session.activeTrackId).toBe(session.tracks[0].id);
     expect(session.transport).toEqual({ playing: false, bpm: 120, swing: 0 });
   });
 
   it('voice 0 is model 13 (kick), voice 1 is model 0 (bass), voice 2 is model 2 (lead), voice 3 is model 4 (pad)', () => {
     const session = createSession();
-    expect(session.voices[0].model).toBe(13);
-    expect(session.voices[1].model).toBe(0);
-    expect(session.voices[2].model).toBe(2);
-    expect(session.voices[3].model).toBe(4);
+    expect(session.tracks[0].model).toBe(13);
+    expect(session.tracks[1].model).toBe(0);
+    expect(session.tracks[2].model).toBe(2);
+    expect(session.tracks[3].model).toBe(4);
   });
 
   it('each voice has a 16-step default pattern', () => {
     const session = createSession();
-    for (const voice of session.voices) {
+    for (const voice of session.tracks) {
       expect(voice.pattern.length).toBe(16);
       expect(voice.pattern.steps).toHaveLength(16);
       expect(voice.muted).toBe(false);
@@ -543,46 +543,46 @@ describe('Session (Phase 2)', () => {
 
   it('sets agency on active voice', () => {
     let s = createSession();
-    s = setAgency(s, s.activeVoiceId, 'PLAY');
-    const voice = s.voices.find(v => v.id === s.activeVoiceId)!;
+    s = setAgency(s, s.activeTrackId, 'PLAY');
+    const voice = s.tracks.find(v => v.id === s.activeTrackId)!;
     expect(voice.agency).toBe('PLAY');
   });
 
-  it('updates voice params by voiceId', () => {
+  it('updates voice params by trackId', () => {
     const s1 = createSession();
-    const vid = s1.voices[1].id;
-    const s2 = updateVoiceParams(s1, vid, { timbre: 0.8 });
-    expect(s2.voices.find(v => v.id === vid)!.params.timbre).toBe(0.8);
-    expect(s1.voices.find(v => v.id === vid)!.params.timbre).toBe(0.5);
+    const vid = s1.tracks[1].id;
+    const s2 = updateTrackParams(s1, vid, { timbre: 0.8 });
+    expect(s2.tracks.find(v => v.id === vid)!.params.timbre).toBe(0.8);
+    expect(s1.tracks.find(v => v.id === vid)!.params.timbre).toBe(0.5);
   });
 
-  it('sets model by voiceId', () => {
+  it('sets model by trackId', () => {
     const s1 = createSession();
-    const vid = s1.voices[0].id;
+    const vid = s1.tracks[0].id;
     const s2 = setModel(s1, vid, 5);
-    expect(s2.voices.find(v => v.id === vid)!.model).toBe(5);
+    expect(s2.tracks.find(v => v.id === vid)!.model).toBe(5);
   });
 
   it('switches active voice', () => {
     const s1 = createSession();
-    const s2 = setActiveVoice(s1, s1.voices[2].id);
-    expect(s2.activeVoiceId).toBe(s1.voices[2].id);
+    const s2 = setActiveVoice(s1, s1.tracks[2].id);
+    expect(s2.activeTrackId).toBe(s1.tracks[2].id);
   });
 
   it('toggles mute', () => {
     const s1 = createSession();
-    const vid = s1.voices[0].id;
+    const vid = s1.tracks[0].id;
     const s2 = toggleMute(s1, vid);
-    expect(s2.voices.find(v => v.id === vid)!.muted).toBe(true);
+    expect(s2.tracks.find(v => v.id === vid)!.muted).toBe(true);
     const s3 = toggleMute(s2, vid);
-    expect(s3.voices.find(v => v.id === vid)!.muted).toBe(false);
+    expect(s3.tracks.find(v => v.id === vid)!.muted).toBe(false);
   });
 
   it('toggles solo', () => {
     const s1 = createSession();
-    const vid = s1.voices[1].id;
+    const vid = s1.tracks[1].id;
     const s2 = toggleSolo(s1, vid);
-    expect(s2.voices.find(v => v.id === vid)!.solo).toBe(true);
+    expect(s2.tracks.find(v => v.id === vid)!.solo).toBe(true);
   });
 
   it('sets transport BPM clamped to 60-200', () => {
@@ -623,7 +623,7 @@ Expected: FAIL — new functions not exported
 ```typescript
 // src/engine/session.ts
 import type { Session, Voice, Agency, MusicalContext, SynthParamValues } from './types';
-import { updateVoice } from './types';
+import { updateTrack } from './types';
 import { PLAITS_MODELS } from '../audio/synth-interface';
 import { createDefaultPattern } from './sequencer-helpers';
 
@@ -649,7 +649,7 @@ function createVoice(index: number): Voice {
 }
 
 export function createSession(): Session {
-  const voices = Array.from({ length: 4 }, (_, i) => createVoice(i));
+  const tracks = Array.from({ length: 4 }, (_, i) => createVoice(i));
   const context: MusicalContext = {
     key: null,
     scale: null,
@@ -660,7 +660,7 @@ export function createSession(): Session {
 
   return {
     voices,
-    activeVoiceId: voices[0].id,
+    activeTrackId: voices[0].id,
     transport: { playing: false, bpm: 120, swing: 0 },
     leash: 0.5,
     undoStack: [],
@@ -675,24 +675,24 @@ export function setLeash(session: Session, value: number): Session {
   return { ...session, leash: Math.max(0, Math.min(1, value)) };
 }
 
-export function setAgency(session: Session, voiceId: string, agency: Agency): Session {
-  return updateVoice(session, voiceId, { agency });
+export function setAgency(session: Session, trackId: string, agency: Agency): Session {
+  return updateTrack(session, trackId, { agency });
 }
 
-export function updateVoiceParams(
+export function updateTrackParams(
   session: Session,
-  voiceId: string,
+  trackId: string,
   params: Partial<SynthParamValues>,
   trackAsHuman = false,
 ): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
+  const voice = session.tracks.find(v => v.id === trackId);
   if (!voice) return session;
 
   const newActions = trackAsHuman
     ? [
         ...session.recentHumanActions,
         ...Object.entries(params).map(([param, to]) => ({
-          voiceId,
+          trackId,
           param,
           from: voice.params[param] ?? 0,
           to: to as number,
@@ -702,36 +702,36 @@ export function updateVoiceParams(
     : session.recentHumanActions;
 
   return {
-    ...updateVoice(session, voiceId, {
+    ...updateTrack(session, trackId, {
       params: { ...voice.params, ...params } as SynthParamValues,
     }),
     recentHumanActions: newActions,
   };
 }
 
-export function setModel(session: Session, voiceId: string, model: number): Session {
+export function setModel(session: Session, trackId: string, model: number): Session {
   const modelInfo = PLAITS_MODELS[model];
   const engineName = modelInfo
     ? `plaits:${modelInfo.name.toLowerCase().replace(/[\s/]+/g, '_')}`
     : `plaits:unknown_${model}`;
-  return updateVoice(session, voiceId, { model, engine: engineName });
+  return updateTrack(session, trackId, { model, engine: engineName });
 }
 
-export function setActiveVoice(session: Session, voiceId: string): Session {
-  if (!session.voices.find(v => v.id === voiceId)) return session;
-  return { ...session, activeVoiceId: voiceId };
+export function setActiveVoice(session: Session, trackId: string): Session {
+  if (!session.tracks.find(v => v.id === trackId)) return session;
+  return { ...session, activeTrackId: trackId };
 }
 
-export function toggleMute(session: Session, voiceId: string): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
+export function toggleMute(session: Session, trackId: string): Session {
+  const voice = session.tracks.find(v => v.id === trackId);
   if (!voice) return session;
-  return updateVoice(session, voiceId, { muted: !voice.muted });
+  return updateTrack(session, trackId, { muted: !voice.muted });
 }
 
-export function toggleSolo(session: Session, voiceId: string): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
+export function toggleSolo(session: Session, trackId: string): Session {
+  const voice = session.tracks.find(v => v.id === trackId);
   if (!voice) return session;
-  return updateVoice(session, voiceId, { solo: !voice.solo });
+  return updateTrack(session, trackId, { solo: !voice.solo });
 }
 
 export function setTransportBpm(session: Session, bpm: number): Session {
@@ -770,7 +770,7 @@ git commit -m "feat: rewrite session for 4-voice multi-voice structure"
 
 ---
 
-### Task 4: Sequencer helpers — getAudibleVoices, resolveNoteParams
+### Task 4: Sequencer helpers — getAudibleTracks, resolveNoteParams
 
 **Files:**
 - Modify: `src/engine/sequencer-helpers.ts`
@@ -784,7 +784,7 @@ Append to `tests/engine/sequencer-helpers.test.ts` (rename the file from `sequen
 // tests/engine/sequencer-helpers.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createDefaultStep, createDefaultPattern, getAudibleVoices, resolveNoteParams,
+  createDefaultStep, createDefaultPattern, getAudibleTracks, resolveNoteParams,
 } from '../../src/engine/sequencer-helpers';
 import { createSession, toggleMute, toggleSolo } from '../../src/engine/session';
 import type { Voice } from '../../src/engine/types';
@@ -819,36 +819,36 @@ describe('createDefaultPattern', () => {
   });
 });
 
-describe('getAudibleVoices', () => {
+describe('getAudibleTracks', () => {
   it('returns all unmuted voices when none soloed', () => {
     const session = createSession();
-    const audible = getAudibleVoices(session);
+    const audible = getAudibleTracks(session);
     expect(audible).toHaveLength(4);
   });
 
   it('excludes muted voices when none soloed', () => {
     let s = createSession();
-    s = toggleMute(s, s.voices[0].id);
-    const audible = getAudibleVoices(s);
+    s = toggleMute(s, s.tracks[0].id);
+    const audible = getAudibleTracks(s);
     expect(audible).toHaveLength(3);
-    expect(audible.find(v => v.id === s.voices[0].id)).toBeUndefined();
+    expect(audible.find(v => v.id === s.tracks[0].id)).toBeUndefined();
   });
 
   it('returns only soloed voices when any is soloed', () => {
     let s = createSession();
-    s = toggleSolo(s, s.voices[1].id);
-    const audible = getAudibleVoices(s);
+    s = toggleSolo(s, s.tracks[1].id);
+    const audible = getAudibleTracks(s);
     expect(audible).toHaveLength(1);
-    expect(audible[0].id).toBe(s.voices[1].id);
+    expect(audible[0].id).toBe(s.tracks[1].id);
   });
 
   it('solo overrides mute', () => {
     let s = createSession();
-    s = toggleMute(s, s.voices[2].id);
-    s = toggleSolo(s, s.voices[2].id);
-    const audible = getAudibleVoices(s);
+    s = toggleMute(s, s.tracks[2].id);
+    s = toggleSolo(s, s.tracks[2].id);
+    const audible = getAudibleTracks(s);
     expect(audible).toHaveLength(1);
-    expect(audible[0].id).toBe(s.voices[2].id);
+    expect(audible[0].id).toBe(s.tracks[2].id);
   });
 });
 
@@ -892,9 +892,9 @@ describe('resolveNoteParams', () => {
 - [ ] **Step 4.2: Run test to verify it fails**
 
 Run: `npx vitest run tests/engine/sequencer-helpers.test.ts`
-Expected: FAIL — `getAudibleVoices`, `resolveNoteParams` not exported
+Expected: FAIL — `getAudibleTracks`, `resolveNoteParams` not exported
 
-- [ ] **Step 4.3: Implement getAudibleVoices and resolveNoteParams**
+- [ ] **Step 4.3: Implement getAudibleTracks and resolveNoteParams**
 
 Add to `src/engine/sequencer-helpers.ts`:
 
@@ -914,12 +914,12 @@ export function createDefaultPattern(length = 16): Pattern {
   };
 }
 
-export function getAudibleVoices(session: Session): Voice[] {
-  const anySoloed = session.voices.some(v => v.solo);
+export function getAudibleTracks(session: Session): Voice[] {
+  const anySoloed = session.tracks.some(v => v.solo);
   if (anySoloed) {
-    return session.voices.filter(v => v.solo);
+    return session.tracks.filter(v => v.solo);
   }
-  return session.voices.filter(v => !v.muted);
+  return session.tracks.filter(v => !v.muted);
 }
 
 export function resolveNoteParams(
@@ -944,7 +944,7 @@ Expected: PASS (all tests)
 
 ```bash
 git add src/engine/sequencer-helpers.ts tests/engine/sequencer-helpers.test.ts
-git commit -m "feat: add getAudibleVoices and resolveNoteParams helpers"
+git commit -m "feat: add getAudibleTracks and resolveNoteParams helpers"
 ```
 
 ---
@@ -957,7 +957,7 @@ git commit -m "feat: add getAudibleVoices and resolveNoteParams helpers"
 
 - [ ] **Step 5.1: Write failing tests for multi-voice primitives**
 
-Rewrite `tests/engine/primitives.test.ts` — update all `session.voice` references to use `getActiveVoice(session)` or voice lookup. Add tests for pattern snapshot undo and sketch pending actions.
+Rewrite `tests/engine/primitives.test.ts` — update all `session.voice` references to use `getActiveTrack(session)` or voice lookup. Add tests for pattern snapshot undo and sketch pending actions.
 
 ```typescript
 // tests/engine/primitives.test.ts
@@ -967,8 +967,8 @@ import {
   applyAudition, cancelAuditionParam, applyUndo, commitPending,
   dismissPending, applySketchPending,
 } from '../../src/engine/primitives';
-import { createSession, updateVoiceParams } from '../../src/engine/session';
-import { getActiveVoice, getVoice } from '../../src/engine/types';
+import { createSession, updateTrackParams } from '../../src/engine/session';
+import { getActiveTrack, getTrack } from '../../src/engine/types';
 import type { PatternSnapshot, SketchPendingAction, ParamSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
 
@@ -976,40 +976,40 @@ describe('Protocol Primitives (Phase 2)', () => {
   describe('applyMove', () => {
     it('applies absolute move to active voice', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const result = applyMove(s, vid, 'timbre', { absolute: 0.8 });
-      expect(getVoice(result, vid).params.timbre).toBe(0.8);
+      expect(getTrack(result, vid).params.timbre).toBe(0.8);
       expect(result.undoStack.length).toBe(1);
       expect(result.undoStack[0].kind).toBe('param');
     });
 
     it('applies relative move', () => {
       let s = createSession();
-      const vid = s.activeVoiceId;
-      s = updateVoiceParams(s, vid, { timbre: 0.5 });
+      const vid = s.activeTrackId;
+      s = updateTrackParams(s, vid, { timbre: 0.5 });
       const result = applyMove(s, vid, 'timbre', { relative: 0.2 });
-      expect(getVoice(result, vid).params.timbre).toBeCloseTo(0.7);
+      expect(getTrack(result, vid).params.timbre).toBeCloseTo(0.7);
     });
 
     it('clamps values to 0-1', () => {
       let s = createSession();
-      const vid = s.activeVoiceId;
-      s = updateVoiceParams(s, vid, { timbre: 0.9 });
+      const vid = s.activeTrackId;
+      s = updateTrackParams(s, vid, { timbre: 0.9 });
       const result = applyMove(s, vid, 'timbre', { relative: 0.3 });
-      expect(getVoice(result, vid).params.timbre).toBe(1.0);
+      expect(getTrack(result, vid).params.timbre).toBe(1.0);
     });
   });
 
   describe('applyMoveGroup', () => {
     it('applies multiple moves as a single undo entry', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const result = applyMoveGroup(s, vid, [
         { param: 'timbre', target: { absolute: 0.8 } },
         { param: 'morph', target: { absolute: 0.3 } },
       ]);
-      expect(getVoice(result, vid).params.timbre).toBe(0.8);
-      expect(getVoice(result, vid).params.morph).toBe(0.3);
+      expect(getTrack(result, vid).params.timbre).toBe(0.8);
+      expect(getTrack(result, vid).params.morph).toBe(0.3);
       expect(result.undoStack.length).toBe(1);
     });
   });
@@ -1017,7 +1017,7 @@ describe('Protocol Primitives (Phase 2)', () => {
   describe('applySuggest', () => {
     it('adds suggestion to pending list', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const result = applySuggest(s, vid, { timbre: 0.8 }, 'try this');
       expect(result.pending.length).toBe(1);
       expect(result.pending[0].kind).toBe('suggestion');
@@ -1027,9 +1027,9 @@ describe('Protocol Primitives (Phase 2)', () => {
   describe('applyAudition', () => {
     it('applies changes and adds to pending', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const result = applyAudition(s, vid, { timbre: 0.8 }, 3000);
-      expect(getVoice(result, vid).params.timbre).toBe(0.8);
+      expect(getTrack(result, vid).params.timbre).toBe(0.8);
       expect(result.pending.length).toBe(1);
       expect(result.pending[0].kind).toBe('audition');
     });
@@ -1038,37 +1038,37 @@ describe('Protocol Primitives (Phase 2)', () => {
   describe('applyUndo', () => {
     it('undoes a param snapshot', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const moved = applyMove(s, vid, 'timbre', { absolute: 0.8 });
       const undone = applyUndo(moved);
-      expect(getVoice(undone, vid).params.timbre).toBe(0.5);
+      expect(getTrack(undone, vid).params.timbre).toBe(0.5);
       expect(undone.undoStack.length).toBe(0);
     });
 
     it('undoes a pattern snapshot', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       // Simulate a pattern edit by pushing a PatternSnapshot
       const snapshot: PatternSnapshot = {
         kind: 'pattern',
-        voiceId: vid,
+        trackId: vid,
         prevSteps: [{ index: 0, step: { gate: false, accent: false, micro: 0 } }],
         timestamp: Date.now(),
         description: 'toggle step 0',
       };
       // Manually toggle step 0 gate on
-      const voice = getVoice(s, vid);
+      const voice = getTrack(s, vid);
       const newSteps = [...voice.pattern.steps];
       newSteps[0] = { ...newSteps[0], gate: true };
       let modified = {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? { ...v, pattern: { ...v.pattern, steps: newSteps } } : v),
+        tracks: s.tracks.map(v => v.id === vid ? { ...v, pattern: { ...v.pattern, steps: newSteps } } : v),
         undoStack: [...s.undoStack, snapshot],
       };
-      expect(getVoice(modified, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(modified, vid).pattern.steps[0].gate).toBe(true);
 
       const undone = applyUndo(modified);
-      expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(undone, vid).pattern.steps[0].gate).toBe(false);
       expect(undone.undoStack.length).toBe(0);
     });
   });
@@ -1103,7 +1103,7 @@ describe('Protocol Primitives (Phase 2)', () => {
       const pendingId = withPending.pending[0].id;
       const committed = commitPending(withPending, pendingId);
 
-      const voice = getVoice(committed, 'v0');
+      const voice = getTrack(committed, 'v0');
       expect(voice.pattern.steps[0].gate).toBe(true);
       expect(voice.pattern.steps[0].accent).toBe(true);
       expect(voice.pattern.steps[4].gate).toBe(true);
@@ -1117,19 +1117,19 @@ describe('Protocol Primitives (Phase 2)', () => {
   describe('commitPending suggestion', () => {
     it('applies suggestion and pushes ParamSnapshot for undo', () => {
       const s = createSession();
-      const vid = s.activeVoiceId;
+      const vid = s.activeTrackId;
       const withPending = applySuggest(s, vid, { timbre: 0.9 }, 'brighter');
       const pendingId = withPending.pending[0].id;
       const committed = commitPending(withPending, pendingId);
 
-      expect(getVoice(committed, vid).params.timbre).toBe(0.9);
+      expect(getTrack(committed, vid).params.timbre).toBe(0.9);
       expect(committed.pending.length).toBe(0);
       expect(committed.undoStack.length).toBe(1);
       expect(committed.undoStack[0].kind).toBe('param');
 
       // Undo should revert
       const undone = applyUndo(committed);
-      expect(getVoice(undone, vid).params.timbre).toBe(0.5);
+      expect(getTrack(undone, vid).params.timbre).toBe(0.5);
     });
   });
 
@@ -1143,7 +1143,7 @@ describe('Protocol Primitives (Phase 2)', () => {
       const pendingId = withPending.pending[0].id;
       const dismissed = dismissPending(withPending, pendingId);
 
-      const voice = getVoice(dismissed, 'v0');
+      const voice = getTrack(dismissed, 'v0');
       expect(voice.pattern.steps[0].gate).toBe(false); // unchanged
       expect(dismissed.pending.length).toBe(0);
     });
@@ -1165,7 +1165,7 @@ import type {
   PendingAction, ParamPendingAction, SketchPendingAction,
   SynthParamValues,
 } from './types';
-import { getVoice, updateVoice } from './types';
+import { getTrack, updateTrack } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
 
 let nextPendingId = 1;
@@ -1176,18 +1176,18 @@ function clampParam(value: number): number {
 
 export function applyMove(
   session: Session,
-  voiceId: string,
+  trackId: string,
   param: string,
   target: { absolute: number } | { relative: number },
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const voice = getTrack(session, trackId);
   const currentValue = voice.params[param] ?? 0;
   const newValue = 'absolute' in target ? target.absolute : currentValue + target.relative;
   const clamped = clampParam(newValue);
 
   const snapshot: ParamSnapshot = {
     kind: 'param',
-    voiceId,
+    trackId,
     prevValues: { [param]: currentValue },
     aiTargetValues: { [param]: clamped },
     timestamp: Date.now(),
@@ -1195,7 +1195,7 @@ export function applyMove(
   };
 
   return {
-    ...updateVoice(session, voiceId, {
+    ...updateTrack(session, trackId, {
       params: { ...voice.params, [param]: clamped },
     }),
     undoStack: [...session.undoStack, snapshot],
@@ -1204,10 +1204,10 @@ export function applyMove(
 
 export function applyMoveGroup(
   session: Session,
-  voiceId: string,
+  trackId: string,
   moves: { param: string; target: { absolute: number } | { relative: number } }[],
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const voice = getTrack(session, trackId);
   const prevValues: Partial<SynthParamValues> = {};
   const aiTargetValues: Partial<SynthParamValues> = {};
   const descriptions: string[] = [];
@@ -1222,7 +1222,7 @@ export function applyMoveGroup(
 
   const snapshot: ParamSnapshot = {
     kind: 'param',
-    voiceId,
+    trackId,
     prevValues,
     aiTargetValues,
     timestamp: Date.now(),
@@ -1237,33 +1237,33 @@ export function applyMoveGroup(
   }
 
   return {
-    ...updateVoice(session, voiceId, { params: newParams }),
+    ...updateTrack(session, trackId, { params: newParams }),
     undoStack: [...session.undoStack, snapshot],
   };
 }
 
 export function applyParamDirect(
   session: Session,
-  voiceId: string,
+  trackId: string,
   param: string,
   value: number,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  return updateVoice(session, voiceId, {
+  const voice = getTrack(session, trackId);
+  return updateTrack(session, trackId, {
     params: { ...voice.params, [param]: clampParam(value) },
   });
 }
 
 export function applySuggest(
   session: Session,
-  voiceId: string,
+  trackId: string,
   changes: Partial<SynthParamValues>,
   reason?: string,
 ): Session {
   const pending: ParamPendingAction = {
     id: `pending-${nextPendingId++}`,
     kind: 'suggestion',
-    voiceId,
+    trackId,
     changes,
     reason,
     expiresAt: Date.now() + 15000,
@@ -1275,22 +1275,22 @@ export function applySuggest(
 
 export function applyAudition(
   session: Session,
-  voiceId: string,
+  trackId: string,
   changes: Partial<SynthParamValues>,
   durationMs = 3000,
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const voice = getTrack(session, trackId);
   let currentParams = { ...voice.params };
 
   const existingAudition = session.pending.find(
-    (p): p is ParamPendingAction => p.kind === 'audition' && p.voiceId === voiceId,
+    (p): p is ParamPendingAction => p.kind === 'audition' && p.trackId === trackId,
   );
   if (existingAudition) {
     currentParams = { ...currentParams, ...existingAudition.previousValues } as SynthParamValues;
   }
 
   const pendingWithoutOld = session.pending.filter(
-    p => !(p.kind === 'audition' && p.voiceId === voiceId),
+    p => !(p.kind === 'audition' && p.trackId === trackId),
   );
 
   const previousValues: Partial<SynthParamValues> = {};
@@ -1301,23 +1301,23 @@ export function applyAudition(
   const pending: ParamPendingAction = {
     id: `pending-${nextPendingId++}`,
     kind: 'audition',
-    voiceId,
+    trackId,
     changes,
     expiresAt: Date.now() + durationMs,
     previousValues,
   };
 
   return {
-    ...updateVoice(session, voiceId, {
+    ...updateTrack(session, trackId, {
       params: { ...currentParams, ...changes } as SynthParamValues,
     }),
     pending: [...pendingWithoutOld, pending],
   };
 }
 
-export function cancelAuditionParam(session: Session, voiceId: string, param: string): Session {
+export function cancelAuditionParam(session: Session, trackId: string, param: string): Session {
   const audition = session.pending.find(
-    (p): p is ParamPendingAction => p.kind === 'audition' && p.voiceId === voiceId,
+    (p): p is ParamPendingAction => p.kind === 'audition' && p.trackId === trackId,
   );
   if (!audition || !(param in audition.previousValues)) return session;
 
@@ -1340,14 +1340,14 @@ export function cancelAuditionParam(session: Session, voiceId: string, param: st
 
 export function applySketchPending(
   session: Session,
-  voiceId: string,
+  trackId: string,
   description: string,
   pattern: PatternSketch,
 ): Session {
   const pending: SketchPendingAction = {
     id: `pending-${nextPendingId++}`,
     kind: 'sketch',
-    voiceId,
+    trackId,
     description,
     pattern,
     expiresAt: Date.now() + 30000,
@@ -1358,10 +1358,10 @@ export function applySketchPending(
 
 function applyPatternSketch(
   session: Session,
-  voiceId: string,
+  trackId: string,
   sketch: PatternSketch,
 ): { session: Session; snapshot: PatternSnapshot } {
-  const voice = getVoice(session, voiceId);
+  const voice = getTrack(session, trackId);
   const prevSteps: { index: number; step: Step }[] = [];
   const newSteps = [...voice.pattern.steps];
   let newLength = voice.pattern.length;
@@ -1394,14 +1394,14 @@ function applyPatternSketch(
 
   const snapshot: PatternSnapshot = {
     kind: 'pattern',
-    voiceId,
+    trackId,
     prevSteps,
     prevLength,
     timestamp: Date.now(),
     description: `sketch applied`,
   };
 
-  const updated = updateVoice(session, voiceId, {
+  const updated = updateTrack(session, trackId, {
     pattern: { steps: newSteps, length: newLength },
   });
 
@@ -1415,7 +1415,7 @@ export function commitPending(session: Session, pendingId: string): Session {
   const remaining = session.pending.filter(p => p.id !== pendingId);
 
   if (action.kind === 'sketch') {
-    const { session: updated, snapshot } = applyPatternSketch(session, action.voiceId, action.pattern);
+    const { session: updated, snapshot } = applyPatternSketch(session, action.trackId, action.pattern);
     return {
       ...updated,
       pending: remaining,
@@ -1425,21 +1425,21 @@ export function commitPending(session: Session, pendingId: string): Session {
 
   // ParamPendingAction (suggestion) — apply changes and push undo snapshot
   if (action.kind === 'suggestion') {
-    const voice = getVoice(session, action.voiceId);
+    const voice = getTrack(session, action.trackId);
     const prevValues: Partial<SynthParamValues> = {};
     for (const key of Object.keys(action.changes)) {
       prevValues[key] = voice.params[key];
     }
     const snapshot: ParamSnapshot = {
       kind: 'param',
-      voiceId: action.voiceId,
+      trackId: action.trackId,
       prevValues,
       aiTargetValues: action.changes,
       timestamp: Date.now(),
       description: `AI suggest committed: ${Object.keys(action.changes).join(', ')}`,
     };
     return {
-      ...updateVoice(session, action.voiceId, {
+      ...updateTrack(session, action.trackId, {
         params: { ...voice.params, ...action.changes } as SynthParamValues,
       }),
       pending: remaining,
@@ -1456,9 +1456,9 @@ export function dismissPending(session: Session, pendingId: string): Session {
   if (!action) return session;
 
   if (action.kind === 'audition') {
-    const voice = getVoice(session, action.voiceId);
+    const voice = getTrack(session, action.trackId);
     return {
-      ...updateVoice(session, action.voiceId, {
+      ...updateTrack(session, action.trackId, {
         params: { ...voice.params, ...action.previousValues } as SynthParamValues,
       }),
       pending: session.pending.filter(p => p.id !== pendingId),
@@ -1476,7 +1476,7 @@ export function applyUndo(session: Session): Session {
   const snapshot = newStack.pop()!;
 
   if (snapshot.kind === 'pattern') {
-    const voice = getVoice(session, snapshot.voiceId);
+    const voice = getTrack(session, snapshot.trackId);
     const newSteps = [...voice.pattern.steps];
     for (const { index, step } of snapshot.prevSteps) {
       if (index < newSteps.length) {
@@ -1485,7 +1485,7 @@ export function applyUndo(session: Session): Session {
     }
     const newLength = snapshot.prevLength ?? voice.pattern.length;
     return {
-      ...updateVoice(session, snapshot.voiceId, {
+      ...updateTrack(session, snapshot.trackId, {
         pattern: { steps: newSteps, length: newLength },
       }),
       undoStack: newStack,
@@ -1493,7 +1493,7 @@ export function applyUndo(session: Session): Session {
   }
 
   // ParamSnapshot
-  const voice = getVoice(session, snapshot.voiceId);
+  const voice = getTrack(session, snapshot.trackId);
   const newParams = { ...voice.params };
   for (const [param, prevValue] of Object.entries(snapshot.prevValues)) {
     const aiTarget = snapshot.aiTargetValues[param];
@@ -1504,7 +1504,7 @@ export function applyUndo(session: Session): Session {
   }
 
   return {
-    ...updateVoice(session, snapshot.voiceId, { params: newParams }),
+    ...updateTrack(session, snapshot.trackId, { params: newParams }),
     undoStack: newStack,
   };
 }
@@ -1540,31 +1540,31 @@ import {
   setPatternLength, clearPattern,
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
-import { getVoice, updateVoice } from '../../src/engine/types';
+import { getTrack, updateTrack } from '../../src/engine/types';
 import type { PatternSnapshot } from '../../src/engine/types';
 
 describe('Pattern Primitives', () => {
   describe('toggleStepGate', () => {
     it('toggles gate on', () => {
       const s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       const result = toggleStepGate(s, vid, 0);
-      expect(getVoice(result, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(result, vid).pattern.steps[0].gate).toBe(true);
       expect(result.undoStack.length).toBe(1);
       expect(result.undoStack[0].kind).toBe('pattern');
     });
 
     it('toggles gate off', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepGate(s, vid, 0);
-      expect(getVoice(result, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(result, vid).pattern.steps[0].gate).toBe(false);
     });
 
     it('ignores out-of-range step index', () => {
       const s = createSession();
-      const result = toggleStepGate(s, s.voices[0].id, 99);
+      const result = toggleStepGate(s, s.tracks[0].id, 99);
       expect(result).toBe(s);
     });
   });
@@ -1572,28 +1572,28 @@ describe('Pattern Primitives', () => {
   describe('toggleStepAccent', () => {
     it('toggles accent on a gated step', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepAccent(s, vid, 0);
-      expect(getVoice(result, vid).pattern.steps[0].accent).toBe(true);
+      expect(getTrack(result, vid).pattern.steps[0].accent).toBe(true);
     });
   });
 
   describe('setStepParamLock', () => {
     it('sets a parameter lock on a step', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       const result = setStepParamLock(s, vid, 0, { timbre: 0.9 });
-      expect(getVoice(result, vid).pattern.steps[0].params?.timbre).toBe(0.9);
+      expect(getTrack(result, vid).pattern.steps[0].params?.timbre).toBe(0.9);
       expect(result.undoStack.length).toBe(1);
     });
 
     it('merges with existing locks', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       s = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       const result = setStepParamLock(s, vid, 0, { morph: 0.3 });
-      const step = getVoice(result, vid).pattern.steps[0];
+      const step = getTrack(result, vid).pattern.steps[0];
       expect(step.params?.timbre).toBe(0.9);
       expect(step.params?.morph).toBe(0.3);
     });
@@ -1602,69 +1602,69 @@ describe('Pattern Primitives', () => {
   describe('clearStepParamLock', () => {
     it('removes a specific lock', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       s = setStepParamLock(s, vid, 0, { timbre: 0.9, morph: 0.3 });
       const result = clearStepParamLock(s, vid, 0, 'timbre');
-      const step = getVoice(result, vid).pattern.steps[0];
+      const step = getTrack(result, vid).pattern.steps[0];
       expect(step.params?.timbre).toBeUndefined();
       expect(step.params?.morph).toBe(0.3);
     });
 
     it('removes params entirely when last lock cleared', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       s = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       const result = clearStepParamLock(s, vid, 0, 'timbre');
-      expect(getVoice(result, vid).pattern.steps[0].params).toBeUndefined();
+      expect(getTrack(result, vid).pattern.steps[0].params).toBeUndefined();
     });
   });
 
   describe('setPatternLength', () => {
     it('changes pattern length', () => {
       const s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       const result = setPatternLength(s, vid, 8);
-      expect(getVoice(result, vid).pattern.length).toBe(8);
+      expect(getTrack(result, vid).pattern.length).toBe(8);
       expect(result.undoStack.length).toBe(1);
     });
 
     it('extends steps array when length exceeds current steps', () => {
       const s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       const result = setPatternLength(s, vid, 32);
-      const pattern = getVoice(result, vid).pattern;
+      const pattern = getTrack(result, vid).pattern;
       expect(pattern.length).toBe(32);
       expect(pattern.steps.length).toBe(32);
     });
 
     it('clamps to 1-64', () => {
       const s = createSession();
-      const vid = s.voices[0].id;
-      expect(getVoice(setPatternLength(s, vid, 0), vid).pattern.length).toBe(1);
-      expect(getVoice(setPatternLength(s, vid, 100), vid).pattern.length).toBe(64);
+      const vid = s.tracks[0].id;
+      expect(getTrack(setPatternLength(s, vid, 0), vid).pattern.length).toBe(1);
+      expect(getTrack(setPatternLength(s, vid, 100), vid).pattern.length).toBe(64);
     });
   });
 
   describe('clearPattern', () => {
     it('resets all steps to defaults', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       s = toggleStepGate(s, vid, 4);
       const result = clearPattern(s, vid);
-      const pattern = getVoice(result, vid).pattern;
+      const pattern = getTrack(result, vid).pattern;
       expect(pattern.steps.every(step => !step.gate)).toBe(true);
       expect(result.undoStack.length).toBe(3); // 2 toggles + 1 clear
     });
 
     it('preserves steps with micro-timing in undo snapshot', () => {
       let s = createSession();
-      const vid = s.voices[0].id;
+      const vid = s.tracks[0].id;
       // Manually set micro on a step without gate/accent/params
-      const voice = getVoice(s, vid);
+      const voice = getTrack(s, vid);
       const steps = [...voice.pattern.steps];
       steps[3] = { ...steps[3], micro: 0.25 };
-      s = updateVoice(s, vid, { pattern: { ...voice.pattern, steps } });
+      s = updateTrack(s, vid, { pattern: { ...voice.pattern, steps } });
       const result = clearPattern(s, vid);
       // Should have an undo entry even though only micro was set
       expect(result.undoStack.length).toBe(1);
@@ -1685,20 +1685,20 @@ Expected: FAIL — module not found
 ```typescript
 // src/engine/pattern-primitives.ts
 import type { Session, PatternSnapshot, SynthParamValues } from './types';
-import { getVoice, updateVoice } from './types';
+import { getTrack, updateTrack } from './types';
 import type { Step } from './sequencer-types';
 import { createDefaultStep } from './sequencer-helpers';
 
 function pushPatternSnapshot(
   session: Session,
-  voiceId: string,
+  trackId: string,
   prevSteps: { index: number; step: Step }[],
   description: string,
   prevLength?: number,
 ): Session {
   const snapshot: PatternSnapshot = {
     kind: 'pattern',
-    voiceId,
+    trackId,
     prevSteps,
     prevLength,
     timestamp: Date.now(),
@@ -1707,35 +1707,35 @@ function pushPatternSnapshot(
   return { ...session, undoStack: [...session.undoStack, snapshot] };
 }
 
-export function toggleStepGate(session: Session, voiceId: string, stepIndex: number): Session {
-  const voice = getVoice(session, voiceId);
+export function toggleStepGate(session: Session, trackId: string, stepIndex: number): Session {
+  const voice = getTrack(session, trackId);
   if (stepIndex < 0 || stepIndex >= voice.pattern.steps.length) return session;
 
   const oldStep = voice.pattern.steps[stepIndex];
   const newSteps = [...voice.pattern.steps];
   newSteps[stepIndex] = { ...oldStep, gate: !oldStep.gate };
 
-  let result = updateVoice(session, voiceId, {
+  let result = updateTrack(session, trackId, {
     pattern: { ...voice.pattern, steps: newSteps },
   });
-  return pushPatternSnapshot(result, voiceId,
+  return pushPatternSnapshot(result, trackId,
     [{ index: stepIndex, step: { ...oldStep } }],
     `toggle step ${stepIndex} gate`,
   );
 }
 
-export function toggleStepAccent(session: Session, voiceId: string, stepIndex: number): Session {
-  const voice = getVoice(session, voiceId);
+export function toggleStepAccent(session: Session, trackId: string, stepIndex: number): Session {
+  const voice = getTrack(session, trackId);
   if (stepIndex < 0 || stepIndex >= voice.pattern.steps.length) return session;
 
   const oldStep = voice.pattern.steps[stepIndex];
   const newSteps = [...voice.pattern.steps];
   newSteps[stepIndex] = { ...oldStep, accent: !oldStep.accent };
 
-  let result = updateVoice(session, voiceId, {
+  let result = updateTrack(session, trackId, {
     pattern: { ...voice.pattern, steps: newSteps },
   });
-  return pushPatternSnapshot(result, voiceId,
+  return pushPatternSnapshot(result, trackId,
     [{ index: stepIndex, step: { ...oldStep } }],
     `toggle step ${stepIndex} accent`,
   );
@@ -1743,11 +1743,11 @@ export function toggleStepAccent(session: Session, voiceId: string, stepIndex: n
 
 export function setStepParamLock(
   session: Session,
-  voiceId: string,
+  trackId: string,
   stepIndex: number,
   params: Partial<SynthParamValues>,
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const voice = getTrack(session, trackId);
   if (stepIndex < 0 || stepIndex >= voice.pattern.steps.length) return session;
 
   const oldStep = voice.pattern.steps[stepIndex];
@@ -1757,10 +1757,10 @@ export function setStepParamLock(
     params: { ...oldStep.params, ...params },
   };
 
-  let result = updateVoice(session, voiceId, {
+  let result = updateTrack(session, trackId, {
     pattern: { ...voice.pattern, steps: newSteps },
   });
-  return pushPatternSnapshot(result, voiceId,
+  return pushPatternSnapshot(result, trackId,
     [{ index: stepIndex, step: { ...oldStep } }],
     `set param lock on step ${stepIndex}`,
   );
@@ -1768,11 +1768,11 @@ export function setStepParamLock(
 
 export function clearStepParamLock(
   session: Session,
-  voiceId: string,
+  trackId: string,
   stepIndex: number,
   param: string,
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const voice = getTrack(session, trackId);
   if (stepIndex < 0 || stepIndex >= voice.pattern.steps.length) return session;
 
   const oldStep = voice.pattern.steps[stepIndex];
@@ -1786,17 +1786,17 @@ export function clearStepParamLock(
     params: Object.keys(newParams).length > 0 ? newParams : undefined,
   };
 
-  let result = updateVoice(session, voiceId, {
+  let result = updateTrack(session, trackId, {
     pattern: { ...voice.pattern, steps: newSteps },
   });
-  return pushPatternSnapshot(result, voiceId,
+  return pushPatternSnapshot(result, trackId,
     [{ index: stepIndex, step: { ...oldStep } }],
     `clear ${param} lock on step ${stepIndex}`,
   );
 }
 
-export function setPatternLength(session: Session, voiceId: string, length: number): Session {
-  const voice = getVoice(session, voiceId);
+export function setPatternLength(session: Session, trackId: string, length: number): Session {
+  const voice = getTrack(session, trackId);
   const clamped = Math.max(1, Math.min(64, length));
   if (clamped === voice.pattern.length) return session;
 
@@ -1805,17 +1805,17 @@ export function setPatternLength(session: Session, voiceId: string, length: numb
     newSteps.push(createDefaultStep());
   }
 
-  let result = updateVoice(session, voiceId, {
+  let result = updateTrack(session, trackId, {
     pattern: { steps: newSteps, length: clamped },
   });
-  return pushPatternSnapshot(result, voiceId, [],
+  return pushPatternSnapshot(result, trackId, [],
     `change pattern length ${voice.pattern.length} -> ${clamped}`,
     voice.pattern.length,
   );
 }
 
-export function clearPattern(session: Session, voiceId: string): Session {
-  const voice = getVoice(session, voiceId);
+export function clearPattern(session: Session, trackId: string): Session {
+  const voice = getTrack(session, trackId);
   const prevSteps = voice.pattern.steps
     .map((step, index) => ({ index, step: { ...step } }))
     .filter(({ step }) => step.gate || step.accent || step.params !== undefined || step.micro !== 0);
@@ -1823,10 +1823,10 @@ export function clearPattern(session: Session, voiceId: string): Session {
   if (prevSteps.length === 0) return session;
 
   const newSteps = voice.pattern.steps.map(() => createDefaultStep());
-  let result = updateVoice(session, voiceId, {
+  let result = updateTrack(session, trackId, {
     pattern: { ...voice.pattern, steps: newSteps },
   });
-  return pushPatternSnapshot(result, voiceId, prevSteps, 'clear pattern');
+  return pushPatternSnapshot(result, trackId, prevSteps, 'clear pattern');
 }
 ```
 
@@ -1929,7 +1929,7 @@ interface TouchRecord {
 }
 
 export class Arbitrator {
-  // Key: "voiceId:param" → TouchRecord
+  // Key: "trackId:param" → TouchRecord
   private touches: Map<string, TouchRecord> = new Map();
   private cooldownMs: number;
   private activeInteraction = false;
@@ -1938,12 +1938,12 @@ export class Arbitrator {
     this.cooldownMs = cooldownMs;
   }
 
-  private key(voiceId: string, param: string): string {
-    return `${voiceId}:${param}`;
+  private key(trackId: string, param: string): string {
+    return `${trackId}:${param}`;
   }
 
-  humanTouched(voiceId: string, param: string, value: number): void {
-    this.touches.set(this.key(voiceId, param), { value, timestamp: Date.now() });
+  humanTouched(trackId: string, param: string, value: number): void {
+    this.touches.set(this.key(trackId, param), { value, timestamp: Date.now() });
   }
 
   humanInteractionStart(): void {
@@ -1966,9 +1966,9 @@ export class Arbitrator {
     return true;
   }
 
-  getHeldParams(voiceId: string): Partial<SynthParamValues> {
+  getHeldParams(trackId: string): Partial<SynthParamValues> {
     const now = Date.now();
-    const prefix = `${voiceId}:`;
+    const prefix = `${trackId}:`;
     const held: Partial<SynthParamValues> = {};
     for (const [k, record] of this.touches) {
       if (!k.startsWith(prefix)) continue;
@@ -2151,7 +2151,7 @@ import type { ScheduledNote } from '../engine/sequencer-types';
 const VOICE_COUNT = 4;
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ≈ 2x linear gain
 
-interface VoiceSlot {
+interface TrackSlot {
   synth: WebAudioSynth;
   muteGain: GainNode;    // controlled by mute/solo — never touched by scheduleNote
   accentGain: GainNode;  // controlled by scheduleNote for accent boosts
@@ -2161,7 +2161,7 @@ interface VoiceSlot {
 
 export class AudioEngine {
   private ctx: AudioContext | null = null;
-  private voices: Map<string, VoiceSlot> = new Map();
+  private tracks: Map<string, TrackSlot> = new Map();
   private mixer: GainNode | null = null;
   private analyser: AnalyserNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
@@ -2172,7 +2172,7 @@ export class AudioEngine {
     return this._isRunning;
   }
 
-  async start(voiceIds: string[]): Promise<void> {
+  async start(trackIds: string[]): Promise<void> {
     if (this._isRunning) return;
     this.ctx = new AudioContext({ sampleRate: 48000 });
 
@@ -2186,7 +2186,7 @@ export class AudioEngine {
     this.analyser.connect(this.ctx.destination);
     this.mixer.connect(this.mediaStreamDest);
 
-    for (const voiceId of voiceIds) {
+    for (const trackId of trackIds) {
       // Two gain stages: accentGain (per-note dynamics) → muteGain (mute/solo)
       const accentGain = this.ctx.createGain();
       accentGain.gain.value = 0.3;
@@ -2196,7 +2196,7 @@ export class AudioEngine {
       muteGain.connect(this.mixer);
 
       const synth = new WebAudioSynth(this.ctx, accentGain);
-      this.voices.set(voiceId, {
+      this.tracks.set(trackId, {
         synth,
         muteGain,
         accentGain,
@@ -2214,10 +2214,10 @@ export class AudioEngine {
       clearTimeout(timeout);
     }
     this.scheduledTimeouts = [];
-    for (const slot of this.voices.values()) {
+    for (const slot of this.tracks.values()) {
       slot.synth.destroy();
     }
-    this.voices.clear();
+    this.tracks.clear();
     this.mixer?.disconnect();
     this.analyser?.disconnect();
     this.mediaStreamDest?.disconnect();
@@ -2229,22 +2229,22 @@ export class AudioEngine {
     this._isRunning = false;
   }
 
-  setVoiceModel(voiceId: string, model: number): void {
-    const slot = this.voices.get(voiceId);
+  setVoiceModel(trackId: string, model: number): void {
+    const slot = this.tracks.get(trackId);
     if (!slot) return;
     slot.currentModel = model;
     slot.synth.setModel(model);
   }
 
-  setVoiceParams(voiceId: string, params: SynthParams): void {
-    const slot = this.voices.get(voiceId);
+  setVoiceParams(trackId: string, params: SynthParams): void {
+    const slot = this.tracks.get(trackId);
     if (!slot) return;
     slot.currentParams = { ...params };
     slot.synth.setParams(params);
   }
 
-  muteVoice(voiceId: string, muted: boolean): void {
-    const slot = this.voices.get(voiceId);
+  muteVoice(trackId: string, muted: boolean): void {
+    const slot = this.tracks.get(trackId);
     if (!slot) return;
     // Only touch muteGain — accentGain is controlled by scheduleNote
     slot.muteGain.gain.value = muted ? 0 : 1;
@@ -2252,7 +2252,7 @@ export class AudioEngine {
 
   scheduleNote(note: ScheduledNote): void {
     if (!this.ctx) return;
-    const slot = this.voices.get(note.voiceId);
+    const slot = this.tracks.get(note.trackId);
     if (!slot) return;
 
     // --- Continuous params: schedule sample-accurately via AudioParam ---
@@ -2306,12 +2306,12 @@ export class AudioEngine {
 
   // Legacy single-voice API (for Phase 1 compatibility during migration)
   setModel(model: number): void {
-    const firstVoice = this.voices.keys().next().value;
+    const firstVoice = this.tracks.keys().next().value;
     if (firstVoice) this.setVoiceModel(firstVoice, model);
   }
 
   setParams(params: Partial<SynthParams>): void {
-    const firstVoice = this.voices.entries().next().value;
+    const firstVoice = this.tracks.entries().next().value;
     if (firstVoice) {
       const [id, slot] = firstVoice;
       const merged = { ...slot.currentParams, ...params };
@@ -2348,7 +2348,7 @@ import { createSession } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import type { Session } from '../../src/engine/types';
 import type { ScheduledNote } from '../../src/engine/sequencer-types';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 
 describe('Scheduler', () => {
   let session: Session;
@@ -2389,7 +2389,7 @@ describe('Scheduler', () => {
 
   it('emits notes for gated steps', () => {
     // Gate steps 0 and 4 on voice 0
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
     session = toggleStepGate(session, vid, 4);
 
@@ -2402,13 +2402,13 @@ describe('Scheduler', () => {
     vi.advanceTimersByTime(100);
 
     expect(notes.length).toBeGreaterThanOrEqual(1);
-    expect(notes[0].voiceId).toBe(vid);
+    expect(notes[0].trackId).toBe(vid);
     expect(notes[0].params).toBeDefined();
     sched.stop();
   });
 
   it('publishes position changes', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
     const sched = createScheduler();
     sched.start();
@@ -2429,7 +2429,7 @@ describe('Scheduler', () => {
   it('applies swing to odd-position steps in beat pairs', () => {
     // Set swing to 0.5
     session = { ...session, transport: { ...session.transport, swing: 0.5 } };
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     // Gate steps 0 and 1 (a pair within a beat)
     session = toggleStepGate(session, vid, 0);
     session = toggleStepGate(session, vid, 1);
@@ -2450,14 +2450,14 @@ describe('Scheduler', () => {
   });
 
   it('resolves note params with voice base + step locks', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     // Set a param lock on step 0
-    const voice = getVoice(session, vid);
+    const voice = getTrack(session, vid);
     const newSteps = [...voice.pattern.steps];
     newSteps[0] = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
     session = {
       ...session,
-      voices: session.voices.map(v => v.id === vid
+      tracks: session.tracks.map(v => v.id === vid
         ? { ...v, pattern: { ...v.pattern, steps: newSteps } }
         : v
       ),
@@ -2475,7 +2475,7 @@ describe('Scheduler', () => {
   });
 
   it('computes gateOffTime as next step time', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
 
     const sched = createScheduler();
@@ -2491,7 +2491,7 @@ describe('Scheduler', () => {
   });
 
   it('handles BPM change mid-play without glitching', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
     session = toggleStepGate(session, vid, 4);
 
@@ -2523,14 +2523,14 @@ describe('Scheduler', () => {
 
   it('wraps pattern for short patterns', () => {
     // Create an 8-step pattern with gate on step 0
-    const vid = session.voices[0].id;
-    const voice = session.voices.find(v => v.id === vid)!;
+    const vid = session.tracks[0].id;
+    const voice = session.tracks.find(v => v.id === vid)!;
     const newSteps = voice.pattern.steps.slice(0, 8).map((s, i) =>
       i === 0 ? { ...s, gate: true } : s
     );
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, pattern: { steps: newSteps, length: 8 } } : v
       ),
     };
@@ -2543,18 +2543,18 @@ describe('Scheduler', () => {
     sched.stop();
 
     // Should have emitted notes for step 0 on first and second pattern cycles
-    const step0Notes = notes.filter(n => n.voiceId === vid);
+    const step0Notes = notes.filter(n => n.trackId === vid);
     expect(step0Notes.length).toBeGreaterThanOrEqual(2);
   });
 
   it('only schedules audible voices', () => {
     // Mute voice 0, gate step 0 on both voice 0 and voice 1
-    session = toggleStepGate(session, session.voices[0].id, 0);
-    session = toggleStepGate(session, session.voices[1].id, 0);
+    session = toggleStepGate(session, session.tracks[0].id, 0);
+    session = toggleStepGate(session, session.tracks[1].id, 0);
     session = {
       ...session,
-      voices: session.voices.map(v =>
-        v.id === session.voices[0].id ? { ...v, muted: true } : v
+      tracks: session.tracks.map(v =>
+        v.id === session.tracks[0].id ? { ...v, muted: true } : v
       ),
     };
 
@@ -2565,10 +2565,10 @@ describe('Scheduler', () => {
     sched.stop();
 
     // Only voice 1 notes should appear
-    const voiceIds = [...new Set(notes.map(n => n.voiceId))];
-    expect(voiceIds).not.toContain(session.voices[0].id);
+    const trackIds = [...new Set(notes.map(n => n.trackId))];
+    expect(trackIds).not.toContain(session.tracks[0].id);
     if (notes.length > 0) {
-      expect(voiceIds).toContain(session.voices[1].id);
+      expect(trackIds).toContain(session.tracks[1].id);
     }
   });
 });
@@ -2585,7 +2585,7 @@ Expected: FAIL — module not found
 // src/engine/scheduler.ts
 import type { Session, SynthParamValues } from './types';
 import type { ScheduledNote } from './sequencer-types';
-import { getAudibleVoices, resolveNoteParams } from './sequencer-helpers';
+import { getAudibleTracks, resolveNoteParams } from './sequencer-helpers';
 
 const PPQN = 48;
 const TICKS_PER_STEP = 12; // 48 PPQN / 4 steps per beat
@@ -2597,7 +2597,7 @@ export class Scheduler {
   private getAudioTime: () => number;
   private onNote: (note: ScheduledNote) => void;
   private onPositionChange: (globalStep: number) => void;
-  private getHeldParams: (voiceId: string) => Partial<SynthParamValues>;
+  private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
 
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private cursor = 0; // ticks
@@ -2609,7 +2609,7 @@ export class Scheduler {
     getAudioTime: () => number,
     onNote: (note: ScheduledNote) => void,
     onPositionChange: (globalStep: number) => void,
-    getHeldParams: (voiceId: string) => Partial<SynthParamValues>,
+    getHeldParams: (trackId: string) => Partial<SynthParamValues>,
   ) {
     this.getSession = getSession;
     this.getAudioTime = getAudioTime;
@@ -2662,7 +2662,7 @@ export class Scheduler {
     const lookaheadEnd = currentAudioTime + LOOKAHEAD_SEC;
     const lookaheadEndTick = Math.floor((lookaheadEnd - this.startTime) / tickDuration);
 
-    const audibleVoices = getAudibleVoices(session);
+    const audibleVoices = getAudibleTracks(session);
 
     // Walk step boundaries from current cursor to lookahead end.
     // This correctly handles multiple step boundaries (e.g., after tab backgrounding).
@@ -2701,7 +2701,7 @@ export class Scheduler {
         const resolvedParams = resolveNoteParams(voice, step, heldParams);
 
         this.onNote({
-          voiceId: voice.id,
+          trackId: voice.id,
           time: noteTime,
           gateOffTime,
           accent: step.accent,
@@ -2762,40 +2762,40 @@ describe('State Compression (Phase 2)', () => {
   it('compresses multi-voice session', () => {
     const session = createSession();
     const result = compressState(session);
-    expect(result.voices).toHaveLength(4);
-    expect(result.voices[0].model).toBe('analog_bass_drum');
+    expect(result.tracks).toHaveLength(4);
+    expect(result.tracks[0].model).toBe('analog_bass_drum');
     expect(result.transport).toEqual({ bpm: 120, swing: 0 });
   });
 
   it('compresses pattern with active steps', () => {
     let s = createSession();
-    const vid = s.voices[0].id;
+    const vid = s.tracks[0].id;
     s = toggleStepGate(s, vid, 0);
     s = toggleStepGate(s, vid, 4);
     s = toggleStepGate(s, vid, 8);
     s = toggleStepGate(s, vid, 12);
 
     const result = compressState(s);
-    expect(result.voices[0].pattern.active_steps).toEqual([0, 4, 8, 12]);
+    expect(result.tracks[0].pattern.active_steps).toEqual([0, 4, 8, 12]);
   });
 
   it('compresses accented steps', () => {
     let s = createSession();
-    const vid = s.voices[0].id;
+    const vid = s.tracks[0].id;
     s = toggleStepGate(s, vid, 0);
     s = toggleStepAccent(s, vid, 0);
 
     const result = compressState(s);
-    expect(result.voices[0].pattern.accents).toEqual([0]);
+    expect(result.tracks[0].pattern.accents).toEqual([0]);
   });
 
   it('compresses parameter locks', () => {
     let s = createSession();
-    const vid = s.voices[0].id;
+    const vid = s.tracks[0].id;
     s = setStepParamLock(s, vid, 5, { timbre: 0.8 });
 
     const result = compressState(s);
-    expect(result.voices[0].pattern.locks).toEqual({ '5': { timbre: 0.8 } });
+    expect(result.tracks[0].pattern.locks).toEqual({ '5': { timbre: 0.8 } });
   });
 
   it('includes human message when provided', () => {
@@ -2835,7 +2835,7 @@ interface CompressedVoice {
 }
 
 export interface CompressedState {
-  voices: CompressedVoice[];
+  tracks: CompressedVoice[];
   transport: { bpm: number; swing: number };
   leash: number;
   context: { energy: number; density: number };
@@ -2885,7 +2885,7 @@ function compressPattern(voice: Voice): CompressedPattern {
 
 export function compressState(session: Session, humanMessage?: string): CompressedState {
   const result: CompressedState = {
-    voices: session.voices.map(voice => ({
+    tracks: session.tracks.map(voice => ({
       id: voice.id,
       model: modelName(voice.model),
       params: {
@@ -2966,7 +2966,7 @@ describe('parseAIResponse (Phase 2)', () => {
   it('parses sketch actions with PatternSketch', () => {
     const json = JSON.stringify([{
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'four on the floor',
       pattern: {
         steps: [
@@ -2981,12 +2981,12 @@ describe('parseAIResponse (Phase 2)', () => {
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe('sketch');
     if (result[0].type === 'sketch') {
-      expect(result[0].voiceId).toBe('v0');
+      expect(result[0].trackId).toBe('v0');
       expect(result[0].pattern.steps).toHaveLength(4);
     }
   });
 
-  it('rejects sketch without voiceId', () => {
+  it('rejects sketch without trackId', () => {
     const json = JSON.stringify([{
       type: 'sketch',
       description: 'test',
@@ -2999,7 +2999,7 @@ describe('parseAIResponse (Phase 2)', () => {
   it('rejects sketch without pattern', () => {
     const json = JSON.stringify([{
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'test',
     }]);
     const result = parseAIResponse(json);
@@ -3009,7 +3009,7 @@ describe('parseAIResponse (Phase 2)', () => {
   it('rejects sketch with non-array steps', () => {
     const json = JSON.stringify([{
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'test',
       pattern: { steps: 'not an array' },
     }]);
@@ -3020,8 +3020,8 @@ describe('parseAIResponse (Phase 2)', () => {
   it('handles mixed valid and invalid actions', () => {
     const json = JSON.stringify([
       { type: 'say', text: 'here is a pattern' },
-      { type: 'sketch', voiceId: 'v0', description: 'kick', pattern: { steps: [{ index: 0, gate: true }] } },
-      { type: 'sketch', description: 'invalid' }, // missing voiceId
+      { type: 'sketch', trackId: 'v0', description: 'kick', pattern: { steps: [{ index: 0, gate: true }] } },
+      { type: 'sketch', description: 'invalid' }, // missing trackId
     ]);
     const result = parseAIResponse(json);
     expect(result).toHaveLength(2);
@@ -3076,7 +3076,7 @@ function isValidAction(action: unknown): action is AIAction {
       return typeof action.text === 'string';
 
     case 'sketch':
-      if (typeof action.voiceId !== 'string') return false;
+      if (typeof action.trackId !== 'string') return false;
       if (typeof action.description !== 'string') return false;
       if (!isRecord(action.pattern)) return false;
       if (!Array.isArray(action.pattern.steps)) return false;
@@ -3143,14 +3143,14 @@ Respond with a JSON array of actions. Available action types:
   \`{ "type": "audition", "changes": { "morph": 0.3 }, "duration": 3000 }\`
 
 - **sketch**: Propose a pattern for a voice (goes to pending queue, human commits/dismisses)
-  \`{ "type": "sketch", "voiceId": "v0", "description": "four on the floor kick", "pattern": { "length": 16, "steps": [{ "index": 0, "gate": true, "accent": true }, { "index": 4, "gate": true }, { "index": 8, "gate": true, "accent": true }, { "index": 12, "gate": true }] } }\`
+  \`{ "type": "sketch", "trackId": "v0", "description": "four on the floor kick", "pattern": { "length": 16, "steps": [{ "index": 0, "gate": true, "accent": true }, { "index": 4, "gate": true }, { "index": 8, "gate": true, "accent": true }, { "index": 12, "gate": true }] } }\`
   Steps are sparse — only include steps you want to set/change. Each step can have: index (required), gate, accent, params (parameter locks like { "timbre": 0.8, "note": 0.6 }). Use params.note for per-step pitch (e.g., \`{ "index": 3, "gate": true, "params": { "note": 0.7 } }\`).
 
 - **say**: Speak to the human
   \`{ "type": "say", "text": "your message" }\`
 
 ## Voice Setup
-4 voices: v0 (kick, model 13), v1 (bass, model 0), v2 (lead, model 2), v3 (pad, model 4).
+4 tracks: v0 (kick, model 13), v1 (bass, model 0), v2 (lead, model 2), v3 (pad, model 4).
 
 ## Behaviour Rules
 1. Be musical. Be concise. Don't over-explain.
@@ -3226,7 +3226,7 @@ export class GluonAI {
   async react(session: Session): Promise<AIAction[]> {
     if (!this.client) return [];
     // Check if any voice has agency beyond OFF
-    const anyActive = session.voices.some(v => v.agency !== 'OFF');
+    const anyActive = session.tracks.some(v => v.agency !== 'OFF');
     if (!anyActive) return [];
     if (session.leash < 0.3) return [];
     const state = compressState(session);
@@ -3544,11 +3544,11 @@ git commit -m "feat: add TransportBar component with play/stop, BPM, swing, reco
 import type { Voice } from '../engine/types';
 
 interface Props {
-  voices: Voice[];
-  activeVoiceId: string;
-  onSelectVoice: (voiceId: string) => void;
-  onToggleMute: (voiceId: string) => void;
-  onToggleSolo: (voiceId: string) => void;
+  tracks: Voice[];
+  activeTrackId: string;
+  onSelectVoice: (trackId: string) => void;
+  onToggleMute: (trackId: string) => void;
+  onToggleSolo: (trackId: string) => void;
 }
 
 const VOICE_LABELS = ['KICK', 'BASS', 'LEAD', 'PAD'];
@@ -3558,11 +3558,11 @@ const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
   PLAY: { label: 'PLY', color: 'text-amber-400' },
 };
 
-export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMute, onToggleSolo }: Props) {
+export function VoiceSelector({ voices, activeTrackId, onSelectVoice, onToggleMute, onToggleSolo }: Props) {
   return (
     <div className="flex gap-1">
       {voices.map((voice, i) => {
-        const isActive = voice.id === activeVoiceId;
+        const isActive = voice.id === activeTrackId;
         const badge = AGENCY_BADGE[voice.agency] ?? AGENCY_BADGE.OFF;
 
         return (
@@ -3819,7 +3819,7 @@ git commit -m "feat: add PatternControls component with length presets, page nav
 - Modify: `src/ui/App.tsx`
 
 This is the integration task. It rewires App.tsx to use:
-- Multi-voice session (`voices[]`, `activeVoiceId`, `transport`)
+- Multi-voice session (`voices[]`, `activeTrackId`, `transport`)
 - Scheduler (created once, controlled by `useEffect` on `transport.playing`)
 - New UI components (TransportBar, VoiceSelector, StepGrid, PatternControls)
 - AudioExporter for record/export
@@ -3833,9 +3833,9 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import type { Session, AIAction } from '../engine/types';
-import { getActiveVoice, getVoice } from '../engine/types';
+import { getActiveTrack, getTrack } from '../engine/types';
 import {
-  createSession, setLeash, setAgency, updateVoiceParams, setModel,
+  createSession, setLeash, setAgency, updateTrackParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
 import {
@@ -3885,9 +3885,9 @@ export default function App() {
 
   const startAudio = useCallback(async () => {
     const s = sessionRef.current;
-    await audioRef.current.start(s.voices.map(v => v.id));
+    await audioRef.current.start(s.tracks.map(v => v.id));
     // Set initial models
-    for (const voice of s.voices) {
+    for (const voice of s.tracks) {
       audioRef.current.setVoiceModel(voice.id, voice.model);
       audioRef.current.setVoiceParams(voice.id, voice.params);
     }
@@ -3902,7 +3902,7 @@ export default function App() {
       () => audioRef.current.getCurrentTime(),
       (note) => audioRef.current.scheduleNote(note),
       (step) => setGlobalStep(step),
-      (voiceId) => arbRef.current.getHeldParams(voiceId),
+      (trackId) => arbRef.current.getHeldParams(trackId),
     );
     return () => { schedulerRef.current?.stop(); };
   }, [audioStarted]);
@@ -3920,35 +3920,35 @@ export default function App() {
   // Sync audio params when session changes
   useEffect(() => {
     if (!audioStarted) return;
-    const activeVoice = getActiveVoice(session);
+    const activeVoice = getActiveTrack(session);
     audioRef.current.setVoiceParams(activeVoice.id, activeVoice.params);
     audioRef.current.setVoiceModel(activeVoice.id, activeVoice.model);
-  }, [session.voices, audioStarted]);
+  }, [session.tracks, audioStarted]);
 
   // Sync mute/solo state
   useEffect(() => {
     if (!audioStarted) return;
-    const anySoloed = session.voices.some(v => v.solo);
-    for (const voice of session.voices) {
+    const anySoloed = session.tracks.some(v => v.solo);
+    for (const voice of session.tracks) {
       const audible = anySoloed ? voice.solo : !voice.muted;
       audioRef.current.muteVoice(voice.id, !audible);
     }
-  }, [session.voices, audioStarted]);
+  }, [session.tracks, audioStarted]);
 
-  const activeVoice = getActiveVoice(session);
+  const activeVoice = getActiveTrack(session);
 
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
       let next = s;
       const moveActions: { param: string; target: { absolute: number } | { relative: number } }[] = [];
-      const activeVid = s.activeVoiceId;
+      const activeVid = s.activeTrackId;
 
       for (const action of actions) {
         switch (action.type) {
           case 'move':
-            if (getActiveVoice(next).agency !== 'OFF' && arbRef.current.canAIAct(action.param)) {
+            if (getActiveTrack(next).agency !== 'OFF' && arbRef.current.canAIAct(action.param)) {
               if (action.over) {
-                const voice = getActiveVoice(next);
+                const voice = getActiveTrack(next);
                 const currentVal = voice.params[action.param] ?? 0;
                 const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
                 const targetVal = Math.max(0, Math.min(1, rawTarget));
@@ -3962,19 +3962,19 @@ export default function App() {
             }
             break;
           case 'suggest':
-            if (getActiveVoice(next).agency !== 'OFF') {
+            if (getActiveTrack(next).agency !== 'OFF') {
               next = applySuggest(next, activeVid, action.changes, action.reason);
             }
             break;
           case 'audition':
-            if (getActiveVoice(next).agency === 'PLAY') {
+            if (getActiveTrack(next).agency === 'PLAY') {
               next = applyAudition(next, activeVid, action.changes, action.duration);
             }
             break;
           case 'sketch': {
-            const targetVoice = next.voices.find(v => v.id === action.voiceId);
-            if (targetVoice && targetVoice.agency !== 'OFF') {
-              next = applySketchPending(next, action.voiceId, action.description, action.pattern);
+            const targetTrack = next.tracks.find(v => v.id === action.trackId);
+            if (targetTrack && targetTrack.agency !== 'OFF') {
+              next = applySketchPending(next, action.trackId, action.description, action.pattern);
             }
             break;
           }
@@ -3998,13 +3998,13 @@ export default function App() {
   }, []);
 
   const handleParamChange = useCallback((timbre: number, morph: number) => {
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     arbRef.current.humanTouched(vid, 'timbre', timbre);
     arbRef.current.humanTouched(vid, 'morph', morph);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'timbre');
       next = cancelAuditionParam(next, vid, 'morph');
-      next = updateVoiceParams(next, vid, { timbre, morph }, true);
+      next = updateTrackParams(next, vid, { timbre, morph }, true);
 
       // If a step is held, apply param lock
       if (heldStep !== null) {
@@ -4016,25 +4016,25 @@ export default function App() {
   }, [heldStep]);
 
   const handleNoteChange = useCallback((note: number) => {
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     arbRef.current.humanTouched(vid, 'note', note);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'note');
-      return updateVoiceParams(next, vid, { note }, true);
+      return updateTrackParams(next, vid, { note }, true);
     });
   }, []);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     arbRef.current.humanTouched(vid, 'harmonics', harmonics);
     setSession((s) => {
       let next = cancelAuditionParam(s, vid, 'harmonics');
-      return updateVoiceParams(next, vid, { harmonics }, true);
+      return updateTrackParams(next, vid, { harmonics }, true);
     });
   }, []);
 
   const handleModelChange = useCallback((model: number) => {
-    setSession((s) => setModel(s, s.activeVoiceId, model));
+    setSession((s) => setModel(s, s.activeTrackId, model));
   }, []);
 
   const handleLeashChange = useCallback((value: number) => {
@@ -4042,7 +4042,7 @@ export default function App() {
   }, []);
 
   const handleAgencyChange = useCallback((agency: 'OFF' | 'SUGGEST' | 'PLAY') => {
-    setSession((s) => setAgency(s, s.activeVoiceId, agency));
+    setSession((s) => setAgency(s, s.activeTrackId, agency));
   }, []);
 
   const handleUndo = useCallback(() => {
@@ -4095,34 +4095,34 @@ export default function App() {
     }
   }, [recording]);
 
-  const handleSelectVoice = useCallback((voiceId: string) => {
-    setSession((s) => setActiveVoice(s, voiceId));
+  const handleSelectVoice = useCallback((trackId: string) => {
+    setSession((s) => setActiveVoice(s, trackId));
     setStepPage(0);
   }, []);
 
-  const handleToggleMute = useCallback((voiceId: string) => {
-    setSession((s) => toggleMute(s, voiceId));
+  const handleToggleMute = useCallback((trackId: string) => {
+    setSession((s) => toggleMute(s, trackId));
   }, []);
 
-  const handleToggleSolo = useCallback((voiceId: string) => {
-    setSession((s) => toggleSolo(s, voiceId));
+  const handleToggleSolo = useCallback((trackId: string) => {
+    setSession((s) => toggleSolo(s, trackId));
   }, []);
 
   const handleStepToggle = useCallback((stepIndex: number) => {
-    setSession((s) => toggleStepGate(s, s.activeVoiceId, stepIndex));
+    setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, []);
 
   const handleStepAccent = useCallback((stepIndex: number) => {
-    setSession((s) => toggleStepAccent(s, s.activeVoiceId, stepIndex));
+    setSession((s) => toggleStepAccent(s, s.activeTrackId, stepIndex));
   }, []);
 
   const handlePatternLength = useCallback((length: number) => {
-    setSession((s) => setPatternLength(s, s.activeVoiceId, length));
+    setSession((s) => setPatternLength(s, s.activeTrackId, length));
     setStepPage(0);
   }, []);
 
   const handleClearPattern = useCallback(() => {
-    setSession((s) => clearPattern(s, s.activeVoiceId));
+    setSession((s) => clearPattern(s, s.activeTrackId));
   }, []);
 
   useEffect(() => {
@@ -4146,7 +4146,7 @@ export default function App() {
     const interval = setInterval(async () => {
       const s = sessionRef.current;
       if (!aiRef.current.isConfigured()) return;
-      const anyActive = s.voices.some(v => v.agency !== 'OFF');
+      const anyActive = s.tracks.some(v => v.agency !== 'OFF');
       if (!anyActive) return;
       if (s.leash < 0.3) return;
       const actions = await aiRef.current.react(s);
@@ -4178,7 +4178,7 @@ export default function App() {
 
   // Find pending sketch for active voice
   const pendingSketch = session.pending.find(
-    (p): p is SketchPendingAction => p.kind === 'sketch' && p.voiceId === activeVoice.id,
+    (p): p is SketchPendingAction => p.kind === 'sketch' && p.trackId === activeVoice.id,
   );
 
   if (!audioStarted) {
@@ -4217,8 +4217,8 @@ export default function App() {
 
           <div className="flex items-center justify-between">
             <VoiceSelector
-              voices={session.voices}
-              activeVoiceId={session.activeVoiceId}
+              voices={session.tracks}
+              activeTrackId={session.activeTrackId}
               onSelectVoice={handleSelectVoice}
               onToggleMute={handleToggleMute}
               onToggleSolo={handleToggleSolo}
@@ -4304,66 +4304,66 @@ git commit -m "feat: wire App.tsx for multi-voice, sequencer, transport, export"
 
 - [ ] **Step 21.1: Update undo tests for multi-voice**
 
-Update `tests/engine/undo.test.ts` to use `getVoice()` and multi-voice `applyMove()` signature:
+Update `tests/engine/undo.test.ts` to use `getTrack()` and multi-voice `applyMove()` signature:
 
 ```typescript
 // tests/engine/undo.test.ts
 import { describe, it, expect } from 'vitest';
 import { applyMove, applyMoveGroup, applyUndo } from '../../src/engine/primitives';
-import { createSession, updateVoiceParams } from '../../src/engine/session';
+import { createSession, updateTrackParams } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 
 describe('Undo (Phase 2)', () => {
   it('undoes a single param move', () => {
     const s = createSession();
-    const vid = s.activeVoiceId;
+    const vid = s.activeTrackId;
     const moved = applyMove(s, vid, 'timbre', { absolute: 0.8 });
     const undone = applyUndo(moved);
-    expect(getVoice(undone, vid).params.timbre).toBe(0.5);
+    expect(getTrack(undone, vid).params.timbre).toBe(0.5);
   });
 
   it('undoes move group in one step', () => {
     const s = createSession();
-    const vid = s.activeVoiceId;
+    const vid = s.activeTrackId;
     const moved = applyMoveGroup(s, vid, [
       { param: 'timbre', target: { absolute: 0.8 } },
       { param: 'morph', target: { absolute: 0.3 } },
     ]);
     const undone = applyUndo(moved);
-    expect(getVoice(undone, vid).params.timbre).toBe(0.5);
-    expect(getVoice(undone, vid).params.morph).toBe(0.5);
+    expect(getTrack(undone, vid).params.timbre).toBe(0.5);
+    expect(getTrack(undone, vid).params.morph).toBe(0.5);
   });
 
   it('does not undo if human has moved param since AI', () => {
     const s = createSession();
-    const vid = s.activeVoiceId;
+    const vid = s.activeTrackId;
     let state = applyMove(s, vid, 'timbre', { absolute: 0.8 });
-    state = updateVoiceParams(state, vid, { timbre: 0.6 });
+    state = updateTrackParams(state, vid, { timbre: 0.6 });
     const undone = applyUndo(state);
-    expect(getVoice(undone, vid).params.timbre).toBe(0.6);
+    expect(getTrack(undone, vid).params.timbre).toBe(0.6);
   });
 
   it('undoes pattern edits unconditionally', () => {
     const s = createSession();
-    const vid = s.activeVoiceId;
+    const vid = s.activeTrackId;
     const toggled = toggleStepGate(s, vid, 0);
-    expect(getVoice(toggled, vid).pattern.steps[0].gate).toBe(true);
+    expect(getTrack(toggled, vid).pattern.steps[0].gate).toBe(true);
     const undone = applyUndo(toggled);
-    expect(getVoice(undone, vid).pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, vid).pattern.steps[0].gate).toBe(false);
   });
 
   it('undoes in LIFO order', () => {
     const s = createSession();
-    const vid = s.activeVoiceId;
+    const vid = s.activeTrackId;
     let state = applyMove(s, vid, 'timbre', { absolute: 0.8 });
     state = toggleStepGate(state, vid, 0);
     // Undo pattern edit first
     state = applyUndo(state);
-    expect(getVoice(state, vid).pattern.steps[0].gate).toBe(false);
+    expect(getTrack(state, vid).pattern.steps[0].gate).toBe(false);
     // Then undo param move
     state = applyUndo(state);
-    expect(getVoice(state, vid).params.timbre).toBe(0.5);
+    expect(getTrack(state, vid).params.timbre).toBe(0.5);
   });
 });
 ```
@@ -4403,7 +4403,7 @@ Expected: Build succeeds
 
 Address any type errors, import issues, or test failures. Common issues:
 - `PendingOverlay` may reference old `PendingAction.type` field — update to use `kind`
-- Other UI components may reference `session.voice` — update to use `getActiveVoice(session)`
+- Other UI components may reference `session.voice` — update to use `getActiveTrack(session)`
 - Test files may have stale imports
 
 - [ ] **Step 22.5: Commit all fixes**

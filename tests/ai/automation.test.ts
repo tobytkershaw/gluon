@@ -27,7 +27,7 @@ describe('AutomationEngine', () => {
     expect(engine.getActiveCount()).toBe(0);
   });
 
-  it('cancels an automation by voiceId and param', () => {
+  it('cancels an automation by trackId and param', () => {
     const engine = new AutomationEngine();
     const cb = vi.fn();
     engine.start('v1', 'timbre', 0.0, 1.0, 1000, cb);
@@ -38,7 +38,7 @@ describe('AutomationEngine', () => {
     expect(cb).not.toHaveBeenCalled();
   });
 
-  it('replaces existing automation on same voice+param', () => {
+  it('replaces existing automation on same track+param', () => {
     const engine = new AutomationEngine();
     const cb1 = vi.fn();
     const cb2 = vi.fn();
@@ -51,7 +51,7 @@ describe('AutomationEngine', () => {
     expect(cb1).toHaveBeenCalledTimes(0);
   });
 
-  it('cancel on one voice does not affect same param on another voice', () => {
+  it('cancel on one track does not affect same param on another track', () => {
     const engine = new AutomationEngine();
     const cb1 = vi.fn();
     const cb2 = vi.fn();
@@ -66,7 +66,7 @@ describe('AutomationEngine', () => {
     expect(cb2).toHaveBeenCalled();
   });
 
-  it('same voice different params are independent', () => {
+  it('same track different params are independent', () => {
     const engine = new AutomationEngine();
     const cbTimbre = vi.fn();
     const cbMorph = vi.fn();

@@ -39,7 +39,7 @@ describe('system prompt generation', () => {
     expect(prompt).toContain('tool call');
   });
 
-  it('contains voice setup', () => {
+  it('contains track setup', () => {
     const prompt = defaultPrompt();
     expect(prompt).toContain('v0');
     expect(prompt).toContain('v1');
@@ -66,7 +66,7 @@ describe('system prompt generation', () => {
   });
 });
 
-describe('dynamic voice setup', () => {
+describe('dynamic track setup', () => {
   it('shows percussion classification for drum engines', () => {
     const session = createSession();
     const prompt = buildSystemPrompt(session);
@@ -94,7 +94,7 @@ describe('dynamic voice setup', () => {
     expect(prompt).toContain('v0 (Kick): Analog Bass Drum (percussion) — agency ON');
   });
 
-  it('shows correct model name for each voice', () => {
+  it('shows correct model name for each track', () => {
     const session = createSession();
     const prompt = buildSystemPrompt(session);
     expect(prompt).toContain('v0 (Kick): Analog Bass Drum');

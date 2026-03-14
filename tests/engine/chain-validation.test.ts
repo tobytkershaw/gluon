@@ -3,9 +3,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { validateChain, validateChainMutation, validateProcessorTarget } from '../../src/engine/chain-validation';
-import type { Voice, ProcessorConfig } from '../../src/engine/types';
+import type { Track, ProcessorConfig } from '../../src/engine/types';
 
-function makeVoice(processors: ProcessorConfig[] = []): Voice {
+function makeTrack(processors: ProcessorConfig[] = []): Track {
   return {
     id: 'v0',
     engine: 'plaits:virtual_analog',
@@ -31,22 +31,22 @@ function makeRingsProcessor(id: string, model = 0): ProcessorConfig {
 
 describe('validateChain', () => {
   it('accepts empty chain', () => {
-    const result = validateChain(makeVoice([]));
+    const result = validateChain(makeTrack([]));
     expect(result.valid).toBe(true);
   });
 
   it('accepts 1 processor', () => {
-    const result = validateChain(makeVoice([makeRingsProcessor('r1')]));
+    const result = validateChain(makeTrack([makeRingsProcessor('r1')]));
     expect(result.valid).toBe(true);
   });
 
   it('accepts 2 processors', () => {
-    const result = validateChain(makeVoice([makeRingsProcessor('r1'), makeRingsProcessor('r2')]));
+    const result = validateChain(makeTrack([makeRingsProcessor('r1'), makeRingsProcessor('r2')]));
     expect(result.valid).toBe(true);
   });
 
   it('rejects 3 processors', () => {
-    const result = validateChain(makeVoice([
+    const result = validateChain(makeTrack([
       makeRingsProcessor('r1'),
       makeRingsProcessor('r2'),
       makeRingsProcessor('r3'),
@@ -57,13 +57,13 @@ describe('validateChain', () => {
   });
 
   it('rejects unknown processor type', () => {
-    const result = validateChain(makeVoice([{ id: 'x1', type: 'unknown', model: 0, params: {} }]));
+    const result = validateChain(makeTrack([{ id: 'x1', type: 'unknown', model: 0, params: {} }]));
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('Unknown processor type: unknown');
   });
 
   it('rejects duplicate processor IDs', () => {
-    const result = validateChain(makeVoice([makeRingsProcessor('dup'), makeRingsProcessor('dup')]));
+    const result = validateChain(makeTrack([makeRingsProcessor('dup'), makeRingsProcessor('dup')]));
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('Duplicate processor ID: dup');
   });
@@ -71,13 +71,13 @@ describe('validateChain', () => {
 
 describe('validateChainMutation', () => {
   it('accepts adding to empty chain', () => {
-    const result = validateChainMutation(makeVoice([]), { kind: 'add', type: 'rings' });
+    const result = validateChainMutation(makeTrack([]), { kind: 'add', type: 'rings' });
     expect(result.valid).toBe(true);
   });
 
   it('accepts adding second processor', () => {
     const result = validateChainMutation(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       { kind: 'add', type: 'rings' },
     );
     expect(result.valid).toBe(true);
@@ -85,7 +85,7 @@ describe('validateChainMutation', () => {
 
   it('rejects adding 3rd processor', () => {
     const result = validateChainMutation(
-      makeVoice([makeRingsProcessor('r1'), makeRingsProcessor('r2')]),
+      makeTrack([makeRingsProcessor('r1'), makeRingsProcessor('r2')]),
       { kind: 'add', type: 'rings' },
     );
     expect(result.valid).toBe(false);
@@ -93,7 +93,7 @@ describe('validateChainMutation', () => {
   });
 
   it('rejects adding unknown type', () => {
-    const result = validateChainMutation(makeVoice([]), { kind: 'add', type: 'nonexistent' });
+    const result = validateChainMutation(makeTrack([]), { kind: 'add', type: 'nonexistent' });
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('Unknown processor type');
     expect(result.errors[0]).toContain('rings');
@@ -101,7 +101,7 @@ describe('validateChainMutation', () => {
 
   it('accepts removing existing processor', () => {
     const result = validateChainMutation(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       { kind: 'remove', processorId: 'r1' },
     );
     expect(result.valid).toBe(true);
@@ -109,7 +109,7 @@ describe('validateChainMutation', () => {
 
   it('rejects removing nonexistent processor', () => {
     const result = validateChainMutation(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       { kind: 'remove', processorId: 'nonexistent' },
     );
     expect(result.valid).toBe(false);
@@ -120,21 +120,21 @@ describe('validateChainMutation', () => {
 describe('validateProcessorTarget', () => {
   it('accepts valid processor with no param/model check', () => {
     const result = validateProcessorTarget(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       'r1',
     );
     expect(result.valid).toBe(true);
   });
 
   it('rejects nonexistent processor', () => {
-    const result = validateProcessorTarget(makeVoice([]), 'nonexistent');
+    const result = validateProcessorTarget(makeTrack([]), 'nonexistent');
     expect(result.valid).toBe(false);
     expect(result.errors[0]).toContain('Processor not found');
   });
 
   it('accepts valid param name', () => {
     const result = validateProcessorTarget(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       'r1',
       { param: 'brightness' },
     );
@@ -143,7 +143,7 @@ describe('validateProcessorTarget', () => {
 
   it('rejects invalid param name', () => {
     const result = validateProcessorTarget(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       'r1',
       { param: 'invalid' },
     );
@@ -153,7 +153,7 @@ describe('validateProcessorTarget', () => {
 
   it('accepts valid model name', () => {
     const result = validateProcessorTarget(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       'r1',
       { model: 'string' },
     );
@@ -162,7 +162,7 @@ describe('validateProcessorTarget', () => {
 
   it('rejects invalid model name', () => {
     const result = validateProcessorTarget(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       'r1',
       { model: 'nonexistent' },
     );
@@ -172,7 +172,7 @@ describe('validateProcessorTarget', () => {
 
   it('validates both param and model together', () => {
     const result = validateProcessorTarget(
-      makeVoice([makeRingsProcessor('r1')]),
+      makeTrack([makeRingsProcessor('r1')]),
       'r1',
       { param: 'invalid', model: 'nonexistent' },
     );

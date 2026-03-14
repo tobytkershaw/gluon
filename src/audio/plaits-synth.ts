@@ -131,7 +131,7 @@ export class PlaitsSynth implements SynthEngine {
 
   scheduleNote(note: ScheduledNote): void {
     // Only send set-patch if this note has per-step overrides (param locks).
-    // Base voice params are kept in sync via the real-time sync effect,
+    // Base track params are kept in sync via the real-time sync effect,
     // so sending them on every note would override interactive changes.
     if (note.baseParams) {
       const allKeys = new Set([...Object.keys(note.params), ...Object.keys(note.baseParams)]);

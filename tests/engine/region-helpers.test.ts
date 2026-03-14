@@ -295,7 +295,7 @@ describe('normalizeRegionEvents', () => {
 
 describe('createDefaultRegion', () => {
   it('produces a valid region', () => {
-    const region = createDefaultRegion('voice-1', 16);
+    const region = createDefaultRegion('track-1', 16);
     const { valid } = validateRegion(region);
     expect(valid).toBe(true);
   });
@@ -309,7 +309,7 @@ describe('createDefaultRegion', () => {
     expect(region.kind).toBe('pattern');
   });
 
-  it('includes voiceId in the region id', () => {
+  it('includes trackId in the region id', () => {
     const region = createDefaultRegion('snare', 16);
     expect(region.id).toContain('snare');
   });

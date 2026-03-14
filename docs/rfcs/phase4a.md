@@ -333,14 +333,14 @@ It should define first-class operations:
 
 ```ts
 type PatchOp =
-  | { type: 'add_processor'; voiceId: string; module: ModuleType; position?: number }
-  | { type: 'replace_processor'; voiceId: string; moduleId: string; module: ModuleType }
-  | { type: 'remove_processor'; voiceId: string; moduleId: string }
-  | { type: 'set_module_param'; voiceId: string; moduleId: string; param: string; value: number }
-  | { type: 'add_modulation'; voiceId: string; sourceModuleId: string; targetModuleId: string; targetParam: string; depth: number }
-  | { type: 'adjust_modulation_depth'; voiceId: string; modulationId: string; depth: number }
-  | { type: 'simplify_chain'; voiceId: string }
-  | { type: 'explain_chain'; voiceId: string };
+  | { type: 'add_processor'; trackId: string; module: ModuleType; position?: number }
+  | { type: 'replace_processor'; trackId: string; moduleId: string; module: ModuleType }
+  | { type: 'remove_processor'; trackId: string; moduleId: string }
+  | { type: 'set_module_param'; trackId: string; moduleId: string; param: string; value: number }
+  | { type: 'add_modulation'; trackId: string; sourceModuleId: string; targetModuleId: string; targetParam: string; depth: number }
+  | { type: 'adjust_modulation_depth'; trackId: string; modulationId: string; depth: number }
+  | { type: 'simplify_chain'; trackId: string }
+  | { type: 'explain_chain'; trackId: string };
 ```
 
 ### Operation Principles

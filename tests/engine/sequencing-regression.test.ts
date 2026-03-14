@@ -9,7 +9,7 @@ import { applySketch, applyUndo } from '../../src/engine/primitives';
 import { createSession, setAgency } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import { Scheduler } from '../../src/engine/scheduler';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 import type { Session } from '../../src/engine/types';
 import type { PatternSketch, ScheduledNote, Step } from '../../src/engine/sequencer-types';
 import {
@@ -35,10 +35,10 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Apply a sketch and return the resulting voice pattern steps. */
-function sketchAndRead(session: Session, voiceId: string, sketch: PatternSketch): Step[] {
-  const result = applySketch(session, voiceId, 'test sketch', sketch);
-  return getVoice(result, voiceId).pattern.steps;
+/** Apply a sketch and return the resulting track pattern steps. */
+function sketchAndRead(session: Session, trackId: string, sketch: PatternSketch): Step[] {
+  const result = applySketch(session, trackId, 'test sketch', sketch);
+  return getTrack(result, trackId).pattern.steps;
 }
 
 /** Build a PatternSketch from a Step array (reverse direction for round-trip). */
@@ -74,9 +74,9 @@ function paramAt(steps: Step[], index: number, param: string): number | undefine
   return steps[index]?.params?.[param];
 }
 
-function setupSessionWithAgency(voiceId = 'v0'): Session {
+function setupSessionWithAgency(trackId = 'v0'): Session {
   let session = createSession();
-  session = setAgency(session, voiceId, 'ON');
+  session = setAgency(session, trackId, 'ON');
   return session;
 }
 
@@ -213,11 +213,11 @@ describe('Round-trip fidelity', () => {
 describe('AI sketch execution', () => {
   const VID = 'v0';
 
-  it('sketch produces voice with correct gates at expected positions', () => {
+  it('sketch produces track with correct gates at expected positions', () => {
     const session = setupSessionWithAgency(VID);
     const result = applySketch(session, VID, 'four on floor', FOUR_ON_FLOOR_SKETCH);
-    const voice = getVoice(result, VID);
-    expect(gatedPositions(voice.pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
+    const track = getTrack(result, VID);
+    expect(gatedPositions(track.pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
   });
 
   it('sketch with accents sets accent flag correctly', () => {
@@ -230,40 +230,40 @@ describe('AI sketch execution', () => {
       ],
     };
     const result = applySketch(session, VID, 'accented kick', sketch);
-    const voice = getVoice(result, VID);
-    expect(voice.pattern.steps[0].accent).toBe(true);
-    expect(voice.pattern.steps[4].accent).toBe(false);
+    const track = getTrack(result, VID);
+    expect(track.pattern.steps[0].accent).toBe(true);
+    expect(track.pattern.steps[4].accent).toBe(false);
   });
 
   it('sketch with param locks sets per-step params', () => {
     const session = setupSessionWithAgency(VID);
     const result = applySketch(session, VID, 'param locks', PARAM_LOCKS_SKETCH);
-    const voice = getVoice(result, VID);
-    expect(voice.pattern.steps[0].params?.timbre).toBe(0.2);
-    expect(voice.pattern.steps[8].params?.timbre).toBe(0.9);
-    expect(voice.pattern.steps[4].params).toBeUndefined();
+    const track = getTrack(result, VID);
+    expect(track.pattern.steps[0].params?.timbre).toBe(0.2);
+    expect(track.pattern.steps[8].params?.timbre).toBe(0.9);
+    expect(track.pattern.steps[4].params).toBeUndefined();
   });
 
-  it('sketch on agency-OFF voice still applies (applySketch has no agency check)', () => {
+  it('sketch on agency-OFF track still applies (applySketch has no agency check)', () => {
     // Note: agency checking happens at the dispatch/executor level, not in applySketch.
     // applySketch is a pure state primitive. The executor is responsible for rejecting.
     const session = createSession(); // default agency is OFF
     const result = applySketch(session, VID, 'test', FOUR_ON_FLOOR_SKETCH);
-    const voice = getVoice(result, VID);
+    const track = getTrack(result, VID);
     // applySketch applies regardless — this documents current behavior
-    expect(gatedPositions(voice.pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
+    expect(gatedPositions(track.pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
   });
 
   it('sketch preserves untouched steps musical content', () => {
     let session = createSession();
     // Pre-populate: gate on step 2 with param lock
     session = toggleStepGate(session, VID, 2);
-    const voice = getVoice(session, VID);
-    const stepsWithLock = [...voice.pattern.steps];
+    const track = getTrack(session, VID);
+    const stepsWithLock = [...track.pattern.steps];
     stepsWithLock[2] = { ...stepsWithLock[2], params: { morph: 0.6 } };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === VID ? { ...v, pattern: { ...v.pattern, steps: stepsWithLock } } : v,
       ),
     };
@@ -276,14 +276,14 @@ describe('AI sketch execution', () => {
       ],
     };
     const result = applySketch(session, VID, 'partial', sketch);
-    const resultVoice = getVoice(result, VID);
+    const resultTrack = getTrack(result, VID);
 
     // Step 2 should be untouched
-    expect(resultVoice.pattern.steps[2].gate).toBe(true);
-    expect(resultVoice.pattern.steps[2].params?.morph).toBe(0.6);
+    expect(resultTrack.pattern.steps[2].gate).toBe(true);
+    expect(resultTrack.pattern.steps[2].params?.morph).toBe(0.6);
     // Sketched steps should be applied
-    expect(resultVoice.pattern.steps[0].gate).toBe(true);
-    expect(resultVoice.pattern.steps[4].gate).toBe(true);
+    expect(resultTrack.pattern.steps[0].gate).toBe(true);
+    expect(resultTrack.pattern.steps[4].gate).toBe(true);
   });
 
   it('sketch with length change extends pattern', () => {
@@ -293,19 +293,19 @@ describe('AI sketch execution', () => {
       steps: [{ index: 24, gate: true }],
     };
     const result = applySketch(session, VID, 'extend', sketch);
-    const voice = getVoice(result, VID);
-    expect(voice.pattern.length).toBe(32);
-    expect(voice.pattern.steps[24].gate).toBe(true);
+    const track = getTrack(result, VID);
+    expect(track.pattern.length).toBe(32);
+    expect(track.pattern.steps[24].gate).toBe(true);
   });
 
   it('empty sketch does not alter existing pattern', () => {
     let session = createSession();
     session = toggleStepGate(session, VID, 0);
-    const before = getVoice(session, VID).pattern.steps.map(s => ({ ...s }));
+    const before = getTrack(session, VID).pattern.steps.map(s => ({ ...s }));
 
     const emptySketch: PatternSketch = { steps: [] };
     const result = applySketch(session, VID, 'empty', emptySketch);
-    const after = getVoice(result, VID).pattern.steps;
+    const after = getTrack(result, VID).pattern.steps;
 
     // All steps identical
     for (let i = 0; i < before.length; i++) {
@@ -321,16 +321,16 @@ describe('AI sketch execution', () => {
 describe('Undo coherence', () => {
   const VID = 'v0';
 
-  it('sketch → undo → voice plays same as pre-sketch', () => {
+  it('sketch → undo → track plays same as pre-sketch', () => {
     const session = createSession();
-    const before = getVoice(session, VID).pattern.steps.map(s => ({ ...s }));
+    const before = getTrack(session, VID).pattern.steps.map(s => ({ ...s }));
 
     const sketched = applySketch(session, VID, 'four on floor', FOUR_ON_FLOOR_SKETCH);
     // Verify sketch applied
-    expect(gatedPositions(getVoice(sketched, VID).pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
+    expect(gatedPositions(getTrack(sketched, VID).pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
 
     const undone = applyUndo(sketched);
-    const after = getVoice(undone, VID).pattern.steps;
+    const after = getTrack(undone, VID).pattern.steps;
 
     for (let i = 0; i < before.length; i++) {
       expect(after[i].gate).toBe(before[i].gate);
@@ -341,72 +341,72 @@ describe('Undo coherence', () => {
   it('sketch with param locks → undo → locks removed', () => {
     const session = createSession();
     const sketched = applySketch(session, VID, 'locks', PARAM_LOCKS_SKETCH);
-    expect(paramAt(getVoice(sketched, VID).pattern.steps, 0, 'timbre')).toBe(0.2);
+    expect(paramAt(getTrack(sketched, VID).pattern.steps, 0, 'timbre')).toBe(0.2);
 
     const undone = applyUndo(sketched);
-    expect(getVoice(undone, VID).pattern.steps[0].params).toBeUndefined();
+    expect(getTrack(undone, VID).pattern.steps[0].params).toBeUndefined();
   });
 
   it('pitched sketch → undo → note params removed', () => {
     const session = createSession();
     const sketched = applySketch(session, VID, 'melody', PITCHED_MELODY_SKETCH);
-    expect(paramAt(getVoice(sketched, VID).pattern.steps, 0, 'note')).toBe(0.47);
+    expect(paramAt(getTrack(sketched, VID).pattern.steps, 0, 'note')).toBe(0.47);
 
     const undone = applyUndo(sketched);
-    expect(getVoice(undone, VID).pattern.steps[0].params).toBeUndefined();
+    expect(getTrack(undone, VID).pattern.steps[0].params).toBeUndefined();
   });
 
   it('multiple sketches → multiple undos → original state restored', () => {
     let session = createSession();
-    const originalGates = gatedPositions(getVoice(session, VID).pattern.steps);
+    const originalGates = gatedPositions(getTrack(session, VID).pattern.steps);
 
     session = applySketch(session, VID, 'first', FOUR_ON_FLOOR_SKETCH);
     session = applySketch(session, VID, 'second', OFFBEAT_HATS_SKETCH);
 
     // After second sketch: offbeat hats + four on floor overlap
-    const combined = gatedPositions(getVoice(session, VID).pattern.steps);
+    const combined = gatedPositions(getTrack(session, VID).pattern.steps);
     expect(combined).toContain(1); // from offbeat hats
 
     // Undo second sketch
     session = applyUndo(session);
-    expect(gatedPositions(getVoice(session, VID).pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
+    expect(gatedPositions(getTrack(session, VID).pattern.steps)).toEqual(FOUR_ON_FLOOR_GATE_POSITIONS);
 
     // Undo first sketch
     session = applyUndo(session);
-    expect(gatedPositions(getVoice(session, VID).pattern.steps)).toEqual(originalGates);
+    expect(gatedPositions(getTrack(session, VID).pattern.steps)).toEqual(originalGates);
   });
 
   it('sketch preserves untouched steps through undo', () => {
     let session = createSession();
     // Pre-set step 2 as gated
     session = toggleStepGate(session, VID, 2);
-    expect(getVoice(session, VID).pattern.steps[2].gate).toBe(true);
+    expect(getTrack(session, VID).pattern.steps[2].gate).toBe(true);
 
     // Sketch only step 0
     session = applySketch(session, VID, 'partial', {
       steps: [{ index: 0, gate: true }],
     });
-    expect(getVoice(session, VID).pattern.steps[0].gate).toBe(true);
-    expect(getVoice(session, VID).pattern.steps[2].gate).toBe(true);
+    expect(getTrack(session, VID).pattern.steps[0].gate).toBe(true);
+    expect(getTrack(session, VID).pattern.steps[2].gate).toBe(true);
 
     // Undo the sketch — step 2 should still be gated (from toggle), step 0 reverted
     session = applyUndo(session);
-    expect(getVoice(session, VID).pattern.steps[0].gate).toBe(false);
-    expect(getVoice(session, VID).pattern.steps[2].gate).toBe(true);
+    expect(getTrack(session, VID).pattern.steps[0].gate).toBe(false);
+    expect(getTrack(session, VID).pattern.steps[2].gate).toBe(true);
   });
 
   it('length-changing sketch → undo → original length restored', () => {
     const session = createSession();
-    const originalLength = getVoice(session, VID).pattern.length;
+    const originalLength = getTrack(session, VID).pattern.length;
 
     const sketched = applySketch(session, VID, 'extend', {
       length: 32,
       steps: [{ index: 24, gate: true }],
     });
-    expect(getVoice(sketched, VID).pattern.length).toBe(32);
+    expect(getTrack(sketched, VID).pattern.length).toBe(32);
 
     const undone = applyUndo(sketched);
-    expect(getVoice(undone, VID).pattern.length).toBe(originalLength);
+    expect(getTrack(undone, VID).pattern.length).toBe(originalLength);
   });
 });
 
@@ -462,7 +462,7 @@ describe('Scheduler timing', () => {
     advanceTo(2.0);
     sched.stop();
 
-    const kickNotes = notes.filter(n => n.voiceId === VID);
+    const kickNotes = notes.filter(n => n.trackId === VID);
     // Should have at least 4 notes (steps 0, 4, 8, 12)
     expect(kickNotes.length).toBeGreaterThanOrEqual(4);
 
@@ -482,7 +482,7 @@ describe('Scheduler timing', () => {
     advanceTo(2.0);
     sched.stop();
 
-    const hatNotes = notes.filter(n => n.voiceId === VID);
+    const hatNotes = notes.filter(n => n.trackId === VID);
     expect(hatNotes.length).toBeGreaterThanOrEqual(8);
 
     // First hat at step 1 = 0.125s
@@ -507,11 +507,11 @@ describe('Scheduler timing', () => {
     vi.advanceTimersByTime(200);
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === VID);
-    if (voiceNotes.length >= 2) {
+    const trackNotes = notes.filter(n => n.trackId === VID);
+    if (trackNotes.length >= 2) {
       // Step 0 is even (no swing), step 1 is odd (swung)
-      const step0 = voiceNotes.find(n => n.time < 0.1);
-      const step1 = voiceNotes.find(n => n.time >= 0.1);
+      const step0 = trackNotes.find(n => n.time < 0.1);
+      const step1 = trackNotes.find(n => n.time >= 0.1);
       expect(step0).toBeDefined();
       expect(step1).toBeDefined();
       if (step0 && step1) {
@@ -536,9 +536,9 @@ describe('Scheduler timing', () => {
     advanceTo(2.0);
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === VID);
+    const trackNotes = notes.filter(n => n.trackId === VID);
     // Step 0 fires at t=0 and t=1.0 (after wrapping)
-    expect(voiceNotes.length).toBeGreaterThanOrEqual(2);
+    expect(trackNotes.length).toBeGreaterThanOrEqual(2);
   });
 
   it('param locks resolve into scheduled notes', () => {
@@ -549,7 +549,7 @@ describe('Scheduler timing', () => {
     advanceTo(0.2);
     sched.stop();
 
-    const step0Note = notes.find(n => n.voiceId === VID && Math.abs(n.time) < 0.01);
+    const step0Note = notes.find(n => n.trackId === VID && Math.abs(n.time) < 0.01);
     expect(step0Note).toBeDefined();
     if (step0Note) {
       // Step 0 has timbre locked to 0.2
@@ -565,11 +565,11 @@ describe('Scheduler timing', () => {
     advanceTo(1.0);
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === VID);
-    expect(voiceNotes.length).toBeGreaterThanOrEqual(4);
+    const trackNotes = notes.filter(n => n.trackId === VID);
+    expect(trackNotes.length).toBeGreaterThanOrEqual(4);
 
     // First note (step 0) should carry note=0.47
-    const firstNote = voiceNotes.find(n => Math.abs(n.time) < 0.01);
+    const firstNote = trackNotes.find(n => Math.abs(n.time) < 0.01);
     expect(firstNote).toBeDefined();
     if (firstNote) {
       expect(firstNote.params.note).toBe(0.47);
@@ -587,7 +587,7 @@ describe('Scheduler timing', () => {
     advanceTo(0.2);
     sched.stop();
 
-    const note = notes.find(n => n.voiceId === VID);
+    const note = notes.find(n => n.trackId === VID);
     expect(note).toBeDefined();
     if (note) {
       // At 120 BPM, step = 0.125s
@@ -606,9 +606,9 @@ describe('Scheduler timing', () => {
     advanceTo(2.0);
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === VID);
+    const trackNotes = notes.filter(n => n.trackId === VID);
     // Step 4 at 60 BPM = 4 * 0.25s = 1.0s
-    const step4Note = voiceNotes.find(n => Math.abs(n.time - 1.0) < 0.02);
+    const step4Note = trackNotes.find(n => Math.abs(n.time - 1.0) < 0.02);
     expect(step4Note).toBeDefined();
   });
 });

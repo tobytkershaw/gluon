@@ -22,7 +22,7 @@ Change a control parameter value on a voice source, processor, or modulator.
 |-----------|------|----------|-------------|
 | `param` | string | yes | Control ID. Voice: `brightness`, `richness`, `texture`, `pitch`. Processor (Rings): `structure`, `brightness`, `damping`, `position`. Processor (Clouds): `position`, `size`, `density`, `feedback`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`. |
 | `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
-| `voiceId` | string | no | Target voice (`v0`–`v3`). Defaults to active voice. |
+| `trackId` | string | no | Target voice (`v0`–`v3`). Defaults to active voice. |
 | `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the voice source. |
 | `modulatorId` | string | no | Modulator ID to target. When provided, moves a control on the modulator (e.g. LFO rate). |
 | `over` | number | no | Smooth transition duration in milliseconds |
@@ -33,7 +33,7 @@ Apply a rhythmic or melodic pattern to a voice using musical events.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `description` | string | yes | Short human-readable summary |
 | `events` | array | yes | Sparse list of musical events (see below) |
 
@@ -50,7 +50,7 @@ Transform an existing pattern structurally rather than rewriting it.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `operation` | string | yes | `rotate`, `transpose`, `reverse`, or `duplicate` |
 | `steps` | integer | no | For `rotate`: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations. |
 | `semitones` | integer | no | For `transpose`: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations. |
@@ -65,7 +65,7 @@ Render audio offline and evaluate how it sounds. Works whether or not the transp
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `question` | string | yes | What to evaluate (e.g. "how does the kick sound?") |
-| `voiceIds` | string[] | no | Voice IDs to render in isolation (e.g. `["v0", "v1"]`). Default: all unmuted voices. |
+| `trackIds` | string[] | no | Voice IDs to render in isolation (e.g. `["v0", "v1"]`). Default: all unmuted voices. |
 | `bars` | integer | no | Number of bars to render (1-16). Default: 2. |
 
 Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Voice isolation is built into the render — only the requested voices are included. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
@@ -92,7 +92,7 @@ Switch the mode of a module. Without `processorId`/`modulatorId`, changes the vo
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `model` | string | yes | Model/mode ID. Voice: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. Clouds: `granular`, `pitch-shifter`, `looping-delay`, `spectral`. Tides: `ad`, `looping`, `ar`. |
 | `processorId` | string | no | Processor ID to target. When provided, switches the processor's mode instead of the voice's synthesis engine. |
 | `modulatorId` | string | no | Modulator ID to target. When provided, switches the modulator's mode (e.g. AD, Looping, AR for Tides). |
@@ -103,7 +103,7 @@ Add a processor module to a voice's signal chain. Max 2 processors per voice.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `moduleType` | string | yes | Processor type. Available: `rings` (Mutable Instruments Rings resonator — 6 models, 4 controls), `clouds` (Mutable Instruments Clouds granular processor — 4 models, 4 controls). |
 | `description` | string | yes | Short description |
 
@@ -115,7 +115,7 @@ Remove a processor module from a voice's signal chain.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `processorId` | string | yes | The processor ID to remove (visible in project state) |
 | `description` | string | yes | Short description |
 
@@ -125,7 +125,7 @@ Atomically swap one processor for another type in a voice's signal chain. Keeps 
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `processorId` | string | yes | The processor ID to replace |
 | `newModuleType` | string | yes | New processor type (`rings` or `clouds`) |
 | `description` | string | yes | Short description |
@@ -138,7 +138,7 @@ Add a modulator module (LFO/envelope) to a voice. Max 2 modulators per voice. Us
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `moduleType` | string | yes | Modulator type. Available: `tides` (Mutable Instruments Tides — function generator with LFO/envelope modes). |
 | `description` | string | yes | Short description |
 
@@ -150,7 +150,7 @@ Remove a modulator module from a voice. Also disconnects all routings from this 
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `modulatorId` | string | yes | The modulator ID to remove |
 | `description` | string | yes | Short description |
 
@@ -160,7 +160,7 @@ Route a modulator's output to a target parameter. Idempotent: calling again with
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `modulatorId` | string | yes | The modulator ID to route from |
 | `targetKind` | string | yes | `"source"` for the voice's Plaits source, or `"processor"` for a processor module |
 | `processorId` | string | no | Required when `targetKind` is `"processor"`. The processor ID to target. |
@@ -178,7 +178,7 @@ Remove a modulation routing by its ID.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `modulationId` | string | yes | The modulation routing ID to disconnect (visible in project state) |
 | `description` | string | yes | Short description |
 
@@ -192,7 +192,7 @@ Add a sequencer view to a voice.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `viewKind` | string | yes | View type: `step-grid` |
 | `description` | string | yes | Short description |
 
@@ -202,7 +202,7 @@ Remove a sequencer view from a voice.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `voiceId` | string | yes | Target voice ID |
+| `trackId` | string | yes | Target voice ID |
 | `viewId` | string | yes | The view ID to remove |
 | `description` | string | yes | Short description |
 
@@ -273,19 +273,19 @@ Each turn, the AI receives compressed session state as JSON:
       ]
     }
   ],
-  "activeVoiceId": "v0",
+  "activeTrackId": "v0",
   "transport": { "bpm": 120, "swing": 0.00, "playing": true },
   "context": { "energy": 0.50, "density": 0.30 },
   "undo_depth": 2,
   "recent_human_actions": [
-    { "voiceId": "v0", "param": "brightness", "from": 0.80, "to": 0.65, "age_ms": 3200 }
+    { "trackId": "v0", "param": "brightness", "from": 0.80, "to": 0.65, "age_ms": 3200 }
   ]
 }
 ```
 
 Fields:
 - **voices[]** — each voice's current state, parameters (semantic names), agency, pattern, views, processor chain, modulators, and modulation routings
-- **activeVoiceId** — the voice the human currently has selected
+- **activeTrackId** — the voice the human currently has selected
 - **pattern** — canonical event summary with trigger positions, notes, accents, param locks, and density
 - **views** — list of active sequencer views (`kind:id` format)
 - **processors** — processor chain with IDs, types, models, and current parameter values
@@ -355,7 +355,7 @@ For note events in sketches, pitch is specified as MIDI (0–127), not normalise
 Hard rules. The runtime enforces these; violating them means the action is rejected with an error in the tool response.
 
 1. All param values are **0.0–1.0**.
-2. `voiceId` must reference an existing voice (`v0`–`v3`).
+2. `trackId` must reference an existing voice (`v0`–`v3`).
 3. Agency must be **ON** for the target voice (programming, structure, and modulation tools). UI curation tools (`add_view`, `remove_view`) do not require agency.
 4. `at` in events is a **0-based step index** (fractional values allowed for microtiming).
 5. MIDI pitch in note events is **0–127**.
@@ -391,10 +391,10 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 The model calls:
 ```
-move({ param: "brightness", voiceId: "v0", target: { absolute: 0.25 } })
+move({ param: "brightness", trackId: "v0", target: { absolute: 0.25 } })
 ```
 
-Tool response: `{ queued: true, param: "brightness", voiceId: "v0", target: { absolute: 0.25 } }`
+Tool response: `{ queued: true, param: "brightness", trackId: "v0", target: { absolute: 0.25 } }`
 
 Model follows up with text: "Pulled the kick's brightness way down — should sit deeper now."
 
@@ -403,7 +403,7 @@ Model follows up with text: "Pulled the kick's brightness way down — should si
 The model calls:
 ```
 sketch({
-  voiceId: "v0",
+  trackId: "v0",
   description: "Four-on-the-floor kick",
   events: [
     { kind: "trigger", at: 0, velocity: 1.0, accent: true },
@@ -418,15 +418,15 @@ sketch({
 
 The model calls:
 ```
-add_processor({ voiceId: "v1", moduleType: "rings", description: "Add Rings for metallic resonance" })
+add_processor({ trackId: "v1", moduleType: "rings", description: "Add Rings for metallic resonance" })
 ```
 
 Tool response: `{ queued: true, processorId: "rings-1710342000000" }`
 
 The model can then configure the processor in the same turn:
 ```
-move({ voiceId: "v1", processorId: "rings-1710342000000", param: "brightness", target: { absolute: 0.7 } })
-set_model({ voiceId: "v1", processorId: "rings-1710342000000", model: "sympathetic-string" })
+move({ trackId: "v1", processorId: "rings-1710342000000", param: "brightness", target: { absolute: 0.7 } })
+set_model({ trackId: "v1", processorId: "rings-1710342000000", model: "sympathetic-string" })
 ```
 
 ### Example 4: "Tell me how it sounds"
@@ -441,35 +441,35 @@ The `listen` tool renders 2 bars offline and returns a text critique that the mo
 ### Example 5: "Shift the hi-hat pattern forward by 2 steps"
 
 ```
-transform({ voiceId: "v3", operation: "rotate", steps: 2, description: "Shift hats forward for syncopation" })
+transform({ trackId: "v3", operation: "rotate", steps: 2, description: "Shift hats forward for syncopation" })
 ```
 
 ### Example 6: "Add slow movement to the pad"
 
 The model chains three tools in one turn:
 ```
-add_modulator({ voiceId: "v1", moduleType: "tides", description: "Add Tides LFO for slow brightness sweep" })
+add_modulator({ trackId: "v1", moduleType: "tides", description: "Add Tides LFO for slow brightness sweep" })
 ```
 
 Tool response: `{ queued: true, modulatorId: "tides-1710342000000" }`
 
 ```
-connect_modulator({ voiceId: "v1", modulatorId: "tides-1710342000000", targetKind: "source", targetParam: "brightness", depth: 0.25, description: "Route LFO to brightness for gentle sweep" })
-move({ voiceId: "v1", modulatorId: "tides-1710342000000", param: "frequency", target: { absolute: 0.15 } })
+connect_modulator({ trackId: "v1", modulatorId: "tides-1710342000000", targetKind: "source", targetParam: "brightness", depth: 0.25, description: "Route LFO to brightness for gentle sweep" })
+move({ trackId: "v1", modulatorId: "tides-1710342000000", param: "frequency", target: { absolute: 0.15 } })
 ```
 
 ### Example 7: "Swap Rings for Clouds on the lead"
 
 ```
-replace_processor({ voiceId: "v1", processorId: "rings-1710342000000", newModuleType: "clouds", description: "Replace Rings with Clouds for granular texture" })
+replace_processor({ trackId: "v1", processorId: "rings-1710342000000", newModuleType: "clouds", description: "Replace Rings with Clouds for granular texture" })
 ```
 
 Tool response: `{ queued: true, newProcessorId: "clouds-1710342100000" }`
 
 The model can then configure Clouds in the same turn:
 ```
-set_model({ voiceId: "v1", processorId: "clouds-1710342100000", model: "spectral" })
-move({ voiceId: "v1", processorId: "clouds-1710342100000", param: "size", target: { absolute: 0.7 } })
+set_model({ trackId: "v1", processorId: "clouds-1710342100000", model: "spectral" })
+move({ trackId: "v1", processorId: "clouds-1710342100000", param: "size", target: { absolute: 0.7 } })
 ```
 
 ---

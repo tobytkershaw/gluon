@@ -13,7 +13,7 @@ describe('AudioEngine', () => {
       destroy: vi.fn(),
     };
 
-    (engine as { voices: Map<string, unknown> }).voices = new Map([
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([
       ['v0', {
         synth,
         sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
@@ -26,7 +26,7 @@ describe('AudioEngine', () => {
     ]);
 
     const note: ScheduledNote = {
-      voiceId: 'v0',
+      trackId: 'v0',
       time: 1.25,
       gateOffTime: 1.5,
       accent: true,
@@ -56,7 +56,7 @@ describe('AudioEngine', () => {
       currentModel: 0,
     };
 
-    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
 
     // Access private method for testing
     (engine as unknown as { rebuildChain: (s: unknown) => void }).rebuildChain(slot);
@@ -84,7 +84,7 @@ describe('AudioEngine', () => {
       currentModel: 0,
     };
 
-    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
     (engine as unknown as { rebuildChain: (s: unknown) => void }).rebuildChain(slot);
 
     expect(sourceOutConnect).toHaveBeenCalledWith(procNode);
@@ -106,7 +106,7 @@ describe('AudioEngine', () => {
       currentModel: 0,
     };
 
-    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
     const params = { structure: 0.3, brightness: 0.6, damping: 0.5, position: 0.8 };
     engine.setProcessorPatch('v0', 'rings-0', params);
 
@@ -131,7 +131,7 @@ describe('AudioEngine', () => {
       currentModel: 0,
     };
 
-    (engine as { voices: Map<string, unknown> }).voices = new Map([['v0', slot]]);
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
     engine.removeProcessor('v0', 'rings-0');
 
     expect(destroy).toHaveBeenCalled();

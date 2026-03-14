@@ -3,7 +3,7 @@
 // Enforces structural chain correctness only — agency, arbitration,
 // tool arg validation, and value clamping stay in their respective layers.
 
-import type { Voice, ModulationTarget } from './types';
+import type { Track, ModulationTarget } from './types';
 import {
   getRegisteredProcessorTypes, getProcessorControlIds, getProcessorEngineByName,
   getRegisteredModulatorTypes, getModulatorControlIds, getModulatorEngineByName,
@@ -29,13 +29,13 @@ function fail(...errors: string[]): ChainValidationResult {
 }
 
 /** Validate current chain state is structurally sound */
-export function validateChain(voice: Voice): ChainValidationResult {
-  const processors = voice.processors ?? [];
+export function validateChain(track: Track): ChainValidationResult {
+  const processors = track.processors ?? [];
   const errors: string[] = [];
   const registeredTypes = getRegisteredProcessorTypes();
 
   if (processors.length > MAX_PROCESSORS) {
-    errors.push(`Voice ${voice.id} has ${processors.length} processors (max ${MAX_PROCESSORS})`);
+    errors.push(`Track ${track.id} has ${processors.length} processors (max ${MAX_PROCESSORS})`);
   }
 
   const ids = new Set<string>();
@@ -54,10 +54,10 @@ export function validateChain(voice: Voice): ChainValidationResult {
 
 /** Validate a proposed chain topology change (add/remove processor) */
 export function validateChainMutation(
-  voice: Voice,
+  track: Track,
   mutation: { kind: 'add'; type: string } | { kind: 'remove'; processorId: string },
 ): ChainValidationResult {
-  const processors = voice.processors ?? [];
+  const processors = track.processors ?? [];
 
   if (mutation.kind === 'add') {
     const registeredTypes = getRegisteredProcessorTypes();
@@ -65,7 +65,7 @@ export function validateChainMutation(
       return fail(`Unknown processor type: ${mutation.type}. Available: ${registeredTypes.join(', ')}`);
     }
     if (processors.length >= MAX_PROCESSORS) {
-      return fail(`Cannot add processor: voice ${voice.id} already has ${processors.length} processors (max ${MAX_PROCESSORS})`);
+      return fail(`Cannot add processor: track ${track.id} already has ${processors.length} processors (max ${MAX_PROCESSORS})`);
     }
     return ok();
   }
@@ -79,14 +79,14 @@ export function validateChainMutation(
 
 /** Validate that a processor target (for move/set_model) is structurally valid */
 export function validateProcessorTarget(
-  voice: Voice,
+  track: Track,
   processorId: string,
   options?: { param?: string; model?: string },
 ): ChainValidationResult {
-  const processors = voice.processors ?? [];
+  const processors = track.processors ?? [];
   const proc = processors.find(p => p.id === processorId);
   if (!proc) {
-    return fail(`Processor not found: ${processorId} on voice ${voice.id}`);
+    return fail(`Processor not found: ${processorId} on track ${track.id}`);
   }
 
   const errors: string[] = [];
@@ -112,10 +112,10 @@ export function validateProcessorTarget(
 
 /** Validate a proposed modulator topology change (add/remove modulator) */
 export function validateModulatorMutation(
-  voice: Voice,
+  track: Track,
   mutation: { kind: 'add'; type: string } | { kind: 'remove'; modulatorId: string },
 ): ChainValidationResult {
-  const modulators = voice.modulators ?? [];
+  const modulators = track.modulators ?? [];
 
   if (mutation.kind === 'add') {
     const registeredTypes = getRegisteredModulatorTypes();
@@ -123,7 +123,7 @@ export function validateModulatorMutation(
       return fail(`Unknown modulator type: ${mutation.type}. Available: ${registeredTypes.join(', ')}`);
     }
     if (modulators.length >= MAX_MODULATORS) {
-      return fail(`Cannot add modulator: voice ${voice.id} already has ${modulators.length} modulators (max ${MAX_MODULATORS})`);
+      return fail(`Cannot add modulator: track ${track.id} already has ${modulators.length} modulators (max ${MAX_MODULATORS})`);
     }
     return ok();
   }
@@ -140,15 +140,15 @@ export function validateModulatorMutation(
  * Route identity: (modulatorId, target.kind, target.param, target.processorId for processor targets).
  */
 export function validateModulationTarget(
-  voice: Voice,
+  track: Track,
   routing: { modulatorId: string; target: ModulationTarget; depth: number },
 ): ChainValidationResult {
-  const modulators = voice.modulators ?? [];
+  const modulators = track.modulators ?? [];
   const errors: string[] = [];
 
-  // Modulator must exist on voice
+  // Modulator must exist on track
   if (!modulators.some(m => m.id === routing.modulatorId)) {
-    errors.push(`Modulator not found: ${routing.modulatorId} on voice ${voice.id}`);
+    errors.push(`Modulator not found: ${routing.modulatorId} on track ${track.id}`);
   }
 
   // Validate depth range
@@ -163,10 +163,10 @@ export function validateModulationTarget(
       errors.push(`Cannot modulate source param "${target.param}". Valid targets: ${Array.from(VALID_SOURCE_MOD_TARGETS).join(', ')}. Pitch modulation is excluded in Phase 4B.`);
     }
   } else if (target.kind === 'processor') {
-    const processors = voice.processors ?? [];
+    const processors = track.processors ?? [];
     const proc = processors.find(p => p.id === target.processorId);
     if (!proc) {
-      errors.push(`Processor not found: ${target.processorId} on voice ${voice.id}`);
+      errors.push(`Processor not found: ${target.processorId} on track ${track.id}`);
     } else {
       const validControls = getProcessorControlIds(proc.type);
       if (!validControls.includes(target.param)) {
@@ -182,14 +182,14 @@ export function validateModulationTarget(
 
 /** Validate that a modulator target (for move/set_model with modulatorId) is structurally valid */
 export function validateModulatorTarget(
-  voice: Voice,
+  track: Track,
   modulatorId: string,
   options?: { param?: string; model?: string },
 ): ChainValidationResult {
-  const modulators = voice.modulators ?? [];
+  const modulators = track.modulators ?? [];
   const mod = modulators.find(m => m.id === modulatorId);
   if (!mod) {
-    return fail(`Modulator not found: ${modulatorId} on voice ${voice.id}`);
+    return fail(`Modulator not found: ${modulatorId} on track ${track.id}`);
   }
 
   const errors: string[] = [];

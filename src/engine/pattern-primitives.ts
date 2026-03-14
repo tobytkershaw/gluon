@@ -1,9 +1,9 @@
 // src/engine/pattern-primitives.ts
 import type { Session, SynthParamValues, RegionSnapshot, PatternSnapshot } from './types';
-import { getVoice, updateVoice } from './types';
+import { getTrack, updateTrack } from './types';
 import type { TriggerEvent, ParameterEvent, MusicalEvent } from './canonical-types';
 import { createDefaultStep } from './sequencer-helpers';
-import { reprojectVoicePattern } from './region-projection';
+import { reprojectTrackPattern } from './region-projection';
 import { normalizeRegionEvents } from './region-helpers';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
@@ -34,41 +34,41 @@ const defaultInverseOpts: InverseConversionOptions = {
 };
 
 /**
- * Update voice regions and re-project pattern. Returns updated session.
+ * Update track regions and re-project pattern. Returns updated session.
  * Pushes a RegionSnapshot for undo when a description is provided.
  */
 function applyRegionEdit(
   session: Session,
-  voiceId: string,
+  trackId: string,
   newEvents: MusicalEvent[],
   regionUpdates?: { duration?: number },
   description?: string,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  if (voice.regions.length === 0) return session;
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
 
   const snapshot: RegionSnapshot | undefined = description
     ? {
         kind: 'region',
-        voiceId,
-        prevEvents: [...voice.regions[0].events],
-        prevDuration: regionUpdates?.duration !== undefined ? voice.regions[0].duration : undefined,
-        prevHiddenEvents: voice._hiddenEvents ? [...voice._hiddenEvents] : undefined,
+        trackId,
+        prevEvents: [...track.regions[0].events],
+        prevDuration: regionUpdates?.duration !== undefined ? track.regions[0].duration : undefined,
+        prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
         timestamp: Date.now(),
         description,
       }
     : undefined;
 
   const region = normalizeRegionEvents({
-    ...voice.regions[0],
+    ...track.regions[0],
     events: newEvents,
     ...(regionUpdates ?? {}),
   });
-  const newRegions = [region, ...voice.regions.slice(1)];
-  const updatedVoice = reprojectVoicePattern({ ...voice, regions: newRegions }, defaultInverseOpts);
-  const result = updateVoice(session, voiceId, {
-    regions: updatedVoice.regions,
-    pattern: updatedVoice.pattern,
+  const newRegions = [region, ...track.regions.slice(1)];
+  const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
+  const result = updateTrack(session, trackId, {
+    regions: updatedTrack.regions,
+    pattern: updatedTrack.pattern,
   });
 
   if (snapshot) {
@@ -81,13 +81,13 @@ function applyRegionEdit(
 // Public API — human edit functions (all push undo snapshots)
 // ---------------------------------------------------------------------------
 
-export function toggleStepGate(session: Session, voiceId: string, stepIndex: number): Session {
-  const voice = getVoice(session, voiceId);
-  if (stepIndex < 0 || stepIndex >= voice.pattern.length) return session;
+export function toggleStepGate(session: Session, trackId: string, stepIndex: number): Session {
+  const track = getTrack(session, trackId);
+  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
 
   // Canonical path: toggle trigger event at this step
-  if (voice.regions.length > 0) {
-    const events = [...voice.regions[0].events];
+  if (track.regions.length > 0) {
+    const events = [...track.regions[0].events];
     const idx = findTriggerAt(events, stepIndex);
     if (idx >= 0) {
       const existing = events[idx] as TriggerEvent;
@@ -109,23 +109,23 @@ export function toggleStepGate(session: Session, voiceId: string, stepIndex: num
       if (insertAt === -1) events.push(newTrigger);
       else events.splice(insertAt, 0, newTrigger);
     }
-    return applyRegionEdit(session, voiceId, events, undefined, `Toggle gate at step ${stepIndex}`);
+    return applyRegionEdit(session, trackId, events, undefined, `Toggle gate at step ${stepIndex}`);
   }
 
   // Fallback: direct pattern edit (no regions)
-  const oldStep = voice.pattern.steps[stepIndex];
-  const newSteps = [...voice.pattern.steps];
+  const oldStep = track.pattern.steps[stepIndex];
+  const newSteps = [...track.pattern.steps];
   newSteps[stepIndex] = { ...oldStep, gate: !oldStep.gate };
-  return updateVoice(session, voiceId, { pattern: { ...voice.pattern, steps: newSteps } });
+  return updateTrack(session, trackId, { pattern: { ...track.pattern, steps: newSteps } });
 }
 
-export function toggleStepAccent(session: Session, voiceId: string, stepIndex: number): Session {
-  const voice = getVoice(session, voiceId);
-  if (stepIndex < 0 || stepIndex >= voice.pattern.length) return session;
+export function toggleStepAccent(session: Session, trackId: string, stepIndex: number): Session {
+  const track = getTrack(session, trackId);
+  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
 
   // Canonical path: toggle accent on trigger event
-  if (voice.regions.length > 0) {
-    const events = [...voice.regions[0].events];
+  if (track.regions.length > 0) {
+    const events = [...track.regions[0].events];
     const idx = findTriggerAt(events, stepIndex);
     if (idx >= 0) {
       const trigger = events[idx] as TriggerEvent;
@@ -139,29 +139,29 @@ export function toggleStepAccent(session: Session, voiceId: string, stepIndex: n
       }
     }
     // If no trigger at this step (or disabled), accent toggle is a no-op
-    return applyRegionEdit(session, voiceId, events, undefined, `Toggle accent at step ${stepIndex}`);
+    return applyRegionEdit(session, trackId, events, undefined, `Toggle accent at step ${stepIndex}`);
   }
 
   // Fallback
-  const oldStep = voice.pattern.steps[stepIndex];
-  const newSteps = [...voice.pattern.steps];
+  const oldStep = track.pattern.steps[stepIndex];
+  const newSteps = [...track.pattern.steps];
   newSteps[stepIndex] = { ...oldStep, accent: !oldStep.accent };
-  return updateVoice(session, voiceId, { pattern: { ...voice.pattern, steps: newSteps } });
+  return updateTrack(session, trackId, { pattern: { ...track.pattern, steps: newSteps } });
 }
 
 export function setStepParamLock(
   session: Session,
-  voiceId: string,
+  trackId: string,
   stepIndex: number,
   params: Partial<SynthParamValues>,
   options?: { pushUndo?: boolean },
 ): Session {
-  const voice = getVoice(session, voiceId);
-  if (stepIndex < 0 || stepIndex >= voice.pattern.length) return session;
+  const track = getTrack(session, trackId);
+  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
 
   // Canonical path: insert/update ParameterEvent
-  if (voice.regions.length > 0) {
-    const events = [...voice.regions[0].events];
+  if (track.regions.length > 0) {
+    const events = [...track.regions[0].events];
     for (const [runtimeKey, value] of Object.entries(params)) {
       const controlId = runtimeParamToControlId[runtimeKey] ?? runtimeKey;
       const idx = findParamAt(events, stepIndex, controlId);
@@ -180,68 +180,68 @@ export function setStepParamLock(
       }
     }
     const desc = (options?.pushUndo ?? true) ? `Set param lock at step ${stepIndex}` : undefined;
-    return applyRegionEdit(session, voiceId, events, undefined, desc);
+    return applyRegionEdit(session, trackId, events, undefined, desc);
   }
 
   // Fallback
-  const oldStep = voice.pattern.steps[stepIndex];
-  const newSteps = [...voice.pattern.steps];
+  const oldStep = track.pattern.steps[stepIndex];
+  const newSteps = [...track.pattern.steps];
   newSteps[stepIndex] = { ...oldStep, params: { ...oldStep.params, ...params } };
-  return updateVoice(session, voiceId, { pattern: { ...voice.pattern, steps: newSteps } });
+  return updateTrack(session, trackId, { pattern: { ...track.pattern, steps: newSteps } });
 }
 
 export function clearStepParamLock(
   session: Session,
-  voiceId: string,
+  trackId: string,
   stepIndex: number,
   param: string,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  if (stepIndex < 0 || stepIndex >= voice.pattern.length) return session;
+  const track = getTrack(session, trackId);
+  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
 
   // Canonical path: remove ParameterEvent
-  if (voice.regions.length > 0) {
+  if (track.regions.length > 0) {
     const controlId = runtimeParamToControlId[param] ?? param;
-    const events = [...voice.regions[0].events];
+    const events = [...track.regions[0].events];
     const idx = findParamAt(events, stepIndex, controlId);
     if (idx < 0) return session;
     events.splice(idx, 1);
-    return applyRegionEdit(session, voiceId, events, undefined, `Clear param lock at step ${stepIndex}`);
+    return applyRegionEdit(session, trackId, events, undefined, `Clear param lock at step ${stepIndex}`);
   }
 
   // Fallback
-  const oldStep = voice.pattern.steps[stepIndex];
+  const oldStep = track.pattern.steps[stepIndex];
   if (!oldStep.params || !(param in oldStep.params)) return session;
   const newParams = { ...oldStep.params };
   delete newParams[param];
-  const newSteps = [...voice.pattern.steps];
+  const newSteps = [...track.pattern.steps];
   newSteps[stepIndex] = {
     ...oldStep,
     params: Object.keys(newParams).length > 0 ? newParams : undefined,
   };
-  return updateVoice(session, voiceId, { pattern: { ...voice.pattern, steps: newSteps } });
+  return updateTrack(session, trackId, { pattern: { ...track.pattern, steps: newSteps } });
 }
 
-export function setPatternLength(session: Session, voiceId: string, length: number): Session {
-  const voice = getVoice(session, voiceId);
+export function setPatternLength(session: Session, trackId: string, length: number): Session {
+  const track = getTrack(session, trackId);
   const clamped = Math.max(1, Math.min(64, length));
-  if (clamped === voice.pattern.length) return session;
+  if (clamped === track.pattern.length) return session;
 
   // Canonical path: update region duration, re-project.
-  // Events beyond the new duration are stashed in voice._hiddenEvents
+  // Events beyond the new duration are stashed in track._hiddenEvents
   // so expanding later restores them. The region invariant (event.at < duration)
   // is preserved at all times.
-  if (voice.regions.length > 0) {
-    const currentEvents = voice.regions[0].events;
-    const prevHidden = voice._hiddenEvents ?? [];
+  if (track.regions.length > 0) {
+    const currentEvents = track.regions[0].events;
+    const prevHidden = track._hiddenEvents ?? [];
 
     // Merge current events + previously hidden events, then split by new duration
     const allEvents = [...currentEvents, ...prevHidden];
     const inRange = allEvents.filter(e => e.at < clamped);
     const outOfRange = allEvents.filter(e => e.at >= clamped);
 
-    let result = applyRegionEdit(session, voiceId, inRange, { duration: clamped }, `Set pattern length to ${clamped}`);
-    result = updateVoice(result, voiceId, {
+    let result = applyRegionEdit(session, trackId, inRange, { duration: clamped }, `Set pattern length to ${clamped}`);
+    result = updateTrack(result, trackId, {
       _hiddenEvents: outOfRange.length > 0 ? outOfRange : undefined,
     });
     return result;
@@ -250,35 +250,35 @@ export function setPatternLength(session: Session, voiceId: string, length: numb
   // Fallback: push undo snapshot so length changes are undoable (#210)
   const snapshot: PatternSnapshot = {
     kind: 'pattern',
-    voiceId,
+    trackId,
     prevSteps: [],
-    prevLength: voice.pattern.length,
-    prevHiddenEvents: voice._hiddenEvents ? [...voice._hiddenEvents] : undefined,
+    prevLength: track.pattern.length,
+    prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
     timestamp: Date.now(),
     description: `Set pattern length to ${clamped}`,
   };
-  const newSteps = [...voice.pattern.steps];
+  const newSteps = [...track.pattern.steps];
   while (newSteps.length < clamped) newSteps.push(createDefaultStep());
-  const result = updateVoice(session, voiceId, { pattern: { steps: newSteps, length: clamped } });
+  const result = updateTrack(session, trackId, { pattern: { steps: newSteps, length: clamped } });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
-export function clearPattern(session: Session, voiceId: string): Session {
-  const voice = getVoice(session, voiceId);
+export function clearPattern(session: Session, trackId: string): Session {
+  const track = getTrack(session, trackId);
 
   // Canonical path: clear all events (including hidden stash)
-  if (voice.regions.length > 0) {
-    if (voice.regions[0].events.length === 0 && !voice._hiddenEvents?.length) return session;
-    let result = applyRegionEdit(session, voiceId, [], undefined, 'Clear pattern');
-    result = updateVoice(result, voiceId, { _hiddenEvents: undefined });
+  if (track.regions.length > 0) {
+    if (track.regions[0].events.length === 0 && !track._hiddenEvents?.length) return session;
+    let result = applyRegionEdit(session, trackId, [], undefined, 'Clear pattern');
+    result = updateTrack(result, trackId, { _hiddenEvents: undefined });
     return result;
   }
 
   // Fallback
-  const hasContent = voice.pattern.steps.some(
+  const hasContent = track.pattern.steps.some(
     s => s.gate || s.accent || s.params !== undefined || s.micro !== 0,
   );
   if (!hasContent) return session;
-  const newSteps = voice.pattern.steps.map(() => createDefaultStep());
-  return updateVoice(session, voiceId, { pattern: { ...voice.pattern, steps: newSteps } });
+  const newSteps = track.pattern.steps.map(() => createDefaultStep());
+  return updateTrack(session, trackId, { pattern: { ...track.pattern, steps: newSteps } });
 }

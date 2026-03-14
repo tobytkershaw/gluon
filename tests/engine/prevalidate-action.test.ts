@@ -16,10 +16,10 @@ function makeArbitrator(canAct = true) {
   return arb;
 }
 
-function makeVoiceArbitrator(canActOnVoice = true, canAct = true) {
+function makeTrackArbitrator(canActOnTrack = true, canAct = true) {
   const arb = new Arbitrator();
   vi.spyOn(arb, 'canAIAct').mockReturnValue(canAct);
-  vi.spyOn(arb, 'canAIActOnVoice').mockReturnValue(canActOnVoice);
+  vi.spyOn(arb, 'canAIActOnTrack').mockReturnValue(canActOnTrack);
   return arb;
 }
 
@@ -33,7 +33,7 @@ function sessionWithProcessor(): Session {
   };
   return {
     ...session,
-    voices: session.voices.map(v =>
+    tracks: session.tracks.map(v =>
       v.id === 'v0' ? { ...v, agency: 'ON' as const, processors: [proc] } : v,
     ),
   };
@@ -55,7 +55,7 @@ function sessionWithModulator(): Session {
   };
   return {
     ...session,
-    voices: session.voices.map(v =>
+    tracks: session.tracks.map(v =>
       v.id === 'v0' ? { ...v, agency: 'ON' as const, modulators: [mod], modulations: [routing] } : v,
     ),
   };
@@ -63,41 +63,41 @@ function sessionWithModulator(): Session {
 
 describe('prevalidateAction', () => {
   describe('move', () => {
-    it('returns null for valid move on ON voice', () => {
+    it('returns null for valid move on ON track', () => {
       const session = createSession();
-      // v0 has agency ON by default in createSession (voices are AI-editable unless protected)
+      // v0 has agency ON by default in createSession (tracks are AI-editable unless protected)
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
       };
-      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, voiceId: 'v0' };
+      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
       expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBeNull();
     });
 
-    it('rejects move on non-existent voice', () => {
+    it('rejects move on non-existent track', () => {
       const session = createSession();
-      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, voiceId: 'v99' };
-      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Voice not found: v99');
+      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v99' };
+      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Track not found: v99');
     });
 
-    it('rejects move on voice with agency OFF', () => {
+    it('rejects move on track with agency OFF', () => {
       const session = createSession();
       // Ensure v0 has agency OFF
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
       };
-      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, voiceId: 'v0' };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Voice v0 has agency OFF');
+      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
+      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Track v0 has agency OFF');
     });
 
     it('rejects move with unknown control', () => {
       const session = createSession();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
       };
-      const action: AIAction = { type: 'move', param: 'nonexistent_param', target: { absolute: 0.5 }, voiceId: 'v0' };
+      const action: AIAction = { type: 'move', param: 'nonexistent_param', target: { absolute: 0.5 }, trackId: 'v0' };
       expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Unknown control: nonexistent_param');
     });
 
@@ -105,9 +105,9 @@ describe('prevalidateAction', () => {
       const session = createSession();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
       };
-      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, voiceId: 'v0' };
+      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
       const result = prevalidateAction(s, action, adapter, makeArbitrator(false));
       expect(result).toContain('Arbitration');
       expect(result).toContain('timbre');
@@ -117,47 +117,47 @@ describe('prevalidateAction', () => {
       const session = createSession();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
       };
-      const action: AIAction = { type: 'move', param: 'brightness', target: { absolute: 0.7 }, voiceId: 'v0' };
+      const action: AIAction = { type: 'move', param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' };
       expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBeNull();
     });
   });
 
   describe('sketch', () => {
-    it('returns null for valid sketch on ON voice', () => {
+    it('returns null for valid sketch on ON track', () => {
       const session = createSession();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
       };
       const action: AIAction = {
-        type: 'sketch', voiceId: 'v0', description: 'kick',
+        type: 'sketch', trackId: 'v0', description: 'kick',
         events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
       };
       expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBeNull();
     });
 
-    it('rejects sketch on non-existent voice', () => {
+    it('rejects sketch on non-existent track', () => {
       const session = createSession();
       const action: AIAction = {
-        type: 'sketch', voiceId: 'v99', description: 'kick',
+        type: 'sketch', trackId: 'v99', description: 'kick',
         events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
       };
-      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Voice not found: v99');
+      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Track not found: v99');
     });
 
-    it('rejects sketch on voice with agency OFF', () => {
+    it('rejects sketch on track with agency OFF', () => {
       const session = createSession();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
       };
       const action: AIAction = {
-        type: 'sketch', voiceId: 'v0', description: 'kick',
+        type: 'sketch', trackId: 'v0', description: 'kick',
         events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
       };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Voice v0 has agency OFF');
+      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Track v0 has agency OFF');
     });
   });
 
@@ -175,73 +175,73 @@ describe('prevalidateAction', () => {
     });
   });
 
-  describe('canAIActOnVoice gates structural operations', () => {
-    it('rejects add_processor when human is interacting with voice', () => {
+  describe('canAIActOnTrack gates structural operations on tracks', () => {
+    it('rejects add_processor when human is interacting with track', () => {
       const s = sessionWithProcessor();
-      const action: AIAction = { type: 'add_processor', voiceId: 'v0', processorId: 'rings-2', moduleType: 'rings', description: 'add rings' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'add_processor', trackId: 'v0', processorId: 'rings-2', moduleType: 'rings', description: 'add rings' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
     it('accepts add_processor when human is not interacting', () => {
       const s = sessionWithProcessor();
-      const action: AIAction = { type: 'add_processor', voiceId: 'v0', processorId: 'rings-2', moduleType: 'rings', description: 'add rings' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(true))).toBeNull();
+      const action: AIAction = { type: 'add_processor', trackId: 'v0', processorId: 'rings-2', moduleType: 'rings', description: 'add rings' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(true))).toBeNull();
     });
 
-    it('rejects remove_processor when human is interacting with voice', () => {
+    it('rejects remove_processor when human is interacting with track', () => {
       const s = sessionWithProcessor();
-      const action: AIAction = { type: 'remove_processor', voiceId: 'v0', processorId: 'rings-1', description: 'remove rings' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'remove_processor', trackId: 'v0', processorId: 'rings-1', description: 'remove rings' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects replace_processor when human is interacting with voice', () => {
+    it('rejects replace_processor when human is interacting with track', () => {
       const s = sessionWithProcessor();
-      const action: AIAction = { type: 'replace_processor', voiceId: 'v0', processorId: 'rings-1', newProcessorId: 'rings-2', newModuleType: 'rings', description: 'replace' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'replace_processor', trackId: 'v0', processorId: 'rings-1', newProcessorId: 'rings-2', newModuleType: 'rings', description: 'replace' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects add_modulator when human is interacting with voice', () => {
+    it('rejects add_modulator when human is interacting with track', () => {
       const session = createSession();
-      const s = { ...session, voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v) };
-      const action: AIAction = { type: 'add_modulator', voiceId: 'v0', modulatorId: 'tides-2', moduleType: 'tides', description: 'add tides' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const s = { ...session, tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v) };
+      const action: AIAction = { type: 'add_modulator', trackId: 'v0', modulatorId: 'tides-2', moduleType: 'tides', description: 'add tides' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects remove_modulator when human is interacting with voice', () => {
+    it('rejects remove_modulator when human is interacting with track', () => {
       const s = sessionWithModulator();
-      const action: AIAction = { type: 'remove_modulator', voiceId: 'v0', modulatorId: 'tides-1', description: 'remove tides' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'remove_modulator', trackId: 'v0', modulatorId: 'tides-1', description: 'remove tides' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects connect_modulator when human is interacting with voice', () => {
+    it('rejects connect_modulator when human is interacting with track', () => {
       const s = sessionWithModulator();
-      const action: AIAction = { type: 'connect_modulator', voiceId: 'v0', modulatorId: 'tides-1', target: { kind: 'source', param: 'richness' }, depth: 0.5, description: 'connect' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'connect_modulator', trackId: 'v0', modulatorId: 'tides-1', target: { kind: 'source', param: 'richness' }, depth: 0.5, description: 'connect' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects disconnect_modulator when human is interacting with voice', () => {
+    it('rejects disconnect_modulator when human is interacting with track', () => {
       const s = sessionWithModulator();
-      const action: AIAction = { type: 'disconnect_modulator', voiceId: 'v0', modulationId: 'mod-route-1', description: 'disconnect' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'disconnect_modulator', trackId: 'v0', modulationId: 'mod-route-1', description: 'disconnect' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects set_model (source) when human is interacting with voice', () => {
+    it('rejects set_model (source) when human is interacting with track', () => {
       const session = createSession();
-      const s = { ...session, voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v) };
-      const action: AIAction = { type: 'set_model', voiceId: 'v0', model: 'virtual-analog' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const s = { ...session, tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v) };
+      const action: AIAction = { type: 'set_model', trackId: 'v0', model: 'virtual-analog' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects set_model (processor) when human is interacting with voice', () => {
+    it('rejects set_model (processor) when human is interacting with track', () => {
       const s = sessionWithProcessor();
-      const action: AIAction = { type: 'set_model', voiceId: 'v0', processorId: 'rings-1', model: 'string' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'set_model', trackId: 'v0', processorId: 'rings-1', model: 'string' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 
-    it('rejects set_model (modulator) when human is interacting with voice', () => {
+    it('rejects set_model (modulator) when human is interacting with track', () => {
       const s = sessionWithModulator();
-      const action: AIAction = { type: 'set_model', voiceId: 'v0', modulatorId: 'tides-1', model: 'looping' };
-      expect(prevalidateAction(s, action, adapter, makeVoiceArbitrator(false))).toContain('Arbitration');
+      const action: AIAction = { type: 'set_model', trackId: 'v0', modulatorId: 'tides-1', model: 'looping' };
+      expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
   });
 
@@ -249,10 +249,10 @@ describe('prevalidateAction', () => {
     it('rejects processor move when arbitrator blocks namespaced key', () => {
       const s = sessionWithProcessor();
       const arb = new Arbitrator();
-      vi.spyOn(arb, 'canAIAct').mockImplementation((_voiceId, param) => {
+      vi.spyOn(arb, 'canAIAct').mockImplementation((_trackId, param) => {
         return param !== 'processor:rings-1:structure';
       });
-      const action: AIAction = { type: 'move', voiceId: 'v0', processorId: 'rings-1', param: 'structure', target: { absolute: 0.8 } };
+      const action: AIAction = { type: 'move', trackId: 'v0', processorId: 'rings-1', param: 'structure', target: { absolute: 0.8 } };
       const result = prevalidateAction(s, action, adapter, arb);
       expect(result).toContain('Arbitration');
       expect(result).toContain('rings-1:structure');
@@ -260,17 +260,17 @@ describe('prevalidateAction', () => {
 
     it('accepts processor move when arbitrator allows namespaced key', () => {
       const s = sessionWithProcessor();
-      const action: AIAction = { type: 'move', voiceId: 'v0', processorId: 'rings-1', param: 'structure', target: { absolute: 0.8 } };
+      const action: AIAction = { type: 'move', trackId: 'v0', processorId: 'rings-1', param: 'structure', target: { absolute: 0.8 } };
       expect(prevalidateAction(s, action, adapter, makeArbitrator(true))).toBeNull();
     });
 
     it('rejects modulator move when arbitrator blocks namespaced key', () => {
       const s = sessionWithModulator();
       const arb = new Arbitrator();
-      vi.spyOn(arb, 'canAIAct').mockImplementation((_voiceId, param) => {
+      vi.spyOn(arb, 'canAIAct').mockImplementation((_trackId, param) => {
         return param !== 'modulator:tides-1:frequency';
       });
-      const action: AIAction = { type: 'move', voiceId: 'v0', modulatorId: 'tides-1', param: 'frequency', target: { absolute: 0.8 } };
+      const action: AIAction = { type: 'move', trackId: 'v0', modulatorId: 'tides-1', param: 'frequency', target: { absolute: 0.8 } };
       const result = prevalidateAction(s, action, adapter, arb);
       expect(result).toContain('Arbitration');
       expect(result).toContain('tides-1:frequency');
@@ -278,7 +278,7 @@ describe('prevalidateAction', () => {
 
     it('accepts modulator move when arbitrator allows namespaced key', () => {
       const s = sessionWithModulator();
-      const action: AIAction = { type: 'move', voiceId: 'v0', modulatorId: 'tides-1', param: 'frequency', target: { absolute: 0.8 } };
+      const action: AIAction = { type: 'move', trackId: 'v0', modulatorId: 'tides-1', param: 'frequency', target: { absolute: 0.8 } };
       expect(prevalidateAction(s, action, adapter, makeArbitrator(true))).toBeNull();
     });
   });

@@ -20,12 +20,12 @@ export interface Transport {
 }
 
 export interface ScheduledNote {
-  voiceId: string;
+  trackId: string;
   time: number;
   gateOffTime: number;
   accent: boolean;
   params: SynthParamValues;
-  /** Base voice params — if params matches this, no set-patch is sent (sync effect handles it). */
+  /** Base track params — if params matches this, no set-patch is sent (sync effect handles it). */
   baseParams?: SynthParamValues;
 }
 

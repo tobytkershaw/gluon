@@ -1,10 +1,10 @@
 // src/ui/ChainStrip.tsx
 // Chain strip: shows source + processor badges with arrows. Processor badges are clickable.
-import type { Voice } from '../engine/types';
+import type { Track } from '../engine/types';
 import { getModelName, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 
 interface Props {
-  voice: Voice;
+  track: Track;
   selectedProcessorId?: string | null;
   selectedModulatorId?: string | null;
   onSelectProcessor?: (processorId: string | null) => void;
@@ -42,10 +42,10 @@ function ChevronButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function ChainStrip({ voice, selectedProcessorId, selectedModulatorId, onSelectProcessor, onSelectModulator, onNodeClick }: Props) {
-  const processors = voice.processors ?? [];
-  const modulators = voice.modulators ?? [];
-  const sourceLabel = getModelName(voice.model);
+export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, onSelectProcessor, onSelectModulator, onNodeClick }: Props) {
+  const processors = track.processors ?? [];
+  const modulators = track.modulators ?? [];
+  const sourceLabel = getModelName(track.model);
 
   return (
     <div className="flex items-center gap-1.5 text-[10px]">

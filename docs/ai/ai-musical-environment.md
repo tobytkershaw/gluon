@@ -219,7 +219,7 @@ Tools grouped by musical purpose.
 
 ### A. Inspect and collaborate
 
-Help the model reason before acting: `listen(question)`, `compare(candidateIds, question)`, `summarize_voice(voiceId)`, `ask_clarifying(question)`.
+Help the model reason before acting: `listen(question)`, `compare(candidateIds, question)`, `summarize_voice(trackId)`, `ask_clarifying(question)`.
 
 ### B. Micro edit
 

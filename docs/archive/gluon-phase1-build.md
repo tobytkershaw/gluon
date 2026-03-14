@@ -160,7 +160,7 @@ Browser
 1. Define TypeScript types matching the protocol:
    ```typescript
    interface Session {
-     voices: Voice[];
+     tracks: Voice[];
      leash: number;          // 0.0 - 1.0
      undoStack: Snapshot[];
      pending: PendingAction[];

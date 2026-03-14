@@ -1,10 +1,10 @@
-// src/ui/VoiceCard.tsx
+// src/ui/TrackCard.tsx
 import { useState, useEffect } from 'react';
-import type { Voice } from '../engine/types';
+import type { Track } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
 
-interface VoiceCardProps {
-  voice: Voice;
+interface TrackCardProps {
+  track: Track;
   label: string;
   isActive: boolean;
   activityTimestamp: number | null;
@@ -14,10 +14,10 @@ interface VoiceCardProps {
   onToggleAgency?: () => void;
 }
 
-export function VoiceCard({
-  voice, label, isActive, activityTimestamp,
+export function TrackCard({
+  track, label, isActive, activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency,
-}: VoiceCardProps) {
+}: TrackCardProps) {
   const [pulsing, setPulsing] = useState(false);
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export function VoiceCard({
     return () => clearTimeout(timer);
   }, [activityTimestamp]);
 
-  const thumbColor = computeThumbprintColor(voice);
+  const thumbColor = computeThumbprintColor(track);
 
   return (
     <div
@@ -55,11 +55,11 @@ export function VoiceCard({
           style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
         />
         <span className={`text-[10px] font-medium tracking-wider uppercase ${
-          voice.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
+          track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
         }`}>
           {label}
         </span>
-        {voice.agency === 'ON' && (
+        {track.agency === 'ON' && (
           <div className="w-1.5 h-1.5 rounded-full bg-teal-400 flex-shrink-0" />
         )}
       </div>
@@ -69,7 +69,7 @@ export function VoiceCard({
         <button
           onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
           className={`text-[10px] px-0.5 rounded ${
-            voice.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
+            track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
         >
           M
@@ -77,7 +77,7 @@ export function VoiceCard({
         <button
           onClick={(e) => { e.stopPropagation(); onToggleSolo(); }}
           className={`text-[10px] px-0.5 rounded ${
-            voice.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
+            track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
         >
           S
@@ -85,9 +85,9 @@ export function VoiceCard({
         {onToggleAgency && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-            title={voice.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
+            title={track.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
             className={`text-[10px] px-0.5 rounded ${
-              voice.agency === 'OFF'
+              track.agency === 'OFF'
                 ? 'bg-amber-500/20 text-amber-400'
                 : 'text-zinc-600 hover:text-zinc-400'
             }`}

@@ -1,7 +1,7 @@
 // src/ai/system-prompt.ts
 
 import type { Session } from '../engine/types';
-import { getVoiceLabel } from '../engine/voice-labels';
+import { getTrackLabel } from '../engine/track-labels';
 import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
@@ -18,9 +18,9 @@ function generateParameterSection(): string {
     .join('\n');
 }
 
-function generateVoiceSetup(session: Session): string {
-  const voiceLines = session.voices.map(v => {
-    const label = getVoiceLabel(v);
+function generateTrackSetup(session: Session): string {
+  const trackLines = session.tracks.map(v => {
+    const label = getTrackLabel(v);
     const engine = getEngineByIndex(v.model);
     const engineLabel = engine?.label ?? `Model ${v.model}`;
     const engineId = engine?.id ?? '';
@@ -43,10 +43,10 @@ function generateVoiceSetup(session: Session): string {
     return `- ${v.id} (${label}): ${engineLabel} (${classification}) — ${agency}${chainSuffix}${modSuffix}`;
   }).join('\n');
 
-  return `${session.voices.length} voices:
-${voiceLines}
-For percussion voices, use trigger events in sketch.
-For melodic voices, use note events with MIDI pitches. Duration is always 0.25.`;
+  return `${session.tracks.length} tracks:
+${trackLines}
+For percussion tracks, use trigger events in sketch.
+For melodic tracks, use note events with MIDI pitches. Duration is always 0.25.`;
 }
 
 export function buildSystemPrompt(session: Session): string {
@@ -54,12 +54,12 @@ export function buildSystemPrompt(session: Session): string {
 
 Use the provided tools to make changes. You can call multiple tools in one turn. To speak to the human, just reply with text — no tool call needed.
 
-## Voice Setup
-${generateVoiceSetup(session)}
+## Track Setup
+${generateTrackSetup(session)}
 
 ## Behaviour Rules
 1. Make minimal, local edits by default. Only change what the human asks for.
-2. All voices are AI-editable by default (agency ON). If a voice has agency OFF it is **protected** — observe it but do not modify it.
+2. All tracks are AI-editable by default (agency ON). If a track has agency OFF it is **protected** — observe it but do not modify it.
 3. Your changes are queued and applied after your response. The human can undo any action.
 4. Be musical. Be concise. Don't over-explain.
 5. When sketching patterns, think musically — groove, syncopation, dynamics.
@@ -67,7 +67,7 @@ ${generateVoiceSetup(session)}
 7. Keep text responses short — one or two sentences max.
 8. You can combine tool calls: sketch a pattern AND move params in one turn.
 9. Use the transform tool to rotate, transpose, reverse, or duplicate existing patterns instead of rewriting them with sketch.
-10. After sketching a percussion pattern, add a step-grid view if the voice doesn't already have one. Only add views after relevant actions or when asked — don't add them unsolicited.
+10. After sketching a percussion pattern, add a step-grid view if the track doesn't already have one. Only add views after relevant actions or when asked — don't add them unsolicited.
 
 ## Plaits Models Reference
 ${generateModelReference()}
@@ -76,7 +76,7 @@ ${generateModelReference()}
 ${generateParameterSection()}
 
 ## Processor Modules
-Available processor types you can add to a voice's signal chain using add_processor:
+Available processor types you can add to a track's signal chain using add_processor:
 ${getRegisteredProcessorTypes().map(type => {
   const inst = getProcessorInstrument(type);
   if (!inst) return '';
@@ -91,7 +91,7 @@ To switch processor modes, use **set_model** with the processorId parameter (e.g
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.
 
 ## Modulator Modules
-Available modulator types you can add to a voice using add_modulator:
+Available modulator types you can add to a track using add_modulator:
 ${getRegisteredModulatorTypes().map(type => {
   const inst = getModulatorInstrument(type);
   if (!inst) return '';
@@ -113,11 +113,11 @@ ${getRegisteredModulatorTypes().map(type => {
 - The listen tool renders 2 bars by default. Use the optional \`bars\` parameter (1-16) when you need a longer or shorter sample — e.g. 1 bar for a quick timbre check, 4+ bars for patterns with longer phrases.
 - The listen tool works whether or not the transport is playing — it renders audio offline from the current project state.
 
-## Listen Tool — Voice Isolation
-- Pass voiceIds to the listen tool to render only specific voices (e.g. listen with voiceIds: ["v0", "v1"]).
-- Omit voiceIds to hear all unmuted voices (default).
-- Useful for evaluating individual parts, checking a specific voice's timbre, or comparing a subset of voices.
-- Voice isolation is built into the render — no mute/solo state changes needed.
+## Listen Tool — Track Isolation
+- Pass trackIds to the listen tool to render only specific tracks (e.g. listen with trackIds: ["v0", "v1"]).
+- Omit trackIds to hear all unmuted tracks (default).
+- Useful for evaluating individual parts, checking a specific track's timbre, or comparing a subset of tracks.
+- Track isolation is built into the render — no mute/solo state changes needed.
 
 ## User Guide (Reference for answering "how do I..." questions)
 Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).
@@ -136,20 +136,20 @@ Use this section to help the human navigate the app. Shortcuts are Mac defaults 
 - **Cmd+/** — toggle chat panel
 
 ### Track Sidebar
-- Click a track to select it (content area updates to show that voice)
-- **M** button — mute the voice
-- **S** button — solo the voice
-- **C** button — toggle AI agency for the voice
+- Click a track to select it (content area updates to show that track)
+- **M** button — mute the track
+- **S** button — solo the track
+- **C** button — toggle AI agency for the track
 - Teal dot on the track = AI agency is ON
 
 ### Control View
-- **Voice header**: shows voice name and engine label
+- **Track header**: shows track name and engine label
 - **Chain strip**: horizontal row of badges — source engine, then processors, then modulators. Click a badge to focus its controls.
 - **Control sections**: sliders for each parameter (0.0–1.0 normalized)
-- **Mode selector**: dropdown to switch the voice's Plaits engine
+- **Mode selector**: dropdown to switch the track's Plaits engine
 - **XY pad**: 2D control surface (timbre on X, morph on Y)
 - **Pitch / Harmonics**: dedicated controls for pitch and harmonic content
-- **Step grid**: per-step sequencer grid for the voice's pattern (appears when a pattern exists)
+- **Step grid**: per-step sequencer grid for the track's pattern (appears when a pattern exists)
 - **Pattern controls**: length, rate, swing, clear
 
 ### Tracker View
@@ -166,20 +166,20 @@ Use this section to help the human navigate the app. Shortcuts are Mac defaults 
 - Type in the chat panel to talk to the AI
 - The AI can adjust parameters, sketch patterns, change engines, add effects and modulation
 - All AI actions are undoable with **Cmd+Z**
-- The AI only modifies voices with agency ON
+- The AI only modifies tracks with agency ON
 
 ### Common Workflows
 - **Make a beat**: ask the AI to sketch a drum pattern, or use the step grid manually
-- **Protect a voice**: click **C** on the track to turn agency OFF — the AI will not touch it
+- **Protect a track**: click **C** on the track to turn agency OFF — the AI will not touch it
 - **Change engine**: use the mode selector in Control view, or ask the AI to set_model
-- **Add effects**: ask the AI to add a processor (e.g. "add reverb to voice 1"), or it may suggest one
+- **Add effects**: ask the AI to add a processor (e.g. "add reverb to track 1"), or it may suggest one
 - **Add modulation**: ask the AI to add a modulator and connect it to a parameter
 - **Undo anything**: Cmd+Z steps back through all actions (human and AI) in order`;
 }
 
 /** @deprecated Use buildSystemPrompt(session) instead */
 export const GLUON_SYSTEM_PROMPT = buildSystemPrompt({
-  voices: [
+  tracks: [
     { id: 'v0', model: 13, agency: 'ON' },
     { id: 'v1', model: 0, agency: 'ON' },
     { id: 'v2', model: 2, agency: 'ON' },

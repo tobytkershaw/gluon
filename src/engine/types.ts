@@ -47,7 +47,7 @@ export interface ModulationRouting {
   depth: number;        // -1.0 to 1.0 (bipolar)
 }
 
-// --- Voice Surface (Layer model for UI, Steps 5+ activate semantic controls) ---
+// --- Track Surface (Layer model for UI, Steps 5+ activate semantic controls) ---
 
 export type SemanticTransform = 'linear' | 'inverse' | 'bipolar';
 
@@ -76,14 +76,14 @@ export interface PinnedControl {
   controlId: string;
 }
 
-export interface VoiceSurface {
+export interface TrackSurface {
   semanticControls: SemanticControlDef[];
   pinnedControls: PinnedControl[];
   xyAxes: { x: string; y: string };
   thumbprint: ThumbprintConfig;
 }
 
-export interface Voice {
+export interface Track {
   id: string;
   /** Human-assigned display name. When absent, derived from the engine model. */
   name?: string;
@@ -107,7 +107,7 @@ export interface Voice {
   /** Modulation routings (modulator → target param). */
   modulations?: ModulationRouting[];
   /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
-  surface: VoiceSurface;
+  surface: TrackSurface;
 }
 
 // --- Master channel ---
@@ -131,7 +131,7 @@ export interface MusicalContext {
 
 export interface ParamSnapshot {
   kind: 'param';
-  voiceId: string;
+  trackId: string;
   prevValues: Partial<SynthParamValues>;
   aiTargetValues: Partial<SynthParamValues>;
   timestamp: number;
@@ -141,7 +141,7 @@ export interface ParamSnapshot {
 
 export interface PatternSnapshot {
   kind: 'pattern';
-  voiceId: string;
+  trackId: string;
   prevSteps: { index: number; step: Step }[];
   prevLength?: number;
   /** Region events before the legacy sketch was applied (for full undo). */
@@ -161,7 +161,7 @@ export interface TransportSnapshot {
 
 export interface ModelSnapshot {
   kind: 'model';
-  voiceId: string;
+  trackId: string;
   prevModel: number;
   prevEngine: string;
   timestamp: number;
@@ -170,7 +170,7 @@ export interface ModelSnapshot {
 
 export interface RegionSnapshot {
   kind: 'region';
-  voiceId: string;
+  trackId: string;
   prevEvents: CanonicalMusicalEvent[];
   prevDuration?: number;
   prevHiddenEvents?: CanonicalMusicalEvent[];
@@ -180,7 +180,7 @@ export interface RegionSnapshot {
 
 export interface ViewSnapshot {
   kind: 'view';
-  voiceId: string;
+  trackId: string;
   prevViews: SequencerViewConfig[];
   timestamp: number;
   description: string;
@@ -188,7 +188,7 @@ export interface ViewSnapshot {
 
 export interface ProcessorSnapshot {
   kind: 'processor';
-  voiceId: string;
+  trackId: string;
   prevProcessors: ProcessorConfig[];
   timestamp: number;
   description: string;
@@ -196,7 +196,7 @@ export interface ProcessorSnapshot {
 
 export interface ProcessorStateSnapshot {
   kind: 'processor-state';
-  voiceId: string;
+  trackId: string;
   processorId: string;
   prevParams: Record<string, number>;
   prevModel: number;
@@ -206,7 +206,7 @@ export interface ProcessorStateSnapshot {
 
 export interface ModulatorSnapshot {
   kind: 'modulator';
-  voiceId: string;
+  trackId: string;
   prevModulators: ModulatorConfig[];
   prevModulations: ModulationRouting[];
   timestamp: number;
@@ -215,7 +215,7 @@ export interface ModulatorSnapshot {
 
 export interface ModulatorStateSnapshot {
   kind: 'modulator-state';
-  voiceId: string;
+  trackId: string;
   modulatorId: string;
   prevParams: Record<string, number>;
   prevModel: number;
@@ -225,7 +225,7 @@ export interface ModulatorStateSnapshot {
 
 export interface ModulationRoutingSnapshot {
   kind: 'modulation-routing';
-  voiceId: string;
+  trackId: string;
   prevModulations: ModulationRouting[];
   timestamp: number;
   description: string;
@@ -253,10 +253,10 @@ export type UndoEntry = Snapshot | ActionGroupSnapshot;
 
 export interface AIMoveAction {
   type: 'move';
-  voiceId?: string;
-  /** When present, targets a processor control instead of a voice/source control */
+  trackId?: string;
+  /** When present, targets a processor control instead of a track/source control */
   processorId?: string;
-  /** When present, targets a modulator control instead of a voice/source control */
+  /** When present, targets a modulator control instead of a track/source control */
   modulatorId?: string;
   /** Runtime param key (legacy) or canonical controlId */
   param: string;
@@ -271,7 +271,7 @@ export interface AISayAction {
 
 export interface AISketchAction {
   type: 'sketch';
-  voiceId: string;
+  trackId: string;
   description: string;
   /** Legacy pattern shape */
   pattern?: PatternSketch;
@@ -288,17 +288,17 @@ export interface AITransportAction {
 
 export interface AISetModelAction {
   type: 'set_model';
-  voiceId: string;
-  /** When present, switches the processor's mode instead of the voice's synthesis engine */
+  trackId: string;
+  /** When present, switches the processor's mode instead of the track's synthesis engine */
   processorId?: string;
   /** When present, switches the modulator's mode */
   modulatorId?: string;
-  model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum" for voice, "modal" for Rings)
+  model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum" for track, "modal" for Rings)
 }
 
 export interface AITransformAction {
   type: 'transform';
-  voiceId: string;
+  trackId: string;
   operation: 'rotate' | 'transpose' | 'reverse' | 'duplicate';
   steps?: number;
   semitones?: number;
@@ -307,21 +307,21 @@ export interface AITransformAction {
 
 export interface AIAddViewAction {
   type: 'add_view';
-  voiceId: string;
+  trackId: string;
   viewKind: SequencerViewKind;
   description: string;
 }
 
 export interface AIRemoveViewAction {
   type: 'remove_view';
-  voiceId: string;
+  trackId: string;
   viewId: string;
   description: string;
 }
 
 export interface AIAddProcessorAction {
   type: 'add_processor';
-  voiceId: string;
+  trackId: string;
   moduleType: string;  // processor type from registry (e.g. "rings")
   processorId: string; // assigned at tool-call time; used by projection + execution
   description: string;
@@ -329,14 +329,14 @@ export interface AIAddProcessorAction {
 
 export interface AIRemoveProcessorAction {
   type: 'remove_processor';
-  voiceId: string;
+  trackId: string;
   processorId: string;
   description: string;
 }
 
 export interface AIReplaceProcessorAction {
   type: 'replace_processor';
-  voiceId: string;
+  trackId: string;
   processorId: string;       // existing processor to replace
   newModuleType: string;     // new processor type from registry
   newProcessorId: string;    // pre-assigned ID for the replacement
@@ -345,7 +345,7 @@ export interface AIReplaceProcessorAction {
 
 export interface AIAddModulatorAction {
   type: 'add_modulator';
-  voiceId: string;
+  trackId: string;
   moduleType: string;
   modulatorId: string;
   description: string;
@@ -353,14 +353,14 @@ export interface AIAddModulatorAction {
 
 export interface AIRemoveModulatorAction {
   type: 'remove_modulator';
-  voiceId: string;
+  trackId: string;
   modulatorId: string;
   description: string;
 }
 
 export interface AIConnectModulatorAction {
   type: 'connect_modulator';
-  voiceId: string;
+  trackId: string;
   modulatorId: string;
   target: ModulationTarget;
   depth: number;
@@ -371,7 +371,7 @@ export interface AIConnectModulatorAction {
 
 export interface AIDisconnectModulatorAction {
   type: 'disconnect_modulator';
-  voiceId: string;
+  trackId: string;
   modulationId: string;
   description: string;
 }
@@ -387,7 +387,7 @@ export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransport
 // --- Session ---
 
 export interface HumanAction {
-  voiceId: string;
+  trackId: string;
   param: string;
   from: number;
   to: number;
@@ -395,8 +395,8 @@ export interface HumanAction {
 }
 
 export interface Session {
-  voices: Voice[];
-  activeVoiceId: string;
+  tracks: Track[];
+  activeTrackId: string;
   transport: Transport;
   master: MasterChannel;
   undoStack: UndoEntry[];
@@ -421,8 +421,8 @@ export type ActionDiff =
   | { kind: 'master-change'; field: string; from: number; to: number };
 
 export interface ActionLogEntry {
-  voiceId: string;
-  voiceLabel: string;
+  trackId: string;
+  trackLabel: string;
   description: string;
   diff?: ActionDiff;
 }
@@ -436,20 +436,20 @@ export interface ChatMessage {
 
 // --- Helpers ---
 
-export function getVoice(session: Session, voiceId: string): Voice {
-  const voice = session.voices.find(v => v.id === voiceId);
-  if (!voice) throw new Error(`Voice not found: ${voiceId}`);
-  return voice;
+export function getTrack(session: Session, trackId: string): Track {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) throw new Error(`Track not found: ${trackId}`);
+  return track;
 }
 
-export function getActiveVoice(session: Session): Voice {
-  return getVoice(session, session.activeVoiceId);
+export function getActiveTrack(session: Session): Track {
+  return getTrack(session, session.activeTrackId);
 }
 
-export function updateVoice(session: Session, voiceId: string, update: Partial<Voice>): Session {
+export function updateTrack(session: Session, trackId: string, update: Partial<Track>): Session {
   return {
     ...session,
-    voices: session.voices.map(v => v.id === voiceId ? { ...v, ...update } : v),
+    tracks: session.tracks.map(v => v.id === trackId ? { ...v, ...update } : v),
   };
 }
 

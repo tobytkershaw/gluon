@@ -7,13 +7,13 @@ import { Type } from '@google/genai';
 const moveTool: FunctionDeclaration = {
   name: 'move',
   description:
-    'Move a normalized control to a target value. Targets a voice source control by default, or a processor control when processorId is provided, or a modulator control when modulatorId is provided. Immediately audible. Takes effect after this response.',
+    'Move a normalized control to a target value. Targets a track source control by default, or a processor control when processorId is provided, or a modulator control when modulatorId is provided. Immediately audible. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
       param: {
         type: Type.STRING,
-        description: 'The control ID to change. For voice: "brightness", "richness", "texture", "pitch". For processors: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback"). For Tides modulator: "frequency", "shape", "slope", "smoothness".',
+        description: 'The control ID to change. For track: "brightness", "richness", "texture", "pitch". For processors: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback"). For Tides modulator: "frequency", "shape", "slope", "smoothness".',
       },
       target: {
         type: Type.OBJECT,
@@ -23,13 +23,13 @@ const moveTool: FunctionDeclaration = {
           relative: { type: Type.NUMBER, description: 'Relative offset (-1.0 to 1.0).' },
         },
       },
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0"). Defaults to active voice if omitted.',
+        description: 'Target track ID (e.g. "v0"). Defaults to active track if omitted.',
       },
       processorId: {
         type: Type.STRING,
-        description: 'Processor ID to target (e.g. "rings-1710342000000"). When provided, moves a control on the processor instead of the voice source.',
+        description: 'Processor ID to target (e.g. "rings-1710342000000"). When provided, moves a control on the processor instead of the track source.',
       },
       modulatorId: {
         type: Type.STRING,
@@ -47,13 +47,13 @@ const moveTool: FunctionDeclaration = {
 const sketchTool: FunctionDeclaration = {
   name: 'sketch',
   description:
-    'Apply a rhythmic/melodic pattern to a voice using musical events. Takes effect after this response.',
+    'Apply a rhythmic/melodic pattern to a track using musical events. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       description: {
         type: Type.STRING,
@@ -63,7 +63,7 @@ const sketchTool: FunctionDeclaration = {
         type: Type.ARRAY,
         description:
           'Sparse list of musical events. Only include steps you want to set. ' +
-          'For drums/percussion, use "trigger" events. For melodic voices, use "note" events with MIDI pitches.',
+          'For drums/percussion, use "trigger" events. For melodic tracks, use "note" events with MIDI pitches.',
         items: {
           type: Type.OBJECT,
           properties: {
@@ -104,7 +104,7 @@ const sketchTool: FunctionDeclaration = {
         },
       },
     },
-    required: ['voiceId', 'description', 'events'],
+    required: ['trackId', 'description', 'events'],
   },
 };
 
@@ -125,10 +125,10 @@ const listenTool: FunctionDeclaration = {
         type: Type.INTEGER,
         description: 'Number of bars to render (1-16, default 2).',
       },
-      voiceIds: {
+      trackIds: {
         type: Type.ARRAY,
         items: { type: Type.STRING },
-        description: 'Optional voice IDs to render in isolation (e.g. ["v0", "v1"]). Omit to hear all unmuted voices.',
+        description: 'Optional track IDs to render in isolation (e.g. ["v0", "v1"]). Omit to hear all unmuted tracks.',
       },
     },
     required: ['question'],
@@ -161,64 +161,64 @@ const setTransportTool: FunctionDeclaration = {
 const setModelTool: FunctionDeclaration = {
   name: 'set_model',
   description:
-    'Switch the mode of a module. Without processorId/modulatorId, changes the voice synthesis engine. With processorId, changes the processor\'s mode. With modulatorId, changes the modulator\'s mode. Takes effect after this response.',
+    'Switch the mode of a module. Without processorId/modulatorId, changes the track synthesis engine. With processorId, changes the processor\'s mode. With modulatorId, changes the modulator\'s mode. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       model: {
         type: Type.STRING,
         description:
-          'Model/mode ID. For voice: virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
+          'Model/mode ID. For track: virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
           'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
           'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat. ' +
-          'For Rings processor: modal, sympathetic-string, string, fm-voice, sympathetic-quantized, string-and-reverb. ' +
+          'For Rings processor: modal, sympathetic-string, string, fm-track, sympathetic-quantized, string-and-reverb. ' +
           'For Clouds processor: granular, pitch-shifter, looping-delay, spectral. ' +
           'For Tides modulator: ad, looping, ar.',
       },
       processorId: {
         type: Type.STRING,
-        description: 'Processor ID to target. When provided, switches the processor\'s mode instead of the voice\'s synthesis engine.',
+        description: 'Processor ID to target. When provided, switches the processor\'s mode instead of the track\'s synthesis engine.',
       },
       modulatorId: {
         type: Type.STRING,
         description: 'Modulator ID to target. When provided, switches the modulator\'s mode (e.g. ad, looping, ar for Tides).',
       },
     },
-    required: ['voiceId', 'model'],
+    required: ['trackId', 'model'],
   },
 };
 
 const transformTool: FunctionDeclaration = {
   name: 'transform',
   description:
-    'Transform an existing pattern on a voice. Use this to modify patterns structurally (rotate, transpose, reverse, duplicate) rather than rewriting them.',
+    'Transform an existing pattern on a track. Use this to modify patterns structurally (rotate, transpose, reverse, duplicate) rather than rewriting them.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: { type: Type.STRING, description: 'Target voice ID (e.g. "v0").' },
+      trackId: { type: Type.STRING, description: 'Target track ID (e.g. "v0").' },
       operation: { type: Type.STRING, description: 'Transform operation: "rotate" (shift events in time), "transpose" (shift pitch), "reverse" (mirror positions), "duplicate" (repeat pattern).' },
       steps: { type: Type.INTEGER, description: 'For rotate: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations.' },
       semitones: { type: Type.INTEGER, description: 'For transpose: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations.' },
       description: { type: Type.STRING, description: 'Short description of the transform intent.' },
     },
-    required: ['voiceId', 'operation', 'description'],
+    required: ['trackId', 'operation', 'description'],
   },
 };
 
 const addViewTool: FunctionDeclaration = {
   name: 'add_view',
   description:
-    'Add a sequencer view to a voice. Use after sketching a pattern to make it visible in the appropriate editor.',
+    'Add a sequencer view to a track. Use after sketching a pattern to make it visible in the appropriate editor.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       viewKind: {
         type: Type.STRING,
@@ -229,20 +229,20 @@ const addViewTool: FunctionDeclaration = {
         description: 'Short description (e.g. "show kick pattern in step grid").',
       },
     },
-    required: ['voiceId', 'viewKind', 'description'],
+    required: ['trackId', 'viewKind', 'description'],
   },
 };
 
 const removeViewTool: FunctionDeclaration = {
   name: 'remove_view',
   description:
-    'Remove a sequencer view from a voice by its ID.',
+    'Remove a sequencer view from a track by its ID.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       viewId: {
         type: Type.STRING,
@@ -253,20 +253,20 @@ const removeViewTool: FunctionDeclaration = {
         description: 'Short description (e.g. "remove step grid").',
       },
     },
-    required: ['voiceId', 'viewId', 'description'],
+    required: ['trackId', 'viewId', 'description'],
   },
 };
 
 const addProcessorTool: FunctionDeclaration = {
   name: 'add_processor',
   description:
-    'Add a processor module to a voice\'s signal chain (e.g. Rings resonator). The processor processes the voice\'s audio output. Takes effect after this response.',
+    'Add a processor module to a track\'s signal chain (e.g. Rings resonator). The processor processes the track\'s audio output. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       moduleType: {
         type: Type.STRING,
@@ -277,20 +277,20 @@ const addProcessorTool: FunctionDeclaration = {
         description: 'Short description (e.g. "add Rings resonator for metallic texture").',
       },
     },
-    required: ['voiceId', 'moduleType', 'description'],
+    required: ['trackId', 'moduleType', 'description'],
   },
 };
 
 const removeProcessorTool: FunctionDeclaration = {
   name: 'remove_processor',
   description:
-    'Remove a processor module from a voice\'s signal chain by its ID. Takes effect after this response.',
+    'Remove a processor module from a track\'s signal chain by its ID. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       processorId: {
         type: Type.STRING,
@@ -298,23 +298,23 @@ const removeProcessorTool: FunctionDeclaration = {
       },
       description: {
         type: Type.STRING,
-        description: 'Short description (e.g. "remove Rings from kick voice").',
+        description: 'Short description (e.g. "remove Rings from kick track").',
       },
     },
-    required: ['voiceId', 'processorId', 'description'],
+    required: ['trackId', 'processorId', 'description'],
   },
 };
 
 const replaceProcessorTool: FunctionDeclaration = {
   name: 'replace_processor',
   description:
-    'Atomically swap one processor for another type in a voice\'s signal chain. Keeps the same chain position. Takes effect after this response.',
+    'Atomically swap one processor for another type in a track\'s signal chain. Keeps the same chain position. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       processorId: {
         type: Type.STRING,
@@ -326,23 +326,23 @@ const replaceProcessorTool: FunctionDeclaration = {
       },
       description: {
         type: Type.STRING,
-        description: 'Short description (e.g. "swap Rings for Clouds on kick voice").',
+        description: 'Short description (e.g. "swap Rings for Clouds on kick track").',
       },
     },
-    required: ['voiceId', 'processorId', 'newModuleType', 'description'],
+    required: ['trackId', 'processorId', 'newModuleType', 'description'],
   },
 };
 
 const addModulatorTool: FunctionDeclaration = {
   name: 'add_modulator',
   description:
-    'Add a modulator module (LFO/envelope) to a voice. The modulator generates control-rate signals that can be routed to parameters on the source or processors. Use connect_modulator to wire it up after adding. Takes effect after this response.',
+    'Add a modulator module (LFO/envelope) to a track. The modulator generates control-rate signals that can be routed to parameters on the source or processors. Use connect_modulator to wire it up after adding. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       moduleType: {
         type: Type.STRING,
@@ -353,20 +353,20 @@ const addModulatorTool: FunctionDeclaration = {
         description: 'Short description (e.g. "add Tides LFO for slow brightness sweep").',
       },
     },
-    required: ['voiceId', 'moduleType', 'description'],
+    required: ['trackId', 'moduleType', 'description'],
   },
 };
 
 const removeModulatorTool: FunctionDeclaration = {
   name: 'remove_modulator',
   description:
-    'Remove a modulator module from a voice by its ID. Also disconnects all routings from this modulator. Takes effect after this response.',
+    'Remove a modulator module from a track by its ID. Also disconnects all routings from this modulator. Takes effect after this response.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       modulatorId: {
         type: Type.STRING,
@@ -374,10 +374,10 @@ const removeModulatorTool: FunctionDeclaration = {
       },
       description: {
         type: Type.STRING,
-        description: 'Short description (e.g. "remove LFO from kick voice").',
+        description: 'Short description (e.g. "remove LFO from kick track").',
       },
     },
-    required: ['voiceId', 'modulatorId', 'description'],
+    required: ['trackId', 'modulatorId', 'description'],
   },
 };
 
@@ -388,9 +388,9 @@ const connectModulatorTool: FunctionDeclaration = {
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       modulatorId: {
         type: Type.STRING,
@@ -398,7 +398,7 @@ const connectModulatorTool: FunctionDeclaration = {
       },
       targetKind: {
         type: Type.STRING,
-        description: 'Target type: "source" for the voice\'s Plaits source, or "processor" for a processor module.',
+        description: 'Target type: "source" for the track\'s Plaits source, or "processor" for a processor module.',
       },
       processorId: {
         type: Type.STRING,
@@ -417,7 +417,7 @@ const connectModulatorTool: FunctionDeclaration = {
         description: 'Short description (e.g. "route Tides to brightness for slow sweep").',
       },
     },
-    required: ['voiceId', 'modulatorId', 'targetKind', 'targetParam', 'depth', 'description'],
+    required: ['trackId', 'modulatorId', 'targetKind', 'targetParam', 'depth', 'description'],
   },
 };
 
@@ -428,9 +428,9 @@ const disconnectModulatorTool: FunctionDeclaration = {
   parameters: {
     type: Type.OBJECT,
     properties: {
-      voiceId: {
+      trackId: {
         type: Type.STRING,
-        description: 'Target voice ID (e.g. "v0").',
+        description: 'Target track ID (e.g. "v0").',
       },
       modulationId: {
         type: Type.STRING,
@@ -441,7 +441,7 @@ const disconnectModulatorTool: FunctionDeclaration = {
         description: 'Short description (e.g. "disconnect brightness modulation").',
       },
     },
-    required: ['voiceId', 'modulationId', 'description'],
+    required: ['trackId', 'modulationId', 'description'],
   },
 };
 

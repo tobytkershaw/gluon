@@ -51,7 +51,7 @@ describe('plaits-adapter', () => {
 
   it('validates known canonical controlId', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'brightness',
       target: { absolute: 0.5 },
     });
     expect(result.valid).toBe(true);
@@ -59,7 +59,7 @@ describe('plaits-adapter', () => {
 
   it('validates move with param field (legacy shape)', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'brightness',
       target: { absolute: 0.5 },
       // Simulate what executor passes: raw AIAction with param instead of controlId
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing legacy AIAction shape
@@ -68,7 +68,7 @@ describe('plaits-adapter', () => {
 
     // Also test with runtime param name via param field
     const result2 = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', param: 'timbre',
+      type: 'move', trackId: 'v0', param: 'timbre',
       target: { absolute: 0.5 },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing legacy AIAction shape
     } as any);
@@ -77,7 +77,7 @@ describe('plaits-adapter', () => {
 
   it('rejects unknown controlId', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'unknown_param',
+      type: 'move', trackId: 'v0', controlId: 'unknown_param',
       target: { absolute: 0.5 },
     });
     expect(result.valid).toBe(false);
@@ -86,7 +86,7 @@ describe('plaits-adapter', () => {
 
   it('rejects out-of-range absolute values', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'brightness',
       target: { absolute: 1.5 },
     });
     expect(result.valid).toBe(false);

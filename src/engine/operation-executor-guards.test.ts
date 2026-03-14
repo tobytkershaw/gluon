@@ -38,7 +38,7 @@ function makeSession(overrides?: Partial<Session>): Session {
     velocity: 0.8,
   };
   return {
-    voices: [{
+    tracks: [{
       id: 'v1',
       engine: 'plaits',
       model: 0,
@@ -59,7 +59,7 @@ function makeSession(overrides?: Partial<Session>): Session {
         thumbprint: { type: 'static-color' },
       },
     }],
-    activeVoiceId: 'v1',
+    activeTrackId: 'v1',
     transport: { bpm: 120, swing: 0, playing: true },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.5, density: 0.5 },

@@ -1,11 +1,11 @@
 // src/ui/TrackRow.tsx
 // Horizontal track row for the vertical track sidebar.
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Voice } from '../engine/types';
+import type { Track } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
 
 interface Props {
-  voice: Voice;
+  track: Track;
   label: string;
   isActive: boolean;
   activityTimestamp: number | null;
@@ -17,7 +17,7 @@ interface Props {
 }
 
 export function TrackRow({
-  voice, label, isActive, activityTimestamp,
+  track, label, isActive, activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
@@ -69,7 +69,7 @@ export function TrackRow({
     }
   }, [commitRename, cancelRename]);
 
-  const thumbColor = computeThumbprintColor(voice);
+  const thumbColor = computeThumbprintColor(track);
 
   return (
     <div
@@ -95,7 +95,7 @@ export function TrackRow({
         style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
       />
 
-      {/* Voice label */}
+      {/* Track label */}
       {editing ? (
         <input
           ref={inputRef}
@@ -110,7 +110,7 @@ export function TrackRow({
       ) : (
         <span
           className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
-            voice.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
+            track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
           }`}
           onDoubleClick={handleDoubleClick}
         >
@@ -119,7 +119,7 @@ export function TrackRow({
       )}
 
       {/* Agency indicator */}
-      {voice.agency === 'ON' && (
+      {track.agency === 'ON' && (
         <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
       )}
 
@@ -128,7 +128,7 @@ export function TrackRow({
         <button
           onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
           className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
-            voice.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
+            track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
         >
           M
@@ -136,7 +136,7 @@ export function TrackRow({
         <button
           onClick={(e) => { e.stopPropagation(); onToggleSolo(); }}
           className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
-            voice.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
+            track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
         >
           S
@@ -144,9 +144,9 @@ export function TrackRow({
         {onToggleAgency && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-            title={voice.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
+            title={track.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
             className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
-              voice.agency === 'OFF'
+              track.agency === 'OFF'
                 ? 'bg-amber-500/20 text-amber-400'
                 : 'text-zinc-600 hover:text-zinc-400'
             }`}

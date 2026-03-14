@@ -288,7 +288,7 @@ interface SequencerViewConfig {
   id: string;
 }
 
-interface VoiceSurface {
+interface TrackSurface {
   semanticControls: SemanticControlDef[];
   pinnedControls: PinnedControl[];
   xyAxes: { x: string; y: string };
@@ -306,14 +306,14 @@ For sequencing, the AI's UI curation vocabulary should include operations like:
 ```ts
 interface AIAddViewAction {
   type: 'add_view';
-  voiceId: string;
+  trackId: string;
   viewKind: SequencerViewKind;
   description: string;
 }
 
 interface AIRemoveViewAction {
   type: 'remove_view';
-  voiceId: string;
+  trackId: string;
   viewId: string;
   description: string;
 }
@@ -448,14 +448,14 @@ The insertion flow should not invent hidden microtiming implicitly. If insertion
 
 ## Transitional Implementation Shape
 
-This RFC does not require immediate full `VoiceSurface` adoption.
+This RFC does not require immediate full `TrackSurface` adoption.
 
 An acceptable transitional implementation is:
 
 - tracker rendered directly in the current instrument/voice workspace
 - addable sequencer views stored temporarily as lightweight presentation state on `Voice`
 - those addable views excluded from persistence and musical-state logic
-- later migration into `VoiceSurface.sequencerViews`
+- later migration into `TrackSurface.sequencerViews`
 
 That is a pragmatic implementation path, not the desired long-term ownership boundary.
 
@@ -467,7 +467,7 @@ The sequencer view layer established a pattern: canonical state projected throug
 
 The XY pad is a 2D projection of parameter state. The visualiser is a projection of audio state. Semantic controls from the curated-surfaces RFC are projections of aggregated chain parameters. All of these read from canonical state, write through canonical primitives, and could be managed as addable surfaces with the same `add`/`remove` vocabulary.
 
-If this pattern proves durable, the natural evolution is to unify sequencer views and parameter surfaces under a single model — replacing `SequencerViewKind` with a broader `SurfaceKind` that includes `'xy-pad'`, `'semantic-surface'`, `'waveform'`, etc. The `VoiceSurface.sequencerViews` field would become `VoiceSurface.surfaces` or similar.
+If this pattern proves durable, the natural evolution is to unify sequencer views and parameter surfaces under a single model — replacing `SequencerViewKind` with a broader `SurfaceKind` that includes `'xy-pad'`, `'semantic-surface'`, `'waveform'`, etc. The `TrackSurface.sequencerViews` field would become `TrackSurface.surfaces` or similar.
 
 This RFC does not propose that unification. It has not been validated beyond sequencing, and premature generalisation would add abstraction without evidence. But the seam is visible, and worth noting so that future surface work can evaluate whether the pattern holds.
 

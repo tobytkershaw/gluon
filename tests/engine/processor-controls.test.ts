@@ -9,7 +9,7 @@ import { createSession } from '../../src/engine/session';
 import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { AIAction, ProcessorConfig, Session } from '../../src/engine/types';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 
 const adapter = createPlaitsAdapter();
 
@@ -30,7 +30,7 @@ function sessionWithProcessor(): Session {
   };
   return {
     ...session,
-    voices: session.voices.map(v =>
+    tracks: session.tracks.map(v =>
       v.id === 'v0' ? { ...v, agency: 'ON' as const, processors: [proc] } : v,
     ),
   };
@@ -42,7 +42,7 @@ describe('Processor-targeted move', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBeNull();
     });
@@ -51,17 +51,17 @@ describe('Processor-targeted move', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'nonexistent',
+        trackId: 'v0', processorId: 'nonexistent',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator()))
-        .toBe('Processor not found: nonexistent on voice v0');
+        .toBe('Processor not found: nonexistent on track v0');
     });
 
     it('rejects move with invalid processor control', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'invalid_control', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       const result = prevalidateAction(session, action, adapter, makeArbitrator());
       expect(result).toContain('Unknown rings control: invalid_control');
@@ -72,7 +72,7 @@ describe('Processor-targeted move', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1', over: 2000,
+        trackId: 'v0', processorId: 'rings-test-1', over: 2000,
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator()))
         .toMatch(/not supported.*processor/i);
@@ -82,60 +82,60 @@ describe('Processor-targeted move', () => {
       const session = sessionWithProcessor();
       const s = {
         ...session,
-        voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
       };
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       expect(prevalidateAction(s, action, adapter, makeArbitrator()))
-        .toBe('Voice v0 has agency OFF');
+        .toBe('Track v0 has agency OFF');
     });
   });
 
   describe('execution', () => {
-    it('updates processor params, not voice params', () => {
+    it('updates processor params, not track params', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       expect(result.accepted).toHaveLength(1);
-      const voice = getVoice(result.session, 'v0');
+      const track = getTrack(result.session, 'v0');
       // Processor param updated
-      expect(voice.processors![0].params.brightness).toBeCloseTo(0.3);
-      // Voice source param unchanged
-      expect(voice.params.timbre).toBe(0.5);
+      expect(track.processors![0].params.brightness).toBeCloseTo(0.3);
+      // Track source param unchanged
+      expect(track.params.timbre).toBe(0.5);
     });
 
     it('supports relative processor moves', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { relative: 0.2 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
-      const voice = getVoice(result.session, 'v0');
-      expect(voice.processors![0].params.brightness).toBeCloseTo(0.7);
+      const track = getTrack(result.session, 'v0');
+      expect(track.processors![0].params.brightness).toBeCloseTo(0.7);
     });
 
     it('clamps processor param to 0-1', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 1.5 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
-      const voice = getVoice(result.session, 'v0');
-      expect(voice.processors![0].params.brightness).toBe(1);
+      const track = getTrack(result.session, 'v0');
+      expect(track.processors![0].params.brightness).toBe(1);
     });
 
     it('creates ProcessorStateSnapshot for undo', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       expect(result.session.undoStack).toHaveLength(1);
@@ -154,27 +154,27 @@ describe('Processor-targeted move', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
         type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        voiceId: 'v0', processorId: 'rings-test-1',
+        trackId: 'v0', processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       const undone = applyUndo(result.session);
-      const voice = getVoice(undone, 'v0');
-      expect(voice.processors![0].params.brightness).toBe(0.5);
+      const track = getTrack(undone, 'v0');
+      expect(track.processors![0].params.brightness).toBe(0.5);
     });
   });
 
   describe('backward compatibility', () => {
-    it('move without processorId still works for voice params', () => {
+    it('move without processorId still works for track params', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'move', param: 'timbre', target: { absolute: 0.8 }, voiceId: 'v0',
+        type: 'move', param: 'timbre', target: { absolute: 0.8 }, trackId: 'v0',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       expect(result.accepted).toHaveLength(1);
-      const voice = getVoice(result.session, 'v0');
-      expect(voice.params.timbre).toBeCloseTo(0.8);
+      const track = getTrack(result.session, 'v0');
+      expect(track.params.timbre).toBeCloseTo(0.8);
       // Processor unchanged
-      expect(voice.processors![0].params.brightness).toBe(0.5);
+      expect(track.processors![0].params.brightness).toBe(0.5);
     });
   });
 });
@@ -184,7 +184,7 @@ describe('Processor-targeted set_model', () => {
     it('accepts valid processor model switch', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'string',
+        type: 'set_model', trackId: 'v0', model: 'string',
         processorId: 'rings-test-1',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBeNull();
@@ -193,7 +193,7 @@ describe('Processor-targeted set_model', () => {
     it('rejects invalid processor model name', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'nonexistent',
+        type: 'set_model', trackId: 'v0', model: 'nonexistent',
         processorId: 'rings-test-1',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator()))
@@ -203,34 +203,34 @@ describe('Processor-targeted set_model', () => {
     it('rejects model switch on nonexistent processor', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'string',
+        type: 'set_model', trackId: 'v0', model: 'string',
         processorId: 'nonexistent',
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator()))
-        .toBe('Processor not found: nonexistent on voice v0');
+        .toBe('Processor not found: nonexistent on track v0');
     });
   });
 
   describe('execution', () => {
-    it('updates processor model, not voice model', () => {
+    it('updates processor model, not track model', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'string',
+        type: 'set_model', trackId: 'v0', model: 'string',
         processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       expect(result.accepted).toHaveLength(1);
-      const voice = getVoice(result.session, 'v0');
+      const track = getTrack(result.session, 'v0');
       // Processor model updated (string is index 2 in Rings engines)
-      expect(voice.processors![0].model).toBe(2);
-      // Voice source model unchanged
-      expect(voice.model).toBe(session.voices[0].model);
+      expect(track.processors![0].model).toBe(2);
+      // Track source model unchanged
+      expect(track.model).toBe(session.tracks[0].model);
     });
 
     it('captures full processor state in snapshot', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'string',
+        type: 'set_model', trackId: 'v0', model: 'string',
         processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
@@ -247,28 +247,28 @@ describe('Processor-targeted set_model', () => {
     it('reverts processor model change', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'string',
+        type: 'set_model', trackId: 'v0', model: 'string',
         processorId: 'rings-test-1',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       const undone = applyUndo(result.session);
-      const voice = getVoice(undone, 'v0');
-      expect(voice.processors![0].model).toBe(0);
+      const track = getTrack(undone, 'v0');
+      expect(track.processors![0].model).toBe(0);
     });
   });
 
   describe('backward compatibility', () => {
-    it('set_model without processorId still works for voice', () => {
+    it('set_model without processorId still works for track', () => {
       const session = sessionWithProcessor();
       const action: AIAction = {
-        type: 'set_model', voiceId: 'v0', model: 'fm',
+        type: 'set_model', trackId: 'v0', model: 'fm',
       };
       const result = executeOperations(session, [action], adapter, makeArbitrator());
       expect(result.accepted).toHaveLength(1);
-      const voice = getVoice(result.session, 'v0');
-      expect(voice.model).toBe(2); // FM is index 2 in Plaits engines
+      const track = getTrack(result.session, 'v0');
+      expect(track.model).toBe(2); // FM is index 2 in Plaits engines
       // Processor unchanged
-      expect(voice.processors![0].model).toBe(0);
+      expect(track.processors![0].model).toBe(0);
     });
   });
 });
@@ -277,8 +277,8 @@ describe('Grouped undo for processor actions', () => {
   it('groups processor move + model change into single undo', () => {
     const session = sessionWithProcessor();
     const actions: AIAction[] = [
-      { type: 'move', param: 'brightness', target: { absolute: 0.3 }, voiceId: 'v0', processorId: 'rings-test-1' },
-      { type: 'set_model', voiceId: 'v0', model: 'string', processorId: 'rings-test-1' },
+      { type: 'move', param: 'brightness', target: { absolute: 0.3 }, trackId: 'v0', processorId: 'rings-test-1' },
+      { type: 'set_model', trackId: 'v0', model: 'string', processorId: 'rings-test-1' },
     ];
     const result = executeOperations(session, actions, adapter, makeArbitrator());
     expect(result.accepted).toHaveLength(2);
@@ -288,8 +288,8 @@ describe('Grouped undo for processor actions', () => {
 
     // Undo reverts both
     const undone = applyUndo(result.session);
-    const voice = getVoice(undone, 'v0');
-    expect(voice.processors![0].params.brightness).toBe(0.5);
-    expect(voice.processors![0].model).toBe(0);
+    const track = getTrack(undone, 'v0');
+    expect(track.processors![0].params.brightness).toBe(0.5);
+    expect(track.processors![0].model).toBe(0);
   });
 });

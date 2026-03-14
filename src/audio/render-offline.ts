@@ -16,16 +16,16 @@ const RENDER_TIMEOUT_MS = 30_000; // 30s safety net
  * time — no AudioContext needed, no transport dependency.
  *
  * @param session   Current session state
- * @param voiceIds  Optional subset of voices to render (default: all unmuted)
+ * @param trackIds  Optional subset of tracks to render (default: all unmuted)
  * @param bars      Number of bars to render (default: 2)
  * @returns WAV Blob suitable for Gemini API
  */
 export async function renderOffline(
   session: Session,
-  voiceIds?: string[],
+  trackIds?: string[],
   bars = 2,
 ): Promise<Blob> {
-  const spec = buildRenderSpec(session, voiceIds, bars);
+  const spec = buildRenderSpec(session, trackIds, bars);
 
   // Spawn a Worker using the Vite worker import pattern.
   // The `?worker` suffix tells Vite to bundle the worker as a separate entry.

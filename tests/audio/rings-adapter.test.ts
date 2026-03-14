@@ -43,7 +43,7 @@ describe('rings-adapter', () => {
 
   it('validates known controlId', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'structure',
+      type: 'move', trackId: 'v0', controlId: 'structure',
       target: { absolute: 0.5 },
     });
     expect(result.valid).toBe(true);
@@ -51,7 +51,7 @@ describe('rings-adapter', () => {
 
   it('rejects unknown controlId', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'timbre',
+      type: 'move', trackId: 'v0', controlId: 'timbre',
       target: { absolute: 0.5 },
     });
     expect(result.valid).toBe(false);
@@ -60,7 +60,7 @@ describe('rings-adapter', () => {
 
   it('rejects out-of-range absolute values', () => {
     const result = adapter.validateOperation({
-      type: 'move', voiceId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'brightness',
       target: { absolute: -0.1 },
     });
     expect(result.valid).toBe(false);

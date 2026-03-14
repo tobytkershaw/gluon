@@ -3,7 +3,7 @@
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, ProcessorConfig, ModulatorConfig, ModulationTarget } from '../engine/types';
-import { getVoice, updateVoice } from '../engine/types';
+import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -24,12 +24,12 @@ const MODEL = 'gemini-2.5-flash';
 function projectAction(session: Session, action: AIAction): Session {
   switch (action.type) {
     case 'move': {
-      const voiceId = action.voiceId ?? session.activeVoiceId;
-      const voice = getVoice(session, voiceId);
+      const trackId = action.trackId ?? session.activeTrackId;
+      const track = getTrack(session, trackId);
 
       // Modulator path: update modulator.params directly
       if (action.modulatorId) {
-        const modulators = voice.modulators ?? [];
+        const modulators = track.modulators ?? [];
         const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
         if (modIndex < 0) return session;
         const mod = modulators[modIndex];
@@ -41,12 +41,12 @@ function projectAction(session: Session, action: AIAction): Session {
         const updatedMod = { ...mod, params: { ...mod.params, [action.param]: value } };
         const newModulators = [...modulators];
         newModulators[modIndex] = updatedMod;
-        return updateVoice(session, voiceId, { modulators: newModulators });
+        return updateTrack(session, trackId, { modulators: newModulators });
       }
 
       // Processor path: update processor.params directly
       if (action.processorId) {
-        const processors = voice.processors ?? [];
+        const processors = track.processors ?? [];
         const procIndex = processors.findIndex(p => p.id === action.processorId);
         if (procIndex < 0) return session;
         const proc = processors[procIndex];
@@ -58,18 +58,18 @@ function projectAction(session: Session, action: AIAction): Session {
         const updatedProc = { ...proc, params: { ...proc.params, [action.param]: value } };
         const newProcessors = [...processors];
         newProcessors[procIndex] = updatedProc;
-        return updateVoice(session, voiceId, { processors: newProcessors });
+        return updateTrack(session, trackId, { processors: newProcessors });
       }
 
       // Source path
       const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
-      const currentVal = voice.params[runtimeKey] ?? 0;
+      const currentVal = track.params[runtimeKey] ?? 0;
       const rawTarget = 'absolute' in action.target
         ? action.target.absolute
         : currentVal + action.target.relative;
       const value = Math.max(0, Math.min(1, rawTarget));
-      return updateVoice(session, voiceId, {
-        params: { ...voice.params, [runtimeKey]: value },
+      return updateTrack(session, trackId, {
+        params: { ...track.params, [runtimeKey]: value },
       });
     }
     case 'set_transport': {
@@ -80,10 +80,10 @@ function projectAction(session: Session, action: AIAction): Session {
       return { ...session, transport: t };
     }
     case 'sketch': {
-      const voice = getVoice(session, action.voiceId);
-      if (!action.events || voice.regions.length === 0) return session;
+      const track = getTrack(session, action.trackId);
+      if (!action.events || track.regions.length === 0) return session;
       const updatedRegion = normalizeRegionEvents({
-        ...voice.regions[0],
+        ...track.regions[0],
         events: action.events,
       });
       const inverseOpts = {
@@ -91,13 +91,13 @@ function projectAction(session: Session, action: AIAction): Session {
         canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
       };
       const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
-      const newRegions = [updatedRegion, ...voice.regions.slice(1)];
-      return updateVoice(session, action.voiceId, { regions: newRegions, pattern });
+      const newRegions = [updatedRegion, ...track.regions.slice(1)];
+      return updateTrack(session, action.trackId, { regions: newRegions, pattern });
     }
     case 'transform': {
-      const voice = getVoice(session, action.voiceId);
-      if (voice.regions.length === 0) return session;
-      const region = voice.regions[0];
+      const track = getTrack(session, action.trackId);
+      if (track.regions.length === 0) return session;
+      const region = track.regions[0];
       let newEvents = region.events;
       let newDuration = region.duration;
       switch (action.operation) {
@@ -117,14 +117,14 @@ function projectAction(session: Session, action: AIAction): Session {
         canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
       };
       const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
-      const newRegions = [updatedRegion, ...voice.regions.slice(1)];
-      return updateVoice(session, action.voiceId, { regions: newRegions, pattern });
+      const newRegions = [updatedRegion, ...track.regions.slice(1)];
+      return updateTrack(session, action.trackId, { regions: newRegions, pattern });
     }
     case 'set_model': {
       // Modulator path: update modulator model
       if (action.modulatorId) {
-        const voice = getVoice(session, action.voiceId);
-        const modulators = voice.modulators ?? [];
+        const track = getTrack(session, action.trackId);
+        const modulators = track.modulators ?? [];
         const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
         if (modIndex < 0) return session;
         const mod = modulators[modIndex];
@@ -133,13 +133,13 @@ function projectAction(session: Session, action: AIAction): Session {
         const updatedMod = { ...mod, model: result.index };
         const newModulators = [...modulators];
         newModulators[modIndex] = updatedMod;
-        return updateVoice(session, action.voiceId, { modulators: newModulators });
+        return updateTrack(session, action.trackId, { modulators: newModulators });
       }
 
       // Processor path: update processor model
       if (action.processorId) {
-        const voice = getVoice(session, action.voiceId);
-        const processors = voice.processors ?? [];
+        const track = getTrack(session, action.trackId);
+        const processors = track.processors ?? [];
         const procIndex = processors.findIndex(p => p.id === action.processorId);
         if (procIndex < 0) return session;
         const proc = processors[procIndex];
@@ -148,7 +148,7 @@ function projectAction(session: Session, action: AIAction): Session {
         const updatedProc = { ...proc, model: result.index };
         const newProcessors = [...processors];
         newProcessors[procIndex] = updatedProc;
-        return updateVoice(session, action.voiceId, { processors: newProcessors });
+        return updateTrack(session, action.trackId, { processors: newProcessors });
       }
 
       // Source path
@@ -156,22 +156,22 @@ function projectAction(session: Session, action: AIAction): Session {
       if (engineIndex < 0) return session;
       const engineDef = plaitsInstrument.engines[engineIndex];
       const engineName = `plaits:${engineDef.label.toLowerCase().replace(/[\s/]+/g, '_')}`;
-      return updateVoice(session, action.voiceId, { model: engineIndex, engine: engineName });
+      return updateTrack(session, action.trackId, { model: engineIndex, engine: engineName });
     }
     case 'add_view': {
-      const voice = getVoice(session, action.voiceId);
-      const views = [...(voice.views ?? [])];
+      const track = getTrack(session, action.trackId);
+      const views = [...(track.views ?? [])];
       views.push({ kind: action.viewKind, id: `${action.viewKind}-proj-${Date.now()}` });
-      return updateVoice(session, action.voiceId, { views });
+      return updateTrack(session, action.trackId, { views });
     }
     case 'remove_view': {
-      const voice = getVoice(session, action.voiceId);
-      const views = (voice.views ?? []).filter(v => v.id !== action.viewId);
-      return updateVoice(session, action.voiceId, { views });
+      const track = getTrack(session, action.trackId);
+      const views = (track.views ?? []).filter(v => v.id !== action.viewId);
+      return updateTrack(session, action.trackId, { views });
     }
     case 'add_processor': {
-      const voice = getVoice(session, action.voiceId);
-      const processors = [...(voice.processors ?? [])];
+      const track = getTrack(session, action.trackId);
+      const processors = [...(track.processors ?? [])];
       const newProc: ProcessorConfig = {
         id: action.processorId,
         type: action.moduleType as ProcessorConfig['type'],
@@ -179,25 +179,25 @@ function projectAction(session: Session, action: AIAction): Session {
         params: {},
       };
       processors.push(newProc);
-      return updateVoice(session, action.voiceId, { processors });
+      return updateTrack(session, action.trackId, { processors });
     }
     case 'remove_processor': {
-      const voice = getVoice(session, action.voiceId);
-      const processors = (voice.processors ?? []).filter(p => p.id !== action.processorId);
-      return updateVoice(session, action.voiceId, { processors });
+      const track = getTrack(session, action.trackId);
+      const processors = (track.processors ?? []).filter(p => p.id !== action.processorId);
+      return updateTrack(session, action.trackId, { processors });
     }
     case 'replace_processor': {
-      const voice = getVoice(session, action.voiceId);
-      const processors = (voice.processors ?? []).map(p =>
+      const track = getTrack(session, action.trackId);
+      const processors = (track.processors ?? []).map(p =>
         p.id === action.processorId
           ? { id: action.newProcessorId, type: action.newModuleType, model: 0, params: {} }
           : p,
       );
-      return updateVoice(session, action.voiceId, { processors });
+      return updateTrack(session, action.trackId, { processors });
     }
     case 'add_modulator': {
-      const voice = getVoice(session, action.voiceId);
-      const modulators = [...(voice.modulators ?? [])];
+      const track = getTrack(session, action.trackId);
+      const modulators = [...(track.modulators ?? [])];
       const newMod: ModulatorConfig = {
         id: action.modulatorId,
         type: action.moduleType,
@@ -205,17 +205,17 @@ function projectAction(session: Session, action: AIAction): Session {
         params: {},
       };
       modulators.push(newMod);
-      return updateVoice(session, action.voiceId, { modulators });
+      return updateTrack(session, action.trackId, { modulators });
     }
     case 'remove_modulator': {
-      const voice = getVoice(session, action.voiceId);
-      const modulators = (voice.modulators ?? []).filter(m => m.id !== action.modulatorId);
-      const modulations = (voice.modulations ?? []).filter(r => r.modulatorId !== action.modulatorId);
-      return updateVoice(session, action.voiceId, { modulators, modulations });
+      const track = getTrack(session, action.trackId);
+      const modulators = (track.modulators ?? []).filter(m => m.id !== action.modulatorId);
+      const modulations = (track.modulations ?? []).filter(r => r.modulatorId !== action.modulatorId);
+      return updateTrack(session, action.trackId, { modulators, modulations });
     }
     case 'connect_modulator': {
-      const voice = getVoice(session, action.voiceId);
-      const modulations = [...(voice.modulations ?? [])];
+      const track = getTrack(session, action.trackId);
+      const modulations = [...(track.modulations ?? [])];
       const existingIdx = modulations.findIndex(r =>
         r.modulatorId === action.modulatorId &&
         r.target.kind === action.target.kind &&
@@ -232,12 +232,12 @@ function projectAction(session: Session, action: AIAction): Session {
           depth: action.depth,
         });
       }
-      return updateVoice(session, action.voiceId, { modulations });
+      return updateTrack(session, action.trackId, { modulations });
     }
     case 'disconnect_modulator': {
-      const voice = getVoice(session, action.voiceId);
-      const modulations = (voice.modulations ?? []).filter(r => r.id !== action.modulationId);
-      return updateVoice(session, action.voiceId, { modulations });
+      const track = getTrack(session, action.trackId);
+      const modulations = (track.modulations ?? []).filter(r => r.id !== action.modulationId);
+      return updateTrack(session, action.trackId, { modulations });
     }
     case 'say':
     default:
@@ -260,14 +260,14 @@ function errorResponse(
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
   /** Render audio offline — no transport or AudioContext needed. */
-  renderOffline: (session: Session, voiceIds?: string[], bars?: number) => Promise<Blob>;
+  renderOffline: (session: Session, trackIds?: string[], bars?: number) => Promise<Blob>;
   onListening?: (active: boolean) => void;
 }
 
 /**
  * Pre-validate an action against current session state.
  * Returns null if the action will be accepted, or a rejection reason string.
- * This runs the same checks as executeOperations() (voice existence, agency,
+ * This runs the same checks as executeOperations() (track existence, agency,
  * control validity, arbitration) so the tool response is honest.
  */
 export type ActionValidator = (action: AIAction) => string | null;
@@ -476,7 +476,7 @@ export class GluonAI {
           type: 'move',
           param: args.param as string,
           target: targetValue,
-          ...(args.voiceId ? { voiceId: args.voiceId as string } : {}),
+          ...(args.trackId ? { trackId: args.trackId as string } : {}),
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
           ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
           ...(args.over ? { over: args.over as number } : {}),
@@ -486,18 +486,18 @@ export class GluonAI {
         if (rejection) return errorResponse(id, name, rejection);
 
         // Compute resulting value for the response
-        const voiceId = action.voiceId ?? session.activeVoiceId;
-        const voice = session.voices.find(v => v.id === voiceId);
+        const trackId = action.trackId ?? session.activeTrackId;
+        const track = session.tracks.find(v => v.id === trackId);
         let currentVal: number;
         if (action.modulatorId) {
-          const mod = (voice?.modulators ?? []).find(m => m.id === action.modulatorId);
+          const mod = (track?.modulators ?? []).find(m => m.id === action.modulatorId);
           currentVal = mod?.params[action.param] ?? 0;
         } else if (action.processorId) {
-          const proc = (voice?.processors ?? []).find(p => p.id === action.processorId);
+          const proc = (track?.processors ?? []).find(p => p.id === action.processorId);
           currentVal = proc?.params[action.param] ?? 0;
         } else {
           const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
-          currentVal = voice?.params[runtimeKey] ?? 0;
+          currentVal = track?.params[runtimeKey] ?? 0;
         }
         const rawTarget = 'absolute' in action.target
           ? action.target.absolute
@@ -509,7 +509,7 @@ export class GluonAI {
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
             param: action.param,
-            voiceId,
+            trackId,
             ...(action.processorId ? { processorId: action.processorId } : {}),
             ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
             value: Math.round(resultValue * 100) / 100,
@@ -518,8 +518,8 @@ export class GluonAI {
       }
 
       case 'sketch': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.description !== 'string') {
           return errorResponse(id, name, 'Missing required parameter: description');
@@ -530,7 +530,7 @@ export class GluonAI {
 
         const action: AISketchAction = {
           type: 'sketch',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           description: args.description as string,
           events: args.events as AISketchAction['events'],
         };
@@ -542,7 +542,7 @@ export class GluonAI {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             description: action.description,
             eventCount: action.events?.length ?? 0,
           }),
@@ -583,8 +583,8 @@ export class GluonAI {
       }
 
       case 'set_model': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.model !== 'string' || !args.model) {
           return errorResponse(id, name, 'Missing required parameter: model');
@@ -592,7 +592,7 @@ export class GluonAI {
 
         const action: AISetModelAction = {
           type: 'set_model',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           model: args.model as string,
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
           ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
@@ -605,7 +605,7 @@ export class GluonAI {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
             queued: true,
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             model: action.model,
             ...(action.processorId ? { processorId: action.processorId } : {}),
           }),
@@ -613,8 +613,8 @@ export class GluonAI {
       }
 
       case 'transform': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.operation !== 'string' || !args.operation) {
           return errorResponse(id, name, 'Missing required parameter: operation');
@@ -647,7 +647,7 @@ export class GluonAI {
 
         const action: AITransformAction = {
           type: 'transform',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           operation: operation as AITransformAction['operation'],
           description: args.description as string,
           ...(hasSteps ? { steps: args.steps as number } : {}),
@@ -661,7 +661,7 @@ export class GluonAI {
           actions: [action],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             operation: action.operation,
             description: action.description,
           }),
@@ -669,8 +669,8 @@ export class GluonAI {
       }
 
       case 'add_view': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.viewKind !== 'string' || !args.viewKind) {
           return errorResponse(id, name, 'Missing required parameter: viewKind');
@@ -685,7 +685,7 @@ export class GluonAI {
 
         const addViewAction: AIAddViewAction = {
           type: 'add_view',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           viewKind: args.viewKind as AIAddViewAction['viewKind'],
           description: args.description as string,
         };
@@ -697,15 +697,15 @@ export class GluonAI {
           actions: [addViewAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: addViewAction.voiceId,
+            trackId: addViewAction.trackId,
             viewKind: addViewAction.viewKind,
           }),
         };
       }
 
       case 'remove_view': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.viewId !== 'string' || !args.viewId) {
           return errorResponse(id, name, 'Missing required parameter: viewId');
@@ -716,7 +716,7 @@ export class GluonAI {
 
         const removeViewAction: AIRemoveViewAction = {
           type: 'remove_view',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           viewId: args.viewId as string,
           description: args.description as string,
         };
@@ -728,23 +728,23 @@ export class GluonAI {
           actions: [removeViewAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: removeViewAction.voiceId,
+            trackId: removeViewAction.trackId,
             viewId: removeViewAction.viewId,
           }),
         };
       }
 
       case 'add_processor': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.moduleType !== 'string' || !args.moduleType) {
           return errorResponse(id, name, 'Missing required parameter: moduleType');
         }
         // Chain validation: type and capacity
-        const voice = session.voices.find(v => v.id === args.voiceId);
-        if (voice) {
-          const chainResult = validateChainMutation(voice, { kind: 'add', type: args.moduleType as string });
+        const track = session.tracks.find(v => v.id === args.trackId);
+        if (track) {
+          const chainResult = validateChainMutation(track, { kind: 'add', type: args.moduleType as string });
           if (!chainResult.valid) {
             return errorResponse(id, name, chainResult.errors[0]);
           }
@@ -758,7 +758,7 @@ export class GluonAI {
 
         const addProcAction: AIAddProcessorAction = {
           type: 'add_processor',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           moduleType: args.moduleType as string,
           processorId: assignedProcessorId,
           description: args.description as string,
@@ -771,7 +771,7 @@ export class GluonAI {
           actions: [addProcAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: addProcAction.voiceId,
+            trackId: addProcAction.trackId,
             moduleType: addProcAction.moduleType,
             processorId: assignedProcessorId,
           }),
@@ -779,8 +779,8 @@ export class GluonAI {
       }
 
       case 'remove_processor': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.processorId !== 'string' || !args.processorId) {
           return errorResponse(id, name, 'Missing required parameter: processorId');
@@ -791,7 +791,7 @@ export class GluonAI {
 
         const removeProcAction: AIRemoveProcessorAction = {
           type: 'remove_processor',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           processorId: args.processorId as string,
           description: args.description as string,
         };
@@ -803,15 +803,15 @@ export class GluonAI {
           actions: [removeProcAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: removeProcAction.voiceId,
+            trackId: removeProcAction.trackId,
             processorId: removeProcAction.processorId,
           }),
         };
       }
 
       case 'replace_processor': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.processorId !== 'string' || !args.processorId) {
           return errorResponse(id, name, 'Missing required parameter: processorId');
@@ -828,7 +828,7 @@ export class GluonAI {
 
         const replaceAction: AIReplaceProcessorAction = {
           type: 'replace_processor',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           processorId: args.processorId as string,
           newModuleType: args.newModuleType as string,
           newProcessorId,
@@ -842,7 +842,7 @@ export class GluonAI {
           actions: [replaceAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             applied: true,
-            voiceId: replaceAction.voiceId,
+            trackId: replaceAction.trackId,
             replacedProcessorId: replaceAction.processorId,
             newModuleType: replaceAction.newModuleType,
             newProcessorId,
@@ -851,15 +851,15 @@ export class GluonAI {
       }
 
       case 'add_modulator': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.moduleType !== 'string' || !args.moduleType) {
           return errorResponse(id, name, 'Missing required parameter: moduleType');
         }
-        const voice = session.voices.find(v => v.id === args.voiceId);
-        if (voice) {
-          const modResult = validateModulatorMutation(voice, { kind: 'add', type: args.moduleType as string });
+        const track = session.tracks.find(v => v.id === args.trackId);
+        if (track) {
+          const modResult = validateModulatorMutation(track, { kind: 'add', type: args.moduleType as string });
           if (!modResult.valid) {
             return errorResponse(id, name, modResult.errors[0]);
           }
@@ -872,7 +872,7 @@ export class GluonAI {
 
         const addModAction: AIAddModulatorAction = {
           type: 'add_modulator',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           moduleType: args.moduleType as string,
           modulatorId: assignedModulatorId,
           description: args.description as string,
@@ -885,7 +885,7 @@ export class GluonAI {
           actions: [addModAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             queued: true,
-            voiceId: addModAction.voiceId,
+            trackId: addModAction.trackId,
             moduleType: addModAction.moduleType,
             modulatorId: assignedModulatorId,
           }),
@@ -893,8 +893,8 @@ export class GluonAI {
       }
 
       case 'remove_modulator': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
           return errorResponse(id, name, 'Missing required parameter: modulatorId');
@@ -905,7 +905,7 @@ export class GluonAI {
 
         const removeModAction: AIRemoveModulatorAction = {
           type: 'remove_modulator',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           modulatorId: args.modulatorId as string,
           description: args.description as string,
         };
@@ -917,15 +917,15 @@ export class GluonAI {
           actions: [removeModAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             queued: true,
-            voiceId: removeModAction.voiceId,
+            trackId: removeModAction.trackId,
             modulatorId: removeModAction.modulatorId,
           }),
         };
       }
 
       case 'connect_modulator': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
           return errorResponse(id, name, 'Missing required parameter: modulatorId');
@@ -956,8 +956,8 @@ export class GluonAI {
           : { kind: 'processor', processorId: args.processorId as string, param: args.targetParam as string };
 
         // Check for existing route (for idempotent response)
-        const connectVoice = session.voices.find(v => v.id === args.voiceId);
-        const existingRoute = (connectVoice?.modulations ?? []).find(r =>
+        const connectTrack = session.tracks.find(v => v.id === args.trackId);
+        const existingRoute = (connectTrack?.modulations ?? []).find(r =>
           r.modulatorId === args.modulatorId &&
           r.target.kind === modTarget.kind &&
           r.target.param === modTarget.param &&
@@ -969,7 +969,7 @@ export class GluonAI {
 
         const connectAction: AIConnectModulatorAction = {
           type: 'connect_modulator',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           modulatorId: args.modulatorId as string,
           target: modTarget,
           depth: args.depth as number,
@@ -998,8 +998,8 @@ export class GluonAI {
       }
 
       case 'disconnect_modulator': {
-        if (typeof args.voiceId !== 'string' || !args.voiceId) {
-          return errorResponse(id, name, 'Missing required parameter: voiceId');
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
         }
         if (typeof args.modulationId !== 'string' || !args.modulationId) {
           return errorResponse(id, name, 'Missing required parameter: modulationId');
@@ -1010,7 +1010,7 @@ export class GluonAI {
 
         const disconnectAction: AIDisconnectModulatorAction = {
           type: 'disconnect_modulator',
-          voiceId: args.voiceId as string,
+          trackId: args.trackId as string,
           modulationId: args.modulationId as string,
           description: args.description as string,
         };
@@ -1022,7 +1022,7 @@ export class GluonAI {
           actions: [disconnectAction],
           responsePart: createPartFromFunctionResponse(id, name, {
             queued: true,
-            voiceId: disconnectAction.voiceId,
+            trackId: disconnectAction.trackId,
             modulationId: disconnectAction.modulationId,
           }),
         };
@@ -1042,25 +1042,25 @@ export class GluonAI {
         const question = (args.question as string) ?? 'How does it sound?';
         const rawBars = typeof args.bars === 'number' ? args.bars : 2;
         const bars = Math.max(1, Math.min(16, Math.round(rawBars)));
-        const rawVoiceIds = args.voiceIds as string[] | undefined;
-        // Empty array = same as omitting (hear all unmuted voices)
-        const voiceIds = rawVoiceIds && rawVoiceIds.length > 0 ? rawVoiceIds : undefined;
+        const rawTrackIds = args.trackIds as string[] | undefined;
+        // Empty array = same as omitting (hear all unmuted tracks)
+        const trackIds = rawTrackIds && rawTrackIds.length > 0 ? rawTrackIds : undefined;
 
-        // Validate that all requested voice IDs exist in the session
-        if (voiceIds) {
-          const sessionVoiceIds = new Set(session.voices.map(v => v.id));
-          const invalid = voiceIds.filter(vid => !sessionVoiceIds.has(vid));
+        // Validate that all requested track IDs exist in the session
+        if (trackIds) {
+          const sessionTrackIds = new Set(session.tracks.map(v => v.id));
+          const invalid = trackIds.filter(vid => !sessionTrackIds.has(vid));
           if (invalid.length > 0) {
             return {
               actions: [],
               responsePart: createPartFromFunctionResponse(id, name, {
-                error: `Unknown voice IDs: ${invalid.join(', ')}. Available: ${[...sessionVoiceIds].join(', ')}.`,
+                error: `Unknown track IDs: ${invalid.join(', ')}. Available: ${[...sessionTrackIds].join(', ')}.`,
               }),
             };
           }
         }
 
-        const result = await this.listenHandler(question, session, ctx?.listen, bars, voiceIds);
+        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds);
         return {
           actions: [],
           responsePart: createPartFromFunctionResponse(id, name, result),
@@ -1082,7 +1082,7 @@ export class GluonAI {
     session: Session,
     listen?: ListenContext,
     bars: number = 2,
-    voiceIds?: string[],
+    trackIds?: string[],
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -1091,7 +1091,7 @@ export class GluonAI {
     try {
       listen.onListening?.(true);
 
-      const wavBlob = await listen.renderOffline(session, voiceIds, bars);
+      const wavBlob = await listen.renderOffline(session, trackIds, bars);
 
       const critique = await this.evaluateAudio(session, wavBlob, 'audio/wav', question);
       return { critique };

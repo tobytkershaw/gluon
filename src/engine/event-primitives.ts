@@ -1,10 +1,10 @@
 // src/engine/event-primitives.ts
 import type { Session, RegionSnapshot } from './types';
-import { getVoice } from './types';
+import { getTrack } from './types';
 import type { MusicalEvent, ParameterEvent } from './canonical-types';
 import { normalizeRegionEvents } from './region-helpers';
-import { reprojectVoicePattern } from './region-projection';
-import { updateVoice } from './types';
+import { reprojectTrackPattern } from './region-projection';
+import { updateTrack } from './types';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
@@ -53,37 +53,37 @@ const defaultInverseOpts: InverseConversionOptions = {
 };
 
 /**
- * Apply a new event list to the voice's region, normalize, and re-project pattern.
+ * Apply a new event list to the track's region, normalize, and re-project pattern.
  * Pushes a RegionSnapshot for undo when a description is provided.
  */
 function applyEventEdit(
   session: Session,
-  voiceId: string,
+  trackId: string,
   newEvents: MusicalEvent[],
   description?: string,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  if (voice.regions.length === 0) return session;
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
 
   const snapshot: RegionSnapshot | undefined = description
     ? {
         kind: 'region',
-        voiceId,
-        prevEvents: [...voice.regions[0].events],
+        trackId,
+        prevEvents: [...track.regions[0].events],
         timestamp: Date.now(),
         description,
       }
     : undefined;
 
   const region = normalizeRegionEvents({
-    ...voice.regions[0],
+    ...track.regions[0],
     events: newEvents,
   });
-  const newRegions = [region, ...voice.regions.slice(1)];
-  const updatedVoice = reprojectVoicePattern({ ...voice, regions: newRegions }, defaultInverseOpts);
-  const result = updateVoice(session, voiceId, {
-    regions: updatedVoice.regions,
-    pattern: updatedVoice.pattern,
+  const newRegions = [region, ...track.regions.slice(1)];
+  const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
+  const result = updateTrack(session, trackId, {
+    regions: updatedTrack.regions,
+    pattern: updatedTrack.pattern,
   });
 
   if (snapshot) {
@@ -96,40 +96,40 @@ function applyEventEdit(
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Add an event to a voice's region. */
-export function addEvent(session: Session, voiceId: string, event: MusicalEvent): Session {
-  const voice = getVoice(session, voiceId);
-  if (voice.regions.length === 0) return session;
+/** Add an event to a track's region. */
+export function addEvent(session: Session, trackId: string, event: MusicalEvent): Session {
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
 
-  const events = [...voice.regions[0].events, event];
-  return applyEventEdit(session, voiceId, events, `Add ${event.kind} event at ${event.at}`);
+  const events = [...track.regions[0].events, event];
+  return applyEventEdit(session, trackId, events, `Add ${event.kind} event at ${event.at}`);
 }
 
 /** Remove the event matching the given selector. */
-export function removeEvent(session: Session, voiceId: string, selector: EventSelector): Session {
-  const voice = getVoice(session, voiceId);
-  if (voice.regions.length === 0) return session;
+export function removeEvent(session: Session, trackId: string, selector: EventSelector): Session {
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
 
-  const events = voice.regions[0].events.filter(e => !matchesSelector(e, selector));
-  if (events.length === voice.regions[0].events.length) return session; // nothing matched
-  return applyEventEdit(session, voiceId, events, `Remove ${selector.kind} event at ${selector.at}`);
+  const events = track.regions[0].events.filter(e => !matchesSelector(e, selector));
+  if (events.length === track.regions[0].events.length) return session; // nothing matched
+  return applyEventEdit(session, trackId, events, `Remove ${selector.kind} event at ${selector.at}`);
 }
 
 /** Update fields on the event matching the given selector. */
 export function updateEvent(
   session: Session,
-  voiceId: string,
+  trackId: string,
   selector: EventSelector,
   updates: Partial<MusicalEvent>,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  if (voice.regions.length === 0) return session;
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
 
-  const events = voice.regions[0].events.map(e => {
+  const events = track.regions[0].events.map(e => {
     if (matchesSelector(e, selector)) {
       return { ...e, ...updates } as MusicalEvent;
     }
     return e;
   });
-  return applyEventEdit(session, voiceId, events, `Update ${selector.kind} event at ${selector.at}`);
+  return applyEventEdit(session, trackId, events, `Update ${selector.kind} event at ${selector.at}`);
 }

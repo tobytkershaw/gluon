@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
 import { applySketch, applyUndo } from '../../src/engine/primitives';
 import { createSession, setAgency } from '../../src/engine/session';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 import type { AIAction } from '../../src/engine/types';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
@@ -41,7 +41,7 @@ describe('Region Undo', () => {
     // AI sketch via events → creates RegionSnapshot
     const actions: AIAction[] = [{
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'kick pattern',
       events: [
         { kind: 'trigger', at: 0, velocity: 1.0, accent: true },
@@ -51,13 +51,13 @@ describe('Region Undo', () => {
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     const afterSketch = report.session;
 
-    expect(getVoice(afterSketch, 'v0').pattern.steps[0].gate).toBe(true);
-    expect(getVoice(afterSketch, 'v0').regions[0].events.length).toBe(2);
+    expect(getTrack(afterSketch, 'v0').pattern.steps[0].gate).toBe(true);
+    expect(getTrack(afterSketch, 'v0').regions[0].events.length).toBe(2);
 
     // Undo
     const undone = applyUndo(afterSketch);
-    expect(getVoice(undone, 'v0').pattern.steps[0].gate).toBe(false);
-    expect(getVoice(undone, 'v0').regions[0].events.length).toBe(0);
+    expect(getTrack(undone, 'v0').pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, 'v0').regions[0].events.length).toBe(0);
   });
 
   it('old PatternSnapshot entries still revert correctly', () => {
@@ -66,10 +66,10 @@ describe('Region Undo', () => {
     session = applySketch(session, 'v0', 'legacy', {
       steps: [{ index: 0, gate: true }],
     });
-    expect(getVoice(session, 'v0').pattern.steps[0].gate).toBe(true);
+    expect(getTrack(session, 'v0').pattern.steps[0].gate).toBe(true);
 
     const undone = applyUndo(session);
-    expect(getVoice(undone, 'v0').pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, 'v0').pattern.steps[0].gate).toBe(false);
   });
 
   it('mixed undo stack: PatternSnapshot followed by RegionSnapshot', () => {
@@ -86,7 +86,7 @@ describe('Region Undo', () => {
     // Canonical sketch (RegionSnapshot)
     const actions: AIAction[] = [{
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'canonical hats',
       events: [
         { kind: 'trigger', at: 1, velocity: 0.8 },
@@ -104,12 +104,12 @@ describe('Region Undo', () => {
     // Undo RegionSnapshot (most recent) — reverts to state after legacy sketch,
     // which now projects its pattern step into canonical events
     session = applyUndo(session);
-    expect(getVoice(session, 'v0').regions[0].events.length).toBe(1);
+    expect(getTrack(session, 'v0').regions[0].events.length).toBe(1);
     expect(session.undoStack.length).toBe(1);
 
     // Undo PatternSnapshot (legacy)
     session = applyUndo(session);
-    expect(getVoice(session, 'v0').pattern.steps[0].gate).toBe(false);
+    expect(getTrack(session, 'v0').pattern.steps[0].gate).toBe(false);
     expect(session.undoStack.length).toBe(0);
   });
 
@@ -120,7 +120,7 @@ describe('Region Undo', () => {
     // AI canonical sketch
     const actions: AIAction[] = [{
       type: 'sketch',
-      voiceId: 'v0',
+      trackId: 'v0',
       description: 'kick',
       events: [{ kind: 'trigger', at: 0, velocity: 1.0, accent: true }],
     }];
@@ -129,8 +129,8 @@ describe('Region Undo', () => {
 
     // Undo AI sketch
     const undone = applyUndo(session);
-    expect(getVoice(undone, 'v0').pattern.steps[0].gate).toBe(false);
-    expect(getVoice(undone, 'v0').regions[0].events).toHaveLength(0);
+    expect(getTrack(undone, 'v0').pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, 'v0').regions[0].events).toHaveLength(0);
   });
 
   it('grouped actions with RegionSnapshot undo correctly', () => {
@@ -139,10 +139,10 @@ describe('Region Undo', () => {
 
     // Multi-action: move + sketch → grouped
     const actions: AIAction[] = [
-      { type: 'move', voiceId: 'v0', param: 'timbre', target: { absolute: 0.8 } },
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.8 } },
       {
         type: 'sketch',
-        voiceId: 'v0',
+        trackId: 'v0',
         description: 'kick',
         events: [{ kind: 'trigger', at: 0, velocity: 1.0, accent: true }],
       },
@@ -150,15 +150,15 @@ describe('Region Undo', () => {
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     session = report.session;
 
-    expect(getVoice(session, 'v0').params.timbre).toBeCloseTo(0.8);
-    expect(getVoice(session, 'v0').pattern.steps[0].gate).toBe(true);
+    expect(getTrack(session, 'v0').params.timbre).toBeCloseTo(0.8);
+    expect(getTrack(session, 'v0').pattern.steps[0].gate).toBe(true);
     expect(session.undoStack.length).toBe(1);
     expect(session.undoStack[0].kind).toBe('group');
 
     // Single undo reverts both
     const undone = applyUndo(session);
-    expect(getVoice(undone, 'v0').params.timbre).toBeCloseTo(0.5);
-    expect(getVoice(undone, 'v0').pattern.steps[0].gate).toBe(false);
-    expect(getVoice(undone, 'v0').regions[0].events).toHaveLength(0);
+    expect(getTrack(undone, 'v0').params.timbre).toBeCloseTo(0.5);
+    expect(getTrack(undone, 'v0').pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, 'v0').regions[0].events).toHaveLength(0);
   });
 });

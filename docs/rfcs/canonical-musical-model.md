@@ -99,7 +99,7 @@ All persisted project state falls into one of five categories. This classificati
 |----------|-----------------|-----------|------------|----------|---------|
 | **Canonical musical state** | The musical content and instrument configuration. Voices, regions, events, parameters, processor chains, models, transport, agency. This is the source of truth for what the instrument *is* and what it *plays*. | Yes | Yes (compressed) | Yes | `voice.regions[0].events`, `voice.params`, `voice.processors`, `transport.bpm` |
 | **Provenance state** | Who set each value (human, AI, or default) and when. Drives undo source attribution and UI feedback. Not used for arbitration (which has its own runtime system). | Yes | No (internal) | Yes (restored alongside values) | `voice.controlProvenance` |
-| **Persistent presentation state** | What the human sees. Sequencer views, surface configurations (future), pinned controls (future), XY axis bindings (future). Persisted because losing your UI layout across sessions is bad UX, but not part of musical content. | Yes | Yes (compressed) | Yes | `voice.views`, `VoiceSurface` (future) |
+| **Persistent presentation state** | What the human sees. Sequencer views, surface configurations (future), pinned controls (future), XY axis bindings (future). Persisted because losing your UI layout across sessions is bad UX, but not part of musical content. | Yes | Yes (compressed) | Yes | `voice.views`, `TrackSurface` (future) |
 | **Collaboration state** (future) | Project phase, approved directions, rejected directions, preserved material, active brief. The shared understanding between human and AI about where the project is and what has been decided. Not yet implemented — defined in [ai-musical-environment.md](../ai/ai-musical-environment.md). | Yes (when implemented) | Yes | Yes | `project.phase`, `project.approved_directions` |
 | **Ephemeral state** | Derived at runtime, never persisted. Undo stack (contains closures), recent human actions (short-lived), activity pulse, thumbprint colour, hover/focus state, arbitration cooldowns. | No | Partial (`undo_depth`, `recent_human_actions`) | N/A | `session.undoStack`, `session.recentHumanActions` |
 
@@ -377,7 +377,7 @@ The top-level container. This is what the AI sees as "the current state."
 
 ```ts
 interface Project {
-  voices: Voice[];
+  tracks: Voice[];
   transport: TransportState;
   context: MusicalContext;
   messages: ChatMessage[];
@@ -499,7 +499,7 @@ type AIOperation =
 // Set a control on a voice
 interface MoveOp {
   type: 'move';
-  voiceId: string;
+  trackId: string;
   controlId: string;
   target: { absolute: number } | { relative: number };
   overMs?: number;
@@ -508,7 +508,7 @@ interface MoveOp {
 // Write musical events to a voice's region
 interface SketchOp {
   type: 'sketch';
-  voiceId: string;
+  trackId: string;
   regionId?: string;                  // omit for default region
   mode: 'replace' | 'merge';
   events: MusicalEvent[];
@@ -518,7 +518,7 @@ interface SketchOp {
 // Add a processor to a voice's chain
 interface AddProcessorOp {
   type: 'add_processor';
-  voiceId: string;
+  trackId: string;
   processorType: string;
   position?: number;
 }
@@ -526,14 +526,14 @@ interface AddProcessorOp {
 // Remove a processor from a voice's chain
 interface RemoveProcessorOp {
   type: 'remove_processor';
-  voiceId: string;
+  trackId: string;
   processorId: string;
 }
 
 // Set a control on a processor
 interface SetProcessorParamOp {
   type: 'set_processor_param';
-  voiceId: string;
+  trackId: string;
   processorId: string;
   controlId: string;
   value: number;
@@ -719,9 +719,9 @@ When the `Target` abstraction is adopted, the AI operation vocabulary generalise
 ```
 Implementation (now)      →  North Star (later)
 ──────────────────────────────────────────────────
-move (voiceId)            →  move_control (targetId)
-sketch (voiceId)          →  write_events (targetId)
-add_processor (voiceId)   →  add_target (parentTargetId)
+move (trackId)            →  move_control (targetId)
+sketch (trackId)          →  write_events (targetId)
+add_processor (trackId)   →  add_target (parentTargetId)
 remove_processor          →  remove_target
 set_processor_param       →  move_control (targetId = processorId)
 say                       →  say

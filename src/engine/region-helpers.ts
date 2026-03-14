@@ -183,12 +183,12 @@ function deduplicationKey(event: MusicalEvent): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a valid empty region for a given voice.
+ * Create a valid empty region for a given track.
  * Duration is set to `stepCount` (integer step grid).
  */
-export function createDefaultRegion(voiceId: string, stepCount: number): Region {
+export function createDefaultRegion(trackId: string, stepCount: number): Region {
   return {
-    id: `${voiceId}-region-0`,
+    id: `${trackId}-region-0`,
     kind: 'pattern',
     start: 0,
     duration: stepCount,

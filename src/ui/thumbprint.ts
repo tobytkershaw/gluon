@@ -1,12 +1,12 @@
 // src/ui/thumbprint.ts
-// Pure function to compute a thumbprint color from voice state.
-import type { Voice } from '../engine/types';
+// Pure function to compute a thumbprint color from track state.
+import type { Track } from '../engine/types';
 
-export function computeThumbprintColor(voice: Voice): string {
-  const brightness = voice.params.timbre ?? 0.5;
-  const texture = voice.params.morph ?? 0.5;
-  const richness = voice.params.harmonics ?? 0.5;
-  const hasProcessors = (voice.processors ?? []).length > 0;
+export function computeThumbprintColor(track: Track): string {
+  const brightness = track.params.timbre ?? 0.5;
+  const texture = track.params.morph ?? 0.5;
+  const richness = track.params.harmonics ?? 0.5;
+  const hasProcessors = (track.processors ?? []).length > 0;
 
   // Hue: low brightness + low texture → purple (270), high brightness → amber (35)
   // Processor tint shifts toward cyan (180)
