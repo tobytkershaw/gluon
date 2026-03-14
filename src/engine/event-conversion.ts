@@ -118,9 +118,12 @@ export function eventsToSteps(
       }
     }
 
-    // Populate micro from fractional part of event position
-    const micro = event.at - Math.floor(event.at);
-    if (micro > 0) steps[idx].micro = micro;
+    // Populate micro from fractional part of event position (trigger/note only —
+    // parameter events must not overwrite groove displacement).
+    if (event.kind === 'trigger' || event.kind === 'note') {
+      const micro = event.at - Math.floor(event.at);
+      if (micro > 0) steps[idx].micro = micro;
+    }
   }
 
   return steps;
