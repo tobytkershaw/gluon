@@ -218,28 +218,25 @@ export function AppShell({
           style={chatOpen ? { width: chatWidth } : undefined}
           className={`shrink-0 flex items-center ${chatOpen ? 'border-r border-zinc-800/30' : ''}`}
         >
+          {/* Chat toggle button */}
+          <button
+            onClick={onChatToggle}
+            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
+            title={chatOpen ? 'Collapse chat (Cmd+/)' : 'Expand chat (Cmd+/)'}
+          >
+            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
+              <path d={chatOpen ? 'M10 4l-4 4 4 4' : 'M6 4l4 4-4 4'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
           <ChatComposer onSend={onSend} disabled={isThinking || isListening} />
-          {/* Status indicators */}
-          <div className="flex items-center gap-1.5 pr-2">
-            {(isThinking || isListening) && (
-              <span
-                className="w-2 h-2 rounded-full bg-amber-400"
-                style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-                title={isListening ? 'Listening...' : 'Thinking...'}
-              />
-            )}
-            {!chatOpen && (
-              <button
-                onClick={onChatToggle}
-                className="group p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
-                title="Expand chat (Cmd+/)"
-              >
-                <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
-                  <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )}
-          </div>
+          {/* Status indicator */}
+          {(isThinking || isListening) && (
+            <span
+              className="shrink-0 w-2 h-2 rounded-full bg-amber-400 mr-2"
+              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
+              title={isListening ? 'Listening...' : 'Thinking...'}
+            />
+          )}
         </div>
         {/* Content-column zone: master channel strip */}
         <div className="flex-1 flex items-center justify-end">

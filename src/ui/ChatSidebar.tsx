@@ -2,7 +2,7 @@
 // Persistent collapsible chat sidebar — always visible across all views.
 // Open: full sidebar with messages on the left.
 // Collapsed: renders nothing (composer lives in the global footer).
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import type { ChatMessage } from '../engine/types';
 import { ChatPanel } from './ChatPanel';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -63,19 +63,6 @@ export function ChatSidebar({
         isThinking={isThinking}
         isListening={isListening}
       />
-
-      {/* Footer: collapse toggle pinned to bottom */}
-      <div className="flex items-center px-3 py-2 border-t border-zinc-800/40">
-        <button
-          onClick={onToggle}
-          className="group p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
-          title="Collapse chat (Cmd+/)"
-        >
-          <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
-            <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
 
       {/* Drag handle on right edge */}
       <div
