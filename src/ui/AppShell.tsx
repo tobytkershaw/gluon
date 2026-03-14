@@ -2,7 +2,7 @@
 // Three-column layout shell: TrackList | main content | ChatSidebar
 // Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
 // Handles responsive collapse thresholds via ResizeObserver.
-import { useRef, useEffect, type ReactNode } from 'react';
+import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
 import type { Voice, ChatMessage, UndoEntry } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
@@ -62,6 +62,8 @@ interface Props {
   // Undo
   undoStack: UndoEntry[];
   onUndo: () => void;
+  /** Shared ref: when true on blur, in-progress inline edits discard instead of committing. */
+  cancelEditRef?: MutableRefObject<boolean>;
   // Main content
   children: ReactNode;
 }
@@ -80,6 +82,7 @@ export function AppShell({
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
   view, onViewChange,
   undoStack, onUndo,
+  cancelEditRef,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -143,7 +146,7 @@ export function AppShell({
         )}
         {/* Content-column zone: view toggle, transport, undo */}
         <div className="flex-1 flex items-center gap-3 px-3">
-          <ViewToggle view={view} onViewChange={onViewChange} />
+          <ViewToggle view={view} onViewChange={onViewChange} cancelEditRef={cancelEditRef} />
           <div className="w-px h-4 bg-zinc-800" />
           <TransportStrip
             playing={playing}

@@ -48,6 +48,9 @@ export default function App() {
   const audioRef = useRef(new AudioEngine());
   const exporterRef = useRef(new AudioExporter());
   const aiRef = useRef(new GluonAI());
+  // Signal to discard in-progress tracker inline edits when switching views.
+  // mousedown on ViewToggle sets this true before blur fires on EditableCell.
+  const cancelEditRef = useRef(false);
 
   const [session, setSession] = useState<Session>(() => loadSession() ?? createSession());
   const project = useProjectLifecycle(session, setSession);
@@ -969,6 +972,7 @@ export default function App() {
       onViewChange={setView}
       undoStack={session.undoStack}
       onUndo={handleUndo}
+      cancelEditRef={cancelEditRef}
     >
         {view === 'control' ? (
           <InstrumentView
@@ -1099,6 +1103,7 @@ export default function App() {
             globalStep={globalStep}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
+            cancelEditRef={cancelEditRef}
           />
         )}
     </AppShell>
