@@ -1,6 +1,6 @@
 // tests/engine/persistence.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { saveSession, loadSession, clearSavedSession } from '../../src/engine/persistence';
+import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_PERSISTED_UNDO } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
 import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
@@ -36,7 +36,7 @@ describe('persistence', () => {
     expect(loaded!.transport.bpm).toBe(140);
     expect(loaded!.messages).toHaveLength(1);
     expect(loaded!.messages[0].text).toBe('hello');
-    expect(loaded!.undoStack).toEqual([]);
+    expect(loaded!.undoStack).toEqual([]); // no undo entries were added
     expect(loaded!.transport.playing).toBe(false);
   });
 
@@ -159,21 +159,93 @@ describe('persistence', () => {
     expect(loadSession()).not.toBeNull();
   });
 
-  it('strips undo stack on save', () => {
+  it('persists undo stack through save and load', () => {
     const session = createSession();
+    const undoEntry = {
+      kind: 'param' as const,
+      voiceId: 'v0',
+      prevValues: { timbre: 0.5 },
+      aiTargetValues: { timbre: 0.8 },
+      timestamp: 1,
+      description: 'test',
+    };
     const withUndo = {
       ...session,
       messages: [{ role: 'human' as const, text: 'x', timestamp: 1 }],
-      undoStack: [{
-        kind: 'param' as const,
-        voiceId: 'v0',
-        prevValues: { timbre: 0.5 },
-        aiTargetValues: { timbre: 0.8 },
-        timestamp: 1,
-        description: 'test',
-      }],
+      undoStack: [undoEntry],
     };
     saveSession(withUndo);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.undoStack).toHaveLength(1);
+    expect(loaded!.undoStack[0]).toMatchObject({
+      kind: 'param',
+      voiceId: 'v0',
+      prevValues: { timbre: 0.5 },
+    });
+  });
+
+  it('trims undo stack to MAX_PERSISTED_UNDO most recent entries', () => {
+    const session = createSession();
+    const entries = Array.from({ length: MAX_PERSISTED_UNDO + 20 }, (_, i) => ({
+      kind: 'param' as const,
+      voiceId: 'v0',
+      prevValues: { timbre: i / 100 },
+      aiTargetValues: { timbre: (i + 1) / 100 },
+      timestamp: i,
+      description: `entry-${i}`,
+    }));
+    const withUndo = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'x', timestamp: 1 }],
+      undoStack: entries,
+    };
+    const stripped = stripForPersistence(withUndo);
+    expect(stripped.undoStack).toHaveLength(MAX_PERSISTED_UNDO);
+    // Should keep the most recent (last) entries
+    expect((stripped.undoStack[0] as any).description).toBe(`entry-20`);
+    expect((stripped.undoStack[MAX_PERSISTED_UNDO - 1] as any).description).toBe(`entry-${MAX_PERSISTED_UNDO + 19}`);
+  });
+
+  it('round-trips undo stack through JSON serialization', () => {
+    const session = createSession();
+    const undoEntry = {
+      kind: 'param' as const,
+      voiceId: 'v0',
+      prevValues: { timbre: 0.5, morph: 0.3 },
+      aiTargetValues: { timbre: 0.8, morph: 0.6 },
+      timestamp: 42,
+      description: 'round-trip test',
+    };
+    const withUndo = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'x', timestamp: 1 }],
+      undoStack: [undoEntry],
+    };
+    const stripped = stripForPersistence(withUndo);
+    const json = JSON.stringify(stripped);
+    const parsed = JSON.parse(json);
+    expect(parsed.undoStack).toHaveLength(1);
+    expect(parsed.undoStack[0].kind).toBe('param');
+    expect(parsed.undoStack[0].prevValues.timbre).toBe(0.5);
+    expect(parsed.undoStack[0].prevValues.morph).toBe(0.3);
+  });
+
+  it('loads session with missing undoStack (pre-v4 data) as empty array', () => {
+    const session = createSession();
+    const sessionData = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'x', timestamp: 1 }],
+    };
+    // Simulate a pre-v4 save that has no undoStack property
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rawSession = { ...sessionData } as any;
+    delete rawSession.undoStack;
+    store.set('gluon-session', JSON.stringify({
+      version: 3,
+      session: rawSession,
+      savedAt: Date.now(),
+    }));
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
     expect(loaded!.undoStack).toEqual([]);
