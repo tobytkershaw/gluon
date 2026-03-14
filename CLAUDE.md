@@ -166,3 +166,4 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
 - `docs/briefs/sequencer.md` - Sequencing strategy and product boundaries.
 - `docs/briefs/offline-listen.md` - Offline audio rendering for the listen tool.
+- `docs/briefs/visual-language.md` - Surface Score: AI-generated visual identity for the Surface view. Six domains (palette, track identity, material, motion, atmosphere, relationships) composed by the AI from the music's character. Soft machinery with bioelectric accents.
