@@ -30,6 +30,7 @@ describe('Scheduler', () => {
     return new Scheduler(
       getSession ?? (() => session),
       () => audioTime,
+      () => 'running' as AudioContextState,
       (note) => notes.push(note),
       (pos) => positions.push(pos),
       () => ({}), // no held params in tests by default
@@ -164,6 +165,7 @@ describe('Scheduler', () => {
     const sched = new Scheduler(
       () => currentSession,
       () => audioTime,
+      () => 'running' as AudioContextState,
       (note) => notes.push(note),
       (pos) => positions.push(pos),
       () => ({}),
@@ -386,6 +388,7 @@ describe('Scheduler', () => {
     const sched = new Scheduler(
       () => currentSession,
       () => audioTime,
+      () => 'running' as AudioContextState,
       (note) => notes.push(note),
       (pos) => positions.push(pos),
       () => ({}),
@@ -423,7 +426,7 @@ describe('Scheduler', () => {
     expect(voiceNotes.length).toBeGreaterThanOrEqual(4); // all 4 events scheduled
   });
 
-  it('background tab catch-up: large time jump schedules all events exactly once', () => {
+  it('background tab catch-up: large time jump caps to MAX_CATCHUP_STEPS', () => {
     const vid = session.voices[0].id;
     const voice = getVoice(session, vid);
     // 16-step region with triggers at every even step (0,2,4,6,8,10,12,14)
@@ -441,15 +444,18 @@ describe('Scheduler', () => {
     const sched = createScheduler();
     sched.start(0);
     // Simulate browser throttling: jump audio time by 5 seconds in one tick
-    // At 120 BPM, 16 steps = 2s, so 5s = 2.5 full cycles = 20 events expected
+    // At 120 BPM, 16 steps = 2s, so 5s = 40 steps. Catch-up is capped to
+    // MAX_CATCHUP_STEPS (8), so only events in the last ~8 steps get scheduled.
     audioTime = 5.0;
     vi.advanceTimersByTime(30); // single tick fires
     sched.stop();
 
     const voiceNotes = notes.filter(n => n.voiceId === vid);
-    // 8 events per cycle * 2.5 cycles (cursor starts at 0, window spans to ~40 steps)
-    // but exact count depends on where the window boundary falls
-    expect(voiceNotes.length).toBeGreaterThanOrEqual(16); // at least 2 full cycles
+    // With catch-up cap, we should get far fewer notes than the full 20+
+    // that would be scheduled without the cap. The window covers ~8 steps
+    // plus lookahead, so expect a bounded number.
+    expect(voiceNotes.length).toBeLessThan(16);
+    expect(voiceNotes.length).toBeGreaterThan(0);
 
     // Verify no duplicate times
     const uniqueTimes = voiceNotes.reduce((acc, n) => {
