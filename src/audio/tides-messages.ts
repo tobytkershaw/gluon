@@ -19,11 +19,21 @@ export interface TidesDestroyMessage {
   type: 'destroy';
 }
 
+export interface TidesPauseMessage {
+  type: 'pause';
+}
+
+export interface TidesResumeMessage {
+  type: 'resume';
+}
+
 export type TidesProcessorCommand =
   | TidesPatchMessage
   | TidesModeMessage
   | TidesClearScheduledMessage
-  | TidesDestroyMessage;
+  | TidesDestroyMessage
+  | TidesPauseMessage
+  | TidesResumeMessage;
 
 export interface TidesProcessorReady {
   type: 'ready';

@@ -35,7 +35,9 @@ type ProcessorCommand =
   | { type: 'set-patch'; frequency: number; shape: number; slope: number; smoothness: number }
   | { type: 'set-mode'; mode: number }
   | { type: 'clear-scheduled' }
-  | { type: 'destroy' };
+  | { type: 'destroy' }
+  | { type: 'pause' }
+  | { type: 'resume' };
 
 class TidesProcessor extends AudioWorkletProcessor {
   private wasm: TidesWasm | null = null;
@@ -43,6 +45,7 @@ class TidesProcessor extends AudioWorkletProcessor {
   private outputPtr = 0;
   private ready = false;
   private destroyed = false;
+  private paused = false;
   private readonly wasmBinary: ArrayBuffer | null;
 
   // Current params (updated via messages)
@@ -75,6 +78,12 @@ class TidesProcessor extends AudioWorkletProcessor {
           break;
         case 'destroy':
           this.destroyWasm();
+          break;
+        case 'pause':
+          this.paused = true;
+          break;
+        case 'resume':
+          this.paused = false;
           break;
       }
     };
@@ -139,6 +148,12 @@ class TidesProcessor extends AudioWorkletProcessor {
     if (this.destroyed) return false;
     if (!this.ready || !this.wasm || !this.handle) {
       left.fill(0);
+      return true;
+    }
+
+    if (this.paused) {
+      left.fill(0);
+      if (output[1]) output[1].fill(0);
       return true;
     }
 
