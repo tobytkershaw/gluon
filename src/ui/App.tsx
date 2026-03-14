@@ -474,6 +474,90 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  const handleSourceInteractionStart = useCallback(() => {
+    const s = sessionRef.current;
+    arbRef.current.humanInteractionStart(s.activeTrackId);
+    const track = getActiveTrack(s);
+    const prevProvenance: Partial<ControlState> = {};
+    if (track.controlProvenance) {
+      for (const key of ['timbre', 'morph']) {
+        const controlId = plaitsAdapter.mapRuntimeParamKey(key);
+        if (controlId && track.controlProvenance[controlId]) {
+          prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
+        }
+      }
+    }
+    interactionUndoRef.current = {
+      trackId: s.activeTrackId,
+      prevParams: { timbre: track.params.timbre, morph: track.params.morph },
+      prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
+      prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
+    };
+  }, []);
+
+  const handleSourceInteractionEnd = useCallback(() => {
+    arbRef.current.humanInteractionEnd();
+    const captured = interactionUndoRef.current;
+    if (captured) {
+      interactionUndoRef.current = null;
+      setSession((s) => {
+        const track = getTrack(s, captured.trackId);
+        const snapshots: (ParamSnapshot | RegionSnapshot)[] = [];
+
+        // Check if params changed
+        const currentValues: Partial<SynthParamValues> = {};
+        for (const [param, prevValue] of Object.entries(captured.prevParams)) {
+          const cur = track.params[param] ?? 0;
+          if (Math.abs(cur - (prevValue as number)) > 0.001) {
+            currentValues[param] = cur;
+          }
+        }
+        if (Object.keys(currentValues).length > 0) {
+          snapshots.push({
+            kind: 'param',
+            trackId: captured.trackId,
+            prevValues: captured.prevParams,
+            aiTargetValues: currentValues,
+            prevProvenance: captured.prevProvenance,
+            timestamp: Date.now(),
+            description: `Param change: ${Object.keys(currentValues).join(', ')}`,
+          });
+        }
+
+        // Check if region events changed (param lock during drag)
+        if (captured.prevEvents && track.regions.length > 0) {
+          const curEvents = track.regions[0].events;
+          const eventsChanged = curEvents.length !== captured.prevEvents.length ||
+            curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
+          if (eventsChanged) {
+            snapshots.push({
+              kind: 'region',
+              trackId: captured.trackId,
+              prevEvents: captured.prevEvents,
+              timestamp: Date.now(),
+              description: 'Param lock change',
+            });
+          }
+        }
+
+        if (snapshots.length === 0) return s;
+        // Group multiple snapshots into one undo entry
+        let entry: UndoEntry;
+        if (snapshots.length === 1) {
+          entry = snapshots[0];
+        } else {
+          entry = {
+            kind: 'group',
+            snapshots,
+            timestamp: Date.now(),
+            description: 'XY pad drag with param lock',
+          } as ActionGroupSnapshot;
+        }
+        return { ...s, undoStack: [...s.undoStack, entry] };
+      });
+    }
+  }, []);
+
   const handleModelChange = useCallback((model: number) => {
     ensureAudio();
     setSession((s) => setModel(s, s.activeTrackId, model));
@@ -1005,88 +1089,8 @@ export default function App() {
             playing={session.transport.playing}
             globalStep={globalStep}
             onParamChange={handleParamChange}
-            onInteractionStart={() => {
-              const s = sessionRef.current;
-              arbRef.current.humanInteractionStart(s.activeTrackId);
-              const track = getActiveTrack(s);
-              const prevProvenance: Partial<ControlState> = {};
-              if (track.controlProvenance) {
-                for (const key of ['timbre', 'morph']) {
-                  const controlId = plaitsAdapter.mapRuntimeParamKey(key);
-                  if (controlId && track.controlProvenance[controlId]) {
-                    prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
-                  }
-                }
-              }
-              interactionUndoRef.current = {
-                trackId: s.activeTrackId,
-                prevParams: { timbre: track.params.timbre, morph: track.params.morph },
-                prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
-                prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
-              };
-            }}
-            onInteractionEnd={() => {
-              arbRef.current.humanInteractionEnd();
-              const captured = interactionUndoRef.current;
-              if (captured) {
-                interactionUndoRef.current = null;
-                setSession((s) => {
-                  const track = getTrack(s, captured.trackId);
-                  const snapshots: (ParamSnapshot | RegionSnapshot)[] = [];
-
-                  // Check if params changed
-                  const currentValues: Partial<SynthParamValues> = {};
-                  for (const [param, prevValue] of Object.entries(captured.prevParams)) {
-                    const cur = track.params[param] ?? 0;
-                    if (Math.abs(cur - (prevValue as number)) > 0.001) {
-                      currentValues[param] = cur;
-                    }
-                  }
-                  if (Object.keys(currentValues).length > 0) {
-                    snapshots.push({
-                      kind: 'param',
-                      trackId: captured.trackId,
-                      prevValues: captured.prevParams,
-                      aiTargetValues: currentValues,
-                      prevProvenance: captured.prevProvenance,
-                      timestamp: Date.now(),
-                      description: `Param change: ${Object.keys(currentValues).join(', ')}`,
-                    });
-                  }
-
-                  // Check if region events changed (param lock during drag)
-                  if (captured.prevEvents && track.regions.length > 0) {
-                    const curEvents = track.regions[0].events;
-                    const eventsChanged = curEvents.length !== captured.prevEvents.length ||
-                      curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
-                    if (eventsChanged) {
-                      snapshots.push({
-                        kind: 'region',
-                        trackId: captured.trackId,
-                        prevEvents: captured.prevEvents,
-                        timestamp: Date.now(),
-                        description: 'Param lock change',
-                      });
-                    }
-                  }
-
-                  if (snapshots.length === 0) return s;
-                  // Group multiple snapshots into one undo entry
-                  let entry: UndoEntry;
-                  if (snapshots.length === 1) {
-                    entry = snapshots[0];
-                  } else {
-                    entry = {
-                      kind: 'group',
-                      snapshots,
-                      timestamp: Date.now(),
-                      description: 'XY pad drag with param lock',
-                    } as ActionGroupSnapshot;
-                  }
-                  return { ...s, undoStack: [...s.undoStack, entry] };
-                });
-              }
-            }}
+            onInteractionStart={handleSourceInteractionStart}
+            onInteractionEnd={handleSourceInteractionEnd}
             onModelChange={handleModelChange}
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}
@@ -1120,7 +1124,28 @@ export default function App() {
             analyser={audioRef.current.getAnalyser()}
           />
         )}
-        {view === 'rack' && <RackView />}
+        {view === 'rack' && (
+          <RackView
+            session={session}
+            activeTrack={activeTrack}
+            onParamChange={handleParamChange}
+            onInteractionStart={handleSourceInteractionStart}
+            onInteractionEnd={handleSourceInteractionEnd}
+            onModelChange={handleModelChange}
+            onNoteChange={handleNoteChange}
+            onHarmonicsChange={handleHarmonicsChange}
+            onProcessorParamChange={handleProcessorParamChange}
+            onProcessorInteractionStart={handleProcessorInteractionStart}
+            onProcessorInteractionEnd={handleProcessorInteractionEnd}
+            onProcessorModelChange={handleProcessorModelChange}
+            onRemoveProcessor={handleRemoveProcessor}
+            onModulatorParamChange={handleModulatorParamChange}
+            onModulatorInteractionStart={handleModulatorInteractionStart}
+            onModulatorInteractionEnd={handleModulatorInteractionEnd}
+            onModulatorModelChange={handleModulatorModelChange}
+            onRemoveModulator={handleRemoveModulator}
+          />
+        )}
         {view === 'patch' && <PatchView />}
         {view === 'tracker' && (
           <TrackerView
