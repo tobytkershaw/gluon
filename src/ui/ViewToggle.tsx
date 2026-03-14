@@ -27,7 +27,7 @@ export function ViewToggle({ view, onViewChange }: Props) {
             : 'text-zinc-500 hover:text-zinc-300'
         }`}
       >
-        Track
+        Tracker
       </button>
     </div>
   );
