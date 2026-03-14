@@ -10,10 +10,17 @@ export class Arbitrator {
   // Key: "voiceId:target:param" → TouchRecord
   private touches: Map<string, TouchRecord> = new Map();
   private cooldownMs: number;
-  private activeInteraction = false;
+  private activeVoice: string | null = null;
+  private onHoldExpired: (() => void) | null = null;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(cooldownMs = 500) {
     this.cooldownMs = cooldownMs;
+  }
+
+  /** Register a callback invoked when the hold expires (interaction end + cooldown). */
+  setOnHoldExpired(cb: () => void): void {
+    this.onHoldExpired = cb;
   }
 
   private key(voiceId: string, param: string, target = 'source'): string {
@@ -24,16 +31,26 @@ export class Arbitrator {
     this.touches.set(this.key(voiceId, param, target), { value, timestamp: Date.now() });
   }
 
-  humanInteractionStart(): void {
-    this.activeInteraction = true;
+  humanInteractionStart(voiceId: string): void {
+    this.activeVoice = voiceId;
+    if (this.holdTimer) {
+      clearTimeout(this.holdTimer);
+      this.holdTimer = null;
+    }
   }
 
   humanInteractionEnd(): void {
-    this.activeInteraction = false;
+    this.activeVoice = null;
+    // Schedule a re-sync after cooldown so suppressed params get flushed
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.holdTimer = setTimeout(() => {
+      this.holdTimer = null;
+      this.onHoldExpired?.();
+    }, this.cooldownMs + 16); // +16ms to ensure cooldown has fully elapsed
   }
 
   canAIAct(voiceId: string, param: string): boolean {
-    if (this.activeInteraction) return false;
+    if (this.activeVoice === voiceId) return false;
     const record = this.touches.get(this.key(voiceId, param, 'source'));
     if (record && Date.now() - record.timestamp <= this.cooldownMs) {
       return false;
@@ -53,7 +70,7 @@ export class Arbitrator {
     const held: Partial<SynthParamValues> = {};
     for (const [k, record] of this.touches) {
       if (!k.startsWith(prefix)) continue;
-      if (now - record.timestamp <= this.cooldownMs || this.activeInteraction) {
+      if (now - record.timestamp <= this.cooldownMs || this.activeVoice === voiceId) {
         const param = k.slice(prefix.length);
         held[param] = record.value;
       }
@@ -61,9 +78,9 @@ export class Arbitrator {
     return held;
   }
 
-  /** Returns true if any source param is held or active interaction is on. */
+  /** Returns true if this voice's source params are held (active interaction or cooldown). */
   isHoldingSource(voiceId: string): boolean {
-    if (this.activeInteraction) return true;
+    if (this.activeVoice === voiceId) return true;
     const now = Date.now();
     const prefix = `${voiceId}:source:`;
     for (const [k, record] of this.touches) {

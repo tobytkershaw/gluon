@@ -69,9 +69,15 @@ export default function App() {
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
   const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
   const arbRef = useRef(new Arbitrator());
+  const [holdGeneration, setHoldGeneration] = useState(0);
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // When arbitration hold expires, bump generation to re-trigger sync effects
+  useEffect(() => {
+    arbRef.current.setOnHoldExpired(() => setHoldGeneration(g => g + 1));
+  }, []);
 
   // Dirty-check refs for sync effects (#142)
   const prevVoiceStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
@@ -174,7 +180,7 @@ export default function App() {
         params: holding ? (prev?.params ?? { ...voice.params }) : { ...voice.params },
       });
     }
-  }, [session.voices, audioStarted]);
+  }, [session.voices, audioStarted, holdGeneration]);
 
   // Sync mute/solo state
   useEffect(() => {
@@ -924,8 +930,8 @@ export default function App() {
             onToggleRecord={handleToggleRecord}
             onParamChange={handleParamChange}
             onInteractionStart={() => {
-              arbRef.current.humanInteractionStart();
               const s = sessionRef.current;
+              arbRef.current.humanInteractionStart(s.activeVoiceId);
               const voice = getActiveVoice(s);
               const prevProvenance: Partial<ControlState> = {};
               if (voice.controlProvenance) {
