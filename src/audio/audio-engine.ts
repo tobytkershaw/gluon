@@ -217,6 +217,12 @@ export class AudioEngine {
       slot.accentGain.gain.cancelAndHoldAtTime(now);
       slot.accentGain.gain.setValueAtTime(0.3, now);
     }
+    // Resume modulator output after pause
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.resume();
+      }
+    }
   }
 
   silenceAll(): void {
@@ -237,10 +243,11 @@ export class AudioEngine {
         }
       }
     }
-    // Clear scheduled events in modulators
+    // Clear scheduled events in modulators and pause their output
     for (const [, modSlots] of this.modulatorSlots) {
       for (const modSlot of modSlots) {
         modSlot.engine.silence();
+        modSlot.engine.pause();
       }
     }
   }
