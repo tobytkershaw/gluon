@@ -6,7 +6,7 @@ export const GLUON_LISTEN_PROMPT = `You are an audio critic evaluating a musical
 
 You will receive:
 1. A symbolic description of the current project state (voices, parameters, patterns)
-2. An audio clip of the rendered output
+2. An audio clip of the rendered output (capture length varies from 1 to 16 bars)
 3. A question from the human about what they're hearing
 
 Your job is to listen critically and provide honest, musical feedback.

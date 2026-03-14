@@ -120,6 +120,10 @@ const listenTool: FunctionDeclaration = {
         type: Type.STRING,
         description: 'What to evaluate (e.g. "how does the kick sound?", "is the mix balanced?").',
       },
+      bars: {
+        type: Type.INTEGER,
+        description: 'Number of bars to capture (1-16, default 2).',
+      },
     },
     required: ['question'],
   },
