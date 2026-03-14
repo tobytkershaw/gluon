@@ -47,6 +47,7 @@ type ScheduledEvent =
   | { type: 'set-polyphony'; time?: number; seq: number; polyphony: number }
   | { type: 'set-internal-exciter'; time?: number; seq: number; enabled: boolean }
   | { type: 'strum'; time: number; seq: number }
+  | { type: 'damp'; time?: undefined; seq: number }
   | { type: 'clear-scheduled'; time?: undefined; seq: number }
   | { type: 'destroy'; time?: undefined; seq: number };
 
@@ -70,6 +71,7 @@ class RingsProcessor extends AudioWorkletProcessor {
   private ready = false;
   private readonly wasmBinary: ArrayBuffer | null;
   private destroyed = false;
+  private muted = false;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -161,7 +163,11 @@ class RingsProcessor extends AudioWorkletProcessor {
         this.wasm._rings_set_internal_exciter(this.handle, event.enabled ? 1 : 0);
         break;
       case 'strum':
+        this.muted = false;
         this.wasm._rings_strum(this.handle);
+        break;
+      case 'damp':
+        this.muted = true;
         break;
       case 'clear-scheduled':
         this.queue = this.queue.filter(e => e.time === undefined);
@@ -282,6 +288,12 @@ class RingsProcessor extends AudioWorkletProcessor {
           this.applyPatchWithModulation(modStructure, modBrightness, modDamping, modPosition);
         }
       }
+    }
+
+    // When damped, let DSP decay internally but silence the output
+    if (this.muted) {
+      left.fill(0);
+      right.fill(0);
     }
 
     return true;

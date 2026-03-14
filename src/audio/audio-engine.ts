@@ -229,9 +229,12 @@ export class AudioEngine {
       // The scheduler restores gain via setValueAtTime on the next note.
       slot.accentGain.gain.cancelAndHoldAtTime(now);
       slot.accentGain.gain.setValueAtTime(0, now);
-      // Clear scheduled events in downstream processors
+      // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
         proc.engine.silence();
+        if (proc.type === 'rings') {
+          (proc.engine as import('./rings-synth').RingsEngine).damp();
+        }
       }
     }
     // Clear scheduled events in modulators

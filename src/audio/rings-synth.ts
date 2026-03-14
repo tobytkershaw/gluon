@@ -16,6 +16,8 @@ export interface RingsEngine {
   strum(time: number): void;
   /** Clear all scheduled events from the worklet queue. */
   silence(): void;
+  /** Mute resonator output until the next strum. */
+  damp(): void;
   destroy(): void;
 }
 
@@ -144,6 +146,10 @@ export class RingsSynth implements RingsEngine {
 
   silence(): void {
     this.post({ type: 'clear-scheduled' });
+  }
+
+  damp(): void {
+    this.post({ type: 'damp' });
   }
 
   destroy(): void {
