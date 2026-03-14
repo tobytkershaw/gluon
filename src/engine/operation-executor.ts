@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, ActionDiff } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, ActionDiff } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getVoice, updateVoice } from './types';
@@ -1010,15 +1010,23 @@ export function executeOperations(
     }
   }
 
-  // Collapse multiple snapshots into a single undo group
+  // Collapse multiple snapshots into a single undo group.
+  // Flatten nested groups one level deep so that sub-groups pushed by
+  // cascading operations (e.g. remove_processor clearing modulation routes)
+  // are preserved instead of silently dropped.
   const newSnapshots = next.undoStack.slice(undoBaseline);
   if (newSnapshots.length > 1) {
     const sayText = sayTexts.join(' ');
     const voiceCount = new Set(log.map(e => e.voiceId)).size;
     const undoDesc = sayText || `AI: ${log.length} changes across ${voiceCount} voice${voiceCount !== 1 ? 's' : ''}`;
+    const flatSnaps: Snapshot[] = [];
+    for (const e of newSnapshots) {
+      if (e.kind === 'group') flatSnaps.push(...e.snapshots);
+      else flatSnaps.push(e);
+    }
     const group: ActionGroupSnapshot = {
       kind: 'group',
-      snapshots: newSnapshots.filter((e): e is Exclude<typeof e, ActionGroupSnapshot> => e.kind !== 'group'),
+      snapshots: flatSnaps,
       timestamp: Date.now(),
       description: undoDesc,
     };
