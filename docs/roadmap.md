@@ -327,7 +327,8 @@ M5A: Project Foundation ──────────────────�
 Documents that inform this roadmap, grouped by the phase they primarily serve.
 
 ### M5: Workbench
-- `docs/rfcs/ai-curated-surfaces.md` — semantic controls, pins, surface curation
+- `docs/rfcs/view-architecture.md` — four-view model: three canonical views (Tracker, Rack, Patch) + one custom view (Surface). Surface module library taxonomy
+- `docs/rfcs/ai-curated-surfaces.md` — semantic controls, pins, surface curation, VoiceSurface type
 - `docs/rfcs/patch-view-layer.md` — node graph as wiring ground truth (PR #165)
 - `docs/rfcs/sequencer-view-layer.md` — tracker + addable projection views
 - `docs/design-references.md` — NI, Bitwig, Reason, VCV Rack references (PR #165)
