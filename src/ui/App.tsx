@@ -1022,6 +1022,61 @@ export default function App() {
     setSelectedModulatorId(null);
   }, [ensureAudio]);
 
+  const handleAddProcessor = useCallback((type: string) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const processors = track.processors ?? [];
+      const newProcessor = {
+        id: crypto.randomUUID(),
+        type,
+        model: 0,
+        params: {} as Record<string, number>,
+      };
+      const snapshot: ProcessorSnapshot = {
+        kind: 'processor',
+        trackId: vid,
+        prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
+        timestamp: Date.now(),
+        description: `Add ${type} processor`,
+      };
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid ? { ...track, processors: [...processors, newProcessor] } : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleAddModulator = useCallback((type: string) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const modulators = track.modulators ?? [];
+      const newModulator = {
+        id: crypto.randomUUID(),
+        type,
+        model: 1, // default to Looping mode
+        params: {} as Record<string, number>,
+      };
+      const snapshot: ModulatorSnapshot = {
+        kind: 'modulator',
+        trackId: vid,
+        prevModulators: modulators.map(m => ({ ...m, params: { ...m.params } })),
+        prevModulations: (track.modulations ?? []).map(r => ({ ...r })),
+        timestamp: Date.now(),
+        description: `Add ${type} modulator`,
+      };
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid ? { ...track, modulators: [...modulators, newModulator] } : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
   // Global keyboard shortcuts (extracted to hook)
   useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, setView, setChatOpen });
 
@@ -1144,6 +1199,8 @@ export default function App() {
             onModulatorInteractionEnd={handleModulatorInteractionEnd}
             onModulatorModelChange={handleModulatorModelChange}
             onRemoveModulator={handleRemoveModulator}
+            onAddProcessor={handleAddProcessor}
+            onAddModulator={handleAddModulator}
           />
         )}
         {view === 'patch' && <PatchView session={session} />}
