@@ -1,5 +1,5 @@
 // src/ui/Tracker.tsx
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, type MutableRefObject } from 'react';
 import type { Region, MusicalEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { TrackerRow } from './TrackerRow';
@@ -10,6 +10,8 @@ interface Props {
   playing: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
+  /** When true, in-progress inline edits should be discarded on blur. */
+  cancelEditRef?: MutableRefObject<boolean>;
 }
 
 /**
@@ -33,7 +35,7 @@ function eventKey(event: MusicalEvent, index: number): string {
   return `${event.kind[0].toUpperCase()}-${event.at}-${index}`;
 }
 
-export function Tracker({ region, currentStep, playing, onUpdate, onDelete }: Props) {
+export function Tracker({ region, currentStep, playing, onUpdate, onDelete, cancelEditRef }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export function Tracker({ region, currentStep, playing, onUpdate, onDelete }: Pr
                   showBeatSeparator={shouldShowBeatSeparator(event, i > 0 ? events[i - 1] : null)}
                   onUpdate={onUpdate}
                   onDelete={onDelete}
+                  cancelEditRef={cancelEditRef}
                   ref={isAtPlayhead ? playheadRef : undefined}
                 />
               );

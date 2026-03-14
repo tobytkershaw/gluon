@@ -1,5 +1,6 @@
 // src/ui/TrackerView.tsx
 // Thin shell: full-height Tracker (top bar moved to AppShell)
+import type { MutableRefObject } from 'react';
 import type { Session, Voice } from '../engine/types';
 import type { MusicalEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
@@ -16,12 +17,15 @@ interface Props {
   // Tracker editing
   onEventUpdate: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onEventDelete: (selector: EventSelector) => void;
+  /** When true, in-progress inline edits should be discarded on blur. */
+  cancelEditRef?: MutableRefObject<boolean>;
 }
 
 export function TrackerView({
   session, activeVoice,
   playing, globalStep,
   onEventUpdate, onEventDelete,
+  cancelEditRef,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeVoice.pattern.length);
 
@@ -49,6 +53,7 @@ export function TrackerView({
                 playing={playing}
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}
+                cancelEditRef={cancelEditRef}
               />
             ) : (
               <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">

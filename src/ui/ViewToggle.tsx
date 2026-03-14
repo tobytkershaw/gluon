@@ -1,15 +1,23 @@
 // src/ui/ViewToggle.tsx
+import type { MutableRefObject } from 'react';
 import type { ViewMode } from './view-types';
 
 interface Props {
   view: ViewMode;
   onViewChange: (view: ViewMode) => void;
+  /** When set on mousedown (before blur), tells in-progress inline edits to discard. */
+  cancelEditRef?: MutableRefObject<boolean>;
 }
 
-export function ViewToggle({ view, onViewChange }: Props) {
+export function ViewToggle({ view, onViewChange, cancelEditRef }: Props) {
+  const handleMouseDown = () => {
+    if (cancelEditRef) cancelEditRef.current = true;
+  };
+
   return (
     <div className="flex gap-0.5 bg-zinc-900 rounded p-0.5">
       <button
+        onMouseDown={handleMouseDown}
         onClick={() => onViewChange('control')}
         className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
           view === 'control'
@@ -20,6 +28,7 @@ export function ViewToggle({ view, onViewChange }: Props) {
         Control
       </button>
       <button
+        onMouseDown={handleMouseDown}
         onClick={() => onViewChange('tracker')}
         className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
           view === 'tracker'

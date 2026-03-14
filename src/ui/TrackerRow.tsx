@@ -1,5 +1,5 @@
 // src/ui/TrackerRow.tsx
-import { forwardRef, useState, useCallback } from 'react';
+import { forwardRef, useState, useCallback, type MutableRefObject } from 'react';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 
@@ -9,6 +9,8 @@ interface Props {
   showBeatSeparator: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
+  /** When true, in-progress inline edits should be discarded on blur. */
+  cancelEditRef?: MutableRefObject<boolean>;
 }
 
 // --- Formatting helpers ---
@@ -65,11 +67,14 @@ function EditableCell({
   onCommit,
   className,
   parse,
+  cancelEditRef,
 }: {
   value: string;
   onCommit: (v: number) => void;
   className?: string;
   parse?: (s: string) => number;
+  /** When true on blur, discard the draft instead of committing. */
+  cancelEditRef?: MutableRefObject<boolean>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -89,13 +94,22 @@ function EditableCell({
     setEditing(false);
   }, []);
 
+  const handleBlur = useCallback(() => {
+    if (cancelEditRef?.current) {
+      cancelEditRef.current = false;
+      cancel();
+    } else {
+      commit();
+    }
+  }, [cancelEditRef, cancel, commit]);
+
   if (editing) {
     return (
       <input
         className="bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border border-zinc-600 rounded outline-none focus:border-amber-500/50"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
+        onBlur={handleBlur}
         onKeyDown={(e) => {
           if (e.key === 'Enter') commit();
           if (e.key === 'Escape') cancel();
@@ -118,7 +132,7 @@ function EditableCell({
 // --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete }, ref) {
+  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, cancelEditRef }, ref) {
     const rowColor = kindRowStyle(event.kind);
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
@@ -138,6 +152,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
               if (!isNaN(n)) return n;
               return NaN;
             }}
+            cancelEditRef={cancelEditRef}
           />
         );
       } else {
@@ -157,6 +172,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={vel.toFixed(2)}
           onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          cancelEditRef={cancelEditRef}
         />
       ) : vel.toFixed(2);
     } else if (event.kind === 'trigger') {
@@ -169,6 +185,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={display}
           onCommit={(newVal) => onUpdate(selector, { value: newVal } as Partial<MusicalEvent>)}
+          cancelEditRef={cancelEditRef}
         />
       ) : display;
     }
@@ -181,6 +198,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={dur.toFixed(2)}
           onCommit={(v) => onUpdate(selector, { duration: Math.max(0.01, v) })}
+          cancelEditRef={cancelEditRef}
         />
       ) : dur.toFixed(2);
     }
