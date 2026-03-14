@@ -183,6 +183,7 @@ export function AppShell({
         {/* Left: Chat sidebar */}
         <ChatSidebar
           messages={messages}
+          onSend={onSend}
           isThinking={isThinking}
           isListening={isListening}
           apiConfigured={apiConfigured}
@@ -211,34 +212,31 @@ export function AppShell({
         />
       </div>
 
-      {/* Global footer bar — persistent composer strip */}
+      {/* Global footer bar — composer here only when chat is collapsed */}
       <div className="flex items-center h-10 border-t border-zinc-800/50 shrink-0">
-        {/* Chat-column zone: composer + controls */}
-        <div
-          style={chatOpen ? { width: chatWidth } : undefined}
-          className={`shrink-0 flex items-center ${chatOpen ? 'border-r border-zinc-800/30' : ''}`}
-        >
-          {/* Chat toggle button */}
-          <button
-            onClick={onChatToggle}
-            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
-            title={chatOpen ? 'Collapse chat (Cmd+/)' : 'Expand chat (Cmd+/)'}
-          >
-            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
-              <path d={chatOpen ? 'M10 4l-4 4 4 4' : 'M6 4l4 4-4 4'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <ChatComposer onSend={onSend} disabled={isThinking || isListening} />
-          {/* Status indicator */}
-          {(isThinking || isListening) && (
-            <span
-              className="shrink-0 w-2 h-2 rounded-full bg-amber-400 mr-2"
-              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-              title={isListening ? 'Listening...' : 'Thinking...'}
-            />
-          )}
-        </div>
-        {/* Content-column zone: master channel strip */}
+        {!chatOpen && (
+          <div className="shrink-0 flex items-center">
+            {/* Expand chat toggle */}
+            <button
+              onClick={onChatToggle}
+              className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
+              title="Expand chat (Cmd+/)"
+            >
+              <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="footer" />
+            {(isThinking || isListening) && (
+              <span
+                className="shrink-0 w-2 h-2 rounded-full bg-amber-400 mr-2"
+                style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
+                title={isListening ? 'Listening...' : 'Thinking...'}
+              />
+            )}
+          </div>
+        )}
+        {/* Master channel strip */}
         <div className="flex-1 flex items-center justify-end">
           <MasterStrip
             volume={masterVolume}
@@ -248,7 +246,6 @@ export function AppShell({
             onPanChange={onMasterPanChange}
           />
         </div>
-        {/* Track-list-column zone: empty for now */}
       </div>
     </div>
   );
