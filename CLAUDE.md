@@ -153,7 +153,8 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 
 ### RFCs (`docs/rfcs/`)
 - `docs/rfcs/canonical-musical-model.md` - Canonical musical model: Voice, Region, MusicalEvent, ControlSchema, SourceAdapter.
-- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, views, pins.
+- `docs/rfcs/view-architecture.md` - View architecture: three canonical views (Tracker, Rack, Patch) as data model ground truth, one custom view (Surface) composed from a library of surface modules. Full module taxonomy.
+- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, VoiceSurface state, AI curation operations. Foundation for the Surface view's module system.
 - `docs/rfcs/sequencer-view-layer.md` - Sequencer views as projections over canonical events.
 - `docs/rfcs/phase4a.md` - Phase 4A: constrained patch chains.
 - `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
