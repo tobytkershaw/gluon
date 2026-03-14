@@ -28,14 +28,17 @@ function getModulatorLabel(type: string, modelIndex: number): string {
 
 function ChevronButton({ onClick }: { onClick: () => void }) {
   return (
-    <button
+    <span
+      role="button"
+      tabIndex={0}
       onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onClick(); } }}
       className="ml-1 text-zinc-600 hover:text-zinc-300 transition-colors"
     >
       <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 10 10">
         <path d="M3 2L7 5L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
-    </button>
+    </span>
   );
 }
 

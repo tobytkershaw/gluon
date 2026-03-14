@@ -377,7 +377,7 @@ export default function App() {
         ...undone,
         messages: [
           ...undone.messages,
-          { role: 'ai' as const, text: `Undid: ${description}`, timestamp: Date.now() },
+          { role: 'system' as const, text: `Undid: ${description}`, timestamp: Date.now() },
         ],
       };
     });
