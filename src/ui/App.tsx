@@ -479,8 +479,8 @@ export default function App() {
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
 
-    // Saved mute/solo state for voice isolation restore
-    let savedMuteState: { id: string; muted: boolean; solo: boolean }[] | null = null;
+    // Saved per-voice audibility for voice isolation restore (bypasses React state)
+    let savedAudibility: Map<string, boolean> | null = null;
 
     try {
       const actions = await aiRef.current.ask(sessionRef.current, message, {
@@ -491,29 +491,24 @@ export default function App() {
           setIsolation: (voiceIds: string[] | null) => {
             const s = sessionRef.current;
             if (voiceIds) {
-              // Save current mute/solo state before isolation
-              savedMuteState = s.voices.map(v => ({ id: v.id, muted: !!v.muted, solo: !!v.solo }));
-              // Clear all solos first, then mute voices not in the isolation set
+              // Save current audibility computed from mute/solo state
+              const anySoloed = s.voices.some(v => v.solo);
+              savedAudibility = new Map(
+                s.voices.map(v => [v.id, anySoloed ? !!v.solo : !v.muted]),
+              );
+              // Directly set audio engine mute gains — synchronous, no React render needed
               const isolateSet = new Set(voiceIds);
-              setSession(prev => ({
-                ...prev,
-                voices: prev.voices.map(v => ({
-                  ...v,
-                  solo: false,
-                  muted: !isolateSet.has(v.id),
-                })),
-              }));
-            } else if (savedMuteState) {
-              // Restore saved mute/solo state
-              const saved = savedMuteState;
-              savedMuteState = null;
-              setSession(prev => ({
-                ...prev,
-                voices: prev.voices.map(v => {
-                  const s = saved.find(sv => sv.id === v.id);
-                  return s ? { ...v, muted: s.muted, solo: s.solo } : v;
-                }),
-              }));
+              for (const v of s.voices) {
+                audioRef.current.muteVoice(v.id, !isolateSet.has(v.id));
+              }
+            } else if (savedAudibility) {
+              // Restore saved audibility directly on the audio engine
+              const saved = savedAudibility;
+              savedAudibility = null;
+              for (const v of s.voices) {
+                const wasAudible = saved.get(v.id) ?? true;
+                audioRef.current.muteVoice(v.id, !wasAudible);
+              }
             }
           },
         },
