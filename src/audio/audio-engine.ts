@@ -15,6 +15,8 @@ import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
+/** Duration (seconds) for the gain ramp used during chain rebuild to avoid clicks. */
+const CHAIN_RAMP_SEC = 0.002; // ~2ms
 
 type ProcessorEngine = RingsEngine | CloudsEngine;
 
@@ -42,6 +44,7 @@ interface ModulationRoute {
 interface TrackSlot {
   synth: SynthEngine;
   sourceOut: GainNode;   // routing node between source and processor chain
+  chainOutGain: GainNode; // gain node at end of processor chain — ramped to 0 during rebuild to avoid clicks
   muteGain: GainNode;    // controlled by mute/solo -- never touched by scheduleNote
   accentGain: GainNode;  // controlled by scheduleNote for accent boosts
   processors: ProcessorSlot[];
@@ -87,6 +90,9 @@ export class AudioEngine {
   private _isRunning = false;
   /** Tracks processor IDs currently being created (async in-flight guard). */
   private pendingProcessors = new Set<string>();
+  /** Monotonic fence incremented on each silenceAll(). Events tagged with a
+   *  fence < this value are stale and will be filtered by the worklet. */
+  private clearFence = 0;
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -117,14 +123,17 @@ export class AudioEngine {
     this.masterPanner.connect(this.mediaStreamDest);
 
     for (const trackId of trackIds) {
-      // Signal chain: source -> sourceOut -> [processors] -> accentGain -> muteGain -> mixer
+      // Signal chain: source -> sourceOut -> [processors] -> chainOutGain -> accentGain -> muteGain -> mixer
       const sourceOut = this.ctx.createGain();
       sourceOut.gain.value = 1.0;
+      const chainOutGain = this.ctx.createGain();
+      chainOutGain.gain.value = 1.0;
       const accentGain = this.ctx.createGain();
       accentGain.gain.value = 0.3;
       const muteGain = this.ctx.createGain();
       muteGain.gain.value = 1.0; // 1 = audible, 0 = muted
-      sourceOut.connect(accentGain);
+      sourceOut.connect(chainOutGain);
+      chainOutGain.connect(accentGain);
       accentGain.connect(muteGain);
       muteGain.connect(this.mixer);
 
@@ -132,6 +141,7 @@ export class AudioEngine {
       this.tracks.set(trackId, {
         synth,
         sourceOut,
+        chainOutGain,
         muteGain,
         accentGain,
         processors: [],
@@ -216,7 +226,7 @@ export class AudioEngine {
       // Revert accent at gate-off
       slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
     }
-    slot.synth.scheduleNote(note);
+    slot.synth.scheduleNote(note, this.clearFence);
     recordQaAudioTrace({
       type: 'audio.note',
       trackId: note.trackId,
@@ -252,9 +262,14 @@ export class AudioEngine {
   }
 
   silenceAll(): void {
+    // Increment fence so any events already in-flight from the previous play
+    // cycle are treated as stale by the worklet processors (#147).
+    this.clearFence++;
+    const fence = this.clearFence;
+
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {
-      slot.synth.silence();
+      slot.synth.silence(fence);
       // Cancel pending accent automation and hard-mute the track chain.
       // Setting gain to 0 (not baseline 0.3) ensures processor tails
       // (Rings resonance, Clouds reverb) are silenced immediately.
@@ -263,7 +278,7 @@ export class AudioEngine {
       slot.accentGain.gain.setValueAtTime(0, now);
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
-        proc.engine.silence();
+        proc.engine.silence(fence);
         if (proc.type === 'rings') {
           (proc.engine as import('./rings-synth').RingsEngine).damp();
         }
@@ -272,7 +287,7 @@ export class AudioEngine {
     // Clear scheduled events in modulators and pause their output
     for (const [, modSlots] of this.modulatorSlots) {
       for (const modSlot of modSlots) {
-        modSlot.engine.silence();
+        modSlot.engine.silence(fence);
         modSlot.engine.pause();
       }
     }
@@ -405,6 +420,14 @@ export class AudioEngine {
   }
 
   private rebuildChain(slot: TrackSlot): void {
+    const now = this.ctx?.currentTime ?? 0;
+
+    // Ramp chainOutGain to 0 before disconnecting to avoid a hard audio click (#139).
+    // The ramp converts the dropout into a smooth ~2ms fade-out/fade-in.
+    slot.chainOutGain.gain.cancelScheduledValues(now);
+    slot.chainOutGain.gain.setValueAtTime(slot.chainOutGain.gain.value, now);
+    slot.chainOutGain.gain.linearRampToValueAtTime(0, now + CHAIN_RAMP_SEC);
+
     // Disconnect sourceOut and all processors, then rewire
     slot.sourceOut.disconnect();
     for (const proc of slot.processors) {
@@ -412,16 +435,19 @@ export class AudioEngine {
     }
 
     if (slot.processors.length === 0) {
-      // Direct: sourceOut -> accentGain
-      slot.sourceOut.connect(slot.accentGain);
+      // Direct: sourceOut -> chainOutGain
+      slot.sourceOut.connect(slot.chainOutGain);
     } else {
-      // Chain: sourceOut -> proc[0] -> ... -> proc[n] -> accentGain
+      // Chain: sourceOut -> proc[0] -> ... -> proc[n] -> chainOutGain
       slot.sourceOut.connect(slot.processors[0].engine.inputNode);
       for (let i = 0; i < slot.processors.length - 1; i++) {
         slot.processors[i].engine.inputNode.connect(slot.processors[i + 1].engine.inputNode);
       }
-      slot.processors[slot.processors.length - 1].engine.inputNode.connect(slot.accentGain);
+      slot.processors[slot.processors.length - 1].engine.inputNode.connect(slot.chainOutGain);
     }
+
+    // Ramp chainOutGain back to 1 after reconnect
+    slot.chainOutGain.gain.linearRampToValueAtTime(1, now + CHAIN_RAMP_SEC * 2);
   }
 
   // --- Modulator chain ---

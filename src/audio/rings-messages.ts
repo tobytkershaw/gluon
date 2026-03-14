@@ -40,6 +40,7 @@ export interface RingsDampMessage {
 
 export interface RingsClearScheduledMessage {
   type: 'clear-scheduled';
+  fence: number;
 }
 
 export interface RingsDestroyMessage {

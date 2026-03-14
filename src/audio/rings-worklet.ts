@@ -41,15 +41,15 @@ interface RingsWasm {
 }
 
 type ScheduledEvent =
-  | { type: 'set-model'; time?: number; seq: number; model: number }
-  | { type: 'set-patch'; time?: number; seq: number; patch: RingsPatch }
-  | { type: 'set-note'; time?: number; seq: number; tonic: number; note: number }
-  | { type: 'set-polyphony'; time?: number; seq: number; polyphony: number }
-  | { type: 'set-internal-exciter'; time?: number; seq: number; enabled: boolean }
-  | { type: 'strum'; time: number; seq: number }
-  | { type: 'damp'; time?: undefined; seq: number }
-  | { type: 'clear-scheduled'; time?: undefined; seq: number }
-  | { type: 'destroy'; time?: undefined; seq: number };
+  | { type: 'set-model'; time?: number; seq: number; fence?: number; model: number }
+  | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: RingsPatch }
+  | { type: 'set-note'; time?: number; seq: number; fence?: number; tonic: number; note: number }
+  | { type: 'set-polyphony'; time?: number; seq: number; fence?: number; polyphony: number }
+  | { type: 'set-internal-exciter'; time?: number; seq: number; fence?: number; enabled: boolean }
+  | { type: 'strum'; time: number; seq: number; fence?: number }
+  | { type: 'damp'; time?: undefined; seq: number; fence?: number }
+  | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
+  | { type: 'destroy'; time?: undefined; seq: number; fence?: number };
 
 class RingsProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
@@ -72,6 +72,8 @@ class RingsProcessor extends AudioWorkletProcessor {
   private readonly wasmBinary: ArrayBuffer | null;
   private destroyed = false;
   private muted = false;
+  /** Sequence fence: events with fence < minFence are stale and ignored. */
+  private minFence = 0;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -170,7 +172,13 @@ class RingsProcessor extends AudioWorkletProcessor {
         this.muted = true;
         break;
       case 'clear-scheduled':
-        this.queue = this.queue.filter(e => e.time === undefined);
+        // Set fence so events from previous play cycles are treated as stale.
+        // Only remove timed events whose fence is older than the clear fence;
+        // events posted after the clear (with fence >= clear fence) survive.
+        this.minFence = event.fence;
+        this.queue = this.queue.filter(e =>
+          e.time === undefined || (e.fence !== undefined && e.fence >= this.minFence),
+        );
         break;
       case 'destroy':
         this.destroyWasm();
@@ -255,6 +263,11 @@ class RingsProcessor extends AudioWorkletProcessor {
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
+
+    // Drop stale events that belong to a previous play cycle (fence < minFence)
+    this.queue = this.queue.filter(e =>
+      e.time === undefined || e.fence === undefined || e.fence >= this.minFence,
+    );
 
     // Drain stale events that were scheduled before this block
     while (this.queue.length > 0 && this.queue[0].time !== undefined && this.queue[0].time! < blockStart) {

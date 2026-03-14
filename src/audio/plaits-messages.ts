@@ -4,6 +4,7 @@ export interface PlaitsPatchMessage {
   type: 'set-patch';
   patch: SynthParams;
   time?: number;
+  fence?: number;
 }
 
 export interface PlaitsModelMessage {
@@ -16,16 +17,19 @@ export interface PlaitsTriggerMessage {
   type: 'trigger';
   time: number;
   accentLevel: number;
+  fence?: number;
 }
 
 export interface PlaitsGateMessage {
   type: 'set-gate';
   time?: number;
   open: boolean;
+  fence?: number;
 }
 
 export interface PlaitsClearScheduledMessage {
   type: 'clear-scheduled';
+  fence: number;
 }
 
 export interface PlaitsDestroyMessage {

@@ -5,9 +5,11 @@ import { getModelList } from './instrument-registry';
 export interface SynthEngine {
   setModel(model: number): void;
   setParams(params: SynthParams): void;
-  scheduleNote(note: ScheduledNote): void;
-  /** Immediately close gate and clear all scheduled events. */
-  silence(): void;
+  scheduleNote(note: ScheduledNote, fence?: number): void;
+  /** Immediately close gate and clear all scheduled events.
+   *  @param fence  Monotonic sequence fence — worklet only clears events with fence < this value.
+   */
+  silence(fence?: number): void;
   destroy(): void;
   /** The underlying AudioWorkletNode, if available (for modulation routing). */
   readonly workletNode?: AudioWorkletNode;
