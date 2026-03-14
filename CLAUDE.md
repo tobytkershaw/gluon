@@ -88,6 +88,18 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 - `npx vitest run` — all tests pass
 - Both checks must pass after rebase, before merge
 
+### PR Review
+After completing a plan's implementation, always open a PR. Then choose the review level proportional to the risk of the change. Default to merging quickly when checks pass — don't add overhead to routine work.
+
+| Level | When to use | What it does |
+|-------|------------|--------------|
+| **Just merge** | Renames, lint fixes, cosmetic UI, docs, config changes. Anything where the diff is obvious and checks pass. | No review tooling — merge after verification. |
+| **`/review`** | Non-trivial bug fixes, logic changes, state management, anything where a second pair of eyes adds value. | Single-pass code review checking for bugs and CLAUDE.md compliance. |
+| **`gluon-reviewer`** | Changes to core engine (`src/engine/`), AI contract (`src/ai/`), protocol types, or audio pipeline (`src/audio/`). | Checks Gluon-specific invariants and design principle adherence. |
+| **`/pr-review-toolkit:review-pr`** | Large refactors, new subsystems, changes to critical paths (persistence, audio rendering, undo). High blast radius. | Heavy multi-agent review (code, types, error handling, test coverage). |
+
+These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. Use judgement.
+
 ## GitHub Backlog Hygiene
 
 - When creating or updating issues, preserve the backlog structure already in GitHub.
