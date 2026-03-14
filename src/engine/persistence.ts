@@ -36,7 +36,14 @@ export function stripForPersistence(session: Session): Session {
   };
 }
 
-/** Check whether a session differs from the default enough to be worth saving. */
+/**
+ * Check whether a session differs from the default enough to be worth saving.
+ *
+ * NOTE(#215): The param checks below are hardcoded to {timbre, morph, harmonics, note}.
+ * If future engines add params beyond these, this function won't detect their changes
+ * as non-default. This is acceptable since the function is a save-avoidance heuristic
+ * (legacy path) — worst case is an unnecessary no-op save, not data loss.
+ */
 function isNonDefault(session: Session): boolean {
   const defaults = createSession();
   if (session.messages.length > 0) return true;

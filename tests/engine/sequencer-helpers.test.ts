@@ -1,11 +1,9 @@
 // tests/engine/sequencer-helpers.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createDefaultStep, createDefaultPattern, getAudibleTracks, resolveNoteParams,
+  createDefaultStep, createDefaultPattern, getAudibleTracks,
 } from '../../src/engine/sequencer-helpers';
 import { createSession, toggleMute, toggleSolo } from '../../src/engine/session';
-import type { Track } from '../../src/engine/types';
-import type { Step } from '../../src/engine/sequencer-types';
 
 describe('createDefaultStep', () => {
   it('creates a step with gate off, no accent, no micro-timing', () => {
@@ -69,38 +67,3 @@ describe('getAudibleTracks', () => {
   });
 });
 
-describe('resolveNoteParams', () => {
-  it('returns track params when step has no locks', () => {
-    const track: Track = {
-      id: 'v0', engine: 'test', model: 0,
-      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'ON', pattern: createDefaultPattern(), muted: false, solo: false,
-    };
-    const step: Step = { gate: true, accent: false, micro: 0 };
-    const result = resolveNoteParams(track, step, {});
-    expect(result).toEqual(track.params);
-  });
-
-  it('applies step param locks over track params', () => {
-    const track: Track = {
-      id: 'v0', engine: 'test', model: 0,
-      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'ON', pattern: createDefaultPattern(), muted: false, solo: false,
-    };
-    const step: Step = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
-    const result = resolveNoteParams(track, step, {});
-    expect(result.timbre).toBe(0.9);
-    expect(result.morph).toBe(0.5);
-  });
-
-  it('human held params override both track and step', () => {
-    const track: Track = {
-      id: 'v0', engine: 'test', model: 0,
-      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-      agency: 'ON', pattern: createDefaultPattern(), muted: false, solo: false,
-    };
-    const step: Step = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
-    const result = resolveNoteParams(track, step, { timbre: 0.2 });
-    expect(result.timbre).toBe(0.2);
-  });
-});

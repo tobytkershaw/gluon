@@ -23,18 +23,6 @@ export function getAudibleTracks(session: Session): Track[] {
   return session.tracks.filter(v => !v.muted);
 }
 
-export function resolveNoteParams(
-  track: Track,
-  step: Step,
-  heldParams: Partial<SynthParamValues>,
-): SynthParamValues {
-  return {
-    ...track.params,
-    ...step.params,
-    ...heldParams,
-  } as SynthParamValues;
-}
-
 const AT_TOLERANCE = 0.001;
 
 /**

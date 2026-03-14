@@ -166,8 +166,13 @@ export function normalizeRegionEvents(region: Region): Region {
   return { ...region, events: deduped };
 }
 
+/**
+ * Build a dedup key using Math.floor bucketing (aligned with AT_TOLERANCE).
+ * Math.floor ensures that values within the same bucket are always within
+ * tolerance, consistent with sameAt() used by validateRegion().
+ */
 function deduplicationKey(event: MusicalEvent): string {
-  const bucket = Math.round(event.at / AT_TOLERANCE);
+  const bucket = Math.floor(event.at / AT_TOLERANCE);
   switch (event.kind) {
     case 'trigger':
       return `trigger@${bucket}`;

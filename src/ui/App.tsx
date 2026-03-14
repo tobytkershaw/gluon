@@ -33,6 +33,9 @@ import { useShortcuts } from './useShortcuts';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
+// TODO(#215): Module-level singleton — works fine in production but may
+// interfere with test isolation if App is mounted multiple times in a test suite.
+// Low risk since adapter is stateless; revisit if tests require separate instances.
 const plaitsAdapter = createPlaitsAdapter();
 
 function shallowEqual(a: Record<string, number>, b: Record<string, number>): boolean {
@@ -678,9 +681,10 @@ export default function App() {
       const track = getTrack(s, captured.trackId);
       const proc = (track.processors ?? []).find(p => p.id === processorId);
       if (!proc) return s;
-      // Check if anything actually changed
-      const changed = Object.keys(captured.prevParams).some(
-        k => Math.abs((proc.params[k] ?? 0) - captured.prevParams[k]) > 0.001
+      // Check if anything actually changed (including new params not in prevParams)
+      const allKeys = new Set([...Object.keys(captured.prevParams), ...Object.keys(proc.params)]);
+      const changed = [...allKeys].some(
+        k => Math.abs((proc.params[k] ?? 0) - (captured.prevParams[k] ?? 0)) > 0.001
       );
       if (!changed) return s;
       const snapshot: ProcessorStateSnapshot = {

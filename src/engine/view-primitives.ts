@@ -2,10 +2,8 @@
 import type { Session, SequencerViewKind, SequencerViewConfig, ViewSnapshot } from './types';
 import { updateTrack, getTrack } from './types';
 
-let viewCounter = 0;
-
 function nextViewId(kind: SequencerViewKind): string {
-  return `${kind}-${++viewCounter}`;
+  return `${kind}-${crypto.randomUUID()}`;
 }
 
 /** Add a sequencer view to a track. Pushes ViewSnapshot for undo. */
