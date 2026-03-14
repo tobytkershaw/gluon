@@ -8,6 +8,7 @@ import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
+import { ChatComposer } from './ChatComposer';
 import { ProjectMenu } from './ProjectMenu';
 import { ViewToggle } from './ViewToggle';
 import { TransportStrip } from './TransportStrip';
@@ -174,7 +175,6 @@ export function AppShell({
         {/* Left: Chat sidebar */}
         <ChatSidebar
           messages={messages}
-          onSend={onSend}
           isThinking={isThinking}
           isListening={isListening}
           apiConfigured={apiConfigured}
@@ -201,6 +201,41 @@ export function AppShell({
           onToggleAgency={onToggleAgency}
           onRenameVoice={onRenameVoice}
         />
+      </div>
+
+      {/* Global footer bar — persistent composer strip */}
+      <div className="flex items-center h-10 border-t border-zinc-800/50 shrink-0">
+        {/* Chat-column zone: composer + controls */}
+        <div
+          style={chatOpen ? { width: chatWidth } : undefined}
+          className={`shrink-0 flex items-center ${chatOpen ? 'border-r border-zinc-800/30' : ''}`}
+        >
+          <ChatComposer onSend={onSend} disabled={isThinking || isListening} />
+          {/* Status indicators */}
+          <div className="flex items-center gap-1.5 pr-2">
+            {(isThinking || isListening) && (
+              <span
+                className="w-2 h-2 rounded-full bg-amber-400"
+                style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
+                title={isListening ? 'Listening...' : 'Thinking...'}
+              />
+            )}
+            {!chatOpen && (
+              <button
+                onClick={onChatToggle}
+                className="group p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
+                title="Expand chat (Cmd+/)"
+              >
+                <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                  <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+        {/* Content-column zone: empty for now */}
+        <div className="flex-1" />
+        {/* Track-list-column zone: empty for now */}
       </div>
     </div>
   );
