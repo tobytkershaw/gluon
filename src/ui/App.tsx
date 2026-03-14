@@ -16,7 +16,8 @@ import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
-import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
+import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent } from '../engine/pattern-primitives';
+import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { updateEvent, removeEvent } from '../engine/event-primitives';
 import type { EventSelector } from '../engine/event-primitives';
 import type { MusicalEvent } from '../engine/canonical-types';
@@ -65,6 +66,8 @@ export default function App() {
   const [globalStep, setGlobalStep] = useState(0);
   const globalStepRef = useRef(0);
   const [recordArmed, setRecordArmed] = useState(false);
+  const recordArmedRef = useRef(false);
+  recordArmedRef.current = recordArmed;
   /** Tracks whether we've pushed an undo snapshot for the current recording session. */
   const recordingSnapshotPushed = useRef(false);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
@@ -142,6 +145,18 @@ export default function App() {
       (note) => audioRef.current.scheduleNote(note),
       (step) => { globalStepRef.current = step; setGlobalStep(step); },
       (trackId) => arbRef.current.getHeldParams(trackId),
+      // Apply recorded automation events during playback
+      (trackId, controlId, value) => {
+        // Don't apply automation if the human is currently holding this param
+        const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
+        if (arbRef.current.isHoldingSource(trackId)) return;
+        setSession(s => {
+          const track = getTrack(s, trackId);
+          if (typeof value !== 'number') return s;
+          if (Math.abs((track.params[runtimeParam] ?? 0) - value) < 0.001) return s;
+          return updateTrackParams(s, trackId, { [runtimeParam]: value }, false, plaitsAdapter);
+        });
+      },
     );
     return () => { schedulerRef.current?.stop(); };
   }, [audioStarted]);
@@ -408,6 +423,15 @@ export default function App() {
     });
   }, []);
 
+  /** Record a parameter automation event if recording is active (armed + playing). */
+  const maybeRecordAutomation = useCallback((trackId: string, runtimeParam: string, value: number) => {
+    const s = sessionRef.current;
+    if (!recordArmedRef.current || !s.transport.playing) return;
+    const controlId = runtimeParamToControlId[runtimeParam] ?? runtimeParam;
+    const at = globalStepRef.current;
+    setSession(prev => insertAutomationEvent(prev, trackId, at, controlId, value));
+  }, []);
+
   const handleParamChange = useCallback((timbre: number, morph: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeTrackId;
@@ -425,7 +449,11 @@ export default function App() {
 
       return next;
     });
-  }, [selectedStep, ensureAudio]);
+
+    // Record automation if recording
+    maybeRecordAutomation(vid, 'timbre', timbre);
+    maybeRecordAutomation(vid, 'morph', morph);
+  }, [selectedStep, ensureAudio, maybeRecordAutomation]);
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
@@ -450,7 +478,10 @@ export default function App() {
       };
       return { ...next, undoStack: [...next.undoStack, snapshot] };
     });
-  }, [ensureAudio]);
+
+    // Record automation if recording
+    maybeRecordAutomation(vid, 'note', note);
+  }, [ensureAudio, maybeRecordAutomation]);
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
@@ -475,7 +506,10 @@ export default function App() {
       };
       return { ...next, undoStack: [...next.undoStack, snapshot] };
     });
-  }, [ensureAudio]);
+
+    // Record automation if recording
+    maybeRecordAutomation(vid, 'harmonics', harmonics);
+  }, [ensureAudio, maybeRecordAutomation]);
 
   const handleSourceInteractionStart = useCallback(() => {
     const s = sessionRef.current;
