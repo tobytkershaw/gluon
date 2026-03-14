@@ -28,6 +28,8 @@ import { AutomationEngine } from '../ai/automation';
 import { Scheduler } from '../engine/scheduler';
 import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
+import { RackView } from './RackView';
+import { PatchView } from './PatchView';
 import { AppShell } from './AppShell';
 import { useShortcuts } from './useShortcuts';
 import type { ViewMode } from './view-types';
@@ -66,7 +68,8 @@ export default function App() {
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('gluon-view');
-    return saved === 'tracker' ? 'tracker' : 'control';
+    if (saved === 'tracker' || saved === 'rack' || saved === 'patch') return saved;
+    return 'surface'; // default; also migrates legacy 'control' value
   });
   const [chatOpen, setChatOpen] = useState(() => {
     const saved = localStorage.getItem('gluon-chat-open');
@@ -995,7 +998,7 @@ export default function App() {
       onMasterVolumeChange={handleMasterVolumeChange}
       onMasterPanChange={handleMasterPanChange}
     >
-        {view === 'control' ? (
+        {view === 'surface' && (
           <InstrumentView
             session={session}
             activeTrack={activeTrack}
@@ -1116,7 +1119,10 @@ export default function App() {
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
           />
-        ) : (
+        )}
+        {view === 'rack' && <RackView />}
+        {view === 'patch' && <PatchView />}
+        {view === 'tracker' && (
           <TrackerView
             session={session}
             activeTrack={activeTrack}
