@@ -217,6 +217,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     });
   }
 
+  if (snapshot.kind === 'master') {
+    return { ...session, master: snapshot.prevMaster };
+  }
+
   if (snapshot.kind === 'region') {
     const voice = getVoice(session, snapshot.voiceId);
     if (voice.regions.length === 0) return session;

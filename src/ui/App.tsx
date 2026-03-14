@@ -9,7 +9,7 @@ import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
-  renameVoice,
+  renameVoice, setMasterVolume, setMasterPan,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -200,6 +200,13 @@ export default function App() {
       audioRef.current.muteVoice(voice.id, !audible);
     }
   }, [session.voices, audioStarted]);
+
+  // Sync master channel to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    audioRef.current.setMasterVolume(session.master.volume);
+    audioRef.current.setMasterPan(session.master.pan);
+  }, [session.master.volume, session.master.pan, audioStarted]);
 
   // Sync processor chains to audio engine
   useEffect(() => {
@@ -621,6 +628,16 @@ export default function App() {
     setSession((s) => renameVoice(s, voiceId, name));
   }, []);
 
+  const handleMasterVolumeChange = useCallback((v: number) => {
+    ensureAudio();
+    setSession((s) => setMasterVolume(s, v));
+  }, [ensureAudio]);
+
+  const handleMasterPanChange = useCallback((p: number) => {
+    ensureAudio();
+    setSession((s) => setMasterPan(s, p));
+  }, [ensureAudio]);
+
   const handleStepToggle = useCallback((stepIndex: number) => {
     ensureAudio();
     setSession((s) => toggleStepGate(s, s.activeVoiceId, stepIndex));
@@ -994,6 +1011,11 @@ export default function App() {
       undoStack={session.undoStack}
       onUndo={handleUndo}
       cancelEditRef={cancelEditRef}
+      masterVolume={session.master.volume}
+      masterPan={session.master.pan}
+      analyser={audioStarted ? audioRef.current.getAnalyser() : null}
+      onMasterVolumeChange={handleMasterVolumeChange}
+      onMasterPanChange={handleMasterPanChange}
     >
         {view === 'control' ? (
           <InstrumentView

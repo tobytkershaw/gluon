@@ -80,6 +80,8 @@ export class AudioEngine {
   private ctx: AudioContext | null = null;
   private voices: Map<string, VoiceSlot> = new Map();
   private mixer: GainNode | null = null;
+  private masterGain: GainNode | null = null;
+  private masterPanner: StereoPannerNode | null = null;
   private analyser: AnalyserNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private _isRunning = false;
@@ -97,12 +99,22 @@ export class AudioEngine {
     this.mixer = this.ctx.createGain();
     this.mixer.gain.value = 1.0;
 
+    this.masterGain = this.ctx.createGain();
+    this.masterGain.gain.value = 0.8; // default master volume
+
+    this.masterPanner = this.ctx.createStereoPanner();
+    this.masterPanner.pan.value = 0.0; // center
+
     this.analyser = this.ctx.createAnalyser();
     this.mediaStreamDest = this.ctx.createMediaStreamDestination();
 
-    this.mixer.connect(this.analyser);
+    // Signal chain: mixer -> masterGain -> masterPanner -> analyser -> destination
+    //                                                   -> mediaStreamDest
+    this.mixer.connect(this.masterGain);
+    this.masterGain.connect(this.masterPanner);
+    this.masterPanner.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
-    this.mixer.connect(this.mediaStreamDest);
+    this.masterPanner.connect(this.mediaStreamDest);
 
     for (const voiceId of voiceIds) {
       // Signal chain: source -> sourceOut -> [processors] -> accentGain -> muteGain -> mixer
@@ -158,11 +170,15 @@ export class AudioEngine {
     this.voices.clear();
     this.pendingProcessors.clear();
     this.mixer?.disconnect();
+    this.masterGain?.disconnect();
+    this.masterPanner?.disconnect();
     this.analyser?.disconnect();
     this.mediaStreamDest?.disconnect();
     this.ctx?.close();
     this.ctx = null;
     this.mixer = null;
+    this.masterGain = null;
+    this.masterPanner = null;
     this.analyser = null;
     this.mediaStreamDest = null;
     this._isRunning = false;
@@ -273,6 +289,20 @@ export class AudioEngine {
 
   getMediaStreamDestination(): MediaStreamAudioDestinationNode | null {
     return this.mediaStreamDest;
+  }
+
+  // --- Master channel ---
+
+  setMasterVolume(value: number): void {
+    if (this.masterGain) {
+      this.masterGain.gain.value = Math.max(0, Math.min(1, value));
+    }
+  }
+
+  setMasterPan(value: number): void {
+    if (this.masterPanner) {
+      this.masterPanner.pan.value = Math.max(-1, Math.min(1, value));
+    }
   }
 
   // --- Processor chain ---

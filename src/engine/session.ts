@@ -1,7 +1,7 @@
 // src/engine/session.ts
-import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ProcessorConfig } from './types';
+import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ProcessorConfig, MasterChannel, MasterSnapshot } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateVoice, getVoice } from './types';
+import { updateVoice, getVoice, DEFAULT_MASTER } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
@@ -64,6 +64,7 @@ export function createSession(): Session {
     voices,
     activeVoiceId: voices[0].id,
     transport: { playing: false, bpm: 120, swing: 0 },
+    master: { ...DEFAULT_MASTER },
     undoStack: [],
     context,
     messages: [],
@@ -236,4 +237,31 @@ export function setProcessorModel(
       p.id === processorId ? { ...p, model } : p,
     ),
   });
+}
+
+// --- Master channel helpers ---
+
+export function setMasterVolume(session: Session, volume: number): Session {
+  const clamped = Math.max(0, Math.min(1, volume));
+  return { ...session, master: { ...session.master, volume: clamped } };
+}
+
+export function setMasterPan(session: Session, pan: number): Session {
+  const clamped = Math.max(-1, Math.min(1, pan));
+  return { ...session, master: { ...session.master, pan: clamped } };
+}
+
+export function setMaster(session: Session, update: Partial<MasterChannel>): Session {
+  const prev = session.master;
+  const snapshot: MasterSnapshot = {
+    kind: 'master',
+    prevMaster: { ...prev },
+    timestamp: Date.now(),
+    description: 'Set master channel',
+  };
+  const next: MasterChannel = {
+    volume: update.volume != null ? Math.max(0, Math.min(1, update.volume)) : prev.volume,
+    pan: update.pan != null ? Math.max(-1, Math.min(1, update.pan)) : prev.pan,
+  };
+  return { ...session, master: next, undoStack: [...session.undoStack, snapshot] };
 }
