@@ -925,22 +925,27 @@ export default function App() {
       onProjectDelete={project.deleteActiveProject}
       onProjectExport={project.exportActiveProject}
       onProjectImport={project.importProject}
+      playing={session.transport.playing}
+      bpm={session.transport.bpm}
+      swing={session.transport.swing}
+      recording={recording}
+      globalStep={globalStep}
+      patternLength={activeVoice.pattern.length}
+      onTogglePlay={handleTogglePlay}
+      onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
+      onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
+      onToggleRecord={handleToggleRecord}
+      view={view}
+      onViewChange={setView}
+      undoStack={session.undoStack}
+      onUndo={handleUndo}
     >
         {view === 'control' ? (
           <InstrumentView
             session={session}
             activeVoice={activeVoice}
-            view={view}
-            onViewChange={setView}
             playing={session.transport.playing}
-            bpm={session.transport.bpm}
-            swing={session.transport.swing}
-            recording={recording}
             globalStep={globalStep}
-            onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
-            onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
-            onToggleRecord={handleToggleRecord}
             onParamChange={handleParamChange}
             onInteractionStart={() => {
               const s = sessionRef.current;
@@ -1052,7 +1057,6 @@ export default function App() {
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
-            onUndo={handleUndo}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
@@ -1061,20 +1065,10 @@ export default function App() {
           <TrackerView
             session={session}
             activeVoice={activeVoice}
-            view={view}
-            onViewChange={setView}
             playing={session.transport.playing}
-            bpm={session.transport.bpm}
-            swing={session.transport.swing}
-            recording={recording}
             globalStep={globalStep}
-            onTogglePlay={handleTogglePlay}
-            onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
-            onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
-            onToggleRecord={handleToggleRecord}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
-            onUndo={handleUndo}
           />
         )}
     </AppShell>

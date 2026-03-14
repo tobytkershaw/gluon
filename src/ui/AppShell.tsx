@@ -1,12 +1,17 @@
 // src/ui/AppShell.tsx
 // Three-column layout shell: TrackList | main content | ChatSidebar
+// Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
 // Handles responsive collapse thresholds via ResizeObserver.
 import { useRef, useEffect, type ReactNode } from 'react';
-import type { Voice, ChatMessage } from '../engine/types';
+import type { Voice, ChatMessage, UndoEntry } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
+import type { ViewMode } from './view-types';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
 import { ProjectMenu } from './ProjectMenu';
+import { ViewToggle } from './ViewToggle';
+import { TransportStrip } from './TransportStrip';
+import { UndoButton } from './UndoButton';
 
 interface Props {
   // Track sidebar
@@ -40,6 +45,23 @@ interface Props {
   onProjectDelete: () => void;
   onProjectExport: () => void;
   onProjectImport: (file: File) => void;
+  // Transport (global top bar)
+  playing: boolean;
+  bpm: number;
+  swing: number;
+  recording: boolean;
+  globalStep: number;
+  patternLength: number;
+  onTogglePlay: () => void;
+  onBpmChange: (bpm: number) => void;
+  onSwingChange: (swing: number) => void;
+  onToggleRecord: () => void;
+  // View
+  view: ViewMode;
+  onViewChange: (v: ViewMode) => void;
+  // Undo
+  undoStack: UndoEntry[];
+  onUndo: () => void;
   // Main content
   children: ReactNode;
 }
@@ -54,13 +76,17 @@ export function AppShell({
   projectName, projects, saveError,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
+  playing, bpm, swing, recording, globalStep, patternLength,
+  onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
+  view, onViewChange,
+  undoStack, onUndo,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const prevNarrowRef = useRef(false);
 
   // Responsive: auto-collapse chat when crossing below threshold.
-  // Only triggers the collapse on the transition from wide → narrow,
+  // Only triggers the collapse on the transition from wide -> narrow,
   // not continuously — so the user can manually reopen below 1280px.
   useEffect(() => {
     const el = shellRef.current;
@@ -79,52 +105,100 @@ export function AppShell({
   }, [chatOpen, onChatToggle]);
 
   return (
-    <div ref={shellRef} className="h-screen flex bg-zinc-950 text-zinc-100 relative">
-      {/* Left: Chat sidebar */}
-      <ChatSidebar
-        messages={messages}
-        onSend={onSend}
-        isThinking={isThinking}
-        isListening={isListening}
-        apiConfigured={apiConfigured}
-        onApiKey={onApiKey}
-        open={chatOpen}
-        onToggle={onChatToggle}
-        width={chatWidth}
-        onResize={onChatResize}
-      />
-
-      {/* Center: Main content */}
-      <div className="flex-1 min-w-0 flex flex-col">
-        {/* Project bar */}
-        <div className="flex items-center px-2 py-1 border-b border-zinc-800/30">
-          <ProjectMenu
-            projectName={projectName}
-            projects={projects}
-            saveError={saveError}
-            onRename={onProjectRename}
-            onNew={onProjectNew}
-            onOpen={onProjectOpen}
-            onDuplicate={onProjectDuplicate}
-            onDelete={onProjectDelete}
-            onExport={onProjectExport}
-            onImport={onProjectImport}
+    <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
+      {/* Global top bar — mirrors three-column body layout */}
+      <div className="flex items-center h-9 border-b border-zinc-800/50 shrink-0">
+        {/* Chat-column zone: project menu */}
+        {chatOpen && (
+          <div style={{ width: chatWidth }} className="shrink-0 flex items-center px-3 border-r border-zinc-800/30">
+            <ProjectMenu
+              projectName={projectName}
+              projects={projects}
+              saveError={saveError}
+              onRename={onProjectRename}
+              onNew={onProjectNew}
+              onOpen={onProjectOpen}
+              onDuplicate={onProjectDuplicate}
+              onDelete={onProjectDelete}
+              onExport={onProjectExport}
+              onImport={onProjectImport}
+            />
+          </div>
+        )}
+        {!chatOpen && (
+          <div className="shrink-0 flex items-center px-3 border-r border-zinc-800/30">
+            <ProjectMenu
+              projectName={projectName}
+              projects={projects}
+              saveError={saveError}
+              onRename={onProjectRename}
+              onNew={onProjectNew}
+              onOpen={onProjectOpen}
+              onDuplicate={onProjectDuplicate}
+              onDelete={onProjectDelete}
+              onExport={onProjectExport}
+              onImport={onProjectImport}
+            />
+          </div>
+        )}
+        {/* Content-column zone: view toggle, transport, undo */}
+        <div className="flex-1 flex items-center gap-3 px-3">
+          <ViewToggle view={view} onViewChange={onViewChange} />
+          <div className="w-px h-4 bg-zinc-800" />
+          <TransportStrip
+            playing={playing}
+            bpm={bpm}
+            swing={swing}
+            recording={recording}
+            globalStep={globalStep}
+            patternLength={patternLength}
+            onTogglePlay={onTogglePlay}
+            onBpmChange={onBpmChange}
+            onSwingChange={onSwingChange}
+            onToggleRecord={onToggleRecord}
+          />
+          <div className="flex-1" />
+          <UndoButton
+            onClick={onUndo}
+            disabled={undoStack.length === 0}
+            description={undoStack.length > 0 ? undoStack[undoStack.length - 1].description : undefined}
           />
         </div>
-        {children}
       </div>
 
-      {/* Right: Track sidebar */}
-      <TrackList
-        voices={voices}
-        activeVoiceId={activeVoiceId}
-        activityMap={activityMap}
-        onSelectVoice={onSelectVoice}
-        onToggleMute={onToggleMute}
-        onToggleSolo={onToggleSolo}
-        onToggleAgency={onToggleAgency}
-        onRenameVoice={onRenameVoice}
-      />
+      {/* Body row */}
+      <div className="flex-1 flex min-h-0">
+        {/* Left: Chat sidebar */}
+        <ChatSidebar
+          messages={messages}
+          onSend={onSend}
+          isThinking={isThinking}
+          isListening={isListening}
+          apiConfigured={apiConfigured}
+          onApiKey={onApiKey}
+          open={chatOpen}
+          onToggle={onChatToggle}
+          width={chatWidth}
+          onResize={onChatResize}
+        />
+
+        {/* Center: Main content */}
+        <div className="flex-1 min-w-0 flex flex-col">
+          {children}
+        </div>
+
+        {/* Right: Track sidebar */}
+        <TrackList
+          voices={voices}
+          activeVoiceId={activeVoiceId}
+          activityMap={activityMap}
+          onSelectVoice={onSelectVoice}
+          onToggleMute={onToggleMute}
+          onToggleSolo={onToggleSolo}
+          onToggleAgency={onToggleAgency}
+          onRenameVoice={onRenameVoice}
+        />
+      </div>
     </div>
   );
 }
