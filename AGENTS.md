@@ -111,6 +111,25 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
 - `docs/status.md` - Current build status and milestone tracking
-- `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback.
-- `docs/principles/ai-capability-doctrine.md` - Hard boundaries, then maximize AI usefulness inside them.
-- `docs/principles/ai-collaboration-model.md` - What good human-AI collaboration looks like.
+
+### Principles (`docs/principles/`)
+- `docs/principles/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.
+- `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.
+- `docs/principles/ai-collaboration-model.md` - What good human-AI collaboration looks like: phases, posture, roles, model evaluation criteria.
+
+### AI Contract (`docs/ai/`)
+- `docs/ai/ai-contract.md` - What the AI agent needs at inference time: tools, state format, validation rules.
+- `docs/ai/ai-musical-environment.md` - Target AI environment: layered state, layered actions, tool families, structured listening, loop-native structure.
+- `docs/ai/aesthetic-direction.md` - How taste emerges from enriched collaboration state: reaction history, observed patterns, restraint guidance, prompt rules. No standalone taste subsystem.
+
+### RFCs (`docs/rfcs/`)
+- `docs/rfcs/canonical-musical-model.md` - Canonical musical model: Voice, Region, MusicalEvent, ControlSchema, SourceAdapter.
+- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, views, pins.
+- `docs/rfcs/sequencer-view-layer.md` - Sequencer views as projections over canonical events.
+- `docs/rfcs/phase4a.md` - Phase 4A: constrained patch chains.
+- `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
+
+### Briefs (`docs/briefs/`)
+- `docs/briefs/phase4a.md` - Phase 4A implementation brief.
+- `docs/briefs/sequencer.md` - Sequencing strategy and product boundaries.
+- `docs/briefs/offline-listen.md` - Offline audio rendering for the listen tool.
