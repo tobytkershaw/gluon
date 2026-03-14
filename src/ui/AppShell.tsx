@@ -26,6 +26,8 @@ interface Props {
   onApiKey: (key: string) => void;
   chatOpen: boolean;
   onChatToggle: () => void;
+  chatWidth: number;
+  onChatResize: (width: number) => void;
   // Project
   projectName: string;
   projects: ProjectMeta[];
@@ -47,7 +49,7 @@ export function AppShell({
   voices, activeVoiceId, activityMap,
   onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency,
   messages, onSend, isThinking, isListening,
-  apiConfigured, onApiKey, chatOpen, onChatToggle,
+  apiConfigured, onApiKey, chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -87,6 +89,8 @@ export function AppShell({
         onApiKey={onApiKey}
         open={chatOpen}
         onToggle={onChatToggle}
+        width={chatWidth}
+        onResize={onChatResize}
       />
 
       {/* Center: Main content */}
