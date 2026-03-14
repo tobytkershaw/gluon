@@ -64,6 +64,10 @@ export default function App() {
     const saved = localStorage.getItem('gluon-chat-open');
     return saved !== 'false'; // default open
   });
+  const [chatWidth, setChatWidth] = useState(() => {
+    const saved = localStorage.getItem('gluon-chat-width');
+    return saved ? Number(saved) : 320;
+  });
   const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
@@ -95,6 +99,7 @@ export default function App() {
   // Persist view and chat state to localStorage
   useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
   useEffect(() => { localStorage.setItem('gluon-chat-open', String(chatOpen)); }, [chatOpen]);
+  useEffect(() => { localStorage.setItem('gluon-chat-width', String(chatWidth)); }, [chatWidth]);
 
   useEffect(() => {
     clearQaAudioTrace();
@@ -902,6 +907,8 @@ export default function App() {
       onApiKey={handleApiKey}
       chatOpen={chatOpen}
       onChatToggle={() => setChatOpen(o => !o)}
+      chatWidth={chatWidth}
+      onChatResize={setChatWidth}
       projectName={project.projectName}
       projects={project.projects}
       saveError={project.saveError}
