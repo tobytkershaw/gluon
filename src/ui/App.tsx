@@ -113,6 +113,7 @@ export default function App() {
     schedulerRef.current = new Scheduler(
       () => sessionRef.current,
       () => audioRef.current.getCurrentTime(),
+      () => audioRef.current.getState(),
       (note) => audioRef.current.scheduleNote(note),
       (step) => setGlobalStep(step),
       (voiceId) => arbRef.current.getHeldParams(voiceId),

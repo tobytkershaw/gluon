@@ -10,6 +10,8 @@ const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
 /** Safety margin so first-beat events have future timestamps in the worklet. */
 export const START_OFFSET_SEC = 0.05;
+/** Max steps the scheduler will catch up after a resume — longer gaps are lossy. */
+export const MAX_CATCHUP_STEPS = 8;
 
 /**
  * Binary search: find index of first event with `at >= target`.
@@ -29,6 +31,7 @@ function lowerBound(events: MusicalEvent[], target: number): number {
 export class Scheduler {
   private getSession: () => Session;
   private getAudioTime: () => number;
+  private getAudioState: () => AudioContextState | undefined;
   private onNote: (note: ScheduledNote) => void;
   private onPositionChange: (globalStep: number) => void;
   private getHeldParams: (voiceId: string) => Partial<SynthParamValues>;
@@ -41,12 +44,14 @@ export class Scheduler {
   constructor(
     getSession: () => Session,
     getAudioTime: () => number,
+    getAudioState: () => AudioContextState | undefined,
     onNote: (note: ScheduledNote) => void,
     onPositionChange: (globalStep: number) => void,
     getHeldParams: (voiceId: string) => Partial<SynthParamValues>,
   ) {
     this.getSession = getSession;
     this.getAudioTime = getAudioTime;
+    this.getAudioState = getAudioState;
     this.onNote = onNote;
     this.onPositionChange = onPositionChange;
     this.getHeldParams = getHeldParams;
@@ -78,6 +83,9 @@ export class Scheduler {
   }
 
   private tick(): void {
+    // Skip entirely while AudioContext is suspended (tab backgrounded)
+    if (this.getAudioState?.() === 'suspended') return;
+
     const session = this.getSession();
     const { bpm, swing } = session.transport;
 
@@ -94,6 +102,12 @@ export class Scheduler {
     const elapsed = currentAudioTime - this.startTime;
     const globalStep = elapsed / stepDuration;
     this.onPositionChange(globalStep);
+
+    // Cap catch-up window after resume: if the cursor fell too far behind,
+    // advance it so we only schedule the most recent MAX_CATCHUP_STEPS.
+    if (globalStep - this.cursor > MAX_CATCHUP_STEPS) {
+      this.cursor = globalStep - MAX_CATCHUP_STEPS;
+    }
 
     // Calculate lookahead window in step units. The window extends from the
     // cursor to at least currentAudioTime + LOOKAHEAD_SEC. If the tab was
