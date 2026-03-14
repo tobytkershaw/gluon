@@ -1040,7 +1040,9 @@ export class GluonAI {
         }
 
         const question = (args.question as string) ?? 'How does it sound?';
-        const result = await this.listenHandler(question, session, ctx?.listen);
+        const rawBars = typeof args.bars === 'number' ? args.bars : 2;
+        const bars = Math.max(1, Math.min(16, Math.round(rawBars)));
+        const result = await this.listenHandler(question, session, ctx?.listen, bars);
         return {
           actions: [],
           responsePart: createPartFromFunctionResponse(id, name, result),
@@ -1061,6 +1063,7 @@ export class GluonAI {
     question: string,
     session: Session,
     listen?: ListenContext,
+    bars: number = 2,
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -1080,7 +1083,7 @@ export class GluonAI {
 
       const activeVoice = session.voices.find(v => v.id === session.activeVoiceId);
       const patternLength = activeVoice?.pattern.length ?? 16;
-      const wavBlob = await listen.captureNBars(dest, 2, patternLength, session.transport.bpm);
+      const wavBlob = await listen.captureNBars(dest, bars, patternLength, session.transport.bpm);
 
       const critique = await this.evaluateAudio(session, wavBlob, 'audio/wav', question);
       return { critique };

@@ -110,6 +110,7 @@ ${getRegisteredModulatorTypes().map(type => {
 - Valid source modulation targets: brightness, richness, texture. Pitch modulation is excluded.
 - connect_modulator is idempotent — calling again with the same modulator + target updates the depth.
 - listen in the same turn as modulation changes cannot hear those changes until after execution.
+- The listen tool captures 2 bars by default. Use the optional \`bars\` parameter (1-16) when you need a longer or shorter sample — e.g. 1 bar for a quick timbre check, 4+ bars for patterns with longer phrases.
 
 ## User Guide (Reference for answering "how do I..." questions)
 Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).
