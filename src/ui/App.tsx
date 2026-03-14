@@ -33,6 +33,16 @@ import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
 const plaitsAdapter = createPlaitsAdapter();
 
+function shallowEqual(a: Record<string, number>, b: Record<string, number>): boolean {
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
 export default function App() {
   const audioRef = useRef(new AudioEngine());
   const exporterRef = useRef(new AudioExporter());
@@ -62,6 +72,11 @@ export default function App() {
   const autoRef = useRef(new AutomationEngine());
   const sessionRef = useRef(session);
   sessionRef.current = session;
+
+  // Dirty-check refs for sync effects (#142)
+  const prevVoiceStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
+  const prevProcessorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
+  const prevModulatorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
 
   // Capture param + region state at interaction start for undo
   const interactionUndoRef = useRef<{
@@ -140,8 +155,20 @@ export default function App() {
   useEffect(() => {
     if (!audioStarted) return;
     for (const voice of session.voices) {
-      audioRef.current.setVoiceParams(voice.id, voice.params);
-      audioRef.current.setVoiceModel(voice.id, voice.model);
+      const key = voice.id;
+      const prev = prevVoiceStateRef.current.get(key);
+
+      // #141: skip source sync while human is holding source params
+      if (arbRef.current.isHoldingSource(voice.id)) continue;
+
+      if (!prev || prev.model !== voice.model) {
+        audioRef.current.setVoiceModel(voice.id, voice.model);
+      }
+      if (!prev || !shallowEqual(prev.params, voice.params)) {
+        audioRef.current.setVoiceParams(voice.id, voice.params);
+      }
+      // Cache advances only when writes are not suppressed by arbitration
+      prevVoiceStateRef.current.set(key, { model: voice.model, params: { ...voice.params } });
     }
   }, [session.voices, audioStarted]);
 
@@ -170,17 +197,37 @@ export default function App() {
         }
       }
 
-      // Add new processors from session
+      // Add new or sync existing processors
       for (const sp of sessionProcs) {
+        const pKey = `${voice.id}:${sp.id}`;
         if (!engineProcs.some(ep => ep.id === sp.id)) {
+          // #138: read fresh state from sessionRef inside .then() to avoid stale closure
           void audio.addProcessor(voice.id, sp.type, sp.id).then(() => {
-            audio.setProcessorModel(voice.id, sp.id, sp.model);
-            audio.setProcessorPatch(voice.id, sp.id, sp.params);
+            const v = sessionRef.current.voices.find(sv => sv.id === voice.id);
+            const fresh = v?.processors?.find(p => p.id === sp.id);
+            if (!fresh) return; // removed during WASM load
+            audio.setProcessorModel(voice.id, sp.id, fresh.model);
+            audio.setProcessorPatch(voice.id, sp.id, fresh.params);
+            prevProcessorStateRef.current.set(pKey, { model: fresh.model, params: { ...fresh.params } });
           });
         } else {
-          // Sync params/model for existing processors
-          audio.setProcessorModel(voice.id, sp.id, sp.model);
-          audio.setProcessorPatch(voice.id, sp.id, sp.params);
+          // #142: dirty-check before syncing existing processors
+          const prev = prevProcessorStateRef.current.get(pKey);
+          if (!prev || prev.model !== sp.model) {
+            audio.setProcessorModel(voice.id, sp.id, sp.model);
+          }
+          if (!prev || !shallowEqual(prev.params, sp.params)) {
+            audio.setProcessorPatch(voice.id, sp.id, sp.params);
+          }
+          prevProcessorStateRef.current.set(pKey, { model: sp.model, params: { ...sp.params } });
+        }
+      }
+
+      // Prune stale cache entries for removed processors
+      const prefix = `${voice.id}:`;
+      for (const k of prevProcessorStateRef.current.keys()) {
+        if (k.startsWith(prefix) && !sessionProcs.some(sp => k === `${voice.id}:${sp.id}`)) {
+          prevProcessorStateRef.current.delete(k);
         }
       }
     }
@@ -222,19 +269,39 @@ export default function App() {
         }
       };
 
-      // Add new modulators from session
+      // Add new or sync existing modulators
       for (const sm of sessionMods) {
+        const mKey = `${voice.id}:${sm.id}`;
         if (!engineMods.some(em => em.id === sm.id)) {
+          // #138: read fresh state from sessionRef inside .then() to avoid stale closure
           void audio.addModulator(voice.id, sm.type, sm.id).then(() => {
-            audio.setModulatorModel(voice.id, sm.id, sm.model);
-            audio.setModulatorPatch(voice.id, sm.id, sm.params);
+            const v = sessionRef.current.voices.find(sv => sv.id === voice.id);
+            const fresh = v?.modulators?.find(m => m.id === sm.id);
+            if (!fresh) return; // removed during WASM load
+            audio.setModulatorModel(voice.id, sm.id, fresh.model);
+            audio.setModulatorPatch(voice.id, sm.id, fresh.params);
+            prevModulatorStateRef.current.set(mKey, { model: fresh.model, params: { ...fresh.params } });
             // Connect routes after modulator WASM loads (fixes race condition)
             syncRoutes(voice.id);
           });
         } else {
-          // Sync params/model for existing modulators
-          audio.setModulatorModel(voice.id, sm.id, sm.model);
-          audio.setModulatorPatch(voice.id, sm.id, sm.params);
+          // #142: dirty-check before syncing existing modulators
+          const prev = prevModulatorStateRef.current.get(mKey);
+          if (!prev || prev.model !== sm.model) {
+            audio.setModulatorModel(voice.id, sm.id, sm.model);
+          }
+          if (!prev || !shallowEqual(prev.params, sm.params)) {
+            audio.setModulatorPatch(voice.id, sm.id, sm.params);
+          }
+          prevModulatorStateRef.current.set(mKey, { model: sm.model, params: { ...sm.params } });
+        }
+      }
+
+      // Prune stale cache entries for removed modulators
+      const mPrefix = `${voice.id}:`;
+      for (const k of prevModulatorStateRef.current.keys()) {
+        if (k.startsWith(mPrefix) && !sessionMods.some(sm => k === `${voice.id}:${sm.id}`)) {
+          prevModulatorStateRef.current.delete(k);
         }
       }
 
@@ -292,8 +359,8 @@ export default function App() {
     const vid = sessionRef.current.activeVoiceId;
     autoRef.current.cancel(vid, 'timbre');
     autoRef.current.cancel(vid, 'morph');
-    arbRef.current.humanTouched(vid, 'timbre', timbre);
-    arbRef.current.humanTouched(vid, 'morph', morph);
+    arbRef.current.humanTouched(vid, 'timbre', timbre, 'source');
+    arbRef.current.humanTouched(vid, 'morph', morph, 'source');
     setSession((s) => {
       let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
@@ -310,7 +377,7 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     autoRef.current.cancel(vid, 'note');
-    arbRef.current.humanTouched(vid, 'note', note);
+    arbRef.current.humanTouched(vid, 'note', note, 'source');
     setSession((s) => {
       const voice = getVoice(s, vid);
       const prevNote = voice.params.note ?? 0;
@@ -335,7 +402,7 @@ export default function App() {
     ensureAudio();
     const vid = sessionRef.current.activeVoiceId;
     autoRef.current.cancel(vid, 'harmonics');
-    arbRef.current.humanTouched(vid, 'harmonics', harmonics);
+    arbRef.current.humanTouched(vid, 'harmonics', harmonics, 'source');
     setSession((s) => {
       const voice = getVoice(s, vid);
       const prevHarmonics = voice.params.harmonics ?? 0;
