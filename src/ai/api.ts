@@ -262,6 +262,8 @@ export interface ListenContext {
   getAudioDestination: () => MediaStreamAudioDestinationNode | null;
   captureNBars: (dest: MediaStreamAudioDestinationNode, bars: number, patternLength: number, bpm: number) => Promise<Blob>;
   onListening?: (active: boolean) => void;
+  /** Temporarily isolate a subset of voices (mute others). Pass null to restore. */
+  setIsolation?: (voiceIds: string[] | null) => void;
 }
 
 /**
@@ -1042,7 +1044,25 @@ export class GluonAI {
         const question = (args.question as string) ?? 'How does it sound?';
         const rawBars = typeof args.bars === 'number' ? args.bars : 2;
         const bars = Math.max(1, Math.min(16, Math.round(rawBars)));
-        const result = await this.listenHandler(question, session, ctx?.listen, bars);
+        const rawVoiceIds = args.voiceIds as string[] | undefined;
+        // Empty array = same as omitting (hear all unmuted voices)
+        const voiceIds = rawVoiceIds && rawVoiceIds.length > 0 ? rawVoiceIds : undefined;
+
+        // Validate that all requested voice IDs exist in the session
+        if (voiceIds) {
+          const sessionVoiceIds = new Set(session.voices.map(v => v.id));
+          const invalid = voiceIds.filter(vid => !sessionVoiceIds.has(vid));
+          if (invalid.length > 0) {
+            return {
+              actions: [],
+              responsePart: createPartFromFunctionResponse(id, name, {
+                error: `Unknown voice IDs: ${invalid.join(', ')}. Available: ${[...sessionVoiceIds].join(', ')}.`,
+              }),
+            };
+          }
+        }
+
+        const result = await this.listenHandler(question, session, ctx?.listen, bars, voiceIds);
         return {
           actions: [],
           responsePart: createPartFromFunctionResponse(id, name, result),
@@ -1064,6 +1084,7 @@ export class GluonAI {
     session: Session,
     listen?: ListenContext,
     bars: number = 2,
+    voiceIds?: string[],
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -1079,6 +1100,11 @@ export class GluonAI {
     }
 
     try {
+      // Apply voice isolation before capture
+      if (voiceIds) {
+        listen.setIsolation?.(voiceIds);
+      }
+
       listen.onListening?.(true);
 
       const activeVoice = session.voices.find(v => v.id === session.activeVoiceId);
@@ -1090,6 +1116,10 @@ export class GluonAI {
     } catch {
       return { error: 'Audio evaluation failed — try again.' };
     } finally {
+      // Always restore mute/solo state, even on error
+      if (voiceIds) {
+        listen.setIsolation?.(null);
+      }
       listen.onListening?.(false);
     }
   }
