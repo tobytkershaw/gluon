@@ -2,7 +2,7 @@
 
 import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
 import type { Content, FunctionCall, Part } from '@google/genai';
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, ProcessorConfig, ModulatorConfig, ModulationTarget } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -241,6 +241,31 @@ function projectAction(session: Session, action: AIAction): Session {
       const track = getTrack(session, action.trackId);
       const modulations = (track.modulations ?? []).filter(r => r.id !== action.modulationId);
       return updateTrack(session, action.trackId, { modulations });
+    }
+    case 'set_surface': {
+      const track = getTrack(session, action.trackId);
+      const newSurface: TrackSurface = {
+        ...track.surface,
+        semanticControls: action.semanticControls,
+        ...(action.xyAxes ? { xyAxes: action.xyAxes } : {}),
+      };
+      return updateTrack(session, action.trackId, { surface: newSurface });
+    }
+    case 'pin': {
+      const track = getTrack(session, action.trackId);
+      const pinnedControls = [...track.surface.pinnedControls, { moduleId: action.moduleId, controlId: action.controlId }];
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, pinnedControls } });
+    }
+    case 'unpin': {
+      const track = getTrack(session, action.trackId);
+      const pinnedControls = track.surface.pinnedControls.filter(
+        p => !(p.moduleId === action.moduleId && p.controlId === action.controlId),
+      );
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, pinnedControls } });
+    }
+    case 'label_axes': {
+      const track = getTrack(session, action.trackId);
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, xyAxes: { x: action.x, y: action.y } } });
     }
     case 'say':
     default:
@@ -1031,6 +1056,163 @@ export class GluonAI {
             queued: true,
             trackId: disconnectAction.trackId,
             modulationId: disconnectAction.modulationId,
+          }),
+        };
+      }
+
+      case 'set_surface': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
+        }
+        if (!Array.isArray(args.semanticControls)) {
+          return errorResponse(id, name, 'Missing required parameter: semanticControls (must be an array)');
+        }
+        if (typeof args.description !== 'string') {
+          return errorResponse(id, name, 'Missing required parameter: description');
+        }
+
+        // Parse semantic controls from tool args
+        const rawControls = args.semanticControls as Record<string, unknown>[];
+        const semanticControls: SemanticControlDef[] = rawControls.map((sc, i) => {
+          const rawWeights = (sc.weights as Record<string, unknown>[]) ?? [];
+          const weights: SemanticControlWeight[] = rawWeights.map(w => ({
+            moduleId: (w.moduleId as string) ?? 'source',
+            controlId: (w.controlId as string) ?? '',
+            weight: (w.weight as number) ?? 0,
+            transform: ((w.transform as string) ?? 'linear') as SemanticControlWeight['transform'],
+          }));
+          const scName = (sc.name as string) ?? `control-${i}`;
+          const rawRange = sc.range as Record<string, number> | undefined;
+          return {
+            id: scName.toLowerCase().replace(/\s+/g, '-'),
+            name: scName,
+            semanticRole: null,
+            description: '',
+            weights,
+            range: rawRange
+              ? { min: rawRange.min ?? 0, max: rawRange.max ?? 1, default: rawRange.default ?? 0.5 }
+              : { min: 0, max: 1, default: 0.5 },
+          };
+        });
+
+        const xyAxes = args.xyAxes as { x: string; y: string } | undefined;
+
+        const setSurfaceAction: AISetSurfaceAction = {
+          type: 'set_surface',
+          trackId: args.trackId as string,
+          semanticControls,
+          ...(xyAxes ? { xyAxes } : {}),
+          description: args.description as string,
+        };
+
+        const setSurfaceRejection = ctx?.validateAction?.(setSurfaceAction);
+        if (setSurfaceRejection) return errorResponse(id, name, setSurfaceRejection);
+
+        return {
+          actions: [setSurfaceAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            trackId: setSurfaceAction.trackId,
+            controlCount: semanticControls.length,
+          }),
+        };
+      }
+
+      case 'pin': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
+        }
+        if (typeof args.moduleId !== 'string' || !args.moduleId) {
+          return errorResponse(id, name, 'Missing required parameter: moduleId');
+        }
+        if (typeof args.controlId !== 'string' || !args.controlId) {
+          return errorResponse(id, name, 'Missing required parameter: controlId');
+        }
+
+        const pinAction: AIPinAction = {
+          type: 'pin',
+          trackId: args.trackId as string,
+          moduleId: args.moduleId as string,
+          controlId: args.controlId as string,
+          description: `pin ${args.moduleId}:${args.controlId}`,
+        };
+
+        const pinRejection = ctx?.validateAction?.(pinAction);
+        if (pinRejection) return errorResponse(id, name, pinRejection);
+
+        return {
+          actions: [pinAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            trackId: pinAction.trackId,
+            moduleId: pinAction.moduleId,
+            controlId: pinAction.controlId,
+          }),
+        };
+      }
+
+      case 'unpin': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
+        }
+        if (typeof args.moduleId !== 'string' || !args.moduleId) {
+          return errorResponse(id, name, 'Missing required parameter: moduleId');
+        }
+        if (typeof args.controlId !== 'string' || !args.controlId) {
+          return errorResponse(id, name, 'Missing required parameter: controlId');
+        }
+
+        const unpinAction: AIUnpinAction = {
+          type: 'unpin',
+          trackId: args.trackId as string,
+          moduleId: args.moduleId as string,
+          controlId: args.controlId as string,
+          description: `unpin ${args.moduleId}:${args.controlId}`,
+        };
+
+        const unpinRejection = ctx?.validateAction?.(unpinAction);
+        if (unpinRejection) return errorResponse(id, name, unpinRejection);
+
+        return {
+          actions: [unpinAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            trackId: unpinAction.trackId,
+            moduleId: unpinAction.moduleId,
+            controlId: unpinAction.controlId,
+          }),
+        };
+      }
+
+      case 'label_axes': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return errorResponse(id, name, 'Missing required parameter: trackId');
+        }
+        if (typeof args.x !== 'string' || !args.x) {
+          return errorResponse(id, name, 'Missing required parameter: x');
+        }
+        if (typeof args.y !== 'string' || !args.y) {
+          return errorResponse(id, name, 'Missing required parameter: y');
+        }
+
+        const labelAxesAction: AILabelAxesAction = {
+          type: 'label_axes',
+          trackId: args.trackId as string,
+          x: args.x as string,
+          y: args.y as string,
+          description: `label axes: ${args.x} x ${args.y}`,
+        };
+
+        const labelAxesRejection = ctx?.validateAction?.(labelAxesAction);
+        if (labelAxesRejection) return errorResponse(id, name, labelAxesRejection);
+
+        return {
+          actions: [labelAxesAction],
+          responsePart: createPartFromFunctionResponse(id, name, {
+            applied: true,
+            trackId: labelAxesAction.trackId,
+            x: labelAxesAction.x,
+            y: labelAxesAction.y,
           }),
         };
       }

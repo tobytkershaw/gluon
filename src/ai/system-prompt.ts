@@ -113,6 +113,15 @@ ${getRegisteredModulatorTypes().map(type => {
 - The listen tool renders 2 bars by default. Use the optional \`bars\` parameter (1-16) when you need a longer or shorter sample — e.g. 1 bar for a quick timbre check, 4+ bars for patterns with longer phrases.
 - The listen tool works whether or not the transport is playing — it renders audio offline from the current project state.
 
+## Surface Tools
+Surface tools configure the track's UI surface — semantic controls, pinned raw controls, and XY pad labels. These are **view-layer operations** and do **not** require agency.
+
+- **set_surface**: define semantic controls (virtual knobs blending multiple params). Weights per control must sum to 1.0.
+- **pin** / **unpin**: pin a raw module control to the surface for direct access (max 4 per track).
+- **label_axes**: set semantic labels for the XY pad.
+
+**Trigger discipline**: only call set_surface when the human asks for a new surface layout, or after a chain mutation (add/remove/replace processor) when the current surface references stale modules. Do not call set_surface on every turn.
+
 ## Listen Tool — Track Isolation
 - Pass trackIds to the listen tool to render only specific tracks (e.g. listen with trackIds: ["v0", "v1"]).
 - Omit trackIds to hear all unmuted tracks (default).

@@ -1,6 +1,6 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ActionDiff } from './types';
-import { applySurfaceTemplate } from './surface-templates';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ActionDiff, TrackSurface } from './types';
+import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getTrack, updateTrack } from './types';
@@ -263,6 +263,54 @@ export function prevalidateAction(
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
         return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
+      return null;
+    }
+
+    case 'set_surface': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      // No agency check — surface ops are UI curation, not musical mutation
+      // Build a candidate surface for validation
+      const candidateSurface: TrackSurface = {
+        ...track.surface,
+        semanticControls: action.semanticControls,
+        ...(action.xyAxes ? { xyAxes: action.xyAxes } : {}),
+      };
+      const surfaceError = validateSurface(candidateSurface, track);
+      if (surfaceError) return surfaceError;
+      return null;
+    }
+
+    case 'pin': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      // No agency check
+      const MAX_PINS = 4;
+      if (track.surface.pinnedControls.length >= MAX_PINS) {
+        return `Maximum ${MAX_PINS} pinned controls per track`;
+      }
+      // Validate module exists
+      const validModuleIds = new Set<string>(['source']);
+      for (const proc of track.processors ?? []) validModuleIds.add(proc.id);
+      if (!validModuleIds.has(action.moduleId)) return `Unknown module: ${action.moduleId}`;
+      return null;
+    }
+
+    case 'unpin': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      // No agency check
+      const pinExists = track.surface.pinnedControls.some(
+        p => p.moduleId === action.moduleId && p.controlId === action.controlId,
+      );
+      if (!pinExists) return `Pin not found: ${action.moduleId}:${action.controlId}`;
+      return null;
+    }
+
+    case 'label_axes': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      // No agency check
       return null;
     }
 
@@ -1051,6 +1099,98 @@ export function executeOperations(
           ? (disconnectedRoute.target.kind === 'source' ? `source:${disconnectedRoute.target.param}` : `${disconnectedRoute.target.processorId}:${disconnectedRoute.target.param}`)
           : action.modulationId;
         log.push({ trackId: action.trackId, trackLabel: vLabel, description: `disconnected modulation ${action.modulationId}`, diff: { kind: 'modulation-disconnect', target: disconnectTargetStr } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_surface': {
+        const track = getTrack(next, action.trackId);
+        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
+        const newSurface: TrackSurface = {
+          ...track.surface,
+          semanticControls: action.semanticControls,
+          ...(action.xyAxes ? { xyAxes: action.xyAxes } : {}),
+        };
+        const snapshot: SurfaceSnapshot = {
+          kind: 'surface',
+          trackId: action.trackId,
+          prevSurface,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { surface: newSurface }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `surface: ${action.description}`, diff: { kind: 'surface-set', controlCount: action.semanticControls.length, description: action.description } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'pin': {
+        const track = getTrack(next, action.trackId);
+        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
+        const newPinnedControls = [...track.surface.pinnedControls, { moduleId: action.moduleId, controlId: action.controlId }];
+        const newSurface: TrackSurface = { ...track.surface, pinnedControls: newPinnedControls };
+        const snapshot: SurfaceSnapshot = {
+          kind: 'surface',
+          trackId: action.trackId,
+          prevSurface,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { surface: newSurface }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `pinned ${action.moduleId}:${action.controlId}`, diff: { kind: 'surface-pin', moduleId: action.moduleId, controlId: action.controlId } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'unpin': {
+        const track = getTrack(next, action.trackId);
+        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
+        const newPinnedControls = track.surface.pinnedControls.filter(
+          p => !(p.moduleId === action.moduleId && p.controlId === action.controlId),
+        );
+        const newSurface: TrackSurface = { ...track.surface, pinnedControls: newPinnedControls };
+        const snapshot: SurfaceSnapshot = {
+          kind: 'surface',
+          trackId: action.trackId,
+          prevSurface,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { surface: newSurface }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `unpinned ${action.moduleId}:${action.controlId}`, diff: { kind: 'surface-unpin', moduleId: action.moduleId, controlId: action.controlId } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'label_axes': {
+        const track = getTrack(next, action.trackId);
+        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
+        const newSurface: TrackSurface = { ...track.surface, xyAxes: { x: action.x, y: action.y } };
+        const snapshot: SurfaceSnapshot = {
+          kind: 'surface',
+          trackId: action.trackId,
+          prevSurface,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { surface: newSurface }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `axes: ${action.x} x ${action.y}`, diff: { kind: 'surface-label-axes', x: action.x, y: action.y } });
         accepted.push(action);
         break;
       }

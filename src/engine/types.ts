@@ -390,7 +390,39 @@ export interface AISetMasterAction {
   pan?: number;     // -1.0 to 1.0
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction;
+export interface AISetSurfaceAction {
+  type: 'set_surface';
+  trackId: string;
+  semanticControls: SemanticControlDef[];
+  xyAxes?: { x: string; y: string };
+  description: string;
+}
+
+export interface AIPinAction {
+  type: 'pin';
+  trackId: string;
+  moduleId: string;
+  controlId: string;
+  description: string;
+}
+
+export interface AIUnpinAction {
+  type: 'unpin';
+  trackId: string;
+  moduleId: string;
+  controlId: string;
+  description: string;
+}
+
+export interface AILabelAxesAction {
+  type: 'label_axes';
+  trackId: string;
+  x: string;
+  y: string;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction;
 
 // --- Session ---
 
@@ -426,7 +458,11 @@ export type ActionDiff =
   | { kind: 'modulation-connect'; modulatorId: string; target: string; depth: number }
   | { kind: 'modulation-disconnect'; target: string }
   | { kind: 'transform'; operation: string; description: string }
-  | { kind: 'master-change'; field: string; from: number; to: number };
+  | { kind: 'master-change'; field: string; from: number; to: number }
+  | { kind: 'surface-set'; controlCount: number; description: string }
+  | { kind: 'surface-pin'; moduleId: string; controlId: string }
+  | { kind: 'surface-unpin'; moduleId: string; controlId: string }
+  | { kind: 'surface-label-axes'; x: string; y: string };
 
 export interface ActionLogEntry {
   trackId: string;

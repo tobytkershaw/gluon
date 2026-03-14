@@ -170,6 +170,13 @@ export function compressState(session: Session): CompressedState {
           : `processor:${r.target.processorId}:${r.target.param}`,
         depth: round2(r.depth),
       })),
+      ...(track.surface.semanticControls.length > 0 ? {
+        surface_semantic: track.surface.semanticControls.map(sc => sc.name),
+        surface_xy: `${track.surface.xyAxes.x} x ${track.surface.xyAxes.y}`,
+      } : {}),
+      ...(track.surface.pinnedControls.length > 0 ? {
+        surface_pinned: track.surface.pinnedControls.map(p => `${p.moduleId}:${p.controlId}`),
+      } : {}),
     })),
     activeTrackId: session.activeTrackId,
     transport: {
