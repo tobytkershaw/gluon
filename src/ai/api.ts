@@ -216,6 +216,9 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'connect_modulator': {
       const track = getTrack(session, action.trackId);
       const modulations = [...(track.modulations ?? [])];
+      // Idempotency: find existing route matching same modulator, target kind,
+      // param, and (for processor targets) processorId. The r.target.kind check
+      // on line below prevents cross-kind false matches (source vs processor).
       const existingIdx = modulations.findIndex(r =>
         r.modulatorId === action.modulatorId &&
         r.target.kind === action.target.kind &&
@@ -326,6 +329,10 @@ export class GluonAI {
     }
 
     // Build contents: history + current turn
+    // TODO(#215): History replay only includes user text and model responses,
+    // not the session state JSON that was sent with each turn. This means the
+    // AI cannot reason about how state changed between turns. This is a product
+    // decision — adding state diffs would increase token cost significantly.
     const contents: Content[] = [];
     for (const ex of this.exchanges) {
       contents.push({ role: 'user', parts: [{ text: ex.userText }] });

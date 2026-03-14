@@ -33,6 +33,9 @@ import { useShortcuts } from './useShortcuts';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
+// TODO(#215): Module-level singleton — works fine in production but may
+// interfere with test isolation if App is mounted multiple times in a test suite.
+// Low risk since adapter is stateless; revisit if tests require separate instances.
 const plaitsAdapter = createPlaitsAdapter();
 
 function shallowEqual(a: Record<string, number>, b: Record<string, number>): boolean {
