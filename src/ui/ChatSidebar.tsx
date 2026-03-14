@@ -16,14 +16,13 @@ interface Props {
   apiConfigured: boolean;
   onApiKey: (key: string) => void;
   open: boolean;
-  onToggle: () => void;
   width: number;
   onResize: (width: number) => void;
 }
 
 export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false,
-  apiConfigured, onApiKey, open, onToggle, width, onResize,
+  apiConfigured, onApiKey, open, width, onResize,
 }: Props) {
   const dragging = useRef(false);
 
@@ -66,27 +65,9 @@ export function ChatSidebar({
         isListening={isListening}
       />
 
-      {/* Composer + controls at bottom */}
+      {/* Composer at bottom of sidebar */}
       <div className="shrink-0 border-t border-zinc-800/40">
         <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
-        <div className="flex items-center gap-1.5 px-3 pb-2">
-          <button
-            onClick={onToggle}
-            className="group p-1 rounded hover:bg-zinc-800/50 transition-colors"
-            title="Collapse chat (Cmd+/)"
-          >
-            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
-              <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {(isThinking || isListening) && (
-            <span
-              className="w-2 h-2 rounded-full bg-amber-400"
-              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-              title={isListening ? 'Listening...' : 'Thinking...'}
-            />
-          )}
-        </div>
       </div>
 
       {/* Drag handle on right edge */}
