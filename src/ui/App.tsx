@@ -375,7 +375,7 @@ export default function App() {
       if (rejectedNonSay.length > 0) {
         const reasons = rejectedNonSay.map(r => r.reason);
         const unique = [...new Set(reasons)];
-        const summary = unique.length === 1
+        const summary = rejectedNonSay.length === 1
           ? `1 action rejected: ${unique[0]}`
           : `${rejectedNonSay.length} actions rejected: ${unique.join('; ')}`;
         return {
