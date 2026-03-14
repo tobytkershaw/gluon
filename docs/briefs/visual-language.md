@@ -1,57 +1,115 @@
-# Visual Language Brief
+# Surface Score
 
 ## The Idea
 
-Gluon's Surface view doesn't just compose *controls* — it composes a *visual identity* for the project. The AI designs how the interface looks, moves, and responds based on the music itself. The visual language isn't a theme the human picks from a menu. It emerges from the sound.
+Gluon's Surface view is a visual instrument layer. The AI composes a **Surface Score** — a structured description of the project's visual identity, performative emphasis, and motion behaviour — derived from the music itself.
 
-This is the visual equivalent of what the AI already does for control surfaces: it reads the musical state, understands the character and intent, and generates an interface that fits. Just as the AI places a step grid for a kick drum and a piano roll for a synth pad, it also gives the kick track visual weight and density, the pad track translucence and drift, and the project as a whole a colour palette that comes from the music's timbral character.
+The Surface Score is to visual identity what the AI-curated control surface is to parameter layout. The AI reads the musical state, understands character and intent, and generates a visual language that fits. Different projects feel visually distinct. Different tracks have their own identity. The interface is alive because the music is alive.
 
-Traditional music software has a fixed visual identity — Ableton is grey, Logic is brushed aluminium, Bitwig is orange. The visuals never respond to what you're making. Gluon's Surface should feel different every time you open a different project, because the visual language is derived from different music.
+This is not a theme picker. It is not a visualiser. It is a bounded, regenerable visual grammar that the AI composes within safe constraints, and that the human can override, edit, or reset at any time without risk to the musical state.
 
 ---
 
 ## The Split: Canonical Views vs Surface
 
-The four-view architecture (see `docs/rfcs/view-architecture.md`) creates a natural opportunity for two visual registers:
+The four-view architecture (see `docs/rfcs/view-architecture.md`) creates two intentionally different visual registers:
 
-**Canonical views (Tracker, Rack, Patch)** stay clean, precise, and stable. Dark backgrounds, clear typography, sharp edges, monochrome with functional colour accents. These are the x-ray views — inspection tools where legibility and predictability are paramount. They should feel like good developer tools: dense, honest, no decoration. The visual language here is *absence* — nothing competes with the data.
+**Canonical views (Tracker, Rack, Patch)** are the x-ray views. Exact, stable, inspectable, legible. They are the source of truth for the data model.
 
-**Surface** is where the organic, responsive, AI-generated visual language lives. It's the living instrument, not the schematic. Colour, motion, texture, and material all respond to the music. The contrast between the canonical views and the Surface reinforces their different purposes: you switch to the Rack to verify what happened, you switch to the Surface to *play*.
+- Precise
+- Sparse
+- Stable
+- Functional
+- Source of truth
 
-This split means the visual language work described in this brief applies only to the Surface view and its modules. The canonical views have their own, simpler visual design that is not covered here.
+**Surface** is the performative view. Expressive, alive, adaptive. It is where the human plays, feels, and directs.
+
+- Expressive
+- Alive
+- Adaptive
+- Playful
+- Atmospheric
+- Performance-oriented
+
+This split is a strength. Canonical views are for inspection, editing, and trust. Surface is for playing, feeling, and directing. The contrast reinforces both purposes — switching to the Rack feels like putting on x-ray glasses. Switching to the Surface feels like picking up the instrument.
 
 ---
 
-## What the AI Designs
+## Design Principles
 
-The AI has a toolkit of visual primitives it can compose into a project-specific visual language. These are not fixed themes or skins — they are generative mappings from musical properties to visual properties. The AI defines the mapping; the visuals emerge from the music in real time.
+### 1. Canonical remains trustworthy
 
-### 1. Colour Space
+Tracker, Rack, and Patch must stay crisp and dependable. They do not inherit decorative treatment from the Surface. They are quiet, structured, exact.
 
-The AI defines a colour space for the project — a mapping from musical properties to colour. Each track gets a position in that colour space derived from its timbral character. As the sound changes, the colour follows.
+### 2. Surface feels alive
+
+The Surface communicates that AI, sound, and control are active forces in the system. The interface breathes, responds, and reflects the music's character.
+
+### 3. AI curates, not hallucinates
+
+The AI works through bounded tools and structured parameters — not arbitrary layout, not arbitrary CSS, not raw rendering power. It operates within a constrained visual grammar and composes a Surface Score from defined primitives. The visual language is a system the AI populates, not a canvas it paints freehand.
+
+### 4. Project identity emerges
+
+Different projects should feel visually distinct without losing usability. The visual identity comes from the music's character, not from a settings menu.
+
+### 5. Surface is disposable
+
+The Surface is always a layer over canonical truth. It can be regenerated, edited, or reset without risk to the musical state. The human should never worry that changing the visual language loses work. Resetting the Surface Score restores a clean default. Canonical views are unaffected.
+
+### 6. Motion is metabolic, not decorative
+
+Every motion carries information. Breathing reflects tempo. Pulsing reflects modulation. Visual ducking reflects sidechaining. Animation without semantic purpose is noise. Motion should be legible, low-frequency, tied to real state, and removable if distracting.
+
+---
+
+## Visual Direction
+
+**Soft machinery with bioelectric accents.**
+
+Desired qualities:
+- Warm rather than sterile
+- Animated rather than static
+- Tactile rather than flat
+- Slightly uncanny rather than generic
+- Musical rather than dashboard-like
+
+Avoid:
+- Generic dark-mode synth UI
+- Cyberpunk/neon gradients
+- SaaS glassmorphism
+- Skeuomorphism (fake materials referencing physical objects)
+- Ornamental animation without semantic purpose
+- Spectrogram-as-wallpaper
+
+---
+
+## The Surface Score
+
+The Surface Score is a structured schema that describes the project's visual identity. It is authored by the AI, stored on the project, and editable by the human. It drives how every Surface module renders.
+
+The Score has six domains:
+
+### 1. Palette
+
+The project-level colour identity. A mapping from musical properties to colour — not a fixed palette, but a generative one. Colours emerge from the sound.
 
 **What the AI defines:**
-- A base hue range for the project (derived from the overall timbral character — warm project, cool project, mixed)
-- How tracks distribute within that range (by frequency register, by timbral brightness, by role)
+- A base hue range for the project (derived from overall timbral character)
+- How tracks distribute within that range (by frequency register, brightness, role)
 - Saturation rules (dense/busy tracks more saturated, sparse tracks more muted)
-- A brightness floor (ensures readability — the colours enhance, never obscure)
+- A brightness floor (ensures readability — colours enhance, never obscure)
+- Contrast level and luminosity range
 
 **How it behaves:**
 - A dark, sub-heavy bass track casts a deep indigo wash across its Surface region
 - A bright, metallic lead has a warm amber glow
 - A noisy, textured percussion track is desaturated, grey-white
-- When the AI changes a sound ("make it darker"), the track's colour responds — the human sees the timbral shift before they hear it
-- The overall project has a colour palette that emerges from the music, not from a settings menu
-
-**What it's not:**
-- Not a fixed palette the human picks (though the human can override)
-- Not a spectrogram-as-wallpaper visualiser
-- Not neon-on-black (the current look of every "futuristic" music app)
-
-**Colour mapping model:**
+- When the AI changes a sound ("make it darker"), the track's colour responds — the human sees the timbral shift before hearing it
+- The overall project has a colour identity that emerges from the music
 
 ```ts
-interface ColourMapping {
+interface ScorePalette {
   // How musical properties map to hue
   hueSource: 'timbral' | 'harmonic' | 'energy' | 'custom';
 
@@ -64,97 +122,77 @@ interface ColourMapping {
   // Brightness constraints (readability floor)
   brightnessRange: [number, number];  // [minimum, maximum]
 
-  // Per-track overrides (human can pin a track's colour)
-  trackOverrides: Record<string, { hue?: number; saturation?: number }>;
+  // Overall contrast and texture level
+  contrast: number;       // 0.0 (flat) to 1.0 (high contrast)
+  textureLevel: number;   // 0.0 (clean) to 1.0 (textured/grainy)
+  edgeSoftness: number;   // 0.0 (crisp) to 1.0 (diffuse)
 }
 ```
 
-### 2. Motion Language
+### 2. Track Identity
 
-The AI defines how things move. Motion in the Surface is not decoration — it communicates temporal character. A dubstep project feels different from an ambient project, and the motion language should reflect that.
+Per-track visual identity. Each track gets a colour, an optional glyph, a motion signature, and a prominence level — all derived from its musical role.
 
 **What the AI defines:**
-- A global pulse character (tempo-synced breathing, energy-driven swell, slow drift, stillness)
-- How parameter changes travel (fluid easing, snappy jumps, organic wobble)
-- How modulation is displayed (breathing glow, rippling rings, pulsing borders)
-- What happens when nothing is being touched (still, gentle drift, slow breathe)
+- Track colour (position in the project's colour space, derived from timbral character)
+- Glyph or icon (a visual identity marker — wave shape, geometric form, or abstract symbol that captures the track's character)
+- Motion signature (how this track's modules move — heavy and slow for bass, quick and light for hats)
+- Prominence (how visually foregrounded this track is — lead voices are prominent, support textures recede)
 
 **How it behaves:**
-- In a 140bpm dubstep project, the Surface breathes at half-tempo — a slow, heavy swell
-- In a sparse ambient project, elements drift almost imperceptibly
-- When the AI moves a parameter, the value flows to its new position — the easing curve matches the project's motion character
-- A parameter being modulated by an LFO pulses at the LFO's rate — the visual IS the modulation
-- A track that's sidechained visually ducks in sync with the compressor
-- When the AI is processing a request, the Surface inhales (subtle, system-wide tension). When it responds, it exhales
-
-**What it's not:**
-- Not animation for its own sake (every motion carries information)
-- Not distracting (motion should be felt peripherally, not watched)
-- Not mandatory (the human can reduce or disable motion)
-
-**Motion mapping model:**
+- A kick drum track: deep indigo, heavy circular glyph, slow dense pulse, moderate prominence
+- A synth lead: warm amber, angular glyph, responsive motion, high prominence
+- A background texture: desaturated, soft amorphous glyph, slow drift, low prominence
+- The glyph appears on compact cards, module headers, and anywhere the track needs visual identification
 
 ```ts
-interface MotionMapping {
-  // Global pulse behaviour
-  pulse: {
-    mode: 'tempo-synced' | 'energy-driven' | 'drift' | 'still';
-    intensity: number;      // 0.0 (imperceptible) to 1.0 (prominent)
-    subdivision: number;    // pulse rate relative to tempo (0.5 = half-time, 1 = quarter note)
+interface ScoreTrackIdentity {
+  trackId: string;
+
+  // Colour (position in project colour space)
+  colour: { hue: number; saturation: number; brightness: number };
+
+  // Visual identity marker
+  glyph: {
+    shape: 'circle' | 'triangle' | 'square' | 'wave' | 'spike' | 'cloud' | 'custom';
+    style: 'solid' | 'outline' | 'pulse' | 'breathe';
   };
 
-  // How parameter values animate to new positions
-  parameterMotion: {
-    style: 'fluid' | 'snappy' | 'organic' | 'instant';
-    durationMs: number;     // base transition duration
+  // How this track's modules move
+  motionSignature: {
+    weight: number;         // 0.0 (featherlight) to 1.0 (heavy/slow)
+    responsiveness: number; // 0.0 (sluggish) to 1.0 (snappy)
   };
 
-  // How active modulation routes are displayed
-  modulationDisplay: {
-    style: 'breathe' | 'ripple' | 'glow' | 'ring';
-    syncToRate: boolean;    // match the modulator's rate
-  };
-
-  // Idle behaviour (nothing being touched)
-  idle: {
-    mode: 'still' | 'drift' | 'breathe';
-    intensity: number;
-  };
-
-  // AI activity indicator (thinking/acting)
-  aiActivity: {
-    thinking: 'inhale' | 'shimmer' | 'none';
-    acting: 'exhale' | 'ripple' | 'pulse';
-  };
+  // Visual foregrounding
+  prominence: number;       // 0.0 (recedes) to 1.0 (foregrounded)
 }
 ```
 
-### 3. Material and Weight
+### 3. Material
 
-The AI gives Surface modules a material quality — visual weight that corresponds to sonic weight. This is the difference between a bass control that feels heavy and dense, and a hi-hat control that feels light and thin.
+How Surface modules feel — their visual weight, edge quality, and opacity. Derived from sonic character.
 
 **What the AI defines:**
-- How frequency register maps to visual weight (low = heavy, high = light)
+- How frequency register maps to visual weight (low sounds = heavy, dense; high sounds = light, thin)
 - How pattern density maps to opacity (sparse = translucent, dense = solid)
-- Border and shadow treatment (soft/diffuse for pads, sharp for percussive sounds)
-- How transient character maps to edge quality (sharp attacks = crisp edges, slow attacks = soft edges)
+- How transient character maps to edge quality (sharp attacks = crisp edges, slow attacks = soft/feathered)
+- Overall border style for the project
 
 **How it behaves:**
-- A sub bass module has thick borders, deep shadows, and feels planted — visually heavy
-- A hi-hat module is thin, almost transparent, with barely-there borders
-- A pad with a long attack has soft, feathered edges that seem to blur into the background
-- A sharp pluck sound has crisp, well-defined edges
+- A sub bass module has thick borders, deep shadows, feels planted — visually heavy
+- A hi-hat module is thin, almost transparent, barely-there borders
+- A pad with slow attack has soft, feathered edges that blur into the background
+- A sharp pluck has crisp, well-defined edges
 - As the AI changes a sound from soft to aggressive, the module's material responds — edges sharpen, weight increases, shadows deepen
 
-**Material mapping model:**
-
 ```ts
-interface MaterialMapping {
+interface ScoreMaterial {
   // Frequency register → visual weight
   weightFromFrequency: {
     enabled: boolean;
-    lowWeight: number;      // 0.0 (featherlight) to 1.0 (heavy)
-    highWeight: number;
+    lowWeight: number;      // visual weight for low-frequency tracks (0-1)
+    highWeight: number;     // visual weight for high-frequency tracks (0-1)
   };
 
   // Pattern density → opacity
@@ -176,32 +214,118 @@ interface MaterialMapping {
 }
 ```
 
-### 4. Ambient Relationships
+### 4. Motion
 
-Cross-track musical relationships become visible as ambient visual effects on the Surface — not explicit wires (that's what the Patch view is for), but felt connections.
+How things move. The temporal character of the interface, derived from the music's rhythm and energy.
+
+**What the AI defines:**
+- Global pulse (tempo-synced, energy-driven, drift, or still)
+- Parameter animation style (how values travel to new positions)
+- Modulation display (how active modulation routes appear visually)
+- Idle behaviour (what happens when nothing is being touched)
+- AI activity indicators (thinking = inhale/ember pulse; acting = exhale/signal propagation)
+
+**How it behaves:**
+- In a 140bpm dubstep project, the Surface breathes at half-tempo — a slow, heavy swell
+- In a sparse ambient project, elements drift almost imperceptibly
+- When the AI moves a parameter, the value flows to its new position with easing that matches the project's character
+- A parameter modulated by an LFO pulses at the LFO's rate — the visual IS the modulation
+- A sidechained track visually ducks in sync with the compressor
+- When the AI is thinking, a subtle ember pulse. When it acts, signal propagation ripples outward from the affected modules
+
+```ts
+interface ScoreMotion {
+  // Global pulse behaviour
+  pulse: {
+    mode: 'tempo-synced' | 'energy-driven' | 'drift' | 'still';
+    intensity: number;      // 0.0 (imperceptible) to 1.0 (prominent)
+    subdivision: number;    // pulse rate relative to tempo (0.5 = half-time)
+  };
+
+  // How parameter values animate to new positions
+  parameterMotion: {
+    style: 'fluid' | 'snappy' | 'organic' | 'instant';
+    durationMs: number;     // base transition duration
+  };
+
+  // How active modulation routes are displayed
+  modulationDisplay: {
+    style: 'breathe' | 'ripple' | 'glow' | 'bloom' | 'ring';
+    syncToRate: boolean;    // match the modulator's rate
+  };
+
+  // Idle behaviour (nothing being touched)
+  idle: {
+    mode: 'still' | 'drift' | 'breathe';
+    intensity: number;
+  };
+
+  // AI activity indicators
+  aiActivity: {
+    thinking: 'ember-pulse' | 'shimmer' | 'inhale' | 'none';
+    acting: 'signal-propagation' | 'ripple' | 'exhale' | 'pulse';
+  };
+}
+```
+
+### 5. Atmosphere
+
+The ambient, project-wide visual treatment. Responsive density and environmental effects that make the Surface feel like a space, not a panel.
+
+**What the AI defines:**
+- How visual richness responds to the music's complexity (sparse music = clean, open Surface; dense music = saturated, active Surface)
+- Which musical properties drive atmospheric changes (track count, event density, parameter activity, energy)
+- Overall mood treatment (warm/cool, bright/dark, calm/intense)
+
+**How it behaves:**
+- A minimal project with two sparse tracks: lots of negative space, muted colours, gentle motion
+- A dense project with eight active tracks: more saturated, more visual activity, tighter spacing
+- When the AI strips a section back ("make it minimal"), the Surface responds — colours desaturate, motion slows, visual weight decreases
+- Building toward a drop increases visual intensity — not as a visualiser effect, but as the natural consequence of colour, motion, and material mappings responding to denser, louder, brighter music
+
+```ts
+interface ScoreAtmosphere {
+  // Responsive density
+  responsiveDensity: {
+    enabled: boolean;
+    drivers: ('track-count' | 'event-density' | 'parameter-activity' | 'energy')[];
+    saturationResponse: number;   // how much saturation increases with density (0-1)
+    motionResponse: number;       // how much motion intensity increases (0-1)
+    spacingResponse: number;      // how much spacing tightens (0-1)
+  };
+
+  // Overall mood
+  mood: {
+    warmth: number;     // -1.0 (cool) to 1.0 (warm)
+    brightness: number; // 0.0 (dark) to 1.0 (bright)
+    intensity: number;  // 0.0 (calm) to 1.0 (intense)
+  };
+}
+```
+
+### 6. Relationships
+
+Cross-track musical relationships rendered as ambient visual effects on the Surface. Not explicit wires (that is what the Patch view is for), but felt connections.
 
 **What the AI defines:**
 - Whether relationship visualisation is active
 - Which relationship types to display (frequency proximity, rhythmic alignment, routing dependencies)
-- How relationships are rendered (colour bleed, shared breathing, boundary effects)
+- How relationships are rendered (colour bleed, shared pulse, boundary glow)
 
 **How it behaves:**
-- Tracks that are sidechained share a visual pulse — the kick flashes, and the bass visually ducks a beat later
-- Tracks in similar frequency ranges have a subtle colour bleed at their borders — a visual warning of potential masking
-- Tracks that are rhythmically locked (kick and bass on the same downbeats) breathe together
-- When the AI creates a new connection (adds a sidechain), the visual relationship appears on the Surface immediately — before the human switches to Patch to see the explicit wiring
-
-**Relationship display model:**
+- Tracks that are sidechained share a visual pulse — the kick flashes, the bass visually ducks
+- Tracks in similar frequency ranges have a subtle colour bleed at their borders — a visual hint of potential masking
+- Tracks that are rhythmically locked breathe together
+- When the AI creates a new connection, the visual relationship appears on the Surface before the human switches to Patch to see the explicit wiring
 
 ```ts
-interface AmbientRelationships {
+interface ScoreRelationships {
   enabled: boolean;
 
-  // Which relationship types to visualise
   frequencyProximity: {
     enabled: boolean;
     style: 'colour-bleed' | 'boundary-glow' | 'none';
-    threshold: number;      // how close in frequency before visual effect appears
+    threshold: number;
   };
 
   rhythmicAlignment: {
@@ -216,112 +340,54 @@ interface AmbientRelationships {
 }
 ```
 
-### 5. Responsive Density
-
-The visual richness of the Surface responds to the music's complexity. This is the meta-level: the interface itself breathes with the project's energy.
-
-**How it behaves:**
-- A minimal project with two sparse tracks has a clean, open Surface — lots of negative space, muted colours, gentle motion
-- A dense project with eight active tracks has a richer Surface — more saturated colours, more visual activity, tighter spacing
-- Within a project, if the AI strips a section back ("make it minimal"), the Surface responds — colours desaturate, motion slows, visual weight decreases
-- Building up to a drop increases visual intensity — not as a visualiser effect, but as the natural consequence of the colour, motion, and material mappings responding to denser, louder, brighter music
-
-**Responsive density model:**
-
-```ts
-interface ResponsiveDensity {
-  enabled: boolean;
-
-  // What musical properties drive visual density
-  drivers: ('track-count' | 'event-density' | 'parameter-activity' | 'energy')[];
-
-  // How visual properties respond
-  saturationResponse: number;    // how much saturation increases with density (0-1)
-  motionResponse: number;        // how much motion intensity increases (0-1)
-  spacingResponse: number;       // how much spacing tightens (0-1)
-}
-```
-
 ---
 
 ## The Combined Type
 
-All five visual primitives compose into a single project-level visual language definition:
-
 ```ts
-interface ProjectVisualLanguage {
-  colour: ColourMapping;
-  motion: MotionMapping;
-  material: MaterialMapping;
-  relationships: AmbientRelationships;
-  density: ResponsiveDensity;
+interface SurfaceScore {
+  palette: ScorePalette;
+  trackIdentities: ScoreTrackIdentity[];
+  material: ScoreMaterial;
+  motion: ScoreMotion;
+  atmosphere: ScoreAtmosphere;
+  relationships: ScoreRelationships;
 }
 ```
 
-The AI generates a `ProjectVisualLanguage` when a project is created, and updates it as the music evolves. The human can override any part of it — pin a track's colour, disable motion, force a specific material style. Overrides persist; the AI respects them.
-
-This type lives on the project, alongside the musical state:
+The Surface Score lives on the project:
 
 ```ts
 interface Project {
   tracks: Track[];
   transport: TransportState;
   context: MusicalContext;
-  visualLanguage: ProjectVisualLanguage;  // AI-generated, human-overridable
+  surfaceScore: SurfaceScore;    // AI-generated, human-overridable
   // ...
 }
 ```
 
 ---
 
-## AI Visual Operations
+## How Modules Consume the Score
 
-The AI needs tools to set and modify the visual language. These follow the same pattern as all other AI operations: immediate, undoable, inspectable.
+Each Surface module renders itself using the active Surface Score. Modules do not decide their own colour or motion — they receive derived visual properties from the Score system and apply them to their rendering.
 
-```ts
-interface SetVisualLanguageOp {
-  type: 'set_visual_language';
-  language: Partial<ProjectVisualLanguage>;
-  reason: string;    // "Dark, heavy dubstep project — deep indigo palette, half-time pulse"
-}
-```
-
-The AI sets the visual language:
-- When a project is created (initial language from the first few tracks)
-- When the musical character changes significantly (the human asks for a dramatically different direction)
-- When explicitly asked ("make the interface feel warmer", "I want this to feel more aggressive")
-
-The AI does NOT change the visual language:
-- On every parameter tweak (the mappings handle this automatically)
-- Without being asked, unless the project character has shifted dramatically
-- In ways that break readability (the brightness floor and contrast rules are hard constraints)
-
----
-
-## How It Connects to Surface Modules
-
-Each Surface module renders itself using the active `ProjectVisualLanguage`. The module doesn't decide its own colour — it reads the colour mapping and derives its appearance from its track's musical properties. This means:
-
-- A Knob Group on a bass track renders with heavy, indigo-tinted visuals
-- The same Knob Group type on a hi-hat track renders with light, desaturated visuals
-- An XY Pad pulses at the tempo if the motion language says so
-- A Step Grid's active steps glow with the track's derived colour
-- A Macro Knob's rotation animation uses the project's parameter motion style
-
-Module authors don't need to implement visual language support from scratch. The Surface rendering system provides the derived visual properties (colour, weight, motion parameters) as context. Each module applies them to its own rendering.
+This keeps module authoring simple: a module author implements the control behaviour, and the Score system provides the visual context.
 
 ```ts
-// What a module receives from the visual language system
 interface ModuleVisualContext {
-  // Derived from the track's musical properties + project colour mapping
+  // Derived from track identity + palette
   trackColour: { hue: number; saturation: number; brightness: number };
+  glyph: { shape: string; style: string };
+  prominence: number;
 
-  // Derived from the track's sonic character + material mapping
+  // Derived from material mapping + track sonic character
   weight: number;           // 0.0 (featherlight) to 1.0 (heavy)
   edgeStyle: 'crisp' | 'feathered' | 'blur' | 'glow';
   opacity: number;
 
-  // From the project motion language
+  // From motion language
   pulseRate: number;        // beats per pulse, 0 = no pulse
   parameterEasing: string;  // CSS easing function or spring config
   idleDrift: number;        // 0.0 (still) to 1.0 (noticeable drift)
@@ -337,66 +403,130 @@ interface ModuleVisualContext {
 
 ---
 
+## AI Operations
+
+The AI sets and modifies the Surface Score through structured operations. These follow the same pattern as all other AI operations: immediate, undoable, inspectable.
+
+```ts
+interface SetSurfaceScoreOp {
+  type: 'set_surface_score';
+  score: Partial<SurfaceScore>;
+  reason: string;    // "Dark, heavy dubstep — deep indigo palette, half-time pulse, heavy materials"
+}
+
+interface SetTrackIdentityOp {
+  type: 'set_track_identity';
+  trackId: string;
+  identity: Partial<ScoreTrackIdentity>;
+  reason: string;    // "Kick is the rhythmic anchor — heavy circle glyph, deep indigo, high prominence"
+}
+```
+
+**When the AI sets the Score:**
+- When a project is created (initial Score from the first few tracks)
+- When the musical character changes significantly
+- When explicitly asked ("make the interface feel warmer", "this should feel more aggressive")
+
+**When the AI does NOT change the Score:**
+- On every parameter tweak (the mappings handle this automatically — the Score defines the rules, the rendering follows)
+- Without being asked, unless the project character has shifted dramatically
+- In ways that break readability (brightness floor and contrast rules are hard constraints)
+
+**What the AI cannot do:**
+- Generate arbitrary CSS or layout
+- Mutate canonical view structure
+- Invent uncontrolled components
+- Obscure source-of-truth state
+- Weaken legibility of editing surfaces
+
+---
+
 ## What It Should Feel Like
 
-**Opening a dark dubstep project:** Deep indigo and violet. Heavy, slow-breathing modules. The kick track is dense and solid; the bass track has a deep, almost gravitational visual pull. The hi-hats are thin, ghostly, barely visible. The whole Surface pulses at half-tempo. When the AI adds more sub bass, the indigo deepens. When it strips the mix back, the colours desaturate and the breathing slows.
+**Dark dubstep project:** Deep indigo and violet. Heavy, slow-breathing modules. The kick track is dense and solid with a heavy circular glyph; the bass has a gravitational visual pull. Hi-hats are thin, ghostly. The whole Surface pulses at half-tempo. When the AI adds more sub bass, the indigo deepens. When it strips the mix back, colours desaturate and breathing slows. Ember pulse when the AI thinks. Signal propagation when it acts.
 
-**Opening a bright pop sketch:** Warm coral and gold. Light, bouncy motion. The synth chords have a warm glow, the drums are crisp and snappy. The Surface feels open and spacious. When the AI adds a filter sweep, you see the colour shift from warm to cool as the filter closes, then back as it opens.
+**Bright pop sketch:** Warm coral and gold. Light, bouncy motion. Synth chords have a warm glow, drums are crisp and snappy. The Surface feels open and spacious. When the AI adds a filter sweep, you see the colour shift from warm to cool as the filter closes, then back as it opens. Track glyphs are angular and defined.
 
-**Opening an ambient generative piece:** Almost monochrome, soft greys with occasional colour emergence. Very slow drift, almost still. Modules are translucent, boundaries are soft. When a new texture layer fades in, its module materialises gradually — opacity building over several seconds. The Surface feels like it's underwater.
+**Ambient generative piece:** Almost monochrome, soft greys with occasional colour emergence. Very slow drift, nearly still. Modules are translucent, boundaries soft. When a new texture layer fades in, its module materialises gradually — opacity building over several seconds. The Surface feels like it is underwater. Glyphs are amorphous clouds.
 
-**Opening a chaotic noise/industrial project:** High contrast, harsh edges, desaturated with sharp colour spikes. Motion is jagged and percussive. Modules have hard shadows and thick borders. The Surface feels aggressive and dense. When the AI adds distortion, the edges get sharper and the shadows deepen.
+**Chaotic noise/industrial project:** High contrast, harsh edges, desaturated with sharp colour spikes. Motion is jagged and percussive. Modules have hard shadows and thick borders. When the AI adds distortion, edges sharpen and shadows deepen. The Surface feels aggressive and dense. Spike-shaped glyphs. Snappy parameter motion.
+
+---
+
+## Success Criteria
+
+This work succeeds if:
+
+- The Surface feels alive and original
+- Canonical views remain trustworthy and clear
+- Projects develop distinct visual identities
+- The AI can shape the Surface within safe bounds
+- Users feel the interface is part of the instrument, not just a container around it
+- Opening a different project feels like picking up a different instrument
+- The visual language communicates musical information the human can feel without consciously interpreting
+
+---
+
+## Open Questions
+
+1. **Performance budget.** Real-time colour derivation, motion sync, and ambient relationships cost GPU/CPU cycles. All visual computations must run on requestAnimationFrame, never on the audio thread, with a complexity budget that degrades gracefully.
+
+2. **Accessibility.** Colour vision deficiency: the Score needs an alternative channel (shape via glyphs, luminance variation, or pattern). Motion sensitivity: reduced-motion mode that preserves information through other means. The glyph system helps here — identity is not colour-only.
+
+3. **Human override granularity.** The human should be able to override at the project level ("warmer colours"), the track level ("make the bass red"), or disable the Score entirely (clean default). How deep should per-module overrides go?
+
+4. **Baseline Score.** Before any AI involvement, there should be a handcrafted default Score — a tasteful baseline that feels like Gluon, not like "no theme applied." The AI generates from this baseline rather than from nothing.
+
+5. **When does the AI regenerate?** The Score mappings handle gradual timbral changes automatically. But structural changes (new track, genre shift) may need the AI to regenerate. How often is too often? The Score should evolve, not jump.
+
+6. **Module author burden.** The `ModuleVisualContext` approach pushes most visual work to the rendering system. Module authors apply derived properties — they don't implement the Score system. How much latitude do module authors have to interpret the context creatively vs apply it literally?
+
+---
+
+## Recommended Next Steps
+
+1. Define the first version of the Surface Score schema (the types above are a starting point)
+2. Define the minimum AI toolset that can author a Score safely
+3. Create one handcrafted baseline Score (the "Gluon default" before AI involvement)
+4. Build the `ModuleVisualContext` derivation pipeline (Score + track state -> visual context)
+5. Apply the visual context to one Surface module as a prototype (Knob Group is the simplest candidate)
+
+Design the visual language as a system before doing detailed styling. The Score schema comes first.
 
 ---
 
 ## Design References
 
 **Generative identity systems:**
-- MIT Media Lab identity (by Pentagram) — algorithmically generated visual identities from a base system. Each output is unique but recognisably part of the same family
-- Sagmeister & Walsh — generative design that responds to data inputs
+- MIT Media Lab identity (by Pentagram) — algorithmically generated identities from a base system
+- Sagmeister & Walsh — generative design responding to data inputs
 - Nervous System (studio) — biological growth algorithms as design tools
 
 **Organic digital interfaces:**
-- Brian Eno's Bloom and Scape apps — generative visuals that emerge from musical interaction
-- Meadow (game) — how natural systems create ambient, non-demanding visual beauty
+- Brian Eno's Bloom and Scape — generative visuals emerging from musical interaction
+- Meadow (game) — natural systems creating ambient, non-demanding visual beauty
 - Weather apps (iOS Weather, Windy.com) — fluid gradients and particle systems conveying atmospheric state
 
 **Music-responsive visuals:**
-- Lumen (by Max Hattler) — real-time audio-reactive visuals with artistic restraint
-- TouchDesigner community — audio-reactive visual instruments (reference for technical implementation, not aesthetic)
+- Lumen (Max Hattler) — audio-reactive visuals with artistic restraint
+- TouchDesigner community — audio-reactive visual instruments (technical reference, not aesthetic)
 
 **Materiality and weight in UI:**
-- iOS "materials" system (vibrancy, blur, translucency responding to content)
-- Teenage Engineering OP-1 screens — playful, idiosyncratic, handmade-feeling despite being digital
-- Swiss International Style applied to dark interfaces — how to be expressive within tight constraints
+- iOS materials system (vibrancy, blur, translucency responding to content)
+- Teenage Engineering OP-1 screens — playful, idiosyncratic, handmade-feeling
+- Swiss International Style applied to dark interfaces
 
 **What to avoid:**
 - Winamp/Milkdrop visualisers (spectacle over meaning)
-- Skeuomorphism (fake materials that reference physical objects)
-- Neon cyberpunk aesthetic (generic "futuristic" music software)
+- Skeuomorphism (fake physical materials)
+- Neon cyberpunk (generic "futuristic" music software)
 - Over-animation (motion without information is noise)
-
----
-
-## Open Questions
-
-1. **Performance budget.** Real-time colour derivation, motion sync, and ambient relationships all cost GPU/CPU cycles. How do we ensure the visual language doesn't compete with the audio engine for resources? Likely answer: all visual computations run on requestAnimationFrame, never on the audio thread, with a complexity budget that degrades gracefully.
-
-2. **Accessibility.** How does the visual language work for users with colour vision deficiency or motion sensitivity? The colour mapping needs an alternative channel (shape, pattern, or luminance variation). Motion must have a reduced-motion mode that preserves information through other means.
-
-3. **Human override granularity.** Can the human override at the project level ("I want warmer colours"), the track level ("make the bass track red"), or the module level ("this knob should be blue")? All three? Where's the right balance between AI expression and human control?
-
-4. **Persistence.** Does the visual language persist with the project save? Almost certainly yes — reopening a project should look the same. But should it adapt if the music has changed since last save?
-
-5. **When does the AI update the visual language?** The mappings handle gradual timbral changes automatically (darker sound → darker colour without AI intervention). But what about structural changes — adding a completely new track, changing genre direction? The AI should probably regenerate the visual language in those cases, but how often is too often?
-
-6. **Module author burden.** How much work is it for a module author (building a new Surface module) to support the visual language? The `ModuleVisualContext` approach pushes most of the work to the rendering system, but modules still need to apply the derived properties meaningfully.
 
 ---
 
 ## Relationship to Other Documents
 
-- **View Architecture RFC** (`docs/rfcs/view-architecture.md`) — defines the canonical vs custom view split that creates the space for the visual language. The visual language applies only to Surface modules.
+- **View Architecture RFC** (`docs/rfcs/view-architecture.md`) — defines the canonical vs custom view split that creates the space for the Surface Score. The Score applies only to Surface modules.
 - **AI-Curated Surfaces RFC** (`docs/rfcs/ai-curated-surfaces.md`) — defines the Surface module composition system. This brief extends it with visual composition alongside control composition.
-- **AI Interface Design Principles** (`docs/principles/ai-interface-design-principles.md`) — the visual language is a new category of AI affordance. It follows the same rules: the AI acts through structured operations, changes are immediate and undoable, the human can override.
-- **AI Capability Doctrine** (`docs/principles/ai-capability-doctrine.md`) — visual language generation is a capability expansion inside the hard boundaries. It doesn't affect human authority, undoability, or inspectability.
+- **AI Interface Design Principles** (`docs/principles/ai-interface-design-principles.md`) — the Surface Score is a new category of AI affordance. It follows the same rules: structured operations, immediate and undoable, human can override.
+- **AI Capability Doctrine** (`docs/principles/ai-capability-doctrine.md`) — visual language generation is capability expansion inside the hard boundaries. It does not affect human authority, undoability, or inspectability.
