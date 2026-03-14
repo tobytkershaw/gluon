@@ -10,7 +10,9 @@ import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
 } from '../engine/session';
-import { saveSession, loadSession } from '../engine/persistence';
+import { loadSession } from '../engine/persistence';
+import { useProjectLifecycle } from './useProjectLifecycle';
+import { ProjectMenu } from './ProjectMenu';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
@@ -38,6 +40,7 @@ export default function App() {
   const aiRef = useRef(new GluonAI());
 
   const [session, setSession] = useState<Session>(() => loadSession() ?? createSession());
+  const project = useProjectLifecycle(session, setSession);
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
@@ -68,12 +71,6 @@ export default function App() {
     prevProvenance?: Partial<ControlState>;
     prevEvents?: CanonicalMusicalEvent[];
   } | null>(null);
-
-  // Auto-save session to localStorage (debounced)
-  useEffect(() => {
-    const timer = setTimeout(() => saveSession(session), 500);
-    return () => clearTimeout(timer);
-  }, [session]);
 
   // Persist view and chat state to localStorage
   useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
@@ -828,6 +825,16 @@ export default function App() {
       onApiKey={handleApiKey}
       chatOpen={chatOpen}
       onChatToggle={() => setChatOpen(o => !o)}
+      projectName={project.projectName}
+      projects={project.projects}
+      saveError={project.saveError}
+      onProjectRename={project.renameActiveProject}
+      onProjectNew={() => project.createProject()}
+      onProjectOpen={project.switchProject}
+      onProjectDuplicate={project.duplicateActiveProject}
+      onProjectDelete={project.deleteActiveProject}
+      onProjectExport={project.exportActiveProject}
+      onProjectImport={project.importProject}
     >
         {view === 'instrument' ? (
           <InstrumentView

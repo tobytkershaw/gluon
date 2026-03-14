@@ -3,8 +3,10 @@
 // Handles responsive collapse thresholds via ResizeObserver.
 import { useRef, useEffect, useState, type ReactNode } from 'react';
 import type { Voice, ChatMessage } from '../engine/types';
+import type { ProjectMeta } from '../engine/project-store';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
+import { ProjectMenu } from './ProjectMenu';
 
 interface Props {
   // Track sidebar
@@ -24,6 +26,17 @@ interface Props {
   onApiKey: (key: string) => void;
   chatOpen: boolean;
   onChatToggle: () => void;
+  // Project
+  projectName: string;
+  projects: ProjectMeta[];
+  saveError: boolean;
+  onProjectRename: (name: string) => void;
+  onProjectNew: () => void;
+  onProjectOpen: (id: string) => void;
+  onProjectDuplicate: () => void;
+  onProjectDelete: () => void;
+  onProjectExport: () => void;
+  onProjectImport: (file: File) => void;
   // Main content
   children: ReactNode;
 }
@@ -35,6 +48,9 @@ export function AppShell({
   onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency,
   messages, onSend, isThinking, isListening,
   apiConfigured, onApiKey, chatOpen, onChatToggle,
+  projectName, projects, saveError,
+  onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
+  onProjectDelete, onProjectExport, onProjectImport,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -71,6 +87,21 @@ export function AppShell({
 
       {/* Center: Main content */}
       <div className="flex-1 min-w-0 flex flex-col">
+        {/* Project bar */}
+        <div className="flex items-center px-2 py-1 border-b border-zinc-800/30">
+          <ProjectMenu
+            projectName={projectName}
+            projects={projects}
+            saveError={saveError}
+            onRename={onProjectRename}
+            onNew={onProjectNew}
+            onOpen={onProjectOpen}
+            onDuplicate={onProjectDuplicate}
+            onDelete={onProjectDelete}
+            onExport={onProjectExport}
+            onImport={onProjectImport}
+          />
+        </div>
         {children}
       </div>
 
