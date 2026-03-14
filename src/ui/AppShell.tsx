@@ -51,7 +51,7 @@ interface Props {
   playing: boolean;
   bpm: number;
   swing: number;
-  recording: boolean;
+  recordArmed: boolean;
   globalStep: number;
   patternLength: number;
   onTogglePlay: () => void;
@@ -86,7 +86,7 @@ export function AppShell({
   projectName, projects, saveError,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
-  playing, bpm, swing, recording, globalStep, patternLength,
+  playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
   view, onViewChange,
   undoStack, onUndo,
@@ -161,7 +161,7 @@ export function AppShell({
             playing={playing}
             bpm={bpm}
             swing={swing}
-            recording={recording}
+            recordArmed={recordArmed}
             globalStep={globalStep}
             patternLength={patternLength}
             onTogglePlay={onTogglePlay}

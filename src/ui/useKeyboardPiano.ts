@@ -1,12 +1,14 @@
 // src/ui/useKeyboardPiano.ts
 // Maps computer keyboard to piano keys for real-time note audition (Ableton-style).
+// When recording is active, captured notes are written to the active track's region.
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { RefObject } from 'react';
+import type { RefObject, MutableRefObject } from 'react';
 import type { AudioEngine } from '../audio/audio-engine';
 import type { Session } from '../engine/types';
 import { getActiveTrack } from '../engine/types';
 import { midiToNote } from '../audio/synth-interface';
 import { isEditable } from './useShortcuts';
+import type { NoteEvent } from '../engine/canonical-types';
 
 // --- Keyboard-to-semitone mappings ---
 // Lower octave: bottom two rows (Z-M = white keys, S/D/G/H/J = black keys)
@@ -57,6 +59,8 @@ const OCTAVE = 12;
 const SUSTAIN_SECONDS = 30;
 /** Default velocity as a normalized 0-1 value (mezzo-forte). */
 const DEFAULT_VELOCITY = 0.7;
+/** Minimum note duration in steps to avoid zero-length events. */
+const MIN_NOTE_DURATION = 0.25;
 
 /**
  * Convert a keyboard key to a MIDI note number, given the current octave offset.
@@ -90,8 +94,17 @@ function keyToMidi(key: string, octaveOffset: number): number | undefined {
   return midi;
 }
 
+/** Pending note being held during recording. */
+interface PendingNote {
+  midi: number;
+  startStep: number;
+}
+
 /**
  * Hook that maps keyboard keys to piano notes for real-time audition.
+ * When `recordArmed` is true and the transport is playing, notes are also
+ * captured as NoteEvents and written to the active track's region via
+ * `onRecordEvents`.
  *
  * - Bottom row (Z-M) + middle row sharps (S,D,G,H,J): lower octave
  * - Top row (Q-U) + number row sharps (2,3,5,6,7): upper octave
@@ -102,14 +115,23 @@ function keyToMidi(key: string, octaveOffset: number): number | undefined {
 export function useKeyboardPiano(
   audioRef: RefObject<AudioEngine>,
   session: Session,
+  recordArmed: boolean,
+  globalStepRef: MutableRefObject<number>,
+  onRecordEvents: (trackId: string, events: NoteEvent[]) => void,
 ) {
   const [octaveOffset, setOctaveOffset] = useState(0);
   const heldKeys = useRef(new Set<string>());
+  /** Pending notes being recorded, keyed by lowercase keyboard key. */
+  const pendingNotes = useRef(new Map<string, PendingNote>());
   // Refs to avoid stale closures in event handlers
   const octaveRef = useRef(octaveOffset);
   octaveRef.current = octaveOffset;
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  const recordArmedRef = useRef(recordArmed);
+  recordArmedRef.current = recordArmed;
+  const onRecordEventsRef = useRef(onRecordEvents);
+  onRecordEventsRef.current = onRecordEvents;
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Skip if typing in an input, or if modifier keys are held (avoid conflicts with shortcuts)
@@ -143,8 +165,18 @@ export function useKeyboardPiano(
     const track = getActiveTrack(currentSession);
     if (!track) return;
 
+    const lower = e.key.toLowerCase();
+
     // Track this key as held
-    heldKeys.current.add(e.key.toLowerCase());
+    heldKeys.current.add(lower);
+
+    // Start recording a pending note if recording is active
+    if (recordArmedRef.current && currentSession.transport.playing) {
+      pendingNotes.current.set(lower, {
+        midi,
+        startStep: globalStepRef.current,
+      });
+    }
 
     const now = audio.getCurrentTime();
     // Ensure accent gain is at baseline before triggering
@@ -155,13 +187,46 @@ export function useKeyboardPiano(
       accent: false,
       params: { ...track.params, note: midiToNote(midi) },
     });
-  }, [audioRef]);
+  }, [audioRef, globalStepRef]);
+
+  const finalizeNote = useCallback((lower: string) => {
+    const pending = pendingNotes.current.get(lower);
+    if (!pending) return;
+    pendingNotes.current.delete(lower);
+
+    const currentSession = sessionRef.current;
+    const track = getActiveTrack(currentSession);
+    if (!track) return;
+
+    const region = track.regions[0];
+    if (!region || region.duration <= 0) return;
+
+    const currentStep = globalStepRef.current;
+    const rawDuration = currentStep - pending.startStep;
+    const duration = Math.max(rawDuration, MIN_NOTE_DURATION);
+
+    // Compute region-local position (wrap within loop)
+    const at = ((pending.startStep % region.duration) + region.duration) % region.duration;
+
+    const noteEvent: NoteEvent = {
+      kind: 'note',
+      at,
+      pitch: pending.midi,
+      velocity: DEFAULT_VELOCITY,
+      duration,
+    };
+
+    onRecordEventsRef.current(track.id, [noteEvent]);
+  }, [globalStepRef]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     const lower = e.key.toLowerCase();
     if (!heldKeys.current.has(lower)) return;
 
     heldKeys.current.delete(lower);
+
+    // Finalize any pending recorded note for this key
+    finalizeNote(lower);
 
     const audio = audioRef.current;
     if (!audio?.isRunning) return;
@@ -174,7 +239,22 @@ export function useKeyboardPiano(
     if (heldKeys.current.size === 0) {
       audio.releaseTrack(track.id);
     }
-  }, [audioRef]);
+  }, [audioRef, finalizeNote]);
+
+  // When recording stops (disarm or transport stop), finalize any held notes
+  const isRecordingActive = recordArmed && session.transport.playing;
+  const wasRecordingRef = useRef(false);
+
+  useEffect(() => {
+    if (wasRecordingRef.current && !isRecordingActive) {
+      // Recording just stopped — finalize all pending notes
+      for (const key of pendingNotes.current.keys()) {
+        finalizeNote(key);
+      }
+      pendingNotes.current.clear();
+    }
+    wasRecordingRef.current = isRecordingActive;
+  }, [isRecordingActive, finalizeNote]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
