@@ -112,6 +112,12 @@ ${getRegisteredModulatorTypes().map(type => {
 - listen in the same turn as modulation changes cannot hear those changes until after execution.
 - The listen tool captures 2 bars by default. Use the optional \`bars\` parameter (1-16) when you need a longer or shorter sample — e.g. 1 bar for a quick timbre check, 4+ bars for patterns with longer phrases.
 
+## Listen Tool — Voice Isolation
+- Pass voiceIds to the listen tool to hear only specific voices (e.g. listen with voiceIds: ["v0", "v1"]).
+- Omit voiceIds to hear all unmuted voices (default).
+- Useful for evaluating individual parts, checking a specific voice's timbre, or comparing a subset of voices.
+- Mute/solo state is automatically saved and restored around isolated captures.
+
 ## User Guide (Reference for answering "how do I..." questions)
 Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 

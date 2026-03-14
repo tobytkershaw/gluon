@@ -124,6 +124,11 @@ const listenTool: FunctionDeclaration = {
         type: Type.INTEGER,
         description: 'Number of bars to capture (1-16, default 2).',
       },
+      voiceIds: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+        description: 'Optional voice IDs to isolate (e.g. ["v0", "v1"]). Omit to hear all unmuted voices.',
+      },
     },
     required: ['question'],
   },

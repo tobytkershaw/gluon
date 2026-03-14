@@ -23,4 +23,5 @@ Your job is to listen critically and provide honest, musical feedback.
 - Respond with critique text ONLY
 - Do NOT produce JSON actions
 - Do NOT suggest parameter changes as structured data
-- You may suggest directions in natural language ("try darkening the bass" is fine)`;
+- You may suggest directions in natural language ("try darkening the bass" is fine)
+- Audio clips may contain only an isolated subset of voices (not the full mix). The project state will indicate which voices are present.`;

@@ -479,12 +479,38 @@ export default function App() {
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
 
+    // Saved per-voice audibility for voice isolation restore (bypasses React state)
+    let savedAudibility: Map<string, boolean> | null = null;
+
     try {
       const actions = await aiRef.current.ask(sessionRef.current, message, {
         listen: {
           getAudioDestination: () => audioRef.current.getMediaStreamDestination(),
           captureNBars: (dest, bars, len, bpm) => exporterRef.current.captureNBars(dest, bars, len, bpm),
           onListening: setIsListening,
+          setIsolation: (voiceIds: string[] | null) => {
+            const s = sessionRef.current;
+            if (voiceIds) {
+              // Save current audibility computed from mute/solo state
+              const anySoloed = s.voices.some(v => v.solo);
+              savedAudibility = new Map(
+                s.voices.map(v => [v.id, anySoloed ? !!v.solo : !v.muted]),
+              );
+              // Directly set audio engine mute gains — synchronous, no React render needed
+              const isolateSet = new Set(voiceIds);
+              for (const v of s.voices) {
+                audioRef.current.muteVoice(v.id, !isolateSet.has(v.id));
+              }
+            } else if (savedAudibility) {
+              // Restore saved audibility directly on the audio engine
+              const saved = savedAudibility;
+              savedAudibility = null;
+              for (const v of s.voices) {
+                const wasAudible = saved.get(v.id) ?? true;
+                audioRef.current.muteVoice(v.id, !wasAudible);
+              }
+            }
+          },
         },
         isStale: () => thisRequest !== requestIdRef.current,
         validateAction: (action) => prevalidateAction(
