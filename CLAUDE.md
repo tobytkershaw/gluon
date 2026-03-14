@@ -59,17 +59,23 @@ npm run wasm:build   # Compile Plaits to WASM
 
 This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. Rules:
 
-### Branching
-- `dev` is the integration branch — treat it as read-only during active work
-- One task per branch, one agent per branch
-- Rebase onto `dev` before opening a PR, not during parallel editing
-- Merge small PRs frequently rather than letting branches drift
+### Worktrees Are Mandatory
 
-### Worktrees
-- Each agent uses its own worktree directory (auto-managed)
+**Every agent MUST work in a worktree, never in the main checkout.** The main checkout is shared — if one agent switches branches or leaves modified files, it breaks every other agent.
+
+- **Claude Code:** Use `isolation: "worktree"` on every Agent tool call that writes code. For the main conversation, create a worktree branch before making changes: `git worktree add .claude/worktrees/<task-name> -b <branch-name>`
+- **Codex:** Uses `.codex-worktrees/` (auto-managed)
 - Both `.claude/worktrees/` and `.codex-worktrees/` are gitignored
 - Vitest excludes worktree directories (see `vite.config.ts`)
 - Clean up stale worktrees periodically: `git worktree prune`
+
+**Why this matters:** We have had incidents where Codex review work switched the branch in the main checkout mid-session, causing commits to land on wrong branches and modified files to contaminate unrelated work. Worktrees prevent this entirely.
+
+### Branching
+- `main` is the integration branch — never commit directly during parallel work
+- One task per branch, one agent per branch
+- Rebase onto `main` before opening a PR, not during parallel editing
+- Merge small PRs frequently rather than letting branches drift
 
 ### Avoiding Conflicts
 - Split work by **module boundary** (`src/audio/`, `src/ai/`, `src/engine/`, `src/ui/`), not by task type
