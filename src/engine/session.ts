@@ -1,7 +1,7 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ProcessorConfig, MasterChannel, MasterSnapshot } from './types';
+import type { Session, Track, Agency, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateTrack, getTrack, DEFAULT_MASTER } from './types';
+import { updateTrack, DEFAULT_MASTER } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
@@ -185,58 +185,6 @@ export function togglePlaying(session: Session): Session {
     ...session,
     transport: { ...session.transport, playing: !session.transport.playing },
   };
-}
-
-// --- Processor chain helpers ---
-
-export function addTrackProcessor(
-  session: Session,
-  trackId: string,
-  processor: ProcessorConfig,
-): Session {
-  const track = getTrack(session, trackId);
-  return updateTrack(session, trackId, {
-    processors: [...(track.processors ?? []), processor],
-  });
-}
-
-export function removeTrackProcessor(
-  session: Session,
-  trackId: string,
-  processorId: string,
-): Session {
-  const track = getTrack(session, trackId);
-  return updateTrack(session, trackId, {
-    processors: (track.processors ?? []).filter(p => p.id !== processorId),
-  });
-}
-
-export function updateProcessorParams(
-  session: Session,
-  trackId: string,
-  processorId: string,
-  params: Record<string, number>,
-): Session {
-  const track = getTrack(session, trackId);
-  return updateTrack(session, trackId, {
-    processors: (track.processors ?? []).map(p =>
-      p.id === processorId ? { ...p, params: { ...p.params, ...params } } : p,
-    ),
-  });
-}
-
-export function setProcessorModel(
-  session: Session,
-  trackId: string,
-  processorId: string,
-  model: number,
-): Session {
-  const track = getTrack(session, trackId);
-  return updateTrack(session, trackId, {
-    processors: (track.processors ?? []).map(p =>
-      p.id === processorId ? { ...p, model } : p,
-    ),
-  });
 }
 
 // --- Master channel helpers ---

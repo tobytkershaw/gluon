@@ -54,24 +54,6 @@ export interface ControlValue {
 
 export type ControlState = Record<string, ControlValue>;
 
-// --- Sound Source ---
-export interface SoundSource {
-  type: string;
-  engine: string;
-  adapterId: string;
-}
-
-// --- Processor ---
-export interface Processor {
-  id: string;
-  type: string;
-  label: string;
-  enabled: boolean;
-  controls: ControlSchema[];
-  controlState: ControlState;
-  adapterId: string;
-}
-
 // --- Region ---
 export type RegionKind = 'pattern' | 'clip' | 'automation_lane';
 
@@ -265,9 +247,3 @@ export interface ExecutionReportLogEntry {
   description: string;
 }
 
-export interface ExecutionReport {
-  session: unknown; // Will be Session when wired in; avoid circular import for now
-  accepted: AIOperation[];
-  rejected: { op: AIOperation; reason: string }[];
-  log: ExecutionReportLogEntry[];
-}

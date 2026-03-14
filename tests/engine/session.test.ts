@@ -3,9 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createSession, setAgency, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
-  addTrackProcessor, removeTrackProcessor, updateProcessorParams, setProcessorModel,
 } from '../../src/engine/session';
-import { getTrack } from '../../src/engine/types';
 
 describe('Session (Phase 2)', () => {
   it('creates a session with 4 tracks', () => {
@@ -110,41 +108,4 @@ describe('Session (Phase 2)', () => {
     expect(s.transport.playing).toBe(false);
   });
 
-  it('adds a processor to a track', () => {
-    const s = createSession();
-    const vid = s.activeTrackId;
-    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
-    const updated = addTrackProcessor(s, vid, proc);
-    const track = getTrack(updated, vid);
-    expect(track.processors).toHaveLength(1);
-    expect(track.processors![0].id).toBe('rings-0');
-  });
-
-  it('removes a processor from a track', () => {
-    const s = createSession();
-    const vid = s.activeTrackId;
-    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
-    let state = addTrackProcessor(s, vid, proc);
-    state = removeTrackProcessor(state, vid, 'rings-0');
-    expect(getTrack(state, vid).processors).toHaveLength(0);
-  });
-
-  it('updates processor params', () => {
-    const s = createSession();
-    const vid = s.activeTrackId;
-    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
-    let state = addTrackProcessor(s, vid, proc);
-    state = updateProcessorParams(state, vid, 'rings-0', { brightness: 0.8 });
-    expect(getTrack(state, vid).processors![0].params.brightness).toBe(0.8);
-    expect(getTrack(state, vid).processors![0].params.structure).toBe(0.5);
-  });
-
-  it('sets processor model', () => {
-    const s = createSession();
-    const vid = s.activeTrackId;
-    const proc = { id: 'rings-0', type: 'rings' as const, model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } };
-    let state = addTrackProcessor(s, vid, proc);
-    state = setProcessorModel(state, vid, 'rings-0', 3);
-    expect(getTrack(state, vid).processors![0].model).toBe(3);
-  });
 });
