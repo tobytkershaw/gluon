@@ -9,7 +9,7 @@ import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateVoiceParams, setModel,
   setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
-  renameVoice, setMasterVolume, setMasterPan,
+  renameVoice, setMaster,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -630,12 +630,12 @@ export default function App() {
 
   const handleMasterVolumeChange = useCallback((v: number) => {
     ensureAudio();
-    setSession((s) => setMasterVolume(s, v));
+    setSession((s) => setMaster(s, { volume: v }));
   }, [ensureAudio]);
 
   const handleMasterPanChange = useCallback((p: number) => {
     ensureAudio();
-    setSession((s) => setMasterPan(s, p));
+    setSession((s) => setMaster(s, { pan: p }));
   }, [ensureAudio]);
 
   const handleStepToggle = useCallback((stepIndex: number) => {
