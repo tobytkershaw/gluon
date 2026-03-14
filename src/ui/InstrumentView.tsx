@@ -1,11 +1,11 @@
 // src/ui/InstrumentView.tsx
-// Thin shell: ExpandedVoice (top bar moved to AppShell)
-import type { Session, Voice, SequencerViewKind, Agency } from '../engine/types';
-import { ExpandedVoice } from './ExpandedVoice';
+// Thin shell: ExpandedTrack (top bar moved to AppShell)
+import type { Session, Track, SequencerViewKind, Agency } from '../engine/types';
+import { ExpandedTrack } from './ExpandedTrack';
 
 interface Props {
   session: Session;
-  activeVoice: Voice;
+  activeTrack: Track;
   // Transport (position only)
   playing: boolean;
   globalStep: number;
@@ -53,7 +53,7 @@ interface Props {
 }
 
 export function InstrumentView({
-  session, activeVoice,
+  session, activeTrack,
   playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
@@ -73,9 +73,9 @@ export function InstrumentView({
     <div className="flex flex-col h-full">
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
-        <ExpandedVoice
+        <ExpandedTrack
           session={session}
-          activeVoice={activeVoice}
+          activeTrack={activeTrack}
           playing={playing}
           globalStep={globalStep}
           onParamChange={onParamChange}

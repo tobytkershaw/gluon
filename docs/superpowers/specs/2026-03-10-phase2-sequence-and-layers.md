@@ -95,7 +95,7 @@ Each voice owns its pattern. Mute/solo are per-voice transport controls.
 **Solo semantics** (enforced at transport layer, not implied by booleans):
 > If any voice has `solo: true`, only soloed voices produce audio (solo overrides mute, matching Elektron/DAW convention). If no voice is soloed, all voices where `!muted` produce audio.
 
-Implemented as `getAudibleVoices(session): Voice[]` helper in the sequencer layer.
+Implemented as `getAudibleTracks(session): Voice[]` helper in the sequencer layer.
 
 ### Transport
 
@@ -118,7 +118,7 @@ Phase 1's `Snapshot` stores `prevValues` and `aiTargetValues` as flat `Partial<S
 ```typescript
 interface ParamSnapshot {
   kind: 'param';
-  voiceId: string;
+  trackId: string;
   prevValues: Partial<SynthParamValues>;
   aiTargetValues: Partial<SynthParamValues>;
   timestamp: number;
@@ -127,7 +127,7 @@ interface ParamSnapshot {
 
 interface PatternSnapshot {
   kind: 'pattern';
-  voiceId: string;
+  trackId: string;
   prevSteps: { index: number; step: Step }[];  // only changed steps
   prevLength?: number;                          // if length changed
   timestamp: number;
@@ -139,7 +139,7 @@ type Snapshot = ParamSnapshot | PatternSnapshot;
 
 `applyUndo()` switches on `snapshot.kind` to determine which restore logic to run. `ParamSnapshot` retains the existing Phase 1 semantics (check current value against `aiTargetValues` before reverting). `PatternSnapshot` restores previous step data unconditionally (pattern edits are always undoable, unlike parameter drifts).
 
-All snapshots carry `voiceId` so undo knows which voice to target.
+All snapshots carry `trackId` so undo knows which voice to target.
 
 ### PendingAction (extended for sketches)
 
@@ -149,7 +149,7 @@ Phase 1's `PendingAction` stores `changes: Partial<SynthParamValues>`. Sketch pr
 interface ParamPendingAction {
   id: string;
   kind: 'suggestion' | 'audition';
-  voiceId: string;
+  trackId: string;
   changes: Partial<SynthParamValues>;
   reason?: string;
   expiresAt: number;
@@ -159,7 +159,7 @@ interface ParamPendingAction {
 interface SketchPendingAction {
   id: string;
   kind: 'sketch';
-  voiceId: string;
+  trackId: string;
   description: string;
   pattern: PatternSketch;     // the proposed pattern content
   expiresAt: number;
@@ -177,7 +177,7 @@ Phase 1 defined `AISketchAction` with generic `content: unknown` and `sketchType
 ```typescript
 interface AISketchAction {
   type: 'sketch';
-  voiceId: string;
+  trackId: string;
   description: string;
   pattern: PatternSketch;
 }
@@ -202,8 +202,8 @@ The `AIAction` union type updates accordingly.
 
 ```typescript
 interface Session {
-  voices: Voice[];            // 4 fixed voices
-  activeVoiceId: string;      // ID of currently focused voice (not index)
+  tracks: Voice[];            // 4 fixed voices
+  activeTrackId: string;      // ID of currently focused voice (not index)
   transport: Transport;
   leash: number;              // 0.0-1.0
   undoStack: Snapshot[];
@@ -214,7 +214,7 @@ interface Session {
 }
 ```
 
-- `activeVoiceId` is a string ID, not an index. Survives reordering or future voice management changes.
+- `activeTrackId` is a string ID, not an index. Survives reordering or future voice management changes.
 - `recentHumanActions` retained from Phase 1 — the AI layer uses it for reactive responses.
 - `MusicalContext.tempo` becomes a computed getter derived from `transport.bpm` when transport exists, falling back to the manually-set value. `transport.bpm` is the source of truth for tempo when a transport is present. The human can still override via `MusicalContext` for non-sequenced sessions (future use).
 
@@ -270,7 +270,7 @@ The scheduler doesn't process audio — it decides *when* things happen. Keeping
 
 ```typescript
 interface ScheduledNote {
-  voiceId: string;
+  trackId: string;
   time: number;               // AudioContext.currentTime for note-on
   gateOffTime: number;        // AudioContext.currentTime for note-off
   accent: boolean;
@@ -419,7 +419,7 @@ The existing arbitrator is extended to store held parameter values, not just tim
 
 ```typescript
 // New method on Arbitrator
-getHeldParams(voiceId: string): Partial<SynthParamValues>
+getHeldParams(trackId: string): Partial<SynthParamValues>
 ```
 
 Returns current values of any params the human is actively controlling (within cooldown window) for that voice. Called by the scheduler during note resolution.
@@ -507,7 +507,7 @@ Per-voice controls adjacent to the step grid:
 - Mute/solo indicators
 - Agency badge (OFF/SUGGEST/PLAY)
 
-Clicking a voice tab switches `activeVoiceId` and updates both the XY parameter space and the step grid to show that voice.
+Clicking a voice tab switches `activeTrackId` and updates both the XY parameter space and the step grid to show that voice.
 
 ### Transport bar
 
@@ -617,16 +617,16 @@ Voice 2 synth → GainNode (mute/volume) ─┼→ MixerGainNode → AnalyserNod
 Voice 3 synth → GainNode (mute/volume) ─┘                              → MediaStreamDestination (for export)
 ```
 
-Each voice gets its own `WebAudioSynth` instance and a `GainNode` for mute control. `getAudibleVoices()` determines which gain nodes are set to 0 vs 1. The mixer feeds both the speaker output and a `MediaStreamAudioDestinationNode` for recording.
+Each voice gets its own `WebAudioSynth` instance and a `GainNode` for mute control. `getAudibleTracks()` determines which gain nodes are set to 0 vs 1. The mixer feeds both the speaker output and a `MediaStreamAudioDestinationNode` for recording.
 
 The `AudioEngine` is extended to manage N synth instances and expose both immediate and time-scheduled APIs:
 
 ```typescript
 class AudioEngine {
   // Immediate (for UI-driven param changes, existing Phase 1 usage):
-  setVoiceParams(voiceId: string, params: SynthParamValues): void;
-  setVoiceModel(voiceId: string, model: number): void;
-  muteVoice(voiceId: string, muted: boolean): void;
+  setVoiceParams(trackId: string, params: SynthParamValues): void;
+  setVoiceModel(trackId: string, model: number): void;
+  muteVoice(trackId: string, muted: boolean): void;
 
   // Time-scheduled (for sequencer — bridges ScheduledNote to SynthEngine):
   scheduleNote(note: ScheduledNote): void;  // handles both note-on and gate-off timing
@@ -713,7 +713,7 @@ Pattern edits from "hold step + tweak" gestures are grouped: holding one step an
 The implementation follows Approach C (data model first, layered build):
 
 1. **Data model** — Extend `types.ts` with Step, Pattern, Transport. Extend Voice and Session. Update `session.ts` factories.
-2. **Sequencer engine** — Scheduler class, note resolution, `getAudibleVoices` helper. Unit tests against the data model (no audio, no UI).
+2. **Sequencer engine** — Scheduler class, note resolution, `getAudibleTracks` helper. Unit tests against the data model (no audio, no UI).
 3. **Transport UI** — Play/stop, BPM, swing controls. Wire scheduler to audio engine.
 4. **Step grid UI** — Step cells, gate toggle, playback position highlight.
 5. **Parameter locks UI** — Hold-step-and-tweak gesture, lock indicators on grid.
@@ -731,26 +731,26 @@ Each step produces testable, working software. Step 3 gives you a playing sequen
 Phase 1's single-voice `Session` becomes a 4-voice session. The migration:
 
 **Session state:**
-- `session.voice` → `session.voices[0]` (existing voice becomes voice 0)
+- `session.voice` → `session.tracks[0]` (existing voice becomes voice 0)
 - Add voices 1-3 with default patterns and different default models:
   - Voice 0: model 13 (analog bass drum) — kick
   - Voice 1: model 0 (virtual analog) — bass
   - Voice 2: model 2 (FM) — lead
   - Voice 3: model 4 (harmonic/additive) — pad
-- Add `activeVoiceId: voices[0].id`
+- Add `activeTrackId: voices[0].id`
 - Add `transport: { playing: false, bpm: 120, swing: 0 }`
 - Each voice gets `pattern: createDefaultPattern(16)`, `muted: false`, `solo: false`
-- `recentHumanActions` retained, extended with `voiceId` per action
+- `recentHumanActions` retained, extended with `trackId` per action
 
 **Undo stack:**
 - Phase 1 `Snapshot` → Phase 2 `ParamSnapshot` with `kind: 'param'` discriminant added.
-- Existing snapshots gain `voiceId` pointing to voice 0 (the original single voice).
-- `applyUndo()` is rewritten to switch on `snapshot.kind` and look up the target voice by `voiceId`.
+- Existing snapshots gain `trackId` pointing to voice 0 (the original single voice).
+- `applyUndo()` is rewritten to switch on `snapshot.kind` and look up the target voice by `trackId`.
 - The undo stack is cleared on Phase 2 upgrade (simpler than migrating old snapshots — the user is updating to a new version, not mid-session).
 
 **PendingAction:**
 - Phase 1 `PendingAction` → Phase 2 `ParamPendingAction` with `kind` discriminant.
-- Pending actions already have `voiceId` — no structural change needed beyond adding `kind`.
+- Pending actions already have `trackId` — no structural change needed beyond adding `kind`.
 
 **SynthEngine interface:**
 - Extended with `trigger()` and `setGateOpen()` methods.

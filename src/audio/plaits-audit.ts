@@ -83,7 +83,7 @@ function sustainNote(model: number, params: SynthParamValues, dur = 1.6): Plaits
     model,
     baseParams: params,
     notes: [{
-      voiceId: 'audit',
+      trackId: 'audit',
       time: 0.05,
       gateOffTime: 0.05 + dur,
       accent: false,
@@ -99,9 +99,9 @@ function percHits(model: number, params: SynthParamValues): PlaitsAuditScenario 
     model,
     baseParams: params,
     notes: [
-      { voiceId: 'audit', time: 0.05, gateOffTime: 0.12, accent: true, params },
-      { voiceId: 'audit', time: 0.35, gateOffTime: 0.42, accent: false, params: { ...params, timbre: params.timbre + 0.1 } },
-      { voiceId: 'audit', time: 0.65, gateOffTime: 0.72, accent: true, params: { ...params, morph: params.morph - 0.1 } },
+      { trackId: 'audit', time: 0.05, gateOffTime: 0.12, accent: true, params },
+      { trackId: 'audit', time: 0.35, gateOffTime: 0.42, accent: false, params: { ...params, timbre: params.timbre + 0.1 } },
+      { trackId: 'audit', time: 0.65, gateOffTime: 0.72, accent: true, params: { ...params, morph: params.morph - 0.1 } },
     ],
   };
 }
@@ -113,9 +113,9 @@ function paramSweep(model: number, base: SynthParamValues): PlaitsAuditScenario 
     model,
     baseParams: base,
     notes: [
-      { voiceId: 'audit', time: 0.05, gateOffTime: 2.0, accent: false, params: base },
-      { voiceId: 'audit', time: 0.8, gateOffTime: 2.0, accent: false, params: { ...base, timbre: 0.9, morph: 0.1 } },
-      { voiceId: 'audit', time: 1.5, gateOffTime: 2.0, accent: false, params: { ...base, timbre: 0.1, morph: 0.9 } },
+      { trackId: 'audit', time: 0.05, gateOffTime: 2.0, accent: false, params: base },
+      { trackId: 'audit', time: 0.8, gateOffTime: 2.0, accent: false, params: { ...base, timbre: 0.9, morph: 0.1 } },
+      { trackId: 'audit', time: 1.5, gateOffTime: 2.0, accent: false, params: { ...base, timbre: 0.1, morph: 0.9 } },
     ],
   };
 }

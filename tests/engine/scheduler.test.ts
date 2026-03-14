@@ -5,7 +5,7 @@ import { createSession } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import type { Session } from '../../src/engine/types';
 import type { ScheduledNote } from '../../src/engine/sequencer-types';
-import { getVoice } from '../../src/engine/types';
+import { getTrack } from '../../src/engine/types';
 import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from '../../src/engine/canonical-types';
 
 describe('Scheduler', () => {
@@ -47,8 +47,8 @@ describe('Scheduler', () => {
   });
 
   it('emits notes for gated steps', () => {
-    // Gate steps 0 and 4 on voice 0
-    const vid = session.voices[0].id;
+    // Gate steps 0 and 4 on track 0
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
     session = toggleStepGate(session, vid, 4);
 
@@ -61,13 +61,13 @@ describe('Scheduler', () => {
     vi.advanceTimersByTime(100);
 
     expect(notes.length).toBeGreaterThanOrEqual(1);
-    expect(notes[0].voiceId).toBe(vid);
+    expect(notes[0].trackId).toBe(vid);
     expect(notes[0].params).toBeDefined();
     sched.stop();
   });
 
   it('publishes position changes', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
     const sched = createScheduler();
     sched.start(0);
@@ -88,7 +88,7 @@ describe('Scheduler', () => {
   it('applies swing to odd-position steps in beat pairs', () => {
     // Set swing to 0.5
     session = { ...session, transport: { ...session.transport, swing: 0.5 } };
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     // Gate steps 0 and 1 (a pair within a beat)
     session = toggleStepGate(session, vid, 0);
     session = toggleStepGate(session, vid, 1);
@@ -108,22 +108,22 @@ describe('Scheduler', () => {
     }
   });
 
-  it('resolves note params with voice base + step locks', () => {
-    const vid = session.voices[0].id;
+  it('resolves note params with track base + step locks', () => {
+    const vid = session.tracks[0].id;
     // Set a param lock on step 0 via canonical events
-    const voice = getVoice(session, vid);
+    const track = getTrack(session, vid);
     // Add trigger + parameter event at step 0
     const newEvents: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
       { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.9 } as ParameterEvent,
     ];
-    const newRegions = [{ ...voice.regions[0], events: newEvents }, ...voice.regions.slice(1)];
+    const newRegions = [{ ...track.regions[0], events: newEvents }, ...track.regions.slice(1)];
     // Also update pattern steps to stay in sync
-    const newSteps = [...voice.pattern.steps];
+    const newSteps = [...track.pattern.steps];
     newSteps[0] = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
     session = {
       ...session,
-      voices: session.voices.map(v => v.id === vid
+      tracks: session.tracks.map(v => v.id === vid
         ? { ...v, regions: newRegions, pattern: { ...v.pattern, steps: newSteps } }
         : v
       ),
@@ -137,11 +137,11 @@ describe('Scheduler', () => {
 
     expect(notes.length).toBeGreaterThanOrEqual(1);
     expect(notes[0].params.timbre).toBe(0.9); // locked value
-    expect(notes[0].params.morph).toBe(0.5); // voice base
+    expect(notes[0].params.morph).toBe(0.5); // track base
   });
 
   it('computes gateOffTime as next step time', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
 
     const sched = createScheduler();
@@ -157,7 +157,7 @@ describe('Scheduler', () => {
   });
 
   it('handles BPM change mid-play without glitching', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
     session = toggleStepGate(session, vid, 4);
 
@@ -189,19 +189,19 @@ describe('Scheduler', () => {
   });
 
   it('wraps pattern for short patterns', () => {
-    // Create a voice with 8-step region + pattern, gate on step 0
-    const vid = session.voices[0].id;
-    const voice = session.voices.find(v => v.id === vid)!;
-    const newSteps = voice.pattern.steps.slice(0, 8).map((s, i) =>
+    // Create a track with 8-step region + pattern, gate on step 0
+    const vid = session.tracks[0].id;
+    const track = session.tracks.find(v => v.id === vid)!;
+    const newSteps = track.pattern.steps.slice(0, 8).map((s, i) =>
       i === 0 ? { ...s, gate: true } : s
     );
     const newEvents: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...voice.regions[0], duration: 8, events: newEvents };
+    const newRegion = { ...track.regions[0], duration: 8, events: newEvents };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, pattern: { steps: newSteps, length: 8 }, regions: [newRegion] } : v
       ),
     };
@@ -218,18 +218,18 @@ describe('Scheduler', () => {
     sched.stop();
 
     // Should have emitted notes for step 0 on first and second pattern cycles
-    const step0Notes = notes.filter(n => n.voiceId === vid);
+    const step0Notes = notes.filter(n => n.trackId === vid);
     expect(step0Notes.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('only schedules audible voices', () => {
-    // Mute voice 0, gate step 0 on both voice 0 and voice 1
-    session = toggleStepGate(session, session.voices[0].id, 0);
-    session = toggleStepGate(session, session.voices[1].id, 0);
+  it('only schedules audible tracks', () => {
+    // Mute track 0, gate step 0 on both track 0 and track 1
+    session = toggleStepGate(session, session.tracks[0].id, 0);
+    session = toggleStepGate(session, session.tracks[1].id, 0);
     session = {
       ...session,
-      voices: session.voices.map(v =>
-        v.id === session.voices[0].id ? { ...v, muted: true } : v
+      tracks: session.tracks.map(v =>
+        v.id === session.tracks[0].id ? { ...v, muted: true } : v
       ),
     };
 
@@ -239,27 +239,27 @@ describe('Scheduler', () => {
     vi.advanceTimersByTime(100);
     sched.stop();
 
-    // Only voice 1 notes should appear
-    const voiceIds = [...new Set(notes.map(n => n.voiceId))];
-    expect(voiceIds).not.toContain(session.voices[0].id);
+    // Only track 1 notes should appear
+    const trackIds = [...new Set(notes.map(n => n.trackId))];
+    expect(trackIds).not.toContain(session.tracks[0].id);
     if (notes.length > 0) {
-      expect(voiceIds).toContain(session.voices[1].id);
+      expect(trackIds).toContain(session.tracks[1].id);
     }
   });
 
   // --- New event-based scheduler tests ---
 
   it('schedules fractional position events with correct timing', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // Place event at fractional position 4.3
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 4.3, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...voice.regions[0], events };
+    const newRegion = { ...track.regions[0], events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -281,17 +281,17 @@ describe('Scheduler', () => {
   });
 
   it('applies swing correctly on top of fractional positions', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // Place event at step 1.2 (odd position — swing applies)
     session = { ...session, transport: { ...session.transport, swing: 0.5 } };
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 1.2, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...voice.regions[0], events };
+    const newRegion = { ...track.regions[0], events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -312,15 +312,15 @@ describe('Scheduler', () => {
   });
 
   it('uses NoteEvent duration for gate-off', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     const events: MusicalEvent[] = [
       { kind: 'note', at: 2, pitch: 60, velocity: 0.8, duration: 0.5 } as NoteEvent,
     ];
-    const newRegion = { ...voice.regions[0], events };
+    const newRegion = { ...track.regions[0], events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -340,17 +340,17 @@ describe('Scheduler', () => {
   });
 
   it('only schedules events within lookahead window', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // Events at step 0 (in window) and step 12 (far beyond lookahead)
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
       { kind: 'trigger', at: 12, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...voice.regions[0], events };
+    const newRegion = { ...track.regions[0], events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -368,8 +368,8 @@ describe('Scheduler', () => {
   // --- Scheduler hardening tests ---
 
   it('tempo change mid-pattern does not duplicate or skip notes', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // Events at steps 0, 2, 4, 6
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
@@ -377,10 +377,10 @@ describe('Scheduler', () => {
       { kind: 'trigger', at: 4, velocity: 0.8 } as TriggerEvent,
       { kind: 'trigger', at: 6, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...voice.regions[0], duration: 8, events };
+    const newRegion = { ...track.regions[0], duration: 8, events };
     let currentSession: Session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion], pattern: { ...v.pattern, length: 8 } } : v
       ),
     };
@@ -416,27 +416,27 @@ describe('Scheduler', () => {
     sched.stop();
 
     // All 4 events should fire exactly once per loop cycle
-    const voiceNotes = notes.filter(n => n.voiceId === vid);
+    const trackNotes = notes.filter(n => n.trackId === vid);
     // Count unique note times (within tolerance) to detect duplicates
-    const uniqueTimes = voiceNotes.reduce((acc, n) => {
+    const uniqueTimes = trackNotes.reduce((acc, n) => {
       if (!acc.some(t => Math.abs(t - n.time) < 0.001)) acc.push(n.time);
       return acc;
     }, [] as number[]);
-    expect(uniqueTimes.length).toBe(voiceNotes.length); // no duplicates
-    expect(voiceNotes.length).toBeGreaterThanOrEqual(4); // all 4 events scheduled
+    expect(uniqueTimes.length).toBe(trackNotes.length); // no duplicates
+    expect(trackNotes.length).toBeGreaterThanOrEqual(4); // all 4 events scheduled
   });
 
   it('background tab catch-up: large time jump caps to MAX_CATCHUP_STEPS', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // 16-step region with triggers at every even step (0,2,4,6,8,10,12,14)
     const events: MusicalEvent[] = Array.from({ length: 8 }, (_, i) =>
       ({ kind: 'trigger', at: i * 2, velocity: 0.8 }) as TriggerEvent
     );
-    const newRegion = { ...voice.regions[0], events };
+    const newRegion = { ...track.regions[0], events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -450,29 +450,29 @@ describe('Scheduler', () => {
     vi.advanceTimersByTime(30); // single tick fires
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === vid);
+    const trackNotes = notes.filter(n => n.trackId === vid);
     // With catch-up cap, we should get far fewer notes than the full 20+
     // that would be scheduled without the cap. The window covers ~8 steps
     // plus lookahead, so expect a bounded number.
-    expect(voiceNotes.length).toBeLessThan(16);
-    expect(voiceNotes.length).toBeGreaterThan(0);
+    expect(trackNotes.length).toBeLessThan(16);
+    expect(trackNotes.length).toBeGreaterThan(0);
 
     // Verify no duplicate times
-    const uniqueTimes = voiceNotes.reduce((acc, n) => {
+    const uniqueTimes = trackNotes.reduce((acc, n) => {
       if (!acc.some(t => Math.abs(t - n.time) < 0.001)) acc.push(n.time);
       return acc;
     }, [] as number[]);
-    expect(uniqueTimes.length).toBe(voiceNotes.length);
+    expect(uniqueTimes.length).toBe(trackNotes.length);
   });
 
   it('empty region emits zero notes', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // Region with empty events array
-    const newRegion = { ...voice.regions[0], events: [] };
+    const newRegion = { ...track.regions[0], events: [] };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -483,16 +483,16 @@ describe('Scheduler', () => {
     vi.advanceTimersByTime(200);
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === vid);
-    expect(voiceNotes.length).toBe(0);
+    const trackNotes = notes.filter(n => n.trackId === vid);
+    expect(trackNotes.length).toBe(0);
   });
 
-  it('no region on voice emits zero notes', () => {
-    const vid = session.voices[0].id;
+  it('no region on track emits zero notes', () => {
+    const vid = session.tracks[0].id;
     // Remove regions entirely
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [] } : v
       ),
     };
@@ -503,12 +503,12 @@ describe('Scheduler', () => {
     vi.advanceTimersByTime(100);
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === vid);
-    expect(voiceNotes.length).toBe(0);
+    const trackNotes = notes.filter(n => n.trackId === vid);
+    expect(trackNotes.length).toBe(0);
   });
 
   it('position is computed from absolute offset, not accumulated', () => {
-    const vid = session.voices[0].id;
+    const vid = session.tracks[0].id;
     session = toggleStepGate(session, vid, 0);
 
     const sched = createScheduler();
@@ -533,16 +533,16 @@ describe('Scheduler', () => {
   });
 
   it('does not miss step-0 events on loop boundaries due to floating-point cursor drift', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     // Single kick on step 0, 16-step pattern
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...voice.regions[0], duration: 16, events };
+    const newRegion = { ...track.regions[0], duration: 16, events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -557,23 +557,23 @@ describe('Scheduler', () => {
     }
     sched.stop();
 
-    const voiceNotes = notes.filter(n => n.voiceId === vid);
+    const trackNotes = notes.filter(n => n.trackId === vid);
     // Should have at least 4 notes (one per loop): at steps 0, 16, 32, 48
-    expect(voiceNotes.length).toBeGreaterThanOrEqual(4);
+    expect(trackNotes.length).toBeGreaterThanOrEqual(4);
   });
 
   it('resolves ParameterEvents into scheduled note params', () => {
-    const vid = session.voices[0].id;
-    const voice = getVoice(session, vid);
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
       { kind: 'parameter', at: 0, controlId: 'harmonics', value: 0.3 } as ParameterEvent,
       { kind: 'parameter', at: 0, controlId: 'morph', value: 0.7 } as ParameterEvent,
     ];
-    const newRegion = { ...voice.regions[0], events };
+    const newRegion = { ...track.regions[0], events };
     session = {
       ...session,
-      voices: session.voices.map(v =>
+      tracks: session.tracks.map(v =>
         v.id === vid ? { ...v, regions: [newRegion] } : v
       ),
     };
@@ -588,7 +588,7 @@ describe('Scheduler', () => {
     // Parameter events at same position should be merged
     expect(notes[0].params.harmonics).toBe(0.3);
     expect(notes[0].params.morph).toBe(0.7);
-    // Voice base params not overridden should remain
+    // Track base params not overridden should remain
     expect(notes[0].params.timbre).toBe(0.5);
   });
 });

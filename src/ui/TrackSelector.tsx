@@ -1,14 +1,14 @@
-// src/ui/VoiceSelector.tsx
-import type { Voice } from '../engine/types';
-import { getVoiceLabel } from '../engine/voice-labels';
+// src/ui/TrackSelector.tsx
+import type { Track } from '../engine/types';
+import { getTrackLabel } from '../engine/track-labels';
 
 interface Props {
-  voices: Voice[];
-  activeVoiceId: string;
-  onSelectVoice: (voiceId: string) => void;
-  onToggleMute: (voiceId: string) => void;
-  onToggleSolo: (voiceId: string) => void;
-  onToggleAgency?: (voiceId: string) => void;
+  tracks: Track[];
+  activeTrackId: string;
+  onSelectTrack: (trackId: string) => void;
+  onToggleMute: (trackId: string) => void;
+  onToggleSolo: (trackId: string) => void;
+  onToggleAgency?: (trackId: string) => void;
   compact?: boolean;
 }
 
@@ -17,50 +17,50 @@ const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
   ON:  { label: '',   color: '' },
 };
 
-export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency, compact }: Props) {
+export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, compact }: Props) {
   return (
     <div className="flex gap-1">
-      {voices.map((voice, i) => {
-        const isActive = voice.id === activeVoiceId;
-        const badge = AGENCY_BADGE[voice.agency] ?? AGENCY_BADGE.OFF;
-        const label = getVoiceLabel(voice).toUpperCase();
+      {tracks.map((track, i) => {
+        const isActive = track.id === activeTrackId;
+        const badge = AGENCY_BADGE[track.agency] ?? AGENCY_BADGE.OFF;
+        const label = getTrackLabel(track).toUpperCase();
 
         if (compact) {
           return (
             <div
-              key={voice.id}
+              key={track.id}
               className={`flex items-center gap-1.5 px-2 py-1 rounded cursor-pointer transition-colors ${
                 isActive
                   ? 'bg-zinc-800 border border-zinc-700'
                   : 'bg-zinc-900/50 hover:bg-zinc-800/50'
               }`}
-              onClick={() => onSelectVoice(voice.id)}
+              onClick={() => onSelectTrack(track.id)}
             >
               <span className={`text-[10px] font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
                 {label}
               </span>
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleMute(voice.id); }}
+                onClick={(e) => { e.stopPropagation(); onToggleMute(track.id); }}
                 className={`text-[10px] px-0.5 rounded ${
-                  voice.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
+                  track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
                 M
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleSolo(voice.id); }}
+                onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id); }}
                 className={`text-[10px] px-0.5 rounded ${
-                  voice.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
+                  track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
                 S
               </button>
               {onToggleAgency && (
                 <button
-                  onClick={(e) => { e.stopPropagation(); onToggleAgency(voice.id); }}
-                  title={voice.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
+                  onClick={(e) => { e.stopPropagation(); onToggleAgency(track.id); }}
+                  title={track.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
                   className={`text-[10px] px-0.5 rounded ${
-                    voice.agency === 'OFF'
+                    track.agency === 'OFF'
                       ? 'bg-amber-500/20 text-amber-400'
                       : 'text-zinc-600 hover:text-zinc-400'
                   }`}
@@ -74,13 +74,13 @@ export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMu
 
         return (
           <div
-            key={voice.id}
+            key={track.id}
             className={`flex flex-col gap-1 px-3 py-2 rounded-t-lg cursor-pointer transition-colors ${
               isActive
                 ? 'bg-zinc-800 border-t border-x border-zinc-700'
                 : 'bg-zinc-900/50 hover:bg-zinc-800/50'
             }`}
-            onClick={() => onSelectVoice(voice.id)}
+            onClick={() => onSelectTrack(track.id)}
           >
             <div className="flex items-center gap-2">
               <span className={`text-xs font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
@@ -90,17 +90,17 @@ export function VoiceSelector({ voices, activeVoiceId, onSelectVoice, onToggleMu
             </div>
             <div className="flex gap-1">
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleMute(voice.id); }}
+                onClick={(e) => { e.stopPropagation(); onToggleMute(track.id); }}
                 className={`text-[10px] px-1 rounded ${
-                  voice.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
+                  track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
                 M
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleSolo(voice.id); }}
+                onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id); }}
                 className={`text-[10px] px-1 rounded ${
-                  voice.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
+                  track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
                 S

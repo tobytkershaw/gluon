@@ -179,7 +179,7 @@ The top-level container. This is what the AI sees as "the current state."
 
 ```typescript
 interface Project {
-  voices: Voice[];
+  tracks: Voice[];
   transport: Transport;
   context: MusicalContext;
   messages: ChatMessage[];          // conversation history (UI transcript)
@@ -211,26 +211,26 @@ The AI's actions should work at the musical abstraction level, not the implement
 
 ```typescript
 // Set a parameter on a voice
-{ type: 'move', voiceId: string, param: string, target: { absolute: number } | { relative: number }, over?: number }
+{ type: 'move', trackId: string, param: string, target: { absolute: number } | { relative: number }, over?: number }
 
 // Describe / communicate
 { type: 'say', text: string }
 
 // Write temporal events for a voice
-{ type: 'sketch', voiceId: string, description: string, events: MusicalEvent[] }
+{ type: 'sketch', trackId: string, description: string, events: MusicalEvent[] }
 ```
 
 ### Extended actions (Phase 4A+)
 
 ```typescript
 // Add a processor to a voice's chain
-{ type: 'add_processor', voiceId: string, processorType: string, position?: number }
+{ type: 'add_processor', trackId: string, processorType: string, position?: number }
 
 // Remove a processor
-{ type: 'remove_processor', voiceId: string, processorId: string }
+{ type: 'remove_processor', trackId: string, processorId: string }
 
 // Set a parameter on a processor (not the voice source)
-{ type: 'set_processor_param', voiceId: string, processorId: string, param: string, value: number }
+{ type: 'set_processor_param', trackId: string, processorId: string, param: string, value: number }
 ```
 
 The `move` action targets voice source parameters by default. Processor parameters use a separate action to keep the intent explicit.

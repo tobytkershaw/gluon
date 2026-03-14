@@ -65,9 +65,9 @@ describe('Tool Declarations', () => {
     expect(move.parameters?.required).toEqual(['param', 'target']);
   });
 
-  it('sketch tool requires voiceId, description, events', () => {
+  it('sketch tool requires trackId, description, events', () => {
     const sketch = GLUON_TOOLS.find(t => t.name === 'sketch')!;
-    expect(sketch.parameters?.required).toEqual(['voiceId', 'description', 'events']);
+    expect(sketch.parameters?.required).toEqual(['trackId', 'description', 'events']);
   });
 
   it('listen tool requires question', () => {
@@ -110,7 +110,7 @@ describe('Function Call Execution', () => {
   it('converts move function call to AIMoveAction', async () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([{
-        id: 'call-1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, voiceId: 'v0' },
+        id: 'call-1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' },
       }]))
       .mockResolvedValueOnce(mockTextResponse('Done.'));
 
@@ -123,7 +123,7 @@ describe('Function Call Execution', () => {
       type: 'move',
       param: 'brightness',
       target: { absolute: 0.7 },
-      voiceId: 'v0',
+      trackId: 'v0',
     });
   });
 
@@ -131,7 +131,7 @@ describe('Function Call Execution', () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([{
         id: 'call-1', name: 'sketch', args: {
-          voiceId: 'v0', description: 'four on the floor',
+          trackId: 'v0', description: 'four on the floor',
           events: [
             { kind: 'trigger', at: 0, velocity: 1.0, accent: true },
             { kind: 'trigger', at: 4, velocity: 0.8 },
@@ -146,7 +146,7 @@ describe('Function Call Execution', () => {
     const sketchActions = actions.filter(a => a.type === 'sketch');
     expect(sketchActions).toHaveLength(1);
     if (sketchActions[0].type === 'sketch') {
-      expect(sketchActions[0].voiceId).toBe('v0');
+      expect(sketchActions[0].trackId).toBe('v0');
       expect(sketchActions[0].events).toHaveLength(2);
     }
   });
@@ -302,12 +302,12 @@ describe('Function Call Execution', () => {
     expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
   });
 
-  it('returns error response for sketch with missing voiceId', async () => {
+  it('returns error response for sketch with missing trackId', async () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
         { id: 'c1', name: 'sketch', args: { description: 'kick', events: [] } },
       ]))
-      .mockResolvedValueOnce(mockTextResponse('Which voice?'));
+      .mockResolvedValueOnce(mockTextResponse('Which track?'));
 
     const session = createSession();
     const actions = await ai.ask(session, 'make a pattern');
@@ -318,7 +318,7 @@ describe('Function Call Execution', () => {
   it('returns error response for sketch with non-array events', async () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'sketch', args: { voiceId: 'v0', description: 'kick', events: 'not-array' } },
+        { id: 'c1', name: 'sketch', args: { trackId: 'v0', description: 'kick', events: 'not-array' } },
       ]))
       .mockResolvedValueOnce(mockTextResponse('Let me fix that.'));
 
@@ -344,13 +344,13 @@ describe('Function Call Execution', () => {
   it('validateAction rejection prevents action collection and returns error to model', async () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, voiceId: 'v0' } },
+        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } },
       ]))
-      .mockResolvedValueOnce(mockTextResponse('That voice has agency off, sorry.'));
+      .mockResolvedValueOnce(mockTextResponse('That track has agency off, sorry.'));
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => 'Voice v0 has agency OFF',
+      validateAction: () => 'Track v0 has agency OFF',
     });
 
     // Move was NOT collected — validator rejected it
@@ -362,7 +362,7 @@ describe('Function Call Execution', () => {
   it('validateAction null allows action to be collected', async () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, voiceId: 'v0' } },
+        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } },
       ]))
       .mockResolvedValueOnce(mockTextResponse('Done.'));
 
@@ -378,15 +378,15 @@ describe('Function Call Execution', () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
         { id: 'c1', name: 'sketch', args: {
-          voiceId: 'v0', description: 'kick pattern',
+          trackId: 'v0', description: 'kick pattern',
           events: [{ kind: 'trigger', at: 0, velocity: 1.0 }],
         } },
       ]))
-      .mockResolvedValueOnce(mockTextResponse('Cannot edit that voice.'));
+      .mockResolvedValueOnce(mockTextResponse('Cannot edit that track.'));
 
     const session = createSession();
     const actions = await ai.ask(session, 'make a kick pattern', {
-      validateAction: (a) => a.type === 'sketch' ? 'Voice v0 has agency OFF' : null,
+      validateAction: (a) => a.type === 'sketch' ? 'Track v0 has agency OFF' : null,
     });
 
     expect(actions.filter(a => a.type === 'sketch')).toHaveLength(0);

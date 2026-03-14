@@ -3,9 +3,9 @@ import type {
   Session, ParamSnapshot, PatternSnapshot, Snapshot,
   SynthParamValues,
 } from './types';
-import { getVoice, updateVoice } from './types';
+import { getTrack, updateTrack } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
-import { reprojectVoicePattern } from './region-projection';
+import { reprojectTrackPattern } from './region-projection';
 import { stepsToEvents } from './event-conversion';
 import { normalizeRegionEvents } from './region-helpers';
 import { runtimeParamToControlId } from '../audio/instrument-registry';
@@ -16,18 +16,18 @@ function clampParam(value: number): number {
 
 export function applyMove(
   session: Session,
-  voiceId: string,
+  trackId: string,
   param: string,
   target: { absolute: number } | { relative: number },
 ): Session {
-  const voice = getVoice(session, voiceId);
-  const currentValue = voice.params[param] ?? 0;
+  const track = getTrack(session, trackId);
+  const currentValue = track.params[param] ?? 0;
   const newValue = 'absolute' in target ? target.absolute : currentValue + target.relative;
   const clamped = clampParam(newValue);
 
   const snapshot: ParamSnapshot = {
     kind: 'param',
-    voiceId,
+    trackId,
     prevValues: { [param]: currentValue },
     aiTargetValues: { [param]: clamped },
     timestamp: Date.now(),
@@ -35,8 +35,8 @@ export function applyMove(
   };
 
   return {
-    ...updateVoice(session, voiceId, {
-      params: { ...voice.params, [param]: clamped },
+    ...updateTrack(session, trackId, {
+      params: { ...track.params, [param]: clamped },
     }),
     undoStack: [...session.undoStack, snapshot],
   };
@@ -44,16 +44,16 @@ export function applyMove(
 
 export function applyMoveGroup(
   session: Session,
-  voiceId: string,
+  trackId: string,
   moves: { param: string; target: { absolute: number } | { relative: number } }[],
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const track = getTrack(session, trackId);
   const prevValues: Partial<SynthParamValues> = {};
   const aiTargetValues: Partial<SynthParamValues> = {};
   const descriptions: string[] = [];
 
   for (const move of moves) {
-    const cur = voice.params[move.param] ?? 0;
+    const cur = track.params[move.param] ?? 0;
     prevValues[move.param] = cur;
     const nv = clampParam('absolute' in move.target ? move.target.absolute : cur + move.target.relative);
     aiTargetValues[move.param] = nv;
@@ -62,14 +62,14 @@ export function applyMoveGroup(
 
   const snapshot: ParamSnapshot = {
     kind: 'param',
-    voiceId,
+    trackId,
     prevValues,
     aiTargetValues,
     timestamp: Date.now(),
     description: `AI group: ${descriptions.join(', ')}`,
   };
 
-  const newParams = { ...voice.params };
+  const newParams = { ...track.params };
   for (const move of moves) {
     const currentValue = newParams[move.param] ?? 0;
     const newValue = 'absolute' in move.target ? move.target.absolute : currentValue + move.target.relative;
@@ -77,35 +77,35 @@ export function applyMoveGroup(
   }
 
   return {
-    ...updateVoice(session, voiceId, { params: newParams }),
+    ...updateTrack(session, trackId, { params: newParams }),
     undoStack: [...session.undoStack, snapshot],
   };
 }
 
 export function applyParamDirect(
   session: Session,
-  voiceId: string,
+  trackId: string,
   param: string,
   value: number,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  return updateVoice(session, voiceId, {
-    params: { ...voice.params, [param]: clampParam(value) },
+  const track = getTrack(session, trackId);
+  return updateTrack(session, trackId, {
+    params: { ...track.params, [param]: clampParam(value) },
   });
 }
 
 export function applySketch(
   session: Session,
-  voiceId: string,
+  trackId: string,
   description: string,
   sketch: PatternSketch,
 ): Session {
-  const voice = getVoice(session, voiceId);
+  const track = getTrack(session, trackId);
   const prevSteps: { index: number; step: Step }[] = [];
-  const newSteps = [...voice.pattern.steps];
-  let newLength = voice.pattern.length;
-  const prevLength = sketch.length !== undefined && sketch.length !== voice.pattern.length
-    ? voice.pattern.length
+  const newSteps = [...track.pattern.steps];
+  let newLength = track.pattern.length;
+  const prevLength = sketch.length !== undefined && sketch.length !== track.pattern.length
+    ? track.pattern.length
     : undefined;
 
   if (sketch.length !== undefined) {
@@ -132,32 +132,32 @@ export function applySketch(
 
   const snapshot: PatternSnapshot = {
     kind: 'pattern',
-    voiceId,
+    trackId,
     prevSteps,
     prevLength,
     // Capture region events so undo can fully restore them (#209, #214)
-    prevEvents: voice.regions.length > 0 ? [...voice.regions[0].events] : undefined,
-    prevHiddenEvents: voice._hiddenEvents ? [...voice._hiddenEvents] : undefined,
+    prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
+    prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
     timestamp: Date.now(),
     description,
   };
 
   const newPattern = { steps: newSteps, length: newLength };
-  let updated = updateVoice(session, voiceId, { pattern: newPattern });
+  let updated = updateTrack(session, trackId, { pattern: newPattern });
 
   // Project pattern steps to canonical events in the region
-  const updatedVoice = getVoice(updated, voiceId);
-  if (updatedVoice.regions.length > 0) {
+  const updatedTrack = getTrack(updated, trackId);
+  if (updatedTrack.regions.length > 0) {
     const events = stepsToEvents(newSteps.slice(0, newLength), {
       runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
     });
     const region = normalizeRegionEvents({
-      ...updatedVoice.regions[0],
+      ...updatedTrack.regions[0],
       events,
       duration: newLength,
     });
-    updated = updateVoice(updated, voiceId, {
-      regions: [region, ...updatedVoice.regions.slice(1)],
+    updated = updateTrack(updated, trackId, {
+      regions: [region, ...updatedTrack.regions.slice(1)],
     });
   }
 
@@ -173,46 +173,46 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'model') {
-    return updateVoice(session, snapshot.voiceId, { model: snapshot.prevModel, engine: snapshot.prevEngine });
+    return updateTrack(session, snapshot.trackId, { model: snapshot.prevModel, engine: snapshot.prevEngine });
   }
 
   if (snapshot.kind === 'view') {
-    return updateVoice(session, snapshot.voiceId, { views: snapshot.prevViews });
+    return updateTrack(session, snapshot.trackId, { views: snapshot.prevViews });
   }
 
   if (snapshot.kind === 'processor') {
-    return updateVoice(session, snapshot.voiceId, { processors: snapshot.prevProcessors });
+    return updateTrack(session, snapshot.trackId, { processors: snapshot.prevProcessors });
   }
 
   if (snapshot.kind === 'processor-state') {
-    const voice = getVoice(session, snapshot.voiceId);
-    const processors = (voice.processors ?? []).map(p =>
+    const track = getTrack(session, snapshot.trackId);
+    const processors = (track.processors ?? []).map(p =>
       p.id === snapshot.processorId
         ? { ...p, params: { ...snapshot.prevParams }, model: snapshot.prevModel }
         : p,
     );
-    return updateVoice(session, snapshot.voiceId, { processors });
+    return updateTrack(session, snapshot.trackId, { processors });
   }
 
   if (snapshot.kind === 'modulator') {
-    return updateVoice(session, snapshot.voiceId, {
+    return updateTrack(session, snapshot.trackId, {
       modulators: snapshot.prevModulators,
       modulations: snapshot.prevModulations,
     });
   }
 
   if (snapshot.kind === 'modulator-state') {
-    const voice = getVoice(session, snapshot.voiceId);
-    const modulators = (voice.modulators ?? []).map(m =>
+    const track = getTrack(session, snapshot.trackId);
+    const modulators = (track.modulators ?? []).map(m =>
       m.id === snapshot.modulatorId
         ? { ...m, params: { ...snapshot.prevParams }, model: snapshot.prevModel }
         : m,
     );
-    return updateVoice(session, snapshot.voiceId, { modulators });
+    return updateTrack(session, snapshot.trackId, { modulators });
   }
 
   if (snapshot.kind === 'modulation-routing') {
-    return updateVoice(session, snapshot.voiceId, {
+    return updateTrack(session, snapshot.trackId, {
       modulations: snapshot.prevModulations,
     });
   }
@@ -222,65 +222,65 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'region') {
-    const voice = getVoice(session, snapshot.voiceId);
-    if (voice.regions.length === 0) return session;
+    const track = getTrack(session, snapshot.trackId);
+    if (track.regions.length === 0) return session;
     const restoredRegion = {
-      ...voice.regions[0],
+      ...track.regions[0],
       events: snapshot.prevEvents,
       ...(snapshot.prevDuration !== undefined ? { duration: snapshot.prevDuration } : {}),
     };
-    const updatedVoice = reprojectVoicePattern({
-      ...voice,
-      regions: [restoredRegion, ...voice.regions.slice(1)],
+    const updatedTrack = reprojectTrackPattern({
+      ...track,
+      regions: [restoredRegion, ...track.regions.slice(1)],
     });
-    const updates: Partial<import('./types').Voice> = {
-      regions: updatedVoice.regions,
-      pattern: updatedVoice.pattern,
+    const updates: Partial<import('./types').Track> = {
+      regions: updatedTrack.regions,
+      pattern: updatedTrack.pattern,
     };
     if ('prevHiddenEvents' in snapshot) {
       updates._hiddenEvents = snapshot.prevHiddenEvents;
     }
-    return updateVoice(session, snapshot.voiceId, updates);
+    return updateTrack(session, snapshot.trackId, updates);
   }
 
   if (snapshot.kind === 'pattern') {
-    const voice = getVoice(session, snapshot.voiceId);
-    const newSteps = [...voice.pattern.steps];
+    const track = getTrack(session, snapshot.trackId);
+    const newSteps = [...track.pattern.steps];
     for (const { index, step } of snapshot.prevSteps) {
       if (index < newSteps.length) {
         newSteps[index] = step;
       }
     }
-    const newLength = snapshot.prevLength ?? voice.pattern.length;
-    const updates: Partial<import('./types').Voice> = {
+    const newLength = snapshot.prevLength ?? track.pattern.length;
+    const updates: Partial<import('./types').Track> = {
       pattern: { steps: newSteps, length: newLength },
     };
 
     // Restore region events if they were captured (#209, #214)
-    if (snapshot.prevEvents && voice.regions.length > 0) {
+    if (snapshot.prevEvents && track.regions.length > 0) {
       const restoredRegion = {
-        ...voice.regions[0],
+        ...track.regions[0],
         events: snapshot.prevEvents,
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       };
-      const updatedVoice = reprojectVoicePattern({
-        ...voice,
-        regions: [restoredRegion, ...voice.regions.slice(1)],
+      const updatedTrack = reprojectTrackPattern({
+        ...track,
+        regions: [restoredRegion, ...track.regions.slice(1)],
       });
-      updates.regions = updatedVoice.regions;
-      updates.pattern = updatedVoice.pattern;
-    } else if (voice.regions.length > 0) {
+      updates.regions = updatedTrack.regions;
+      updates.pattern = updatedTrack.pattern;
+    } else if (track.regions.length > 0) {
       // Old snapshot without prevEvents: best-effort region sync from restored steps.
       // Uses stepsToEvents (lossy for NoteEvents — same limitation as the original sketch).
       const events = stepsToEvents(newSteps.slice(0, newLength), {
         runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
       });
       const region = normalizeRegionEvents({
-        ...voice.regions[0],
+        ...track.regions[0],
         events,
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       });
-      updates.regions = [region, ...voice.regions.slice(1)];
+      updates.regions = [region, ...track.regions.slice(1)];
     }
 
     // Restore hidden events if captured (#210)
@@ -288,12 +288,12 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
       updates._hiddenEvents = snapshot.prevHiddenEvents;
     }
 
-    return updateVoice(session, snapshot.voiceId, updates);
+    return updateTrack(session, snapshot.trackId, updates);
   }
 
   // ParamSnapshot
-  const voice = getVoice(session, snapshot.voiceId);
-  const newParams = { ...voice.params };
+  const track = getTrack(session, snapshot.trackId);
+  const newParams = { ...track.params };
   for (const [param, prevValue] of Object.entries(snapshot.prevValues)) {
     const aiTarget = snapshot.aiTargetValues[param];
     const currentValue = newParams[param];
@@ -302,11 +302,11 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     }
   }
 
-  const updates: Partial<import('./types').Voice> = { params: newParams };
-  if (snapshot.prevProvenance && voice.controlProvenance) {
+  const updates: Partial<import('./types').Track> = { params: newParams };
+  if (snapshot.prevProvenance && track.controlProvenance) {
     const restoredProvenance = Object.fromEntries(
       Object.entries({
-        ...voice.controlProvenance,
+        ...track.controlProvenance,
         ...snapshot.prevProvenance,
       }).filter(([, value]) => value !== undefined),
     ) as import('./canonical-types').ControlState;
@@ -315,7 +315,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     };
   }
 
-  return updateVoice(session, snapshot.voiceId, updates);
+  return updateTrack(session, snapshot.trackId, updates);
 }
 
 export function applyUndo(session: Session): Session {

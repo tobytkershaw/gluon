@@ -822,7 +822,7 @@ export type PendingActionType = 'suggestion' | 'audition';
 export interface PendingAction {
   id: string;
   type: PendingActionType;
-  voiceId: string;
+  trackId: string;
   changes: Partial<SynthParamValues>;
   reason?: string;
   expiresAt: number;      // timestamp
@@ -1057,7 +1057,7 @@ git add src/engine/undo.ts tests/engine/undo.test.ts && git commit -m "feat(engi
 // tests/engine/session.test.ts
 
 import { describe, it, expect } from 'vitest';
-import { createSession, setLeash, setAgency, updateVoiceParams, setModel } from '../../src/engine/session';
+import { createSession, setLeash, setAgency, updateTrackParams, setModel } from '../../src/engine/session';
 
 describe('Session', () => {
   it('creates a default session', () => {
@@ -1091,7 +1091,7 @@ describe('Session', () => {
 
   it('updates voice params immutably', () => {
     const s1 = createSession();
-    const s2 = updateVoiceParams(s1, { timbre: 0.8 });
+    const s2 = updateTrackParams(s1, { timbre: 0.8 });
     expect(s2.voice.params.timbre).toBe(0.8);
     expect(s1.voice.params.timbre).toBe(0.5); // original unchanged
   });
@@ -1163,7 +1163,7 @@ export function setAgency(session: Session, agency: Agency): Session {
   };
 }
 
-export function updateVoiceParams(session: Session, params: Partial<SynthParamValues>, trackAsHuman = false): Session {
+export function updateTrackParams(session: Session, params: Partial<SynthParamValues>, trackAsHuman = false): Session {
   const newActions = trackAsHuman
     ? [
         ...session.recentHumanActions,
@@ -1224,7 +1224,7 @@ git add src/engine/session.ts tests/engine/session.test.ts && git commit -m "fea
 
 import { describe, it, expect, vi } from 'vitest';
 import { applyMove, applyMoveGroup, applyParamDirect, applySuggest, applyAudition, cancelAuditionParam, applyUndo, commitPending, dismissPending } from '../../src/engine/primitives';
-import { createSession, updateVoiceParams, setAgency } from '../../src/engine/session';
+import { createSession, updateTrackParams, setAgency } from '../../src/engine/session';
 import { Session } from '../../src/engine/types';
 
 describe('Protocol Primitives', () => {
@@ -1239,19 +1239,19 @@ describe('Protocol Primitives', () => {
     });
 
     it('applies relative move', () => {
-      const s = updateVoiceParams(createSession(), { timbre: 0.5 });
+      const s = updateTrackParams(createSession(), { timbre: 0.5 });
       const result = applyMove(s, 'timbre', { relative: 0.2 });
       expect(result.voice.params.timbre).toBeCloseTo(0.7);
     });
 
     it('clamps values to 0-1 for normalised params', () => {
-      const s = updateVoiceParams(createSession(), { timbre: 0.9 });
+      const s = updateTrackParams(createSession(), { timbre: 0.9 });
       const result = applyMove(s, 'timbre', { relative: 0.3 });
       expect(result.voice.params.timbre).toBe(1.0);
     });
 
     it('clamps values at 0 for negative relative moves', () => {
-      const s = updateVoiceParams(createSession(), { timbre: 0.1 });
+      const s = updateTrackParams(createSession(), { timbre: 0.1 });
       const result = applyMove(s, 'timbre', { relative: -0.5 });
       expect(result.voice.params.timbre).toBe(0.0);
     });
@@ -1401,7 +1401,7 @@ describe('Protocol Primitives', () => {
       let s = createSession(); // timbre=0.5, morph=0.5
       s = applyMove(s, 'timbre', { absolute: 0.8 }); // AI changes timbre
       // Human changes morph AFTER the AI acted
-      s = updateVoiceParams(s, { morph: 0.9 });
+      s = updateTrackParams(s, { morph: 0.9 });
       // Undo should revert timbre but preserve the human's morph change
       const result = applyUndo(s);
       expect(result.voice.params.timbre).toBe(0.5); // AI action reverted
@@ -1412,7 +1412,7 @@ describe('Protocol Primitives', () => {
       let s = createSession(); // timbre=0.5
       s = applyMove(s, 'timbre', { absolute: 0.8 }); // AI sets timbre to 0.8
       // Human takes timbre to 0.3 — overriding the AI's value
-      s = updateVoiceParams(s, { timbre: 0.3 });
+      s = updateTrackParams(s, { timbre: 0.3 });
       // Undo pops the stack entry, but timbre (0.3) != aiTarget (0.8), so no revert
       const result = applyUndo(s);
       expect(result.voice.params.timbre).toBe(0.3); // human's value preserved
@@ -1541,7 +1541,7 @@ export function applySuggest(
   const pending: PendingAction = {
     id: `pending-${nextPendingId++}`,
     type: 'suggestion',
-    voiceId: session.voice.id,
+    trackId: session.voice.id,
     changes,
     reason,
     expiresAt: Date.now() + 15000, // 15 second expiry
@@ -1562,14 +1562,14 @@ export function applyAudition(
   // Enforce one audition per voice: revert and remove any existing audition
   let currentParams = { ...session.voice.params };
   const existingAudition = session.pending.find(
-    (p) => p.type === 'audition' && p.voiceId === session.voice.id,
+    (p) => p.type === 'audition' && p.trackId === session.voice.id,
   );
   if (existingAudition) {
     // Revert the old audition's changes first
     currentParams = { ...currentParams, ...existingAudition.previousValues };
   }
   const pendingWithoutOldAudition = session.pending.filter(
-    (p) => !(p.type === 'audition' && p.voiceId === session.voice.id),
+    (p) => !(p.type === 'audition' && p.trackId === session.voice.id),
   );
 
   // Save previous values for the NEW audition (after reverting old one)
@@ -1581,7 +1581,7 @@ export function applyAudition(
   const pending: PendingAction = {
     id: `pending-${nextPendingId++}`,
     type: 'audition',
-    voiceId: session.voice.id,
+    trackId: session.voice.id,
     changes,
     expiresAt: Date.now() + durationMs,
     previousValues,
@@ -1603,7 +1603,7 @@ export function applyAudition(
  *  If all params are cancelled, the audition is removed entirely. */
 export function cancelAuditionParam(session: Session, param: string): Session {
   const audition = session.pending.find(
-    (p) => p.type === 'audition' && p.voiceId === session.voice.id,
+    (p) => p.type === 'audition' && p.trackId === session.voice.id,
   );
   if (!audition || !(param in audition.previousValues)) return session;
 
@@ -1911,7 +1911,7 @@ git add src/ai/system-prompt.ts && git commit -m "feat(ai): add system prompt fo
 
 import { describe, it, expect } from 'vitest';
 import { compressState } from '../../src/ai/state-compression';
-import { createSession, setLeash, setAgency, updateVoiceParams } from '../../src/engine/session';
+import { createSession, setLeash, setAgency, updateTrackParams } from '../../src/engine/session';
 
 describe('compressState', () => {
   it('compresses a default session', () => {
@@ -1942,14 +1942,14 @@ describe('compressState', () => {
   });
 
   it('rounds param values to 2 decimal places', () => {
-    const session = updateVoiceParams(createSession(), { timbre: 0.33333 });
+    const session = updateTrackParams(createSession(), { timbre: 0.33333 });
     const compressed = compressState(session);
     expect(compressed.voice.params.timbre).toBe(0.33);
   });
 
   it('includes recent human actions as formatted strings', () => {
     let session = createSession();
-    session = updateVoiceParams(session, { timbre: 0.8 }, true);
+    session = updateTrackParams(session, { timbre: 0.8 }, true);
     const compressed = compressState(session);
     expect(compressed.recent_human_actions.length).toBe(1);
     expect(compressed.recent_human_actions[0]).toContain('timbre');
@@ -2475,7 +2475,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { Session, AIAction } from '../engine/types';
-import { createSession, setLeash, setAgency, updateVoiceParams, setModel } from '../engine/session';
+import { createSession, setLeash, setAgency, updateTrackParams, setModel } from '../engine/session';
 import { applyMove, applyMoveGroup, applyParamDirect, applySuggest, applyAudition, cancelAuditionParam, applyUndo, commitPending, dismissPending } from '../engine/primitives';
 import { GluonAI } from '../ai/api';
 import { Arbitrator } from '../engine/arbitration';
@@ -2598,7 +2598,7 @@ export default function App() {
       // Cancel auditioned params the human is now controlling
       let next = cancelAuditionParam(s, 'timbre');
       next = cancelAuditionParam(next, 'morph');
-      return updateVoiceParams(next, { timbre, morph }, true);
+      return updateTrackParams(next, { timbre, morph }, true);
     });
   }, []);
 
@@ -2606,7 +2606,7 @@ export default function App() {
     arbRef.current.humanTouched('note');
     setSession((s) => {
       const next = cancelAuditionParam(s, 'note');
-      return updateVoiceParams(next, { note }, true);
+      return updateTrackParams(next, { note }, true);
     });
   }, []);
 
@@ -2614,7 +2614,7 @@ export default function App() {
     arbRef.current.humanTouched('harmonics');
     setSession((s) => {
       const next = cancelAuditionParam(s, 'harmonics');
-      return updateVoiceParams(next, { harmonics }, true);
+      return updateTrackParams(next, { harmonics }, true);
     });
   }, []);
 
@@ -3546,7 +3546,7 @@ If the spike is incomplete at Phase 1 delivery, the fallback synth is the demo e
 ### Known Limitations
 
 - **API key in browser**: Not secure for production. Phase 2 should add a backend proxy.
-- **Single voice only**: The protocol defines `voices: [Voice]` (array). Phase 1 simplifies to `voice: Voice`. This is a deliberate scope reduction, not protocol-aligned — the types will need to generalize for Phase 2.
+- **Single voice only**: The protocol defines `tracks: [Voice]` (array). Phase 1 simplifies to `voice: Voice`. This is a deliberate scope reduction, not protocol-aligned — the types will need to generalize for Phase 2.
 - **Sketch primitive is stubbed**: `sketch` actions from the AI are logged to chat but not applied (no sequencer/pattern editor in Phase 1).
 - **Agency enforcement is in the UI layer only**: This is a deliberate shortcut that weakens invariants. The engine primitives accept any action regardless of agency — the App component gates actions before dispatching. This means the protocol engine is not self-protecting. Phase 2 must move enforcement into the engine layer so that `applyMove` on an OFF voice returns the session unchanged.
 - **Fallback synth is the default demo engine**: The Web Audio fallback is minimal (single oscillator + filter). If the WASM spike succeeds, the real Plaits engine provides rich timbral exploration. If not, the demo proves the interaction loop but undersells the synthesis quality.

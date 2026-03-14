@@ -2,7 +2,7 @@
 import type { Session, SynthParamValues } from './types';
 import type { ScheduledNote } from './sequencer-types';
 import type { MusicalEvent, TriggerEvent, NoteEvent } from './canonical-types';
-import { getAudibleVoices, resolveEventParams } from './sequencer-helpers';
+import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 
@@ -34,7 +34,7 @@ export class Scheduler {
   private getAudioState: () => AudioContextState | undefined;
   private onNote: (note: ScheduledNote) => void;
   private onPositionChange: (globalStep: number) => void;
-  private getHeldParams: (voiceId: string) => Partial<SynthParamValues>;
+  private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
 
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private cursor = 0; // absolute step units (fractional)
@@ -47,7 +47,7 @@ export class Scheduler {
     getAudioState: () => AudioContextState | undefined,
     onNote: (note: ScheduledNote) => void,
     onPositionChange: (globalStep: number) => void,
-    getHeldParams: (voiceId: string) => Partial<SynthParamValues>,
+    getHeldParams: (trackId: string) => Partial<SynthParamValues>,
   ) {
     this.getSession = getSession;
     this.getAudioTime = getAudioTime;
@@ -120,11 +120,11 @@ export class Scheduler {
       globalStep + lookaheadSteps,
     );
 
-    const audibleVoices = getAudibleVoices(session);
+    const audibleTracks = getAudibleTracks(session);
 
-    for (const voice of audibleVoices) {
-      if (voice.regions.length === 0) continue;
-      const region = voice.regions[0];
+    for (const track of audibleTracks) {
+      if (track.regions.length === 0) continue;
+      const region = track.regions[0];
       const events = region.events;
       const regionLen = region.duration;
       if (regionLen <= 0 || events.length === 0) continue;
@@ -182,28 +182,28 @@ export class Scheduler {
             ? !!((event as TriggerEvent).accent || ((event as TriggerEvent).velocity !== undefined && (event as TriggerEvent).velocity! >= 0.95))
             : (event as NoteEvent).velocity >= 0.95;
 
-          // Resolve params: voice base + parameter events at same position + held
-          const heldParams = this.getHeldParams(voice.id);
+          // Resolve params: track base + parameter events at same position + held
+          const heldParams = this.getHeldParams(track.id);
           const resolvedParams = resolveEventParams(
             events,
             event.at,
-            voice.params,
+            track.params,
             heldParams,
             (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
           );
 
           this.onNote({
-            voiceId: voice.id,
+            trackId: track.id,
             time: noteTime,
             gateOffTime,
             accent,
             params: resolvedParams,
-            baseParams: voice.params,
+            baseParams: track.params,
           });
 
           recordQaAudioTrace({
             type: 'scheduler.note',
-            voiceId: voice.id,
+            trackId: track.id,
             eventKind: event.kind,
             at: event.at,
             absoluteStep,

@@ -23,21 +23,21 @@ describe('Arbitrator', () => {
     expect(arb.canAIAct('v0', 'timbre')).toBe(true);
   });
 
-  it('does not block AI on a different voice for same param', () => {
+  it('does not block AI on a different track for same param', () => {
     const arb = new Arbitrator(500);
     arb.humanTouched('v0', 'timbre', 0.8);
     expect(arb.canAIAct('v0', 'timbre')).toBe(false);
     expect(arb.canAIAct('v1', 'timbre')).toBe(true);
   });
 
-  it('getHeldParams returns values within cooldown for specific voice', () => {
+  it('getHeldParams returns values within cooldown for specific track', () => {
     const arb = new Arbitrator(500);
     arb.humanTouched('v0', 'timbre', 0.8);
     arb.humanTouched('v0', 'morph', 0.3);
     const held = arb.getHeldParams('v0');
     expect(held.timbre).toBe(0.8);
     expect(held.morph).toBe(0.3);
-    // Different voice should be empty
+    // Different track should be empty
     expect(arb.getHeldParams('v1')).toEqual({});
   });
 
@@ -54,7 +54,7 @@ describe('Arbitrator', () => {
     expect(arb.getHeldParams('v0')).toEqual({});
   });
 
-  it('tracks params per voice independently', () => {
+  it('tracks params per track independently', () => {
     const arb = new Arbitrator(500);
     arb.humanTouched('v0', 'timbre', 0.8);
     arb.humanTouched('v1', 'timbre', 0.2);
@@ -62,27 +62,27 @@ describe('Arbitrator', () => {
     expect(arb.getHeldParams('v1').timbre).toBe(0.2);
   });
 
-  describe('voice-scoped interaction', () => {
-    it('active interaction only blocks the held voice', () => {
+  describe('track-scoped interaction', () => {
+    it('active interaction only blocks the held track', () => {
       const arb = new Arbitrator();
       arb.humanInteractionStart('v0');
       expect(arb.canAIAct('v0', 'timbre')).toBe(false);
       expect(arb.canAIAct('v1', 'timbre')).toBe(true);
     });
 
-    it('isHoldingSource is voice-scoped during active interaction', () => {
+    it('isHoldingSource is track-scoped during active interaction', () => {
       const arb = new Arbitrator();
       arb.humanInteractionStart('v0');
       expect(arb.isHoldingSource('v0')).toBe(true);
       expect(arb.isHoldingSource('v1')).toBe(false);
     });
 
-    it('getHeldSourceParams is voice-scoped during active interaction', () => {
+    it('getHeldSourceParams is track-scoped during active interaction', () => {
       const arb = new Arbitrator(500);
       arb.humanTouched('v0', 'timbre', 0.8);
       arb.humanInteractionStart('v0');
       expect(arb.getHeldSourceParams('v0').timbre).toBe(0.8);
-      // v1 has no touches and is not the active voice
+      // v1 has no touches and is not the active track
       expect(arb.getHeldSourceParams('v1')).toEqual({});
     });
   });
@@ -116,24 +116,24 @@ describe('Arbitrator', () => {
     });
   });
 
-  describe('canAIActOnVoice', () => {
-    it('returns true when no touches on voice', () => {
+  describe('canAIActOnTrack', () => {
+    it('returns true when no touches on track', () => {
       const arb = new Arbitrator(500);
-      expect(arb.canAIActOnVoice('v0')).toBe(true);
+      expect(arb.canAIActOnTrack('v0')).toBe(true);
     });
 
-    it('returns false when any param on voice is within cooldown', () => {
+    it('returns false when any param on track is within cooldown', () => {
       const arb = new Arbitrator(500);
       arb.humanTouched('v0', 'timbre', 0.5);
-      expect(arb.canAIActOnVoice('v0')).toBe(false);
+      expect(arb.canAIActOnTrack('v0')).toBe(false);
     });
 
-    it('returns true after all touches on voice expire', () => {
+    it('returns true after all touches on track expire', () => {
       const arb = new Arbitrator(500);
       arb.humanTouched('v0', 'timbre', 0.5);
       arb.humanTouched('v0', 'morph', 0.3);
       vi.advanceTimersByTime(600);
-      expect(arb.canAIActOnVoice('v0')).toBe(true);
+      expect(arb.canAIActOnTrack('v0')).toBe(true);
     });
 
     it('returns false if even one param is still within cooldown', () => {
@@ -143,25 +143,25 @@ describe('Arbitrator', () => {
       arb.humanTouched('v0', 'morph', 0.3);
       vi.advanceTimersByTime(300);
       // timbre expired (600ms), but morph still active (300ms)
-      expect(arb.canAIActOnVoice('v0')).toBe(false);
+      expect(arb.canAIActOnTrack('v0')).toBe(false);
     });
 
-    it('does not affect other voices', () => {
+    it('does not affect other tracks', () => {
       const arb = new Arbitrator(500);
       arb.humanTouched('v0', 'timbre', 0.5);
-      expect(arb.canAIActOnVoice('v0')).toBe(false);
-      expect(arb.canAIActOnVoice('v1')).toBe(true);
+      expect(arb.canAIActOnTrack('v0')).toBe(false);
+      expect(arb.canAIActOnTrack('v1')).toBe(true);
     });
 
-    it('returns false during active interaction on that voice', () => {
+    it('returns false during active interaction on that track', () => {
       const arb = new Arbitrator(500);
       arb.humanInteractionStart('v0');
-      expect(arb.canAIActOnVoice('v0')).toBe(false);
-      // Different voice is not blocked
-      expect(arb.canAIActOnVoice('v1')).toBe(true);
+      expect(arb.canAIActOnTrack('v0')).toBe(false);
+      // Different track is not blocked
+      expect(arb.canAIActOnTrack('v1')).toBe(true);
       arb.humanInteractionEnd();
       vi.advanceTimersByTime(600);
-      expect(arb.canAIActOnVoice('v0')).toBe(true);
+      expect(arb.canAIActOnTrack('v0')).toBe(true);
     });
   });
 
@@ -186,7 +186,7 @@ describe('Arbitrator', () => {
       expect(arb.isHoldingSource('v0')).toBe(false);
     });
 
-    it('isHoldingSource returns true during active interaction on that voice', () => {
+    it('isHoldingSource returns true during active interaction on that track', () => {
       const arb = new Arbitrator(500);
       arb.humanInteractionStart('v0');
       expect(arb.isHoldingSource('v0')).toBe(true);

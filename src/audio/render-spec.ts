@@ -1,11 +1,11 @@
 // src/audio/render-spec.ts
 // Converts session state into a serializable RenderSpec for the offline render Worker.
 
-import type { Session, Voice, ProcessorConfig } from '../engine/types';
+import type { Session, Track, ProcessorConfig } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
-import { getAudibleVoices } from '../engine/sequencer-helpers';
+import { getAudibleTracks } from '../engine/sequencer-helpers';
 
 // ---------------------------------------------------------------------------
 // Types — all plain data, safe to postMessage to a Worker
@@ -15,10 +15,10 @@ export interface RenderSpec {
   sampleRate: number;       // always 48000
   bpm: number;
   bars: number;
-  voices: RenderVoiceSpec[];
+  tracks: RenderTrackSpec[];
 }
 
-export interface RenderVoiceSpec {
+export interface RenderTrackSpec {
   id: string;
   /** Plaits engine index (already offset by +8 for the Plaits C ABI). */
   model: number;
@@ -65,21 +65,21 @@ const NOTE_DURATION_STEPS = 0.25;  // default gate length for note events
  * Build a RenderSpec from the current session state.
  *
  * @param session  Current session
- * @param voiceIds Optional subset of voices to render. If omitted, all unmuted voices.
+ * @param trackIds Optional subset of tracks to render. If omitted, all unmuted tracks.
  * @param bars     Number of bars to render (default 2)
  */
 export function buildRenderSpec(
   session: Session,
-  voiceIds?: string[],
+  trackIds?: string[],
   bars = 2,
 ): RenderSpec {
-  const selectedVoices = selectVoices(session, voiceIds);
+  const selectedTracks = selectTracks(session, trackIds);
 
   return {
     sampleRate: 48000,
     bpm: session.transport.bpm,
     bars,
-    voices: selectedVoices.map(v => buildVoiceSpec(v, bars)),
+    tracks: selectedTracks.map(v => buildTrackSpec(v, bars)),
   };
 }
 
@@ -87,29 +87,29 @@ export function buildRenderSpec(
 // Internals
 // ---------------------------------------------------------------------------
 
-function selectVoices(session: Session, voiceIds?: string[]): Voice[] {
-  if (voiceIds && voiceIds.length > 0) {
-    const idSet = new Set(voiceIds);
-    return session.voices.filter(v => idSet.has(v.id));
+function selectTracks(session: Session, trackIds?: string[]): Track[] {
+  if (trackIds && trackIds.length > 0) {
+    const idSet = new Set(trackIds);
+    return session.tracks.filter(v => idSet.has(v.id));
   }
-  // Default: mirror the live engine's audible-voice rule (solo-aware)
-  return getAudibleVoices(session);
+  // Default: mirror the live engine's audible-track rule (solo-aware)
+  return getAudibleTracks(session);
 }
 
-function buildVoiceSpec(voice: Voice, bars: number): RenderVoiceSpec {
+function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
   const params: RenderSynthPatch = {
-    harmonics: voice.params.harmonics,
-    timbre: voice.params.timbre,
-    morph: voice.params.morph,
-    note: voice.params.note,
+    harmonics: track.params.harmonics,
+    timbre: track.params.timbre,
+    morph: track.params.morph,
+    note: track.params.note,
   };
 
-  const events = collectEvents(voice, bars);
-  const processors = (voice.processors ?? []).map(buildProcessorSpec);
+  const events = collectEvents(track, bars);
+  const processors = (track.processors ?? []).map(buildProcessorSpec);
 
   return {
-    id: voice.id,
-    model: clampModel(voice.model) + GLUON_TO_PLAITS_ENGINE_OFFSET,
+    id: track.id,
+    model: clampModel(track.model) + GLUON_TO_PLAITS_ENGINE_OFFSET,
     params,
     events,
     processors,
@@ -129,14 +129,14 @@ function buildProcessorSpec(proc: ProcessorConfig): RenderProcessorSpec {
 }
 
 /**
- * Collect render events from a voice's regions, unrolled across the requested
+ * Collect render events from a track's regions, unrolled across the requested
  * number of bars. Looping regions repeat; non-looping regions play once.
  */
-function collectEvents(voice: Voice, bars: number): RenderEvent[] {
+function collectEvents(track: Track, bars: number): RenderEvent[] {
   const totalSteps = bars * STEPS_PER_BAR;
   const events: RenderEvent[] = [];
 
-  for (const region of voice.regions) {
+  for (const region of track.regions) {
     if (region.events.length === 0) continue;
 
     // How many times does this region repeat within the render window?
@@ -150,7 +150,7 @@ function collectEvents(voice: Voice, bars: number): RenderEvent[] {
           const beatTime = offset + ev.at;
           if (beatTime >= totalSteps) break; // events are sorted ascending
           if (beatTime >= 0) {
-            pushMusicalEvent(events, ev, beatTime, voice.params);
+            pushMusicalEvent(events, ev, beatTime, track.params);
           }
         }
         offset += regionDuration;
@@ -161,7 +161,7 @@ function collectEvents(voice: Voice, bars: number): RenderEvent[] {
         const beatTime = region.start + ev.at;
         if (beatTime >= totalSteps) break;
         if (beatTime >= 0) {
-          pushMusicalEvent(events, ev, beatTime, voice.params);
+          pushMusicalEvent(events, ev, beatTime, track.params);
         }
       }
     }

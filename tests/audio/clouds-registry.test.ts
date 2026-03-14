@@ -112,28 +112,28 @@ describe('Chain validation accepts Clouds', () => {
   // These test that the registry-driven chain validation automatically works for Clouds
   it('Clouds is a valid processor type for chain mutation', async () => {
     const { validateChainMutation } = await import('../../src/engine/chain-validation');
-    const voice = {
+    const track = {
       id: 'v0', engine: 'virtual-analog', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
       agency: 'ON' as const, pattern: { steps: [], length: 16 },
       regions: [], muted: false, solo: false,
     };
-    const result = validateChainMutation(voice, { kind: 'add', type: 'clouds' });
+    const result = validateChainMutation(track, { kind: 'add', type: 'clouds' });
     expect(result.valid).toBe(true);
   });
 
   it('Clouds controls pass processor target validation', async () => {
     const { validateProcessorTarget } = await import('../../src/engine/chain-validation');
-    const voice = {
+    const track = {
       id: 'v0', engine: 'virtual-analog', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
       agency: 'ON' as const, pattern: { steps: [], length: 16 },
       regions: [], muted: false, solo: false,
       processors: [{ id: 'clouds-1', type: 'clouds', model: 0, params: { position: 0.5, size: 0.5, density: 0.5, feedback: 0 } }],
     };
-    expect(validateProcessorTarget(voice, 'clouds-1', { param: 'position' }).valid).toBe(true);
-    expect(validateProcessorTarget(voice, 'clouds-1', { param: 'density' }).valid).toBe(true);
-    expect(validateProcessorTarget(voice, 'clouds-1', { model: 'spectral' }).valid).toBe(true);
-    expect(validateProcessorTarget(voice, 'clouds-1', { param: 'invalid' }).valid).toBe(false);
+    expect(validateProcessorTarget(track, 'clouds-1', { param: 'position' }).valid).toBe(true);
+    expect(validateProcessorTarget(track, 'clouds-1', { param: 'density' }).valid).toBe(true);
+    expect(validateProcessorTarget(track, 'clouds-1', { model: 'spectral' }).valid).toBe(true);
+    expect(validateProcessorTarget(track, 'clouds-1', { param: 'invalid' }).valid).toBe(false);
   });
 });

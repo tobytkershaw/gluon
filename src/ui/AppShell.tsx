@@ -3,7 +3,7 @@
 // Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
 // Handles responsive collapse thresholds via ResizeObserver.
 import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
-import type { Voice, ChatMessage, UndoEntry } from '../engine/types';
+import type { Track, ChatMessage, UndoEntry } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import { TrackList } from './TrackList';
@@ -17,14 +17,14 @@ import { MasterStrip } from './MasterStrip';
 
 interface Props {
   // Track sidebar
-  voices: Voice[];
-  activeVoiceId: string;
+  tracks: Track[];
+  activeTrackId: string;
   activityMap: Record<string, number>;
-  onSelectVoice: (voiceId: string) => void;
-  onToggleMute: (voiceId: string) => void;
-  onToggleSolo: (voiceId: string) => void;
-  onToggleAgency: (voiceId: string) => void;
-  onRenameVoice: (voiceId: string, name: string) => void;
+  onSelectTrack: (trackId: string) => void;
+  onToggleMute: (trackId: string) => void;
+  onToggleSolo: (trackId: string) => void;
+  onToggleAgency: (trackId: string) => void;
+  onRenameTrack: (trackId: string, name: string) => void;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -79,8 +79,8 @@ interface Props {
 const CHAT_COLLAPSE_WIDTH = 1280;
 
 export function AppShell({
-  voices, activeVoiceId, activityMap,
-  onSelectVoice, onToggleMute, onToggleSolo, onToggleAgency, onRenameVoice,
+  tracks, activeTrackId, activityMap,
+  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack,
   messages, onSend, isThinking, isListening,
   apiConfigured, onApiKey, chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError,
@@ -200,14 +200,14 @@ export function AppShell({
 
         {/* Right: Track sidebar */}
         <TrackList
-          voices={voices}
-          activeVoiceId={activeVoiceId}
+          tracks={tracks}
+          activeTrackId={activeTrackId}
           activityMap={activityMap}
-          onSelectVoice={onSelectVoice}
+          onSelectTrack={onSelectTrack}
           onToggleMute={onToggleMute}
           onToggleSolo={onToggleSolo}
           onToggleAgency={onToggleAgency}
-          onRenameVoice={onRenameVoice}
+          onRenameTrack={onRenameTrack}
         />
       </div>
 

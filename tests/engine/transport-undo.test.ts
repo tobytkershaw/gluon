@@ -82,12 +82,12 @@ describe('Transport Undo', () => {
     // Ensure v0 has agency ON for the move
     const sessionWithAgency = {
       ...session,
-      voices: session.voices.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
+      tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
     };
 
     const actions: AIAction[] = [
       { type: 'set_transport', bpm: 140 },
-      { type: 'move', param: 'timbre', target: { absolute: 0.8 }, voiceId: 'v0' },
+      { type: 'move', param: 'timbre', target: { absolute: 0.8 }, trackId: 'v0' },
     ];
     const report = executeOperations(sessionWithAgency, actions, adapter, makeArbitrator());
 
@@ -97,13 +97,13 @@ describe('Transport Undo', () => {
     expect(report.session.undoStack[0].kind).toBe('group');
   });
 
-  it('logs with voiceLabel TRANSPORT', () => {
+  it('logs with trackLabel TRANSPORT', () => {
     const session = createSession();
     const actions: AIAction[] = [{ type: 'set_transport', bpm: 100 }];
     const report = executeOperations(session, actions, adapter, makeArbitrator());
 
     expect(report.log).toHaveLength(1);
-    expect(report.log[0].voiceLabel).toBe('TRANSPORT');
+    expect(report.log[0].trackLabel).toBe('TRANSPORT');
     expect(report.log[0].description).toContain('bpm');
   });
 

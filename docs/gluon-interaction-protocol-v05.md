@@ -34,7 +34,7 @@ The top-level container. One session is one working project.
 
 ```
 Session {
-  voices: [Voice]
+  tracks: [Voice]
   transport: Transport
   undo_stack: [Snapshot]
   messages: [ChatMessage]
@@ -250,7 +250,7 @@ Change a control parameter on a voice.
 move {
   param: ControlID
   target: { absolute: f32 } | { relative: f32 }
-  voiceId: VoiceID?          // Defaults to active voice
+  trackId: VoiceID?          // Defaults to active voice
   over: ms?                  // Smooth transition duration
 }
 ```
@@ -261,7 +261,7 @@ Write a rhythmic or melodic pattern as canonical musical events.
 
 ```
 sketch {
-  voiceId: VoiceID
+  trackId: VoiceID
   description: string
   events: [MusicalEvent]     // Sparse event list
 }
@@ -275,7 +275,7 @@ Structurally modify an existing pattern without rewriting it.
 
 ```
 transform {
-  voiceId: VoiceID
+  trackId: VoiceID
   operation: "rotate" | "transpose" | "reverse" | "duplicate"
   steps: int?                // For rotate (positive=forward, negative=backward)
   semitones: int?            // For transpose (positive=up, negative=down)
@@ -293,7 +293,7 @@ Change the mode of a module. Without `processorId`/`modulatorId`, changes the vo
 
 ```
 set_model {
-  voiceId: VoiceID
+  trackId: VoiceID
   model: EngineID
   processorId: ProcessorID?    // Target a processor's mode
   modulatorId: ModulatorID?    // Target a modulator's mode
@@ -306,7 +306,7 @@ Add a processor module to a voice's chain. Max 2 per voice.
 
 ```
 add_processor {
-  voiceId: VoiceID
+  trackId: VoiceID
   moduleType: ModuleType     // "rings", "clouds"
   description: string
 }
@@ -320,7 +320,7 @@ Remove a processor module from a voice's chain.
 
 ```
 remove_processor {
-  voiceId: VoiceID
+  trackId: VoiceID
   processorId: ProcessorID
   description: string
 }
@@ -332,7 +332,7 @@ Atomically swap one processor for another type. Keeps chain position.
 
 ```
 replace_processor {
-  voiceId: VoiceID
+  trackId: VoiceID
   processorId: ProcessorID     // Existing processor to replace
   newModuleType: ModuleType    // "rings", "clouds"
   description: string
@@ -347,7 +347,7 @@ Add a modulator module (LFO/envelope) to a voice. Max 2 per voice. Use `connect_
 
 ```
 add_modulator {
-  voiceId: VoiceID
+  trackId: VoiceID
   moduleType: ModuleType     // "tides"
   description: string
 }
@@ -361,7 +361,7 @@ Remove a modulator from a voice. Cascades: all routings from this modulator are 
 
 ```
 remove_modulator {
-  voiceId: VoiceID
+  trackId: VoiceID
   modulatorId: ModulatorID
   description: string
 }
@@ -373,7 +373,7 @@ Route a modulator's output to a target parameter. Idempotent — calling with th
 
 ```
 connect_modulator {
-  voiceId: VoiceID
+  trackId: VoiceID
   modulatorId: ModulatorID
   targetKind: "source" | "processor"
   processorId: ProcessorID?    // Required when targetKind is "processor"
@@ -391,7 +391,7 @@ Remove a modulation routing by its ID.
 
 ```
 disconnect_modulator {
-  voiceId: VoiceID
+  trackId: VoiceID
   modulationId: ModulationID
   description: string
 }
@@ -453,7 +453,7 @@ Add a sequencer view to a voice.
 
 ```
 add_view {
-  voiceId: VoiceID
+  trackId: VoiceID
   viewKind: SequencerViewKind
   description: string
 }
@@ -465,7 +465,7 @@ Remove a sequencer view from a voice.
 
 ```
 remove_view {
-  voiceId: VoiceID
+  trackId: VoiceID
   viewId: string
   description: string
 }

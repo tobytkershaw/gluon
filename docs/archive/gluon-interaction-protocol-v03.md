@@ -30,7 +30,7 @@ How a human musician and an AI share control of a musical instrument. The verbs,
 
 ```
 Session {
-  voices: [Voice]
+  tracks: [Voice]
   undo_stack: [Snapshot]        // Most recent state on top
   context: MusicalContext       // Inferred, human can override
   messages: [ChatMessage]       // Conversation history

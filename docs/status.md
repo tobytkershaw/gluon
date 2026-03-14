@@ -48,7 +48,7 @@ Gluon is a browser-based, AI-assisted instrument with:
 | PR #168 | M0 Stabilization: scheduler float-fix, voice-scoped automation, agency button | 2026-03-13 |
 | PR #133 | fix: scheduler skips disabled steps, first-beat timing race, accent restore | 2026-03-13 |
 | PR #113 | Phase 4B: Tides WASM modulation, AI modulation tools, modulator UI | 2026-03-13 |
-| PR #112 | M5 Steps 1-4: VoiceSurface types, VoiceStage, ExpandedVoice, DeepView | 2026-03-13 |
+| PR #112 | M5 Steps 1-4: TrackSurface types, VoiceStage, ExpandedVoice, DeepView | 2026-03-13 |
 | PR #111 | Phase 4A: Clouds WASM, module inspector, chain editing, replace_processor (#102–#104) | 2026-03-13 |
 | PR #109 | Processor control authority + chain validation (#100, #101) | 2026-03-13 |
 | PR #99 | AI structure tools: add_processor / remove_processor (#96) | 2026-03-13 |
@@ -73,7 +73,7 @@ Pre-M5 QA pass fixing priority:now blockers.
 ### Landed: M0 Blocker Burn-Down (PR #168)
 
 - **#121 — Agency button missing in Instrument/Tracker views:** `onToggleAgency` prop threaded through InstrumentView and TrackerView to VoiceStage. Agency (C) button now visible and functional in all view modes.
-- **#130 — XY pad / slider values revert on mouse-up:** AutomationEngine rewritten to key by `(voiceId, param)` instead of param-only. Each param handler cancels only the exact automation being touched. `arbRef.current.canAIAct(voiceId, param)` guards automation callbacks as second defense. Fixes #132 (spontaneous param drift) as a side-effect.
+- **#130 — XY pad / slider values revert on mouse-up:** AutomationEngine rewritten to key by `(trackId, param)` instead of param-only. Each param handler cancels only the exact automation being touched. `arbRef.current.canAIAct(trackId, param)` guards automation callbacks as second defense. Fixes #132 (spontaneous param drift) as a side-effect.
 - **#153 — First sequencer step silent on loops 2-3:** Root cause: IEEE 754 floating-point accumulation in scheduler cursor. After ~20 ticks, cursor overshoots exact multiples of regionLen by ~1e-15, causing `lowerBound` to skip events at step 0. Fixed with epsilon guard in `getLocalSegments`: `if (localStart > 0 && localStart < 1e-9) localStart = 0`.
 
 ### Landed: QA Audio Fixes (PR #133)
@@ -310,7 +310,7 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 - **Layer 1 — TrackRow:** Compact voice row with thumbprint, agency dot, M/S/C, AI activity pulse (in TrackList sidebar)
 - **Layer 2 — ExpandedVoice:** Voice header with agency toggle, chain strip, module-grouped `ControlSection` components (amber for source, sky for processors, violet for modulators), XY pad, sequencer, visualiser
 - **Layer 3 — DeepView:** Read-only per-module inspector with values and source provenance (default/human/AI)
-- `VoiceSurface` type on Voice with scaffolding for semantic controls, pinned controls, XY axes, thumbprint config (inert until Steps 5+)
+- `TrackSurface` type on Voice with scaffolding for semantic controls, pinned controls, XY axes, thumbprint config (inert until Steps 5+)
 - `ChainStrip` with processor badges (sky) and modulator badges (violet), disclosure chevrons for deep view entry
 - Modulation routing display as text chips (`→ source:brightness (0.30)`)
 

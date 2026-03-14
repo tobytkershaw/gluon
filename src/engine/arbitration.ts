@@ -7,10 +7,10 @@ interface TouchRecord {
 }
 
 export class Arbitrator {
-  // Key: "voiceId:target:param" → TouchRecord
+  // Key: "trackId:target:param" → TouchRecord
   private touches: Map<string, TouchRecord> = new Map();
   private cooldownMs: number;
-  private activeVoice: string | null = null;
+  private activeTrack: string | null = null;
   private onHoldExpired: (() => void) | null = null;
   private holdTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -23,16 +23,16 @@ export class Arbitrator {
     this.onHoldExpired = cb;
   }
 
-  private key(voiceId: string, param: string, target = 'source'): string {
-    return `${voiceId}:${target}:${param}`;
+  private key(trackId: string, param: string, target = 'source'): string {
+    return `${trackId}:${target}:${param}`;
   }
 
-  humanTouched(voiceId: string, param: string, value: number, target = 'source'): void {
-    this.touches.set(this.key(voiceId, param, target), { value, timestamp: Date.now() });
+  humanTouched(trackId: string, param: string, value: number, target = 'source'): void {
+    this.touches.set(this.key(trackId, param, target), { value, timestamp: Date.now() });
   }
 
-  humanInteractionStart(voiceId: string): void {
-    this.activeVoice = voiceId;
+  humanInteractionStart(trackId: string): void {
+    this.activeTrack = trackId;
     if (this.holdTimer) {
       clearTimeout(this.holdTimer);
       this.holdTimer = null;
@@ -40,7 +40,7 @@ export class Arbitrator {
   }
 
   humanInteractionEnd(): void {
-    this.activeVoice = null;
+    this.activeTrack = null;
     // Schedule a re-sync after cooldown so suppressed params get flushed
     if (this.holdTimer) clearTimeout(this.holdTimer);
     this.holdTimer = setTimeout(() => {
@@ -49,20 +49,20 @@ export class Arbitrator {
     }, this.cooldownMs + 16); // +16ms to ensure cooldown has fully elapsed
   }
 
-  canAIAct(voiceId: string, param: string): boolean {
-    if (this.activeVoice === voiceId) return false;
-    const record = this.touches.get(this.key(voiceId, param, 'source'));
+  canAIAct(trackId: string, param: string): boolean {
+    if (this.activeTrack === trackId) return false;
+    const record = this.touches.get(this.key(trackId, param, 'source'));
     if (record && Date.now() - record.timestamp <= this.cooldownMs) {
       return false;
     }
     return true;
   }
 
-  /** Returns false if the human has any active touch on any parameter of this voice (within cooldown). */
-  canAIActOnVoice(voiceId: string): boolean {
-    if (this.activeVoice === voiceId) return false;
+  /** Returns false if the human has any active touch on any parameter of this track (within cooldown). */
+  canAIActOnTrack(trackId: string): boolean {
+    if (this.activeTrack === trackId) return false;
     const now = Date.now();
-    const prefix = `${voiceId}:`;
+    const prefix = `${trackId}:`;
     for (const [k, record] of this.touches) {
       if (k.startsWith(prefix) && now - record.timestamp <= this.cooldownMs) {
         return false;
@@ -72,18 +72,18 @@ export class Arbitrator {
   }
 
   /** Legacy — returns all held source params. Used by scheduler. Do not expand usage. */
-  getHeldParams(voiceId: string): Partial<SynthParamValues> {
-    return this.getHeldSourceParams(voiceId);
+  getHeldParams(trackId: string): Partial<SynthParamValues> {
+    return this.getHeldSourceParams(trackId);
   }
 
-  /** Returns only source-level held params for a voice. */
-  getHeldSourceParams(voiceId: string): Partial<SynthParamValues> {
+  /** Returns only source-level held params for a track. */
+  getHeldSourceParams(trackId: string): Partial<SynthParamValues> {
     const now = Date.now();
-    const prefix = `${voiceId}:source:`;
+    const prefix = `${trackId}:source:`;
     const held: Partial<SynthParamValues> = {};
     for (const [k, record] of this.touches) {
       if (!k.startsWith(prefix)) continue;
-      if (now - record.timestamp <= this.cooldownMs || this.activeVoice === voiceId) {
+      if (now - record.timestamp <= this.cooldownMs || this.activeTrack === trackId) {
         const param = k.slice(prefix.length);
         held[param] = record.value;
       }
@@ -91,11 +91,11 @@ export class Arbitrator {
     return held;
   }
 
-  /** Returns true if this voice's source params are held (active interaction or cooldown). */
-  isHoldingSource(voiceId: string): boolean {
-    if (this.activeVoice === voiceId) return true;
+  /** Returns true if this track's source params are held (active interaction or cooldown). */
+  isHoldingSource(trackId: string): boolean {
+    if (this.activeTrack === trackId) return true;
     const now = Date.now();
-    const prefix = `${voiceId}:source:`;
+    const prefix = `${trackId}:source:`;
     for (const [k, record] of this.touches) {
       if (!k.startsWith(prefix)) continue;
       if (now - record.timestamp <= this.cooldownMs) return true;

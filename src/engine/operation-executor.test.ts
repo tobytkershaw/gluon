@@ -9,7 +9,7 @@ import { Arbitrator } from './arbitration';
  */
 function makeSession(overrides?: Partial<Session>): Session {
   return {
-    voices: [{
+    tracks: [{
       id: 'v1',
       engine: 'plaits',
       model: 0,
@@ -38,7 +38,7 @@ function makeSession(overrides?: Partial<Session>): Session {
         thumbprint: { type: 'static-color' },
       },
     }],
-    activeVoiceId: 'v1',
+    activeTrackId: 'v1',
     transport: { bpm: 120, swing: 0, playing: true },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.5, density: 0.5 },
@@ -73,7 +73,7 @@ describe('executeOperations — undo group collapsing', () => {
     // and pushes a nested group) + set_transport (pushes a simple snapshot).
     // Together they trigger the multi-snapshot grouping code path.
     const actions: AIAction[] = [
-      { type: 'remove_processor', voiceId: 'v1', processorId: 'fx1', description: 'remove delay' },
+      { type: 'remove_processor', trackId: 'v1', processorId: 'fx1', description: 'remove delay' },
       { type: 'set_transport', bpm: 140 },
     ];
 

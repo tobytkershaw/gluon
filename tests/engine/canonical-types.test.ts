@@ -99,13 +99,13 @@ describe('canonical-types', () => {
     it('discriminates operation types', () => {
       const move: MoveOp = {
         type: 'move',
-        voiceId: 'v0',
+        trackId: 'v0',
         controlId: 'brightness',
         target: { absolute: 0.7 },
       };
       const sketch: SketchOp = {
         type: 'sketch',
-        voiceId: 'v0',
+        trackId: 'v0',
         mode: 'replace',
         events: [],
         description: 'test',
@@ -172,11 +172,11 @@ describe('canonical-types', () => {
         accepted: [{ type: 'say', text: 'done' }],
         rejected: [
           {
-            op: { type: 'move', voiceId: 'v0', controlId: 'x', target: { absolute: 0 } },
+            op: { type: 'move', trackId: 'v0', controlId: 'x', target: { absolute: 0 } },
             reason: 'unknown control',
           },
         ],
-        log: [{ voiceId: 'v0', voiceLabel: 'KICK', description: 'test' }],
+        log: [{ trackId: 'v0', trackLabel: 'KICK', description: 'test' }],
       };
       expect(report.accepted).toHaveLength(1);
       expect(report.rejected).toHaveLength(1);

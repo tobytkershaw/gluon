@@ -1,5 +1,5 @@
-// src/engine/voice-labels.ts
-import type { Voice } from './types';
+// src/engine/track-labels.ts
+import type { Track } from './types';
 import { getModelName } from '../audio/instrument-registry';
 
 /** Abbreviated engine labels for compact display (~176px TrackRow width). */
@@ -23,11 +23,11 @@ const ENGINE_ABBREV: Record<string, string> = {
 };
 
 /**
- * Returns the display label for a voice.
- * Priority: 1) user-assigned name, 2) abbreviated engine label, 3) voice id fallback.
+ * Returns the display label for a track.
+ * Priority: 1) user-assigned name, 2) abbreviated engine label, 3) track id fallback.
  */
-export function getVoiceLabel(voice: Voice): string {
-  if (voice.name) return voice.name;
-  const modelName = getModelName(voice.model);
+export function getTrackLabel(track: Track): string {
+  if (track.name) return track.name;
+  const modelName = getModelName(track.model);
   return ENGINE_ABBREV[modelName] ?? modelName;
 }

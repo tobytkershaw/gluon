@@ -45,8 +45,8 @@ Add a second processor type to prove multi-processor chains work.
 
 The AI can add/remove processors but can't yet adjust processor parameters via tool calls.
 
-- `set_processor_param` AI tool (voiceId, processorId, param, value)
-- `set_processor_model` AI tool (voiceId, processorId, model) — switch Rings resonator modes
+- `set_processor_param` AI tool (trackId, processorId, param, value)
+- `set_processor_model` AI tool (trackId, processorId, model) — switch Rings resonator modes
 - Prevalidation: processor existence, valid param names from registry
 - Undo via existing `ProcessorSnapshot` or a new `ProcessorParamSnapshot`
 - State compression: include processor params (currently only id/type/model)
@@ -84,7 +84,7 @@ The RFC's modulation layer. Lower priority — depends on Slices 1-4 being solid
 
 Convenience tool combining remove + add in one atomic operation:
 
-- `replace_processor` AI tool (voiceId, processorId, newModuleType)
+- `replace_processor` AI tool (trackId, processorId, newModuleType)
 - Single undo group
 - Useful once multiple processor types exist (Slice 1)
 

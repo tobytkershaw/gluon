@@ -87,14 +87,14 @@ export type RegionKind = 'pattern' | 'clip' | 'automation_lane';
  * ## Collision rules (per kind)
  * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001)
  * 9. No duplicate ParameterEvents for the same `controlId` at the same `at` (tolerance 0.001)
- * 10. No simultaneous NoteEvents in a voice (monophonic in M1)
+ * 10. No simultaneous NoteEvents in a track (monophonic in M1)
  *
  * ## Deferred
  * - Cross-region overlap detection
  * - Region splitting / merging
  * - Non-looping clip playback
  * - Automation lane semantics
- * - Polyphonic voices
+ * - Polyphonic tracks
  */
 export interface Region {
   id: string;
@@ -127,7 +127,7 @@ export interface BaseEvent {
  * 6. `pitch` in 0–127 (MIDI range)
  * 6. `velocity` in 0–1
  * 6. `duration > 0`
- * 10. No simultaneous NoteEvents in a voice (monophonic in M1)
+ * 10. No simultaneous NoteEvents in a track (monophonic in M1)
  */
 export interface NoteEvent extends BaseEvent {
   kind: 'note';
@@ -209,7 +209,7 @@ export interface SourceAdapter {
 // --- AI Operations ---
 export interface MoveOp {
   type: 'move';
-  voiceId: string;
+  trackId: string;
   controlId: string;
   target: { absolute: number } | { relative: number };
   overMs?: number;
@@ -217,7 +217,7 @@ export interface MoveOp {
 
 export interface SketchOp {
   type: 'sketch';
-  voiceId: string;
+  trackId: string;
   regionId?: string;
   mode: 'replace' | 'merge';
   events: MusicalEvent[];
@@ -226,20 +226,20 @@ export interface SketchOp {
 
 export interface AddProcessorOp {
   type: 'add_processor';
-  voiceId: string;
+  trackId: string;
   processorType: string;
   position?: number;
 }
 
 export interface RemoveProcessorOp {
   type: 'remove_processor';
-  voiceId: string;
+  trackId: string;
   processorId: string;
 }
 
 export interface SetProcessorParamOp {
   type: 'set_processor_param';
-  voiceId: string;
+  trackId: string;
   processorId: string;
   controlId: string;
   value: number;
@@ -260,8 +260,8 @@ export type AIOperation =
 
 // --- Execution Report ---
 export interface ExecutionReportLogEntry {
-  voiceId: string;
-  voiceLabel: string;
+  trackId: string;
+  trackLabel: string;
   description: string;
 }
 

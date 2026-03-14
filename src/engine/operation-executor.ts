@@ -2,12 +2,12 @@
 import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, ActionDiff } from './types';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
-import { getVoice, updateVoice } from './types';
+import { getTrack, updateTrack } from './types';
 import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
-import { getVoiceLabel } from './voice-labels';
+import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 
@@ -62,18 +62,18 @@ export function prevalidateAction(
 ): string | null {
   switch (action.type) {
     case 'move': {
-      const voiceId = action.voiceId ?? session.activeVoiceId;
-      const voice = session.voices.find(v => v.id === voiceId);
-      if (!voice) return `Voice not found: ${voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${voiceId} has agency OFF`;
+      const trackId = action.trackId ?? session.activeTrackId;
+      const track = session.tracks.find(v => v.id === trackId);
+      if (!track) return `Track not found: ${trackId}`;
+      if (track.agency !== 'ON') return `Track ${trackId} has agency OFF`;
 
       // Modulator path: validate against modulator registry
       if (action.modulatorId) {
         if (action.over) return `Timed moves (over) are not supported for modulator controls`;
-        const targetResult = validateModulatorTarget(voice, action.modulatorId, { param: action.param });
+        const targetResult = validateModulatorTarget(track, action.modulatorId, { param: action.param });
         if (!targetResult.valid) return targetResult.errors[0];
-        if (!arbitrator.canAIAct(voiceId, `modulator:${action.modulatorId}:${action.param}`)) {
-          return `Arbitration: human is currently interacting with ${action.modulatorId}:${action.param} on ${voiceId}`;
+        if (!arbitrator.canAIAct(trackId, `modulator:${action.modulatorId}:${action.param}`)) {
+          return `Arbitration: human is currently interacting with ${action.modulatorId}:${action.param} on ${trackId}`;
         }
         return null;
       }
@@ -81,10 +81,10 @@ export function prevalidateAction(
       // Processor path: validate against processor registry via chain-validation
       if (action.processorId) {
         if (action.over) return `Timed moves (over) are not supported for processor controls`;
-        const targetResult = validateProcessorTarget(voice, action.processorId, { param: action.param });
+        const targetResult = validateProcessorTarget(track, action.processorId, { param: action.param });
         if (!targetResult.valid) return targetResult.errors[0];
-        if (!arbitrator.canAIAct(voiceId, `processor:${action.processorId}:${action.param}`)) {
-          return `Arbitration: human is currently interacting with ${action.processorId}:${action.param} on ${voiceId}`;
+        if (!arbitrator.canAIAct(trackId, `processor:${action.processorId}:${action.param}`)) {
+          return `Arbitration: human is currently interacting with ${action.processorId}:${action.param} on ${trackId}`;
         }
         return null;
       }
@@ -95,7 +95,7 @@ export function prevalidateAction(
 
       const validationMove: MoveOp = {
         type: 'move',
-        voiceId,
+        trackId,
         controlId: resolved.controlId,
         target: 'absolute' in action.target
           ? { absolute: action.target.absolute }
@@ -105,40 +105,40 @@ export function prevalidateAction(
       const validation = adapter.validateOperation(validationMove);
       if (!validation.valid) return validation.reason ?? `Validation failed for ${action.param}`;
 
-      if (!arbitrator.canAIAct(voiceId, resolved.runtimeParam)) {
-        return `Arbitration: human is currently holding ${resolved.runtimeParam} on ${voiceId}`;
+      if (!arbitrator.canAIAct(trackId, resolved.runtimeParam)) {
+        return `Arbitration: human is currently holding ${resolved.runtimeParam} on ${trackId}`;
       }
       return null;
     }
 
     case 'sketch': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
       return null;
     }
 
     case 'set_model': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
 
       // Modulator path: resolve model against modulator type's engine list
       if (action.modulatorId) {
-        const targetResult = validateModulatorTarget(voice, action.modulatorId, { model: action.model });
+        const targetResult = validateModulatorTarget(track, action.modulatorId, { model: action.model });
         if (!targetResult.valid) return targetResult.errors[0];
-        if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-          return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+        if (!arbitrator.canAIActOnTrack(action.trackId)) {
+          return `Arbitration: human is currently interacting with track ${action.trackId}`;
         }
         return null;
       }
 
       // Processor path: resolve model against processor type's engine list via chain-validation
       if (action.processorId) {
-        const targetResult = validateProcessorTarget(voice, action.processorId, { model: action.model });
+        const targetResult = validateProcessorTarget(track, action.processorId, { model: action.model });
         if (!targetResult.valid) return targetResult.errors[0];
-        if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-          return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+        if (!arbitrator.canAIActOnTrack(action.trackId)) {
+          return `Arbitration: human is currently interacting with track ${action.trackId}`;
         }
         return null;
       }
@@ -146,121 +146,121 @@ export function prevalidateAction(
       // Source path: resolve against Plaits engines
       const engine = getEngineById(action.model);
       if (!engine) return `Unknown model: ${action.model}`;
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'transform': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
       return null;
     }
 
     case 'add_view': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
       // No agency check — view ops are UI curation, not musical mutation
       return null;
     }
 
     case 'remove_view': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
       // No agency check
-      const views = voice.views ?? [];
+      const views = track.views ?? [];
       if (!views.some(v => v.id === action.viewId)) return `View not found: ${action.viewId}`;
       return null;
     }
 
     case 'add_processor': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const chainResult = validateChainMutation(voice, { kind: 'add', type: action.moduleType });
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const chainResult = validateChainMutation(track, { kind: 'add', type: action.moduleType });
       if (!chainResult.valid) return chainResult.errors[0];
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'remove_processor': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const chainResult = validateChainMutation(voice, { kind: 'remove', processorId: action.processorId });
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const chainResult = validateChainMutation(track, { kind: 'remove', processorId: action.processorId });
       if (!chainResult.valid) return chainResult.errors[0];
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'replace_processor': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
       // Validate old processor exists
-      const removeResult = validateChainMutation(voice, { kind: 'remove', processorId: action.processorId });
+      const removeResult = validateChainMutation(track, { kind: 'remove', processorId: action.processorId });
       if (!removeResult.valid) return removeResult.errors[0];
       // Validate new type is valid (use a simulated chain without the old one for the add check)
-      const filteredProcessors = (voice.processors ?? []).filter(p => p.id !== action.processorId);
-      const simulatedVoice = { ...voice, processors: filteredProcessors };
-      const addResult = validateChainMutation(simulatedVoice, { kind: 'add', type: action.newModuleType });
+      const filteredProcessors = (track.processors ?? []).filter(p => p.id !== action.processorId);
+      const simulatedTrack = { ...track, processors: filteredProcessors };
+      const addResult = validateChainMutation(simulatedTrack, { kind: 'add', type: action.newModuleType });
       if (!addResult.valid) return addResult.errors[0];
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'add_modulator': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const modResult = validateModulatorMutation(voice, { kind: 'add', type: action.moduleType });
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const modResult = validateModulatorMutation(track, { kind: 'add', type: action.moduleType });
       if (!modResult.valid) return modResult.errors[0];
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'remove_modulator': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const modResult = validateModulatorMutation(voice, { kind: 'remove', modulatorId: action.modulatorId });
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const modResult = validateModulatorMutation(track, { kind: 'remove', modulatorId: action.modulatorId });
       if (!modResult.valid) return modResult.errors[0];
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'connect_modulator': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const routeResult = validateModulationTarget(voice, { modulatorId: action.modulatorId, target: action.target, depth: action.depth });
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const routeResult = validateModulationTarget(track, { modulatorId: action.modulatorId, target: action.target, depth: action.depth });
       if (!routeResult.valid) return routeResult.errors[0];
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
 
     case 'disconnect_modulator': {
-      const voice = session.voices.find(v => v.id === action.voiceId);
-      if (!voice) return `Voice not found: ${action.voiceId}`;
-      if (voice.agency !== 'ON') return `Voice ${action.voiceId} has agency OFF`;
-      const modulations = voice.modulations ?? [];
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const modulations = track.modulations ?? [];
       if (!modulations.some(m => m.id === action.modulationId)) return `Modulation routing not found: ${action.modulationId}`;
-      if (!arbitrator.canAIActOnVoice(action.voiceId)) {
-        return `Arbitration: human is currently interacting with voice ${action.voiceId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
@@ -298,13 +298,13 @@ export function executeOperations(
 
     switch (action.type) {
       case 'move': {
-        const voiceId = action.voiceId ?? next.activeVoiceId;
-        const voice = getVoice(next, voiceId);
-        const vLabel = getVoiceLabel(getVoice(next, voiceId)).toUpperCase();
+        const trackId = action.trackId ?? next.activeTrackId;
+        const track = getTrack(next, trackId);
+        const vLabel = getTrackLabel(getTrack(next, trackId)).toUpperCase();
 
         // Modulator path: write directly to modulator.params
         if (action.modulatorId) {
-          const modulators = voice.modulators ?? [];
+          const modulators = track.modulators ?? [];
           const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
           if (modIndex < 0) { rejected.push({ op: action, reason: `Internal: modulator ${action.modulatorId} not found at execution` }); break; }
           const mod = modulators[modIndex];
@@ -314,7 +314,7 @@ export function executeOperations(
 
           const snapshot: ModulatorStateSnapshot = {
             kind: 'modulator-state',
-            voiceId,
+            trackId,
             modulatorId: action.modulatorId,
             prevParams: { ...mod.params },
             prevModel: mod.model,
@@ -327,18 +327,18 @@ export function executeOperations(
           newModulators[modIndex] = updatedMod;
 
           next = {
-            ...updateVoice(next, voiceId, { modulators: newModulators }),
+            ...updateTrack(next, trackId, { modulators: newModulators }),
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${mod.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: `${mod.type}/${action.param}`, from: currentVal, to: targetVal } });
+          log.push({ trackId, trackLabel: vLabel, description: `${mod.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: `${mod.type}/${action.param}`, from: currentVal, to: targetVal } });
           accepted.push(action);
           break;
         }
 
         // Processor path: write directly to processor.params
         if (action.processorId) {
-          const processors = voice.processors ?? [];
+          const processors = track.processors ?? [];
           const procIndex = processors.findIndex(p => p.id === action.processorId);
           if (procIndex < 0) { rejected.push({ op: action, reason: `Internal: processor ${action.processorId} not found at execution` }); break; }
           const proc = processors[procIndex];
@@ -348,7 +348,7 @@ export function executeOperations(
 
           const snapshot: ProcessorStateSnapshot = {
             kind: 'processor-state',
-            voiceId,
+            trackId,
             processorId: action.processorId,
             prevParams: { ...proc.params },
             prevModel: proc.model,
@@ -361,11 +361,11 @@ export function executeOperations(
           newProcessors[procIndex] = updatedProc;
 
           next = {
-            ...updateVoice(next, voiceId, { processors: newProcessors }),
+            ...updateTrack(next, trackId, { processors: newProcessors }),
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${proc.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: `${proc.type}/${action.param}`, from: currentVal, to: targetVal } });
+          log.push({ trackId, trackLabel: vLabel, description: `${proc.type}/${action.param} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: `${proc.type}/${action.param}`, from: currentVal, to: targetVal } });
           accepted.push(action);
           break;
         }
@@ -377,20 +377,20 @@ export function executeOperations(
 
         if (action.over) {
           // Drift move: record snapshot + provenance, but actual animation is handled by caller
-          const currentVal = voice.params[runtimeParam] ?? 0;
+          const currentVal = track.params[runtimeParam] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
 
           const prevProvenance: Partial<ControlState> = {};
-          if (voice.controlProvenance?.[controlId]) {
-            prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+          if (track.controlProvenance?.[controlId]) {
+            prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
           }
 
           next = {
             ...next,
             undoStack: [...next.undoStack, {
               kind: 'param' as const,
-              voiceId,
+              trackId,
               prevValues: { [runtimeParam]: currentVal },
               aiTargetValues: { [runtimeParam]: targetVal },
               prevProvenance,
@@ -399,29 +399,29 @@ export function executeOperations(
             }],
           };
 
-          if (voice.controlProvenance) {
-            next = updateVoice(next, voiceId, {
+          if (track.controlProvenance) {
+            next = updateTrack(next, trackId, {
               controlProvenance: {
-                ...voice.controlProvenance,
+                ...track.controlProvenance,
                 [controlId]: { value: targetVal, source: 'ai', updatedAt: Date.now() },
               },
             });
           }
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)} (drift ${action.over}ms)`, diff: { kind: 'param-change', controlId, from: currentVal, to: targetVal } });
+          log.push({ trackId, trackLabel: vLabel, description: `${controlId} ${currentVal.toFixed(2)} → ${targetVal.toFixed(2)} (drift ${action.over}ms)`, diff: { kind: 'param-change', controlId, from: currentVal, to: targetVal } });
           resolvedParams.set(accepted.length, runtimeParam);
           accepted.push(action);
         } else {
           // Immediate move
-          const currentVoice = getVoice(next, voiceId);
-          const beforeVal = currentVoice.params[runtimeParam] ?? 0;
+          const currentTrack = getTrack(next, trackId);
+          const beforeVal = currentTrack.params[runtimeParam] ?? 0;
 
           const prevProvenance: Partial<ControlState> = {};
-          if (currentVoice.controlProvenance?.[controlId]) {
-            prevProvenance[controlId] = { ...currentVoice.controlProvenance[controlId] };
+          if (currentTrack.controlProvenance?.[controlId]) {
+            prevProvenance[controlId] = { ...currentTrack.controlProvenance[controlId] };
           }
 
-          next = applyMove(next, voiceId, runtimeParam, action.target);
+          next = applyMove(next, trackId, runtimeParam, action.target);
 
           // Patch the last snapshot with prevProvenance
           const lastIdx = next.undoStack.length - 1;
@@ -432,18 +432,18 @@ export function executeOperations(
           }
 
           // Update provenance
-          const afterVoice = getVoice(next, voiceId);
-          const afterVal = afterVoice.params[runtimeParam] ?? 0;
-          if (afterVoice.controlProvenance) {
-            next = updateVoice(next, voiceId, {
+          const afterTrack = getTrack(next, trackId);
+          const afterVal = afterTrack.params[runtimeParam] ?? 0;
+          if (afterTrack.controlProvenance) {
+            next = updateTrack(next, trackId, {
               controlProvenance: {
-                ...afterVoice.controlProvenance,
+                ...afterTrack.controlProvenance,
                 [controlId]: { value: afterVal, source: 'ai', updatedAt: Date.now() },
               },
             });
           }
 
-          log.push({ voiceId, voiceLabel: vLabel, description: `${controlId} ${beforeVal.toFixed(2)} → ${afterVal.toFixed(2)}`, diff: { kind: 'param-change', controlId, from: beforeVal, to: afterVal } });
+          log.push({ trackId, trackLabel: vLabel, description: `${controlId} ${beforeVal.toFixed(2)} → ${afterVal.toFixed(2)}`, diff: { kind: 'param-change', controlId, from: beforeVal, to: afterVal } });
           resolvedParams.set(accepted.length, runtimeParam);
           accepted.push(action);
         }
@@ -451,19 +451,19 @@ export function executeOperations(
       }
 
       case 'sketch': {
-        const voice = getVoice(next, action.voiceId);
-        const eventsBefore = voice.regions[0]?.events?.length ?? 0;
+        const track = getTrack(next, action.trackId);
+        const eventsBefore = track.regions[0]?.events?.length ?? 0;
         let eventsAfter = eventsBefore;
 
         if (action.events) {
           // Canonical sketch: write events to region first (source of truth),
           // then project to pattern (derived cache).
-          const prevEvents = voice.regions[0]?.events ?? [];
-          const prevDuration = voice.regions[0]?.duration;
+          const prevEvents = track.regions[0]?.events ?? [];
+          const prevDuration = track.regions[0]?.duration;
 
           // Build updated region with new events
           const updatedRegion = normalizeRegionEvents({
-            ...voice.regions[0],
+            ...track.regions[0],
             events: action.events,
           });
 
@@ -474,7 +474,7 @@ export function executeOperations(
             break;
           }
 
-          const newRegions = [updatedRegion, ...voice.regions.slice(1)];
+          const newRegions = [updatedRegion, ...track.regions.slice(1)];
 
           // Project region to pattern (derived)
           const inverseOpts = {
@@ -490,7 +490,7 @@ export function executeOperations(
           // Create RegionSnapshot for undo
           const snapshot: RegionSnapshot = {
             kind: 'region',
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             prevEvents: [...prevEvents],
             prevDuration: prevDuration !== updatedRegion.duration ? prevDuration : undefined,
             timestamp: Date.now(),
@@ -498,21 +498,21 @@ export function executeOperations(
           };
 
           next = {
-            ...updateVoice(next, action.voiceId, { regions: newRegions, pattern }),
+            ...updateTrack(next, action.trackId, { regions: newRegions, pattern }),
             undoStack: [...next.undoStack, snapshot],
           };
           eventsAfter = updatedRegion.events.length;
         } else if (action.pattern) {
           // Legacy sketch: pass through directly (writes only to pattern, not regions)
-          next = applySketch(next, action.voiceId, action.description, action.pattern);
+          next = applySketch(next, action.trackId, action.description, action.pattern);
           eventsAfter = action.pattern.steps?.filter(s => s.on).length ?? eventsBefore;
         } else {
           rejected.push({ op: action, reason: 'Sketch has neither events nor pattern' });
           break;
         }
 
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `pattern: ${action.description}`, diff: { kind: 'pattern-change', eventsBefore, eventsAfter, description: action.description } });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `pattern: ${action.description}`, diff: { kind: 'pattern-change', eventsBefore, eventsAfter, description: action.description } });
         accepted.push(action);
         break;
       }
@@ -546,25 +546,25 @@ export function executeOperations(
         } else if (action.playing !== undefined && newTransport.playing !== prev.playing) {
           transportDiff = { kind: 'transport-change', field: 'playing', from: prev.playing ? 'playing' : 'stopped', to: newTransport.playing ? 'playing' : 'stopped' };
         }
-        log.push({ voiceId: '', voiceLabel: 'TRANSPORT', description: snapshot.description, diff: transportDiff });
+        log.push({ trackId: '', trackLabel: 'TRANSPORT', description: snapshot.description, diff: transportDiff });
         accepted.push(action);
         break;
       }
 
       case 'set_model': {
-        const voice = getVoice(next, action.voiceId);
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
+        const track = getTrack(next, action.trackId);
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
 
         // Modulator path: switch modulator mode
         if (action.modulatorId) {
-          const modulators = voice.modulators ?? [];
+          const modulators = track.modulators ?? [];
           const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
           const mod = modulators[modIndex];
           const result = getModulatorEngineByName(mod.type, action.model)!;
 
           const snapshot: ModulatorStateSnapshot = {
             kind: 'modulator-state',
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             modulatorId: action.modulatorId,
             prevParams: { ...mod.params },
             prevModel: mod.model,
@@ -577,25 +577,25 @@ export function executeOperations(
           newModulators[modIndex] = updatedMod;
 
           next = {
-            ...updateVoice(next, action.voiceId, { modulators: newModulators }),
+            ...updateTrack(next, action.trackId, { modulators: newModulators }),
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${mod.type} mode → ${result.engine.label}`, diff: { kind: 'model-change', from: mod.type, to: result.engine.label } });
+          log.push({ trackId: action.trackId, trackLabel: vLabel, description: `${mod.type} mode → ${result.engine.label}`, diff: { kind: 'model-change', from: mod.type, to: result.engine.label } });
           accepted.push(action);
           break;
         }
 
         // Processor path: switch processor mode
         if (action.processorId) {
-          const processors = voice.processors ?? [];
+          const processors = track.processors ?? [];
           const procIndex = processors.findIndex(p => p.id === action.processorId);
           const proc = processors[procIndex];
           const result = getProcessorEngineByName(proc.type, action.model)!;
 
           const snapshot: ProcessorStateSnapshot = {
             kind: 'processor-state',
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             processorId: action.processorId,
             prevParams: { ...proc.params },
             prevModel: proc.model,
@@ -608,27 +608,27 @@ export function executeOperations(
           newProcessors[procIndex] = updatedProc;
 
           next = {
-            ...updateVoice(next, action.voiceId, { processors: newProcessors }),
+            ...updateTrack(next, action.trackId, { processors: newProcessors }),
             undoStack: [...next.undoStack, snapshot],
           };
 
-          log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${proc.type} mode → ${result.engine.label}`, diff: { kind: 'model-change', from: proc.type, to: result.engine.label } });
+          log.push({ trackId: action.trackId, trackLabel: vLabel, description: `${proc.type} mode → ${result.engine.label}`, diff: { kind: 'model-change', from: proc.type, to: result.engine.label } });
           accepted.push(action);
           break;
         }
 
-        // Source path: switch voice synthesis engine
+        // Source path: switch track synthesis engine
         const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
         const engineDef = plaitsInstrument.engines[engineIndex];
-        const prevModel = voice.model;
-        const prevEngine = voice.engine;
+        const prevModel = track.model;
+        const prevEngine = track.engine;
 
         // Derive engine name the same way as session.ts:setModel
         const engineName = `plaits:${engineDef.label.toLowerCase().replace(/[\s/]+/g, '_')}`;
 
         const snapshot: ModelSnapshot = {
           kind: 'model',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevModel,
           prevEngine,
           timestamp: Date.now(),
@@ -636,20 +636,20 @@ export function executeOperations(
         };
 
         next = {
-          ...updateVoice(next, action.voiceId, { model: engineIndex, engine: engineName }),
+          ...updateTrack(next, action.trackId, { model: engineIndex, engine: engineName }),
           undoStack: [...next.undoStack, snapshot],
         };
 
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `model → ${engineDef.label}`, diff: { kind: 'model-change', from: plaitsInstrument.engines[prevModel]?.label ?? String(prevModel), to: engineDef.label } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `model → ${engineDef.label}`, diff: { kind: 'model-change', from: plaitsInstrument.engines[prevModel]?.label ?? String(prevModel), to: engineDef.label } });
         accepted.push(action);
         break;
       }
 
       case 'transform': {
-        const voice = getVoice(next, action.voiceId);
-        const region = voice.regions[0];
+        const track = getTrack(next, action.trackId);
+        const region = track.regions[0];
         if (!region) {
-          rejected.push({ op: action, reason: 'No region on voice' });
+          rejected.push({ op: action, reason: 'No region on track' });
           break;
         }
 
@@ -691,7 +691,7 @@ export function executeOperations(
           break;
         }
 
-        const newRegions = [updatedRegion, ...voice.regions.slice(1)];
+        const newRegions = [updatedRegion, ...track.regions.slice(1)];
 
         const inverseOpts = {
           midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
@@ -705,7 +705,7 @@ export function executeOperations(
 
         const snapshot: RegionSnapshot = {
           kind: 'region',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevEvents,
           prevDuration: prevDuration !== newDuration ? prevDuration : undefined,
           timestamp: Date.now(),
@@ -713,40 +713,40 @@ export function executeOperations(
         };
 
         next = {
-          ...updateVoice(next, action.voiceId, { regions: newRegions, pattern }),
+          ...updateTrack(next, action.trackId, { regions: newRegions, pattern }),
           undoStack: [...next.undoStack, snapshot],
         };
 
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `transform ${action.operation}: ${action.description}`, diff: { kind: 'transform', operation: action.operation, description: action.description } });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `transform ${action.operation}: ${action.description}`, diff: { kind: 'transform', operation: action.operation, description: action.description } });
         accepted.push(action);
         break;
       }
 
       case 'add_view': {
-        const voice = getVoice(next, action.voiceId);
-        const prevViews = [...(voice.views ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevViews = [...(track.views ?? [])];
         const newView = { kind: action.viewKind, id: `${action.viewKind}-ai-${Date.now()}` };
         const snapshot: ViewSnapshot = {
           kind: 'view',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevViews,
           timestamp: Date.now(),
           description: action.description,
         };
         next = {
-          ...updateVoice(next, action.voiceId, { views: [...prevViews, newView] }),
+          ...updateTrack(next, action.trackId, { views: [...prevViews, newView] }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.viewKind} view` });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `added ${action.viewKind} view` });
         accepted.push(action);
         break;
       }
 
       case 'remove_view': {
-        const voice = getVoice(next, action.voiceId);
-        const prevViews = [...(voice.views ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevViews = [...(track.views ?? [])];
         const filtered = prevViews.filter(v => v.id !== action.viewId);
         if (filtered.length === prevViews.length) {
           rejected.push({ op: action, reason: `View not found: ${action.viewId}` });
@@ -754,24 +754,24 @@ export function executeOperations(
         }
         const snapshot: ViewSnapshot = {
           kind: 'view',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevViews,
           timestamp: Date.now(),
           description: action.description,
         };
         next = {
-          ...updateVoice(next, action.voiceId, { views: filtered }),
+          ...updateTrack(next, action.trackId, { views: filtered }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed view ${action.viewId}` });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `removed view ${action.viewId}` });
         accepted.push(action);
         break;
       }
 
       case 'add_processor': {
-        const voice = getVoice(next, action.voiceId);
-        const prevProcessors = [...(voice.processors ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevProcessors = [...(track.processors ?? [])];
         const newProcessor: ProcessorConfig = {
           id: action.processorId,
           type: action.moduleType as ProcessorConfig['type'],
@@ -780,31 +780,31 @@ export function executeOperations(
         };
         const snapshot: ProcessorSnapshot = {
           kind: 'processor',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevProcessors,
           timestamp: Date.now(),
           description: action.description,
         };
         next = {
-          ...updateVoice(next, action.voiceId, { processors: [...prevProcessors, newProcessor] }),
+          ...updateTrack(next, action.trackId, { processors: [...prevProcessors, newProcessor] }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})`, diff: { kind: 'processor-add', processorType: action.moduleType } });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `added ${action.moduleType} processor (${action.processorId})`, diff: { kind: 'processor-add', processorType: action.moduleType } });
         accepted.push(action);
         break;
       }
 
       case 'remove_processor': {
-        const voice = getVoice(next, action.voiceId);
-        const prevProcessors = [...(voice.processors ?? [])];
-        const prevModulations = [...(voice.modulations ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevProcessors = [...(track.processors ?? [])];
+        const prevModulations = [...(track.modulations ?? [])];
         const filteredModulations = prevModulations.filter(
           route => route.target.kind !== 'processor' || route.target.processorId !== action.processorId,
         );
         const processorSnapshot: ProcessorSnapshot = {
           kind: 'processor',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevProcessors,
           timestamp: Date.now(),
           description: action.description,
@@ -814,14 +814,14 @@ export function executeOperations(
         if (filteredModulations.length !== prevModulations.length) {
           snapshots.push({
             kind: 'modulation-routing',
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             prevModulations,
             timestamp: Date.now(),
             description: `${action.description} (clear dependent modulation routes)`,
           });
         }
         next = {
-          ...updateVoice(next, action.voiceId, { processors: filtered, modulations: filteredModulations }),
+          ...updateTrack(next, action.trackId, { processors: filtered, modulations: filteredModulations }),
           undoStack: [...next.undoStack, snapshots.length === 1 ? snapshots[0] : {
             kind: 'group',
             snapshots,
@@ -829,22 +829,22 @@ export function executeOperations(
             description: action.description,
           }],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const removedProc = prevProcessors.find(p => p.id === action.processorId);
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed processor ${action.processorId}`, diff: { kind: 'processor-remove', processorType: removedProc?.type ?? action.processorId } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `removed processor ${action.processorId}`, diff: { kind: 'processor-remove', processorType: removedProc?.type ?? action.processorId } });
         accepted.push(action);
         break;
       }
 
       case 'replace_processor': {
-        const voice = getVoice(next, action.voiceId);
-        const prevProcessors = [...(voice.processors ?? [])];
-        const prevModulations = [...(voice.modulations ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevProcessors = [...(track.processors ?? [])];
+        const prevModulations = [...(track.modulations ?? [])];
         const idx = prevProcessors.findIndex(p => p.id === action.processorId);
         if (idx === -1) break; // Should not happen after prevalidation
         const processorSnapshot: ProcessorSnapshot = {
           kind: 'processor',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevProcessors,
           timestamp: Date.now(),
           description: action.description,
@@ -864,14 +864,14 @@ export function executeOperations(
         if (filteredModulations.length !== prevModulations.length) {
           snapshots.push({
             kind: 'modulation-routing',
-            voiceId: action.voiceId,
+            trackId: action.trackId,
             prevModulations,
             timestamp: Date.now(),
             description: `${action.description} (clear dependent modulation routes)`,
           });
         }
         next = {
-          ...updateVoice(next, action.voiceId, { processors: newProcessors, modulations: filteredModulations }),
+          ...updateTrack(next, action.trackId, { processors: newProcessors, modulations: filteredModulations }),
           undoStack: [...next.undoStack, snapshots.length === 1 ? snapshots[0] : {
             kind: 'group',
             snapshots,
@@ -879,16 +879,16 @@ export function executeOperations(
             description: action.description,
           }],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}`, diff: { kind: 'processor-replace', fromType: prevProcessors[idx].type, toType: action.newModuleType } });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}`, diff: { kind: 'processor-replace', fromType: prevProcessors[idx].type, toType: action.newModuleType } });
         accepted.push(action);
         break;
       }
 
       case 'add_modulator': {
-        const voice = getVoice(next, action.voiceId);
-        const prevModulators = [...(voice.modulators ?? [])];
-        const prevModulations = [...(voice.modulations ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevModulators = [...(track.modulators ?? [])];
+        const prevModulations = [...(track.modulations ?? [])];
         const newModulator: ModulatorConfig = {
           id: action.modulatorId,
           type: action.moduleType,
@@ -897,29 +897,29 @@ export function executeOperations(
         };
         const snapshot: ModulatorSnapshot = {
           kind: 'modulator',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevModulators,
           prevModulations,
           timestamp: Date.now(),
           description: action.description,
         };
         next = {
-          ...updateVoice(next, action.voiceId, { modulators: [...prevModulators, newModulator] }),
+          ...updateTrack(next, action.trackId, { modulators: [...prevModulators, newModulator] }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `added ${action.moduleType} modulator (${action.modulatorId})`, diff: { kind: 'modulator-add', modulatorType: action.moduleType } });
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `added ${action.moduleType} modulator (${action.modulatorId})`, diff: { kind: 'modulator-add', modulatorType: action.moduleType } });
         accepted.push(action);
         break;
       }
 
       case 'remove_modulator': {
-        const voice = getVoice(next, action.voiceId);
-        const prevModulators = [...(voice.modulators ?? [])];
-        const prevModulations = [...(voice.modulations ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevModulators = [...(track.modulators ?? [])];
+        const prevModulations = [...(track.modulations ?? [])];
         const snapshot: ModulatorSnapshot = {
           kind: 'modulator',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevModulators,
           prevModulations,
           timestamp: Date.now(),
@@ -929,22 +929,22 @@ export function executeOperations(
         const filteredModulators = prevModulators.filter(m => m.id !== action.modulatorId);
         const filteredModulations = prevModulations.filter(r => r.modulatorId !== action.modulatorId);
         next = {
-          ...updateVoice(next, action.voiceId, { modulators: filteredModulators, modulations: filteredModulations }),
+          ...updateTrack(next, action.trackId, { modulators: filteredModulators, modulations: filteredModulations }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const removedMod = prevModulators.find(m => m.id === action.modulatorId);
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `removed modulator ${action.modulatorId}`, diff: { kind: 'modulator-remove', modulatorType: removedMod?.type ?? action.modulatorId } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `removed modulator ${action.modulatorId}`, diff: { kind: 'modulator-remove', modulatorType: removedMod?.type ?? action.modulatorId } });
         accepted.push(action);
         break;
       }
 
       case 'connect_modulator': {
-        const voice = getVoice(next, action.voiceId);
-        const prevModulations = [...(voice.modulations ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevModulations = [...(track.modulations ?? [])];
         const snapshot: ModulationRoutingSnapshot = {
           kind: 'modulation-routing',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevModulations,
           timestamp: Date.now(),
           description: action.description,
@@ -972,37 +972,37 @@ export function executeOperations(
           newModulations = [...prevModulations, newRouting];
         }
         next = {
-          ...updateVoice(next, action.voiceId, { modulations: newModulations }),
+          ...updateTrack(next, action.trackId, { modulations: newModulations }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const targetStr = action.target.kind === 'source' ? `source:${action.target.param}` : `${action.target.processorId}:${action.target.param}`;
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `${existingIdx >= 0 ? 'updated' : 'connected'} modulation → ${targetStr} (${action.depth.toFixed(2)})`, diff: { kind: 'modulation-connect', modulatorId: action.modulatorId, target: targetStr, depth: action.depth } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `${existingIdx >= 0 ? 'updated' : 'connected'} modulation → ${targetStr} (${action.depth.toFixed(2)})`, diff: { kind: 'modulation-connect', modulatorId: action.modulatorId, target: targetStr, depth: action.depth } });
         accepted.push(action);
         break;
       }
 
       case 'disconnect_modulator': {
-        const voice = getVoice(next, action.voiceId);
-        const prevModulations = [...(voice.modulations ?? [])];
+        const track = getTrack(next, action.trackId);
+        const prevModulations = [...(track.modulations ?? [])];
         const snapshot: ModulationRoutingSnapshot = {
           kind: 'modulation-routing',
-          voiceId: action.voiceId,
+          trackId: action.trackId,
           prevModulations,
           timestamp: Date.now(),
           description: action.description,
         };
         const filteredModulations = prevModulations.filter(r => r.id !== action.modulationId);
         next = {
-          ...updateVoice(next, action.voiceId, { modulations: filteredModulations }),
+          ...updateTrack(next, action.trackId, { modulations: filteredModulations }),
           undoStack: [...next.undoStack, snapshot],
         };
-        const vLabel = getVoiceLabel(getVoice(next, action.voiceId)).toUpperCase();
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const disconnectedRoute = prevModulations.find(r => r.id === action.modulationId);
         const disconnectTargetStr = disconnectedRoute
           ? (disconnectedRoute.target.kind === 'source' ? `source:${disconnectedRoute.target.param}` : `${disconnectedRoute.target.processorId}:${disconnectedRoute.target.param}`)
           : action.modulationId;
-        log.push({ voiceId: action.voiceId, voiceLabel: vLabel, description: `disconnected modulation ${action.modulationId}`, diff: { kind: 'modulation-disconnect', target: disconnectTargetStr } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `disconnected modulation ${action.modulationId}`, diff: { kind: 'modulation-disconnect', target: disconnectTargetStr } });
         accepted.push(action);
         break;
       }
@@ -1031,7 +1031,7 @@ export function executeOperations(
         } else if (action.pan !== undefined && newMaster.pan !== prevMaster.pan) {
           masterDiff = { kind: 'master-change', field: 'pan', from: prevMaster.pan, to: newMaster.pan };
         }
-        log.push({ voiceId: '', voiceLabel: 'MASTER', description: masterSnapshot.description, diff: masterDiff });
+        log.push({ trackId: '', trackLabel: 'MASTER', description: masterSnapshot.description, diff: masterDiff });
         accepted.push(action);
         break;
       }
@@ -1050,8 +1050,8 @@ export function executeOperations(
   const newSnapshots = next.undoStack.slice(undoBaseline);
   if (newSnapshots.length > 1) {
     const sayText = sayTexts.join(' ');
-    const voiceCount = new Set(log.map(e => e.voiceId)).size;
-    const undoDesc = sayText || `AI: ${log.length} changes across ${voiceCount} voice${voiceCount !== 1 ? 's' : ''}`;
+    const trackCount = new Set(log.map(e => e.trackId)).size;
+    const undoDesc = sayText || `AI: ${log.length} changes across ${trackCount} track${trackCount !== 1 ? 's' : ''}`;
     const flatSnaps: Snapshot[] = [];
     for (const e of newSnapshots) {
       if (e.kind === 'group') flatSnaps.push(...e.snapshots);

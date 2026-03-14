@@ -1,7 +1,7 @@
 type AutomationCallback = (param: string, value: number) => void;
 
 interface ActiveAutomation {
-  voiceId: string;
+  trackId: string;
   param: string;
   startValue: number;
   endValue: number;
@@ -10,8 +10,8 @@ interface ActiveAutomation {
   callback: AutomationCallback;
 }
 
-function automationKey(voiceId: string, param: string): string {
-  return `${voiceId}:${param}`;
+function automationKey(trackId: string, param: string): string {
+  return `${trackId}:${param}`;
 }
 
 export class AutomationEngine {
@@ -19,15 +19,15 @@ export class AutomationEngine {
   private rafId: number | null = null;
 
   start(
-    voiceId: string,
+    trackId: string,
     param: string,
     startValue: number,
     endValue: number,
     durationMs: number,
     callback: AutomationCallback,
   ): void {
-    this.automations.set(automationKey(voiceId, param), {
-      voiceId,
+    this.automations.set(automationKey(trackId, param), {
+      trackId,
       param,
       startValue,
       endValue,
@@ -37,8 +37,8 @@ export class AutomationEngine {
     });
   }
 
-  cancel(voiceId: string, param: string): void {
-    this.automations.delete(automationKey(voiceId, param));
+  cancel(trackId: string, param: string): void {
+    this.automations.delete(automationKey(trackId, param));
   }
 
   cancelAll(): void {

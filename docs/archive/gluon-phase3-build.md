@@ -217,14 +217,14 @@ When a voice is OFF, the AI cannot modify it but can still observe it for contex
 
    type ParamChange = {
      type: 'param'
-     voiceId: string
+     trackId: string
      param: string
      previousValue: number
    }
 
    type PatternChange = {
      type: 'pattern'
-     voiceId: string
+     trackId: string
      previousPattern: Pattern
    }
    ```

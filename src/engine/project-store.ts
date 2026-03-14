@@ -2,7 +2,7 @@
 // IndexedDB-backed multi-project storage.
 import type { Session } from './types';
 import { createSession } from './session';
-import { loadSession as loadLegacySession, stripForPersistence, isValidSession, CURRENT_VERSION, migrateVoice } from './persistence';
+import { loadSession as loadLegacySession, stripForPersistence, isValidSession, CURRENT_VERSION, migrateTrack } from './persistence';
 
 export interface ProjectMeta {
   id: string;
@@ -172,7 +172,7 @@ export async function importProject(json: string): Promise<{ id: string; name: s
   }
   const migratedSession: Session = {
     ...(parsed.session as Session),
-    voices: (parsed.session as Session).voices.map(migrateVoice),
+    tracks: (parsed.session as Session).tracks.map(migrateTrack),
   };
   await saveProject(id, name, migratedSession);
   return { id, name };

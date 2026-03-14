@@ -5,12 +5,12 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline } from '../audio/render-offline';
 import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
-import { getActiveVoice, getVoice } from '../engine/types';
+import { getActiveTrack, getTrack } from '../engine/types';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
-  createSession, setAgency, updateVoiceParams, setModel,
-  setActiveVoice, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
-  renameVoice, setMaster,
+  createSession, setAgency, updateTrackParams, setModel,
+  setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
+  renameTrack, setMaster,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -89,13 +89,13 @@ export default function App() {
   }, []);
 
   // Dirty-check refs for sync effects (#142)
-  const prevVoiceStateRef = useRef<Map<string, { model: number; params?: Record<string, number> }>>(new Map());
+  const prevTrackStateRef = useRef<Map<string, { model: number; params?: Record<string, number> }>>(new Map());
   const prevProcessorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
   const prevModulatorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
 
   // Capture param + region state at interaction start for undo
   const interactionUndoRef = useRef<{
-    voiceId: string;
+    trackId: string;
     prevParams: Partial<SynthParamValues>;
     prevProvenance?: Partial<ControlState>;
     prevEvents?: CanonicalMusicalEvent[];
@@ -115,10 +115,10 @@ export default function App() {
   const ensureAudio = useCallback(async () => {
     if (audioStarted) return;
     const s = sessionRef.current;
-    await audioRef.current.start(s.voices.map(v => v.id));
-    for (const voice of s.voices) {
-      audioRef.current.setVoiceModel(voice.id, voice.model);
-      audioRef.current.setVoiceParams(voice.id, voice.params);
+    await audioRef.current.start(s.tracks.map(v => v.id));
+    for (const track of s.tracks) {
+      audioRef.current.setTrackModel(track.id, track.model);
+      audioRef.current.setTrackParams(track.id, track.params);
     }
     setAudioStarted(true);
   }, [audioStarted]);
@@ -132,7 +132,7 @@ export default function App() {
       () => audioRef.current.getState(),
       (note) => audioRef.current.scheduleNote(note),
       (step) => setGlobalStep(step),
-      (voiceId) => arbRef.current.getHeldParams(voiceId),
+      (trackId) => arbRef.current.getHeldParams(trackId),
     );
     return () => { schedulerRef.current?.stop(); };
   }, [audioStarted]);
@@ -168,39 +168,39 @@ export default function App() {
     });
   }, [session.transport.bpm, session.transport.swing]);
 
-  // Sync audio params for all voices when session changes
+  // Sync audio params for all tracks when session changes
   useEffect(() => {
     if (!audioStarted) return;
-    for (const voice of session.voices) {
-      const key = voice.id;
-      const prev = prevVoiceStateRef.current.get(key);
+    for (const track of session.tracks) {
+      const key = track.id;
+      const prev = prevTrackStateRef.current.get(key);
 
-      const holding = arbRef.current.isHoldingSource(voice.id);
+      const holding = arbRef.current.isHoldingSource(track.id);
 
       // Model always syncs — hold only suppresses params (#141)
-      if (!prev || prev.model !== voice.model) {
-        audioRef.current.setVoiceModel(voice.id, voice.model);
+      if (!prev || prev.model !== track.model) {
+        audioRef.current.setTrackModel(track.id, track.model);
       }
-      if (!holding && (!prev || !prev.params || !shallowEqual(prev.params, voice.params))) {
-        audioRef.current.setVoiceParams(voice.id, voice.params);
+      if (!holding && (!prev || !prev.params || !shallowEqual(prev.params, track.params))) {
+        audioRef.current.setTrackParams(track.id, track.params);
       }
       // Only advance cache for dimensions that were actually written
-      prevVoiceStateRef.current.set(key, {
-        model: voice.model,
-        params: holding ? (prev?.params ?? undefined) : { ...voice.params },
+      prevTrackStateRef.current.set(key, {
+        model: track.model,
+        params: holding ? (prev?.params ?? undefined) : { ...track.params },
       });
     }
-  }, [session.voices, audioStarted, holdGeneration]);
+  }, [session.tracks, audioStarted, holdGeneration]);
 
   // Sync mute/solo state
   useEffect(() => {
     if (!audioStarted) return;
-    const anySoloed = session.voices.some(v => v.solo);
-    for (const voice of session.voices) {
-      const audible = anySoloed ? voice.solo : !voice.muted;
-      audioRef.current.muteVoice(voice.id, !audible);
+    const anySoloed = session.tracks.some(v => v.solo);
+    for (const track of session.tracks) {
+      const audible = anySoloed ? track.solo : !track.muted;
+      audioRef.current.muteTrack(track.id, !audible);
     }
-  }, [session.voices, audioStarted]);
+  }, [session.tracks, audioStarted]);
 
   // Sync master channel to audio engine
   useEffect(() => {
@@ -213,71 +213,71 @@ export default function App() {
   useEffect(() => {
     if (!audioStarted) return;
     const audio = audioRef.current;
-    for (const voice of session.voices) {
-      const sessionProcs = voice.processors ?? [];
-      const engineProcs = audio.getProcessors(voice.id);
+    for (const track of session.tracks) {
+      const sessionProcs = track.processors ?? [];
+      const engineProcs = audio.getProcessors(track.id);
 
       // Remove processors no longer in session
       for (const ep of engineProcs) {
         if (!sessionProcs.some(sp => sp.id === ep.id)) {
-          audio.removeProcessor(voice.id, ep.id);
+          audio.removeProcessor(track.id, ep.id);
         }
       }
 
       // Add new or sync existing processors
       for (const sp of sessionProcs) {
-        const pKey = `${voice.id}:${sp.id}`;
+        const pKey = `${track.id}:${sp.id}`;
         if (!engineProcs.some(ep => ep.id === sp.id)) {
           // #138: read fresh state from sessionRef inside .then() to avoid stale closure
-          void audio.addProcessor(voice.id, sp.type, sp.id).then(() => {
-            const v = sessionRef.current.voices.find(sv => sv.id === voice.id);
+          void audio.addProcessor(track.id, sp.type, sp.id).then(() => {
+            const v = sessionRef.current.tracks.find(sv => sv.id === track.id);
             const fresh = v?.processors?.find(p => p.id === sp.id);
             if (!fresh) return; // removed during WASM load
-            audio.setProcessorModel(voice.id, sp.id, fresh.model);
-            audio.setProcessorPatch(voice.id, sp.id, fresh.params);
+            audio.setProcessorModel(track.id, sp.id, fresh.model);
+            audio.setProcessorPatch(track.id, sp.id, fresh.params);
             prevProcessorStateRef.current.set(pKey, { model: fresh.model, params: { ...fresh.params } });
           });
         } else {
           // #142: dirty-check before syncing existing processors
           const prev = prevProcessorStateRef.current.get(pKey);
           if (!prev || prev.model !== sp.model) {
-            audio.setProcessorModel(voice.id, sp.id, sp.model);
+            audio.setProcessorModel(track.id, sp.id, sp.model);
           }
           if (!prev || !shallowEqual(prev.params, sp.params)) {
-            audio.setProcessorPatch(voice.id, sp.id, sp.params);
+            audio.setProcessorPatch(track.id, sp.id, sp.params);
           }
           prevProcessorStateRef.current.set(pKey, { model: sp.model, params: { ...sp.params } });
         }
       }
 
       // Prune stale cache entries for removed processors
-      const prefix = `${voice.id}:`;
+      const prefix = `${track.id}:`;
       for (const k of prevProcessorStateRef.current.keys()) {
-        if (k.startsWith(prefix) && !sessionProcs.some(sp => k === `${voice.id}:${sp.id}`)) {
+        if (k.startsWith(prefix) && !sessionProcs.some(sp => k === `${track.id}:${sp.id}`)) {
           prevProcessorStateRef.current.delete(k);
         }
       }
     }
-  }, [session.voices, audioStarted]);
+  }, [session.tracks, audioStarted]);
 
   // Sync modulator state to audio engine
   useEffect(() => {
     if (!audioStarted) return;
     const audio = audioRef.current;
-    for (const voice of session.voices) {
-      const sessionMods = voice.modulators ?? [];
-      const engineMods = audio.getModulators(voice.id);
+    for (const track of session.tracks) {
+      const sessionMods = track.modulators ?? [];
+      const engineMods = audio.getModulators(track.id);
 
       // Remove modulators no longer in session
       for (const em of engineMods) {
         if (!sessionMods.some(sm => sm.id === em.id)) {
-          audio.removeModulator(voice.id, em.id);
+          audio.removeModulator(track.id, em.id);
         }
       }
 
-      // Helper: sync modulation routes for this voice against current engine state
+      // Helper: sync modulation routes for this track against current engine state
       const syncRoutes = (vid: string) => {
-        const v = sessionRef.current.voices.find(sv => sv.id === vid);
+        const v = sessionRef.current.tracks.find(sv => sv.id === vid);
         if (!v) return;
         const sRoutes = v.modulations ?? [];
         const eRoutes = audio.getModulationRoutes(vid);
@@ -298,46 +298,46 @@ export default function App() {
 
       // Add new or sync existing modulators
       for (const sm of sessionMods) {
-        const mKey = `${voice.id}:${sm.id}`;
+        const mKey = `${track.id}:${sm.id}`;
         if (!engineMods.some(em => em.id === sm.id)) {
           // #138: read fresh state from sessionRef inside .then() to avoid stale closure
-          void audio.addModulator(voice.id, sm.type, sm.id).then(() => {
-            const v = sessionRef.current.voices.find(sv => sv.id === voice.id);
+          void audio.addModulator(track.id, sm.type, sm.id).then(() => {
+            const v = sessionRef.current.tracks.find(sv => sv.id === track.id);
             const fresh = v?.modulators?.find(m => m.id === sm.id);
             if (!fresh) return; // removed during WASM load
-            audio.setModulatorModel(voice.id, sm.id, fresh.model);
-            audio.setModulatorPatch(voice.id, sm.id, fresh.params);
+            audio.setModulatorModel(track.id, sm.id, fresh.model);
+            audio.setModulatorPatch(track.id, sm.id, fresh.params);
             prevModulatorStateRef.current.set(mKey, { model: fresh.model, params: { ...fresh.params } });
             // Connect routes after modulator WASM loads (fixes race condition)
-            syncRoutes(voice.id);
+            syncRoutes(track.id);
           });
         } else {
           // #142: dirty-check before syncing existing modulators
           const prev = prevModulatorStateRef.current.get(mKey);
           if (!prev || prev.model !== sm.model) {
-            audio.setModulatorModel(voice.id, sm.id, sm.model);
+            audio.setModulatorModel(track.id, sm.id, sm.model);
           }
           if (!prev || !shallowEqual(prev.params, sm.params)) {
-            audio.setModulatorPatch(voice.id, sm.id, sm.params);
+            audio.setModulatorPatch(track.id, sm.id, sm.params);
           }
           prevModulatorStateRef.current.set(mKey, { model: sm.model, params: { ...sm.params } });
         }
       }
 
       // Prune stale cache entries for removed modulators
-      const mPrefix = `${voice.id}:`;
+      const mPrefix = `${track.id}:`;
       for (const k of prevModulatorStateRef.current.keys()) {
-        if (k.startsWith(mPrefix) && !sessionMods.some(sm => k === `${voice.id}:${sm.id}`)) {
+        if (k.startsWith(mPrefix) && !sessionMods.some(sm => k === `${track.id}:${sm.id}`)) {
           prevModulatorStateRef.current.delete(k);
         }
       }
 
       // Sync routes now (for already-loaded modulators)
-      syncRoutes(voice.id);
+      syncRoutes(track.id);
     }
-  }, [session.voices, audioStarted]);
+  }, [session.tracks, audioStarted]);
 
-  const activeVoice = getActiveVoice(session);
+  const activeTrack = getActiveTrack(session);
 
   const dispatchAIActions = useCallback((actions: AIAction[]) => {
     setSession((s) => {
@@ -347,10 +347,10 @@ export default function App() {
       for (let i = 0; i < report.accepted.length; i++) {
         const action = report.accepted[i];
         if (action.type === 'move' && action.over) {
-          const vid = action.voiceId ?? s.activeVoiceId;
+          const vid = action.trackId ?? s.activeTrackId;
           const runtimeParam = report.resolvedParams.get(i) ?? action.param;
-          const voice = getVoice(report.session, vid);
-          const currentVal = voice.params[runtimeParam] ?? 0;
+          const track = getTrack(report.session, vid);
+          const currentVal = track.params[runtimeParam] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
           autoRef.current.start(vid, runtimeParam, currentVal, targetVal, action.over, (p, value) => {
@@ -361,18 +361,18 @@ export default function App() {
         }
       }
 
-      // Track activity for touched voices (skip non-voice actions)
+      // Track activity for touched tracks (skip non-track actions)
       const now = Date.now();
-      const touchedVoices = new Set<string>();
+      const touchedTracks = new Set<string>();
       for (const action of report.accepted) {
         if (action.type === 'say' || action.type === 'set_transport') continue;
-        if (!('voiceId' in action) || !action.voiceId) continue;
-        touchedVoices.add(action.voiceId);
+        if (!('trackId' in action) || !action.trackId) continue;
+        touchedTracks.add(action.trackId);
       }
-      if (touchedVoices.size > 0) {
+      if (touchedTracks.size > 0) {
         setActivityMap(prev => {
           const next = { ...prev };
-          for (const vid of touchedVoices) next[vid] = now;
+          for (const vid of touchedTracks) next[vid] = now;
           return next;
         });
       }
@@ -401,13 +401,13 @@ export default function App() {
 
   const handleParamChange = useCallback((timbre: number, morph: number) => {
     ensureAudio();
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     autoRef.current.cancel(vid, 'timbre');
     autoRef.current.cancel(vid, 'morph');
     arbRef.current.humanTouched(vid, 'timbre', timbre, 'source');
     arbRef.current.humanTouched(vid, 'morph', morph, 'source');
     setSession((s) => {
-      let next = updateVoiceParams(s, vid, { timbre, morph }, true, plaitsAdapter);
+      let next = updateTrackParams(s, vid, { timbre, morph }, true, plaitsAdapter);
 
       // If a step is held, apply param lock (no per-frame undo — captured at interaction end)
       if (selectedStep !== null) {
@@ -420,21 +420,21 @@ export default function App() {
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     autoRef.current.cancel(vid, 'note');
     arbRef.current.humanTouched(vid, 'note', note, 'source');
     setSession((s) => {
-      const voice = getVoice(s, vid);
-      const prevNote = voice.params.note ?? 0;
-      const next = updateVoiceParams(s, vid, { note }, true, plaitsAdapter);
+      const track = getTrack(s, vid);
+      const prevNote = track.params.note ?? 0;
+      const next = updateTrackParams(s, vid, { note }, true, plaitsAdapter);
       if (Math.abs(note - prevNote) < 0.001) return next;
       const controlId = plaitsAdapter.mapRuntimeParamKey('note');
       const prevProvenance: Partial<ControlState> = {};
-      if (controlId && voice.controlProvenance?.[controlId]) {
-        prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+      if (controlId && track.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
       }
       const snapshot: ParamSnapshot = {
-        kind: 'param', voiceId: vid,
+        kind: 'param', trackId: vid,
         prevValues: { note: prevNote }, aiTargetValues: { note },
         prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
         timestamp: Date.now(), description: `Note change`,
@@ -445,21 +445,21 @@ export default function App() {
 
   const handleHarmonicsChange = useCallback((harmonics: number) => {
     ensureAudio();
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     autoRef.current.cancel(vid, 'harmonics');
     arbRef.current.humanTouched(vid, 'harmonics', harmonics, 'source');
     setSession((s) => {
-      const voice = getVoice(s, vid);
-      const prevHarmonics = voice.params.harmonics ?? 0;
-      const next = updateVoiceParams(s, vid, { harmonics }, true, plaitsAdapter);
+      const track = getTrack(s, vid);
+      const prevHarmonics = track.params.harmonics ?? 0;
+      const next = updateTrackParams(s, vid, { harmonics }, true, plaitsAdapter);
       if (Math.abs(harmonics - prevHarmonics) < 0.001) return next;
       const controlId = plaitsAdapter.mapRuntimeParamKey('harmonics');
       const prevProvenance: Partial<ControlState> = {};
-      if (controlId && voice.controlProvenance?.[controlId]) {
-        prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+      if (controlId && track.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
       }
       const snapshot: ParamSnapshot = {
-        kind: 'param', voiceId: vid,
+        kind: 'param', trackId: vid,
         prevValues: { harmonics: prevHarmonics }, aiTargetValues: { harmonics },
         prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
         timestamp: Date.now(), description: `Harmonics change`,
@@ -470,12 +470,12 @@ export default function App() {
 
   const handleModelChange = useCallback((model: number) => {
     ensureAudio();
-    setSession((s) => setModel(s, s.activeVoiceId, model));
+    setSession((s) => setModel(s, s.activeTrackId, model));
   }, [ensureAudio]);
 
   const handleAgencyChange = useCallback((agency: 'OFF' | 'ON') => {
     ensureAudio();
-    setSession((s) => setAgency(s, s.activeVoiceId, agency));
+    setSession((s) => setAgency(s, s.activeTrackId, agency));
   }, [ensureAudio]);
 
   const handleUndo = useCallback(() => {
@@ -580,26 +580,26 @@ export default function App() {
     }
   }, [recording, ensureAudio]);
 
-  const handleSelectVoice = useCallback((voiceId: string) => {
-    setSession((s) => setActiveVoice(s, voiceId));
+  const handleSelectTrack = useCallback((trackId: string) => {
+    setSession((s) => setActiveTrack(s, trackId));
     setStepPage(0);
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
   }, []);
 
-  const handleToggleMute = useCallback((voiceId: string) => {
+  const handleToggleMute = useCallback((trackId: string) => {
     ensureAudio();
-    setSession((s) => toggleMute(s, voiceId));
+    setSession((s) => toggleMute(s, trackId));
   }, [ensureAudio]);
 
-  const handleToggleSolo = useCallback((voiceId: string) => {
+  const handleToggleSolo = useCallback((trackId: string) => {
     ensureAudio();
-    setSession((s) => toggleSolo(s, voiceId));
+    setSession((s) => toggleSolo(s, trackId));
   }, [ensureAudio]);
 
-  const handleRenameVoice = useCallback((voiceId: string, name: string) => {
-    setSession((s) => renameVoice(s, voiceId, name));
+  const handleRenameTrack = useCallback((trackId: string, name: string) => {
+    setSession((s) => renameTrack(s, trackId, name));
   }, []);
 
   const handleMasterVolumeChange = useCallback((v: number) => {
@@ -614,44 +614,44 @@ export default function App() {
 
   const handleStepToggle = useCallback((stepIndex: number) => {
     ensureAudio();
-    setSession((s) => toggleStepGate(s, s.activeVoiceId, stepIndex));
+    setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
   const handleStepAccent = useCallback((stepIndex: number) => {
     ensureAudio();
-    setSession((s) => toggleStepAccent(s, s.activeVoiceId, stepIndex));
+    setSession((s) => toggleStepAccent(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
   const handlePatternLength = useCallback((length: number) => {
     ensureAudio();
-    setSession((s) => setPatternLength(s, s.activeVoiceId, length));
+    setSession((s) => setPatternLength(s, s.activeTrackId, length));
     setStepPage(0);
   }, [ensureAudio]);
 
   const handleClearPattern = useCallback(() => {
     ensureAudio();
-    setSession((s) => clearPattern(s, s.activeVoiceId));
+    setSession((s) => clearPattern(s, s.activeTrackId));
   }, [ensureAudio]);
 
   const handleEventUpdate = useCallback((selector: EventSelector, updates: Partial<MusicalEvent>) => {
-    setSession((s) => updateEvent(s, s.activeVoiceId, selector, updates));
+    setSession((s) => updateEvent(s, s.activeTrackId, selector, updates));
   }, []);
 
   const handleEventDelete = useCallback((selector: EventSelector) => {
-    setSession((s) => removeEvent(s, s.activeVoiceId, selector));
+    setSession((s) => removeEvent(s, s.activeTrackId, selector));
   }, []);
 
   const handleAddView = useCallback((kind: SequencerViewKind) => {
-    setSession((s) => addView(s, s.activeVoiceId, kind));
+    setSession((s) => addView(s, s.activeTrackId, kind));
   }, []);
 
   const handleRemoveView = useCallback((viewId: string) => {
-    setSession((s) => removeView(s, s.activeVoiceId, viewId));
+    setSession((s) => removeView(s, s.activeTrackId, viewId));
   }, []);
 
   // Capture processor state at drag start for single-gesture undo
   const processorUndoRef = useRef<{
-    voiceId: string;
+    trackId: string;
     processorId: string;
     prevParams: Record<string, number>;
     prevModel: number;
@@ -659,11 +659,11 @@ export default function App() {
 
   const handleProcessorInteractionStart = useCallback((processorId: string) => {
     const s = sessionRef.current;
-    const voice = getActiveVoice(s);
-    const proc = (voice.processors ?? []).find(p => p.id === processorId);
+    const track = getActiveTrack(s);
+    const proc = (track.processors ?? []).find(p => p.id === processorId);
     if (!proc) return;
     processorUndoRef.current = {
-      voiceId: s.activeVoiceId,
+      trackId: s.activeTrackId,
       processorId,
       prevParams: { ...proc.params },
       prevModel: proc.model,
@@ -675,8 +675,8 @@ export default function App() {
     if (!captured || captured.processorId !== processorId) return;
     processorUndoRef.current = null;
     setSession((s) => {
-      const voice = getVoice(s, captured.voiceId);
-      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      const track = getTrack(s, captured.trackId);
+      const proc = (track.processors ?? []).find(p => p.id === processorId);
       if (!proc) return s;
       // Check if anything actually changed
       const changed = Object.keys(captured.prevParams).some(
@@ -685,7 +685,7 @@ export default function App() {
       if (!changed) return s;
       const snapshot: ProcessorStateSnapshot = {
         kind: 'processor-state',
-        voiceId: captured.voiceId,
+        trackId: captured.trackId,
         processorId,
         prevParams: captured.prevParams,
         prevModel: captured.prevModel,
@@ -698,25 +698,25 @@ export default function App() {
 
   const handleProcessorParamChange = useCallback((processorId: string, param: string, value: number) => {
     ensureAudio();
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     arbRef.current.humanTouched(vid, param, value, `processor:${processorId}`);
     setSession((s) => {
-      const vid = s.activeVoiceId;
-      const voice = getVoice(s, vid);
-      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const proc = (track.processors ?? []).find(p => p.id === processorId);
       if (!proc) return s;
 
       const prevValue = proc.params[param] ?? 0;
       if (Math.abs(value - prevValue) < 0.001) return s;
 
       const updatedProc = { ...proc, params: { ...proc.params, [param]: value } };
-      const updatedVoice = {
-        ...voice,
-        processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
+      const updatedTrack = {
+        ...track,
+        processors: (track.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
       };
       return {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
       };
     });
   }, [ensureAudio]);
@@ -724,19 +724,19 @@ export default function App() {
   const handleProcessorModelChange = useCallback((processorId: string, model: number) => {
     ensureAudio();
     setSession((s) => {
-      const vid = s.activeVoiceId;
-      const voice = getVoice(s, vid);
-      const proc = (voice.processors ?? []).find(p => p.id === processorId);
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const proc = (track.processors ?? []).find(p => p.id === processorId);
       if (!proc || proc.model === model) return s;
 
       const updatedProc = { ...proc, model };
-      const updatedVoice = {
-        ...voice,
-        processors: (voice.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
+      const updatedTrack = {
+        ...track,
+        processors: (track.processors ?? []).map(p => p.id === processorId ? updatedProc : p),
       };
       const snapshot: ProcessorStateSnapshot = {
         kind: 'processor-state',
-        voiceId: vid,
+        trackId: vid,
         processorId,
         prevParams: { ...proc.params },
         prevModel: proc.model,
@@ -745,7 +745,7 @@ export default function App() {
       };
       return {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
         undoStack: [...s.undoStack, snapshot],
       };
     });
@@ -754,18 +754,18 @@ export default function App() {
   const handleRemoveProcessor = useCallback((processorId: string) => {
     ensureAudio();
     setSession((s) => {
-      const vid = s.activeVoiceId;
-      const voice = getVoice(s, vid);
-      const processors = voice.processors ?? [];
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const processors = track.processors ?? [];
       if (!processors.some(p => p.id === processorId)) return s;
-      const prevModulations = voice.modulations ?? [];
+      const prevModulations = track.modulations ?? [];
       const filteredModulations = prevModulations.filter(
         route => route.target.kind !== 'processor' || route.target.processorId !== processorId,
       );
 
       const processorSnapshot: ProcessorSnapshot = {
         kind: 'processor',
-        voiceId: vid,
+        trackId: vid,
         prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
         timestamp: Date.now(),
         description: `Remove processor`,
@@ -774,14 +774,14 @@ export default function App() {
       if (filteredModulations.length !== prevModulations.length) {
         snapshots.push({
           kind: 'modulation-routing',
-          voiceId: vid,
+          trackId: vid,
           prevModulations: prevModulations.map(route => ({ ...route })),
           timestamp: Date.now(),
           description: `Remove processor routings`,
         });
       }
-      const updatedVoice = {
-        ...voice,
+      const updatedTrack = {
+        ...track,
         processors: processors.filter(p => p.id !== processorId),
         modulations: filteredModulations,
       };
@@ -793,7 +793,7 @@ export default function App() {
       } as ActionGroupSnapshot;
       return {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
         undoStack: [...s.undoStack, undoEntry],
       };
     });
@@ -802,7 +802,7 @@ export default function App() {
 
   // Capture modulator state at drag start for single-gesture undo
   const modulatorUndoRef = useRef<{
-    voiceId: string;
+    trackId: string;
     modulatorId: string;
     prevParams: Record<string, number>;
     prevModel: number;
@@ -810,11 +810,11 @@ export default function App() {
 
   const handleModulatorInteractionStart = useCallback((modulatorId: string) => {
     const s = sessionRef.current;
-    const voice = getActiveVoice(s);
-    const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+    const track = getActiveTrack(s);
+    const mod = (track.modulators ?? []).find(m => m.id === modulatorId);
     if (!mod) return;
     modulatorUndoRef.current = {
-      voiceId: s.activeVoiceId,
+      trackId: s.activeTrackId,
       modulatorId,
       prevParams: { ...mod.params },
       prevModel: mod.model,
@@ -826,8 +826,8 @@ export default function App() {
     if (!captured || captured.modulatorId !== modulatorId) return;
     modulatorUndoRef.current = null;
     setSession((s) => {
-      const voice = getVoice(s, captured.voiceId);
-      const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+      const track = getTrack(s, captured.trackId);
+      const mod = (track.modulators ?? []).find(m => m.id === modulatorId);
       if (!mod) return s;
       const changed = Object.keys(captured.prevParams).some(
         k => Math.abs((mod.params[k] ?? 0) - captured.prevParams[k]) > 0.001
@@ -835,7 +835,7 @@ export default function App() {
       if (!changed) return s;
       const snapshot: ModulatorStateSnapshot = {
         kind: 'modulator-state',
-        voiceId: captured.voiceId,
+        trackId: captured.trackId,
         modulatorId,
         prevParams: captured.prevParams,
         prevModel: captured.prevModel,
@@ -848,25 +848,25 @@ export default function App() {
 
   const handleModulatorParamChange = useCallback((modulatorId: string, param: string, value: number) => {
     ensureAudio();
-    const vid = sessionRef.current.activeVoiceId;
+    const vid = sessionRef.current.activeTrackId;
     arbRef.current.humanTouched(vid, param, value, `modulator:${modulatorId}`);
     setSession((s) => {
-      const vid = s.activeVoiceId;
-      const voice = getVoice(s, vid);
-      const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const mod = (track.modulators ?? []).find(m => m.id === modulatorId);
       if (!mod) return s;
 
       const prevValue = mod.params[param] ?? 0;
       if (Math.abs(value - prevValue) < 0.001) return s;
 
       const updatedMod = { ...mod, params: { ...mod.params, [param]: value } };
-      const updatedVoice = {
-        ...voice,
-        modulators: (voice.modulators ?? []).map(m => m.id === modulatorId ? updatedMod : m),
+      const updatedTrack = {
+        ...track,
+        modulators: (track.modulators ?? []).map(m => m.id === modulatorId ? updatedMod : m),
       };
       return {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
       };
     });
   }, [ensureAudio]);
@@ -874,19 +874,19 @@ export default function App() {
   const handleModulatorModelChange = useCallback((modulatorId: string, model: number) => {
     ensureAudio();
     setSession((s) => {
-      const vid = s.activeVoiceId;
-      const voice = getVoice(s, vid);
-      const mod = (voice.modulators ?? []).find(m => m.id === modulatorId);
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const mod = (track.modulators ?? []).find(m => m.id === modulatorId);
       if (!mod || mod.model === model) return s;
 
       const updatedMod = { ...mod, model };
-      const updatedVoice = {
-        ...voice,
-        modulators: (voice.modulators ?? []).map(m => m.id === modulatorId ? updatedMod : m),
+      const updatedTrack = {
+        ...track,
+        modulators: (track.modulators ?? []).map(m => m.id === modulatorId ? updatedMod : m),
       };
       const snapshot: ModulatorStateSnapshot = {
         kind: 'modulator-state',
-        voiceId: vid,
+        trackId: vid,
         modulatorId,
         prevParams: { ...mod.params },
         prevModel: mod.model,
@@ -895,7 +895,7 @@ export default function App() {
       };
       return {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
         undoStack: [...s.undoStack, snapshot],
       };
     });
@@ -904,27 +904,27 @@ export default function App() {
   const handleRemoveModulator = useCallback((modulatorId: string) => {
     ensureAudio();
     setSession((s) => {
-      const vid = s.activeVoiceId;
-      const voice = getVoice(s, vid);
-      const modulators = voice.modulators ?? [];
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const modulators = track.modulators ?? [];
       if (!modulators.some(m => m.id === modulatorId)) return s;
 
       const snapshot: ModulatorSnapshot = {
         kind: 'modulator',
-        voiceId: vid,
+        trackId: vid,
         prevModulators: modulators.map(m => ({ ...m, params: { ...m.params } })),
-        prevModulations: (voice.modulations ?? []).map(r => ({ ...r })),
+        prevModulations: (track.modulations ?? []).map(r => ({ ...r })),
         timestamp: Date.now(),
         description: `Remove modulator`,
       };
-      const updatedVoice = {
-        ...voice,
+      const updatedTrack = {
+        ...track,
         modulators: modulators.filter(m => m.id !== modulatorId),
-        modulations: (voice.modulations ?? []).filter(r => r.modulatorId !== modulatorId),
+        modulations: (track.modulations ?? []).filter(r => r.modulatorId !== modulatorId),
       };
       return {
         ...s,
-        voices: s.voices.map(v => v.id === vid ? updatedVoice : v),
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
         undoStack: [...s.undoStack, snapshot],
       };
     });
@@ -936,18 +936,18 @@ export default function App() {
 
   return (
     <AppShell
-      voices={session.voices}
-      activeVoiceId={session.activeVoiceId}
+      tracks={session.tracks}
+      activeTrackId={session.activeTrackId}
       activityMap={activityMap}
-      onSelectVoice={handleSelectVoice}
+      onSelectTrack={handleSelectTrack}
       onToggleMute={handleToggleMute}
       onToggleSolo={handleToggleSolo}
-      onRenameVoice={handleRenameVoice}
-      onToggleAgency={(voiceId) => {
+      onRenameTrack={handleRenameTrack}
+      onToggleAgency={(trackId) => {
         setSession(s => {
-          const voice = s.voices.find(v => v.id === voiceId);
-          if (!voice) return s;
-          return setAgency(s, voiceId, voice.agency === 'OFF' ? 'ON' : 'OFF');
+          const track = s.tracks.find(v => v.id === trackId);
+          if (!track) return s;
+          return setAgency(s, trackId, track.agency === 'OFF' ? 'ON' : 'OFF');
         });
       }}
       messages={session.messages}
@@ -975,7 +975,7 @@ export default function App() {
       swing={session.transport.swing}
       recording={recording}
       globalStep={globalStep}
-      patternLength={activeVoice.pattern.length}
+      patternLength={activeTrack.pattern.length}
       onTogglePlay={handleTogglePlay}
       onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
       onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
@@ -994,28 +994,28 @@ export default function App() {
         {view === 'control' ? (
           <InstrumentView
             session={session}
-            activeVoice={activeVoice}
+            activeTrack={activeTrack}
             playing={session.transport.playing}
             globalStep={globalStep}
             onParamChange={handleParamChange}
             onInteractionStart={() => {
               const s = sessionRef.current;
-              arbRef.current.humanInteractionStart(s.activeVoiceId);
-              const voice = getActiveVoice(s);
+              arbRef.current.humanInteractionStart(s.activeTrackId);
+              const track = getActiveTrack(s);
               const prevProvenance: Partial<ControlState> = {};
-              if (voice.controlProvenance) {
+              if (track.controlProvenance) {
                 for (const key of ['timbre', 'morph']) {
                   const controlId = plaitsAdapter.mapRuntimeParamKey(key);
-                  if (controlId && voice.controlProvenance[controlId]) {
-                    prevProvenance[controlId] = { ...voice.controlProvenance[controlId] };
+                  if (controlId && track.controlProvenance[controlId]) {
+                    prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
                   }
                 }
               }
               interactionUndoRef.current = {
-                voiceId: s.activeVoiceId,
-                prevParams: { timbre: voice.params.timbre, morph: voice.params.morph },
+                trackId: s.activeTrackId,
+                prevParams: { timbre: track.params.timbre, morph: track.params.morph },
                 prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
-                prevEvents: voice.regions.length > 0 ? [...voice.regions[0].events] : undefined,
+                prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
               };
             }}
             onInteractionEnd={() => {
@@ -1024,13 +1024,13 @@ export default function App() {
               if (captured) {
                 interactionUndoRef.current = null;
                 setSession((s) => {
-                  const voice = getVoice(s, captured.voiceId);
+                  const track = getTrack(s, captured.trackId);
                   const snapshots: (ParamSnapshot | RegionSnapshot)[] = [];
 
                   // Check if params changed
                   const currentValues: Partial<SynthParamValues> = {};
                   for (const [param, prevValue] of Object.entries(captured.prevParams)) {
-                    const cur = voice.params[param] ?? 0;
+                    const cur = track.params[param] ?? 0;
                     if (Math.abs(cur - (prevValue as number)) > 0.001) {
                       currentValues[param] = cur;
                     }
@@ -1038,7 +1038,7 @@ export default function App() {
                   if (Object.keys(currentValues).length > 0) {
                     snapshots.push({
                       kind: 'param',
-                      voiceId: captured.voiceId,
+                      trackId: captured.trackId,
                       prevValues: captured.prevParams,
                       aiTargetValues: currentValues,
                       prevProvenance: captured.prevProvenance,
@@ -1048,14 +1048,14 @@ export default function App() {
                   }
 
                   // Check if region events changed (param lock during drag)
-                  if (captured.prevEvents && voice.regions.length > 0) {
-                    const curEvents = voice.regions[0].events;
+                  if (captured.prevEvents && track.regions.length > 0) {
+                    const curEvents = track.regions[0].events;
                     const eventsChanged = curEvents.length !== captured.prevEvents.length ||
                       curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
                     if (eventsChanged) {
                       snapshots.push({
                         kind: 'region',
-                        voiceId: captured.voiceId,
+                        trackId: captured.trackId,
                         prevEvents: captured.prevEvents,
                         timestamp: Date.now(),
                         description: 'Param lock change',
@@ -1115,7 +1115,7 @@ export default function App() {
         ) : (
           <TrackerView
             session={session}
-            activeVoice={activeVoice}
+            activeTrack={activeTrack}
             playing={session.transport.playing}
             globalStep={globalStep}
             onEventUpdate={handleEventUpdate}

@@ -105,10 +105,10 @@ interface RenderSpec {
   sampleRate: number;       // 48000
   bpm: number;
   bars: number;             // how many bars to render
-  voices: RenderVoiceSpec[];
+  tracks: RenderTrackSpec[];
 }
 
-interface RenderVoiceSpec {
+interface RenderTrackSpec {
   id: string;
   model: number;            // Plaits model index
   params: SynthPatch;       // { harmonics, timbre, morph, note }
@@ -135,7 +135,7 @@ interface RenderEvent {
 ### Worker render loop (pseudocode)
 
 ```
-for each voice in spec.voices:
+for each voice in spec.tracks:
   plaitsHandle = createPlaits(48000)
   setPatch(plaitsHandle, voice.params)
   setModel(plaitsHandle, voice.model)
@@ -193,11 +193,11 @@ Key detail: The WASM binaries (`plaits.wasm`, `rings.wasm`) are already served f
 
 Create `src/audio/render-spec.ts`.
 
-- `buildRenderSpec(session, voiceIds?, bars?)` → `RenderSpec`
+- `buildRenderSpec(session, trackIds?, bars?)` → `RenderSpec`
 - Converts canonical regions/events to `RenderEvent[]` with absolute beat times
 - Applies parameter locks as `set-patch` events at the correct beat times
 - Handles microtiming (fractional `at` values)
-- If `voiceIds` is omitted, includes all unmuted voices
+- If `trackIds` is omitted, includes all unmuted voices
 - Respects mute state but ignores solo (the AI is choosing what to render explicitly)
 
 ### Step 3: Update ListenContext interface
@@ -206,7 +206,7 @@ Replace the current `ListenContext` (which requires `MediaStreamAudioDestination
 
 ```typescript
 interface ListenContext {
-  renderOffline: (session: Session, voiceIds?: string[], bars?: number) => Promise<ArrayBuffer>;
+  renderOffline: (session: Session, trackIds?: string[], bars?: number) => Promise<ArrayBuffer>;
   onListening?: (active: boolean) => void;
 }
 ```
@@ -216,7 +216,7 @@ The `renderOffline` function handles: build spec → post to Worker → receive 
 ### Step 4: Update listenHandler in api.ts
 
 - Remove the transport guard (`if (!session.transport.playing)`)
-- Call `listen.renderOffline(session, voiceIds, bars)` instead of `listen.captureNBars(...)`
+- Call `listen.renderOffline(session, trackIds, bars)` instead of `listen.captureNBars(...)`
 - Pass the WAV buffer to `evaluateAudio` as before
 
 ### Step 5: Update listen tool declaration
@@ -226,7 +226,7 @@ Add optional parameters to the `listen` tool:
 ```typescript
 {
   question: string;        // what to evaluate (existing)
-  voiceIds?: string[];     // which voices to render (new, default: all unmuted)
+  trackIds?: string[];     // which voices to render (new, default: all unmuted)
   bars?: number;           // how many bars (new, default: 2)
 }
 ```
@@ -272,7 +272,7 @@ The `MediaStreamAudioDestinationNode` tap and `AudioExporter.captureNBars` are n
 - [ ] Parameter locks are applied at correct beat positions
 - [ ] Microtiming events land at correct frame offsets
 - [ ] WAV encoding produces valid audio accepted by Gemini
-- [ ] Listen tool declaration accepts `voiceIds` and `bars` parameters
+- [ ] Listen tool declaration accepts `trackIds` and `bars` parameters
 - [ ] System prompt and AI contract updated — no transport precondition
 - [ ] Manual audio export (download button) still works via the live capture path
 

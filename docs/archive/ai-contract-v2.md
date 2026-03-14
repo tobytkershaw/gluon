@@ -330,7 +330,7 @@ Possible tools:
 
 - `listen(question)`
 - `compare(candidateIds, question)`
-- `summarize_voice(voiceId)`
+- `summarize_voice(trackId)`
 - `ask_clarifying(question)`
 
 Note:

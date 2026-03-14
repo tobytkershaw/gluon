@@ -94,9 +94,9 @@ This allows fine-grained collaboration. The human can lock down the parts that m
 
 Two collaboration tools handle approval:
 
-**`mark_approved(voiceId, aspect, level)`** — set approval level on a specific aspect of a voice. Aspect can be `"all"`, `"pattern"`, `"timbre"`, `"params"`, or a specific element like `"rhythm"`.
+**`mark_approved(trackId, aspect, level)`** — set approval level on a specific aspect of a voice. Aspect can be `"all"`, `"pattern"`, `"timbre"`, `"params"`, or a specific element like `"rhythm"`.
 
-**`preserve_material(voiceId, constraints)`** — attach a preservation contract to a voice before an expansion operation. The operation executor validates the contract before applying edits.
+**`preserve_material(trackId, constraints)`** — attach a preservation contract to a voice before an expansion operation. The operation executor validates the contract before applying edits.
 
 ---
 

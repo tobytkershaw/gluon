@@ -11,7 +11,7 @@ function makeSession(overrides?: Partial<Session>): Session {
     velocity: 0.8,
   };
   return {
-    voices: [{
+    tracks: [{
       id: 'v1',
       engine: 'plaits',
       model: 0,
@@ -32,7 +32,7 @@ function makeSession(overrides?: Partial<Session>): Session {
         thumbprint: { type: 'static-color' },
       },
     }],
-    activeVoiceId: 'v1',
+    activeTrackId: 'v1',
     transport: { bpm: 120, swing: 0, playing: true },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.5, density: 0.5 },
@@ -89,8 +89,8 @@ describe('Scheduler — AudioContext suspend handling', () => {
       ({ kind: 'trigger', at: i * 2, velocity: 0.8 }) as TriggerEvent
     );
     const session = makeSession();
-    session.voices[0].regions[0].events = events;
-    session.voices[0].regions[0].duration = 16;
+    session.tracks[0].regions[0].events = events;
+    session.tracks[0].regions[0].duration = 16;
 
     let audioTime = 0;
     let audioState: AudioContextState = 'running';

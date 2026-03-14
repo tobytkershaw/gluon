@@ -1,12 +1,12 @@
 // src/engine/session.ts
-import type { Session, Voice, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ProcessorConfig, MasterChannel, MasterSnapshot } from './types';
+import type { Session, Track, Agency, MusicalContext, SynthParamValues, ModelSnapshot, ProcessorConfig, MasterChannel, MasterSnapshot } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateVoice, getVoice, DEFAULT_MASTER } from './types';
+import { updateTrack, getTrack, DEFAULT_MASTER } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
 
-const VOICE_DEFAULTS: { model: number; engine: string }[] = [
+const TRACK_DEFAULTS: { model: number; engine: string }[] = [
   { model: 13, engine: 'plaits:analog_bass_drum' },
   { model: 0, engine: 'plaits:virtual_analog' },
   { model: 2, engine: 'plaits:fm' },
@@ -26,18 +26,18 @@ function buildDefaultProvenance(modelIndex: number): ControlState {
   return provenance;
 }
 
-function createVoice(index: number): Voice {
-  const defaults = VOICE_DEFAULTS[index] ?? VOICE_DEFAULTS[0];
-  const voiceId = `v${index}`;
+function createTrack(index: number): Track {
+  const defaults = TRACK_DEFAULTS[index] ?? TRACK_DEFAULTS[0];
+  const trackId = `v${index}`;
   return {
-    id: voiceId,
+    id: trackId,
     engine: defaults.engine,
     model: defaults.model,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     agency: 'ON',
     pattern: createDefaultPattern(16),
-    regions: [createDefaultRegion(voiceId, 16)],
-    views: [{ kind: 'step-grid', id: `step-grid-${voiceId}` }],
+    regions: [createDefaultRegion(trackId, 16)],
+    views: [{ kind: 'step-grid', id: `step-grid-${trackId}` }],
     muted: false,
     solo: false,
     controlProvenance: buildDefaultProvenance(defaults.model),
@@ -51,7 +51,7 @@ function createVoice(index: number): Voice {
 }
 
 export function createSession(): Session {
-  const voices = Array.from({ length: 4 }, (_, i) => createVoice(i));
+  const tracks = Array.from({ length: 4 }, (_, i) => createTrack(i));
   const context: MusicalContext = {
     key: null,
     scale: null,
@@ -61,8 +61,8 @@ export function createSession(): Session {
   };
 
   return {
-    voices,
-    activeVoiceId: voices[0].id,
+    tracks,
+    activeTrackId: tracks[0].id,
     transport: { playing: false, bpm: 120, swing: 0 },
     master: { ...DEFAULT_MASTER },
     undoStack: [],
@@ -72,34 +72,34 @@ export function createSession(): Session {
   };
 }
 
-export function setAgency(session: Session, voiceId: string, agency: Agency): Session {
-  return updateVoice(session, voiceId, { agency });
+export function setAgency(session: Session, trackId: string, agency: Agency): Session {
+  return updateTrack(session, trackId, { agency });
 }
 
-export function updateVoiceParams(
+export function updateTrackParams(
   session: Session,
-  voiceId: string,
+  trackId: string,
   params: Partial<SynthParamValues>,
   trackAsHuman = false,
   adapter?: Pick<SourceAdapter, 'mapRuntimeParamKey'>,
 ): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
-  if (!voice) return session;
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
 
   const newActions = trackAsHuman
     ? [
         ...session.recentHumanActions,
         ...Object.entries(params).map(([param, to]) => ({
-          voiceId,
+          trackId,
           param,
-          from: voice.params[param] ?? 0,
+          from: track.params[param] ?? 0,
           to: to as number,
           timestamp: Date.now(),
         })),
       ].slice(-20)
     : session.recentHumanActions;
 
-  let newProvenance = voice.controlProvenance;
+  let newProvenance = track.controlProvenance;
   if (adapter && trackAsHuman && newProvenance) {
     newProvenance = { ...newProvenance };
     for (const paramKey of Object.keys(params)) {
@@ -115,17 +115,17 @@ export function updateVoiceParams(
   }
 
   return {
-    ...updateVoice(session, voiceId, {
-      params: { ...voice.params, ...params } as SynthParamValues,
-      ...(newProvenance !== voice.controlProvenance ? { controlProvenance: newProvenance } : {}),
+    ...updateTrack(session, trackId, {
+      params: { ...track.params, ...params } as SynthParamValues,
+      ...(newProvenance !== track.controlProvenance ? { controlProvenance: newProvenance } : {}),
     }),
     recentHumanActions: newActions,
   };
 }
 
-export function setModel(session: Session, voiceId: string, model: number): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
-  if (!voice) return session;
+export function setModel(session: Session, trackId: string, model: number): Session {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
 
   const name = getModelName(model);
   const engineName = name.startsWith('Unknown')
@@ -134,36 +134,36 @@ export function setModel(session: Session, voiceId: string, model: number): Sess
 
   const snapshot: ModelSnapshot = {
     kind: 'model',
-    voiceId,
-    prevModel: voice.model,
-    prevEngine: voice.engine,
+    trackId,
+    prevModel: track.model,
+    prevEngine: track.engine,
     timestamp: Date.now(),
     description: `Change model to ${name}`,
   };
 
-  const result = updateVoice(session, voiceId, { model, engine: engineName });
+  const result = updateTrack(session, trackId, { model, engine: engineName });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
-export function setActiveVoice(session: Session, voiceId: string): Session {
-  if (!session.voices.find(v => v.id === voiceId)) return session;
-  return { ...session, activeVoiceId: voiceId };
+export function setActiveTrack(session: Session, trackId: string): Session {
+  if (!session.tracks.find(v => v.id === trackId)) return session;
+  return { ...session, activeTrackId: trackId };
 }
 
-export function toggleMute(session: Session, voiceId: string): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
-  if (!voice) return session;
-  return updateVoice(session, voiceId, { muted: !voice.muted });
+export function toggleMute(session: Session, trackId: string): Session {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+  return updateTrack(session, trackId, { muted: !track.muted });
 }
 
-export function toggleSolo(session: Session, voiceId: string): Session {
-  const voice = session.voices.find(v => v.id === voiceId);
-  if (!voice) return session;
-  return updateVoice(session, voiceId, { solo: !voice.solo });
+export function toggleSolo(session: Session, trackId: string): Session {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+  return updateTrack(session, trackId, { solo: !track.solo });
 }
 
-export function renameVoice(session: Session, voiceId: string, name: string): Session {
-  return updateVoice(session, voiceId, { name });
+export function renameTrack(session: Session, trackId: string, name: string): Session {
+  return updateTrack(session, trackId, { name });
 }
 
 export function setTransportBpm(session: Session, bpm: number): Session {
@@ -189,37 +189,37 @@ export function togglePlaying(session: Session): Session {
 
 // --- Processor chain helpers ---
 
-export function addVoiceProcessor(
+export function addTrackProcessor(
   session: Session,
-  voiceId: string,
+  trackId: string,
   processor: ProcessorConfig,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  return updateVoice(session, voiceId, {
-    processors: [...(voice.processors ?? []), processor],
+  const track = getTrack(session, trackId);
+  return updateTrack(session, trackId, {
+    processors: [...(track.processors ?? []), processor],
   });
 }
 
-export function removeVoiceProcessor(
+export function removeTrackProcessor(
   session: Session,
-  voiceId: string,
+  trackId: string,
   processorId: string,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  return updateVoice(session, voiceId, {
-    processors: (voice.processors ?? []).filter(p => p.id !== processorId),
+  const track = getTrack(session, trackId);
+  return updateTrack(session, trackId, {
+    processors: (track.processors ?? []).filter(p => p.id !== processorId),
   });
 }
 
 export function updateProcessorParams(
   session: Session,
-  voiceId: string,
+  trackId: string,
   processorId: string,
   params: Record<string, number>,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  return updateVoice(session, voiceId, {
-    processors: (voice.processors ?? []).map(p =>
+  const track = getTrack(session, trackId);
+  return updateTrack(session, trackId, {
+    processors: (track.processors ?? []).map(p =>
       p.id === processorId ? { ...p, params: { ...p.params, ...params } } : p,
     ),
   });
@@ -227,13 +227,13 @@ export function updateProcessorParams(
 
 export function setProcessorModel(
   session: Session,
-  voiceId: string,
+  trackId: string,
   processorId: string,
   model: number,
 ): Session {
-  const voice = getVoice(session, voiceId);
-  return updateVoice(session, voiceId, {
-    processors: (voice.processors ?? []).map(p =>
+  const track = getTrack(session, trackId);
+  return updateTrack(session, trackId, {
+    processors: (track.processors ?? []).map(p =>
       p.id === processorId ? { ...p, model } : p,
     ),
   });
