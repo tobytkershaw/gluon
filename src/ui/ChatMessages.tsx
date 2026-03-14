@@ -37,7 +37,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
           {/* Role indicator bar */}
           <div
             className={`w-px shrink-0 rounded-full mt-0.5 ${
-              msg.role === 'ai' ? 'bg-teal-500/70' : 'bg-zinc-700'
+              msg.role === 'ai' ? 'bg-teal-500/70' : msg.role === 'system' ? 'bg-zinc-600' : 'bg-zinc-700'
             }`}
             style={{ minHeight: '1rem' }}
           />
@@ -45,11 +45,11 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
             <div className={`text-[8px] font-mono uppercase tracking-[0.2em] mb-1 ${
               msg.role === 'ai' ? 'text-teal-600/80' : 'text-zinc-600'
             }`}>
-              {msg.role === 'ai' ? 'AI' : 'YOU'}
+              {msg.role === 'ai' ? 'AI' : msg.role === 'system' ? 'SYS' : 'YOU'}
             </div>
             {msg.text && (
               <div className={`text-[11px] leading-[1.6] break-words ${
-                msg.role === 'ai' ? 'text-zinc-300' : 'text-zinc-400'
+                msg.role === 'ai' ? 'text-zinc-300' : msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
               }`}>
                 {msg.text}
               </div>
