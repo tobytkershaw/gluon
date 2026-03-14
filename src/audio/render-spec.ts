@@ -5,6 +5,7 @@ import type { Session, Voice, ProcessorConfig } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
+import { getAudibleVoices } from '../engine/sequencer-helpers';
 
 // ---------------------------------------------------------------------------
 // Types — all plain data, safe to postMessage to a Worker
@@ -91,8 +92,8 @@ function selectVoices(session: Session, voiceIds?: string[]): Voice[] {
     const idSet = new Set(voiceIds);
     return session.voices.filter(v => idSet.has(v.id));
   }
-  // Default: all unmuted voices
-  return session.voices.filter(v => !v.muted);
+  // Default: mirror the live engine's audible-voice rule (solo-aware)
+  return getAudibleVoices(session);
 }
 
 function buildVoiceSpec(voice: Voice, bars: number): RenderVoiceSpec {
