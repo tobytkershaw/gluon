@@ -305,6 +305,7 @@ export function executeOperations(
         if (action.modulatorId) {
           const modulators = voice.modulators ?? [];
           const modIndex = modulators.findIndex(m => m.id === action.modulatorId);
+          if (modIndex < 0) { rejected.push({ op: action, reason: `Internal: modulator ${action.modulatorId} not found at execution` }); break; }
           const mod = modulators[modIndex];
           const currentVal = mod.params[action.param] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
@@ -338,6 +339,7 @@ export function executeOperations(
         if (action.processorId) {
           const processors = voice.processors ?? [];
           const procIndex = processors.findIndex(p => p.id === action.processorId);
+          if (procIndex < 0) { rejected.push({ op: action, reason: `Internal: processor ${action.processorId} not found at execution` }); break; }
           const proc = processors[procIndex];
           const currentVal = proc.params[action.param] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
@@ -368,7 +370,8 @@ export function executeOperations(
         }
 
         // Source path: resolve through adapter
-        const resolved = resolveMoveParam(action.param, adapter)!;
+        const resolved = resolveMoveParam(action.param, adapter);
+        if (!resolved) { rejected.push({ op: action, reason: 'Internal: param unresolvable at execution' }); break; }
         const { runtimeParam, controlId } = resolved;
 
         if (action.over) {
