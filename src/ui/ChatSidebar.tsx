@@ -2,7 +2,7 @@
 // Persistent collapsible chat sidebar — always visible across all views.
 // Open: full sidebar with messages + composer on the left.
 // Collapsed: floating composer input at bottom-left over the main content.
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { ChatMessage } from '../engine/types';
 import { ChatPanel } from './ChatPanel';
 import { ChatComposer } from './ChatComposer';
@@ -24,11 +24,13 @@ export function ChatSidebar({
   apiConfigured, onApiKey, open, onToggle,
 }: Props) {
   const [lastSeenCount, setLastSeenCount] = useState(messages.length);
-  const hasUnread = !open && messages.length > lastSeenCount;
 
-  useEffect(() => {
-    if (open) setLastSeenCount(messages.length);
-  }, [open, messages.length]);
+  // Sync lastSeenCount during render when sidebar is open (no effect needed)
+  if (open && messages.length !== lastSeenCount) {
+    setLastSeenCount(messages.length);
+  }
+
+  const hasUnread = !open && messages.length > lastSeenCount;
 
   const handleSend = (text: string) => {
     onSend(text);

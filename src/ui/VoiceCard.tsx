@@ -22,6 +22,7 @@ export function VoiceCard({
 
   useEffect(() => {
     if (!activityTimestamp) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- timer-driven animation pulse
     setPulsing(true);
     const timer = setTimeout(() => setPulsing(false), 2000);
     return () => clearTimeout(timer);

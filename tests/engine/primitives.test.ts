@@ -1,10 +1,10 @@
 // tests/engine/primitives.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  applyMove, applyMoveGroup, applyParamDirect, applySketch, applyUndo,
+  applyMove, applyMoveGroup, applySketch, applyUndo,
 } from '../../src/engine/primitives';
 import { createSession, updateVoiceParams } from '../../src/engine/session';
-import { getActiveVoice, getVoice } from '../../src/engine/types';
+import { getVoice } from '../../src/engine/types';
 import type { PatternSnapshot, ActionGroupSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
 
@@ -96,7 +96,7 @@ describe('Protocol Primitives (Phase 2)', () => {
       const voice = getVoice(s, vid);
       const newSteps = [...voice.pattern.steps];
       newSteps[0] = { ...newSteps[0], gate: true };
-      let modified = {
+      const modified = {
         ...s,
         voices: s.voices.map(v => v.id === vid ? { ...v, pattern: { ...v.pattern, steps: newSteps } } : v),
         undoStack: [...s.undoStack, snapshot],

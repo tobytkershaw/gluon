@@ -12,7 +12,6 @@ import {
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
-import { ProjectMenu } from './ProjectMenu';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength } from '../engine/pattern-primitives';
@@ -49,7 +48,7 @@ export default function App() {
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('gluon-view');
-    return saved === 'tracker' ? 'tracker' : 'instrument';
+    return saved === 'tracker' ? 'tracker' : 'control';
   });
   const [chatOpen, setChatOpen] = useState(() => {
     const saved = localStorage.getItem('gluon-chat-open');
@@ -126,6 +125,7 @@ export default function App() {
       bpm: session.transport.bpm,
       swing: session.transport.swing,
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- bpm/swing logged as context, not dependencies
   }, [session.transport.playing]);
 
   useEffect(() => {
@@ -304,7 +304,7 @@ export default function App() {
 
       return next;
     });
-  }, [selectedStep]);
+  }, [selectedStep, ensureAudio]);
 
   const handleNoteChange = useCallback((note: number) => {
     ensureAudio();
@@ -377,7 +377,7 @@ export default function App() {
         ...undone,
         messages: [
           ...undone.messages,
-          { role: 'ai' as const, text: `Undid: ${description}`, timestamp: Date.now() },
+          { role: 'system' as const, text: `Undid: ${description}`, timestamp: Date.now() },
         ],
       };
     });
@@ -836,7 +836,7 @@ export default function App() {
       onProjectExport={project.exportActiveProject}
       onProjectImport={project.importProject}
     >
-        {view === 'instrument' ? (
+        {view === 'control' ? (
           <InstrumentView
             session={session}
             activeVoice={activeVoice}

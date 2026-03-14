@@ -27,7 +27,7 @@ export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: Sho
       // Cmd+1 / Cmd+2 for view switching
       if ((e.metaKey || e.ctrlKey) && e.key === '1' && !isEditable()) {
         e.preventDefault();
-        setView('instrument');
+        setView('control');
       }
       if ((e.metaKey || e.ctrlKey) && e.key === '2' && !isEditable()) {
         e.preventDefault();
@@ -38,10 +38,10 @@ export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: Sho
         e.preventDefault();
         setChatOpen((o: boolean) => !o);
       }
-      // Tab cycles views: instrument ↔ tracker
+      // Tab cycles views: control ↔ tracker
       if (e.key === 'Tab' && !isEditable()) {
         e.preventDefault();
-        setView((v: ViewMode) => v === 'instrument' ? 'tracker' : 'instrument');
+        setView((v: ViewMode) => v === 'control' ? 'tracker' : 'control');
       }
       // Space for play/stop
       if (e.key === ' ' && !e.repeat && !isEditable()) {

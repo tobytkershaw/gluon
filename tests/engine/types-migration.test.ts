@@ -4,7 +4,6 @@ import type {
   Voice, Session, ParamSnapshot, PatternSnapshot,
   AISketchAction,
 } from '../../src/engine/types';
-import type { Step, Transport } from '../../src/engine/sequencer-types';
 
 describe('Phase 2 type shapes', () => {
   it('Voice has pattern, muted, solo fields', () => {

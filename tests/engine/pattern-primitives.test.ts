@@ -5,7 +5,8 @@ import {
   setPatternLength, clearPattern,
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
-import { getVoice, updateVoice } from '../../src/engine/types';
+import type { TriggerEvent } from '../../src/engine/canonical-types';
+import { getVoice } from '../../src/engine/types';
 import { validateRegion } from '../../src/engine/region-helpers';
 
 describe('Pattern Primitives', () => {
@@ -74,7 +75,7 @@ describe('Pattern Primitives', () => {
       const region = getVoice(result, vid).regions[0];
       const trigger = region.events.find(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01);
       expect(trigger).toBeDefined();
-      expect((trigger as any).accent).toBe(true);
+      expect((trigger as TriggerEvent).accent).toBe(true);
     });
 
     it('does not re-enable a disabled (gated-off) step', () => {
@@ -92,7 +93,7 @@ describe('Pattern Primitives', () => {
 
   describe('setStepParamLock', () => {
     it('sets a parameter lock on a step', () => {
-      let s = createSession();
+      const s = createSession();
       const vid = s.voices[0].id;
       const result = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       expect(getVoice(result, vid).pattern.steps[0].params?.timbre).toBe(0.9);

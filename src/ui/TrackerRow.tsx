@@ -107,7 +107,7 @@ function EditableCell({
 
   return (
     <span
-      className={`cursor-text ${className ?? ''}`}
+      className={`cursor-text select-text ${className ?? ''}`}
       onDoubleClick={startEdit}
     >
       {value}

@@ -2,7 +2,7 @@
 // IndexedDB-backed multi-project storage.
 import type { Session } from './types';
 import { createSession } from './session';
-import { loadSession as loadLegacySession, stripForPersistence, migrateVoice, isValidSession, CURRENT_VERSION } from './persistence';
+import { loadSession as loadLegacySession, stripForPersistence, isValidSession, CURRENT_VERSION } from './persistence';
 
 export interface ProjectMeta {
   id: string;

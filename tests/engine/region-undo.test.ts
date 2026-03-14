@@ -1,10 +1,10 @@
 // tests/engine/region-undo.test.ts
 import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
-import { applySketch, applyUndo, applyMove } from '../../src/engine/primitives';
+import { applySketch, applyUndo } from '../../src/engine/primitives';
 import { createSession, setAgency } from '../../src/engine/session';
 import { getVoice } from '../../src/engine/types';
-import type { AIAction, RegionSnapshot, PatternSnapshot } from '../../src/engine/types';
+import type { AIAction } from '../../src/engine/types';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 

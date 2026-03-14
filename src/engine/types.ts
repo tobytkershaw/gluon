@@ -383,7 +383,7 @@ export interface ActionLogEntry {
 }
 
 export interface ChatMessage {
-  role: 'human' | 'ai';
+  role: 'human' | 'ai' | 'system';
   text: string;
   timestamp: number;
   actions?: ActionLogEntry[];

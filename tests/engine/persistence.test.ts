@@ -3,9 +3,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { saveSession, loadSession, clearSavedSession } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
 import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
-import { toggleStepGate, setStepParamLock } from '../../src/engine/pattern-primitives';
+import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import { getVoice } from '../../src/engine/types';
-import type { Region, TriggerEvent } from '../../src/engine/canonical-types';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -195,6 +194,7 @@ describe('persistence', () => {
       },
     };
     // Remove regions to simulate v1
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate legacy v1 data without regions
     const v1VoiceNoRegions = { ...v1Voice } as any;
     delete v1VoiceNoRegions.regions;
 
@@ -275,7 +275,7 @@ describe('persistence', () => {
         ),
         length: 16,
       },
-    } as any;
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any -- simulate legacy v1 data
     delete v1Voice.regions;
 
     store.set('gluon-session', JSON.stringify({
@@ -358,6 +358,7 @@ describe('persistence', () => {
   it('loads pre-views session and gets default views from migration', () => {
     // Simulate a session saved before views existed
     const session = createSession();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate pre-views data
     const preViewsVoice = { ...session.voices[0] } as any;
     delete preViewsVoice.views;
 
@@ -381,6 +382,7 @@ describe('persistence', () => {
 
   it('recovery: neither regions nor pattern → empty default region', () => {
     const session = createSession();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate broken legacy data
     const brokenVoice = { ...session.voices[0] } as any;
     delete brokenVoice.regions;
     brokenVoice.pattern = { steps: [], length: 0 };
