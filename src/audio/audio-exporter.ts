@@ -4,8 +4,13 @@ import { blobToWav } from './wav-encode';
 export class AudioExporter {
   private recorder: MediaRecorder | null = null;
   private chunks: Blob[] = [];
+  /** True while captureNBars is in flight */
+  private capturing = false;
 
   start(destination: MediaStreamAudioDestinationNode): void {
+    if (this.capturing) {
+      throw new Error('Cannot start manual recording while captureNBars is in flight');
+    }
     const stream = destination.stream;
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
@@ -37,13 +42,21 @@ export class AudioExporter {
     return this.recorder !== null && this.recorder.state === 'recording';
   }
 
+  isCapturing(): boolean {
+    return this.capturing;
+  }
+
   /**
    * Capture N bars of audio and return as WAV blob.
-   * Timer-based — no scheduler changes needed.
+   * Uses AudioContext.currentTime for precise duration control instead of
+   * setTimeout alone, which can drift 50-200ms under heavy load.
+   * Guards against concurrent capture to prevent orphaned recorders.
+   *
    * @param destination - MediaStreamAudioDestinationNode from AudioEngine
    * @param bars - Number of bars to capture
    * @param patternLength - Steps per pattern (bar length)
    * @param bpm - Current tempo
+   * @param audioContext - AudioContext for precise timing
    * @returns WAV blob suitable for Gemini API
    */
   captureNBars(
@@ -51,10 +64,27 @@ export class AudioExporter {
     bars: number,
     patternLength: number,
     bpm: number,
+    audioContext?: AudioContext,
   ): Promise<Blob> {
+    // Guard: reject if a capture is already in flight
+    if (this.capturing) {
+      return Promise.reject(new Error('captureNBars already in flight'));
+    }
+
+    // Guard: reject if manual recording is active — both would record from
+    // the same MediaStreamAudioDestinationNode, and stopping one could
+    // orphan the other's recorder.
+    if (this.isRecording()) {
+      return Promise.reject(
+        new Error('Cannot capture while manual recording is active'),
+      );
+    }
+
+    this.capturing = true;
+
     const durationSec = bars * patternLength * 60 / (bpm * 4);
-    const maxDuration = 30_000; // 30s safety net
-    const timeoutMs = Math.min(durationSec * 1000, maxDuration);
+    const maxDurationSec = 30; // 30s safety net
+    const targetDurationSec = Math.min(durationSec, maxDurationSec);
 
     // Use an independent recorder so we never clobber the manual export recorder
     const stream = destination.stream;
@@ -69,22 +99,68 @@ export class AudioExporter {
     recorder.start();
 
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (recorder.state === 'recording') {
+      let stopped = false;
+      const stopRecorder = () => {
+        if (!stopped && recorder.state === 'recording') {
+          stopped = true;
           recorder.stop();
         }
-      }, timeoutMs);
-
-      recorder.onstop = async () => {
-        clearTimeout(timer);
-        try {
-          const webmBlob = new Blob(chunks, { type: recorder.mimeType });
-          const wavBlob = await blobToWav(webmBlob);
-          resolve(wavBlob);
-        } catch (err) {
-          reject(err);
-        }
       };
+
+      // --- Timing strategy ---
+      // Primary: poll AudioContext.currentTime for drift-free duration.
+      // Fallback: setTimeout with a small margin if no AudioContext provided.
+      if (audioContext) {
+        const startTime = audioContext.currentTime;
+        const endTime = startTime + targetDurationSec;
+
+        // Poll at ~50ms intervals — precise enough without being wasteful.
+        const poll = setInterval(() => {
+          if (audioContext.currentTime >= endTime) {
+            clearInterval(poll);
+            stopRecorder();
+          }
+        }, 50);
+
+        // Safety fallback: if polling somehow misses, setTimeout catches it.
+        // Add 500ms margin so it only fires if the poll genuinely stalls.
+        const fallback = setTimeout(() => {
+          clearInterval(poll);
+          stopRecorder();
+        }, (targetDurationSec + 0.5) * 1000);
+
+        recorder.onstop = async () => {
+          clearInterval(poll);
+          clearTimeout(fallback);
+          this.capturing = false;
+          try {
+            const webmBlob = new Blob(chunks, { type: recorder.mimeType });
+            const wavBlob = await blobToWav(webmBlob);
+            resolve(wavBlob);
+          } catch (err) {
+            reject(err);
+          }
+        };
+      } else {
+        // Fallback: plain setTimeout (original behavior, kept for
+        // environments where AudioContext is unavailable).
+        const timeoutMs = targetDurationSec * 1000;
+        const timer = setTimeout(() => {
+          stopRecorder();
+        }, timeoutMs);
+
+        recorder.onstop = async () => {
+          clearTimeout(timer);
+          this.capturing = false;
+          try {
+            const webmBlob = new Blob(chunks, { type: recorder.mimeType });
+            const wavBlob = await blobToWav(webmBlob);
+            resolve(wavBlob);
+          } catch (err) {
+            reject(err);
+          }
+        };
+      }
     });
   }
 }
