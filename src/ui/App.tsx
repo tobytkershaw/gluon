@@ -32,6 +32,7 @@ import { RackView } from './RackView';
 import { PatchView } from './PatchView';
 import { AppShell } from './AppShell';
 import { useShortcuts } from './useShortcuts';
+import { useKeyboardPiano } from './useKeyboardPiano';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 
@@ -1079,6 +1080,9 @@ export default function App() {
 
   // Global keyboard shortcuts (extracted to hook)
   useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, setView, setChatOpen });
+
+  // Keyboard piano: map computer keys to musical notes for real-time audition
+  useKeyboardPiano(audioRef, session);
 
   return (
     <AppShell

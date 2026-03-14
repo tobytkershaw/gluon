@@ -10,7 +10,7 @@ interface ShortcutActions {
   setChatOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
 }
 
-function isEditable(): boolean {
+export function isEditable(): boolean {
   const el = document.activeElement;
   if (!el) return false;
   const tag = el.tagName;

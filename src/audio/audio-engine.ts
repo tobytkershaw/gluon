@@ -226,6 +226,16 @@ export class AudioEngine {
     });
   }
 
+  /** Silence a single track: close gate and reset accent gain. Used by keyboard piano for note-off. */
+  releaseTrack(trackId: string): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot) return;
+    slot.synth.silence();
+    const now = this.ctx?.currentTime ?? 0;
+    slot.accentGain.gain.cancelAndHoldAtTime(now);
+    slot.accentGain.gain.setValueAtTime(0.3, now);
+  }
+
   /** Restore accent gains to baseline after silenceAll() zeroed them. */
   restoreBaseline(): void {
     const now = this.ctx?.currentTime ?? 0;
