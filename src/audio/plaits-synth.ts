@@ -129,7 +129,7 @@ export class PlaitsSynth implements SynthEngine {
     this.post({ type: 'set-patch', patch: this.currentParams });
   }
 
-  scheduleNote(note: ScheduledNote): void {
+  scheduleNote(note: ScheduledNote, fence?: number): void {
     // Only send set-patch if this note has per-step overrides (param locks).
     // Base track params are kept in sync via the real-time sync effect,
     // so sending them on every note would override interactive changes.
@@ -139,19 +139,19 @@ export class PlaitsSynth implements SynthEngine {
         k => Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001,
       );
       if (hasOverrides) {
-        this.post({ type: 'set-patch', patch: note.params, time: note.time });
+        this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
       }
     } else {
       // No baseParams provided — send set-patch for backwards compatibility
-      this.post({ type: 'set-patch', patch: note.params, time: note.time });
+      this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
     }
-    this.post({ type: 'trigger', time: note.time, accentLevel: note.accent ? 1.0 : 0.8 });
-    this.post({ type: 'set-gate', time: note.time, open: true });
-    this.post({ type: 'set-gate', time: note.gateOffTime, open: false });
+    this.post({ type: 'trigger', time: note.time, accentLevel: note.accent ? 1.0 : 0.8, fence });
+    this.post({ type: 'set-gate', time: note.time, open: true, fence });
+    this.post({ type: 'set-gate', time: note.gateOffTime, open: false, fence });
   }
 
-  silence(): void {
-    this.post({ type: 'clear-scheduled' });
+  silence(fence?: number): void {
+    this.post({ type: 'clear-scheduled', fence: fence ?? 0 });
     this.post({ type: 'set-gate', open: false });
   }
 

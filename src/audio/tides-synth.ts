@@ -11,7 +11,7 @@ export interface TidesEngine {
   setMode(mode: number): void;
   setPatch(params: TidesPatchParams): void;
   /** Clear all scheduled events from the worklet queue. */
-  silence(): void;
+  silence(fence?: number): void;
   /** Pause modulation output (fill with zeros). */
   pause(): void;
   /** Resume modulation output after pause. */
@@ -133,8 +133,8 @@ export class TidesSynth implements TidesEngine {
     });
   }
 
-  silence(): void {
-    // Tides has no scheduled events, but clear any pending messages
+  silence(_fence?: number): void {
+    // Tides has no scheduled events and no fence logic, but clear any pending messages
     this.post({ type: 'clear-scheduled' });
   }
 

@@ -39,12 +39,12 @@ interface PlaitsWasm {
 }
 
 type ScheduledEvent =
-  | { type: 'set-model'; time?: number; seq: number; model: number }
-  | { type: 'set-patch'; time?: number; seq: number; patch: SynthPatch }
-  | { type: 'trigger'; time: number; seq: number; accentLevel: number }
-  | { type: 'set-gate'; time?: number; seq: number; open: boolean }
-  | { type: 'clear-scheduled'; time?: undefined; seq: number }
-  | { type: 'destroy'; time?: undefined; seq: number };
+  | { type: 'set-model'; time?: number; seq: number; fence?: number; model: number }
+  | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: SynthPatch }
+  | { type: 'trigger'; time: number; seq: number; fence?: number; accentLevel: number }
+  | { type: 'set-gate'; time?: number; seq: number; fence?: number; open: boolean }
+  | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
+  | { type: 'destroy'; time?: undefined; seq: number; fence?: number };
 
 class PlaitsProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
@@ -64,6 +64,8 @@ class PlaitsProcessor extends AudioWorkletProcessor {
   private ready = false;
   private readonly wasmBinary: ArrayBuffer | null;
   private destroyed = false;
+  /** Sequence fence: events with fence < minFence are stale and ignored. */
+  private minFence = 0;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -142,8 +144,13 @@ class PlaitsProcessor extends AudioWorkletProcessor {
         this.wasm._plaits_set_gate(this.handle, event.open ? 1 : 0);
         break;
       case 'clear-scheduled':
-        // Remove all future timed events from the queue
-        this.queue = this.queue.filter(e => e.time === undefined);
+        // Set fence so events from previous play cycles are treated as stale.
+        // Only remove timed events whose fence is older than the clear fence;
+        // events posted after the clear (with fence >= clear fence) survive.
+        this.minFence = event.fence;
+        this.queue = this.queue.filter(e =>
+          e.time === undefined || (e.fence !== undefined && e.fence >= this.minFence),
+        );
         break;
       case 'destroy':
         this.destroyWasm();
@@ -210,6 +217,11 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
+
+    // Drop stale events that belong to a previous play cycle (fence < minFence)
+    this.queue = this.queue.filter(e =>
+      e.time === undefined || e.fence === undefined || e.fence >= this.minFence,
+    );
 
     // Drain stale events that were scheduled before this block
     // (prevents first-step silence and stale event accumulation)

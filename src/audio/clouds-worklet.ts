@@ -38,11 +38,11 @@ interface CloudsWasm {
 }
 
 type ScheduledEvent =
-  | { type: 'set-mode'; time?: number; seq: number; mode: number }
-  | { type: 'set-patch'; time?: number; seq: number; patch: CloudsPatch }
-  | { type: 'set-freeze'; time?: number; seq: number; freeze: boolean }
-  | { type: 'clear-scheduled'; time?: undefined; seq: number }
-  | { type: 'destroy'; time?: undefined; seq: number };
+  | { type: 'set-mode'; time?: number; seq: number; fence?: number; mode: number }
+  | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: CloudsPatch }
+  | { type: 'set-freeze'; time?: number; seq: number; fence?: number; freeze: boolean }
+  | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
+  | { type: 'destroy'; time?: undefined; seq: number; fence?: number };
 
 class CloudsProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
@@ -64,6 +64,8 @@ class CloudsProcessor extends AudioWorkletProcessor {
   private ready = false;
   private readonly wasmBinary: ArrayBuffer | null;
   private destroyed = false;
+  /** Sequence fence: events with fence < minFence are stale and ignored. */
+  private minFence = 0;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -147,7 +149,13 @@ class CloudsProcessor extends AudioWorkletProcessor {
         this.wasm._clouds_set_freeze(this.handle, event.freeze ? 1 : 0);
         break;
       case 'clear-scheduled':
-        this.queue = this.queue.filter(e => e.time === undefined);
+        // Set fence so events from previous play cycles are treated as stale.
+        // Only remove timed events whose fence is older than the clear fence;
+        // events posted after the clear (with fence >= clear fence) survive.
+        this.minFence = event.fence;
+        this.queue = this.queue.filter(e =>
+          e.time === undefined || (e.fence !== undefined && e.fence >= this.minFence),
+        );
         break;
       case 'destroy':
         this.destroyWasm();
@@ -227,6 +235,11 @@ class CloudsProcessor extends AudioWorkletProcessor {
     while (this.queue.length > 0 && this.queue[0].time === undefined) {
       this.applyEvent(this.queue.shift()!);
     }
+
+    // Drop stale events that belong to a previous play cycle (fence < minFence)
+    this.queue = this.queue.filter(e =>
+      e.time === undefined || e.fence === undefined || e.fence >= this.minFence,
+    );
 
     // Drain stale events that were scheduled before this block
     while (this.queue.length > 0 && this.queue[0].time !== undefined && this.queue[0].time! < blockStart) {

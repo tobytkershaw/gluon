@@ -18,6 +18,7 @@ export interface CloudsFreezeMessage {
 
 export interface CloudsClearScheduledMessage {
   type: 'clear-scheduled';
+  fence: number;
 }
 
 export interface CloudsDestroyMessage {

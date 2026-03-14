@@ -13,6 +13,7 @@ export interface TidesModeMessage {
 
 export interface TidesClearScheduledMessage {
   type: 'clear-scheduled';
+  fence?: number;
 }
 
 export interface TidesDestroyMessage {

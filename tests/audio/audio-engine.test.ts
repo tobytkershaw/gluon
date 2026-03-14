@@ -2,6 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { AudioEngine } from '../../src/audio/audio-engine';
 import type { ScheduledNote } from '../../src/engine/sequencer-types';
 
+function mockGainNode() {
+  return {
+    gain: {
+      value: 1,
+      setValueAtTime: vi.fn(),
+      cancelScheduledValues: vi.fn(),
+      linearRampToValueAtTime: vi.fn(),
+    },
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  };
+}
+
 describe('AudioEngine', () => {
   it('delegates scheduled notes to the synth and schedules accent gain separately', () => {
     const engine = new AudioEngine();
@@ -17,6 +30,7 @@ describe('AudioEngine', () => {
       ['v0', {
         synth,
         sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        chainOutGain: mockGainNode(),
         muteGain: { gain: { value: 1 } },
         accentGain: { gain: { setValueAtTime } },
         processors: [],
@@ -35,22 +49,23 @@ describe('AudioEngine', () => {
 
     engine.scheduleNote(note);
 
-    expect(synth.scheduleNote).toHaveBeenCalledWith(note);
+    expect(synth.scheduleNote).toHaveBeenCalledWith(note, 0);
     expect(setValueAtTime).toHaveBeenNthCalledWith(1, 0.6, 1.25);
     expect(setValueAtTime).toHaveBeenNthCalledWith(2, 0.3, 1.5);
   });
 
-  it('rebuildChain wires sourceOut -> accentGain when no processors', () => {
+  it('rebuildChain wires sourceOut -> chainOutGain when no processors', () => {
     const engine = new AudioEngine();
     const sourceOutConnect = vi.fn();
     const sourceOutDisconnect = vi.fn();
-    const accentGain = { gain: { setValueAtTime: vi.fn() } };
+    const chainOutGain = mockGainNode();
 
     const slot = {
       synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
       sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
+      chainOutGain,
       muteGain: { gain: { value: 1 } },
-      accentGain,
+      accentGain: { gain: { setValueAtTime: vi.fn() } },
       processors: [],
       currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
       currentModel: 0,
@@ -62,23 +77,24 @@ describe('AudioEngine', () => {
     (engine as unknown as { rebuildChain: (s: unknown) => void }).rebuildChain(slot);
 
     expect(sourceOutDisconnect).toHaveBeenCalled();
-    expect(sourceOutConnect).toHaveBeenCalledWith(accentGain);
+    expect(sourceOutConnect).toHaveBeenCalledWith(chainOutGain);
   });
 
-  it('rebuildChain inserts processor between sourceOut and accentGain', () => {
+  it('rebuildChain inserts processor between sourceOut and chainOutGain', () => {
     const engine = new AudioEngine();
     const sourceOutConnect = vi.fn();
     const sourceOutDisconnect = vi.fn();
     const procConnect = vi.fn();
     const procDisconnect = vi.fn();
-    const accentGain = { gain: { setValueAtTime: vi.fn() } };
+    const chainOutGain = mockGainNode();
     const procNode = { connect: procConnect, disconnect: procDisconnect };
 
     const slot = {
       synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
       sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
+      chainOutGain,
       muteGain: { gain: { value: 1 } },
-      accentGain,
+      accentGain: { gain: { setValueAtTime: vi.fn() } },
       processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy: vi.fn(), setPatch: vi.fn(), setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
       currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
       currentModel: 0,
@@ -88,7 +104,7 @@ describe('AudioEngine', () => {
     (engine as unknown as { rebuildChain: (s: unknown) => void }).rebuildChain(slot);
 
     expect(sourceOutConnect).toHaveBeenCalledWith(procNode);
-    expect(procConnect).toHaveBeenCalledWith(accentGain);
+    expect(procConnect).toHaveBeenCalledWith(chainOutGain);
   });
 
   it('setProcessorPatch delegates to processor engine', () => {
@@ -99,6 +115,7 @@ describe('AudioEngine', () => {
     const slot = {
       synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
       sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+      chainOutGain: mockGainNode(),
       muteGain: { gain: { value: 1 } },
       accentGain: { gain: { setValueAtTime: vi.fn() } },
       processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy: vi.fn(), setPatch, setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
@@ -119,13 +136,14 @@ describe('AudioEngine', () => {
     const procNode = { connect: vi.fn(), disconnect: vi.fn() };
     const sourceOutConnect = vi.fn();
     const sourceOutDisconnect = vi.fn();
-    const accentGain = { gain: { setValueAtTime: vi.fn() } };
+    const chainOutGain = mockGainNode();
 
     const slot = {
       synth: { scheduleNote: vi.fn(), setModel: vi.fn(), setParams: vi.fn(), destroy: vi.fn() },
       sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
+      chainOutGain,
       muteGain: { gain: { value: 1 } },
-      accentGain,
+      accentGain: { gain: { setValueAtTime: vi.fn() } },
       processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy, setPatch: vi.fn(), setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
       currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
       currentModel: 0,
@@ -136,7 +154,7 @@ describe('AudioEngine', () => {
 
     expect(destroy).toHaveBeenCalled();
     expect(slot.processors).toHaveLength(0);
-    // After removal, sourceOut connects directly to accentGain
-    expect(sourceOutConnect).toHaveBeenCalledWith(accentGain);
+    // After removal, sourceOut connects directly to chainOutGain
+    expect(sourceOutConnect).toHaveBeenCalledWith(chainOutGain);
   });
 });

@@ -58,7 +58,7 @@ export class WebAudioSynth implements SynthEngine {
     this.envelope.gain.setTargetAtTime(0, time, 0.05);
   }
 
-  scheduleNote(note: ScheduledNote): void {
+  scheduleNote(note: ScheduledNote, _fence?: number): void {
     const noteHz = noteToHz(note.params.note);
     this.oscillator.frequency.setValueAtTime(noteHz, note.time);
     this.filter.frequency.setValueAtTime(200 + note.params.timbre * 7800, note.time);
@@ -68,7 +68,7 @@ export class WebAudioSynth implements SynthEngine {
     this.releaseAt(note.gateOffTime);
   }
 
-  silence(): void {
+  silence(_fence?: number): void {
     this.envelope.gain.cancelScheduledValues(0);
     this.envelope.gain.setValueAtTime(0, 0);
   }
