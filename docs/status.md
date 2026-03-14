@@ -1,10 +1,10 @@
 # Gluon — Current Build Status
 
 **As of:** 2026-03-14
-**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5 Steps 1-4 (UI Layers foundation), M5 Wave 1 (Layout + Project Persistence), M5 Wave 2 (Mix Bus + Transport Polish), M5B (Parameter & Patch Navigation), M5D (Sequencer & Listen), M5E (Legibility)
-**Current product state:** Four-view tabbed UI (Surface, Rack, Patch, Tracker), full parameter surfaces, node-graph patch view, live recording with parameter automation, micro-timing display, offline audio rendering with voice isolation, pause/hard-stop transport
-**Near-term focus:** M5C (AI-curated surfaces — #248, #249, #250)
-**Latest milestone:** M5B/5D/5E complete — ground-truth views, offline listen, legibility all landed
+**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5: UI Layers (all sub-phases)
+**Current product state:** Four-view tabbed UI (Surface with semantic controls, Rack, Patch, Tracker), AI-curated surfaces with template registry, full parameter surfaces, node-graph patch view, live recording with parameter automation, micro-timing display, offline audio rendering with voice isolation, pause/hard-stop transport, 19 AI tools
+**Near-term focus:** M6A (Preservation contracts)
+**Latest milestone:** M5C complete — AI-curated surfaces with semantic controls, pinning, and surface tools (PRs #251, #252, #254)
 **Data model direction:** Canonical regions/events are the sequencing authority — `voice.pattern` is a derived projection. Tracker is the canonical truth view; step grid and other editors are addable surfaces.
 
 ---
@@ -20,10 +20,13 @@ Gluon is a browser-based, AI-assisted instrument with:
 - Glitch-free chain rebuild via gain ramp (2ms fade-out/fade-in on processor add/remove)
 - Sequence fence for stop/start race prevention (monotonic clearFence counter)
 - Modulation architecture: Tides → GainNode(depth) → target AudioParam (max 2 modulators per voice)
-- AI tools (15): move, sketch, listen, set_transport, set_model, transform, add_view, remove_view, add_processor, remove_processor, replace_processor, add_modulator, remove_modulator, connect_modulator, disconnect_modulator
+- AI tools (19): move, sketch, listen, set_transport, set_model, transform, add_view, remove_view, add_processor, remove_processor, replace_processor, add_modulator, remove_modulator, connect_modulator, disconnect_modulator, set_surface, pin, unpin, label_axes
+- AI surface curation: set_surface proposes semantic controls, pin/unpin surfaces raw controls, label_axes changes XY pad bindings — all immediate, undoable, no agency required
+- Surface template registry: auto-applies semantic controls when chain changes (signature matching against known chain configs)
+- Semantic controls: weighted multi-parameter knobs that aggregate across chain modules, with inspection popover showing weight mappings
 - Processor and modulator control authority: AI can target params and models via `processorId`/`modulatorId` on move/set_model
 - Chain validation layer: structural rules enforced via registry-driven validator (processors + modulators)
-- Four-view tabbed UI: Surface (placeholder), Rack (full parameter surface), Patch (node graph), Tracker (event list)
+- Four-view tabbed UI: Surface (semantic controls + pinned controls), Rack (full parameter surface), Patch (node graph), Tracker (event list)
 - Rack view: Guitar Rig-style vertical parameter surface with module-grouped controls
 - Patch view: node graph showing signal chain and modulation routing
 - Grid-based control surface layout
@@ -136,13 +139,17 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 ---
 
+## M5C: AI-Curated Surfaces — Complete
+
+### Landed
+
+- **#248 — Surface template registry (PR #251):** Chain signature matching (`plaits:rings:clouds`), auto-apply semantic controls on chain change, SurfaceSnapshot for undo, validateSurface for weight/module validation
+- **#249 — Semantic control rendering (PR #252):** SemanticKnob rotary component with weighted multi-param fan-out, SemanticInspector popover showing weight mappings, emerald accent, gesture-based undo grouping
+- **#250 — AI surface tools (PR #254):** set_surface, pin, unpin, label_axes tools (19 total). Surface state in AI state compression. Trigger discipline in system prompt. All surface ops immediate, undoable, no agency required.
+
+---
+
 ## Open Backlog
-
-### M5C: AI-Curated Surfaces (next)
-
-- #248 — Surface template registry with signature matching + auto-apply on chain change
-- #249 — Semantic control rendering + inspection popover
-- #250 — set_surface AI tool + surface state compression + pinning + trigger discipline
 
 ### Evergreen
 
@@ -156,15 +163,17 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 ## Likely Next Work
 
-**M5C: AI-Curated Surfaces** — the last major M5 sub-phase. Three issues (#248 → #249 → #250) implementing semantic controls, surface templates, and AI surface curation tools. This is what makes the Surface view functional.
+**M6A: Preservation** — Runtime enforcement of approved material during AI edits. Approval levels on voices and aspects, mark_approved/preserve_material tools, preservation constraints, reports on edits. Design doc: `docs/rfcs/preservation-contracts.md`. Unblocked now that M5 is complete.
 
 Dependency graph:
 
 ```
-M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 Steps 1-4 ✓
-  M5 Wave 1 ✓  M5 Wave 2 ✓  M5B ✓  M5D ✓  M5E ✓
-    └── M5C (AI-curated surfaces) ← next
-          #248 (templates) → #249 (rendering) → #250 (AI tools)
+M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓ (all sub-phases)
+  └── M6A (Preservation) ← next
+        └── M6B (Aesthetic Direction)
+        └── M6C (Structured Listening)
+              └── M6D (Environment Legibility)
+                    └── M7 (External Integration)
 ```
 
 ---
@@ -181,7 +190,7 @@ M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 Steps 1-4 ✓
 - Backoff/rate-limit handling
 
 **Tool Calling (`tool-declarations.ts`)**
-- 15 declared tools: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`
+- 19 declared tools: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`, `set_surface`, `pin`, `unpin`, `label_axes`
 - Tool responses are prevalidated against live session state before returning success to the model
 - `listen` is model-invoked rather than routed by regex intent detection
 
