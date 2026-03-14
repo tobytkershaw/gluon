@@ -138,6 +138,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 
 - `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
+- `docs/design-references.md` - Design references from synths, DAWs, and related tools: Guitar Rig (rack + inline params), Bitwig (modulation, remote controls), Reason, VCV Rack, Ableton, Max, and others. Includes parameter ground truth analysis and modulation display comparison.
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
 - `docs/status.md` - Current build status and milestone tracking
 
@@ -145,6 +146,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/principles/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.
 - `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.
 - `docs/principles/ai-collaboration-model.md` - What good human-AI collaboration looks like: phases, posture, roles, model evaluation criteria.
+- `docs/principles/human-capability-parity.md` - Anything the AI can do, the human should have a means to do.
 
 ### AI Contract (`docs/ai/`)
 - `docs/ai/ai-contract.md` - What the AI agent needs at inference time: tools, state format, validation rules.
@@ -158,6 +160,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/rfcs/sequencer-view-layer.md` - Sequencer views as projections over canonical events.
 - `docs/rfcs/phase4a.md` - Phase 4A: constrained patch chains.
 - `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
+- `docs/rfcs/patch-view-layer.md` - Patch views as projections over chain/modulation data. Node graph is the ground-truth view (like tracker for sequencing); inline modulation, chain strips are projections.
 
 ### Briefs (`docs/briefs/`)
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
