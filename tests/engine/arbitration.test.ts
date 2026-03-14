@@ -116,6 +116,55 @@ describe('Arbitrator', () => {
     });
   });
 
+  describe('canAIActOnVoice', () => {
+    it('returns true when no touches on voice', () => {
+      const arb = new Arbitrator(500);
+      expect(arb.canAIActOnVoice('v0')).toBe(true);
+    });
+
+    it('returns false when any param on voice is within cooldown', () => {
+      const arb = new Arbitrator(500);
+      arb.humanTouched('v0', 'timbre', 0.5);
+      expect(arb.canAIActOnVoice('v0')).toBe(false);
+    });
+
+    it('returns true after all touches on voice expire', () => {
+      const arb = new Arbitrator(500);
+      arb.humanTouched('v0', 'timbre', 0.5);
+      arb.humanTouched('v0', 'morph', 0.3);
+      vi.advanceTimersByTime(600);
+      expect(arb.canAIActOnVoice('v0')).toBe(true);
+    });
+
+    it('returns false if even one param is still within cooldown', () => {
+      const arb = new Arbitrator(500);
+      arb.humanTouched('v0', 'timbre', 0.5);
+      vi.advanceTimersByTime(300);
+      arb.humanTouched('v0', 'morph', 0.3);
+      vi.advanceTimersByTime(300);
+      // timbre expired (600ms), but morph still active (300ms)
+      expect(arb.canAIActOnVoice('v0')).toBe(false);
+    });
+
+    it('does not affect other voices', () => {
+      const arb = new Arbitrator(500);
+      arb.humanTouched('v0', 'timbre', 0.5);
+      expect(arb.canAIActOnVoice('v0')).toBe(false);
+      expect(arb.canAIActOnVoice('v1')).toBe(true);
+    });
+
+    it('returns false during active interaction on that voice', () => {
+      const arb = new Arbitrator(500);
+      arb.humanInteractionStart('v0');
+      expect(arb.canAIActOnVoice('v0')).toBe(false);
+      // Different voice is not blocked
+      expect(arb.canAIActOnVoice('v1')).toBe(true);
+      arb.humanInteractionEnd();
+      vi.advanceTimersByTime(600);
+      expect(arb.canAIActOnVoice('v0')).toBe(true);
+    });
+  });
+
   describe('target-scoped arbitration', () => {
     it('source holds do not bleed into processor-scoped queries', () => {
       const arb = new Arbitrator(500);
