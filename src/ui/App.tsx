@@ -1,11 +1,11 @@
 // src/ui/App.tsx
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
-import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline } from '../audio/render-offline';
 import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot } from '../engine/types';
-import type { MusicalEvent as CanonicalMusicalEvent, ControlState } from '../engine/canonical-types';
-import { getActiveTrack, getTrack } from '../engine/types';
+import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
+import { getActiveTrack, getTrack, updateTrack } from '../engine/types';
+import { normalizeRegionEvents } from '../engine/region-helpers';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateTrackParams, setModel,
@@ -53,7 +53,6 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
-  const exporterRef = useRef(new AudioExporter());
   const aiRef = useRef(new GluonAI());
   // Signal to discard in-progress tracker inline edits when switching views.
   // mousedown on ViewToggle sets this true before blur fires on EditableCell.
@@ -64,7 +63,10 @@ export default function App() {
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
-  const [recording, setRecording] = useState(false);
+  const globalStepRef = useRef(0);
+  const [recordArmed, setRecordArmed] = useState(false);
+  /** Tracks whether we've pushed an undo snapshot for the current recording session. */
+  const recordingSnapshotPushed = useRef(false);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>(() => {
@@ -138,7 +140,7 @@ export default function App() {
       () => audioRef.current.getCurrentTime(),
       () => audioRef.current.getState(),
       (note) => audioRef.current.scheduleNote(note),
-      (step) => setGlobalStep(step),
+      (step) => { globalStepRef.current = step; setGlobalStep(step); },
       (trackId) => arbRef.current.getHeldParams(trackId),
     );
     return () => { schedulerRef.current?.stop(); };
@@ -635,41 +637,64 @@ export default function App() {
     setSession((s) => togglePlaying(s));
   }, [ensureAudio]);
 
-  const handleToggleRecord = useCallback(async () => {
-    if (recording) {
-      const blob = await exporterRef.current.stop();
-      setRecording(false);
+  const handleToggleRecord = useCallback(() => {
+    setRecordArmed(prev => {
+      const next = !prev;
       recordQaAudioTrace({
         type: 'recording.state',
-        recording: false,
-        reason: 'stop',
+        recordArmed: next,
       });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `gluon-${Date.now()}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } else {
-      await ensureAudio();
-      const dest = audioRef.current.getMediaStreamDestination();
-      if (dest) {
-        exporterRef.current.start(dest);
-        setRecording(true);
-        recordQaAudioTrace({
-          type: 'recording.state',
-          recording: true,
-          reason: 'start',
-        });
-      } else {
-        recordQaAudioTrace({
-          type: 'recording.state',
-          recording: false,
-          reason: 'no-destination',
-        });
+      return next;
+    });
+  }, []);
+
+  // Push a single undo snapshot when a recording session starts (armed + playing).
+  // The snapshot covers the entire session: from arm to disarm/stop.
+  const isRecordingActive = recordArmed && session.transport.playing;
+  useEffect(() => {
+    if (isRecordingActive && !recordingSnapshotPushed.current) {
+      // Snapshot the active track's region before recording starts
+      const s = sessionRef.current;
+      const track = getActiveTrack(s);
+      const region = track?.regions[0];
+      if (region) {
+        const snapshot: RegionSnapshot = {
+          kind: 'region',
+          trackId: track.id,
+          prevEvents: [...region.events],
+          prevDuration: region.duration,
+          prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+          timestamp: Date.now(),
+          description: `Live recording on ${track.name ?? track.id}`,
+        };
+        setSession(s2 => ({
+          ...s2,
+          undoStack: [...s2.undoStack, snapshot],
+        }));
+        recordingSnapshotPushed.current = true;
       }
     }
-  }, [recording, ensureAudio]);
+    if (!isRecordingActive) {
+      recordingSnapshotPushed.current = false;
+    }
+  }, [isRecordingActive]);
+
+  // Callback for useKeyboardPiano to write recorded events into the region
+  const handleRecordEvents = useCallback((trackId: string, events: NoteEvent[]) => {
+    setSession(s => {
+      const track = getTrack(s, trackId);
+      const region = track.regions[0];
+      if (!region) return s;
+
+      // Overdub: merge new events with existing
+      const merged = [...region.events, ...events];
+      const updatedRegion = normalizeRegionEvents({ ...region, events: merged });
+
+      return updateTrack(s, trackId, {
+        regions: track.regions.map((r, i) => i === 0 ? updatedRegion : r),
+      });
+    });
+  }, []);
 
   const handleSelectTrack = useCallback((trackId: string) => {
     setSession((s) => setActiveTrack(s, trackId));
@@ -1082,7 +1107,7 @@ export default function App() {
   useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, setView, setChatOpen });
 
   // Keyboard piano: map computer keys to musical notes for real-time audition
-  useKeyboardPiano(audioRef, session);
+  useKeyboardPiano(audioRef, session, recordArmed, globalStepRef, handleRecordEvents);
 
   return (
     <AppShell
@@ -1123,7 +1148,7 @@ export default function App() {
       playing={session.transport.playing}
       bpm={session.transport.bpm}
       swing={session.transport.swing}
-      recording={recording}
+      recordArmed={recordArmed}
       globalStep={globalStep}
       patternLength={activeTrack.pattern.length}
       onTogglePlay={handleTogglePlay}

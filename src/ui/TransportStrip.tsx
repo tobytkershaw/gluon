@@ -6,7 +6,7 @@ interface Props {
   playing: boolean;
   bpm: number;
   swing: number;
-  recording: boolean;
+  recordArmed: boolean;
   globalStep: number;
   patternLength: number;
   onTogglePlay: () => void;
@@ -16,11 +16,14 @@ interface Props {
 }
 
 export function TransportStrip({
-  playing, bpm, swing, recording, globalStep, patternLength,
+  playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
 }: Props) {
   const bar = Math.floor(globalStep / patternLength) + 1;
   const beat = (globalStep % patternLength) + 1;
+
+  // Three visual states: inactive, armed (waiting for play), actively recording
+  const activelyRecording = recordArmed && playing;
 
   return (
     <div className="flex items-center gap-3">
@@ -48,13 +51,17 @@ export function TransportStrip({
         <button
           onClick={onToggleRecord}
           className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-            recording
+            activelyRecording
               ? 'bg-red-500/30 text-red-400 border border-red-500/50 animate-pulse'
-              : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-red-400'
+              : recordArmed
+                ? 'bg-red-500/20 text-red-400 border border-red-500/40'
+                : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-red-400'
           }`}
-          title={recording ? 'Stop Recording' : 'Record'}
+          title={activelyRecording ? 'Disarm Recording' : recordArmed ? 'Disarm Recording' : 'Arm Recording'}
         >
-          <div className={`w-2 h-2 rounded-full ${recording ? 'bg-red-500' : 'bg-current'}`} />
+          <div className={`w-2 h-2 rounded-full ${
+            activelyRecording ? 'bg-red-500' : recordArmed ? 'bg-red-400' : 'bg-current'
+          }`} />
         </button>
       </div>
 
