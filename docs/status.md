@@ -1,10 +1,10 @@
 # Gluon — Current Build Status
 
-**As of:** 2026-03-13
-**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5 Steps 1-4 (UI Layers foundation)
-**Current product state:** Phase 3 core shipped, M0–M4 complete, Phase 4B complete, M5 structural UI in place
-**Near-term focus:** M5 Steps 5-7 (AI-curated surfaces)
-**Latest milestone:** M0 Stabilization — scheduler float-point fix, voice-scoped automation, agency button wiring (PR #168)
+**As of:** 2026-03-14
+**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5 Steps 1-4 (UI Layers foundation), M5 Wave 1 (Layout + Project Persistence)
+**Current product state:** Three-column layout (chat | main | tracks), multi-project IndexedDB persistence, collapsible chat sidebar
+**Near-term focus:** M5 Wave 2 (mix bus, pause/stop), then 5B (parameter & patch navigation)
+**Latest milestone:** M5 Wave 1 — layout restructuring + project persistence (PR #169)
 **Data model direction:** Canonical regions/events are the sequencing authority — `voice.pattern` is a derived projection. Tracker is the canonical truth view; step grid and other editors are addable surfaces.
 
 ---
@@ -30,9 +30,11 @@ Gluon is a browser-based, AI-assisted instrument with:
 - AI view operations (add_view, remove_view) — UI curation, no agency check
 - Microtiming, sub-step scheduling, and transformation primitives (M2)
 - Region invariants with validation and normalization
-- Session persistence with v1→v2→v3 migration
+- Multi-project persistence via IndexedDB with export/import (.gluon JSON)
+- Session versioning with v1→v2→v3 migration, shared across localStorage and IndexedDB paths
 - Per-voice agency (AI-editable by default, human-protectable)
-- Multi-view UI (Chat + Instrument)
+- Three-column layout: collapsible chat sidebar (left), main content (center), track list (right)
+- Two view modes: Instrument + Tracker (chat is a persistent sidebar, not a view)
 - Audio snapshot evaluation
 - Native Gemini function calling with tool use
 
@@ -42,6 +44,7 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 | PR | Description | Merged |
 |---|---|---|
+| PR #169 | M5 Wave 1: layout restructuring (chat sidebar, track list, three-column shell) + multi-project IndexedDB persistence | 2026-03-14 |
 | PR #168 | M0 Stabilization: scheduler float-fix, voice-scoped automation, agency button | 2026-03-13 |
 | PR #133 | fix: scheduler skips disabled steps, first-beat timing race, accent restore | 2026-03-13 |
 | PR #113 | Phase 4B: Tides WASM modulation, AI modulation tools, modulator UI | 2026-03-13 |
@@ -294,8 +297,17 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 
 ### UI (`src/ui/`)
 
-**Three-layer UI model (M5 Steps 1-4)**
-- **Layer 1 — VoiceStage:** Compact `VoiceCard` per voice with thumbprint dot (HSL from params), agency dot, M/S/C buttons, AI activity pulse
+**App shell (M5 Wave 1)**
+- **AppShell:** Three-column layout — collapsible chat sidebar (left), main content (center), track list (right)
+- **ChatSidebar:** Persistent left sidebar. Expanded: w-80 with API key header + ChatPanel. Collapsed: floating ChatComposer input at bottom-left with unread badge, thinking/listening indicators
+- **TrackList / TrackRow:** Vertical voice sidebar (right). Per-track: thumbprint dot, label, agency indicator, M/S/C buttons. Replaces horizontal VoiceStage from top bar
+- **ProjectMenu:** Dropdown in project bar — create, rename, duplicate, delete, export (.gluon), import. Inline rename, project list with relative timestamps
+- **useShortcuts:** Extracted keyboard handler — Cmd+1/2 views, Cmd+/ chat toggle, Tab cycle, Space play/stop, Cmd+Z undo
+- **useProjectLifecycle:** Project load/save/switch hook with auto-save debounce, loading guard, IndexedDB error fallback
+- Two view modes: `'instrument' | 'tracker'` (ChatView removed)
+
+**Three-layer voice model (M5 Steps 1-4)**
+- **Layer 1 — TrackRow:** Compact voice row with thumbprint, agency dot, M/S/C, AI activity pulse (in TrackList sidebar)
 - **Layer 2 — ExpandedVoice:** Voice header with agency toggle, chain strip, module-grouped `ControlSection` components (amber for source, sky for processors, violet for modulators), XY pad, sequencer, visualiser
 - **Layer 3 — DeepView:** Read-only per-module inspector with values and source provenance (default/human/AI)
 - `VoiceSurface` type on Voice with scaffolding for semantic controls, pinned controls, XY axes, thumbprint config (inert until Steps 5+)
@@ -304,38 +316,55 @@ PR #85 merged all three M1 issues (#42, #43, #51). The sequencer now operates on
 
 ---
 
+## M5 Wave 1: Layout + Project Persistence — Complete
+
+### Landed: Layout Restructuring + Project Persistence (PR #169)
+
+- **#127 — Chat sidebar:** Removed Chat as a view mode. Chat is now a persistent collapsible left sidebar (ChatSidebar). Collapsed state shows floating ChatComposer input with unread badge, thinking/listening LED, auto-expand on send.
+- **#154 — Track sidebar:** Replaced horizontal VoiceStage with vertical TrackList on the right (TrackRow components with thumbprint, M/S/C, agency). VoiceStage removed from view top bars.
+- **#159 — Project persistence:** Multi-project save/load via IndexedDB (project-store.ts). Create, rename, duplicate, delete, export (.gluon JSON), import. Auto-save with loading guard and 3-failure backoff. One-time localStorage migration. Version validation and session shape checking shared with persistence.ts boundary.
+- **App.tsx refactor:** Layout extracted to AppShell, keyboard shortcuts to useShortcuts hook, project lifecycle to useProjectLifecycle hook.
+
+---
+
 ## Open Backlog
 
-### M3: Sequencer Surfaces (1 remaining issue)
+### M5 Wave 2 (next)
 
-- #50 — Ableton sequencing adapter spike
+- #160 — Mix bus: per-voice volume/pan, master channel
+- #164 — Pause vs hard stop: transport UX
+- #170 — Footer bar: prevent floating chat overlay
+- #171 — Module browser: browse and add modules to tracks
+- #172 — Persist undo stack across project save/load
 
-### M5: UI Layers (Steps 5-7 remaining)
+### M5: UI Layers (remaining sub-phases)
 
-- #73 — Steps 1-4 landed (PR #112). Remaining: semantic controls, pin mechanism, AI surface curation tools, configurable XY axes, processor provenance tracking. Ready to implement now that chains include modulators.
+- 5B — Parameter & patch navigation (#162 parameter surface, #126 control layout, #158 patch view, #161 generic voices)
+- 5C — AI-curated surfaces (#73 — semantic controls, pin mechanism, AI surface curation tools)
+- 5D — Sequencer & listen (#106 offline render, #107 voice isolation, #108 configurable bars)
+- 5E — Legibility (#163 AI action legibility, #123 message attribution)
 
-### Unassigned
+### Evergreen
 
 - #72 — migrate to gemini-3-flash when function calling stable
 - #8 — graceful AI model layer degradation
+- #50 — Ableton sequencing adapter spike
 
 ---
 
 ## Likely Next Work
 
-**M5 Steps 5-7 (AI-Curated Surfaces):** Semantic controls, pin mechanism, AI surface curation tools. Chains now include sources, processors, and modulators — complex enough to warrant aggregation. Steps 1-4 (structural foundation) landed in PR #112.
+**M5 Wave 2:** Mix bus (#160) and pause/stop (#164). These add per-voice volume/pan controls and musical pause semantics. Footer bar (#170) and module browser (#171) support the layout and human capability parity.
 
-### Later: External Adapters
-
-After curated surfaces are in place, the adapter boundary becomes the next frontier: hardware synths via MIDI/OSC/CV, DAW integration, external instruments.
+**Then M5B:** Parameter & patch navigation. The human needs ground-truth views for the full parameter surface and signal chain wiring.
 
 Dependency graph:
 
 ```
-M0 ✓  M1 ✓  M2 ✓
-  ├── M3 (Sequencer surfaces — view layer ✓, adapter spike remaining)
-  ├── M5 Steps 1-4 ✓ (UI Layers foundation)
-  └── M4 ✓ (First Chain + Phase 4A — complete)
-        └── Phase 4B ✓ (Modulation / Tides — complete)
-              └── M5 Steps 5-7 (AI-Curated Surfaces) ← next
+M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 Steps 1-4 ✓  M5 Wave 1 ✓
+  └── M5 Wave 2 (mix bus, pause/stop, footer, module browser) ← next
+        └── M5B (parameter & patch navigation)
+              └── M5C (AI-curated surfaces)
+  └── M5D (sequencer & listen — parallel)
+  └── M5E (legibility — after 5B)
 ```
