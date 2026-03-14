@@ -1,6 +1,6 @@
 // src/ui/ExpandedTrack.tsx
 // Layer 2: expanded track layout with module-grouped controls.
-import type { Session, Track, Agency, SequencerViewKind, ModulationTarget } from '../engine/types';
+import type { Session, Track, Agency, SequencerViewKind, ModulationTarget, SemanticControlDef } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
@@ -11,6 +11,7 @@ import { SequencerViewSlot } from './SequencerViewSlot';
 import { ChainStrip } from './ChainStrip';
 import { ControlSection } from './ControlSection';
 import { DeepView } from './DeepView';
+import { SemanticControlsSection } from './SemanticControlsSection';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 
 interface ExpandedTrackProps {
@@ -43,6 +44,10 @@ interface ExpandedTrackProps {
   onModulatorInteractionEnd: (modulatorId: string) => void;
   onModulatorModelChange: (modulatorId: string, model: number) => void;
   onRemoveModulator: (modulatorId: string) => void;
+  // Semantic controls
+  onSemanticChange: (controlDef: SemanticControlDef, knobValue: number) => void;
+  onSemanticInteractionStart: (controlDef: SemanticControlDef) => void;
+  onSemanticInteractionEnd: (controlDef: SemanticControlDef) => void;
   // Pattern
   stepPage: number;
   onStepToggle: (stepIndex: number) => void;
@@ -83,6 +88,7 @@ export function ExpandedTrack({
   selectedModulatorId, onSelectModulator,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
+  onSemanticChange, onSemanticInteractionStart, onSemanticInteractionEnd,
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
@@ -147,6 +153,16 @@ export function ExpandedTrack({
         />
       ) : (
         <>
+          {/* Semantic controls (chain voices only) */}
+          {processors.length > 0 && (
+            <SemanticControlsSection
+              track={activeTrack}
+              onSemanticChange={onSemanticChange}
+              onInteractionStart={onSemanticInteractionStart}
+              onInteractionEnd={onSemanticInteractionEnd}
+            />
+          )}
+
           {/* Source controls */}
           <ControlSection
             label={sourceLabel}

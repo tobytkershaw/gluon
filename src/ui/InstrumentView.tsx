@@ -1,6 +1,6 @@
 // src/ui/InstrumentView.tsx
 // Thin shell: ExpandedTrack (top bar moved to AppShell)
-import type { Session, Track, SequencerViewKind, Agency } from '../engine/types';
+import type { Session, Track, SequencerViewKind, Agency, SemanticControlDef } from '../engine/types';
 import { ExpandedTrack } from './ExpandedTrack';
 
 interface Props {
@@ -33,6 +33,10 @@ interface Props {
   onModulatorInteractionEnd: (modulatorId: string) => void;
   onModulatorModelChange: (modulatorId: string, model: number) => void;
   onRemoveModulator: (modulatorId: string) => void;
+  // Semantic controls
+  onSemanticChange: (controlDef: SemanticControlDef, knobValue: number) => void;
+  onSemanticInteractionStart: (controlDef: SemanticControlDef) => void;
+  onSemanticInteractionEnd: (controlDef: SemanticControlDef) => void;
   // Pattern
   stepPage: number;
   onStepToggle: (stepIndex: number) => void;
@@ -63,6 +67,7 @@ export function InstrumentView({
   selectedModulatorId, onSelectModulator,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
+  onSemanticChange, onSemanticInteractionStart, onSemanticInteractionEnd,
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
@@ -99,6 +104,9 @@ export function InstrumentView({
           onModulatorInteractionEnd={onModulatorInteractionEnd}
           onModulatorModelChange={onModulatorModelChange}
           onRemoveModulator={onRemoveModulator}
+          onSemanticChange={onSemanticChange}
+          onSemanticInteractionStart={onSemanticInteractionStart}
+          onSemanticInteractionEnd={onSemanticInteractionEnd}
           stepPage={stepPage}
           onStepToggle={onStepToggle}
           onStepAccent={onStepAccent}

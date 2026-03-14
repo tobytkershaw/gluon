@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { renderOffline } from '../audio/render-offline';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, SemanticControlDef, Snapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getTrack, updateTrack } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -36,6 +36,7 @@ import { useShortcuts } from './useShortcuts';
 import { useKeyboardPiano } from './useKeyboardPiano';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
+import { computeSemanticRawUpdates } from './SemanticControlsSection';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -1105,6 +1106,154 @@ export default function App() {
     setSelectedModulatorId(null);
   }, [ensureAudio]);
 
+  // --- Semantic control handlers ---
+  // Maps canonical controlId → runtime param for source controls
+  const semanticCanonicalToRuntime: Record<string, string> = {
+    brightness: 'timbre',
+    richness: 'harmonics',
+    texture: 'morph',
+    pitch: 'note',
+  };
+
+  const semanticUndoRef = useRef<{
+    trackId: string;
+    prevSourceParams: Partial<SynthParamValues>;
+    prevProcessorParams: Map<string, Record<string, number>>;
+  } | null>(null);
+
+  const handleSemanticInteractionStart = useCallback((def: SemanticControlDef) => {
+    const s = sessionRef.current;
+    const track = getActiveTrack(s);
+    // Capture prev values for all params this semantic control touches
+    const prevSourceParams: Partial<SynthParamValues> = {};
+    const prevProcessorParams = new Map<string, Record<string, number>>();
+
+    for (const w of def.weights) {
+      if (w.moduleId === 'source') {
+        const runtimeKey = semanticCanonicalToRuntime[w.controlId] ?? w.controlId;
+        prevSourceParams[runtimeKey] = track.params[runtimeKey] ?? 0.5;
+        // Mark as human-touched for arbitration
+        arbRef.current.humanTouched(s.activeTrackId, runtimeKey, track.params[runtimeKey] ?? 0.5, 'source');
+      } else {
+        const proc = (track.processors ?? []).find(p => p.id === w.moduleId);
+        if (proc) {
+          if (!prevProcessorParams.has(proc.id)) {
+            prevProcessorParams.set(proc.id, { ...proc.params });
+          }
+          arbRef.current.humanTouched(s.activeTrackId, w.controlId, proc.params[w.controlId] ?? 0.5, `processor:${proc.id}`);
+        }
+      }
+    }
+
+    semanticUndoRef.current = {
+      trackId: s.activeTrackId,
+      prevSourceParams,
+      prevProcessorParams,
+    };
+  }, []);
+
+  const handleSemanticInteractionEnd = useCallback((_def: SemanticControlDef) => {
+    const captured = semanticUndoRef.current;
+    if (!captured) return;
+    semanticUndoRef.current = null;
+
+    setSession((s) => {
+      const track = getTrack(s, captured.trackId);
+      const snapshots: Snapshot[] = [];
+
+      // Check source param changes
+      if (Object.keys(captured.prevSourceParams).length > 0) {
+        const currentValues: Partial<SynthParamValues> = {};
+        for (const [param, prevValue] of Object.entries(captured.prevSourceParams)) {
+          const cur = track.params[param] ?? 0;
+          if (Math.abs(cur - (prevValue as number)) > 0.001) {
+            currentValues[param] = cur;
+          }
+        }
+        if (Object.keys(currentValues).length > 0) {
+          snapshots.push({
+            kind: 'param',
+            trackId: captured.trackId,
+            prevValues: captured.prevSourceParams,
+            aiTargetValues: currentValues,
+            timestamp: Date.now(),
+            description: 'Semantic knob change (source)',
+          });
+        }
+      }
+
+      // Check processor param changes
+      for (const [procId, prevParams] of captured.prevProcessorParams) {
+        const proc = (track.processors ?? []).find(p => p.id === procId);
+        if (!proc) continue;
+        const changed = Object.keys(prevParams).some(
+          k => Math.abs((proc.params[k] ?? 0) - (prevParams[k] ?? 0)) > 0.001
+        );
+        if (changed) {
+          snapshots.push({
+            kind: 'processor-state',
+            trackId: captured.trackId,
+            processorId: procId,
+            prevParams,
+            prevModel: proc.model,
+            timestamp: Date.now(),
+            description: 'Semantic knob change (processor)',
+          });
+        }
+      }
+
+      if (snapshots.length === 0) return s;
+
+      const entry: UndoEntry = snapshots.length === 1
+        ? snapshots[0]
+        : {
+            kind: 'group',
+            snapshots,
+            timestamp: Date.now(),
+            description: 'Semantic knob change',
+          } as ActionGroupSnapshot;
+
+      return { ...s, undoStack: [...s.undoStack, entry] };
+    });
+  }, []);
+
+  const handleSemanticChange = useCallback((def: SemanticControlDef, knobValue: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      const updates = computeSemanticRawUpdates(track, def, knobValue);
+
+      let updatedTrack = { ...track };
+
+      for (const u of updates) {
+        if (u.moduleId === 'source') {
+          const runtimeKey = semanticCanonicalToRuntime[u.controlId] ?? u.controlId;
+          updatedTrack = {
+            ...updatedTrack,
+            params: { ...updatedTrack.params, [runtimeKey]: u.value },
+          };
+        } else {
+          const processors = updatedTrack.processors ?? [];
+          updatedTrack = {
+            ...updatedTrack,
+            processors: processors.map(p =>
+              p.id === u.moduleId
+                ? { ...p, params: { ...p.params, [u.controlId]: u.value } }
+                : p
+            ),
+          };
+        }
+      }
+
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
+      };
+    });
+  }, [ensureAudio]);
+
   const handleAddProcessor = useCallback((type: string) => {
     ensureAudio();
     setSession((s) => {
@@ -1251,6 +1400,9 @@ export default function App() {
             onModulatorInteractionEnd={handleModulatorInteractionEnd}
             onModulatorModelChange={handleModulatorModelChange}
             onRemoveModulator={handleRemoveModulator}
+            onSemanticChange={handleSemanticChange}
+            onSemanticInteractionStart={handleSemanticInteractionStart}
+            onSemanticInteractionEnd={handleSemanticInteractionEnd}
             onAddView={handleAddView}
             onRemoveView={handleRemoveView}
             stepPage={stepPage}
