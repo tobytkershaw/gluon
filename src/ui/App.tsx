@@ -16,7 +16,7 @@ import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
 import { applyParamDirect, applyUndo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
-import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent } from '../engine/pattern-primitives';
+import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { updateEvent, removeEvent } from '../engine/event-primitives';
 import type { EventSelector } from '../engine/event-primitives';
@@ -810,6 +810,10 @@ export default function App() {
     setSession((s) => removeEvent(s, s.activeTrackId, selector));
   }, []);
 
+  const handleQuantize = useCallback(() => {
+    setSession((s) => quantizeRegion(s, s.activeTrackId));
+  }, []);
+
   const handleAddView = useCallback((kind: SequencerViewKind) => {
     setSession((s) => addView(s, s.activeTrackId, kind));
   }, []);
@@ -1295,6 +1299,7 @@ export default function App() {
             globalStep={globalStep}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
+            onQuantize={handleQuantize}
             cancelEditRef={cancelEditRef}
           />
         )}

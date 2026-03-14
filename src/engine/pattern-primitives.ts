@@ -324,3 +324,39 @@ export function clearPattern(session: Session, trackId: string): Session {
   const newSteps = track.pattern.steps.map(() => createDefaultStep());
   return updateTrack(session, trackId, { pattern: { ...track.pattern, steps: newSteps } });
 }
+
+// ---------------------------------------------------------------------------
+// Quantize — snap events to nearest grid position
+// ---------------------------------------------------------------------------
+
+/**
+ * Snap all events in the active region to the nearest grid position.
+ * Default grid is 0.25 (sixteenth note). Undoable via RegionSnapshot.
+ *
+ * After snapping, events are re-sorted and deduplicated via normalizeRegionEvents
+ * (called by applyRegionEdit). Events that would snap to >= region.duration are
+ * clamped to duration - gridSize to preserve the region invariant (event.at < duration).
+ */
+export function quantizeRegion(
+  session: Session,
+  trackId: string,
+  gridSize: number = 0.25,
+): Session {
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
+
+  const region = track.regions[0];
+  if (region.events.length === 0) return session;
+
+  const quantized = region.events.map(e => {
+    let snapped = Math.round(e.at / gridSize) * gridSize;
+    // Clamp to valid range [0, duration)
+    if (snapped < 0) snapped = 0;
+    if (snapped >= region.duration) snapped = region.duration - gridSize;
+    // Round to avoid floating-point noise
+    snapped = Math.round(snapped * 10000) / 10000;
+    return { ...e, at: snapped };
+  });
+
+  return applyRegionEdit(session, trackId, quantized, undefined, `Quantize to grid ${gridSize}`);
+}

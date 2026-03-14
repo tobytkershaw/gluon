@@ -2,6 +2,7 @@
 import { forwardRef, useState, useCallback, type MutableRefObject } from 'react';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
+import { microTimingOffset, formatMicroOffset } from '../engine/micro-timing';
 
 interface Props {
   event: MusicalEvent;
@@ -137,6 +138,9 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
 
+    // Micro-timing badge
+    const microOffset = microTimingOffset(event.at);
+
     // Primary data field
     let primaryData: React.ReactNode = '---';
     if (event.kind === 'note') {
@@ -214,6 +218,11 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       >
         <td className="px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem]">
           {formatPosition(event.at)}
+          {microOffset !== null && (
+            <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
+              {formatMicroOffset(microOffset)}
+            </span>
+          )}
         </td>
         <td className="px-1 py-0 text-center font-bold w-6">
           {kindGlyph(event.kind)}
