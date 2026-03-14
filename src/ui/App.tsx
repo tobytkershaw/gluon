@@ -1146,7 +1146,7 @@ export default function App() {
             onRemoveModulator={handleRemoveModulator}
           />
         )}
-        {view === 'patch' && <PatchView />}
+        {view === 'patch' && <PatchView session={session} />}
         {view === 'tracker' && (
           <TrackerView
             session={session}
