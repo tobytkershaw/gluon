@@ -11,6 +11,7 @@ import { SequencerViewSlot } from './SequencerViewSlot';
 import { ChainStrip } from './ChainStrip';
 import { ControlSection } from './ControlSection';
 import { DeepView } from './DeepView';
+import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 
 interface ExpandedTrackProps {
   session: Session;
@@ -59,43 +60,6 @@ interface ExpandedTrackProps {
   onOpenDeepView: (moduleId: string | null) => void;
   // Audio
   analyser: AnalyserNode | null;
-}
-
-/** Build source controls from instrument registry */
-function getSourceControls(track: Track) {
-  const engine = getEngineByIndex(track.model);
-  if (!engine) return [];
-  return engine.controls.map(c => ({
-    id: c.id,
-    name: c.name,
-    value: track.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
-  }));
-}
-
-/** Build processor controls from instrument registry */
-function getProcessorControls(proc: { type: string; model: number; params: Record<string, number> }) {
-  const inst = getProcessorInstrument(proc.type);
-  if (!inst) return [];
-  const engine = inst.engines[proc.model] ?? inst.engines[0];
-  if (!engine) return [];
-  return engine.controls.map(c => ({
-    id: c.id,
-    name: c.name,
-    value: proc.params[c.id] ?? c.range?.default ?? 0.5,
-  }));
-}
-
-/** Build modulator controls from instrument registry */
-function getModulatorControls(mod: { type: string; model: number; params: Record<string, number> }) {
-  const inst = getModulatorInstrument(mod.type);
-  if (!inst) return [];
-  const engine = inst.engines[mod.model] ?? inst.engines[0];
-  if (!engine) return [];
-  return engine.controls.map(c => ({
-    id: c.id,
-    name: c.name,
-    value: mod.params[c.id] ?? c.range?.default ?? 0.5,
-  }));
 }
 
 /** Human-readable label for a modulation target */
