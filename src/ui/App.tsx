@@ -369,6 +369,24 @@ export default function App() {
         });
       }
 
+      // Surface silently-rejected actions so the user knows the AI's
+      // claim doesn't match reality (race between validation and execution).
+      const rejectedNonSay = report.rejected.filter(r => r.op.type !== 'say');
+      if (rejectedNonSay.length > 0) {
+        const reasons = rejectedNonSay.map(r => r.reason);
+        const unique = [...new Set(reasons)];
+        const summary = rejectedNonSay.length === 1
+          ? `1 action rejected: ${unique[0]}`
+          : `${rejectedNonSay.length} actions rejected: ${unique.join('; ')}`;
+        return {
+          ...report.session,
+          messages: [
+            ...report.session.messages,
+            { role: 'system' as const, text: summary, timestamp: Date.now() },
+          ],
+        };
+      }
+
       return report.session;
     });
   }, []);
