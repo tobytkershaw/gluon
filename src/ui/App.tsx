@@ -146,6 +146,9 @@ export default function App() {
     return () => { schedulerRef.current?.stop(); };
   }, [audioStarted]);
 
+  // Whether the current stop should hard-silence all voices (vs. letting tails decay)
+  const hardStopRef = useRef(false);
+
   // Control scheduler from transport state
   useEffect(() => {
     if (!schedulerRef.current) return;
@@ -158,7 +161,11 @@ export default function App() {
       });
     } else {
       schedulerRef.current.stop();
-      audioRef.current.silenceAll();
+      if (hardStopRef.current) {
+        audioRef.current.silenceAll();
+        hardStopRef.current = false;
+      }
+      // Pause: tails ring out naturally — no silenceAll
     }
     recordQaAudioTrace({
       type: 'transport.state',
@@ -637,6 +644,18 @@ export default function App() {
     setSession((s) => togglePlaying(s));
   }, [ensureAudio]);
 
+  /** Hard stop: stop sequencing AND immediately silence all voices/tails. */
+  const handleHardStop = useCallback(async () => {
+    await ensureAudio();
+    hardStopRef.current = true;
+    setSession((s) => s.transport.playing ? togglePlaying(s) : s);
+    // If already stopped, still hard-silence any ringing tails
+    if (!sessionRef.current.transport.playing) {
+      audioRef.current.silenceAll();
+      hardStopRef.current = false;
+    }
+  }, [ensureAudio]);
+
   const handleToggleRecord = useCallback(() => {
     setRecordArmed(prev => {
       const next = !prev;
@@ -1104,7 +1123,7 @@ export default function App() {
   }, [ensureAudio]);
 
   // Global keyboard shortcuts (extracted to hook)
-  useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, setView, setChatOpen });
+  useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, onHardStop: handleHardStop, setView, setChatOpen });
 
   // Keyboard piano: map computer keys to musical notes for real-time audition
   useKeyboardPiano(audioRef, session, recordArmed, globalStepRef, handleRecordEvents);
@@ -1152,6 +1171,7 @@ export default function App() {
       globalStep={globalStep}
       patternLength={activeTrack.pattern.length}
       onTogglePlay={handleTogglePlay}
+      onHardStop={handleHardStop}
       onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
       onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
       onToggleRecord={handleToggleRecord}

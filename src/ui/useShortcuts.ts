@@ -6,6 +6,7 @@ import type { ViewMode } from './view-types';
 interface ShortcutActions {
   onUndo: () => void;
   onTogglePlay: () => void;
+  onHardStop: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
   setChatOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
 }
@@ -17,7 +18,7 @@ export function isEditable(): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
 }
 
-export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: ShortcutActions) {
+export function useShortcuts({ onUndo, onTogglePlay, onHardStop, setView, setChatOpen }: ShortcutActions) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
@@ -52,7 +53,13 @@ export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: Sho
         const order: ViewMode[] = ['surface', 'rack', 'patch', 'tracker'];
         setView((v: ViewMode) => order[(order.indexOf(v) + 1) % order.length]);
       }
-      // Space for play/stop
+      // Shift+Space for hard stop (silence all voices immediately)
+      if (e.key === ' ' && e.shiftKey && !e.repeat && !isEditable()) {
+        e.preventDefault();
+        onHardStop();
+        return;
+      }
+      // Space for play/pause (tails ring out on stop)
       if (e.key === ' ' && !e.repeat && !isEditable()) {
         e.preventDefault();
         onTogglePlay();
@@ -60,5 +67,5 @@ export function useShortcuts({ onUndo, onTogglePlay, setView, setChatOpen }: Sho
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onUndo, onTogglePlay, setView, setChatOpen]);
+  }, [onUndo, onTogglePlay, onHardStop, setView, setChatOpen]);
 }

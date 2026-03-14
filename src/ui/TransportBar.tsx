@@ -9,6 +9,7 @@ interface Props {
   globalStep: number;
   patternLength: number;
   onTogglePlay: () => void;
+  onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
   onSwingChange: (swing: number) => void;
   onToggleRecord: () => void;
@@ -16,7 +17,7 @@ interface Props {
 
 export function TransportBar({
   playing, bpm, swing, recording, globalStep, patternLength,
-  onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
+  onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
 }: Props) {
   const [editingBpm, setEditingBpm] = useState(false);
   const [bpmInput, setBpmInput] = useState(String(bpm));
@@ -39,17 +40,27 @@ export function TransportBar({
             ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
             : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-zinc-200'
         }`}
-        title={playing ? 'Stop' : 'Play'}
+        title={playing ? 'Pause (tails ring out) [Space]' : 'Play [Space]'}
       >
         {playing ? (
           <svg viewBox="0 0 16 16" className="w-4 h-4 fill-current">
-            <rect x="3" y="3" width="10" height="10" />
+            <rect x="3" y="3" width="4" height="10" />
+            <rect x="9" y="3" width="4" height="10" />
           </svg>
         ) : (
           <svg viewBox="0 0 16 16" className="w-4 h-4 fill-current">
             <polygon points="4,2 14,8 4,14" />
           </svg>
         )}
+      </button>
+      <button
+        onClick={onHardStop}
+        className="w-10 h-10 rounded-full flex items-center justify-center transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
+        title="Hard stop — silence all voices [Shift+Space]"
+      >
+        <svg viewBox="0 0 16 16" className="w-4 h-4 fill-current">
+          <rect x="3" y="3" width="10" height="10" />
+        </svg>
       </button>
 
       <div className="flex items-center gap-2">
