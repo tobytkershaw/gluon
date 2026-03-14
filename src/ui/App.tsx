@@ -341,7 +341,7 @@ export default function App() {
         if (action.type === 'move' && action.over) {
           const vid = action.voiceId ?? s.activeVoiceId;
           const runtimeParam = report.resolvedParams.get(i) ?? action.param;
-          const voice = getVoice(s, vid);
+          const voice = getVoice(report.session, vid);
           const currentVal = voice.params[runtimeParam] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
           const targetVal = Math.max(0, Math.min(1, rawTarget));
