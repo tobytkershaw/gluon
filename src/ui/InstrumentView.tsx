@@ -1,26 +1,14 @@
 // src/ui/InstrumentView.tsx
-// Thin shell: top bar + ExpandedVoice
+// Thin shell: ExpandedVoice (top bar moved to AppShell)
 import type { Session, Voice, SequencerViewKind, Agency } from '../engine/types';
-import type { ViewMode } from './view-types';
-import { ViewToggle } from './ViewToggle';
-import { UndoButton } from './UndoButton';
 import { ExpandedVoice } from './ExpandedVoice';
 
 interface Props {
   session: Session;
   activeVoice: Voice;
-  view: ViewMode;
-  onViewChange: (v: ViewMode) => void;
-  // Transport
+  // Transport (position only)
   playing: boolean;
-  bpm: number;
-  swing: number;
-  recording: boolean;
   globalStep: number;
-  onTogglePlay: () => void;
-  onBpmChange: (bpm: number) => void;
-  onSwingChange: (swing: number) => void;
-  onToggleRecord: () => void;
   // Params
   onParamChange: (timbre: number, morph: number) => void;
   onInteractionStart: () => void;
@@ -57,8 +45,6 @@ interface Props {
   // Views
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
-  // Undo
-  onUndo: () => void;
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;
@@ -67,9 +53,8 @@ interface Props {
 }
 
 export function InstrumentView({
-  session, activeVoice, view, onViewChange,
-  playing, bpm, swing, recording, globalStep,
-  onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
+  session, activeVoice,
+  playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   selectedProcessorId, onSelectProcessor,
@@ -81,37 +66,18 @@ export function InstrumentView({
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
-  onUndo,
   deepViewModuleId, onOpenDeepView,
   analyser,
 }: Props) {
   return (
     <div className="flex flex-col h-full">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/50">
-        <ViewToggle view={view} onViewChange={onViewChange} />
-        <div className="flex-1" />
-        <UndoButton
-          onClick={onUndo}
-          disabled={session.undoStack.length === 0}
-          description={session.undoStack.length > 0 ? session.undoStack[session.undoStack.length - 1].description : undefined}
-        />
-      </div>
-
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
         <ExpandedVoice
           session={session}
           activeVoice={activeVoice}
           playing={playing}
-          bpm={bpm}
-          swing={swing}
-          recording={recording}
           globalStep={globalStep}
-          onTogglePlay={onTogglePlay}
-          onBpmChange={onBpmChange}
-          onSwingChange={onSwingChange}
-          onToggleRecord={onToggleRecord}
           onParamChange={onParamChange}
           onInteractionStart={onInteractionStart}
           onInteractionEnd={onInteractionEnd}

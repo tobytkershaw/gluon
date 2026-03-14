@@ -4,7 +4,6 @@ import type { Session, Voice, Agency, SequencerViewKind, ModulationTarget } from
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { getVoiceLabel } from '../engine/voice-labels';
-import { TransportBar } from './TransportBar';
 import { ParameterSpace } from './ParameterSpace';
 import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
@@ -16,16 +15,9 @@ import { DeepView } from './DeepView';
 interface ExpandedVoiceProps {
   session: Session;
   activeVoice: Voice;
-  // Transport
+  // Transport (position only — play/bpm/swing/record moved to global top bar)
   playing: boolean;
-  bpm: number;
-  swing: number;
-  recording: boolean;
   globalStep: number;
-  onTogglePlay: () => void;
-  onBpmChange: (bpm: number) => void;
-  onSwingChange: (swing: number) => void;
-  onToggleRecord: () => void;
   // Params
   onParamChange: (timbre: number, morph: number) => void;
   onInteractionStart: () => void;
@@ -118,8 +110,7 @@ function formatRoutingTarget(target: ModulationTarget, voice: Voice): string {
 
 export function ExpandedVoice({
   activeVoice,
-  playing, bpm, swing, recording, globalStep,
-  onTogglePlay, onBpmChange, onSwingChange, onToggleRecord,
+  playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   selectedProcessorId, onSelectProcessor,
@@ -170,19 +161,6 @@ export function ExpandedVoice({
           {activeVoice.agency === 'ON' ? 'AI ON' : 'AI OFF'}
         </button>
       </div>
-
-      <TransportBar
-        playing={playing}
-        bpm={bpm}
-        swing={swing}
-        recording={recording}
-        globalStep={globalStep}
-        patternLength={activeVoice.pattern.length}
-        onTogglePlay={onTogglePlay}
-        onBpmChange={onBpmChange}
-        onSwingChange={onSwingChange}
-        onToggleRecord={onToggleRecord}
-      />
 
       {/* Chain strip (if processors or modulators exist) */}
       {(processors.length > 0 || modulators.length > 0) && (
