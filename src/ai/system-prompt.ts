@@ -109,14 +109,15 @@ ${getRegisteredModulatorTypes().map(type => {
 - To adjust modulator controls, use **move** with modulatorId. To switch modes, use **set_model** with modulatorId.
 - Valid source modulation targets: brightness, richness, texture. Pitch modulation is excluded.
 - connect_modulator is idempotent — calling again with the same modulator + target updates the depth.
-- listen in the same turn as modulation changes cannot hear those changes until after execution.
-- The listen tool captures 2 bars by default. Use the optional \`bars\` parameter (1-16) when you need a longer or shorter sample — e.g. 1 bar for a quick timbre check, 4+ bars for patterns with longer phrases.
+- Changes made in this turn are not audible until after execution — listen in a follow-up turn to hear your edits.
+- The listen tool renders 2 bars by default. Use the optional \`bars\` parameter (1-16) when you need a longer or shorter sample — e.g. 1 bar for a quick timbre check, 4+ bars for patterns with longer phrases.
+- The listen tool works whether or not the transport is playing — it renders audio offline from the current project state.
 
 ## Listen Tool — Voice Isolation
-- Pass voiceIds to the listen tool to hear only specific voices (e.g. listen with voiceIds: ["v0", "v1"]).
+- Pass voiceIds to the listen tool to render only specific voices (e.g. listen with voiceIds: ["v0", "v1"]).
 - Omit voiceIds to hear all unmuted voices (default).
 - Useful for evaluating individual parts, checking a specific voice's timbre, or comparing a subset of voices.
-- Mute/solo state is automatically saved and restored around isolated captures.
+- Voice isolation is built into the render — no mute/solo state changes needed.
 
 ## User Guide (Reference for answering "how do I..." questions)
 Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).

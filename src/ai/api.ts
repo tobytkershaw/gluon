@@ -259,11 +259,9 @@ function errorResponse(
 
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
-  getAudioDestination: () => MediaStreamAudioDestinationNode | null;
-  captureNBars: (dest: MediaStreamAudioDestinationNode, bars: number, patternLength: number, bpm: number) => Promise<Blob>;
+  /** Render audio offline — no transport or AudioContext needed. */
+  renderOffline: (session: Session, voiceIds?: string[], bars?: number) => Promise<Blob>;
   onListening?: (active: boolean) => void;
-  /** Temporarily isolate a subset of voices (mute others). Pass null to restore. */
-  setIsolation?: (voiceIds: string[] | null) => void;
 }
 
 /**
@@ -1090,36 +1088,16 @@ export class GluonAI {
       return { error: 'Listen not available.' };
     }
 
-    if (!session.transport.playing) {
-      return { error: "Transport is stopped — press play first." };
-    }
-
-    const dest = listen.getAudioDestination();
-    if (!dest) {
-      return { error: 'Audio destination not available.' };
-    }
-
     try {
-      // Apply voice isolation before capture
-      if (voiceIds) {
-        listen.setIsolation?.(voiceIds);
-      }
-
       listen.onListening?.(true);
 
-      const activeVoice = session.voices.find(v => v.id === session.activeVoiceId);
-      const patternLength = activeVoice?.pattern.length ?? 16;
-      const wavBlob = await listen.captureNBars(dest, bars, patternLength, session.transport.bpm);
+      const wavBlob = await listen.renderOffline(session, voiceIds, bars);
 
       const critique = await this.evaluateAudio(session, wavBlob, 'audio/wav', question);
       return { critique };
     } catch {
       return { error: 'Audio evaluation failed — try again.' };
     } finally {
-      // Always restore mute/solo state, even on error
-      if (voiceIds) {
-        listen.setIsolation?.(null);
-      }
       listen.onListening?.(false);
     }
   }

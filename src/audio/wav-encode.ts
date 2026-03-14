@@ -19,7 +19,7 @@ export async function blobToWav(blob: Blob, sampleRate = 48000): Promise<Blob> {
   return encodeWav(pcm, sampleRate);
 }
 
-function encodeWav(samples: Float32Array, sampleRate: number): Blob {
+export function encodeWav(samples: Float32Array, sampleRate: number): Blob {
   const numChannels = 1;
   const bitsPerSample = 16;
   const bytesPerSample = bitsPerSample / 8;

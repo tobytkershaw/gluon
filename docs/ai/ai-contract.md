@@ -60,13 +60,15 @@ Transform an existing pattern structurally rather than rewriting it.
 
 #### `listen`
 
-Capture audio and evaluate how it sounds. Requires transport to be playing.
+Render audio offline and evaluate how it sounds. Works whether or not the transport is playing.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `question` | string | yes | What to evaluate (e.g. "how does the kick sound?") |
+| `voiceIds` | string[] | no | Voice IDs to render in isolation (e.g. `["v0", "v1"]`). Default: all unmuted voices. |
+| `bars` | integer | no | Number of bars to render (1-16). Default: 2. |
 
-Captures 2 bars of rendered audio, converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
+Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Voice isolation is built into the render — only the requested voices are included. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
 
 ### Transport
 
@@ -359,7 +361,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 5. MIDI pitch in note events is **0–127**.
 6. `duration` in note events is always **0.25**.
 7. `controlId` in parameter events must be a known semantic control.
-8. `listen` requires the transport to be playing.
+8. `listen` works regardless of transport state (offline render).
 9. `set_transport` requires at least one of `bpm`, `swing`, or `playing`.
 10. `processorId` in `move`, `set_model`, `remove_processor`, and `replace_processor` must reference an existing processor on the target voice.
 11. `moduleType` in `add_processor` must be a registered processor type (`rings`, `clouds`).
@@ -427,15 +429,14 @@ move({ voiceId: "v1", processorId: "rings-1710342000000", param: "brightness", t
 set_model({ voiceId: "v1", processorId: "rings-1710342000000", model: "sympathetic-string" })
 ```
 
-### Example 4: "Start it up and tell me how it sounds"
+### Example 4: "Tell me how it sounds"
 
-The model calls two tools in sequence:
+The model calls one tool:
 ```
-set_transport({ playing: true })
 listen({ question: "How does the overall mix sound?" })
 ```
 
-The `listen` tool captures 2 bars and returns a text critique that the model incorporates into its response.
+The `listen` tool renders 2 bars offline and returns a text critique that the model incorporates into its response. No transport state change is needed — listen works whether or not the transport is playing.
 
 ### Example 5: "Shift the hi-hat pattern forward by 2 steps"
 
