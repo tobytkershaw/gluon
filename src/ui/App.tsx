@@ -678,9 +678,10 @@ export default function App() {
       const track = getTrack(s, captured.trackId);
       const proc = (track.processors ?? []).find(p => p.id === processorId);
       if (!proc) return s;
-      // Check if anything actually changed
-      const changed = Object.keys(captured.prevParams).some(
-        k => Math.abs((proc.params[k] ?? 0) - captured.prevParams[k]) > 0.001
+      // Check if anything actually changed (including new params not in prevParams)
+      const allKeys = new Set([...Object.keys(captured.prevParams), ...Object.keys(proc.params)]);
+      const changed = [...allKeys].some(
+        k => Math.abs((proc.params[k] ?? 0) - (captured.prevParams[k] ?? 0)) > 0.001
       );
       if (!changed) return s;
       const snapshot: ProcessorStateSnapshot = {
