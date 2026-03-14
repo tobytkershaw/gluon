@@ -159,17 +159,20 @@ export default function App() {
       const key = voice.id;
       const prev = prevVoiceStateRef.current.get(key);
 
-      // #141: skip source sync while human is holding source params
-      if (arbRef.current.isHoldingSource(voice.id)) continue;
+      const holding = arbRef.current.isHoldingSource(voice.id);
 
+      // Model always syncs — hold only suppresses params (#141)
       if (!prev || prev.model !== voice.model) {
         audioRef.current.setVoiceModel(voice.id, voice.model);
       }
-      if (!prev || !shallowEqual(prev.params, voice.params)) {
+      if (!holding && (!prev || !shallowEqual(prev.params, voice.params))) {
         audioRef.current.setVoiceParams(voice.id, voice.params);
       }
-      // Cache advances only when writes are not suppressed by arbitration
-      prevVoiceStateRef.current.set(key, { model: voice.model, params: { ...voice.params } });
+      // Only advance cache for dimensions that were actually written
+      prevVoiceStateRef.current.set(key, {
+        model: voice.model,
+        params: holding ? (prev?.params ?? { ...voice.params }) : { ...voice.params },
+      });
     }
   }, [session.voices, audioStarted]);
 
