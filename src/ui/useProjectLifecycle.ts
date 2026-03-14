@@ -277,7 +277,7 @@ function restoreSession(session: Session): Session {
   return {
     ...session,
     voices: session.voices.map(migrateVoice),
-    undoStack: [],
+    undoStack: session.undoStack ?? [],
     recentHumanActions: session.recentHumanActions ?? [],
   };
 }
