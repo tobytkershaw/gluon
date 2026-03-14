@@ -57,7 +57,24 @@ npm run wasm:build   # Compile Plaits to WASM
 
 ## Multi-Agent Workflow
 
-This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. Rules:
+This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. The lead agent acts as team lead: triaging the backlog, dispatching work to parallel agents, reviewing plans, and merging PRs.
+
+### Continuous Pipeline (not batch waves)
+
+Work flows continuously — no wave branches, no batch-and-review cycles.
+
+- **One issue = one branch = one PR.** No aggregating work into wave branches.
+- Dispatch 3-5 agents in parallel on independent issues
+- As each completes, review/merge and dispatch newly-unblocked work
+- Pipeline review with implementation: while one PR is reviewed, the next batch is already running
+
+### Three-Tier Planning
+
+| Tier | When | Planning |
+|------|------|----------|
+| **Trivial** | Renames, config, one-file fixes with obvious diffs | No plan — just implement |
+| **Standard** | Clear bug fixes, scoped features, isolated components | Agent starts in plan mode, lead reviews plan, then approves execution |
+| **Design** | New subsystems, cross-cutting changes, product decisions | Human and AI align on plan together before any code |
 
 ### Worktrees Are Mandatory
 
@@ -103,7 +120,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 ## GitHub Backlog Hygiene
 
 - When creating or updating issues, preserve the backlog structure already in GitHub.
-- Close issues that are already merged; do not leave done work open.
+- **Always use `Closes #NNN` in PR descriptions** to autoclose issues on merge. Never manually close issues with `gh issue close`.
 - For active implementation work, add:
   - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
