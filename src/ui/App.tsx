@@ -191,8 +191,11 @@ export default function App() {
       if (hardStopRef.current) {
         audioRef.current.silenceAll();
         hardStopRef.current = false;
+      } else {
+        // Pause: close gates and clear scheduled events so sound doesn't
+        // sustain indefinitely, but keep gain at baseline for natural decay.
+        audioRef.current.releaseAll();
       }
-      // Pause: tails ring out naturally — no silenceAll
     }
     recordQaAudioTrace({
       type: 'transport.state',

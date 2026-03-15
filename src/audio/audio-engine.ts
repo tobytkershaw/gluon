@@ -261,6 +261,38 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Close all gates and clear scheduled events, but keep gain at baseline
+   * so envelopes decay naturally. Used on pause (vs. silenceAll on hard stop).
+   */
+  releaseAll(): void {
+    this.clearFence++;
+    const fence = this.clearFence;
+
+    const now = this.ctx?.currentTime ?? 0;
+    for (const slot of this.tracks.values()) {
+      slot.synth.silence(fence);
+      // Cancel any in-flight accent automation and reset to baseline (0.3).
+      // Without this, pausing during an accented note leaves gain boosted
+      // and a quick resume starts the next note at the stale accent level.
+      slot.accentGain.gain.cancelAndHoldAtTime(now);
+      slot.accentGain.gain.setValueAtTime(0.3, now);
+      // Clear scheduled events in downstream processors (Rings/Clouds)
+      // so their tails don't sustain indefinitely. Don't damp() Rings —
+      // that's hard-stop behaviour; let the resonance decay naturally.
+      for (const proc of slot.processors) {
+        proc.engine.silence(fence);
+      }
+    }
+    // Pause modulators so they don't keep running during pause
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.silence(fence);
+        modSlot.engine.pause();
+      }
+    }
+  }
+
   silenceAll(): void {
     // Increment fence so any events already in-flight from the previous play
     // cycle are treated as stale by the worklet processors (#147).

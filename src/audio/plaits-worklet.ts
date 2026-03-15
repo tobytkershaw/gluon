@@ -66,6 +66,12 @@ class PlaitsProcessor extends AudioWorkletProcessor {
   private destroyed = false;
   /** Sequence fence: events with fence < minFence are stale and ignored. */
   private minFence = 0;
+  /** Whether currentPatch has been updated but not yet flushed to WASM. */
+  private patchDirty = false;
+  /** Current k-rate modulation values, updated at the start of each process block. */
+  private modTimbre = 0;
+  private modHarmonics = 0;
+  private modMorph = 0;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -136,8 +142,15 @@ class PlaitsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-patch':
         this.currentPatch = event.patch;
+        this.patchDirty = true;
         break;
       case 'trigger':
+        // Flush patch to WASM before triggering so the trigger fires with
+        // the correct parameters. Without this, triggers that follow a
+        // set-patch in the same drain batch fire with stale WASM values.
+        if (this.patchDirty) {
+          this.flushPatch();
+        }
         this.wasm._plaits_trigger(this.handle, event.accentLevel);
         break;
       case 'set-gate':
@@ -158,6 +171,20 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     }
   }
 
+  /** Flush currentPatch + modulation to WASM and clear the dirty flag. */
+  private flushPatch(): void {
+    if (!this.wasm || !this.handle) return;
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    this.wasm._plaits_set_patch(
+      this.handle,
+      clamp01(this.currentPatch.harmonics + this.modHarmonics),
+      clamp01(this.currentPatch.timbre + this.modTimbre),
+      clamp01(this.currentPatch.morph + this.modMorph),
+      this.currentPatch.note,
+    );
+    this.patchDirty = false;
+  }
+
   private applyPatchWithModulation(modTimbre: number, modHarmonics: number, modMorph: number): void {
     if (!this.wasm || !this.handle) return;
     const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
@@ -168,6 +195,7 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       clamp01(this.currentPatch.morph + modMorph),
       this.currentPatch.note,
     );
+    this.patchDirty = false;
   }
 
   private getHeapF32(): Float32Array | null {
@@ -204,10 +232,11 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    // Read k-rate modulation params (single value per block)
-    const modTimbre = parameters['mod-timbre'][0];
-    const modHarmonics = parameters['mod-harmonics'][0];
-    const modMorph = parameters['mod-morph'][0];
+    // Read k-rate modulation params (single value per block).
+    // Store as instance state so flushPatch() can access them from applyEvent.
+    const modTimbre = this.modTimbre = parameters['mod-timbre'][0];
+    const modHarmonics = this.modHarmonics = parameters['mod-harmonics'][0];
+    const modMorph = this.modMorph = parameters['mod-morph'][0];
 
     const blockStart = currentTime;
     const frameCount = left.length;

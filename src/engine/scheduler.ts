@@ -203,6 +203,12 @@ export class Scheduler {
             (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
           );
 
+          // Inject NoteEvent pitch into resolved params — resolveEventParams
+          // only collects ParameterEvents, so NoteEvent.pitch would be lost.
+          if (event.kind === 'note') {
+            resolvedParams.note = (event as NoteEvent).pitch / 127;
+          }
+
           this.onNote({
             trackId: track.id,
             time: noteTime,

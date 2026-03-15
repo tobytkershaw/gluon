@@ -130,9 +130,12 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   scheduleNote(note: ScheduledNote, fence?: number): void {
-    // Only send set-patch if this note has per-step overrides (param locks).
-    // Base track params are kept in sync via the real-time sync effect,
-    // so sending them on every note would override interactive changes.
+    // Only send a timed set-patch when this note has per-step overrides
+    // (param locks or NoteEvent pitch). A timed set-patch would overwrite
+    // live human knob changes made between scheduling and note-on because
+    // the scheduler runs 100ms ahead. Notes without overrides rely on the
+    // real-time sync effect to keep the worklet current; the worklet's
+    // patchDirty/flushPatch mechanism ensures WASM is flushed before trigger.
     if (note.baseParams) {
       const allKeys = new Set([...Object.keys(note.params), ...Object.keys(note.baseParams)]);
       const hasOverrides = [...allKeys].some(
@@ -142,7 +145,6 @@ export class PlaitsSynth implements SynthEngine {
         this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
       }
     } else {
-      // No baseParams provided — send set-patch for backwards compatibility
       this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
     }
     this.post({ type: 'trigger', time: note.time, accentLevel: note.accent ? 1.0 : 0.8, fence });

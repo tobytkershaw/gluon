@@ -21,7 +21,7 @@ export function TransportStrip({
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
 }: Props) {
   const bar = Math.floor(globalStep / patternLength) + 1;
-  const beat = (globalStep % patternLength) + 1;
+  const beat = Math.floor(globalStep % patternLength) + 1;
 
   // Three visual states: inactive, armed (waiting for play), actively recording
   const activelyRecording = recordArmed && playing;
@@ -37,7 +37,7 @@ export function TransportStrip({
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
               : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-zinc-200'
           }`}
-          title={playing ? 'Pause (tails ring out) [Space]' : 'Play [Space]'}
+          title={playing ? 'Pause [Space]' : 'Play [Space]'}
         >
           {playing ? (
             <svg viewBox="0 0 16 16" className="w-3 h-3 fill-current">
@@ -89,8 +89,8 @@ export function TransportStrip({
         <span className="text-[9px] uppercase tracking-wider text-zinc-600">Tempo</span>
         <DraggableNumber
           value={bpm}
-          min={40}
-          max={250}
+          min={60}
+          max={200}
           step={1}
           decimals={0}
           className="text-zinc-200 hover:text-amber-400 transition-colors"
