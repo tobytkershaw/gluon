@@ -614,13 +614,13 @@ export function executeOperations(
         if (action.swing !== undefined) newTransport.swing = Math.max(0, Math.min(1, action.swing));
         if (action.playing !== undefined) {
           newTransport.playing = action.playing;
-          newTransport.status = action.playing ? 'playing' : 'paused';
+          newTransport.status = action.playing ? 'playing' : 'stopped';
         }
 
         const parts: string[] = [];
         if (action.bpm !== undefined && newTransport.bpm !== prev.bpm) parts.push(`bpm ${prev.bpm} → ${newTransport.bpm}`);
         if (action.swing !== undefined && newTransport.swing !== prev.swing) parts.push(`swing ${prev.swing.toFixed(2)} → ${newTransport.swing.toFixed(2)}`);
-        if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'pause');
+        if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'stop');
 
         const snapshot: TransportSnapshot = {
           kind: 'transport',

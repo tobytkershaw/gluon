@@ -275,7 +275,9 @@ export class AudioEngine {
    * restoreBaseline() resets gain to 0.3 on the next play.
    */
   releaseAll(generation = this.generation): void {
-    this.generation = Math.max(this.generation, generation);
+    this.generation = generation <= this.generation
+      ? this.generation + 1
+      : generation;
 
     const now = this.ctx?.currentTime ?? 0;
     const fadeTime = now + 0.05; // 50ms fade-out
@@ -304,7 +306,9 @@ export class AudioEngine {
   }
 
   silenceAll(generation = this.generation): void {
-    this.generation = Math.max(this.generation, generation);
+    this.generation = generation <= this.generation
+      ? this.generation + 1
+      : generation;
 
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {

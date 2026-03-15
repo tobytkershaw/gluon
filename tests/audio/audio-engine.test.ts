@@ -157,4 +157,50 @@ describe('AudioEngine', () => {
     // After removal, sourceOut connects directly to chainOutGain
     expect(sourceOutConnect).toHaveBeenCalledWith(chainOutGain);
   });
+
+  it('advances generation when silenceAll is called without an explicit generation', () => {
+    const engine = new AudioEngine();
+    const synth = {
+      scheduleNote: vi.fn(),
+      setModel: vi.fn(),
+      setParams: vi.fn(),
+      destroy: vi.fn(),
+      silence: vi.fn(),
+    };
+    const procSilence = vi.fn();
+    const modSilence = vi.fn();
+    const modPause = vi.fn();
+    const accentGain = {
+      gain: {
+        cancelAndHoldAtTime: vi.fn(),
+        setValueAtTime: vi.fn(),
+      },
+    };
+
+    (engine as unknown as { ctx: { currentTime: number } }).ctx = { currentTime: 0 };
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([
+      ['v0', {
+        synth,
+        sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        chainOutGain: mockGainNode(),
+        muteGain: { gain: { value: 1 } },
+        accentGain,
+        processors: [{ id: 'rings-0', type: 'rings', engine: { silence: procSilence, damp: vi.fn() } }],
+        currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+        currentModel: 0,
+      }],
+    ]);
+    (engine as { modulatorSlots: Map<string, unknown[]> }).modulatorSlots = new Map([
+      ['v0', [{ engine: { silence: modSilence, pause: modPause } }]],
+    ]);
+
+    expect(engine.getGeneration()).toBe(0);
+    engine.silenceAll();
+
+    expect(engine.getGeneration()).toBe(1);
+    expect(synth.silence).toHaveBeenCalledWith(1);
+    expect(procSilence).toHaveBeenCalledWith(1);
+    expect(modSilence).toHaveBeenCalledWith(1);
+    expect(modPause).toHaveBeenCalled();
+  });
 });

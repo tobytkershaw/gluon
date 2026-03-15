@@ -76,7 +76,7 @@ function projectAction(session: Session, action: AIAction): Session {
       if (action.swing !== undefined) t.swing = Math.max(0, Math.min(1, action.swing));
       if (action.playing !== undefined) {
         t.playing = action.playing;
-        t.status = action.playing ? 'playing' : 'paused';
+        t.status = action.playing ? 'playing' : 'stopped';
       }
       return { ...session, transport: t };
     }
