@@ -270,6 +270,35 @@ snapshot_contains() {
   rg -Fq "$needle" "$file"
 }
 
+qa_anchor_ref() {
+  local ref
+  ref="$(button_ref "Tracker")"
+  if [[ -n "$ref" ]]; then
+    printf '%s\n' "$ref"
+    return 0
+  fi
+  ref="$(button_ref "Surface")"
+  if [[ -n "$ref" ]]; then
+    printf '%s\n' "$ref"
+    return 0
+  fi
+  ref="$(textbox_ref "Describe what you want...")"
+  if [[ -n "$ref" ]]; then
+    printf '%s\n' "$ref"
+    return 0
+  fi
+  return 1
+}
+
+clear_trace() {
+  local ref
+  ref="$(qa_anchor_ref)"
+  eval_js 'el => {
+    window.__gluonQaAudioTrace?.clear?.();
+    return "ok";
+  }' "$ref" >/dev/null
+}
+
 record_result() {
   local scenario="$1"
   local result="$2"
@@ -286,6 +315,29 @@ click_button_by_label() {
     return 1
   fi
   run_pw click "$ref" >/dev/null 2>&1
+}
+
+click_button_by_title() {
+  local title="$1"
+  local ref
+  ref="$(qa_anchor_ref)"
+  local script
+  script="$(python3 - "$title" <<'PY'
+import json
+import sys
+
+title = sys.argv[1]
+print(f"""el => {{
+  const target = [...el.ownerDocument.querySelectorAll('button')].find((button) => (button.getAttribute('title') || '') === {json.dumps(title)});
+  if (!target) return 'missing';
+  target.click();
+  return 'ok';
+}}""")
+PY
+)"
+  local result
+  result="$(eval_js "$script" "$ref" | tail -n 1 | tr -d '"')"
+  [[ "$result" == "ok" ]]
 }
 
 click_view_button() {
@@ -587,6 +639,190 @@ PY
   record_result "first_step_start" "reproduces" "Transport start did not confirm both scheduler step-0 and audio trigger trace; matches known issue #153."
 }
 
+scenario_pause_stops_audio() {
+  run_pw open "$BASE_URL" >/dev/null 2>&1
+  snapshot_page "07aa-pause-boot"
+  click_view_button "Inst"
+  snapshot_page "07aa-pause-inst"
+  local step_ref
+  step_ref="$(step_button_ref "1")"
+  if [[ -z "$step_ref" ]]; then
+    record_result "pause_stops_audio" "fail" "Could not find step 1 button for pause scenario."
+    return 1
+  fi
+  run_pw click "$step_ref" >/dev/null 2>&1
+  click_view_button "Tracker"
+  snapshot_page "07aa-pause-tracker"
+  local play_ref
+  play_ref="$(button_ref "Play [Space]")"
+  if [[ -z "$play_ref" ]]; then
+    record_result "pause_stops_audio" "fail" "Play button missing in pause scenario."
+    return 1
+  fi
+
+  clear_trace
+  click_button_by_title "Play [Space]"
+  sleep 2
+  snapshot_page "07aa-pause-playing"
+  if ! click_button_by_title "Pause [Space]"; then
+    record_result "pause_stops_audio" "fail" "Pause button missing after transport start."
+    return 1
+  fi
+  sleep 2
+  local pause_analysis_ref
+  pause_analysis_ref="$(qa_anchor_ref)"
+  local pause_analysis
+  pause_analysis="$(eval_js "$(cat <<'JS'
+el => {
+  const events = window.__gluonQaAudioTrace?.get?.() ?? [];
+  const paused = events.find((event) => event.type === 'transport.state' && event.status === 'paused');
+  if (!paused) return 'missing-paused-state';
+  const graceMs = 250;
+  const noteTypes = new Set(['scheduler.note', 'audio.note']);
+  const prePause = events.filter((event) => noteTypes.has(event.type) && event.ts < paused.ts);
+  const postPause = events.filter((event) => noteTypes.has(event.type) && event.ts > paused.ts + graceMs);
+  if (prePause.length === 0) return 'missing-pre-pause-note-events';
+  if (postPause.length > 0) return 'post-pause-note-events';
+  return 'pass';
+}
+JS
+)" "$pause_analysis_ref")"
+
+  pause_analysis="$(printf '%s' "$pause_analysis" | tail -n 1 | tr -d '"')"
+  if [[ "$pause_analysis" == "pass" ]]; then
+    record_result "pause_stops_audio" "pass" "Pause stopped future scheduler/audio note events after the active generation was released."
+  else
+    record_result "pause_stops_audio" "reproduces" "Pause still allowed scheduler or audio note events after the paused transport state."
+  fi
+}
+
+scenario_live_edit_restart() {
+  run_pw open "$BASE_URL" >/dev/null 2>&1
+  snapshot_page "07ab-live-edit-boot"
+  click_view_button "Inst"
+  snapshot_page "07ab-live-edit-kick"
+  local step_ref
+  step_ref="$(step_button_ref "1")"
+  if [[ -z "$step_ref" ]]; then
+    record_result "live_edit_restart" "fail" "Could not find step 1 button for live-edit scenario."
+    return 1
+  fi
+  run_pw click "$step_ref" >/dev/null 2>&1
+  click_view_button "Tracker"
+  snapshot_page "07ab-live-edit-tracker"
+  local play_ref
+  play_ref="$(button_ref "Play [Space]")"
+  if [[ -z "$play_ref" ]]; then
+    record_result "live_edit_restart" "fail" "Play button missing in live-edit scenario."
+    return 1
+  fi
+  click_button_by_title "Play [Space]"
+  sleep 1
+
+  clear_trace
+  click_view_button "Inst"
+  click_voice_by_label "VA"
+  snapshot_page "07ab-live-edit-va"
+  step_ref="$(step_button_ref "1")"
+  if [[ -z "$step_ref" ]]; then
+    record_result "live_edit_restart" "fail" "Could not find step 1 button after switching to VA during playback."
+    return 1
+  fi
+  run_pw click "$step_ref" >/dev/null 2>&1
+  sleep 3
+  local during_analysis_ref
+  during_analysis_ref="$(qa_anchor_ref)"
+  local during_analysis
+  during_analysis="$(eval_js "$(cat <<'JS'
+el => {
+  const events = window.__gluonQaAudioTrace?.get?.() ?? [];
+  const audioV1 = events.filter((event) => event.type === 'audio.note' && (event.trackId || event.voiceId) === 'v1');
+  const schedulerIds = events
+    .filter((event) => event.type === 'scheduler.note' && event.eventId)
+    .map((event) => event.eventId);
+  if (audioV1.length === 0) return 'missing-v1-audio';
+  if (new Set(schedulerIds).size !== schedulerIds.length) return 'duplicate-scheduler-events';
+  return 'pass';
+}
+JS
+)" "$during_analysis_ref")"
+
+  during_analysis="$(printf '%s' "$during_analysis" | tail -n 1 | tr -d '"')"
+  if [[ "$during_analysis" != "pass" ]]; then
+    record_result "live_edit_restart" "reproduces" "Live edit during playback did not produce a clean VA note trace before restart."
+    return 0
+  fi
+
+  click_view_button "Tracker"
+  snapshot_page "07ab-live-edit-before-restart"
+  if ! click_button_by_title "Hard stop — silence all voices [Shift+Space]"; then
+    record_result "live_edit_restart" "fail" "Hard stop button missing before restart."
+    return 1
+  fi
+  sleep 1
+
+  clear_trace
+  snapshot_page "07ab-live-edit-restart-ready"
+  play_ref="$(button_ref "Play [Space]")"
+  if [[ -z "$play_ref" ]]; then
+    record_result "live_edit_restart" "fail" "Play button missing after hard stop."
+    return 1
+  fi
+  click_button_by_title "Play [Space]"
+  sleep 3
+  local restart_analysis_ref
+  restart_analysis_ref="$(qa_anchor_ref)"
+  local restart_analysis
+  restart_analysis="$(eval_js "$(cat <<'JS'
+el => {
+  const events = window.__gluonQaAudioTrace?.get?.() ?? [];
+  const play = events.find((event) => event.type === 'transport.play-start');
+  if (!play) return 'missing-play-start';
+
+  const generation = play.generation;
+  const audioEvents = events.filter((event) => event.type === 'audio.note');
+  if (audioEvents.length === 0) return 'missing-audio-events';
+  const trackIds = new Set(audioEvents.map((event) => event.trackId || event.voiceId));
+  if (!trackIds.has('v0') || !trackIds.has('v1')) return 'missing-track-audio';
+  const audioGenerations = new Set(audioEvents.map((event) => event.generation));
+  if (!(audioGenerations.size === 1 && audioGenerations.has(generation))) return 'mixed-generations';
+  const schedulerIds = events
+    .filter((event) => event.type === 'scheduler.note' && event.generation === generation && event.eventId)
+    .map((event) => event.eventId);
+  if (new Set(schedulerIds).size !== schedulerIds.length) return 'duplicate-scheduler-events';
+
+  const bursts = new Map();
+  for (const event of audioEvents) {
+    const trackId = event.trackId || event.voiceId;
+    const times = bursts.get(trackId) ?? [];
+    times.push(Number(event.time ?? 0));
+    bursts.set(trackId, times);
+  }
+  let bursty = false;
+  for (const times of bursts.values()) {
+    times.sort((a, b) => a - b);
+    for (let i = 1; i < times.length; i += 1) {
+      if (times[i] - times[i - 1] < 0.05) {
+        bursty = true;
+        break;
+      }
+    }
+    if (bursty) break;
+  }
+  if (bursty) return 'bursty-audio';
+  return 'pass';
+}
+JS
+)" "$restart_analysis_ref")"
+
+  restart_analysis="$(printf '%s' "$restart_analysis" | tail -n 1 | tr -d '"')"
+  if [[ "$restart_analysis" == "pass" ]]; then
+    record_result "live_edit_restart" "pass" "Live-edited track sounded during playback and restart emitted only current-generation note events without duplicate bursts."
+  else
+    record_result "live_edit_restart" "reproduces" "Restart after live edit still produced missing or duplicated current-generation note events."
+  fi
+}
+
 scenario_bpm_change_runtime() {
   run_pw open "$BASE_URL" >/dev/null 2>&1
   snapshot_page "07b-bpm-boot"
@@ -877,6 +1113,8 @@ else
   scenario_gesture_persistence || true
   scenario_transport_ui || true
   scenario_first_step_start || true
+  scenario_pause_stops_audio || true
+  scenario_live_edit_restart || true
   scenario_bpm_change_runtime || true
   scenario_multi_voice_trace || true
   scenario_modulation_route_cleanup || true
