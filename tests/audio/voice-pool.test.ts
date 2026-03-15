@@ -222,4 +222,156 @@ describe('VoicePool', () => {
     expect(v0.accentGain.disconnect).toHaveBeenCalled();
     expect(v1.accentGain.disconnect).toHaveBeenCalled();
   });
+
+  // --- Polyphonic voice pool tests ---
+
+  it('4-voice pool: simultaneous notes use different voices without stealing', () => {
+    const voices = Array.from({ length: 4 }, () => makePoolVoice());
+    const pool = new VoicePool(voices);
+
+    const makeNote = (time: number, gateOff: number) => ({
+      trackId: 'v0',
+      time,
+      gateOffTime: gateOff,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    });
+
+    // Schedule 4 overlapping notes — all should get unique voices
+    const allocated = [
+      pool.scheduleNote(makeNote(1.0, 2.0), 1),
+      pool.scheduleNote(makeNote(1.1, 2.1), 1),
+      pool.scheduleNote(makeNote(1.2, 2.2), 1),
+      pool.scheduleNote(makeNote(1.3, 2.3), 1),
+    ];
+
+    // Each note should have been assigned a different voice
+    const uniqueVoices = new Set(allocated);
+    expect(uniqueVoices.size).toBe(4);
+    // Each voice should have received exactly one scheduleNote call
+    for (const voice of voices) {
+      expect(voice.synth.scheduleNote).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('voice stealing kicks in at voice 5 (round-robin with 4-voice pool)', () => {
+    const voices = Array.from({ length: 4 }, () => makePoolVoice());
+    const pool = new VoicePool(voices);
+
+    const makeNote = (time: number, gateOff: number) => ({
+      trackId: 'v0',
+      time,
+      gateOffTime: gateOff,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    });
+
+    // Schedule 4 active notes (all gate-off in the future)
+    pool.scheduleNote(makeNote(1.0, 5.0), 1);
+    pool.scheduleNote(makeNote(1.1, 5.0), 1);
+    pool.scheduleNote(makeNote(1.2, 5.0), 1);
+    pool.scheduleNote(makeNote(1.3, 5.0), 1);
+
+    // 5th note must steal — all voices are active, so round-robin wraps to voice 0
+    const stolen = pool.scheduleNote(makeNote(1.4, 5.0), 1);
+    expect(stolen).toBe(voices[0]);
+    expect(voices[0].synth.scheduleNote).toHaveBeenCalledTimes(2);
+  });
+
+  it('event-voice tracking: scheduleNote with eventId records mapping', () => {
+    const v0 = makePoolVoice();
+    const v1 = makePoolVoice();
+    const pool = new VoicePool([v0, v1]);
+
+    const note = {
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 1.5,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    pool.scheduleNote(note, 1, 'evt-a');
+    expect(pool.getVoiceForEvent('evt-a')).toBe(v0);
+
+    pool.scheduleNote(note, 1, 'evt-b');
+    expect(pool.getVoiceForEvent('evt-b')).toBe(v1);
+  });
+
+  it('releaseEvent removes a single event from the map', () => {
+    const v0 = makePoolVoice();
+    const v1 = makePoolVoice();
+    const pool = new VoicePool([v0, v1]);
+
+    const note = {
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 1.5,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    pool.scheduleNote(note, 1, 'evt-a');
+    pool.scheduleNote(note, 1, 'evt-b');
+
+    pool.releaseEvent('evt-a');
+    expect(pool.getVoiceForEvent('evt-a')).toBeUndefined();
+    expect(pool.getVoiceForEvent('evt-b')).toBe(v1);
+  });
+
+  it('releaseAll clears the event-voice map', () => {
+    const v0 = makePoolVoice();
+    const v1 = makePoolVoice();
+    const pool = new VoicePool([v0, v1]);
+
+    const note = {
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 1.5,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    pool.scheduleNote(note, 1, 'evt-a');
+    pool.releaseAll(2, 0, 0.05);
+    expect(pool.getVoiceForEvent('evt-a')).toBeUndefined();
+  });
+
+  it('silenceAll clears the event-voice map', () => {
+    const v0 = makePoolVoice();
+    const v1 = makePoolVoice();
+    const pool = new VoicePool([v0, v1]);
+
+    const note = {
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 1.5,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    pool.scheduleNote(note, 1, 'evt-a');
+    pool.silenceAll(2, 0);
+    expect(pool.getVoiceForEvent('evt-a')).toBeUndefined();
+  });
+
+  it('clearEventMap clears all event-voice mappings', () => {
+    const v0 = makePoolVoice();
+    const v1 = makePoolVoice();
+    const pool = new VoicePool([v0, v1]);
+
+    const note = {
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 1.5,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    pool.scheduleNote(note, 1, 'evt-a');
+    pool.scheduleNote(note, 1, 'evt-b');
+    pool.clearEventMap();
+    expect(pool.getVoiceForEvent('evt-a')).toBeUndefined();
+    expect(pool.getVoiceForEvent('evt-b')).toBeUndefined();
+  });
 });

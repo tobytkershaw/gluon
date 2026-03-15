@@ -14,9 +14,26 @@ export interface PoolVoice {
 export class VoicePool {
   readonly voices: PoolVoice[];
   private nextIndex = 0;
+  /** Maps eventId to the PoolVoice allocated for that event. */
+  private eventVoiceMap = new Map<string, PoolVoice>();
 
   constructor(voices: PoolVoice[]) {
     this.voices = voices;
+  }
+
+  /** Return the voice allocated for a specific event, if still tracked. */
+  getVoiceForEvent(eventId: string): PoolVoice | undefined {
+    return this.eventVoiceMap.get(eventId);
+  }
+
+  /** Release tracking for a specific event (called on gate-off or silence). */
+  releaseEvent(eventId: string): void {
+    this.eventVoiceMap.delete(eventId);
+  }
+
+  /** Clear all event-voice mappings (called on generation change). */
+  clearEventMap(): void {
+    this.eventVoiceMap.clear();
   }
 
   /**
@@ -52,6 +69,7 @@ export class VoicePool {
       voice.accentGain.gain.cancelAndHoldAtTime(now);
       voice.accentGain.gain.linearRampToValueAtTime(0, fadeTime);
     }
+    this.eventVoiceMap.clear();
   }
 
   /** Hard stop: cancel automation, set gain to 0 immediately. */
@@ -61,6 +79,7 @@ export class VoicePool {
       voice.accentGain.gain.cancelAndHoldAtTime(now);
       voice.accentGain.gain.setValueAtTime(0, now);
     }
+    this.eventVoiceMap.clear();
   }
 
   /** Reset accent gains to baseline (called on play after pause). */
@@ -84,6 +103,7 @@ export class VoicePool {
       voice.accentGain.gain.cancelAndHoldAtTime(now);
       voice.accentGain.gain.setValueAtTime(ACCENT_BASELINE, now);
     }
+    this.eventVoiceMap.clear();
   }
 
   setModel(model: number): void {
@@ -113,7 +133,7 @@ export class VoicePool {
   }
 
   /** Schedule a note on the next available voice with per-voice accent automation. */
-  scheduleNote(note: ScheduledNote, generation: number): PoolVoice {
+  scheduleNote(note: ScheduledNote, generation: number, eventId?: string): PoolVoice {
     const voice = this.allocate(note.time);
     const accentLevel = note.accent ? ACCENT_BASELINE * 2.0 : ACCENT_BASELINE;
     voice.accentGain.gain.setValueAtTime(accentLevel, note.time);
@@ -123,6 +143,10 @@ export class VoicePool {
     voice.synth.scheduleNote(note, generation);
     voice.lastNoteTime = note.time;
     voice.lastGateOffTime = note.gateOffTime;
+    // Track which voice handles this event for targeted gate-off
+    if (eventId) {
+      this.eventVoiceMap.set(eventId, voice);
+    }
     return voice;
   }
 }
