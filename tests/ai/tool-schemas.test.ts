@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { GLUON_TOOLS } from '../../src/ai/tool-schemas';
 
 describe('Tool Schemas', () => {
-  it('exports twenty-five tool schemas', () => {
-    expect(GLUON_TOOLS).toHaveLength(25);
+  it('exports twenty-six tool schemas', () => {
+    expect(GLUON_TOOLS).toHaveLength(26);
   });
 
   it('declares all expected tools', () => {

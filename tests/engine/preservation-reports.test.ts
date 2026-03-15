@@ -207,7 +207,7 @@ describe('PreservationReport generation', () => {
       expect(report.preservationReports[0].approvalLevel).toBe('liked');
     });
 
-    it('generates report for sketch on anchor track', () => {
+    it('rejects sketch on anchor track (preservation enforcement)', () => {
       const oldEvents: MusicalEvent[] = [
         { kind: 'trigger', at: 0, velocity: 1.0 },
       ];
@@ -224,8 +224,11 @@ describe('PreservationReport generation', () => {
       }];
 
       const report = executeOperations(session, actions, adapter, new Arbitrator());
-      expect(report.preservationReports).toHaveLength(1);
-      expect(report.preservationReports[0].approvalLevel).toBe('anchor');
+      // Anchor tracks block all event mutations — sketch is rejected, no preservation report
+      expect(report.accepted).toHaveLength(0);
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('anchored');
+      expect(report.preservationReports).toHaveLength(0);
     });
 
     it('does NOT generate report for sketch on exploratory track', () => {
@@ -258,7 +261,7 @@ describe('PreservationReport generation', () => {
       ];
       const session = setupSessionWithEvents('approved', oldEvents);
 
-      // Same rhythm positions, different velocities
+      // Same rhythm positions, different velocities — accepted on approved tracks
       const preservedEvents: MusicalEvent[] = [
         { kind: 'trigger', at: 0, velocity: 0.9 },
         { kind: 'trigger', at: 4, velocity: 0.7 },
@@ -273,7 +276,7 @@ describe('PreservationReport generation', () => {
       const report1 = executeOperations(session, actions1, adapter, new Arbitrator());
       expect(report1.preservationReports[0].preserved.rhythmPositions).toBe(true);
 
-      // Changed rhythm positions
+      // Changed rhythm positions — rejected on approved tracks (preservation enforcement)
       const changedEvents: MusicalEvent[] = [
         { kind: 'trigger', at: 0, velocity: 1.0 },
         { kind: 'trigger', at: 2, velocity: 0.8 },
@@ -286,10 +289,13 @@ describe('PreservationReport generation', () => {
         events: changedEvents,
       }];
       const report2 = executeOperations(session, actions2, adapter, new Arbitrator());
-      expect(report2.preservationReports[0].preserved.rhythmPositions).toBe(false);
+      expect(report2.accepted).toHaveLength(0);
+      expect(report2.rejected).toHaveLength(1);
+      expect(report2.rejected[0].reason).toContain('rhythm positions');
+      expect(report2.preservationReports).toHaveLength(0);
     });
 
-    it('does NOT generate report for legacy sketch (no events)', () => {
+    it('rejects legacy sketch on approved track (preservation enforcement)', () => {
       const oldEvents: MusicalEvent[] = [
         { kind: 'trigger', at: 0, velocity: 1.0 },
       ];
@@ -303,7 +309,10 @@ describe('PreservationReport generation', () => {
       }];
 
       const report = executeOperations(session, actions, adapter, new Arbitrator());
-      expect(report.accepted).toHaveLength(1);
+      // Legacy pattern sketches are blocked on approved tracks — rejected, no preservation report
+      expect(report.accepted).toHaveLength(0);
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('legacy pattern sketches are blocked');
       expect(report.preservationReports).toHaveLength(0);
     });
   });
