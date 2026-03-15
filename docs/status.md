@@ -1,10 +1,10 @@
 # Gluon — Current Build Status
 
 **As of:** 2026-03-15
-**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5: UI Layers (all sub-phases)
-**Current product state:** Four-view tabbed UI (Surface with semantic controls, Rack, Patch, Tracker), AI-curated surfaces with template registry, full parameter surfaces, node-graph patch view, live recording with parameter automation, micro-timing display, offline audio rendering with voice isolation, pause/hard-stop transport, 19 AI tools, GPT-5.4 planner + Gemini 3 Flash listener dual-provider stack
-**Near-term focus:** M6A (Preservation contracts)
-**Latest milestone:** GPT-5.4 planner + Gemini 3 Flash listener stack (PR #278)
+**Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5: UI Layers (all sub-phases), M6: AI Collaboration Quality (all sub-phases)
+**Current product state:** Four-view tabbed UI (Surface with semantic controls, Rack, Patch, Tracker), AI-curated surfaces with template registry, full parameter surfaces, node-graph patch view, live recording with parameter automation, micro-timing display, offline audio rendering with voice isolation, pause/hard-stop transport, 17 AI tools (consolidated from 26), GPT-5.4 planner + Gemini 3 Flash listener dual-provider stack, preservation contracts with runtime enforcement, reaction history and restraint calibration, structured listening with lenses and analysis tools, open decisions, voice importance metadata
+**Near-term focus:** Human capability parity gaps (#372-#378), standalone depth improvements
+**Latest milestone:** M6 complete — tool consolidation (#366), live behavioral audit verified all M6 exit criteria
 **Data model direction:** Canonical regions/events are the sequencing authority — `voice.pattern` is a derived projection. Tracker is the canonical truth view; step grid and other editors are addable surfaces.
 
 ---
@@ -20,8 +20,9 @@ Gluon is a browser-based, AI-assisted instrument with:
 - Glitch-free chain rebuild via gain ramp (2ms fade-out/fade-in on processor add/remove)
 - Sequence fence for stop/start race prevention (monotonic clearFence counter)
 - Modulation architecture: Tides → GainNode(depth) → target AudioParam (max 2 modulators per voice)
-- AI tools (19): move, sketch, listen, set_transport, set_model, transform, add_view, remove_view, add_processor, remove_processor, replace_processor, add_modulator, remove_modulator, connect_modulator, disconnect_modulator, set_surface, pin, unpin, label_axes
-- AI surface curation: set_surface proposes semantic controls, pin/unpin surfaces raw controls, label_axes changes XY pad bindings — all immediate, undoable, no agency required
+- AI tools (17): move, sketch, listen, set_transport, set_model, transform, manage_processor, manage_modulator, modulation_route, manage_view, set_surface, pin_control, label_axes, render, analyze, set_track_meta, raise_decision
+- AI surface curation: set_surface proposes semantic controls, pin_control surfaces raw controls, label_axes changes XY pad bindings — all immediate, undoable, no agency required
+- AI collaboration state: approval levels, reaction history, observed patterns, restraint calibration, open decisions, voice importance, preservation enforcement
 - Surface template registry: auto-applies semantic controls when chain changes (signature matching against known chain configs)
 - Semantic controls: weighted multi-parameter knobs that aggregate across chain modules, with inspection popover showing weight mappings
 - Processor and modulator control authority: AI can target params and models via `processorId`/`modulatorId` on move/set_model
@@ -63,6 +64,31 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 | PR | Description | Merged |
 |---|---|---|
+| PR #381 | test: musical competence infrastructure verification | 2026-03-15 |
+| PR #380 | fix: update parity tests and QA scripts for tool consolidation | 2026-03-15 |
+| PR #371 | audit: human capability parity verification matrix and tests | 2026-03-15 |
+| PR #370 | test: musical competence validation Playwright suite | 2026-03-15 |
+| PR #369 | test: M6 behavioral validation Playwright suite | 2026-03-15 |
+| PR #368 | audit: verify per-track volume/pan and polyphony | 2026-03-15 |
+| PR #366 | feat: consolidate tool schemas 26 to 17 | 2026-03-15 |
+| PR #363 | audit: consolidate system prompt | 2026-03-15 |
+| PR #362 | test: M6 session helper and state compression tests | 2026-03-15 |
+| PR #361 | fix: hydrate openDecisions on load | 2026-03-15 |
+| PR #360 | fix: add missing raise_decision case | 2026-03-15 |
+| PR #359 | audit: verify api.ts structural integrity | 2026-03-15 |
+| PR #358 | hotfix: restore 7 tool definitions | 2026-03-15 |
+| PR #349 | feat: preservation contracts and reports | 2026-03-15 |
+| PR #348 | feat: enriched consequence reporting | 2026-03-15 |
+| PR #346 | feat: enforce preservation constraints | 2026-03-15 |
+| PR #345 | feat: open decisions | 2026-03-15 |
+| PR #344 | feat: observed patterns and restraint guidance | 2026-03-15 |
+| PR #343 | feat: comparative listening and listening lenses | 2026-03-15 |
+| PR #342 | feat: mark_approved tool and approval UI | 2026-03-15 |
+| PR #341 | feat: spectral, dynamics, rhythm analysis tools | 2026-03-15 |
+| PR #340 | feat: voice importance metadata | 2026-03-15 |
+| PR #339 | feat: reaction history and rationale | 2026-03-15 |
+| PR #336 | feat: approval levels | 2026-03-15 |
+| PR #335 | feat: question-based listening | 2026-03-15 |
 | PR #278 | feat: GPT-5.4 planner + Gemini 3 Flash listener (#276) | 2026-03-15 |
 | PR #275 | refactor: provider abstraction for multi-model AI stack (#265) | 2026-03-15 |
 | PR #274 | fix: M5 regression batch and roadmap sync | 2026-03-14 |
@@ -168,17 +194,18 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 ## Likely Next Work
 
-**M6A: Preservation** — Runtime enforcement of approved material during AI edits. Approval levels on voices and aspects, mark_approved/preserve_material tools, preservation constraints, reports on edits. Design doc: `docs/rfcs/preservation-contracts.md`. Unblocked now that M5 is complete.
+**Standalone depth improvements** — M7 (External Integration) deprioritized in favor of deepening the standalone product.
 
-Dependency graph:
+Priority areas:
+- Human capability parity gaps (#372-#378): modulation route creation, pattern transforms, param locks, importance/role UI, surface authoring
+- render tool audio context fix (#379)
+- Per-track level meters (#367)
 
 ```
-M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓ (all sub-phases)
-  └── M6A (Preservation) ← next
-        └── M6B (Aesthetic Direction)
-        └── M6C (Structured Listening)
-              └── M6D (Environment Legibility)
-                    └── M7 (External Integration)
+M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓  M6 ✓
+  └── Parity gaps (#372-#378) ← next
+  └── Standalone depth
+        └── M7 (External Integration) — deprioritized
 ```
 
 ---
@@ -211,7 +238,8 @@ M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓ (all sub-phases)
 - `toOpenAITools()`: JSON Schema passthrough to OpenAI function calling format
 
 **Tool Schemas (`tool-schemas.ts`)**
-- 19 tools in standard JSON Schema format: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`, `set_surface`, `pin`, `unpin`, `label_axes`
+- 17 tools in standard JSON Schema format: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `manage_processor`, `manage_modulator`, `modulation_route`, `manage_view`, `set_surface`, `pin_control`, `label_axes`, `render`, `analyze`, `set_track_meta`, `raise_decision`
+- CRUD families consolidated into dispatch-based tools (e.g., manage_processor with action: add/remove/replace)
 - Tool responses are prevalidated against live session state before returning success to the model
 - `listen` is model-invoked rather than routed by regex intent detection
 
@@ -228,6 +256,7 @@ M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓ (all sub-phases)
 **State Compression (`state-compression.ts`)**
 - Compact project-state payload for each AI call
 - Includes voices, pattern summaries, transport, undo depth, recent human actions, view list, processor chain, modulators, and modulation routings per voice (with model names and param values)
+- M6 fields: reactions, observed patterns, restraint level, open decisions, preservation constraints, approval levels, importance, musicalRole
 
 ### Engine / Protocol (`src/engine/`)
 
@@ -236,7 +265,7 @@ M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓ (all sub-phases)
 - `SequencerViewKind`, `SequencerViewConfig` — presentation state types
 - `ProcessorConfig` — processor chain state per voice
 - `ModulatorConfig`, `ModulationTarget`, `ModulationRouting` — modulation state per voice
-- `AIAction` union includes `move`, `say`, `sketch`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`
+- `AIAction` union includes `move`, `say`, `sketch`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`, `mark_approved`, `set_importance`, `raise_decision`
 - Undo snapshots: `ParamSnapshot`, `PatternSnapshot`, `TransportSnapshot`, `ModelSnapshot`, `RegionSnapshot`, `ViewSnapshot`, `ProcessorSnapshot`, `ProcessorStateSnapshot`, `ModulatorSnapshot`, `ModulatorStateSnapshot`, `ModulationRoutingSnapshot`, `ActionGroupSnapshot`
 - `Voice` includes `regions`, `views?`, `processors?`, `modulators?`, `modulations?`, `_hiddenEvents?`, `controlProvenance?`, `surface`
 
