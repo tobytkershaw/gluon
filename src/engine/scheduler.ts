@@ -5,6 +5,7 @@ import type { MusicalEvent, TriggerEvent, NoteEvent, ParameterEvent } from './ca
 import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
+import { buildRuntimeEventId, PlaybackPlan } from './playback-plan';
 
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
@@ -41,6 +42,8 @@ export class Scheduler {
   private cursor = 0; // absolute step units (fractional)
   private startTime = 0;
   private previousBpm = 0;
+  private generation = 0;
+  private playbackPlan = new PlaybackPlan();
 
   constructor(
     getSession: () => Session,
@@ -60,7 +63,7 @@ export class Scheduler {
     this.onParameterEvent = onParameterEvent;
   }
 
-  start(startOffset = START_OFFSET_SEC, startStep = 0): void {
+  start(startOffset = START_OFFSET_SEC, startStep = 0, generation = 0): void {
     if (this.intervalId !== null) return;
     // Offset start so first-beat events have future timestamps in the
     // worklet. Without this, messages race the render thread and may
@@ -70,6 +73,8 @@ export class Scheduler {
     this.startTime = this.getAudioTime() + startOffset - startStep * stepDuration;
     this.cursor = startStep;
     this.previousBpm = session.transport.bpm;
+    this.generation = generation;
+    this.playbackPlan.reset(generation);
 
     this.tick();
     this.intervalId = setInterval(() => this.tick(), LOOKAHEAD_MS);
@@ -80,6 +85,7 @@ export class Scheduler {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    this.playbackPlan.reset(this.generation);
   }
 
   isRunning(): boolean {
@@ -123,6 +129,7 @@ export class Scheduler {
       this.cursor + lookaheadSteps,
       globalStep + lookaheadSteps,
     );
+    this.playbackPlan.pruneBeforeStep(Math.floor(this.cursor));
 
     const audibleTracks = getAudibleTracks(session);
 
@@ -148,6 +155,17 @@ export class Scheduler {
           // Parameter events co-located with triggers/notes are still resolved
           // inline via resolveEventParams below.
           if (event.kind === 'parameter') {
+            const parameterAbsoluteStep = seg.loopCycle * regionLen + event.at;
+            const parameterEventId = buildRuntimeEventId(
+              this.generation,
+              track.id,
+              region.id,
+              event,
+              seg.loopCycle,
+            );
+            if (!this.playbackPlan.admit(parameterEventId, parameterAbsoluteStep, this.generation)) {
+              continue;
+            }
             if (this.onParameterEvent) {
               const pe = event as ParameterEvent;
               this.onParameterEvent(track.id, pe.controlId, pe.value);
@@ -160,6 +178,16 @@ export class Scheduler {
 
           // Absolute step position of this event
           const absoluteStep = seg.loopCycle * regionLen + event.at;
+          const runtimeEventId = buildRuntimeEventId(
+            this.generation,
+            track.id,
+            region.id,
+            event,
+            seg.loopCycle,
+          );
+          if (!this.playbackPlan.admit(runtimeEventId, absoluteStep, this.generation)) {
+            continue;
+          }
 
           // Base time
           const baseTime = this.startTime + absoluteStep * stepDuration;
@@ -222,6 +250,8 @@ export class Scheduler {
           recordQaAudioTrace({
             type: 'scheduler.note',
             trackId: track.id,
+            generation: this.generation,
+            eventId: runtimeEventId,
             eventKind: event.kind,
             at: event.at,
             absoluteStep,

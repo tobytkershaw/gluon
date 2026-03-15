@@ -69,7 +69,7 @@ export class TransportController {
           ? this.runtime.playheadBeats * 4
           : 0;
         this.audio.restoreBaseline();
-        this.scheduler.start(START_OFFSET_SEC, startStep);
+        this.scheduler.start(START_OFFSET_SEC, startStep, generation);
         this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);
         recordQaAudioTrace({
           type: 'transport.play-start',
