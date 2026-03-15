@@ -295,6 +295,42 @@ describe('API Structural Integrity', () => {
     expect(result.applied).not.toContain('importance');
   });
 
+  it('set_track_meta: only musicalRole errors when importance never set', async () => {
+    const session = createSession();
+    // v0 has no importance set (undefined)
+    const track = session.tracks.find(v => v.id === 'v0')!;
+    delete (track as Record<string, unknown>).importance;
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', musicalRole: 'driving rhythm' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    const actions = await ai.ask(session, 'test');
+    // No set_importance action should be generated
+    expect(actions.find(a => a.type === 'set_importance')).toBeUndefined();
+
+    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
+    const result = response!.result as Record<string, unknown>;
+    expect(result.errors).toBeDefined();
+    expect((result.errors as string[])[0]).toContain('importance to be set first');
+  });
+
+  it('set_track_meta: non-number importance returns error', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', importance: null } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
+    const result = response!.result as Record<string, unknown>;
+    expect(result.errors).toBeDefined();
+    expect((result.errors as string[])[0]).toContain('finite number');
+  });
+
   it('analyze: deduplicates types', async () => {
     planner.startTurnResults.push({
       textParts: [],

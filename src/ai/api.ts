@@ -1228,28 +1228,35 @@ export class GluonAI {
         }
 
         if (hasImportance) {
-          const importance = Math.max(0, Math.min(1, args.importance as number));
-          const setImportanceAction: AISetImportanceAction = {
-            type: 'set_importance',
-            trackId: args.trackId as string,
-            importance,
-            ...(hasRole ? { musicalRole: args.musicalRole as string } : {}),
-          };
-          metaActions.push(setImportanceAction);
-          applied.push('importance');
-          if (hasRole) applied.push('musicalRole');
+          if (typeof args.importance !== 'number' || !Number.isFinite(args.importance)) {
+            errors.push('importance must be a finite number (0.0-1.0)');
+          } else {
+            const importance = Math.max(0, Math.min(1, args.importance));
+            const setImportanceAction: AISetImportanceAction = {
+              type: 'set_importance',
+              trackId: args.trackId as string,
+              importance,
+              ...(hasRole ? { musicalRole: args.musicalRole as string } : {}),
+            };
+            metaActions.push(setImportanceAction);
+            applied.push('importance');
+            if (hasRole) applied.push('musicalRole');
+          }
         } else if (hasRole) {
-          // musicalRole without importance — preserve current importance value
+          // musicalRole without importance — preserve current importance if it exists
           const metaTrack = session.tracks.find(v => v.id === args.trackId);
-          const currentImportance = metaTrack?.importance ?? 0.5;
-          const setImportanceAction: AISetImportanceAction = {
-            type: 'set_importance',
-            trackId: args.trackId as string,
-            importance: currentImportance,
-            musicalRole: args.musicalRole as string,
-          };
-          metaActions.push(setImportanceAction);
-          applied.push('musicalRole');
+          if (metaTrack?.importance === undefined) {
+            errors.push('musicalRole requires importance to be set first (either in this call or previously)');
+          } else {
+            const setImportanceAction: AISetImportanceAction = {
+              type: 'set_importance',
+              trackId: args.trackId as string,
+              importance: metaTrack.importance,
+              musicalRole: args.musicalRole as string,
+            };
+            metaActions.push(setImportanceAction);
+            applied.push('musicalRole');
+          }
         }
 
         return {
