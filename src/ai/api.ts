@@ -4,6 +4,7 @@ import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
+import { getTrackLabel } from '../engine/track-labels';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { projectRegionToPattern } from '../engine/region-projection';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
@@ -457,6 +458,14 @@ export class GluonAI {
           : currentVal + (action.target as { relative: number }).relative;
         const resultValue = Math.max(0, Math.min(1, rawTarget));
 
+        // Detect recent human touch on this parameter for conflict awareness
+        const HUMAN_TOUCH_WINDOW_MS = 5000;
+        const now = Date.now();
+        const recentHumanTouch = session.recentHumanActions.some(
+          ha => ha.trackId === trackId && ha.param === action.param &&
+                (now - ha.timestamp) < HUMAN_TOUCH_WINDOW_MS,
+        );
+
         return {
           actions: [action],
           response: {
@@ -465,7 +474,9 @@ export class GluonAI {
             trackId,
             ...(action.processorId ? { processorId: action.processorId } : {}),
             ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
-            value: Math.round(resultValue * 100) / 100,
+            from: Math.round(currentVal * 100) / 100,
+            to: Math.round(resultValue * 100) / 100,
+            ...(recentHumanTouch ? { recentHumanTouch: true } : {}),
           },
         };
       }
@@ -491,13 +502,37 @@ export class GluonAI {
         const rejection = ctx?.validateAction?.(action);
         if (rejection) return { actions: [], response: errorPayload(rejection) };
 
+        // Compute consequence details from the before/after state
+        const sketchTrack = session.tracks.find(v => v.id === action.trackId);
+        const prevEvents = sketchTrack?.regions[0]?.events ?? [];
+        const newEvents = action.events ?? [];
+        const eventsAdded = Math.max(0, newEvents.length - prevEvents.length);
+        const eventsRemoved = Math.max(0, prevEvents.length - newEvents.length);
+        const eventsModified = Math.min(prevEvents.length, newEvents.length);
+
+        // Detect rhythm change: compare trigger/note onset positions
+        const getOnsets = (events: typeof prevEvents) =>
+          events.filter(e => e.kind === 'trigger' || e.kind === 'note').map(e => e.at);
+        const prevOnsets = getOnsets(prevEvents);
+        const newOnsets = getOnsets(newEvents);
+        const rhythmChanged = prevOnsets.length !== newOnsets.length ||
+          prevOnsets.some((t, i) => Math.abs(t - newOnsets[i]) > 0.001);
+
+        // Check if track has approval above exploratory (parameter lock awareness)
+        const approval = sketchTrack?.approval ?? 'exploratory';
+        const hasApprovalLock = approval !== 'exploratory';
+
         return {
           actions: [action],
           response: {
             applied: true,
             trackId: action.trackId,
             description: action.description,
-            eventCount: action.events?.length ?? 0,
+            eventsAdded,
+            eventsRemoved,
+            eventsModified,
+            rhythmChanged,
+            ...(hasApprovalLock ? { approvalLevel: approval } : {}),
           },
         };
       }
@@ -1142,6 +1177,10 @@ export class GluonAI {
           return { actions: [], response: errorPayload('importance must be between 0.0 and 1.0') };
         }
 
+        const importanceTrack = session.tracks.find(v => v.id === args.trackId);
+        const prevImportance = importanceTrack?.importance ?? 0.5;
+        const importanceTrackName = importanceTrack ? getTrackLabel(importanceTrack) : args.trackId as string;
+
         const setImportanceAction: AISetImportanceAction = {
           type: 'set_importance',
           trackId: args.trackId as string,
@@ -1154,7 +1193,9 @@ export class GluonAI {
           response: {
             applied: true,
             trackId: setImportanceAction.trackId,
-            importance: Math.round(setImportanceAction.importance * 100) / 100,
+            track: importanceTrackName,
+            from: Math.round(prevImportance * 100) / 100,
+            to: Math.round(setImportanceAction.importance * 100) / 100,
             ...(setImportanceAction.musicalRole ? { musicalRole: setImportanceAction.musicalRole } : {}),
           },
         };
@@ -1351,16 +1392,18 @@ export class GluonAI {
         const markApprovedRejection = ctx?.validateAction?.(markApprovedAction);
         if (markApprovedRejection) return { actions: [], response: errorPayload(markApprovedRejection) };
 
-        const track = session.tracks.find(v => v.id === args.trackId);
-        const prevLevel = track?.approval ?? 'exploratory';
+        const approvalTrack = session.tracks.find(v => v.id === args.trackId);
+        const prevLevel = approvalTrack?.approval ?? 'exploratory';
+        const trackName = approvalTrack ? getTrackLabel(approvalTrack) : args.trackId;
 
         return {
           actions: [markApprovedAction],
           response: {
             applied: true,
             trackId: markApprovedAction.trackId,
-            level: markApprovedAction.level,
-            previousLevel: prevLevel,
+            track: trackName,
+            from: prevLevel,
+            to: markApprovedAction.level,
             reason: markApprovedAction.reason,
           },
         };
