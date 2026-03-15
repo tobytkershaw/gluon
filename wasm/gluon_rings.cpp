@@ -57,6 +57,12 @@ struct RingsState {
   }
 };
 
+// Tiny DC offset added to signals before recursive processing to prevent
+// denormal floating-point numbers. WASM enforces strict IEEE 754 and cannot
+// set FTZ/DAZ CPU flags, so without this guard, recursive algorithms that
+// decay toward silence can cause 100x CPU slowdown.
+static const float DENORMAL_GUARD = 1e-25f;
+
 inline float clamp01(float value) {
   return std::max(0.0f, std::min(1.0f, value));
 }
@@ -160,13 +166,15 @@ int rings_render(void* handle, const float* input, float* output, int num_frames
     state->patch.damping = state->smooth_damping.current;
     state->patch.position = state->smooth_position.current;
 
-    // Copy input (or silence if no input provided)
+    // Copy input (or silence if no input provided), adding denormal guard
     if (input) {
       for (size_t i = 0; i < block; ++i) {
-        state->in_buffer[i] = input[rendered + i];
+        state->in_buffer[i] = input[rendered + i] + DENORMAL_GUARD;
       }
     } else {
-      std::memset(state->in_buffer, 0, block * sizeof(float));
+      for (size_t i = 0; i < block; ++i) {
+        state->in_buffer[i] = DENORMAL_GUARD;
+      }
     }
 
     state->performance.strum = state->strum_pending;

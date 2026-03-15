@@ -49,6 +49,12 @@ struct CloudsState {
   }
 };
 
+// Tiny DC offset added to signals before recursive processing to prevent
+// denormal floating-point numbers. WASM enforces strict IEEE 754 and cannot
+// set FTZ/DAZ CPU flags, so without this guard, recursive algorithms that
+// decay toward silence can cause 100x CPU slowdown.
+static const float DENORMAL_GUARD = 1e-25f;
+
 inline float clamp01(float value) {
   return std::max(0.0f, std::min(1.0f, value));
 }
@@ -140,11 +146,11 @@ int clouds_render(void* handle, const float* input, float* output, int num_frame
     // Prepare must be called before each Process
     state->processor.Prepare();
 
-    // Convert float input to ShortFrame (int16 stereo)
+    // Convert float input to ShortFrame (int16 stereo), adding denormal guard
     ShortFrame in_frames[kMaxBlockSize];
     ShortFrame out_frames[kMaxBlockSize];
     for (size_t i = 0; i < block; ++i) {
-      float sample = input ? input[rendered + i] : 0.0f;
+      float sample = (input ? input[rendered + i] : 0.0f) + DENORMAL_GUARD;
       // Clamp to prevent int16 overflow
       sample = std::max(-1.0f, std::min(1.0f, sample));
       int16_t s = static_cast<int16_t>(sample * 32767.0f);

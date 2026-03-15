@@ -59,6 +59,12 @@ struct PlaitsVoiceState {
   }
 };
 
+// Tiny DC offset added to signals before recursive processing to prevent
+// denormal floating-point numbers. WASM enforces strict IEEE 754 and cannot
+// set FTZ/DAZ CPU flags, so without this guard, recursive algorithms that
+// decay toward silence can cause 100x CPU slowdown.
+static const float DENORMAL_GUARD = 1e-25f;
+
 inline float clamp01(float value) {
   return std::max(0.0f, std::min(1.0f, value));
 }
@@ -170,7 +176,7 @@ int plaits_render(void* handle, float* output, int num_frames) {
     state->modulations.level = state->gate_open ? state->accent_level : 0.0f;
     state->voice.Render(state->patch, state->modulations, state->frames, block);
     for (size_t i = 0; i < block; ++i) {
-      output[rendered + i] = static_cast<float>(state->frames[i].out) / 32768.0f;
+      output[rendered + i] = static_cast<float>(state->frames[i].out) / 32768.0f + DENORMAL_GUARD;
     }
     if (state->trigger_blocks_remaining > 0) {
       --state->trigger_blocks_remaining;
