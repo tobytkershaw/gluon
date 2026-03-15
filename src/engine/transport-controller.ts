@@ -11,19 +11,31 @@ import {
 } from './transport-runtime';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 
+interface SchedulerLike {
+  start(startOffset?: number, startStep?: number, generation?: number): void;
+  stop(): void;
+}
+
 interface TransportControllerDeps {
   audio: AudioEngine;
   getSession: () => Session;
   onPositionChange: (step: number) => void;
   getHeldParams: (trackId: string) => Partial<SynthParamValues>;
   onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  createScheduler?: (deps: {
+    getSession: () => Session;
+    onNote: (note: import('./sequencer-types').ScheduledNote) => void;
+    onPositionChange: (step: number) => void;
+    getHeldParams: (trackId: string) => Partial<SynthParamValues>;
+    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  }) => SchedulerLike;
 }
 
 export class TransportController {
   private readonly audio: AudioEngine;
   private readonly getSession: () => Session;
   private readonly onPositionChange: (step: number) => void;
-  private readonly scheduler: Scheduler;
+  private readonly scheduler: SchedulerLike;
   private runtime: RuntimeTransportState;
   private pendingHardStop = false;
   private lastStep = 0;
@@ -34,24 +46,34 @@ export class TransportController {
     onPositionChange,
     getHeldParams,
     onParameterEvent,
+    createScheduler,
   }: TransportControllerDeps) {
     this.audio = audio;
     this.getSession = getSession;
     this.onPositionChange = onPositionChange;
     this.runtime = createRuntimeTransport(getSession().transport);
-    this.scheduler = new Scheduler(
-      getSession,
-      () => this.audio.getCurrentTime(),
-      () => this.audio.getState(),
-      (note) => this.audio.scheduleNote(note, this.runtime.generation),
-      (step) => {
-        this.lastStep = step;
-        this.runtime = { ...this.runtime, playheadBeats: step / 4 };
-        this.onPositionChange(step);
-      },
-      getHeldParams,
-      onParameterEvent,
-    );
+    const handlePositionChange = (step: number) => {
+      this.lastStep = step;
+      this.runtime = { ...this.runtime, playheadBeats: step / 4 };
+      this.onPositionChange(step);
+    };
+    this.scheduler = createScheduler
+      ? createScheduler({
+          getSession,
+          onNote: (note) => this.audio.scheduleNote(note, this.runtime.generation),
+          onPositionChange: handlePositionChange,
+          getHeldParams,
+          onParameterEvent,
+        })
+      : new Scheduler(
+          getSession,
+          () => this.audio.getCurrentTime(),
+          () => this.audio.getState(),
+          (note) => this.audio.scheduleNote(note, this.runtime.generation),
+          handlePositionChange,
+          getHeldParams,
+          onParameterEvent,
+        );
   }
 
   sync(): void {

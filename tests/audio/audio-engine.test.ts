@@ -268,4 +268,46 @@ describe('AudioEngine', () => {
     expect(synth.silence).toHaveBeenCalledWith(2);
     expect(engine.getActiveVoices()).toEqual([]);
   });
+
+  it('retains recent voices long enough to clean up processor tails', () => {
+    const engine = new AudioEngine();
+    const synth = {
+      scheduleNote: vi.fn(),
+      setModel: vi.fn(),
+      setParams: vi.fn(),
+      destroy: vi.fn(),
+      silence: vi.fn(),
+    };
+    const procSilence = vi.fn();
+
+    (engine as unknown as { ctx: { currentTime: number } }).ctx = { currentTime: 1.0 };
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([
+      ['v0', {
+        synth,
+        sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        chainOutGain: mockGainNode(),
+        muteGain: { gain: { value: 1 } },
+        accentGain: { gain: { setValueAtTime: vi.fn(), cancelAndHoldAtTime: vi.fn(), linearRampToValueAtTime: vi.fn() } },
+        processors: [{ id: 'rings-0', type: 'rings', engine: { silence: procSilence, damp: vi.fn() } }],
+        currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+        currentModel: 0,
+      }],
+    ]);
+    (engine as { modulatorSlots: Map<string, unknown[]> }).modulatorSlots = new Map();
+
+    engine.scheduleNote({
+      eventId: 'evt-tail',
+      generation: 1,
+      trackId: 'v0',
+      time: 0.1,
+      gateOffTime: 0.2,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    }, 1);
+
+    // Current time is well past gateOffTime, but still inside the tail grace window.
+    engine.releaseGeneration(2);
+
+    expect(procSilence).toHaveBeenCalledWith(2);
+  });
 });
