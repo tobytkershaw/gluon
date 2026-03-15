@@ -97,6 +97,38 @@ describe('State Compression (Phase 2)', () => {
     expect(pattern.density).toBe(0);
   });
 
+  it('includes observed_patterns and restraint_level fields', () => {
+    const session = createSession();
+    const result = compressState(session);
+    expect(result.observed_patterns).toEqual([]);
+    expect(result.restraint_level).toBe('moderate');
+  });
+
+  it('derives observed_patterns from reaction history', () => {
+    const session = createSession();
+    session.reactionHistory = [
+      { actionGroupIndex: 0, verdict: 'rejected', timestamp: Date.now() },
+      { actionGroupIndex: 1, verdict: 'rejected', timestamp: Date.now() },
+      { actionGroupIndex: 2, verdict: 'rejected', timestamp: Date.now() },
+      { actionGroupIndex: 3, verdict: 'rejected', timestamp: Date.now() },
+    ];
+    const result = compressState(session);
+    expect(result.observed_patterns.length).toBeGreaterThan(0);
+    expect(result.restraint_level).toBe('conservative');
+  });
+
+  it('derives adventurous restraint from mostly-approved reactions', () => {
+    const session = createSession();
+    session.reactionHistory = [
+      { actionGroupIndex: 0, verdict: 'approved', timestamp: Date.now() },
+      { actionGroupIndex: 1, verdict: 'approved', timestamp: Date.now() },
+      { actionGroupIndex: 2, verdict: 'approved', timestamp: Date.now() },
+      { actionGroupIndex: 3, verdict: 'neutral', timestamp: Date.now() },
+    ];
+    const result = compressState(session);
+    expect(result.restraint_level).toBe('adventurous');
+  });
+
   it('NoteEvent produces entry in notes array', () => {
     const session = createSession();
     const track = session.tracks[0];

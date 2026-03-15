@@ -1,6 +1,8 @@
 // src/ai/system-prompt.ts
 
 import type { Session } from '../engine/types';
+import type { RestraintLevel } from './state-compression';
+import { deriveRestraintLevel } from './state-compression';
 import { getTrackLabel } from '../engine/track-labels';
 import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
@@ -49,7 +51,22 @@ For percussion tracks, use trigger events in sketch.
 For melodic tracks, use note events with MIDI pitches. Duration is always 0.25.`;
 }
 
+function generateRestraintGuidance(level: RestraintLevel): string {
+  switch (level) {
+    case 'conservative':
+      return `## Restraint: Conservative
+The human has been rejecting recent changes. Make small, incremental changes. Ask before making large modifications. Prefer parameter tweaks over structural changes. When in doubt, propose your idea in text before executing it.`;
+    case 'adventurous':
+      return `## Restraint: Adventurous
+The human has been receptive to your suggestions. Feel free to explore — try bolder timbral choices, more complex patterns, or structural changes when they fit the request.`;
+    case 'moderate':
+      return `## Restraint: Moderate
+Balance exploration with caution. Propose bold changes but be ready to scale back. If a direction gets rejected, try a smaller variation next time.`;
+  }
+}
+
 export function buildSystemPrompt(session: Session): string {
+  const restraintLevel = deriveRestraintLevel(session.reactionHistory ?? []);
   return `You are the AI assistant in Gluon, a shared musical instrument in the browser. You make changes when asked. You do not act autonomously.
 
 Use the provided tools to make changes. You can call multiple tools in one turn. To speak to the human, just reply with text — no tool call needed.
@@ -146,6 +163,10 @@ The session state includes recent human reactions to your previous actions (appr
 - Reactions inform your choices, not your dialogue. Do not explicitly reference reactions in conversation unless the human asks.
 - Treat reactions as heuristics, not hard rules. The human can always ask you to explore outside established patterns.
 - When multiple valid approaches exist, prefer the one most consistent with the human's reaction history.
+
+The compressed state includes \`observed_patterns\` (recurring tendencies from reaction history) and \`restraint_level\` (how bold your interventions should be). Check both before choosing your approach.
+
+${generateRestraintGuidance(restraintLevel)}
 
 ## User Guide (Reference for answering "how do I..." questions)
 Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).
