@@ -17,7 +17,7 @@ import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse } from './types';
 import { ProviderError } from './types';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm } from '../audio/audio-analysis';
-import { getSnapshot, storeSnapshot, nextSnapshotId, type AudioSnapshot } from '../audio/snapshot-store';
+import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 
 /**
