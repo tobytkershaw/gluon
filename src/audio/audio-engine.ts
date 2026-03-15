@@ -269,9 +269,20 @@ export class AudioEngine {
     this.clearFence++;
     const fence = this.clearFence;
 
+    const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {
       slot.synth.silence(fence);
-      // Keep accent gain at baseline (0.3) — don't zero it like silenceAll
+      // Cancel any in-flight accent automation and reset to baseline (0.3).
+      // Without this, pausing during an accented note leaves gain boosted
+      // and a quick resume starts the next note at the stale accent level.
+      slot.accentGain.gain.cancelAndHoldAtTime(now);
+      slot.accentGain.gain.setValueAtTime(0.3, now);
+      // Clear scheduled events in downstream processors (Rings/Clouds)
+      // so their tails don't sustain indefinitely. Don't damp() Rings —
+      // that's hard-stop behaviour; let the resonance decay naturally.
+      for (const proc of slot.processors) {
+        proc.engine.silence(fence);
+      }
     }
     // Pause modulators so they don't keep running during pause
     for (const [, modSlots] of this.modulatorSlots) {

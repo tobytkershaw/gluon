@@ -130,10 +130,23 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   scheduleNote(note: ScheduledNote, fence?: number): void {
-    // Always send set-patch before trigger to ensure the worklet has the
-    // correct parameters. The previous optimisation (skip if params match
-    // base) relied on the React sync effect, which races with the scheduler.
-    this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
+    // Only send a timed set-patch when this note has per-step overrides
+    // (param locks or NoteEvent pitch). A timed set-patch would overwrite
+    // live human knob changes made between scheduling and note-on because
+    // the scheduler runs 100ms ahead. Notes without overrides rely on the
+    // real-time sync effect to keep the worklet current; the worklet's
+    // patchDirty/flushPatch mechanism ensures WASM is flushed before trigger.
+    if (note.baseParams) {
+      const allKeys = new Set([...Object.keys(note.params), ...Object.keys(note.baseParams)]);
+      const hasOverrides = [...allKeys].some(
+        k => Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001,
+      );
+      if (hasOverrides) {
+        this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
+      }
+    } else {
+      this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
+    }
     this.post({ type: 'trigger', time: note.time, accentLevel: note.accent ? 1.0 : 0.8, fence });
     this.post({ type: 'set-gate', time: note.time, open: true, fence });
     this.post({ type: 'set-gate', time: note.gateOffTime, open: false, fence });

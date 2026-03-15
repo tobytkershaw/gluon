@@ -37,7 +37,7 @@ export function TransportStrip({
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
               : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-zinc-200'
           }`}
-          title={playing ? 'Pause (tails ring out) [Space]' : 'Play [Space]'}
+          title={playing ? 'Pause [Space]' : 'Play [Space]'}
         >
           {playing ? (
             <svg viewBox="0 0 16 16" className="w-3 h-3 fill-current">
