@@ -1,221 +1,432 @@
-// tests/ai/api-history.test.ts
+// tests/ai/api-history.test.ts — Orchestrator tests using mock providers
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// Mock the @google/genai module
-const mockGenerateContent = vi.fn();
-vi.mock('@google/genai', () => {
-  return {
-    GoogleGenAI: class {
-      models = { generateContent: mockGenerateContent };
-    },
-    Type: {
-      STRING: 'STRING',
-      NUMBER: 'NUMBER',
-      INTEGER: 'INTEGER',
-      BOOLEAN: 'BOOLEAN',
-      ARRAY: 'ARRAY',
-      OBJECT: 'OBJECT',
-    },
-    FunctionCallingConfigMode: {
-      AUTO: 'AUTO',
-    },
-    createPartFromFunctionResponse: (id: string, name: string, response: Record<string, unknown>) => ({
-      functionResponse: { id, name, response },
-    }),
-  };
-});
-
 import { GluonAI } from '../../src/ai/api';
+import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema } from '../../src/ai/types';
+import { ProviderError } from '../../src/ai/types';
 import { createSession } from '../../src/engine/session';
 
-function mockTextResponse(text: string, extraParts: Record<string, unknown>[] = []) {
-  const textPart = { text };
-  const parts = [textPart, ...extraParts];
+// ---------------------------------------------------------------------------
+// Mock planner that records calls and returns configurable responses
+// ---------------------------------------------------------------------------
+
+function createMockPlanner(): PlannerProvider & {
+  startTurnResults: GenerateResult[];
+  continueTurnResults: GenerateResult[];
+  startTurnCalls: number;
+  continueTurnCalls: number;
+  committed: number;
+  discarded: number;
+  trimCalls: Array<number>;
+  clearCalls: number;
+  userMessages: string[];
+} {
+  const planner = {
+    name: 'mock',
+    startTurnResults: [] as GenerateResult[],
+    continueTurnResults: [] as GenerateResult[],
+    startTurnCalls: 0,
+    continueTurnCalls: 0,
+    committed: 0,
+    discarded: 0,
+    trimCalls: [] as number[],
+    clearCalls: 0,
+    userMessages: [] as string[],
+
+    isConfigured: () => true,
+
+    startTurn: vi.fn(async (opts: { systemPrompt: string; userMessage: string; tools: ToolSchema[] }): Promise<GenerateResult> => {
+      planner.startTurnCalls++;
+      planner.userMessages.push(opts.userMessage);
+      return planner.startTurnResults.shift() ?? { textParts: [], functionCalls: [] };
+    }),
+
+    continueTurn: vi.fn(async (_opts: { systemPrompt: string; tools: ToolSchema[]; functionResponses: FunctionResponse[] }): Promise<GenerateResult> => {
+      planner.continueTurnCalls++;
+      return planner.continueTurnResults.shift() ?? { textParts: [], functionCalls: [] };
+    }),
+
+    commitTurn: vi.fn(() => { planner.committed++; }),
+    discardTurn: vi.fn(() => { planner.discarded++; }),
+    trimHistory: vi.fn((n: number) => { planner.trimCalls.push(n); }),
+    clearHistory: vi.fn(() => { planner.clearCalls++; }),
+  };
+  return planner;
+}
+
+function createMockListener(): ListenerProvider {
   return {
-    text,
-    functionCalls: undefined,
-    candidates: [{ content: { role: 'model', parts } }],
+    name: 'mock',
+    isConfigured: () => true,
+    evaluate: vi.fn(async () => 'sounds good'),
   };
 }
 
-function mockFunctionCallResponse(functionCalls: Array<{ id: string; name: string; args: Record<string, unknown> }>) {
-  const parts = functionCalls.map(fc => ({ functionCall: fc }));
-  return {
-    text: undefined,
-    functionCalls,
-    candidates: [{ content: { role: 'model', parts } }],
-  };
-}
-
-describe('GluonAI History Management (Exchange-based)', () => {
+describe('GluonAI Orchestrator (provider-agnostic)', () => {
+  let planner: ReturnType<typeof createMockPlanner>;
+  let listener: ReturnType<typeof createMockListener>;
   let ai: GluonAI;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockGenerateContent.mockResolvedValue(mockTextResponse('ok'));
-    ai = new GluonAI();
-    ai.setApiKey('test-key');
+    planner = createMockPlanner();
+    listener = createMockListener();
+    ai = new GluonAI(planner, listener);
   });
 
-  it('trims history by exchange count, not raw Content count', async () => {
+  it('trims history before each ask', async () => {
+    planner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
     const session = createSession();
+    await ai.ask(session, 'hello');
+    expect(planner.trimCalls).toEqual([12]);
+  });
 
-    // Make 15 calls to exceed MAX_EXCHANGES (12)
-    for (let i = 0; i < 15; i++) {
-      await ai.ask(session, `message ${i}`);
+  it('commits turn on success', async () => {
+    planner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+    const session = createSession();
+    await ai.ask(session, 'hello');
+    expect(planner.committed).toBe(1);
+    expect(planner.discarded).toBe(0);
+  });
+
+  it('discards turn on error', async () => {
+    planner.startTurn = vi.fn(async () => { throw new Error('network fail'); });
+    const session = createSession();
+    await ai.ask(session, 'hello');
+    expect(planner.committed).toBe(0);
+    expect(planner.discarded).toBe(1);
+  });
+
+  it('discards turn when stale', async () => {
+    planner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+    const session = createSession();
+    await ai.ask(session, 'hello', { isStale: () => true });
+    expect(planner.committed).toBe(0);
+    expect(planner.discarded).toBe(1);
+  });
+
+  it('collects text-only responses as say actions', async () => {
+    planner.startTurnResults.push({ textParts: ['Water is indeed wet.'], functionCalls: [] });
+    const session = createSession();
+    const actions = await ai.ask(session, 'water is wet');
+    const sayActions = actions.filter(a => a.type === 'say');
+    expect(sayActions).toHaveLength(1);
+    if (sayActions[0].type === 'say') {
+      expect(sayActions[0].text).toBe('Water is indeed wet.');
+    }
+  });
+
+  it('converts move function call to AIMoveAction', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten the kick');
+
+    const moveActions = actions.filter(a => a.type === 'move');
+    expect(moveActions).toHaveLength(1);
+    expect(moveActions[0]).toMatchObject({
+      type: 'move',
+      param: 'brightness',
+      target: { absolute: 0.7 },
+      trackId: 'v0',
+    });
+  });
+
+  it('converts sketch function call to AISketchAction', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{
+        id: 'c1', name: 'sketch', args: {
+          trackId: 'v0', description: 'four on the floor',
+          events: [
+            { kind: 'trigger', at: 0, velocity: 1.0, accent: true },
+            { kind: 'trigger', at: 4, velocity: 0.8 },
+          ],
+        },
+      }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Here you go.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'make a kick pattern');
+
+    const sketchActions = actions.filter(a => a.type === 'sketch');
+    expect(sketchActions).toHaveLength(1);
+    if (sketchActions[0].type === 'sketch') {
+      expect(sketchActions[0].trackId).toBe('v0');
+      expect(sketchActions[0].events).toHaveLength(2);
+    }
+  });
+
+  it('converts set_transport function call to AITransportAction', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'set_transport', args: { bpm: 140, swing: 0.3 } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Speeded up.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'speed it up');
+
+    const transportActions = actions.filter(a => a.type === 'set_transport');
+    expect(transportActions).toHaveLength(1);
+    expect(transportActions[0]).toMatchObject({
+      type: 'set_transport',
+      bpm: 140,
+      swing: 0.3,
+    });
+  });
+
+  it('handles multiple tool calls in one turn', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [
+        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.3 } } },
+        { id: 'c2', name: 'set_transport', args: { bpm: 90 } },
+      ],
+    });
+    planner.continueTurnResults.push({ textParts: ['Darkened and slowed.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'darken and slow down');
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
+    expect(actions.filter(a => a.type === 'set_transport')).toHaveLength(1);
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
+
+  it('respects MAX_PLANNER_INVOCATIONS limit', async () => {
+    // Always return function calls — should stop after 5 invocations
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c0', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } }],
+    });
+    for (let i = 1; i < 5; i++) {
+      planner.continueTurnResults.push({
+        textParts: [],
+        functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } }],
+      });
     }
 
-    // On the 16th call, history should be trimmed to 12 exchanges
-    const lastCall = mockGenerateContent.mock.calls[14];
-    const contents = lastCall[0].contents;
-
-    // 12 exchanges * 2 (user text + model response) + 1 current turn = 25
-    expect(contents.length).toBeLessThanOrEqual(25);
-  });
-
-  it('stores clean human text in history exchanges', async () => {
     const session = createSession();
+    const actions = await ai.ask(session, 'keep going');
 
-    await ai.ask(session, 'hello world');
-    await ai.ask(session, 'second message');
-
-    const secondCall = mockGenerateContent.mock.calls[1];
-    const contents = secondCall[0].contents;
-
-    // First entry should be clean user text from exchange
-    expect(contents[0].role).toBe('user');
-    expect(contents[0].parts[0].text).toBe('hello world');
+    // 5 invocations total: 1 startTurn + 4 continueTurn
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(5);
+    expect(planner.startTurnCalls).toBe(1);
+    expect(planner.continueTurnCalls).toBe(4);
   });
 
-  it('includes compressed state in current turn only', async () => {
+  it('cancellation prevents further API calls', async () => {
+    let stale = false;
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } }],
+    });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'test', {
+      isStale: () => {
+        const wasStale = stale;
+        stale = true;
+        return wasStale;
+      },
+    });
+
+    // First invocation proceeds, second round cancelled by stale check
+    expect(planner.startTurnCalls).toBe(1);
+    expect(planner.continueTurnCalls).toBe(0);
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
+  });
+
+  it('stale request discards turn', async () => {
+    const session = createSession();
+    await ai.ask(session, 'stale message', { isStale: () => true });
+    expect(planner.startTurnCalls).toBe(0); // short-circuited before startTurn
+    expect(planner.discarded).toBe(1);
+  });
+
+  it('returns error response for move with missing param', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { target: { absolute: 0.5 } } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Sorry about that.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'move something');
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
+
+  it('returns error response for move with missing target', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['I need a target value.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten');
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+  });
+
+  it('returns error response for sketch with missing trackId', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'sketch', args: { description: 'kick', events: [] } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Which track?'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'make a pattern');
+
+    expect(actions.filter(a => a.type === 'sketch')).toHaveLength(0);
+  });
+
+  it('returns error response for sketch with non-array events', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'sketch', args: { trackId: 'v0', description: 'kick', events: 'not-array' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Let me fix that.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'make a kick');
+
+    expect(actions.filter(a => a.type === 'sketch')).toHaveLength(0);
+  });
+
+  it('returns error response for set_transport with no valid fields', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'set_transport', args: {} }],
+    });
+    planner.continueTurnResults.push({ textParts: ['What should I change?'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'change transport');
+
+    expect(actions.filter(a => a.type === 'set_transport')).toHaveLength(0);
+  });
+
+  it('validateAction rejection prevents action collection and returns error to model', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['That track has agency off, sorry.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten the kick', {
+      validateAction: () => 'Track v0 has agency OFF',
+    });
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
+
+  it('validateAction null allows action to be collected', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten the kick', {
+      validateAction: () => null,
+    });
+
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
+  });
+
+  it('clearHistory delegates to planner', () => {
+    ai.clearHistory();
+    expect(planner.clearCalls).toBe(1);
+  });
+
+  it('continueTurn receives function responses with correct structure', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
+
+    const session = createSession();
+    await ai.ask(session, 'brighten');
+
+    expect(planner.continueTurn).toHaveBeenCalledTimes(1);
+    const callArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(callArgs.functionResponses).toHaveLength(1);
+    expect(callArgs.functionResponses[0]).toMatchObject({
+      id: 'c1',
+      name: 'move',
+      result: expect.objectContaining({ applied: true }),
+    });
+  });
+
+  it('handles ProviderError with rate_limited kind', async () => {
+    planner.startTurn = vi.fn(async () => {
+      throw new ProviderError('Rate limited', 'rate_limited', 5000);
+    });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'hello');
+
+    const sayActions = actions.filter(a => a.type === 'say');
+    expect(sayActions).toHaveLength(1);
+    if (sayActions[0].type === 'say') {
+      expect(sayActions[0].text).toContain('Rate limited');
+    }
+  });
+
+  it('handles ProviderError with auth kind', async () => {
+    planner.startTurn = vi.fn(async () => {
+      throw new ProviderError('Invalid key', 'auth');
+    });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'hello');
+
+    const sayActions = actions.filter(a => a.type === 'say');
+    expect(sayActions).toHaveLength(1);
+    if (sayActions[0].type === 'say') {
+      expect(sayActions[0].text).toContain('API key invalid');
+    }
+  });
+
+  it('includes compressed state in user message', async () => {
+    planner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
     const session = createSession();
     await ai.ask(session, 'test message');
 
-    const firstCall = mockGenerateContent.mock.calls[0];
-    const contents = firstCall[0].contents;
-
-    const currentTurn = contents[contents.length - 1];
-    expect(currentTurn.role).toBe('user');
-    expect(currentTurn.parts[0].text).toContain('Project state:');
-    expect(currentTurn.parts[0].text).toContain('Human says: test message');
+    expect(planner.userMessages).toHaveLength(1);
+    expect(planner.userMessages[0]).toContain('Project state:');
+    expect(planner.userMessages[0]).toContain('Human says: test message');
   });
 
-  it('clearHistory empties exchanges and resets backoff', async () => {
+  it('does not commit turn when model returns empty response', async () => {
+    // Simulate safety filter suppression or thinking-only response
+    planner.startTurnResults.push({ textParts: [], functionCalls: [] });
     const session = createSession();
-    await ai.ask(session, 'message 1');
+    await ai.ask(session, 'filtered message');
 
-    ai.clearHistory();
-
-    await ai.ask(session, 'message 2');
-    const call = mockGenerateContent.mock.calls[1];
-    const contents = call[0].contents;
-    expect(contents.length).toBe(1);
-    expect(contents[0].parts[0].text).toContain('Human says: message 2');
+    // Empty response should discard, not commit — prevents orphaned user-only exchanges
+    expect(planner.committed).toBe(0);
+    expect(planner.discarded).toBe(1);
   });
 
-  it('preserves thoughtSignature in exchange turns', async () => {
-    const session = createSession();
-    const signature = 'opaque-base64-signature-data';
-
-    mockGenerateContent.mockResolvedValueOnce(
-      mockTextResponse('thinking result', [{ thoughtSignature: signature }]),
-    );
-
-    await ai.ask(session, 'first message');
-
-    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('ok'));
-    await ai.ask(session, 'second message');
-
-    const secondCall = mockGenerateContent.mock.calls[1];
-    const contents = secondCall[0].contents;
-
-    // Model entry from first exchange should have thoughtSignature
-    const modelEntry = contents[1];
-    expect(modelEntry.role).toBe('model');
-    expect(modelEntry.parts).toHaveLength(2);
-    expect(modelEntry.parts[1].thoughtSignature).toBe(signature);
-  });
-
-  it('stores function call/response turns in exchange', async () => {
-    const session = createSession();
-
-    // First call: model makes a function call
-    mockGenerateContent
-      .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 } } },
-      ]))
-      .mockResolvedValueOnce(mockTextResponse('Done.'));
-
-    await ai.ask(session, 'brighten it');
-
-    // Second call
-    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('ok'));
-    await ai.ask(session, 'thanks');
-
-    const secondCall = mockGenerateContent.mock.calls[2];
-    const contents = secondCall[0].contents;
-
-    // Exchange 1: user text, model function call, function response, model text
-    // user text (clean)
-    expect(contents[0].role).toBe('user');
-    expect(contents[0].parts[0].text).toBe('brighten it');
-    // model function call turn
-    expect(contents[1].role).toBe('model');
-    // function response turn
-    expect(contents[2].role).toBe('user');
-    expect(contents[2].parts[0].functionResponse).toBeDefined();
-    // model text response
-    expect(contents[3].role).toBe('model');
-  });
-
-  it('exchange-based trimming never splits mid-tool-sequence', async () => {
-    const session = createSession();
-
-    // Fill with 13 exchanges (1 over MAX_EXCHANGES)
-    for (let i = 0; i < 12; i++) {
-      mockGenerateContent.mockResolvedValueOnce(mockTextResponse(`reply ${i}`));
-      await ai.ask(session, `msg ${i}`);
-    }
-
-    // 13th call: function calling exchange (produces multiple Content entries)
-    mockGenerateContent
-      .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
-      ]))
-      .mockResolvedValueOnce(mockTextResponse('Applied.'));
-    await ai.ask(session, 'do something');
-
-    // 14th call: verify the function call exchange is intact or trimmed as a unit
-    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('ok'));
-    await ai.ask(session, 'next');
-
-    const lastCall = mockGenerateContent.mock.calls[mockGenerateContent.mock.calls.length - 1];
-    const contents = lastCall[0].contents;
-
-    // Verify no orphan function response without preceding model function call
-    for (let i = 0; i < contents.length - 1; i++) {
-      const entry = contents[i];
-      if (entry.role === 'user' && entry.parts?.[0]?.functionResponse) {
-        // Must be preceded by a model turn
-        expect(i).toBeGreaterThan(0);
-        expect(contents[i - 1].role).toBe('model');
-      }
-    }
-  });
-
-  it('does not send thinkingConfig (unsupported on gemini-2.5-flash)', async () => {
-    const session = createSession();
-    await ai.ask(session, 'test');
-
-    const call = mockGenerateContent.mock.calls[0];
-    expect(call[0].config.thinkingConfig).toBeUndefined();
-  });
-
-  it('uses gemini-2.5-flash model', async () => {
-    const session = createSession();
-    await ai.ask(session, 'test');
-
-    const call = mockGenerateContent.mock.calls[0];
-    expect(call[0].model).toBe('gemini-2.5-flash');
+  it('isConfigured returns false when providers have empty keys', () => {
+    const emptyPlanner = createMockPlanner();
+    emptyPlanner.isConfigured = () => false;
+    const emptyListener = createMockListener();
+    emptyListener.isConfigured = () => false;
+    const unconfiguredAI = new GluonAI(emptyPlanner, emptyListener);
+    expect(unconfiguredAI.isConfigured()).toBe(false);
   });
 });

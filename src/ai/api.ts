@@ -1,7 +1,5 @@
-// src/ai/api.ts
+// src/ai/api.ts — Provider-agnostic orchestrator.
 
-import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode } from '@google/genai';
-import type { Content, FunctionCall, Part } from '@google/genai';
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
@@ -12,9 +10,9 @@ import { rotate, transpose, reverse, duplicate } from '../engine/transformations
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
 import { GLUON_LISTEN_PROMPT } from './listen-prompt';
-import { GLUON_TOOLS } from './tool-declarations';
-
-const MODEL = 'gemini-2.5-flash';
+import { GLUON_TOOLS } from './tool-schemas';
+import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse } from './types';
+import { ProviderError } from './types';
 
 /**
  * Lightweight projection of an action onto session state.
@@ -216,9 +214,6 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'connect_modulator': {
       const track = getTrack(session, action.trackId);
       const modulations = [...(track.modulations ?? [])];
-      // Idempotency: find existing route matching same modulator, target kind,
-      // param, and (for processor targets) processorId. The r.target.kind check
-      // on line below prevents cross-kind false matches (source vs processor).
       const existingIdx = modulations.findIndex(r =>
         r.modulatorId === action.modulatorId &&
         r.target.kind === action.target.kind &&
@@ -273,16 +268,9 @@ function projectAction(session: Session, action: AIAction): Session {
   }
 }
 
-/** Build an error function response that returns no actions */
-function errorResponse(
-  id: string,
-  name: string,
-  message: string,
-): { actions: AIAction[]; responsePart: Part } {
-  return {
-    actions: [],
-    responsePart: createPartFromFunctionResponse(id, name, { error: message }),
-  };
+/** Build an error function response payload */
+function errorPayload(message: string): Record<string, unknown> {
+  return { error: message };
 }
 
 /** Context for the listen tool — audio capture and eval plumbing */
@@ -295,8 +283,6 @@ export interface ListenContext {
 /**
  * Pre-validate an action against current session state.
  * Returns null if the action will be accepted, or a rejection reason string.
- * This runs the same checks as executeOperations() (track existence, agency,
- * control validity, arbitration) so the tool response is honest.
  */
 export type ActionValidator = (action: AIAction) => string | null;
 
@@ -304,200 +290,105 @@ export type ActionValidator = (action: AIAction) => string | null;
 export interface AskContext {
   listen?: ListenContext;
   isStale?: () => boolean;
-  /** Pre-validate actions against session state before returning tool responses */
   validateAction?: ActionValidator;
 }
 
-/** A single human-AI exchange, stored as an atomic unit for history trimming */
-interface Exchange {
-  userText: string;
-  turns: Content[];
-}
-
-/** Backoff state for rate-limit handling */
-interface BackoffState {
-  until: number;
-  delay: number;
-}
-
 export class GluonAI {
-  private ai: GoogleGenAI | null = null;
-  private exchanges: Exchange[] = [];
-  private backoff: BackoffState = { until: 0, delay: 0 };
-
   private static MAX_EXCHANGES = 12;
-  private static MAX_TOOL_ROUNDS = 5;
+  private static MAX_PLANNER_INVOCATIONS = 5;
 
-  constructor() {
-    const envKey = import.meta.env.VITE_GOOGLE_API_KEY;
-    if (envKey) {
-      this.setApiKey(envKey);
-    }
-  }
-
-  setApiKey(key: string): void {
-    this.ai = new GoogleGenAI({ apiKey: key });
-    this.exchanges = [];
-    this.backoff = { until: 0, delay: 0 };
-  }
+  constructor(
+    private planner: PlannerProvider,
+    private listener: ListenerProvider,
+  ) {}
 
   isConfigured(): boolean {
-    return this.ai !== null;
+    return this.planner.isConfigured() && this.listener.isConfigured();
   }
 
   async ask(session: Session, humanMessage: string, ctx?: AskContext): Promise<AIAction[]> {
-    if (!this.ai) return [];
+    this.planner.trimHistory(GluonAI.MAX_EXCHANGES);
 
-    // Trim history
-    if (this.exchanges.length > GluonAI.MAX_EXCHANGES) {
-      this.exchanges = this.exchanges.slice(-GluonAI.MAX_EXCHANGES);
-    }
-
-    // Build contents: history + current turn
-    // TODO(#215): History replay only includes user text and model responses,
-    // not the session state JSON that was sent with each turn. This means the
-    // AI cannot reason about how state changed between turns. This is a product
-    // decision — adding state diffs would increase token cost significantly.
-    const contents: Content[] = [];
-    for (const ex of this.exchanges) {
-      contents.push({ role: 'user', parts: [{ text: ex.userText }] });
-      for (const turn of ex.turns) {
-        // Ensure every history entry is a valid Content object for the SDK.
-        // API responses sometimes omit `parts` or `role`; normalize here.
-        contents.push({
-          role: turn.role ?? 'model',
-          parts: Array.isArray(turn.parts) ? turn.parts : [],
-        });
-      }
-    }
-
+    const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session);
-    const userText = `Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
-    contents.push({ role: 'user', parts: [{ text: userText }] });
-
+    const userMessage = `Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
     const collectedActions: AIAction[] = [];
-    const loopContents: Content[] = [];
-    let hadError = false;
-    // Turn-local projected session: later tool calls validate against
-    // the projected result of earlier accepted calls in this turn.
     let projectedSession = session;
+    let hadError = false;
+    let hadModelContent = false;
 
     try {
-      for (let round = 0; round < GluonAI.MAX_TOOL_ROUNDS; round++) {
-        // Cancellation check before API call
-        if (ctx?.isStale?.()) break;
+      if (ctx?.isStale?.()) {
+        this.planner.discardTurn();
+        return [];
+      }
 
-        const response = await this.callWithTools(contents, projectedSession);
-        const candidate = response.candidates?.[0];
-        const rawContent = candidate?.content;
+      let invocationCount = 1;
+      let result = await this.planner.startTurn({
+        systemPrompt,
+        userMessage,
+        tools: GLUON_TOOLS,
+      });
 
-        // Empty or missing content — the API returned nothing useful.
-        // This can happen when safety filters suppress the response or
-        // the model produces only thinking tokens with no visible output.
-        if (!rawContent || !Array.isArray(rawContent.parts) || rawContent.parts.length === 0) {
-          break;
+      while (invocationCount <= GluonAI.MAX_PLANNER_INVOCATIONS) {
+        if (result.textParts.length > 0 || result.functionCalls.length > 0) {
+          hadModelContent = true;
         }
 
-        // Normalize model content to guarantee valid Content shape.
-        const modelContent: Content = {
-          role: rawContent.role ?? 'model',
-          parts: rawContent.parts,
-        };
-
-        loopContents.push(modelContent);
-        contents.push(modelContent);
-
-        // Collect text parts as say actions (skip thought parts)
-        for (const part of modelContent.parts ?? []) {
-          if (part.text && !('thought' in part && part.thought)) {
-            collectedActions.push({ type: 'say', text: part.text });
-          }
+        for (const text of result.textParts) {
+          collectedActions.push({ type: 'say', text });
         }
 
-        // Check for function calls
-        const functionCalls = response.functionCalls;
-        if (!functionCalls || functionCalls.length === 0) break;
+        if (result.functionCalls.length === 0) break;
 
-        // Execute function calls sequentially against projected state
-        const responseParts: Part[] = [];
-        for (const fc of functionCalls) {
-          const result = await this.executeFunctionCall(fc, projectedSession, ctx);
-          collectedActions.push(...result.actions);
-          responseParts.push(result.responsePart);
-          // Project accepted actions onto local state for subsequent calls
-          for (const action of result.actions) {
+        const responses: FunctionResponse[] = [];
+        for (const fc of result.functionCalls) {
+          const execResult = await this.executeFunctionCall(fc, projectedSession, ctx);
+          collectedActions.push(...execResult.actions);
+          responses.push({ id: fc.id, name: fc.name, result: execResult.response });
+          for (const action of execResult.actions) {
             projectedSession = projectAction(projectedSession, action);
           }
         }
 
-        const functionResponseContent: Content = { role: 'user', parts: responseParts };
-        loopContents.push(functionResponseContent);
-        contents.push(functionResponseContent);
+        invocationCount++;
+        if (invocationCount > GluonAI.MAX_PLANNER_INVOCATIONS || ctx?.isStale?.()) break;
+
+        result = await this.planner.continueTurn({
+          systemPrompt,
+          tools: GLUON_TOOLS,
+          functionResponses: responses,
+        });
       }
     } catch (error) {
       hadError = true;
-      const errorActions = this.handleError(error);
-      collectedActions.push(...errorActions);
+      collectedActions.push(...this.handleError(error));
     }
 
-    // Only store exchange in history if the request succeeded and wasn't
-    // cancelled. Broken or stale exchanges pollute history and cause
-    // cascading SDK failures on subsequent calls.
-    if (!ctx?.isStale?.() && !hadError && loopContents.length > 0) {
-      this.exchanges.push({ userText: humanMessage, turns: loopContents });
-      if (this.exchanges.length > GluonAI.MAX_EXCHANGES) {
-        this.exchanges = this.exchanges.slice(-GluonAI.MAX_EXCHANGES);
-      }
+    if (!ctx?.isStale?.() && !hadError && hadModelContent) {
+      this.planner.commitTurn();
+    } else {
+      this.planner.discardTurn();
     }
 
     return collectedActions;
   }
 
-  private async callWithTools(contents: Content[], session: Session) {
-    if (!this.ai) throw new Error('API not configured');
-
-    const now = Date.now();
-    if (now < this.backoff.until) {
-      throw new Error('Rate limited — backing off.');
-    }
-
-    const response = await this.ai.models.generateContent({
-      model: MODEL,
-      contents: [...contents],
-      config: {
-        systemInstruction: buildSystemPrompt(session),
-        maxOutputTokens: 2048,
-        tools: [{ functionDeclarations: GLUON_TOOLS }],
-        toolConfig: {
-          functionCallingConfig: {
-            mode: FunctionCallingConfigMode.AUTO,
-          },
-        },
-      },
-    });
-
-    this.backoff = { until: 0, delay: 0 };
-    return response;
-  }
-
   private async executeFunctionCall(
-    fc: FunctionCall,
+    fc: NeutralFunctionCall,
     session: Session,
     ctx?: AskContext,
-  ): Promise<{ actions: AIAction[]; responsePart: Part }> {
-    const name = fc.name ?? '';
-    const args = fc.args ?? {};
-    const id = fc.id ?? '';
+  ): Promise<{ actions: AIAction[]; response: Record<string, unknown> }> {
+    const { name, args, id } = fc;
 
     switch (name) {
       case 'move': {
-        // Validate required args
         if (typeof args.param !== 'string' || !args.param) {
-          return errorResponse(id, name, 'Missing required parameter: param');
+          return { actions: [], response: errorPayload('Missing required parameter: param') };
         }
         const target = args.target as Record<string, unknown> | undefined;
         if (!target || (typeof target.absolute !== 'number' && typeof target.relative !== 'number')) {
-          return errorResponse(id, name, 'Missing required parameter: target (needs absolute or relative number)');
+          return { actions: [], response: errorPayload('Missing required parameter: target (needs absolute or relative number)') };
         }
 
         const targetValue = typeof target.absolute === 'number'
@@ -515,9 +406,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return errorResponse(id, name, rejection);
+        if (rejection) return { actions: [], response: errorPayload(rejection) };
 
-        // Compute resulting value for the response
         const trackId = action.trackId ?? session.activeTrackId;
         const track = session.tracks.find(v => v.id === trackId);
         let currentVal: number;
@@ -538,26 +428,26 @@ export class GluonAI {
 
         return {
           actions: [action],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             param: action.param,
             trackId,
             ...(action.processorId ? { processorId: action.processorId } : {}),
             ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
             value: Math.round(resultValue * 100) / 100,
-          }),
+          },
         };
       }
 
       case 'sketch': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
         if (!Array.isArray(args.events)) {
-          return errorResponse(id, name, 'Missing required parameter: events (must be an array)');
+          return { actions: [], response: errorPayload('Missing required parameter: events (must be an array)') };
         }
 
         const action: AISketchAction = {
@@ -568,16 +458,16 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return errorResponse(id, name, rejection);
+        if (rejection) return { actions: [], response: errorPayload(rejection) };
 
         return {
           actions: [action],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: action.trackId,
             description: action.description,
             eventCount: action.events?.length ?? 0,
-          }),
+          },
         };
       }
 
@@ -586,7 +476,7 @@ export class GluonAI {
         const hasSwing = typeof args.swing === 'number';
         const hasPlaying = typeof args.playing === 'boolean';
         if (!hasBpm && !hasSwing && !hasPlaying) {
-          return errorResponse(id, name, 'At least one of bpm, swing, or playing must be provided');
+          return { actions: [], response: errorPayload('At least one of bpm, swing, or playing must be provided') };
         }
 
         const action: AITransportAction = {
@@ -597,29 +487,28 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return errorResponse(id, name, rejection);
+        if (rejection) return { actions: [], response: errorPayload(rejection) };
 
-        // Compute resulting transport values (clamped)
         const resultBpm = action.bpm !== undefined ? Math.max(60, Math.min(200, action.bpm)) : undefined;
         const resultSwing = action.swing !== undefined ? Math.max(0, Math.min(1, action.swing)) : undefined;
 
         return {
           actions: [action],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             ...(resultBpm !== undefined ? { bpm: resultBpm } : {}),
             ...(resultSwing !== undefined ? { swing: Math.round(resultSwing * 100) / 100 } : {}),
             ...(action.playing !== undefined ? { playing: action.playing } : {}),
-          }),
+          },
         };
       }
 
       case 'set_model': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.model !== 'string' || !args.model) {
-          return errorResponse(id, name, 'Missing required parameter: model');
+          return { actions: [], response: errorPayload('Missing required parameter: model') };
         }
 
         const action: AISetModelAction = {
@@ -631,50 +520,50 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return errorResponse(id, name, rejection);
+        if (rejection) return { actions: [], response: errorPayload(rejection) };
 
         return {
           actions: [action],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             queued: true,
             trackId: action.trackId,
             model: action.model,
             ...(action.processorId ? { processorId: action.processorId } : {}),
-          }),
+          },
         };
       }
 
       case 'transform': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.operation !== 'string' || !args.operation) {
-          return errorResponse(id, name, 'Missing required parameter: operation');
+          return { actions: [], response: errorPayload('Missing required parameter: operation') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const operation = args.operation as string;
         const validOps = ['rotate', 'transpose', 'reverse', 'duplicate'];
         if (!validOps.includes(operation)) {
-          return errorResponse(id, name, `Unknown operation: ${operation}. Must be one of: ${validOps.join(', ')}`);
+          return { actions: [], response: errorPayload(`Unknown operation: ${operation}. Must be one of: ${validOps.join(', ')}`) };
         }
 
         const hasSteps = typeof args.steps === 'number';
         const hasSemitones = typeof args.semitones === 'number';
 
         if (operation === 'rotate') {
-          if (!hasSteps) return errorResponse(id, name, 'rotate requires steps parameter');
-          if (hasSemitones) return errorResponse(id, name, 'rotate does not accept semitones parameter');
-          if (args.steps === 0) return errorResponse(id, name, 'steps must be non-zero');
+          if (!hasSteps) return { actions: [], response: errorPayload('rotate requires steps parameter') };
+          if (hasSemitones) return { actions: [], response: errorPayload('rotate does not accept semitones parameter') };
+          if (args.steps === 0) return { actions: [], response: errorPayload('steps must be non-zero') };
         } else if (operation === 'transpose') {
-          if (!hasSemitones) return errorResponse(id, name, 'transpose requires semitones parameter');
-          if (hasSteps) return errorResponse(id, name, 'transpose does not accept steps parameter');
-          if (args.semitones === 0) return errorResponse(id, name, 'semitones must be non-zero');
+          if (!hasSemitones) return { actions: [], response: errorPayload('transpose requires semitones parameter') };
+          if (hasSteps) return { actions: [], response: errorPayload('transpose does not accept steps parameter') };
+          if (args.semitones === 0) return { actions: [], response: errorPayload('semitones must be non-zero') };
         } else {
-          if (hasSteps) return errorResponse(id, name, `${operation} does not accept steps parameter`);
-          if (hasSemitones) return errorResponse(id, name, `${operation} does not accept semitones parameter`);
+          if (hasSteps) return { actions: [], response: errorPayload(`${operation} does not accept steps parameter`) };
+          if (hasSemitones) return { actions: [], response: errorPayload(`${operation} does not accept semitones parameter`) };
         }
 
         const action: AITransformAction = {
@@ -687,32 +576,32 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return errorResponse(id, name, rejection);
+        if (rejection) return { actions: [], response: errorPayload(rejection) };
 
         return {
           actions: [action],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: action.trackId,
             operation: action.operation,
             description: action.description,
-          }),
+          },
         };
       }
 
       case 'add_view': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.viewKind !== 'string' || !args.viewKind) {
-          return errorResponse(id, name, 'Missing required parameter: viewKind');
+          return { actions: [], response: errorPayload('Missing required parameter: viewKind') };
         }
         const validKinds = ['step-grid'];
         if (!validKinds.includes(args.viewKind as string)) {
-          return errorResponse(id, name, `Unknown viewKind: ${args.viewKind}. Must be one of: ${validKinds.join(', ')}`);
+          return { actions: [], response: errorPayload(`Unknown viewKind: ${args.viewKind}. Must be one of: ${validKinds.join(', ')}`) };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const addViewAction: AIAddViewAction = {
@@ -723,27 +612,27 @@ export class GluonAI {
         };
 
         const addViewRejection = ctx?.validateAction?.(addViewAction);
-        if (addViewRejection) return errorResponse(id, name, addViewRejection);
+        if (addViewRejection) return { actions: [], response: errorPayload(addViewRejection) };
 
         return {
           actions: [addViewAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: addViewAction.trackId,
             viewKind: addViewAction.viewKind,
-          }),
+          },
         };
       }
 
       case 'remove_view': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.viewId !== 'string' || !args.viewId) {
-          return errorResponse(id, name, 'Missing required parameter: viewId');
+          return { actions: [], response: errorPayload('Missing required parameter: viewId') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const removeViewAction: AIRemoveViewAction = {
@@ -754,38 +643,36 @@ export class GluonAI {
         };
 
         const removeViewRejection = ctx?.validateAction?.(removeViewAction);
-        if (removeViewRejection) return errorResponse(id, name, removeViewRejection);
+        if (removeViewRejection) return { actions: [], response: errorPayload(removeViewRejection) };
 
         return {
           actions: [removeViewAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: removeViewAction.trackId,
             viewId: removeViewAction.viewId,
-          }),
+          },
         };
       }
 
       case 'add_processor': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.moduleType !== 'string' || !args.moduleType) {
-          return errorResponse(id, name, 'Missing required parameter: moduleType');
+          return { actions: [], response: errorPayload('Missing required parameter: moduleType') };
         }
-        // Chain validation: type and capacity
         const track = session.tracks.find(v => v.id === args.trackId);
         if (track) {
           const chainResult = validateChainMutation(track, { kind: 'add', type: args.moduleType as string });
           if (!chainResult.valid) {
-            return errorResponse(id, name, chainResult.errors[0]);
+            return { actions: [], response: errorPayload(chainResult.errors[0]) };
           }
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
-        // Generate the processor ID once — used by projection, execution, and response
         const assignedProcessorId = `${args.moduleType}-${Date.now()}`;
 
         const addProcAction: AIAddProcessorAction = {
@@ -797,28 +684,28 @@ export class GluonAI {
         };
 
         const addProcRejection = ctx?.validateAction?.(addProcAction);
-        if (addProcRejection) return errorResponse(id, name, addProcRejection);
+        if (addProcRejection) return { actions: [], response: errorPayload(addProcRejection) };
 
         return {
           actions: [addProcAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: addProcAction.trackId,
             moduleType: addProcAction.moduleType,
             processorId: assignedProcessorId,
-          }),
+          },
         };
       }
 
       case 'remove_processor': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.processorId !== 'string' || !args.processorId) {
-          return errorResponse(id, name, 'Missing required parameter: processorId');
+          return { actions: [], response: errorPayload('Missing required parameter: processorId') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const removeProcAction: AIRemoveProcessorAction = {
@@ -829,33 +716,32 @@ export class GluonAI {
         };
 
         const removeProcRejection = ctx?.validateAction?.(removeProcAction);
-        if (removeProcRejection) return errorResponse(id, name, removeProcRejection);
+        if (removeProcRejection) return { actions: [], response: errorPayload(removeProcRejection) };
 
         return {
           actions: [removeProcAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: removeProcAction.trackId,
             processorId: removeProcAction.processorId,
-          }),
+          },
         };
       }
 
       case 'replace_processor': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.processorId !== 'string' || !args.processorId) {
-          return errorResponse(id, name, 'Missing required parameter: processorId');
+          return { actions: [], response: errorPayload('Missing required parameter: processorId') };
         }
         if (typeof args.newModuleType !== 'string' || !args.newModuleType) {
-          return errorResponse(id, name, 'Missing required parameter: newModuleType');
+          return { actions: [], response: errorPayload('Missing required parameter: newModuleType') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
-        // Generate the replacement processor ID once — used by projection, execution, and response
         const newProcessorId = `${args.newModuleType}-${Date.now()}`;
 
         const replaceAction: AIReplaceProcessorAction = {
@@ -868,36 +754,36 @@ export class GluonAI {
         };
 
         const replaceRejection = ctx?.validateAction?.(replaceAction);
-        if (replaceRejection) return errorResponse(id, name, replaceRejection);
+        if (replaceRejection) return { actions: [], response: errorPayload(replaceRejection) };
 
         return {
           actions: [replaceAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: replaceAction.trackId,
             replacedProcessorId: replaceAction.processorId,
             newModuleType: replaceAction.newModuleType,
             newProcessorId,
-          }),
+          },
         };
       }
 
       case 'add_modulator': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.moduleType !== 'string' || !args.moduleType) {
-          return errorResponse(id, name, 'Missing required parameter: moduleType');
+          return { actions: [], response: errorPayload('Missing required parameter: moduleType') };
         }
         const track = session.tracks.find(v => v.id === args.trackId);
         if (track) {
           const modResult = validateModulatorMutation(track, { kind: 'add', type: args.moduleType as string });
           if (!modResult.valid) {
-            return errorResponse(id, name, modResult.errors[0]);
+            return { actions: [], response: errorPayload(modResult.errors[0]) };
           }
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const assignedModulatorId = `${args.moduleType}-${Date.now()}`;
@@ -911,28 +797,28 @@ export class GluonAI {
         };
 
         const addModRejection = ctx?.validateAction?.(addModAction);
-        if (addModRejection) return errorResponse(id, name, addModRejection);
+        if (addModRejection) return { actions: [], response: errorPayload(addModRejection) };
 
         return {
           actions: [addModAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             queued: true,
             trackId: addModAction.trackId,
             moduleType: addModAction.moduleType,
             modulatorId: assignedModulatorId,
-          }),
+          },
         };
       }
 
       case 'remove_modulator': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
-          return errorResponse(id, name, 'Missing required parameter: modulatorId');
+          return { actions: [], response: errorPayload('Missing required parameter: modulatorId') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const removeModAction: AIRemoveModulatorAction = {
@@ -943,51 +829,50 @@ export class GluonAI {
         };
 
         const removeModRejection = ctx?.validateAction?.(removeModAction);
-        if (removeModRejection) return errorResponse(id, name, removeModRejection);
+        if (removeModRejection) return { actions: [], response: errorPayload(removeModRejection) };
 
         return {
           actions: [removeModAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             queued: true,
             trackId: removeModAction.trackId,
             modulatorId: removeModAction.modulatorId,
-          }),
+          },
         };
       }
 
       case 'connect_modulator': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
-          return errorResponse(id, name, 'Missing required parameter: modulatorId');
+          return { actions: [], response: errorPayload('Missing required parameter: modulatorId') };
         }
         if (typeof args.targetKind !== 'string' || !args.targetKind) {
-          return errorResponse(id, name, 'Missing required parameter: targetKind');
+          return { actions: [], response: errorPayload('Missing required parameter: targetKind') };
         }
         if (typeof args.targetParam !== 'string' || !args.targetParam) {
-          return errorResponse(id, name, 'Missing required parameter: targetParam');
+          return { actions: [], response: errorPayload('Missing required parameter: targetParam') };
         }
         if (typeof args.depth !== 'number') {
-          return errorResponse(id, name, 'Missing required parameter: depth');
+          return { actions: [], response: errorPayload('Missing required parameter: depth') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const targetKind = args.targetKind as string;
         if (targetKind !== 'source' && targetKind !== 'processor') {
-          return errorResponse(id, name, `targetKind must be "source" or "processor", got "${targetKind}"`);
+          return { actions: [], response: errorPayload(`targetKind must be "source" or "processor", got "${targetKind}"`) };
         }
         if (targetKind === 'processor' && (typeof args.processorId !== 'string' || !args.processorId)) {
-          return errorResponse(id, name, 'processorId is required when targetKind is "processor"');
+          return { actions: [], response: errorPayload('processorId is required when targetKind is "processor"') };
         }
 
         const modTarget: ModulationTarget = targetKind === 'source'
           ? { kind: 'source', param: args.targetParam as string }
           : { kind: 'processor', processorId: args.processorId as string, param: args.targetParam as string };
 
-        // Check for existing route (for idempotent response)
         const connectTrack = session.tracks.find(v => v.id === args.trackId);
         const existingRoute = (connectTrack?.modulations ?? []).find(r =>
           r.modulatorId === args.modulatorId &&
@@ -996,7 +881,6 @@ export class GluonAI {
           (modTarget.kind === 'source' || (modTarget.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === modTarget.processorId))
         );
 
-        // Pre-assign route ID for new routes (enables same-turn disconnect)
         const preAssignedId = existingRoute?.id ?? `mod-${Date.now()}`;
 
         const connectAction: AIConnectModulatorAction = {
@@ -1010,7 +894,7 @@ export class GluonAI {
         };
 
         const connectRejection = ctx?.validateAction?.(connectAction);
-        if (connectRejection) return errorResponse(id, name, connectRejection);
+        if (connectRejection) return { actions: [], response: errorPayload(connectRejection) };
 
         const targetStr = modTarget.kind === 'source'
           ? `source:${modTarget.param}`
@@ -1018,26 +902,26 @@ export class GluonAI {
 
         return {
           actions: [connectAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             queued: true,
             modulationId: preAssignedId,
             created: !existingRoute,
             ...(existingRoute ? { previousDepth: existingRoute.depth } : {}),
             target: targetStr,
             depth: args.depth,
-          }),
+          },
         };
       }
 
       case 'disconnect_modulator': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.modulationId !== 'string' || !args.modulationId) {
-          return errorResponse(id, name, 'Missing required parameter: modulationId');
+          return { actions: [], response: errorPayload('Missing required parameter: modulationId') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
         const disconnectAction: AIDisconnectModulatorAction = {
@@ -1048,30 +932,29 @@ export class GluonAI {
         };
 
         const disconnectRejection = ctx?.validateAction?.(disconnectAction);
-        if (disconnectRejection) return errorResponse(id, name, disconnectRejection);
+        if (disconnectRejection) return { actions: [], response: errorPayload(disconnectRejection) };
 
         return {
           actions: [disconnectAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             queued: true,
             trackId: disconnectAction.trackId,
             modulationId: disconnectAction.modulationId,
-          }),
+          },
         };
       }
 
       case 'set_surface': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (!Array.isArray(args.semanticControls)) {
-          return errorResponse(id, name, 'Missing required parameter: semanticControls (must be an array)');
+          return { actions: [], response: errorPayload('Missing required parameter: semanticControls (must be an array)') };
         }
         if (typeof args.description !== 'string') {
-          return errorResponse(id, name, 'Missing required parameter: description');
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
-        // Parse semantic controls from tool args
         const rawControls = args.semanticControls as Record<string, unknown>[];
         const semanticControls: SemanticControlDef[] = rawControls.map((sc, i) => {
           const rawWeights = (sc.weights as Record<string, unknown>[]) ?? [];
@@ -1106,27 +989,27 @@ export class GluonAI {
         };
 
         const setSurfaceRejection = ctx?.validateAction?.(setSurfaceAction);
-        if (setSurfaceRejection) return errorResponse(id, name, setSurfaceRejection);
+        if (setSurfaceRejection) return { actions: [], response: errorPayload(setSurfaceRejection) };
 
         return {
           actions: [setSurfaceAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: setSurfaceAction.trackId,
             controlCount: semanticControls.length,
-          }),
+          },
         };
       }
 
       case 'pin': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.moduleId !== 'string' || !args.moduleId) {
-          return errorResponse(id, name, 'Missing required parameter: moduleId');
+          return { actions: [], response: errorPayload('Missing required parameter: moduleId') };
         }
         if (typeof args.controlId !== 'string' || !args.controlId) {
-          return errorResponse(id, name, 'Missing required parameter: controlId');
+          return { actions: [], response: errorPayload('Missing required parameter: controlId') };
         }
 
         const pinAction: AIPinAction = {
@@ -1138,28 +1021,28 @@ export class GluonAI {
         };
 
         const pinRejection = ctx?.validateAction?.(pinAction);
-        if (pinRejection) return errorResponse(id, name, pinRejection);
+        if (pinRejection) return { actions: [], response: errorPayload(pinRejection) };
 
         return {
           actions: [pinAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: pinAction.trackId,
             moduleId: pinAction.moduleId,
             controlId: pinAction.controlId,
-          }),
+          },
         };
       }
 
       case 'unpin': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.moduleId !== 'string' || !args.moduleId) {
-          return errorResponse(id, name, 'Missing required parameter: moduleId');
+          return { actions: [], response: errorPayload('Missing required parameter: moduleId') };
         }
         if (typeof args.controlId !== 'string' || !args.controlId) {
-          return errorResponse(id, name, 'Missing required parameter: controlId');
+          return { actions: [], response: errorPayload('Missing required parameter: controlId') };
         }
 
         const unpinAction: AIUnpinAction = {
@@ -1171,28 +1054,28 @@ export class GluonAI {
         };
 
         const unpinRejection = ctx?.validateAction?.(unpinAction);
-        if (unpinRejection) return errorResponse(id, name, unpinRejection);
+        if (unpinRejection) return { actions: [], response: errorPayload(unpinRejection) };
 
         return {
           actions: [unpinAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: unpinAction.trackId,
             moduleId: unpinAction.moduleId,
             controlId: unpinAction.controlId,
-          }),
+          },
         };
       }
 
       case 'label_axes': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
-          return errorResponse(id, name, 'Missing required parameter: trackId');
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         if (typeof args.x !== 'string' || !args.x) {
-          return errorResponse(id, name, 'Missing required parameter: x');
+          return { actions: [], response: errorPayload('Missing required parameter: x') };
         }
         if (typeof args.y !== 'string' || !args.y) {
-          return errorResponse(id, name, 'Missing required parameter: y');
+          return { actions: [], response: errorPayload('Missing required parameter: y') };
         }
 
         const labelAxesAction: AILabelAxesAction = {
@@ -1204,65 +1087,47 @@ export class GluonAI {
         };
 
         const labelAxesRejection = ctx?.validateAction?.(labelAxesAction);
-        if (labelAxesRejection) return errorResponse(id, name, labelAxesRejection);
+        if (labelAxesRejection) return { actions: [], response: errorPayload(labelAxesRejection) };
 
         return {
           actions: [labelAxesAction],
-          responsePart: createPartFromFunctionResponse(id, name, {
+          response: {
             applied: true,
             trackId: labelAxesAction.trackId,
             x: labelAxesAction.x,
             y: labelAxesAction.y,
-          }),
+          },
         };
       }
 
       case 'listen': {
-        // Cancellation check before side effect
         if (ctx?.isStale?.()) {
-          return {
-            actions: [],
-            responsePart: createPartFromFunctionResponse(id, name, {
-              error: 'Request cancelled.',
-            }),
-          };
+          return { actions: [], response: { error: 'Request cancelled.' } };
         }
 
         const question = (args.question as string) ?? 'How does it sound?';
         const rawBars = typeof args.bars === 'number' ? args.bars : 2;
         const bars = Math.max(1, Math.min(16, Math.round(rawBars)));
         const rawTrackIds = args.trackIds as string[] | undefined;
-        // Empty array = same as omitting (hear all unmuted tracks)
         const trackIds = rawTrackIds && rawTrackIds.length > 0 ? rawTrackIds : undefined;
 
-        // Validate that all requested track IDs exist in the session
         if (trackIds) {
           const sessionTrackIds = new Set(session.tracks.map(v => v.id));
           const invalid = trackIds.filter(vid => !sessionTrackIds.has(vid));
           if (invalid.length > 0) {
             return {
               actions: [],
-              responsePart: createPartFromFunctionResponse(id, name, {
-                error: `Unknown track IDs: ${invalid.join(', ')}. Available: ${[...sessionTrackIds].join(', ')}.`,
-              }),
+              response: { error: `Unknown track IDs: ${invalid.join(', ')}. Available: ${[...sessionTrackIds].join(', ')}.` },
             };
           }
         }
 
         const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds);
-        return {
-          actions: [],
-          responsePart: createPartFromFunctionResponse(id, name, result),
-        };
+        return { actions: [], response: result };
       }
 
       default:
-        return {
-          actions: [],
-          responsePart: createPartFromFunctionResponse(id, name, {
-            error: `Unknown tool: ${name}`,
-          }),
-        };
+        return { actions: [], response: { error: `Unknown tool: ${name}` } };
     }
   }
 
@@ -1281,87 +1146,46 @@ export class GluonAI {
       listen.onListening?.(true);
 
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
+      const state = compressState(session);
 
-      const critique = await this.evaluateAudio(session, wavBlob, 'audio/wav', question);
+      const critique = await this.listener.evaluate({
+        systemPrompt: GLUON_LISTEN_PROMPT,
+        stateJson: JSON.stringify(state),
+        question,
+        audioData: wavBlob,
+        mimeType: 'audio/wav',
+      });
       return { critique };
-    } catch {
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        const actions = this.handleError(error);
+        const sayAction = actions.find(a => a.type === 'say');
+        return { error: sayAction && 'text' in sayAction ? sayAction.text : 'Audio evaluation failed.' };
+      }
       return { error: 'Audio evaluation failed — try again.' };
     } finally {
       listen.onListening?.(false);
     }
   }
 
-  private async evaluateAudio(
-    session: Session,
-    audioBlob: Blob,
-    mimeType: string,
-    question: string,
-  ): Promise<string> {
-    if (!this.ai) return 'API not configured.';
-
-    const now = Date.now();
-    if (now < this.backoff.until) return 'Rate limited — try again shortly.';
-
-    const state = compressState(session);
-    const audioBytes = new Uint8Array(await audioBlob.arrayBuffer());
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < audioBytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...audioBytes.subarray(i, i + chunkSize));
-    }
-    const audioBase64 = btoa(binary);
-
-    try {
-      const response = await this.ai.models.generateContent({
-        model: MODEL,
-        config: {
-          systemInstruction: GLUON_LISTEN_PROMPT,
-        },
-        contents: [{
-          role: 'user',
-          parts: [
-            { text: `Project state:\n${JSON.stringify(state)}\n\nQuestion: ${question}` },
-            { inlineData: { mimeType, data: audioBase64 } },
-          ],
-        }],
-      });
-
-      this.backoff = { until: 0, delay: 0 };
-      return response.text ?? 'No response from model.';
-    } catch (error) {
-      const actions = this.handleError(error);
-      const sayAction = actions.find(a => a.type === 'say');
-      return sayAction && 'text' in sayAction ? sayAction.text : 'Audio evaluation failed.';
-    }
-  }
-
   private handleError(error: unknown): AIAction[] {
-    const msg = error instanceof Error ? error.message : String(error);
-    const status = (error as { status?: number }).status
-      ?? (error as { httpStatusCode?: number }).httpStatusCode;
-
-    if (status === 429 || /rate.limit|quota|resource.exhausted/i.test(msg)) {
-      const delay = Math.min(this.backoff.delay ? this.backoff.delay * 2 : 5_000, 120_000);
-      this.backoff = { until: Date.now() + delay, delay };
-      const secs = Math.round(delay / 1000);
-      return [{ type: 'say', text: `Rate limited — backing off for ${secs}s.` }];
+    if (error instanceof ProviderError) {
+      switch (error.kind) {
+        case 'rate_limited':
+          return [{ type: 'say', text: `Rate limited — backing off for ${Math.round(error.retryAfterMs / 1000)}s.` }];
+        case 'auth':
+          return [{ type: 'say', text: 'API key invalid or missing permissions.' }];
+        case 'server':
+          return [{ type: 'say', text: 'API error — retrying shortly.' }];
+        default:
+          break;
+      }
     }
-
-    if (status === 401 || status === 403 || /api.key|unauthorized|forbidden/i.test(msg)) {
-      return [{ type: 'say', text: 'API key invalid or missing permissions. Check your Google API key.' }];
-    }
-
-    if (status && status >= 500) {
-      this.backoff = { until: Date.now() + 10_000, delay: 10_000 };
-      return [{ type: 'say', text: 'Gemini API error — retrying shortly.' }];
-    }
-
     console.error('Gluon AI call failed:', error);
     return [];
   }
 
   clearHistory(): void {
-    this.exchanges = [];
-    this.backoff = { until: 0, delay: 0 };
+    this.planner.clearHistory();
   }
 }
