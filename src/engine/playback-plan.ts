@@ -34,12 +34,11 @@ export class PlaybackPlan {
     this.planned.clear();
   }
 
-  admit(eventId: RuntimeEventId, absoluteStep: number, generation: number): boolean {
+  admit(eventId: RuntimeEventId, absoluteStep: number, generation: number, trackId: string): boolean {
     if (generation !== this.generation) {
       this.reset(generation);
     }
     if (this.planned.has(eventId)) return false;
-    const [, trackId = ''] = eventId.split(':', 3);
     this.planned.set(eventId, { absoluteStep, trackId, generation });
     return true;
   }
