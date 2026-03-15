@@ -69,6 +69,18 @@ ${generateTrackSetup(session)}
 9. Use the transform tool to rotate, transpose, reverse, or duplicate existing patterns instead of rewriting them with sketch.
 10. After sketching a percussion pattern, add a step-grid view if the track doesn't already have one. Only add views after relevant actions or when asked — don't add them unsolicited.
 
+## Approval Levels
+Each track has an approval level indicating how the human values its current material. Check the \`approval\` field in the compressed state for each track.
+
+| Level | Meaning | Your behavior |
+|-------|---------|---------------|
+| **exploratory** | Default. Work in progress. | May freely edit or replace. |
+| **liked** | Human reacted positively but hasn't committed. | Preserve unless the human asks for changes. |
+| **approved** | Human explicitly approved this material. | Must preserve during expansion. Only edit if the human explicitly asks. |
+| **anchor** | Core identity of the track. | Must preserve exact characteristics. Ask for confirmation before any change. |
+
+When the human asks you to make changes that would affect approved or anchor material, acknowledge the approval level and confirm before proceeding. For liked material, preserve it by default but proceed if the human's request clearly implies a change. Exploratory material is fair game — no special treatment needed.
+
 ## Plaits Models Reference
 ${generateModelReference()}
 

@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateTrack, DEFAULT_MASTER } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
@@ -49,6 +49,7 @@ function createTrack(index: number): Track {
       xyAxes: { x: 'brightness', y: 'texture' },
       thumbprint: { type: 'static-color' },
     },
+    approval: 'exploratory',
   };
 }
 
@@ -76,6 +77,22 @@ export function createSession(): Session {
 
 export function setAgency(session: Session, trackId: string, agency: Agency): Session {
   return updateTrack(session, trackId, { agency });
+}
+
+export function setApproval(session: Session, trackId: string, level: ApprovalLevel): Session {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+  const prev = track.approval ?? 'exploratory';
+  if (prev === level) return session;
+  const snapshot: ApprovalSnapshot = {
+    kind: 'approval',
+    trackId,
+    prevApproval: prev,
+    timestamp: Date.now(),
+    description: `Set approval: ${prev} → ${level}`,
+  };
+  const updated = updateTrack(session, trackId, { approval: level });
+  return { ...updated, undoStack: [...updated.undoStack, snapshot] };
 }
 
 export function updateTrackParams(
