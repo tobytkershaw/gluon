@@ -13,6 +13,9 @@ import { buildListenPrompt } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse } from './types';
 import { ProviderError } from './types';
+import { analyzeSpectral, analyzeDynamics, analyzeRhythm } from '../audio/audio-analysis';
+import { getSnapshot, storeSnapshot, nextSnapshotId, type AudioSnapshot } from '../audio/snapshot-store';
+import type { PcmRenderResult } from '../audio/render-offline';
 
 /**
  * Lightweight projection of an action onto session state.
@@ -285,8 +288,10 @@ function errorPayload(message: string): Record<string, unknown> {
 
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
-  /** Render audio offline — no transport or AudioContext needed. */
+  /** Render audio offline — no transport or AudioContext needed. Returns WAV Blob. */
   renderOffline: (session: Session, trackIds?: string[], bars?: number) => Promise<Blob>;
+  /** Render audio offline — returns raw PCM + sample rate for analysis tools. */
+  renderOfflinePcm?: (session: Session, trackIds?: string[], bars?: number) => Promise<PcmRenderResult>;
   onListening?: (active: boolean) => void;
 }
 
@@ -1163,6 +1168,103 @@ export class GluonAI {
 
         const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds);
         return { actions: [], response: result };
+      }
+
+      // --- Audio analysis tools ---
+
+      case 'render': {
+        if (ctx?.isStale?.()) {
+          return { actions: [], response: { error: 'Request cancelled.' } };
+        }
+        if (!ctx?.listen?.renderOfflinePcm) {
+          return { actions: [], response: errorPayload('Render not available.') };
+        }
+
+        const rawBars = typeof args.bars === 'number' ? args.bars : 2;
+        const renderBars = Math.max(1, Math.min(16, Math.round(rawBars)));
+
+        // Parse scope: string, string[], or undefined (full mix)
+        let renderTrackIds: string[] | undefined;
+        if (typeof args.scope === 'string') {
+          renderTrackIds = [args.scope];
+        } else if (Array.isArray(args.scope)) {
+          renderTrackIds = args.scope as string[];
+        }
+
+        // Validate track IDs
+        if (renderTrackIds) {
+          const sessionTrackIds = new Set(session.tracks.map(v => v.id));
+          const invalid = renderTrackIds.filter(vid => !sessionTrackIds.has(vid));
+          if (invalid.length > 0) {
+            return {
+              actions: [],
+              response: errorPayload(`Unknown track IDs: ${invalid.join(', ')}. Available: ${[...sessionTrackIds].join(', ')}.`),
+            };
+          }
+        }
+
+        try {
+          const { pcm, sampleRate } = await ctx.listen.renderOfflinePcm(session, renderTrackIds, renderBars);
+          const snapshotId = nextSnapshotId();
+          storeSnapshot({
+            id: snapshotId,
+            pcm,
+            sampleRate,
+            scope: renderTrackIds ?? [],
+            bars: renderBars,
+          });
+          return {
+            actions: [],
+            response: {
+              snapshotId,
+              scope: renderTrackIds ?? 'full_mix',
+              bars: renderBars,
+            },
+          };
+        } catch (error) {
+          return { actions: [], response: errorPayload('Render failed — try again.') };
+        }
+      }
+
+      case 'spectral': {
+        const snapshotId = args.snapshotId as string;
+        if (!snapshotId) {
+          return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
+        }
+        const snapshot = getSnapshot(snapshotId);
+        if (!snapshot) {
+          return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
+        }
+        const result = analyzeSpectral(snapshot.pcm, snapshot.sampleRate);
+        return { actions: [], response: result as unknown as Record<string, unknown> };
+      }
+
+      case 'dynamics': {
+        const snapshotId = args.snapshotId as string;
+        if (!snapshotId) {
+          return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
+        }
+        const snapshot = getSnapshot(snapshotId);
+        if (!snapshot) {
+          return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
+        }
+        const result = analyzeDynamics(snapshot.pcm, snapshot.sampleRate);
+        return { actions: [], response: result as unknown as Record<string, unknown> };
+      }
+
+      case 'rhythm': {
+        const snapshotId = args.snapshotId as string;
+        if (!snapshotId) {
+          return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
+        }
+        const snapshot = getSnapshot(snapshotId);
+        if (!snapshot) {
+          return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
+        }
+        // Pass BPM from session transport for better rhythm analysis
+        const bpm = session.transport.bpm;
+        const result = analyzeRhythm(snapshot.pcm, snapshot.sampleRate, bpm);
+        return { actions: [], response: result as unknown as Record<string, unknown> };
       }
 
       default:

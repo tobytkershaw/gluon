@@ -578,6 +578,80 @@ const setImportanceTool: ToolSchema = {
   },
 };
 
+const renderTool: ToolSchema = {
+  name: 'render',
+  description:
+    'Capture an audio snapshot with explicit scope. Returns a snapshotId that can be passed to spectral, dynamics, rhythm, or listen for analysis. ' +
+    'Cheap — use freely before analysis tools. ' +
+    'Changes you make in this turn aren\'t audible yet — render in a follow-up turn to capture your edits.',
+  parameters: {
+    type: 'object',
+    properties: {
+      scope: {
+        description: 'Track ID ("v0"), array of track IDs (["v0", "v1"]), or omit for full mix. Use the narrowest scope that answers your question.',
+      },
+      bars: {
+        type: 'integer',
+        description: 'Duration to render in bars (1-16, default 2). Spectral: 1-2 bars. Dynamics/rhythm: 2-4 bars.',
+      },
+    },
+  },
+};
+
+const spectralTool: ToolSchema = {
+  name: 'spectral',
+  description:
+    'Measure timbral characteristics of a rendered audio snapshot. Returns spectral centroid (brightness), ' +
+    'rolloff, flatness, bandwidth, fundamental frequency estimate, pitch stability, and signal type classification. ' +
+    'Cheap — use after render to verify timbre changes, check pitch, or compare tonal character across tracks.',
+  parameters: {
+    type: 'object',
+    properties: {
+      snapshotId: {
+        type: 'string',
+        description: 'Snapshot ID from a previous render call.',
+      },
+    },
+    required: ['snapshotId'],
+  },
+};
+
+const dynamicsTool: ToolSchema = {
+  name: 'dynamics',
+  description:
+    'Measure loudness and dynamic range of a rendered audio snapshot. Returns LUFS, RMS, peak level, ' +
+    'crest factor, and dynamic range. Values in dB. ' +
+    'Cheap — use after render to check balance between tracks, detect over-compression, or verify level changes.',
+  parameters: {
+    type: 'object',
+    properties: {
+      snapshotId: {
+        type: 'string',
+        description: 'Snapshot ID from a previous render call.',
+      },
+    },
+    required: ['snapshotId'],
+  },
+};
+
+const rhythmTool: ToolSchema = {
+  name: 'rhythm',
+  description:
+    'Measure rhythmic properties of a rendered audio snapshot. Returns tempo estimate, onset count and times, ' +
+    'rhythmic density, and swing estimate. ' +
+    'Cheap — use after render to verify pattern density, confirm swing adjustments, or compare onset patterns.',
+  parameters: {
+    type: 'object',
+    properties: {
+      snapshotId: {
+        type: 'string',
+        description: 'Snapshot ID from a previous render call.',
+      },
+    },
+    required: ['snapshotId'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -599,4 +673,8 @@ export const GLUON_TOOLS: ToolSchema[] = [
   unpinTool,
   labelAxesTool,
   setImportanceTool,
+  renderTool,
+  spectralTool,
+  dynamicsTool,
+  rhythmTool,
 ];
