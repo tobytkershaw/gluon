@@ -1,12 +1,13 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { getTrackLabel } from '../engine/track-labels';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { projectRegionToPattern } from '../engine/region-projection';
+import { generatePreservationReport } from '../engine/operation-executor';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
@@ -518,9 +519,21 @@ export class GluonAI {
         const rhythmChanged = prevOnsets.length !== newOnsets.length ||
           prevOnsets.some((t, i) => Math.abs(t - newOnsets[i]) > 0.001);
 
-        // Check if track has approval above exploratory (parameter lock awareness)
+        // Check if track has approval above exploratory
         const approval = sketchTrack?.approval ?? 'exploratory';
         const hasApprovalLock = approval !== 'exploratory';
+
+        // Generate preservation report for tracks with approval >= 'liked'
+        const preservationLevels = new Set(['liked', 'approved', 'anchor']);
+        let preservationReport: PreservationReport | undefined;
+        if (preservationLevels.has(approval) && action.events && sketchTrack?.regions[0]) {
+          preservationReport = generatePreservationReport(
+            action.trackId,
+            approval,
+            sketchTrack.regions[0].events ?? [],
+            action.events,
+          );
+        }
 
         return {
           actions: [action],
@@ -533,6 +546,7 @@ export class GluonAI {
             eventsModified,
             rhythmChanged,
             ...(hasApprovalLock ? { approvalLevel: approval } : {}),
+            ...(preservationReport ? { preservation: preservationReport } : {}),
           },
         };
       }

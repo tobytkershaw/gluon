@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -111,6 +111,8 @@ export interface OperationExecutionReport {
   log: ExecutionReportLogEntry[];
   /** For accepted move actions, maps action index → resolved runtime param key */
   resolvedParams: Map<number, string>;
+  /** Preservation reports for sketch edits on tracks with approval >= 'liked' */
+  preservationReports: PreservationReport[];
 }
 
 /** Result of resolving a move action's param through the adapter */
@@ -474,6 +476,119 @@ function maybeApplySurfaceTemplate(session: Session, trackId: string, descriptio
   };
 }
 
+// ---------------------------------------------------------------------------
+// Preservation report generation
+// ---------------------------------------------------------------------------
+
+/** Approval levels that trigger preservation report generation. */
+const PRESERVATION_LEVELS: ReadonlySet<ApprovalLevel> = new Set(['liked', 'approved', 'anchor']);
+
+/**
+ * Generate a PreservationReport comparing old and new events for a track.
+ * Only called for tracks with approval >= 'liked'.
+ */
+export function generatePreservationReport(
+  trackId: string,
+  approvalLevel: ApprovalLevel,
+  oldEvents: MusicalEvent[],
+  newEvents: MusicalEvent[],
+): PreservationReport {
+  // Extract rhythm positions (the 'at' values of sound events: triggers and notes)
+  const getSoundPositions = (events: MusicalEvent[]): number[] =>
+    events
+      .filter(e => e.kind === 'trigger' || e.kind === 'note')
+      .map(e => Math.round(e.at * 1000) / 1000)
+      .sort((a, b) => a - b);
+
+  const oldPositions = getSoundPositions(oldEvents);
+  const newPositions = getSoundPositions(newEvents);
+
+  // Rhythm preserved if the same set of time positions
+  const rhythmPositions =
+    oldPositions.length === newPositions.length &&
+    oldPositions.every((pos, i) => Math.abs(pos - newPositions[i]) < 0.001);
+
+  // Event count preserved
+  const eventCount = oldEvents.length === newEvents.length;
+
+  // Pitch contour: compare relative pitch relationships of note events
+  const getPitches = (events: MusicalEvent[]): number[] =>
+    events
+      .filter((e): e is import('./canonical-types').NoteEvent => e.kind === 'note')
+      .sort((a, b) => a.at - b.at)
+      .map(e => e.pitch);
+
+  const oldPitches = getPitches(oldEvents);
+  const newPitches = getPitches(newEvents);
+
+  let pitchContour = true;
+  if (oldPitches.length !== newPitches.length || oldPitches.length === 0) {
+    // If no notes or different count, contour can't be compared
+    pitchContour = oldPitches.length === newPitches.length;
+  } else if (oldPitches.length > 1) {
+    // Compare relative intervals (contour shape)
+    const getIntervals = (pitches: number[]) =>
+      pitches.slice(1).map((p, i) => Math.sign(p - pitches[i]));
+    const oldIntervals = getIntervals(oldPitches);
+    const newIntervals = getIntervals(newPitches);
+    pitchContour = oldIntervals.every((dir, i) => dir === newIntervals[i]);
+  }
+
+  // Build changed list
+  const changed: string[] = [];
+
+  if (!rhythmPositions) {
+    const added = newPositions.length - oldPositions.length;
+    if (added > 0) changed.push(`${added} rhythm position${added !== 1 ? 's' : ''} added`);
+    else if (added < 0) changed.push(`${-added} rhythm position${added !== -1 ? 's' : ''} removed`);
+    else changed.push('rhythm positions shifted');
+  }
+
+  if (!eventCount) {
+    const diff = newEvents.length - oldEvents.length;
+    if (diff > 0) changed.push(`${diff} event${diff !== 1 ? 's' : ''} added`);
+    else changed.push(`${-diff} event${-diff !== 1 ? 's' : ''} removed`);
+  }
+
+  if (!pitchContour && oldPitches.length > 0) {
+    changed.push('pitch contour modified');
+  }
+
+  // Detect velocity changes on sound events
+  const getVelocities = (events: MusicalEvent[]): number[] =>
+    events
+      .filter(e => e.kind === 'trigger' || e.kind === 'note')
+      .sort((a, b) => a.at - b.at)
+      .map(e => (e as { velocity?: number }).velocity ?? 1.0);
+
+  const oldVels = getVelocities(oldEvents);
+  const newVels = getVelocities(newEvents);
+  if (oldVels.length === newVels.length) {
+    const velChanges = oldVels.filter((v, i) => Math.abs(v - newVels[i]) > 0.001).length;
+    if (velChanges > 0) {
+      changed.push(`${velChanges} velocity value${velChanges !== 1 ? 's' : ''} modified`);
+    }
+  }
+
+  // Detect parameter event changes
+  const getParamEvents = (events: MusicalEvent[]) =>
+    events.filter(e => e.kind === 'parameter');
+  const oldParams = getParamEvents(oldEvents);
+  const newParams = getParamEvents(newEvents);
+  if (oldParams.length !== newParams.length) {
+    const diff = newParams.length - oldParams.length;
+    if (diff > 0) changed.push(`${diff} parameter event${diff !== 1 ? 's' : ''} added`);
+    else changed.push(`${-diff} parameter event${-diff !== 1 ? 's' : ''} removed`);
+  }
+
+  return {
+    trackId,
+    preserved: { rhythmPositions, eventCount, pitchContour },
+    changed,
+    approvalLevel,
+  };
+}
+
 export function executeOperations(
   session: Session,
   actions: AIAction[],
@@ -485,6 +600,7 @@ export function executeOperations(
   const log: ExecutionReportLogEntry[] = [];
   const sayTexts: string[] = [];
   const resolvedParams = new Map<number, string>();
+  const preservationReports: PreservationReport[] = [];
 
   let next = session;
   const undoBaseline = session.undoStack.length;
@@ -655,7 +771,10 @@ export function executeOperations(
       case 'sketch': {
         const track = getTrack(next, action.trackId);
         const eventsBefore = track.regions[0]?.events?.length ?? 0;
+        const oldEventsForReport = track.regions[0]?.events ?? [];
+        const trackApproval = track.approval ?? 'exploratory';
         let eventsAfter = eventsBefore;
+        let newEventsForReport: MusicalEvent[] | undefined;
 
         if (action.events) {
           // Canonical sketch: write events to region first (source of truth),
@@ -704,6 +823,7 @@ export function executeOperations(
             undoStack: [...next.undoStack, snapshot],
           };
           eventsAfter = updatedRegion.events.length;
+          newEventsForReport = updatedRegion.events;
         } else if (action.pattern) {
           // Legacy sketch: pass through directly (writes only to pattern, not regions)
           next = applySketch(next, action.trackId, action.description, action.pattern);
@@ -711,6 +831,13 @@ export function executeOperations(
         } else {
           rejected.push({ op: action, reason: 'Sketch has neither events nor pattern' });
           break;
+        }
+
+        // Generate preservation report for tracks with approval >= 'liked'
+        if (PRESERVATION_LEVELS.has(trackApproval) && newEventsForReport) {
+          preservationReports.push(
+            generatePreservationReport(action.trackId, trackApproval, oldEventsForReport, newEventsForReport),
+          );
         }
 
         const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
@@ -1421,5 +1548,5 @@ export function executeOperations(
     };
   }
 
-  return { session: next, accepted, rejected, log, resolvedParams };
+  return { session: next, accepted, rejected, log, resolvedParams, preservationReports };
 }

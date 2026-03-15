@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 
@@ -79,6 +79,14 @@ interface CompressedDecision {
   trackIds?: string[];
 }
 
+/** Compressed summary of a preservation report for inclusion in AI state. */
+interface CompressedPreservationReport {
+  trackId: string;
+  approval: ApprovalLevel;
+  preserved: string[];   // e.g. ["rhythm", "event_count"]
+  changed: string[];     // from PreservationReport.changed
+}
+
 export interface CompressedState {
   tracks: CompressedTrack[];
   activeTrackId: string;
@@ -90,6 +98,7 @@ export interface CompressedState {
   observed_patterns: string[];
   restraint_level: RestraintLevel;
   open_decisions: CompressedDecision[];
+  recent_preservation?: CompressedPreservationReport[];
 }
 
 function round2(n: number): number {
@@ -295,7 +304,23 @@ export function deriveRestraintLevel(reactions: Reaction[]): RestraintLevel {
   return 'moderate';
 }
 
-export function compressState(session: Session): CompressedState {
+/**
+ * Compress a PreservationReport into a concise format for the AI.
+ */
+function compressPreservationReport(report: PreservationReport): CompressedPreservationReport {
+  const preserved: string[] = [];
+  if (report.preserved.rhythmPositions) preserved.push('rhythm');
+  if (report.preserved.eventCount) preserved.push('event_count');
+  if (report.preserved.pitchContour) preserved.push('pitch_contour');
+  return {
+    trackId: report.trackId,
+    approval: report.approvalLevel,
+    preserved,
+    changed: report.changed,
+  };
+}
+
+export function compressState(session: Session, recentPreservationReports?: PreservationReport[]): CompressedState {
   const now = Date.now();
   const result: CompressedState = {
     tracks: session.tracks.map(track => ({
@@ -382,6 +407,9 @@ export function compressState(session: Session): CompressedState {
         ...(d.options ? { options: d.options } : {}),
         ...(d.trackIds && d.trackIds.length > 0 ? { trackIds: d.trackIds } : {}),
       })),
+    ...(recentPreservationReports && recentPreservationReports.length > 0 ? {
+      recent_preservation: recentPreservationReports.map(compressPreservationReport),
+    } : {}),
   };
 
   return result;
