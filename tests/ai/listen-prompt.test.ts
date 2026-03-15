@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildListenPrompt, GLUON_LISTEN_PROMPT } from '../../src/ai/listen-prompt';
+import {
+  buildListenPrompt,
+  buildListenPromptWithLens,
+  buildComparePrompt,
+  GLUON_LISTEN_PROMPT,
+} from '../../src/ai/listen-prompt';
+import type { ListenLens } from '../../src/ai/listen-prompt';
 
 describe('buildListenPrompt', () => {
   it('returns a generic prompt when no question is provided', () => {
@@ -55,5 +61,137 @@ describe('buildListenPrompt', () => {
 
   it('deprecated GLUON_LISTEN_PROMPT matches generic buildListenPrompt()', () => {
     expect(GLUON_LISTEN_PROMPT).toBe(buildListenPrompt());
+  });
+});
+
+describe('buildListenPromptWithLens', () => {
+  it('without lens matches buildListenPrompt', () => {
+    expect(buildListenPromptWithLens()).toBe(buildListenPrompt());
+    expect(buildListenPromptWithLens('Is the bass muddy?')).toBe(
+      buildListenPrompt('Is the bass muddy?'),
+    );
+  });
+
+  it('adds lens section for low-end', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'low-end');
+    expect(prompt).toContain('## Lens: low-end');
+    expect(prompt).toContain('frequencies below 250Hz');
+    expect(prompt).toContain('Describe what you hear');
+  });
+
+  it('adds lens section for rhythm', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'rhythm');
+    expect(prompt).toContain('## Lens: rhythm');
+    expect(prompt).toContain('timing, groove, and rhythmic coherence');
+  });
+
+  it('adds lens section for harmony', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'harmony');
+    expect(prompt).toContain('## Lens: harmony');
+    expect(prompt).toContain('pitch relationships');
+  });
+
+  it('adds lens section for texture', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'texture');
+    expect(prompt).toContain('## Lens: texture');
+    expect(prompt).toContain('timbral character');
+  });
+
+  it('adds lens section for dynamics', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'dynamics');
+    expect(prompt).toContain('## Lens: dynamics');
+    expect(prompt).toContain('loudness variation and punch');
+  });
+
+  it('adds lens section for full-mix', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'full-mix');
+    expect(prompt).toContain('## Lens: full-mix');
+    expect(prompt).toContain('overall mix');
+  });
+
+  it('combines question and lens', () => {
+    const prompt = buildListenPromptWithLens('Is the kick punchy enough?', 'low-end');
+    expect(prompt).toContain('## Focus');
+    expect(prompt).toContain('Is the kick punchy enough?');
+    expect(prompt).toContain('## Lens: low-end');
+    expect(prompt).toContain('frequencies below 250Hz');
+    // Lens appears after focus guidelines, before footer
+    expect(prompt).toContain('Respond with critique text ONLY');
+  });
+
+  it('lens section appears before the footer', () => {
+    const prompt = buildListenPromptWithLens(undefined, 'rhythm');
+    const lensIdx = prompt.indexOf('## Lens: rhythm');
+    const footerIdx = prompt.indexOf('## Important');
+    expect(lensIdx).toBeGreaterThan(-1);
+    expect(footerIdx).toBeGreaterThan(lensIdx);
+  });
+
+  it('all valid lenses produce non-empty instructions', () => {
+    const lenses: ListenLens[] = ['full-mix', 'low-end', 'rhythm', 'harmony', 'texture', 'dynamics'];
+    for (const lens of lenses) {
+      const prompt = buildListenPromptWithLens(undefined, lens);
+      expect(prompt).toContain(`## Lens: ${lens}`);
+    }
+  });
+});
+
+describe('buildComparePrompt', () => {
+  it('includes comparative base prompt', () => {
+    const prompt = buildComparePrompt();
+    expect(prompt).toContain('TWO segments separated by a brief silence');
+    expect(prompt).toContain('BEFORE clip');
+    expect(prompt).toContain('AFTER clip');
+  });
+
+  it('includes comparative guidelines', () => {
+    const prompt = buildComparePrompt();
+    expect(prompt).toContain('what changed between the BEFORE and AFTER');
+    expect(prompt).toContain('improvement, a regression, or neutral');
+    expect(prompt).toContain('cannot hear a meaningful difference');
+  });
+
+  it('includes footer', () => {
+    const prompt = buildComparePrompt();
+    expect(prompt).toContain('Respond with critique text ONLY');
+    expect(prompt).toContain('Do NOT produce JSON actions');
+  });
+
+  it('adds focus section for specific question', () => {
+    const prompt = buildComparePrompt('Did the bass get warmer?');
+    expect(prompt).toContain('## Focus');
+    expect(prompt).toContain('Did the bass get warmer?');
+  });
+
+  it('does not add focus section for generic question', () => {
+    const prompt = buildComparePrompt('How does it sound?');
+    expect(prompt).not.toContain('## Focus');
+  });
+
+  it('does not add focus section when no question is given', () => {
+    const prompt = buildComparePrompt();
+    expect(prompt).not.toContain('## Focus');
+  });
+
+  it('combines question and lens', () => {
+    const prompt = buildComparePrompt('Did the bass get warmer?', 'low-end');
+    expect(prompt).toContain('## Focus');
+    expect(prompt).toContain('Did the bass get warmer?');
+    expect(prompt).toContain('## Lens: low-end');
+    expect(prompt).toContain('frequencies below 250Hz');
+  });
+
+  it('adds lens without question', () => {
+    const prompt = buildComparePrompt(undefined, 'rhythm');
+    expect(prompt).toContain('## Lens: rhythm');
+    expect(prompt).not.toContain('## Focus');
+  });
+
+  it('lens appears before footer in compare prompt', () => {
+    const prompt = buildComparePrompt(undefined, 'dynamics');
+    const lensIdx = prompt.indexOf('## Lens: dynamics');
+    const footerIdx = prompt.indexOf('## Important');
+    expect(lensIdx).toBeGreaterThan(-1);
+    expect(footerIdx).toBeGreaterThan(lensIdx);
   });
 });

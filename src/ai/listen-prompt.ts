@@ -67,6 +67,91 @@ function isGenericQuestion(q: string): boolean {
   return genericPhrases.some(p => normalized === p || normalized.startsWith(p));
 }
 
+// ---------------------------------------------------------------------------
+// Listening lenses — focused evaluation instructions
+// ---------------------------------------------------------------------------
+
+/** Valid lens identifiers for focused evaluation. */
+export type ListenLens =
+  | 'full-mix'
+  | 'low-end'
+  | 'rhythm'
+  | 'harmony'
+  | 'texture'
+  | 'dynamics';
+
+/** Focused instructions keyed by lens. */
+const LENS_INSTRUCTIONS: Record<ListenLens, string> = {
+  'full-mix':
+    'Evaluate the overall mix: balance between elements, frequency spread, dynamics, and cohesion.',
+  'low-end':
+    'Focus on frequencies below 250Hz. Is the bass clear, muddy, or thin? Is there kick/bass separation? Does the low end have weight without masking?',
+  rhythm:
+    'Focus on timing, groove, and rhythmic coherence. Are events tight or sloppy? Is the swing feel consistent? Does the density feel right?',
+  harmony:
+    'Focus on pitch relationships, chord quality, and harmonic movement. Are intervals clean or dissonant? Is there harmonic direction?',
+  texture:
+    'Focus on timbral character and surface quality. Is the sound smooth, grainy, metallic, warm? How do timbres interact across tracks?',
+  dynamics:
+    'Focus on loudness variation and punch. Are transients preserved or squashed? Is there dynamic contrast between sections or elements?',
+};
+
+/** Add lens-focused instructions to a prompt section. */
+function lensSection(lens: ListenLens): string {
+  return `\n## Lens: ${lens}\n${LENS_INSTRUCTIONS[lens]}`;
+}
+
+/**
+ * Build the listen system prompt with optional lens focus.
+ * When a lens is specified, its focused instructions are appended after the
+ * guidelines section and before the footer.
+ */
+export function buildListenPromptWithLens(question?: string, lens?: ListenLens): string {
+  const isGeneric = !question || isGenericQuestion(question);
+  const guidelines = isGeneric ? GENERIC_GUIDELINES : questionGuidelines(question);
+  const lensBlock = lens ? lensSection(lens) : '';
+  return `${BASE_PROMPT}\n${guidelines}${lensBlock}\n${FOOTER}`;
+}
+
+// ---------------------------------------------------------------------------
+// Comparative listening (before/after diff)
+// ---------------------------------------------------------------------------
+
+/** Base prompt for comparative (before/after) evaluation. */
+const COMPARE_BASE_PROMPT = `You are an audio critic evaluating a musical instrument in the browser called Gluon. Gluon uses Mutable Instruments Plaits as its sound engine — a digital macro-oscillator with 16 synthesis models.
+
+You will receive:
+1. A symbolic description of the current project state (tracks, parameters, patterns)
+2. An audio clip containing TWO segments separated by a brief silence: the BEFORE clip (pre-edit) followed by the AFTER clip (post-edit)`;
+
+/**
+ * Build a comparative listen prompt.
+ * The evaluator hears before/after audio and describes what changed.
+ */
+export function buildComparePrompt(question?: string, lens?: ListenLens): string {
+  const hasQuestion = question && !isGenericQuestion(question);
+  const focusBlock = hasQuestion
+    ? `\n## Focus\n"${question}"`
+    : '';
+
+  const lensBlock = lens ? lensSection(lens) : '';
+
+  const guidelines = `
+## Guidelines
+- Describe what changed between the BEFORE and AFTER clips
+- Be specific: reference frequencies, timing, synthesis parameters (brightness, richness, texture, pitch) where relevant
+- State whether the change is an improvement, a regression, or neutral — and why
+- If you cannot hear a meaningful difference, say so
+- Keep responses concise — 2-4 sentences unless the question demands more
+- Be honest about quality issues: timing problems, harsh frequencies, thin sounds, etc.`;
+
+  return `${COMPARE_BASE_PROMPT}${focusBlock}\n${guidelines}${lensBlock}\n${FOOTER}`;
+}
+
+// ---------------------------------------------------------------------------
+// Deprecated export
+// ---------------------------------------------------------------------------
+
 /**
  * @deprecated Use buildListenPrompt() instead. Kept for backward compatibility.
  */
