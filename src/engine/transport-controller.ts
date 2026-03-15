@@ -40,7 +40,7 @@ export class TransportController {
   private runtime: RuntimeTransportState;
   private pendingHardStop = false;
   private lastStep = 0;
-  private trackRegionSignatures = new Map<string, string>();
+  private trackSeen = new Set<string>();
 
   constructor({
     audio,
@@ -150,21 +150,7 @@ export class TransportController {
   syncArrangement(): void {
     const session = this.getSession();
     for (const track of session.tracks) {
-      const region = track.regions[0];
-      const signature = region
-        ? `${region.id}:${region.duration}:${region.events.map(event => {
-            switch (event.kind) {
-              case 'parameter':
-                return `${event.kind}:${event.at}:${event.controlId}:${String(event.value)}`;
-              case 'note':
-                return `${event.kind}:${event.at}:${event.pitch}:${event.duration}:${event.velocity}`;
-              default:
-                return `${event.kind}:${event.at}:${event.velocity ?? ''}:${event.accent ?? ''}`;
-            }
-          }).join('|')}`
-        : 'none';
-      const previous = this.trackRegionSignatures.get(track.id);
-      if (previous !== undefined && previous !== signature && this.runtime.status === 'playing') {
+      if (track._regionDirty && this.trackSeen.has(track.id) && this.runtime.status === 'playing') {
         this.scheduler.invalidateTrack(track.id, this.lastStep);
         recordQaAudioTrace({
           type: 'transport.arrangement-invalidated',
@@ -173,7 +159,11 @@ export class TransportController {
           fromStep: this.lastStep,
         });
       }
-      this.trackRegionSignatures.set(track.id, signature);
+      // Clear dirty flag after invalidation (order matters: check → invalidate → clear)
+      if (track._regionDirty) {
+        track._regionDirty = false;
+      }
+      this.trackSeen.add(track.id);
     }
   }
 
