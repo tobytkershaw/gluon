@@ -18,8 +18,8 @@ import { VoicePool, ACCENT_BASELINE } from './voice-pool';
 const CHAIN_RAMP_SEC = 0.002; // ~2ms
 /** Keep completed voices around briefly so generation cleanup still reaches processor tails. */
 const TRACK_TAIL_GRACE_SEC = 2.0;
-/** Number of synth voices per track for overlap handling. */
-const VOICES_PER_TRACK = 2;
+/** Number of synth voices per track for polyphonic overlap handling. */
+const VOICES_PER_TRACK = 4;
 
 type ProcessorEngine = RingsEngine | CloudsEngine;
 
@@ -287,7 +287,7 @@ export class AudioEngine {
     const voiceGeneration = note.generation ?? generation;
 
     // Delegate to voice pool: allocates a voice, schedules accent + note on it
-    slot.pool.scheduleNote(note, generation);
+    slot.pool.scheduleNote(note, generation, eventId);
     this.activeVoices.set(eventId, {
       eventId,
       generation: voiceGeneration,

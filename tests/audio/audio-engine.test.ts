@@ -290,6 +290,64 @@ describe('AudioEngine', () => {
     expect(engine.getActiveVoices()).toEqual([]);
   });
 
+  it('passes eventId to voice pool for event-voice tracking', () => {
+    const engine = new AudioEngine();
+    const pool = makePool();
+    const slot = makeTrackSlot(pool);
+
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
+
+    const note: ScheduledNote = {
+      eventId: 'evt-tracked',
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 1.5,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    engine.scheduleNote(note);
+
+    // VoicePool should have the event-voice mapping
+    expect(pool.getVoiceForEvent('evt-tracked')).toBe(pool.voices[0]);
+  });
+
+  it('4 simultaneous notes on one track use 4 different voices', () => {
+    const engine = new AudioEngine();
+    const pool = makePool(4);
+    const slot = makeTrackSlot(pool);
+
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
+
+    const makeNote = (id: string, time: number, gateOff: number): ScheduledNote => ({
+      eventId: id,
+      trackId: 'v0',
+      time,
+      gateOffTime: gateOff,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    });
+
+    engine.scheduleNote(makeNote('evt-1', 1.0, 2.0));
+    engine.scheduleNote(makeNote('evt-2', 1.1, 2.1));
+    engine.scheduleNote(makeNote('evt-3', 1.2, 2.2));
+    engine.scheduleNote(makeNote('evt-4', 1.3, 2.3));
+
+    // Each event should have its own voice
+    const assignedVoices = new Set([
+      pool.getVoiceForEvent('evt-1'),
+      pool.getVoiceForEvent('evt-2'),
+      pool.getVoiceForEvent('evt-3'),
+      pool.getVoiceForEvent('evt-4'),
+    ]);
+    expect(assignedVoices.size).toBe(4);
+
+    // Each voice synth received exactly one note
+    for (const voice of pool.voices) {
+      expect(voice.synth.scheduleNote).toHaveBeenCalledTimes(1);
+    }
+  });
+
   it('retains recent voices long enough to clean up processor tails', () => {
     const engine = new AudioEngine();
     const pool = makePool();
