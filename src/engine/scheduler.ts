@@ -133,7 +133,12 @@ export class Scheduler {
       this.cursor + lookaheadSteps,
       globalStep + lookaheadSteps,
     );
-    this.playbackPlan.pruneBeforeStep(Math.floor(this.cursor));
+    // Prune at the playhead (globalStep), not the cursor (scheduling frontier).
+    // The cursor is always ahead of globalStep by the lookahead window. Pruning
+    // at cursor would remove plan entries for events between globalStep and
+    // cursor — events that haven't actually played yet — making them vulnerable
+    // to double-scheduling if invalidateTrack re-admits them.
+    this.playbackPlan.pruneBeforeStep(Math.floor(globalStep));
 
     const audibleTracks = getAudibleTracks(session);
 
