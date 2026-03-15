@@ -90,15 +90,16 @@ export class TransportController {
     if (transport.status === 'playing') {
       if (this.runtime.status !== 'playing') {
         const generation = this.audio.advanceGeneration();
-        const startStep = transport.status === 'playing' && this.runtime.status === 'paused'
+        const audioTime = this.audio.getCurrentTime();
+        const startStep = this.runtime.status === 'paused'
           ? this.runtime.playheadBeats * 4
           : 0;
+        this.runtime = playTransportState(this.runtime, audioTime, generation);
         this.audio.restoreBaseline();
         this.scheduler.start(START_OFFSET_SEC, startStep, generation);
-        this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);
         recordQaAudioTrace({
           type: 'transport.play-start',
-          audioTime: this.audio.getCurrentTime(),
+          audioTime,
           generation,
           startStep,
         });

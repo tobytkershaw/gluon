@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from './types';
 import { TransportController } from './transport-controller';
 import { createDefaultRegion } from './region-helpers';
+import type { ScheduledNote } from './sequencer-types';
 
 function makeSession(): Session {
   return {
@@ -164,6 +165,69 @@ describe('TransportController', () => {
     expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
     expect(scheduler.start).toHaveBeenNthCalledWith(1, expect.any(Number), 0, 1);
     expect(scheduler.start).toHaveBeenNthCalledWith(2, expect.any(Number), 8, 3);
+
+    controller.dispose();
+  });
+
+  it('schedules resume notes with the fresh generation before the first scheduler tick', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const scheduledNotes: Array<{ note: ScheduledNote; generation: number }> = [];
+    let emitNote: ((note: ScheduledNote) => void) | null = null;
+    const scheduler = {
+      start: vi.fn((_offset?: number, _startStep?: number, generation?: number) => {
+        emitNote?.({
+          eventId: `${generation}:v0:r0:0:trigger@0`,
+          generation: generation ?? 0,
+          trackId: 'v0',
+          time: 1,
+          gateOffTime: 1.1,
+          accent: false,
+          params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+          baseParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        });
+      }),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn((note: ScheduledNote, generation: number) => {
+        scheduledNotes.push({ note, generation });
+      }),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2)
+        .mockReturnValueOnce(3),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onNote, onPositionChange }) => {
+        emitNote = onNote;
+        onPositionChange(8);
+        return scheduler;
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    session.transport = { ...session.transport, status: 'paused', playing: false };
+    controller.sync();
+    scheduledNotes.length = 0;
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+
+    expect(scheduledNotes).toHaveLength(1);
+    expect(scheduledNotes[0]?.note.generation).toBe(3);
+    expect(scheduledNotes[0]?.generation).toBe(3);
 
     controller.dispose();
   });
