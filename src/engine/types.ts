@@ -4,6 +4,13 @@ import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent, Seman
 
 export type Agency = 'OFF' | 'ON';
 
+/**
+ * Approval level for a track's current material.
+ * Controls how the AI should treat the material during edits.
+ * See docs/rfcs/preservation-contracts.md for full semantics.
+ */
+export type ApprovalLevel = 'exploratory' | 'liked' | 'approved' | 'anchor';
+
 // --- Sequencer views (presentation state, not musical) ---
 
 export type SequencerViewKind = 'step-grid' | 'piano-roll';
@@ -114,6 +121,8 @@ export interface Track {
   modulations?: ModulationRouting[];
   /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
   surface: TrackSurface;
+  /** Approval level for the track's current material. Default: 'exploratory'. */
+  approval?: ApprovalLevel;
 }
 
 // --- Master channel ---
@@ -252,7 +261,15 @@ export interface SurfaceSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot;
+export interface ApprovalSnapshot {
+  kind: 'approval';
+  trackId: string;
+  prevApproval: ApprovalLevel;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';

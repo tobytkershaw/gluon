@@ -226,6 +226,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { surface: snapshot.prevSurface });
   }
 
+  if (snapshot.kind === 'approval') {
+    return updateTrack(session, snapshot.trackId, { approval: snapshot.prevApproval });
+  }
+
   if (snapshot.kind === 'region') {
     const track = getTrack(session, snapshot.trackId);
     if (track.regions.length === 0) return session;

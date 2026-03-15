@@ -141,6 +141,11 @@ export function migrateTrack(track: Track): Track {
     };
   }
 
+  // Hydrate approval for tracks without one (pre-approval migration)
+  if (!surfaced.approval) {
+    surfaced = { ...surfaced, approval: 'exploratory' };
+  }
+
   // Validate modulators: strip unknown types and dangling modulation references
   const registeredModTypes = getRegisteredModulatorTypes();
   const validModulators = (surfaced.modulators ?? []).filter(

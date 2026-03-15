@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track } from '../engine/types';
+import type { Session, Track, ApprovalLevel } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 
@@ -40,6 +40,7 @@ interface CompressedTrack {
   model: string;
   params: Record<string, number>;
   agency: string;
+  approval: ApprovalLevel;
   muted: boolean;
   solo: boolean;
   volume: number;
@@ -148,6 +149,7 @@ export function compressState(session: Session): CompressedState {
         pitch: round2(track.params.note),
       },
       agency: track.agency,
+      approval: track.approval ?? 'exploratory',
       muted: track.muted,
       solo: track.solo,
       volume: round2(track.volume),
