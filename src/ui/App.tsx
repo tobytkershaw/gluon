@@ -192,19 +192,19 @@ export default function App() {
       const key = track.id;
       const prev = prevTrackStateRef.current.get(key);
 
-      const holding = arbRef.current.isHoldingSource(track.id);
-
       // Model always syncs — hold only suppresses params (#141)
       if (!prev || prev.model !== track.model) {
         audioRef.current.setTrackModel(track.id, track.model);
       }
-      if (!holding && (!prev || !prev.params || !shallowEqual(prev.params, track.params))) {
+      if (!prev || !prev.params || !shallowEqual(prev.params, track.params)) {
         audioRef.current.setTrackParams(track.id, track.params);
       }
-      // Only advance cache for dimensions that were actually written
+      // Keep the live audio engine aligned with session state even while a human
+      // interaction is active. Arbitration still blocks AI writes separately;
+      // suppressing human param sync makes the instrument feel unresponsive.
       prevTrackStateRef.current.set(key, {
         model: track.model,
-        params: holding ? (prev?.params ?? undefined) : { ...track.params },
+        params: { ...track.params },
       });
     }
   }, [session.tracks, audioStarted, holdGeneration]);
