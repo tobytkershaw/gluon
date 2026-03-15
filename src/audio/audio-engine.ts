@@ -90,9 +90,8 @@ export class AudioEngine {
   private _isRunning = false;
   /** Tracks processor IDs currently being created (async in-flight guard). */
   private pendingProcessors = new Set<string>();
-  /** Monotonic fence incremented on each silenceAll(). Events tagged with a
-   *  fence < this value are stale and will be filtered by the worklet. */
-  private clearFence = 0;
+  /** Monotonic transport generation propagated to worklets to invalidate stale events. */
+  private generation = 0;
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -215,7 +214,16 @@ export class AudioEngine {
     slot.muteGain.gain.value = muted ? 0 : 1;
   }
 
-  scheduleNote(note: ScheduledNote): void {
+  advanceGeneration(): number {
+    this.generation += 1;
+    return this.generation;
+  }
+
+  getGeneration(): number {
+    return this.generation;
+  }
+
+  scheduleNote(note: ScheduledNote, generation = this.generation): void {
     const slot = this.tracks.get(note.trackId);
     if (!slot) return;
 
@@ -226,7 +234,7 @@ export class AudioEngine {
       // Revert accent at gate-off
       slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
     }
-    slot.synth.scheduleNote(note, this.clearFence);
+    slot.synth.scheduleNote(note, generation);
     recordQaAudioTrace({
       type: 'audio.note',
       trackId: note.trackId,
@@ -266,14 +274,13 @@ export class AudioEngine {
    * Used on pause (vs. silenceAll which cuts instantly on hard stop).
    * restoreBaseline() resets gain to 0.3 on the next play.
    */
-  releaseAll(): void {
-    this.clearFence++;
-    const fence = this.clearFence;
+  releaseAll(generation = this.generation): void {
+    this.generation = Math.max(this.generation, generation);
 
     const now = this.ctx?.currentTime ?? 0;
     const fadeTime = now + 0.05; // 50ms fade-out
     for (const slot of this.tracks.values()) {
-      slot.synth.silence(fence);
+      slot.synth.silence(this.generation);
       // Cancel any in-flight accent automation and fade to zero.
       // The Plaits LPG has its own internal decay that can sustain sound
       // for hundreds of ms after gate-off, so we fade the gain node to
@@ -284,27 +291,24 @@ export class AudioEngine {
       // so their tails don't sustain indefinitely. Don't damp() Rings —
       // that's hard-stop behaviour; let the resonance decay naturally.
       for (const proc of slot.processors) {
-        proc.engine.silence(fence);
+        proc.engine.silence(this.generation);
       }
     }
     // Pause modulators so they don't keep running during pause
     for (const [, modSlots] of this.modulatorSlots) {
       for (const modSlot of modSlots) {
-        modSlot.engine.silence(fence);
+        modSlot.engine.silence(this.generation);
         modSlot.engine.pause();
       }
     }
   }
 
-  silenceAll(): void {
-    // Increment fence so any events already in-flight from the previous play
-    // cycle are treated as stale by the worklet processors (#147).
-    this.clearFence++;
-    const fence = this.clearFence;
+  silenceAll(generation = this.generation): void {
+    this.generation = Math.max(this.generation, generation);
 
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {
-      slot.synth.silence(fence);
+      slot.synth.silence(this.generation);
       // Cancel pending accent automation and hard-mute the track chain.
       // Setting gain to 0 (not baseline 0.3) ensures processor tails
       // (Rings resonance, Clouds reverb) are silenced immediately.
@@ -313,7 +317,7 @@ export class AudioEngine {
       slot.accentGain.gain.setValueAtTime(0, now);
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
-        proc.engine.silence(fence);
+        proc.engine.silence(this.generation);
         if (proc.type === 'rings') {
           (proc.engine as import('./rings-synth').RingsEngine).damp();
         }
@@ -322,7 +326,7 @@ export class AudioEngine {
     // Clear scheduled events in modulators and pause their output
     for (const [, modSlots] of this.modulatorSlots) {
       for (const modSlot of modSlots) {
-        modSlot.engine.silence(fence);
+        modSlot.engine.silence(this.generation);
         modSlot.engine.pause();
       }
     }

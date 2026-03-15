@@ -63,7 +63,7 @@ export function createSession(): Session {
   return {
     tracks,
     activeTrackId: tracks[0].id,
-    transport: { playing: false, bpm: 120, swing: 0 },
+    transport: { status: 'stopped', playing: false, bpm: 120, swing: 0 },
     master: { ...DEFAULT_MASTER },
     undoStack: [],
     context,
@@ -180,10 +180,24 @@ export function setTransportSwing(session: Session, swing: number): Session {
   };
 }
 
-export function togglePlaying(session: Session): Session {
+export function playTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, playing: !session.transport.playing },
+    transport: { ...session.transport, status: 'playing', playing: true },
+  };
+}
+
+export function pauseTransport(session: Session): Session {
+  return {
+    ...session,
+    transport: { ...session.transport, status: 'paused', playing: false },
+  };
+}
+
+export function stopTransport(session: Session): Session {
+  return {
+    ...session,
+    transport: { ...session.transport, status: 'stopped', playing: false },
   };
 }
 

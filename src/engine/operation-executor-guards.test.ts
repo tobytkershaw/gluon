@@ -60,7 +60,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       },
     }],
     activeTrackId: 'v1',
-    transport: { bpm: 120, swing: 0, playing: true },
+    transport: { status: 'playing', bpm: 120, swing: 0, playing: true },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.5, density: 0.5 },
     messages: [],

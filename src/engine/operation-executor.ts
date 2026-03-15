@@ -612,12 +612,15 @@ export function executeOperations(
         const newTransport = { ...prev };
         if (action.bpm !== undefined) newTransport.bpm = Math.max(60, Math.min(200, action.bpm));
         if (action.swing !== undefined) newTransport.swing = Math.max(0, Math.min(1, action.swing));
-        if (action.playing !== undefined) newTransport.playing = action.playing;
+        if (action.playing !== undefined) {
+          newTransport.playing = action.playing;
+          newTransport.status = action.playing ? 'playing' : 'paused';
+        }
 
         const parts: string[] = [];
         if (action.bpm !== undefined && newTransport.bpm !== prev.bpm) parts.push(`bpm ${prev.bpm} → ${newTransport.bpm}`);
         if (action.swing !== undefined && newTransport.swing !== prev.swing) parts.push(`swing ${prev.swing.toFixed(2)} → ${newTransport.swing.toFixed(2)}`);
-        if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'stop');
+        if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'pause');
 
         const snapshot: TransportSnapshot = {
           kind: 'transport',
@@ -634,7 +637,12 @@ export function executeOperations(
         } else if (action.swing !== undefined && newTransport.swing !== prev.swing) {
           transportDiff = { kind: 'transport-change', field: 'swing', from: prev.swing, to: newTransport.swing };
         } else if (action.playing !== undefined && newTransport.playing !== prev.playing) {
-          transportDiff = { kind: 'transport-change', field: 'playing', from: prev.playing ? 'playing' : 'stopped', to: newTransport.playing ? 'playing' : 'stopped' };
+          transportDiff = {
+            kind: 'transport-change',
+            field: 'status',
+            from: prev.status ?? (prev.playing ? 'playing' : 'stopped'),
+            to: newTransport.status ?? (newTransport.playing ? 'playing' : 'stopped'),
+          };
         }
         log.push({ trackId: '', trackLabel: 'TRANSPORT', description: snapshot.description, diff: transportDiff });
         accepted.push(action);

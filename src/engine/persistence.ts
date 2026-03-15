@@ -31,7 +31,7 @@ export function stripForPersistence(session: Session): Session {
     undoStack: session.undoStack.slice(-MAX_PERSISTED_UNDO),
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
-    transport: { ...session.transport, playing: false },
+    transport: { ...session.transport, status: 'stopped', playing: false },
     tracks: session.tracks.map(v => ({ ...v })),
   };
 }
@@ -180,6 +180,10 @@ export function loadSession(): Session | null {
 
     return {
       ...session,
+      transport: {
+        ...session.transport,
+        status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
+      },
       tracks: migratedTracks,
       master: session.master ?? { ...DEFAULT_MASTER },
       undoStack: session.undoStack ?? [],
