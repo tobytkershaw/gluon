@@ -175,7 +175,7 @@ describe('OpenAIPlannerProvider', () => {
     expect(continueCall.previous_response_id).toBe('resp_pending');
   });
 
-  it('exchange-aware trimming preserves chaining from surviving suffix', async () => {
+  it('trimHistory replays surviving exchanges as input without chaining', async () => {
     // Commit 3 exchanges with distinct response IDs
     for (let i = 0; i < 3; i++) {
       mockCreate.mockResolvedValueOnce(mockTextResponse(`reply ${i}`, `resp_${i}`));
@@ -183,15 +183,61 @@ describe('OpenAIPlannerProvider', () => {
       planner.commitTurn();
     }
 
-    // Trim to 2 — should drop resp_0, keep resp_1 and resp_2
+    // Trim to 2 — should drop exchange 0, keep exchanges 1 and 2
     planner.trimHistory(2);
 
-    // Next turn should chain from resp_2 (last surviving)
+    // Next turn should NOT chain via previous_response_id (chain is broken)
+    // and should replay the surviving exchanges as input items
     mockCreate.mockResolvedValueOnce(mockTextResponse('after trim', 'resp_3'));
     await planner.startTurn({ systemPrompt: 's', userMessage: 'next', tools: [] });
 
     const call = mockCreate.mock.calls[3][0];
-    expect(call.previous_response_id).toBe('resp_2');
+    // No previous_response_id — chain was broken by trim
+    expect(call.previous_response_id).toBeUndefined();
+
+    // Input should contain replayed exchanges (user + model output for each)
+    // plus the new user message
+    const userMessages = call.input.filter(
+      (item: Record<string, unknown>) => item.role === 'user',
+    );
+    // 2 surviving exchanges + 1 new message = 3 user messages
+    expect(userMessages).toHaveLength(3);
+    expect(userMessages[0].content).toBe('msg 1');
+    expect(userMessages[1].content).toBe('msg 2');
+    expect(userMessages[2].content).toBe('next');
+
+    // Model output items from surviving exchanges should also be replayed
+    const messageItems = call.input.filter(
+      (item: Record<string, unknown>) => item.type === 'message',
+    );
+    expect(messageItems).toHaveLength(2); // one per surviving exchange
+  });
+
+  it('after trim + commit, chain is re-established', async () => {
+    // Commit 3 exchanges
+    for (let i = 0; i < 3; i++) {
+      mockCreate.mockResolvedValueOnce(mockTextResponse(`reply ${i}`, `resp_${i}`));
+      await planner.startTurn({ systemPrompt: 's', userMessage: `msg ${i}`, tools: [] });
+      planner.commitTurn();
+    }
+
+    // Trim to 2 — breaks the chain
+    planner.trimHistory(2);
+
+    // First post-trim turn: replays as input (no chain)
+    mockCreate.mockResolvedValueOnce(mockTextResponse('post-trim', 'resp_post_trim'));
+    await planner.startTurn({ systemPrompt: 's', userMessage: 'after trim', tools: [] });
+    planner.commitTurn();
+
+    // Second post-trim turn: chain is re-established via resp_post_trim
+    mockCreate.mockResolvedValueOnce(mockTextResponse('chained again', 'resp_chained'));
+    await planner.startTurn({ systemPrompt: 's', userMessage: 'should chain', tools: [] });
+
+    const call = mockCreate.mock.calls[4][0];
+    expect(call.previous_response_id).toBe('resp_post_trim');
+    // Input should be just the new user message (no replay needed)
+    expect(call.input).toHaveLength(1);
+    expect(call.input[0].content).toBe('should chain');
   });
 
   it('trimHistory with max larger than exchanges is a no-op', async () => {

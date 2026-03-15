@@ -1,7 +1,7 @@
 // src/ai/providers/openai-planner.ts — PlannerProvider for OpenAI (Responses API).
 
 import OpenAI from 'openai';
-import type { Response, ResponseInput, ResponseInputItem, ResponseFunctionToolCall } from 'openai/resources/responses/responses';
+import type { Response, ResponseInput, ResponseInputItem, ResponseOutputItem, ResponseFunctionToolCall } from 'openai/resources/responses/responses';
 import type { PlannerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall } from '../types';
 import { ProviderError } from '../types';
 import { toOpenAITools } from './schema-converters';
@@ -13,18 +13,33 @@ interface BackoffState {
   delay: number;
 }
 
+/** One committed exchange: the user input items + the model's response output. */
+interface StoredExchange {
+  /** Input items sent for this exchange (user message at minimum). */
+  inputItems: ResponseInput;
+  /** Output items returned by the model (messages, function calls, etc.). */
+  outputItems: ResponseOutputItem[];
+  /** Response ID — used for chaining when the history is unbroken. */
+  responseId: string;
+}
+
 export class OpenAIPlannerProvider implements PlannerProvider {
   readonly name = 'openai';
   private client: OpenAI | null;
   private backoff: BackoffState = { until: 0, delay: 0 };
 
-  // Exchange-aware history via response ID chain.
-  // Each entry is the response ID for one committed exchange.
-  private responseIds: string[] = [];
-  private pendingResponseId: string | null = null;
+  // Committed exchange history with full content for replay after trimming.
+  private exchanges: StoredExchange[] = [];
+  // When true, the next request must replay stored exchanges as input
+  // rather than chaining via previous_response_id (because trimHistory
+  // broke the chain by dropping older exchanges).
+  private chainBroken = false;
 
-  // Pending input items for the current turn (user message + function_call_output items).
+  private pendingResponseId: string | null = null;
+  // Accumulated input items for the current in-flight turn.
   private pendingInput: ResponseInput = [];
+  // Accumulated output items from model responses in the current turn.
+  private pendingOutputItems: ResponseOutputItem[] = [];
 
   constructor(apiKey: string) {
     this.client = apiKey
@@ -45,6 +60,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
       { role: 'user', content: opts.userMessage },
     ];
     this.pendingResponseId = null;
+    this.pendingOutputItems = [];
 
     return this.generate(opts.systemPrompt, opts.tools);
   }
@@ -69,25 +85,41 @@ export class OpenAIPlannerProvider implements PlannerProvider {
 
   commitTurn(): void {
     if (this.pendingResponseId === null) return;
-    this.responseIds.push(this.pendingResponseId);
+    this.exchanges.push({
+      inputItems: [...this.pendingInput],
+      outputItems: [...this.pendingOutputItems],
+      responseId: this.pendingResponseId,
+    });
+    // After committing, the chain is valid from this new exchange.
+    // If chainBroken was set, the successful commit re-establishes
+    // a valid chain starting from this response.
+    this.chainBroken = false;
     this.pendingResponseId = null;
     this.pendingInput = [];
+    this.pendingOutputItems = [];
   }
 
   discardTurn(): void {
     this.pendingResponseId = null;
     this.pendingInput = [];
+    this.pendingOutputItems = [];
   }
 
   trimHistory(maxExchanges: number): void {
-    if (this.responseIds.length <= maxExchanges) return;
-    this.responseIds = this.responseIds.slice(-maxExchanges);
+    if (this.exchanges.length <= maxExchanges) return;
+    this.exchanges = this.exchanges.slice(-maxExchanges);
+    // The server-side chain from the oldest surviving exchange still
+    // references the full prior history. We must break the chain and
+    // replay only the surviving exchanges as input on the next request.
+    this.chainBroken = true;
   }
 
   clearHistory(): void {
-    this.responseIds = [];
+    this.exchanges = [];
+    this.chainBroken = false;
     this.pendingResponseId = null;
     this.pendingInput = [];
+    this.pendingOutputItems = [];
     this.backoff = { until: 0, delay: 0 };
   }
 
@@ -99,12 +131,28 @@ export class OpenAIPlannerProvider implements PlannerProvider {
       throw new ProviderError('Rate limited — backing off.', 'rate_limited', this.backoff.until - now);
     }
 
-    // Chain from either the in-flight response (mid-turn continuation)
-    // or the last committed exchange (new turn).
-    const previousId = this.pendingResponseId ?? this.responseIds.at(-1) ?? undefined;
-
     const openaiTools = toOpenAITools(tools);
-    const input = [...this.pendingInput, ...extraInput];
+    let input: ResponseInput;
+    let previousId: string | undefined;
+
+    if (this.chainBroken || this.exchanges.length === 0) {
+      // Replay stored exchanges as input items (bounded suffix).
+      // No previous_response_id — we're reconstructing context from scratch.
+      const replayItems: ResponseInput = [];
+      for (const ex of this.exchanges) {
+        replayItems.push(...ex.inputItems);
+        // Output items (messages, function calls) are valid ResponseInputItems
+        // and must be replayed to reconstruct the conversation.
+        replayItems.push(...(ex.outputItems as unknown as ResponseInput));
+      }
+      input = [...replayItems, ...this.pendingInput, ...extraInput];
+      // Chain from pending response if mid-turn, otherwise no chain.
+      previousId = this.pendingResponseId ?? undefined;
+    } else {
+      // Chain from the last committed or in-flight response.
+      previousId = this.pendingResponseId ?? this.exchanges.at(-1)?.responseId ?? undefined;
+      input = [...this.pendingInput, ...extraInput];
+    }
 
     let response: Response;
     try {
@@ -123,9 +171,10 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     // Only commit state after a successful API call.
     this.backoff = { until: 0, delay: 0 };
     this.pendingResponseId = response.id;
-    // Clear pending input — extraInput items are now part of the server-side
-    // chain via previous_response_id. Subsequent continueTurn calls build fresh.
-    this.pendingInput = [];
+    // Accumulate all input and output items for this turn so commitTurn
+    // can store the full exchange.
+    this.pendingInput = [...this.pendingInput, ...extraInput];
+    this.pendingOutputItems.push(...response.output);
 
     const textParts: string[] = [];
     const functionCalls: NeutralFunctionCall[] = [];
