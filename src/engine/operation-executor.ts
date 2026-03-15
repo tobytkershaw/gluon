@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -427,6 +427,10 @@ export function prevalidateAction(
       if (!validLevels.includes(action.level)) return `Invalid approval level: ${action.level}`;
       return null;
     }
+
+    case 'raise_decision':
+      // No side-effect guards needed — raise_decision only appends to openDecisions
+      return null;
 
     case 'set_transport':
     case 'set_master':
@@ -1500,6 +1504,24 @@ export function executeOperations(
         const iLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const roleSuffix = action.musicalRole ? ` (${action.musicalRole})` : '';
         log.push({ trackId: action.trackId, trackLabel: iLabel, description: `importance: ${clamped.toFixed(2)}${roleSuffix}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'raise_decision': {
+        const prevDecisions = next.openDecisions ?? [];
+        // Prune resolved decisions, then append the new one (matching addDecision in session.ts)
+        const unresolved = prevDecisions.filter(d => !d.resolved);
+        const newDecision: OpenDecision = {
+          id: action.decisionId,
+          question: action.question,
+          ...(action.context ? { context: action.context } : {}),
+          ...(action.options ? { options: action.options } : {}),
+          raisedAt: Date.now(),
+          ...(action.trackIds ? { trackIds: action.trackIds } : {}),
+        };
+        next = { ...next, openDecisions: [...unresolved, newDecision].slice(-20) };
+        log.push({ trackId: '', trackLabel: 'DECISION', description: `raised: ${action.question}` });
         accepted.push(action);
         break;
       }
