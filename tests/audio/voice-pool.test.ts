@@ -40,14 +40,43 @@ function makePoolVoice(overrides?: Partial<PoolVoice>): PoolVoice {
 }
 
 describe('VoicePool', () => {
-  it('allocates voices round-robin', () => {
-    const v0 = makePoolVoice();
-    const v1 = makePoolVoice();
+  it('allocates voices round-robin when all are active', () => {
+    const v0 = makePoolVoice({ lastGateOffTime: 10 });
+    const v1 = makePoolVoice({ lastGateOffTime: 10 });
     const pool = new VoicePool([v0, v1]);
 
-    expect(pool.allocate()).toBe(v0);
-    expect(pool.allocate()).toBe(v1);
-    expect(pool.allocate()).toBe(v0); // wraps around
+    // currentTime=5 means both voices have gateOff in the future (active)
+    expect(pool.allocate(5)).toBe(v0);
+    expect(pool.allocate(5)).toBe(v1);
+    expect(pool.allocate(5)).toBe(v0); // wraps around
+  });
+
+  it('prefers released voice over active voice', () => {
+    const v0 = makePoolVoice({ lastGateOffTime: 2.0 }); // released (gateOff in past)
+    const v1 = makePoolVoice({ lastGateOffTime: 5.0 }); // still active (gateOff in future)
+    const pool = new VoicePool([v0, v1]);
+
+    // currentTime=3 → v0 is released (2.0 < 3), v1 is active (5.0 >= 3)
+    expect(pool.allocate(3)).toBe(v0);
+  });
+
+  it('prefers the voice that has been idle longest among released voices', () => {
+    const v0 = makePoolVoice({ lastGateOffTime: 2.0 }); // released earlier
+    const v1 = makePoolVoice({ lastGateOffTime: 1.0 }); // released even earlier (idle longest)
+    const pool = new VoicePool([v0, v1]);
+
+    // Both released, v1 has earlier gateOff → idle longest
+    expect(pool.allocate(3)).toBe(v1);
+  });
+
+  it('falls back to round-robin when no voices are released', () => {
+    const v0 = makePoolVoice({ lastGateOffTime: 0 });
+    const v1 = makePoolVoice({ lastGateOffTime: 0 });
+    const pool = new VoicePool([v0, v1]);
+
+    // currentTime=0, lastGateOffTime=0 → not released (0 < 0 is false)
+    expect(pool.allocate(0)).toBe(v0);
+    expect(pool.allocate(0)).toBe(v1);
   });
 
   it('consecutive scheduleNote calls use different voices', () => {
