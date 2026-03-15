@@ -35,4 +35,21 @@ describe('PlaybackPlan', () => {
       buildRuntimeEventId(1, 'v1', 'r1', morph, 0),
     );
   });
+
+  it('invalidates planned events for a track from a minimum step', () => {
+    const plan = new PlaybackPlan();
+    plan.reset(5);
+    const early: TriggerEvent = { kind: 'trigger', at: 2, velocity: 0.8 };
+    const late: TriggerEvent = { kind: 'trigger', at: 12, velocity: 0.8 };
+    const earlyId = buildRuntimeEventId(5, 'v1', 'r1', early, 0);
+    const lateId = buildRuntimeEventId(5, 'v1', 'r1', late, 0);
+
+    expect(plan.admit(earlyId, 2, 5)).toBe(true);
+    expect(plan.admit(lateId, 12, 5)).toBe(true);
+
+    plan.invalidateTrack('v1', 5, 8);
+
+    expect(plan.has(earlyId)).toBe(true);
+    expect(plan.has(lateId)).toBe(false);
+  });
 });

@@ -92,6 +92,10 @@ export class Scheduler {
     return this.intervalId !== null;
   }
 
+  invalidateTrack(trackId: string, fromStep = this.cursor): void {
+    this.playbackPlan.invalidateTrack(trackId, this.generation, Math.floor(fromStep));
+  }
+
   private tick(): void {
     // Skip entirely while AudioContext is suspended (tab backgrounded)
     if (this.getAudioState?.() === 'suspended') return;

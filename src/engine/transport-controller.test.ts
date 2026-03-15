@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from './types';
 import { TransportController } from './transport-controller';
+import { createDefaultRegion } from './region-helpers';
 
 function makeSession(): Session {
   return {
@@ -38,6 +39,7 @@ describe('TransportController', () => {
       getSession: () => session,
       onPositionChange: vi.fn(),
       getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
     session.transport = { ...session.transport, status: 'playing', playing: true };
@@ -69,6 +71,7 @@ describe('TransportController', () => {
       getSession: () => session,
       onPositionChange: vi.fn(),
       getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
     session.transport = { ...session.transport, status: 'playing', playing: true };
@@ -102,6 +105,7 @@ describe('TransportController', () => {
       getSession: () => session,
       onPositionChange: vi.fn(),
       getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
     session.transport = { ...session.transport, status: 'playing', playing: true };
@@ -122,6 +126,7 @@ describe('TransportController', () => {
     const scheduler = {
       start: vi.fn(),
       stop: vi.fn(),
+      invalidateTrack: vi.fn(),
     };
     let schedulerPositionChange: ((step: number) => void) | null = null;
     const audio = {
@@ -159,6 +164,67 @@ describe('TransportController', () => {
     expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
     expect(scheduler.start).toHaveBeenNthCalledWith(1, expect.any(Number), 0, 1);
     expect(scheduler.start).toHaveBeenNthCalledWith(2, expect.any(Number), 8, 3);
+
+    controller.dispose();
+  });
+
+  it('invalidates a playing track when its region changes', () => {
+    vi.useFakeTimers();
+    const region = createDefaultRegion('v0', 16);
+    region.events = [{ kind: 'trigger', at: 0, velocity: 0.8 }];
+    const session: Session = {
+      ...makeSession(),
+      tracks: [{
+        id: 'v0',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        agency: 'ON',
+        muted: false,
+        solo: false,
+        pattern: { steps: [], length: 16 },
+        regions: [region],
+        surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+      }],
+    };
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    let schedulerPositionChange: ((step: number) => void) | null = null;
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onPositionChange }) => {
+        schedulerPositionChange = onPositionChange;
+        return scheduler;
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    schedulerPositionChange?.(6);
+
+    session.tracks[0].regions[0] = {
+      ...session.tracks[0].regions[0],
+      events: [{ kind: 'trigger', at: 8, velocity: 0.8 }],
+    };
+    controller.syncArrangement();
+
+    expect(scheduler.invalidateTrack).toHaveBeenCalledWith('v0', 6);
 
     controller.dispose();
   });
