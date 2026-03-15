@@ -51,6 +51,42 @@ describe('TransportController', () => {
     controller.dispose();
   });
 
+  it('starts playback when constructed after session already flipped to playing', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => scheduler,
+    });
+
+    controller.sync();
+
+    expect(audio.advanceGeneration).toHaveBeenCalledTimes(1);
+    expect(audio.restoreBaseline).toHaveBeenCalledTimes(1);
+    expect(scheduler.start).toHaveBeenCalledWith(expect.any(Number), 0, 1);
+
+    controller.dispose();
+  });
+
   it('releases current generation on pause', () => {
     vi.useFakeTimers();
     const session = makeSession();

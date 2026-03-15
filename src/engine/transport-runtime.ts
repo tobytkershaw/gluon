@@ -23,7 +23,11 @@ export function normalizeTransport(transport: Transport): Transport {
 export function createRuntimeTransport(transport: Transport): RuntimeTransportState {
   const normalized = normalizeTransport(transport);
   return {
-    status: normalized.status,
+    // Runtime transport tracks the live scheduler/audio state, not just the
+    // persisted session intent. Start cold and let TransportController.sync()
+    // reconcile from session transport so first-play works even if the
+    // controller is created after session.transport flips to "playing".
+    status: 'stopped',
     playheadBeats: 0,
     anchorAudioTime: null,
     generation: 0,
