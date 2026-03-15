@@ -93,6 +93,17 @@ export function ActionDiffView({ entry }: Props) {
         </div>
       );
 
+    case 'master-change':
+      return (
+        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+          <span className="text-teal-500/50">MASTER</span>
+          <span className="text-zinc-500">{diff.field}</span>
+          <span className="text-zinc-600">{diff.from.toFixed(2)}</span>
+          <span className="text-zinc-600">&rarr;</span>
+          <span className="text-teal-400/80">{diff.to.toFixed(2)}</span>
+        </div>
+      );
+
     case 'modulator-add':
       return (
         <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
@@ -139,6 +150,47 @@ export function ActionDiffView({ entry }: Props) {
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-400">{diff.operation}</span>
           <span className="text-zinc-500">{diff.description}</span>
+        </div>
+      );
+
+    case 'surface-set':
+      return (
+        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+          <span className="text-teal-500/50">{entry.trackLabel}</span>
+          <span className="text-zinc-500">surface</span>
+          <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-400">
+            {diff.controlCount} controls
+          </span>
+          <span className="text-zinc-500">{diff.description}</span>
+        </div>
+      );
+
+    case 'surface-pin':
+      return (
+        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+          <span className="text-teal-500/50">{entry.trackLabel}</span>
+          <span className="text-emerald-500/70">pin</span>
+          <span className="text-zinc-400">{diff.moduleId}:{diff.controlId}</span>
+        </div>
+      );
+
+    case 'surface-unpin':
+      return (
+        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+          <span className="text-teal-500/50">{entry.trackLabel}</span>
+          <span className="text-red-500/70">unpin</span>
+          <span className="text-zinc-500">{diff.moduleId}:{diff.controlId}</span>
+        </div>
+      );
+
+    case 'surface-label-axes':
+      return (
+        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+          <span className="text-teal-500/50">{entry.trackLabel}</span>
+          <span className="text-zinc-500">axes</span>
+          <span className="text-zinc-400">{diff.x}</span>
+          <span className="text-zinc-600">&times;</span>
+          <span className="text-zinc-400">{diff.y}</span>
         </div>
       );
 

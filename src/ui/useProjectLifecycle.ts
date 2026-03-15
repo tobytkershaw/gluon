@@ -74,6 +74,30 @@ export function useProjectLifecycle(
     } catch { /* ignore */ }
   }, []);
 
+  const persistCurrentProjectIfNeeded = useCallback(async () => {
+    if (!projectIdRef.current) return;
+    try {
+      await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
+    } catch {
+      // Best effort only. Explicit lifecycle actions should still proceed.
+    }
+  }, []);
+
+  const loadProjectById = useCallback(async (id: string) => {
+    loadingRef.current = true;
+    try {
+      const project = await loadProject(id);
+      if (!project) return;
+      setProjectId(project.id);
+      setProjectName(project.meta.name);
+      setSession(restoreSession(project.session));
+      localStorage.setItem(ACTIVE_KEY, project.id);
+      await refreshProjects();
+    } finally {
+      loadingRef.current = false;
+    }
+  }, [refreshProjects, setSession]);
+
   // --- Initial load ---
   useEffect(() => {
     let cancelled = false;
@@ -154,12 +178,7 @@ export function useProjectLifecycle(
   // --- Actions ---
 
   const createProjectAction = useCallback(async (name?: string) => {
-    // Save current project first
-    if (projectIdRef.current) {
-      try {
-        await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
-      } catch { /* best effort */ }
-    }
+    await persistCurrentProjectIfNeeded();
 
     loadingRef.current = true;
     const { id, session: newSession } = await createProjectInDB(name);
@@ -169,27 +188,12 @@ export function useProjectLifecycle(
     localStorage.setItem(ACTIVE_KEY, id);
     await refreshProjects();
     loadingRef.current = false;
-  }, [setSession, refreshProjects]);
+  }, [persistCurrentProjectIfNeeded, setSession, refreshProjects]);
 
   const switchProjectAction = useCallback(async (id: string) => {
-    // Save current project first
-    if (projectIdRef.current) {
-      try {
-        await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
-      } catch { /* best effort */ }
-    }
-
-    loadingRef.current = true;
-    const project = await loadProject(id);
-    if (project) {
-      setProjectId(project.id);
-      setProjectName(project.meta.name);
-      setSession(restoreSession(project.session));
-      localStorage.setItem(ACTIVE_KEY, project.id);
-    }
-    await refreshProjects();
-    loadingRef.current = false;
-  }, [setSession, refreshProjects]);
+    await persistCurrentProjectIfNeeded();
+    await loadProjectById(id);
+  }, [loadProjectById, persistCurrentProjectIfNeeded]);
 
   const renameActiveProjectAction = useCallback(async (name: string) => {
     if (!projectIdRef.current) return;
@@ -200,24 +204,26 @@ export function useProjectLifecycle(
 
   const duplicateActiveProjectAction = useCallback(async () => {
     if (!projectIdRef.current) return;
-    // Save first so duplicate gets latest state
-    try {
-      await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
-    } catch { /* best effort */ }
+    await persistCurrentProjectIfNeeded();
     const newId = await duplicateProjectInDB(projectIdRef.current);
-    // Switch to the duplicate
-    await switchProjectAction(newId);
-  }, [switchProjectAction]);
+    await loadProjectById(newId);
+  }, [loadProjectById, persistCurrentProjectIfNeeded]);
 
   const deleteActiveProjectAction = useCallback(async () => {
     if (!projectIdRef.current) return;
     const idToDelete = projectIdRef.current;
     await deleteProjectInDB(idToDelete);
 
+    // Deletion is terminal. Clear save-path refs before loading a replacement
+    // so the just-deleted project cannot be recreated by a save-before-switch.
+    projectIdRef.current = null;
+    setProjectId(null);
+    localStorage.removeItem(ACTIVE_KEY);
+
     // Switch to most recent remaining, or create new
     const remaining = await listProjects();
     if (remaining.length > 0) {
-      await switchProjectAction(remaining[0].id);
+      await loadProjectById(remaining[0].id);
     } else {
       loadingRef.current = true;
       const { id, session: newSession } = await createProjectInDB('Untitled');
@@ -228,14 +234,11 @@ export function useProjectLifecycle(
       await refreshProjects();
       loadingRef.current = false;
     }
-  }, [setSession, switchProjectAction, refreshProjects]);
+  }, [setSession, loadProjectById, refreshProjects]);
 
   const exportActiveProjectAction = useCallback(async () => {
     if (!projectIdRef.current) return;
-    // Save latest state first
-    try {
-      await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
-    } catch { /* best effort */ }
+    await persistCurrentProjectIfNeeded();
     const json = await exportProjectInDB(projectIdRef.current);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -244,7 +247,7 @@ export function useProjectLifecycle(
     a.download = `${projectNameRef.current.replace(/[^a-zA-Z0-9_-]/g, '_')}.gluon`;
     a.click();
     URL.revokeObjectURL(url);
-  }, []);
+  }, [persistCurrentProjectIfNeeded]);
 
   const importProjectAction = useCallback(async (file: File) => {
     try {
