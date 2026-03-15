@@ -261,6 +261,27 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Close all gates and clear scheduled events, but keep gain at baseline
+   * so envelopes decay naturally. Used on pause (vs. silenceAll on hard stop).
+   */
+  releaseAll(): void {
+    this.clearFence++;
+    const fence = this.clearFence;
+
+    for (const slot of this.tracks.values()) {
+      slot.synth.silence(fence);
+      // Keep accent gain at baseline (0.3) — don't zero it like silenceAll
+    }
+    // Pause modulators so they don't keep running during pause
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.silence(fence);
+        modSlot.engine.pause();
+      }
+    }
+  }
+
   silenceAll(): void {
     // Increment fence so any events already in-flight from the previous play
     // cycle are treated as stale by the worklet processors (#147).

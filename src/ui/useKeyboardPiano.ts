@@ -202,7 +202,9 @@ export function useKeyboardPiano(
     if (!region || region.duration <= 0) return;
 
     const currentStep = globalStepRef.current;
-    const rawDuration = currentStep - pending.startStep;
+    let rawDuration = currentStep - pending.startStep;
+    // If playhead wrapped past loop boundary, compute duration across the wrap
+    if (rawDuration < 0) rawDuration += region.duration;
     const duration = Math.max(rawDuration, MIN_NOTE_DURATION);
 
     // Compute region-local position (wrap within loop)
