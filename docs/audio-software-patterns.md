@@ -40,7 +40,7 @@ Web Audio `AudioParam` methods (`linearRampToValueAtTime`, `setTargetAtTime`) pr
 
 ## 2. Denormal Protection
 
-**Status: Gap**
+**Status: Implemented (PR #325)**
 
 Denormal (subnormal) floating-point numbers are extremely small values near zero. When recursive algorithms (IIR filters, reverbs, feedback paths) decay toward silence, calculations with denormals can be 100x slower than normal floating-point operations, causing CPU spikes.
 
@@ -94,7 +94,7 @@ This maps directly to Gluon's arbitration principle: the human's value is the ba
 
 ## 4. Voice Allocation and Stealing
 
-**Status: Gap (Issue #296 filed)**
+**Status: Implemented (PR #337, Issue #296)**
 
 Gluon currently has one synth instance per track — no polyphony within a track. The transport reset added `ActiveVoices` tracking, which is the prerequisite for voice allocation.
 
@@ -438,9 +438,9 @@ Nonlinear processes (saturation, waveshaping, distortion) generate harmonics tha
 
 | Priority | Pattern | Status | Effort | When |
 |----------|---------|--------|--------|------|
-| 1 | Denormal protection | Gap | Low (~50 lines C++) | Now — prevents silent CPU spikes |
+| 1 | Denormal protection | Implemented (PR #325) | Low (~50 lines C++) | Done |
 | 2 | SharedArrayBuffer ring buffers | Gap | Medium | When modulation/metering needs scale |
-| 3 | Voice allocation / polyphony | Gap (#296) | Medium-High | After transport reset completes |
+| 3 | Voice allocation / polyphony | Implemented (PR #337) | Medium-High | Done |
 | 4 | Tempo maps | Gap | High | When sequencer needs tempo changes |
 | 5 | Non-destructive modulation offsets | Partial | Medium | When modulation architecture matures |
 | 6 | Keyboard accessibility | Gap | Medium | Ongoing — incremental adoption |

@@ -10,7 +10,7 @@ What it still cannot do well enough is collaborate over time with taste and memo
 
 The roadmap from here is therefore less about structural UI and more about collaboration quality.
 
-**Completed:** Phases 1–3, M0–M5, Phase 4B (Tides modulation).
+**Completed:** Phases 1–3, M0–M6, Phase 4B (Tides modulation).
 
 ---
 
@@ -144,106 +144,63 @@ These criteria are now met by the current build.
 
 ## COLLABORATION — M6: AI Collaboration Quality
 
+**Status:** Complete.
+
 **Product test:** The AI calibrates its behavior to the session — avoids repeating rejected directions, preserves approved material, sizes its interventions appropriately, and asks when uncertain about taste.
 
 This phase implements the design work from the AI environment docs. The product already has the AI tools; this phase makes the AI *use them well*.
 
-**Current focus:** M6A Preservation.
+### M6X: Model Stack Prerequisite — Complete
 
-### M6X: Model Stack Prerequisite
+Provider abstraction landed (PR #275), GPT-5.4 planner + Gemini 3 Flash listener stack selected (PR #278).
 
-Before judging collaboration quality, Gluon needs to know which model stack is actually responsible for planning, editing, and listening.
+### 6A0: Collaboration State Foundation — Complete
 
-| What | Design doc |
-|------|-----------|
-| Provider abstraction for planner / editor / listener roles | `docs/rfcs/gluon_model_capability_assessment.md` |
-| Planner-model bakeoff against Gluon's collaboration contract | `docs/rfcs/gluon_model_capability_assessment.md` |
-| Listener-model evaluation for audio reasoning quality | `docs/rfcs/gluon_model_capability_assessment.md` |
+Landed: approval levels (#336), reaction history (#339), observed patterns and restraint (#344), open decisions (#345), voice importance metadata (#340).
 
-**Why it matters:** preservation, restraint, structured listening, and consequence reporting all depend on the behavior of the actual planner/editor/listener stack. If the model stack is unsettled, M6 behavior tuning is partly tuning the wrong thing.
+### 6A: Preservation — Complete
 
-**Dependencies:** M5 complete.
-**Enables:** M6A–M6D become more meaningful once the provider/model role split is explicit and the shipping collaboration stack is known.
+Landed: mark_approved tool and UI affordance (#342), preservation enforcement (#346), preservation reports (#349), enriched consequence reporting (#348). Tool consolidation merged mark_approved into set_track_meta (#366).
 
-### 6A0: Collaboration State Foundation
+### 6B: Aesthetic Direction — Complete
 
-Before preservation, aesthetic direction, and structured listening feel coherent, Gluon needs a richer shared collaboration-state layer.
+Landed: reaction history (#339), observed patterns and restraint guidance (#344). System prompt tuned for taste-informed behavior (#363).
 
-| What | Design doc |
-|------|-----------|
-| Approved and rejected directions with rationale | `docs/ai/ai-musical-environment.md` |
-| Observed patterns / taste summary | `docs/ai/aesthetic-direction.md` |
-| Open decisions and active brief | `docs/ai/ai-musical-environment.md` |
-| Listener observations and comparison context | `docs/ai/ai-musical-environment.md` |
-| Restraint / intervention sizing cues | `docs/ai/aesthetic-direction.md` |
+### 6C: Structured Listening — Complete
 
-**Why it matters:** the newer collaboration docs assume more than isolated tools. They assume the AI and human are collaborating over a shared session memory, not just over the current transport and parameter state.
+Landed: question-based listening (#335), comparative listening and listening lenses (#343), audio analysis tools (spectral/dynamics/rhythm, #341). Tool consolidation merged analysis into single `analyze` tool (#366).
 
-**Dependencies:** M5 complete.
-**Enables:** M6A–M6D all become more coherent once there is a real collaboration-state layer rather than scattered one-off fields.
+### 6D: Environment Legibility — Complete
 
-### 6A: Preservation
+Landed: voice importance metadata (#340), open decisions (#345), enriched consequence reporting (#348). Tool consolidation merged set_importance into set_track_meta (#366).
 
-| What | Design doc |
-|------|-----------|
-| Approval levels on voices and aspects | `docs/rfcs/preservation-contracts.md` |
-| `mark_approved` / `preserve_material` tools | `docs/rfcs/preservation-contracts.md` |
-| Runtime enforcement of preservation constraints | `docs/rfcs/preservation-contracts.md` |
-| Preservation reports on edits | `docs/rfcs/preservation-contracts.md` |
+### M6A Consolidation
 
-**Immediate backlog shape:**
-- approval levels in session state and compressed AI state
-- `mark_approved` tool and UI affordance
-- executor enforcement for simple `preserve_exact` rhythm constraints
-- preservation contracts and reports for expansion-style edits
-- visible approval / protection affordances in the UI (not chat-only)
+Post-M6 QA and consolidation pass:
 
-**Dependencies:** M5 (the human needs to see approval status in the UI; parameter surfaces must exist for partial approvals to make sense).
-**Enables:** Aesthetic direction (6B) — taste-informed preservation is advisory without runtime enforcement.
+| What | PR |
+|------|-----|
+| API structural integrity audit | #359 |
+| raise_decision executor fix | #360 |
+| openDecisions persistence fix | #361 |
+| Session helper and state compression tests | #362 |
+| System prompt consolidation | #363 |
+| Tool schema consolidation (26 to 17) | #366 |
+| Volume/pan/polyphony audit | #368 |
+| M6 behavioral validation scripts | #369, #370 |
+| Human capability parity audit | #371 |
+| Parity test fixes and QA helper extraction | #380 |
 
-### 6B: Aesthetic Direction
+### M6 exit criteria — Met
 
-| What | Design doc |
-|------|-----------|
-| Reaction history in session state | `docs/ai/aesthetic-direction.md` |
-| Rationale on approved/rejected directions | `docs/ai/aesthetic-direction.md` |
-| Observed patterns and restraint guidance | `docs/ai/aesthetic-direction.md` |
-| Prompt tuning for taste-informed behavior | `docs/ai/aesthetic-direction.md` |
-
-**Dependencies:** 6A (preservation contracts). Collaboration state layer in session (from `ai-musical-environment.md`).
-**Enables:** The AI behaves like a collaborator who remembers what happened earlier in the session and adjusts accordingly.
-
-### 6C: Structured Listening
-
-| What | Design doc |
-|------|-----------|
-| Question-based listening | `docs/ai/ai-musical-environment.md` (Structured Listening section) |
-| Comparative listening | `docs/ai/ai-musical-environment.md` |
-| Listening lenses (punch, separation, groove) | `docs/ai/ai-musical-environment.md` |
-| `compare(candidateIds, question)` tool | `docs/ai/ai-musical-environment.md` |
-| `summarize_voice(trackId)` tool | `docs/ai/ai-musical-environment.md` |
-| `ask_clarifying(question)` collaboration tool | `docs/ai/ai-musical-environment.md` |
-
-**Dependencies:** 5D (offline render + voice isolation). Better after 6A (preservation reports give listening context).
-**Enables:** AI evaluation becomes diagnostic rather than vague. "Did the bass widening reduce kick punch?" rather than "how does it sound?"
-
-### 6D: Environment Legibility
-
-| What | Design doc |
-|------|-----------|
-| Voice importance metadata (must_preserve, may_change) | `docs/ai/ai-musical-environment.md` (Voice layer) |
-| Open decisions in collaboration state | `docs/ai/ai-musical-environment.md` (Session layer) |
-| Enriched consequence reporting | `docs/ai/ai-musical-environment.md` (Consequence Reporting) |
-
-**Dependencies:** 6A (importance metadata depends on approval levels). Session state layer.
-**Enables:** The AI makes better decisions because it understands *why* things matter, not just *what* they are.
-
-### M6 exit criteria
-- Approved material survives AI expansion edits (runtime enforced, not just prompt guidance)
+- Approved material survives AI expansion edits (runtime enforced, not just prompt guidance) -- verified live
 - The AI avoids repeating directions the human rejected earlier in the session
 - The AI calibrates intervention size based on session evidence
-- Listening evaluations answer specific questions rather than producing generic feedback
-- The AI asks about aesthetic uncertainty rather than guessing
+- Listening evaluations answer specific questions rather than producing generic feedback -- verified live
+- The AI asks about aesthetic uncertainty rather than guessing -- raise_decision verified live
+
+### Known issue
+- `render` tool fails without prior audio context activation (#379). The `listen` tool works independently.
 
 ---
 
@@ -367,23 +324,23 @@ M5/M6 foundations ────────────────────�
 
 | # | Issue | Notes |
 |---|-------|-------|
-| 72 | Migrate to gemini-3-flash | When function calling is stable |
+| ~~72~~ | ~~Migrate to gemini-3-flash~~ | Done (PR #278) |
 | 8 | Graceful AI model degradation | Each AI layer independently disableable |
 | 156 | Per-track swing | Sequencer feature, implement when swing UX is clearer |
-| 50 | Ableton sequencing adapter spike | M7 territory |
-| 6 | Lyria integration + sampler voice | M7 territory (new voice engine type) |
+| 50 | Ableton sequencing adapter spike | M7 territory (deprioritized) |
+| 6 | Lyria integration + sampler voice | M7 territory (deprioritized) |
 
 ---
 
 ## Open Questions
 
-1. **How should approval granularity work in M6A?** Voice-level approval is easy to explain, but partial approvals on rhythm, timbre, contour, and relationships are more powerful. What is the minimum shippable granularity?
+1. ~~**How should approval granularity work in M6A?**~~ Resolved: voice-level approval with four levels (exploratory, liked, approved, anchor). Shipped in M6.
 
-2. **How should preservation surface in the UI?** Chat-only reporting is cheap, but approval state likely also needs visible affordances in Surface/Rack/Patch so the human can see what is protected.
+2. ~~**How should preservation surface in the UI?**~~ Resolved: approval cycle button (“A”) on track rows in the sidebar, plus chat-based preservation reports. Shipped in M6.
 
-3. **What counts as “family-preserving” in practice?** `preserve_exact` can be enforced structurally; `preserve_family` requires similarity rules that are musically useful but not brittle.
+3. **What counts as “family-preserving” in practice?** `preserve_exact` can be enforced structurally; `preserve_family` requires similarity rules that are musically useful but not brittle. Still open — only `preserve_exact` is implemented.
 
-4. **M7 direction:** MIDI output to hardware is still the most obvious first external integration. Is that still the first M7 deliverable, or has DAW integration become higher priority?
+4. **M7 direction:** Deprioritized. Focus is on standalone depth improvements (parity gaps, render fix, level meters) before external integration.
 
 ---
 
