@@ -200,6 +200,7 @@ export function loadSession(): Session | null {
       undoStack: session.undoStack ?? [],
       recentHumanActions: session.recentHumanActions ?? [],
       reactionHistory: session.reactionHistory ?? [],
+      openDecisions: session.openDecisions ?? [],
     };
   } catch {
     return null;
