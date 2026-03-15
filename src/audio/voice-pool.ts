@@ -19,8 +19,27 @@ export class VoicePool {
     this.voices = voices;
   }
 
-  /** Round-robin allocate the next voice, returning it for scheduling. */
-  allocate(): PoolVoice {
+  /**
+   * Allocate the next voice, preferring released voices over active ones.
+   * A voice is considered released if its lastGateOffTime < currentTime.
+   * Among released voices, the one idle longest (earliest lastGateOffTime) wins.
+   * Falls back to round-robin if all voices are still active.
+   */
+  allocate(currentTime: number): PoolVoice {
+    // Scan for released voices (gate-off in the past)
+    let bestIdx = -1;
+    let bestGateOff = Infinity;
+    for (let i = 0; i < this.voices.length; i++) {
+      const v = this.voices[i];
+      if (v.lastGateOffTime < currentTime && v.lastGateOffTime < bestGateOff) {
+        bestGateOff = v.lastGateOffTime;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx !== -1) {
+      return this.voices[bestIdx];
+    }
+    // All voices still active — fall back to round-robin
     const voice = this.voices[this.nextIndex];
     this.nextIndex = (this.nextIndex + 1) % this.voices.length;
     return voice;
@@ -95,7 +114,7 @@ export class VoicePool {
 
   /** Schedule a note on the next available voice with per-voice accent automation. */
   scheduleNote(note: ScheduledNote, generation: number): PoolVoice {
-    const voice = this.allocate();
+    const voice = this.allocate(note.time);
     const accentLevel = note.accent ? ACCENT_BASELINE * 2.0 : ACCENT_BASELINE;
     voice.accentGain.gain.setValueAtTime(accentLevel, note.time);
     if (note.accent) {
