@@ -107,4 +107,42 @@ describe('dynamic track setup', () => {
     const prompt = defaultPrompt();
     expect(prompt).toContain('transform tool');
   });
+
+  it('includes restraint guidance section', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('Restraint:');
+  });
+
+  it('includes moderate restraint by default (no reactions)', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('Restraint: Moderate');
+  });
+
+  it('includes conservative restraint when reactions are mostly rejections', () => {
+    const session = createSession();
+    session.reactionHistory = [
+      { actionGroupIndex: 0, verdict: 'rejected', timestamp: Date.now() },
+      { actionGroupIndex: 1, verdict: 'rejected', timestamp: Date.now() },
+      { actionGroupIndex: 2, verdict: 'rejected', timestamp: Date.now() },
+    ];
+    const prompt = buildSystemPrompt(session);
+    expect(prompt).toContain('Restraint: Conservative');
+  });
+
+  it('includes adventurous restraint when reactions are mostly approvals', () => {
+    const session = createSession();
+    session.reactionHistory = [
+      { actionGroupIndex: 0, verdict: 'approved', timestamp: Date.now() },
+      { actionGroupIndex: 1, verdict: 'approved', timestamp: Date.now() },
+      { actionGroupIndex: 2, verdict: 'approved', timestamp: Date.now() },
+    ];
+    const prompt = buildSystemPrompt(session);
+    expect(prompt).toContain('Restraint: Adventurous');
+  });
+
+  it('mentions observed_patterns and restraint_level in reaction history section', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('observed_patterns');
+    expect(prompt).toContain('restraint_level');
+  });
 });

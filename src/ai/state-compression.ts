@@ -69,6 +69,8 @@ interface CompressedHumanAction {
   age_ms: number;
 }
 
+export type RestraintLevel = 'conservative' | 'moderate' | 'adventurous';
+
 export interface CompressedState {
   tracks: CompressedTrack[];
   activeTrackId: string;
@@ -77,6 +79,8 @@ export interface CompressedState {
   undo_depth: number;
   recent_human_actions: CompressedHumanAction[];
   recent_reactions: CompressedReaction[];
+  observed_patterns: string[];
+  restraint_level: RestraintLevel;
 }
 
 function round2(n: number): number {
@@ -143,6 +147,143 @@ function compressPattern(track: Track): CompressedPattern {
     param_locks,
     density,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Observed patterns & restraint — derived from reaction history
+// ---------------------------------------------------------------------------
+
+/** Window of recent reactions used for pattern analysis. */
+const RECENT_WINDOW = 10;
+
+/** Minimum reactions needed before deriving any patterns. */
+const MIN_REACTIONS_FOR_PATTERNS = 3;
+
+/**
+ * Extract recurring keyword themes from rationale strings.
+ * Returns keyword → count for keywords that appear in at least 2 rationales.
+ */
+function extractRationaleKeywords(reactions: Reaction[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  // Common words to exclude
+  const stopWords = new Set([
+    'the', 'a', 'an', 'is', 'was', 'it', 'too', 'very', 'and', 'or', 'but',
+    'not', 'no', 'this', 'that', 'i', 'my', 'to', 'of', 'in', 'for', 'on',
+    'with', 'do', 'did', 'be', 'have', 'has', 'had', 'so', 'just', 'like',
+  ]);
+
+  for (const r of reactions) {
+    if (!r.rationale) continue;
+    const words = r.rationale
+      .toLowerCase()
+      .replace(/[^a-z\s]/g, '')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !stopWords.has(w));
+
+    // Deduplicate within a single rationale to avoid one verbose comment dominating
+    const unique = new Set(words);
+    for (const word of unique) {
+      counts.set(word, (counts.get(word) ?? 0) + 1);
+    }
+  }
+
+  // Only keep keywords appearing in at least 2 rationales
+  const result = new Map<string, number>();
+  for (const [word, count] of counts) {
+    if (count >= 2) result.set(word, count);
+  }
+  return result;
+}
+
+/**
+ * Derive natural-language pattern descriptions from reaction history.
+ *
+ * Simple, deterministic analysis:
+ * - Overall approval rate in recent window
+ * - Verdict clustering (streaks)
+ * - Recurring rationale keywords in rejected vs approved reactions
+ */
+export function deriveObservedPatterns(reactions: Reaction[]): string[] {
+  if (reactions.length < MIN_REACTIONS_FOR_PATTERNS) return [];
+
+  const recent = reactions.slice(-RECENT_WINDOW);
+  const patterns: string[] = [];
+
+  const approved = recent.filter(r => r.verdict === 'approved').length;
+  const rejected = recent.filter(r => r.verdict === 'rejected').length;
+  const total = recent.length;
+
+  // 1. Overall approval rate
+  const approvalRate = approved / total;
+  const rejectionRate = rejected / total;
+
+  if (approvalRate >= 0.7) {
+    patterns.push(`Human has approved ${approved} of last ${total} AI actions — generally receptive`);
+  } else if (rejectionRate >= 0.7) {
+    patterns.push(`Human has rejected ${rejected} of last ${total} AI actions — generally unreceptive`);
+  } else if (rejectionRate >= 0.4) {
+    patterns.push(`Mixed reactions: ${approved} approved, ${rejected} rejected out of last ${total} actions`);
+  }
+
+  // 2. Recent streak detection (last 3+ consecutive same verdict)
+  if (recent.length >= 3) {
+    const lastVerdict = recent[recent.length - 1].verdict;
+    let streakLen = 1;
+    for (let i = recent.length - 2; i >= 0; i--) {
+      if (recent[i].verdict === lastVerdict) streakLen++;
+      else break;
+    }
+    if (streakLen >= 3 && lastVerdict !== 'neutral') {
+      patterns.push(
+        lastVerdict === 'rejected'
+          ? `Last ${streakLen} actions were all rejected — recent approach is not working`
+          : `Last ${streakLen} actions were all approved — current direction is working well`
+      );
+    }
+  }
+
+  // 3. Keyword themes from rejected rationales
+  const rejectedReactions = recent.filter(r => r.verdict === 'rejected');
+  if (rejectedReactions.length >= 2) {
+    const keywords = extractRationaleKeywords(rejectedReactions);
+    // Take top 2 keywords by frequency
+    const sorted = [...keywords.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+    for (const [keyword, count] of sorted) {
+      patterns.push(`"${keyword}" mentioned in ${count} rejection rationales`);
+    }
+  }
+
+  // 4. Keyword themes from approved rationales
+  const approvedReactions = recent.filter(r => r.verdict === 'approved');
+  if (approvedReactions.length >= 2) {
+    const keywords = extractRationaleKeywords(approvedReactions);
+    const sorted = [...keywords.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2);
+    for (const [keyword, count] of sorted) {
+      patterns.push(`"${keyword}" associated with ${count} approvals`);
+    }
+  }
+
+  return patterns;
+}
+
+/**
+ * Derive a restraint level from recent reaction history.
+ *
+ * - Mostly rejections (>=60%) → conservative
+ * - Mostly approvals (>=60%) → adventurous
+ * - Otherwise → moderate
+ */
+export function deriveRestraintLevel(reactions: Reaction[]): RestraintLevel {
+  if (reactions.length < MIN_REACTIONS_FOR_PATTERNS) return 'moderate';
+
+  const recent = reactions.slice(-RECENT_WINDOW);
+  const approved = recent.filter(r => r.verdict === 'approved').length;
+  const rejected = recent.filter(r => r.verdict === 'rejected').length;
+  const total = recent.length;
+
+  if (rejected / total >= 0.6) return 'conservative';
+  if (approved / total >= 0.6) return 'adventurous';
+  return 'moderate';
 }
 
 export function compressState(session: Session): CompressedState {
@@ -220,6 +361,8 @@ export function compressState(session: Session): CompressedState {
       ...(r.rationale ? { rationale: r.rationale } : {}),
       age_ms: now - r.timestamp,
     })),
+    observed_patterns: deriveObservedPatterns(session.reactionHistory ?? []),
+    restraint_level: deriveRestraintLevel(session.reactionHistory ?? []),
   };
 
   return result;
