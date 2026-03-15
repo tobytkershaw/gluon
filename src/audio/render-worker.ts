@@ -114,8 +114,7 @@ async function loadPlaitsModule(): Promise<PlaitsWasm> {
   if (!plaitsModulePromise) {
     plaitsModulePromise = (async () => {
       const wasmBinary = await fetchWasm('/audio/plaits.wasm');
-      // Import the Emscripten module factory
-      importScripts('/audio/plaits-module.js');
+      await loadScript('/audio/plaits-module.js');
       const factory = (self as unknown as Record<string, CreateModuleFn<PlaitsWasm>>).createPlaitsModule;
       if (!factory) throw new Error('createPlaitsModule not found after loading module');
       return factory({ wasmBinary });
@@ -128,7 +127,7 @@ async function loadRingsModule(): Promise<RingsWasm> {
   if (!ringsModulePromise) {
     ringsModulePromise = (async () => {
       const wasmBinary = await fetchWasm('/audio/rings.wasm');
-      importScripts('/audio/rings-module.js');
+      await loadScript('/audio/rings-module.js');
       const factory = (self as unknown as Record<string, CreateModuleFn<RingsWasm>>).createRingsModule;
       if (!factory) throw new Error('createRingsModule not found after loading module');
       return factory({ wasmBinary });
@@ -141,7 +140,7 @@ async function loadCloudsModule(): Promise<CloudsWasm> {
   if (!cloudsModulePromise) {
     cloudsModulePromise = (async () => {
       const wasmBinary = await fetchWasm('/audio/clouds.wasm');
-      importScripts('/audio/clouds-module.js');
+      await loadScript('/audio/clouds-module.js');
       const factory = (self as unknown as Record<string, CreateModuleFn<CloudsWasm>>).createCloudsModule;
       if (!factory) throw new Error('createCloudsModule not found after loading module');
       return factory({ wasmBinary });
@@ -154,7 +153,7 @@ async function loadTidesModule(): Promise<TidesWasm> {
   if (!tidesModulePromise) {
     tidesModulePromise = (async () => {
       const wasmBinary = await fetchWasm('/audio/tides.wasm');
-      importScripts('/audio/tides-module.js');
+      await loadScript('/audio/tides-module.js');
       const factory = (self as unknown as Record<string, CreateModuleFn<TidesWasm>>).createTidesModule;
       if (!factory) throw new Error('createTidesModule not found after loading module');
       return factory({ wasmBinary });
@@ -167,6 +166,19 @@ async function fetchWasm(url: string): Promise<ArrayBuffer> {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
   return response.arrayBuffer();
+}
+
+/**
+ * Load an Emscripten module JS file in a module worker context.
+ * Module workers don't support importScripts(), so we fetch the script
+ * text and evaluate it via indirect eval to set the factory on `self`.
+ */
+async function loadScript(url: string): Promise<void> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.status}`);
+  const text = await response.text();
+  // Indirect eval runs in global scope, same as importScripts
+  (0, eval)(text);
 }
 
 // ---------------------------------------------------------------------------
