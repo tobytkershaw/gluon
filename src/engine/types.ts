@@ -457,7 +457,16 @@ export interface AISetImportanceAction {
   musicalRole?: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction;
+export interface AIRaiseDecisionAction {
+  type: 'raise_decision';
+  decisionId: string;
+  question: string;
+  context?: string;
+  options?: string[];
+  trackIds?: string[];
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction;
 
 // --- Reaction History ---
 
@@ -470,6 +479,24 @@ export interface Reaction {
   rationale?: string;
   /** When the reaction was recorded */
   timestamp: number;
+}
+
+// --- Open Decisions ---
+
+export interface OpenDecision {
+  id: string;
+  /** What needs to be decided */
+  question: string;
+  /** Context for why this matters */
+  context?: string;
+  /** Options the AI sees (if any) */
+  options?: string[];
+  /** When this decision was raised */
+  raisedAt: number;
+  /** Which track(s) this relates to, if any */
+  trackIds?: string[];
+  /** Whether this has been resolved */
+  resolved?: boolean;
 }
 
 // --- Session ---
@@ -493,6 +520,8 @@ export interface Session {
   recentHumanActions: HumanAction[];
   /** History of human reactions to AI actions */
   reactionHistory?: Reaction[];
+  /** Unresolved decisions that need human input */
+  openDecisions?: OpenDecision[];
 }
 
 export type ActionDiff =

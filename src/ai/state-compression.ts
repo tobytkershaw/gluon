@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 
@@ -71,6 +71,14 @@ interface CompressedHumanAction {
 
 export type RestraintLevel = 'conservative' | 'moderate' | 'adventurous';
 
+interface CompressedDecision {
+  id: string;
+  question: string;
+  context?: string;
+  options?: string[];
+  trackIds?: string[];
+}
+
 export interface CompressedState {
   tracks: CompressedTrack[];
   activeTrackId: string;
@@ -81,6 +89,7 @@ export interface CompressedState {
   recent_reactions: CompressedReaction[];
   observed_patterns: string[];
   restraint_level: RestraintLevel;
+  open_decisions: CompressedDecision[];
 }
 
 function round2(n: number): number {
@@ -363,6 +372,16 @@ export function compressState(session: Session): CompressedState {
     })),
     observed_patterns: deriveObservedPatterns(session.reactionHistory ?? []),
     restraint_level: deriveRestraintLevel(session.reactionHistory ?? []),
+    open_decisions: (session.openDecisions ?? [])
+      .filter((d: OpenDecision) => !d.resolved)
+      .slice(-5)
+      .map((d: OpenDecision) => ({
+        id: d.id,
+        question: d.question,
+        ...(d.context ? { context: d.context.slice(0, 200) } : {}),
+        ...(d.options ? { options: d.options } : {}),
+        ...(d.trackIds && d.trackIds.length > 0 ? { trackIds: d.trackIds } : {}),
+      })),
   };
 
   return result;

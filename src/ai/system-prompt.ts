@@ -176,6 +176,13 @@ The compressed state includes \`observed_patterns\` (recurring tendencies from r
 
 ${generateRestraintGuidance(restraintLevel)}
 
+## Open Decisions
+Use **raise_decision** when you need the human's input on a subjective choice — e.g. aesthetic direction, structural decisions, or taste questions where multiple valid approaches exist.
+- Don't raise trivial decisions — use your best judgment for clear-cut choices.
+- Reference existing open decisions in your reasoning when relevant. The session state includes up to 5 recent unresolved decisions.
+- Open decisions are advisory — they don't block your actions. If you need to proceed, make your best call and note the decision for later.
+- The human resolves decisions by responding in chat. You don't need to track resolution yourself.
+
 ## User Guide (Reference for answering "how do I..." questions)
 Use this section to help the human navigate the app. Shortcuts are Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 
