@@ -50,6 +50,8 @@ interface CompressedTrack {
   processors: CompressedProcessor[];
   modulators: CompressedModulator[];
   modulations: CompressedModulation[];
+  importance?: number;
+  musicalRole?: string;
 }
 
 interface CompressedReaction {
@@ -191,6 +193,8 @@ export function compressState(session: Session): CompressedState {
       ...(track.surface.pinnedControls.length > 0 ? {
         surface_pinned: track.surface.pinnedControls.map(p => `${p.moduleId}:${p.controlId}`),
       } : {}),
+      ...(track.importance != null ? { importance: round2(track.importance) } : {}),
+      ...(track.musicalRole ? { musicalRole: track.musicalRole } : {}),
     })),
     activeTrackId: session.activeTrackId,
     transport: {

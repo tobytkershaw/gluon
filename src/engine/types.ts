@@ -123,6 +123,11 @@ export interface Track {
   surface: TrackSurface;
   /** Approval level for the track's current material. Default: 'exploratory'. */
   approval?: ApprovalLevel;
+  /** AI-assigned importance of this track in the current mix context.
+   *  Higher = more prominent/essential. Range: 0.0-1.0. */
+  importance?: number;
+  /** Brief description of this track's musical role (e.g., "driving rhythm", "ambient pad") */
+  musicalRole?: string;
 }
 
 // --- Master channel ---
@@ -445,7 +450,14 @@ export interface AILabelAxesAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction;
+export interface AISetImportanceAction {
+  type: 'set_importance';
+  trackId: string;
+  importance: number;
+  musicalRole?: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction;
 
 // --- Reaction History ---
 

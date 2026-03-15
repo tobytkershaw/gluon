@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -264,6 +264,13 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'label_axes': {
       const track = getTrack(session, action.trackId);
       return updateTrack(session, action.trackId, { surface: { ...track.surface, xyAxes: { x: action.x, y: action.y } } });
+    }
+    case 'set_importance': {
+      const clamped = Math.max(0, Math.min(1, action.importance));
+      return updateTrack(session, action.trackId, {
+        importance: clamped,
+        ...(action.musicalRole ? { musicalRole: action.musicalRole } : {}),
+      });
     }
     case 'say':
     default:
@@ -1099,6 +1106,35 @@ export class GluonAI {
             trackId: labelAxesAction.trackId,
             x: labelAxesAction.x,
             y: labelAxesAction.y,
+          },
+        };
+      }
+
+      case 'set_importance': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.importance !== 'number') {
+          return { actions: [], response: errorPayload('Missing required parameter: importance (must be a number 0.0-1.0)') };
+        }
+        if (args.importance < 0 || args.importance > 1) {
+          return { actions: [], response: errorPayload('importance must be between 0.0 and 1.0') };
+        }
+
+        const setImportanceAction: AISetImportanceAction = {
+          type: 'set_importance',
+          trackId: args.trackId as string,
+          importance: args.importance as number,
+          ...(typeof args.musicalRole === 'string' ? { musicalRole: args.musicalRole } : {}),
+        };
+
+        return {
+          actions: [setImportanceAction],
+          response: {
+            applied: true,
+            trackId: setImportanceAction.trackId,
+            importance: Math.round(setImportanceAction.importance * 100) / 100,
+            ...(setImportanceAction.musicalRole ? { musicalRole: setImportanceAction.musicalRole } : {}),
           },
         };
       }

@@ -244,6 +244,14 @@ export function addReaction(session: Session, reaction: Reaction): Session {
   return { ...session, reactionHistory: next };
 }
 
+export function setTrackImportance(session: Session, trackId: string, importance: number, musicalRole?: string): Session {
+  const clamped = Math.max(0, Math.min(1, importance));
+  return updateTrack(session, trackId, {
+    importance: clamped,
+    ...(musicalRole !== undefined ? { musicalRole } : {}),
+  });
+}
+
 export function setMaster(session: Session, update: Partial<MasterChannel>): Session {
   const prev = session.master;
   const snapshot: MasterSnapshot = {

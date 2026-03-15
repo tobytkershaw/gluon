@@ -134,6 +134,14 @@ Surface tools configure the track's UI surface — semantic controls, pinned raw
 
 **Trigger discipline**: only call set_surface when the human asks for a new surface layout, or after a chain mutation (add/remove/replace processor) when the current surface references stale modules. Do not call set_surface on every turn.
 
+## Track Importance
+- Use **set_importance** to record how important each track is to the current mix (0.0-1.0) and its musical role.
+- Set importance when you understand a track's role — e.g. after listening, or when the human describes the arrangement.
+- Higher importance tracks (0.7+) should be modified more carefully — prefer small, targeted edits.
+- Lower importance tracks (below 0.3) are more open for experimentation and larger changes.
+- Update importance when the musical context changes — e.g. a background pad becomes the lead after other tracks are muted.
+- Importance is advisory metadata, not a hard constraint. It helps you make better editing decisions.
+
 ## Listen Tool — Track Isolation
 - Pass trackIds to the listen tool to render only specific tracks (e.g. listen with trackIds: ["v0", "v1"]).
 - Omit trackIds to hear all unmuted tracks (default).

@@ -554,6 +554,30 @@ const labelAxesTool: ToolSchema = {
   },
 };
 
+const setImportanceTool: ToolSchema = {
+  name: 'set_importance',
+  description:
+    'Set the musical importance and role of a track in the current mix. Importance is advisory metadata — it does not enforce anything, but helps you make better decisions about what to modify carefully vs. what is open for experimentation.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track ID (e.g. "v0").',
+      },
+      importance: {
+        type: 'number',
+        description: 'How important this track is to the mix (0.0-1.0). Higher = more essential.',
+      },
+      musicalRole: {
+        type: 'string',
+        description: 'Brief description of the track\'s musical role (e.g. "driving rhythm", "ambient pad", "melodic lead").',
+      },
+    },
+    required: ['trackId', 'importance'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -574,4 +598,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   pinTool,
   unpinTool,
   labelAxesTool,
+  setImportanceTool,
 ];
