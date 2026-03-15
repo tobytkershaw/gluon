@@ -314,6 +314,13 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'set_importance': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      // No agency check — importance is AI metadata, not musical mutation
+      return null;
+    }
+
     case 'set_transport':
     case 'set_master':
     case 'say':
@@ -1228,6 +1235,19 @@ export function executeOperations(
           masterDiff = { kind: 'master-change', field: 'pan', from: prevMaster.pan, to: newMaster.pan };
         }
         log.push({ trackId: '', trackLabel: 'MASTER', description: masterSnapshot.description, diff: masterDiff });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_importance': {
+        const clamped = Math.max(0, Math.min(1, action.importance));
+        next = updateTrack(next, action.trackId, {
+          importance: clamped,
+          ...(action.musicalRole ? { musicalRole: action.musicalRole } : {}),
+        });
+        const iLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        const roleSuffix = action.musicalRole ? ` (${action.musicalRole})` : '';
+        log.push({ trackId: action.trackId, trackLabel: iLabel, description: `importance: ${clamped.toFixed(2)}${roleSuffix}` });
         accepted.push(action);
         break;
       }
