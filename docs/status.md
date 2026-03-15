@@ -1,10 +1,10 @@
 # Gluon — Current Build Status
 
-**As of:** 2026-03-14
+**As of:** 2026-03-15
 **Phases complete:** Phase 1 (PoC), Phase 2 (Sequence & Layers), Canonical Musical Model, M0 (Stabilization), M1 (Sequencer Foundations), M2 (Sequencer Expressivity), M3 (View Layer), M4 (First Chain + Phase 4A), Phase 4B (Modulation / Tides), M5: UI Layers (all sub-phases)
-**Current product state:** Four-view tabbed UI (Surface with semantic controls, Rack, Patch, Tracker), AI-curated surfaces with template registry, full parameter surfaces, node-graph patch view, live recording with parameter automation, micro-timing display, offline audio rendering with voice isolation, pause/hard-stop transport, 19 AI tools
+**Current product state:** Four-view tabbed UI (Surface with semantic controls, Rack, Patch, Tracker), AI-curated surfaces with template registry, full parameter surfaces, node-graph patch view, live recording with parameter automation, micro-timing display, offline audio rendering with voice isolation, pause/hard-stop transport, 19 AI tools, GPT-5.4 planner + Gemini 3 Flash listener dual-provider stack
 **Near-term focus:** M6A (Preservation contracts)
-**Latest milestone:** M5C complete — AI-curated surfaces with semantic controls, pinning, and surface tools (PRs #251, #252, #254)
+**Latest milestone:** GPT-5.4 planner + Gemini 3 Flash listener stack (PR #278)
 **Data model direction:** Canonical regions/events are the sequencing authority — `voice.pattern` is a derived projection. Tracker is the canonical truth view; step grid and other editors are addable surfaces.
 
 ---
@@ -50,10 +50,12 @@ Gluon is a browser-based, AI-assisted instrument with:
 - Pause vs hard stop transport semantics (Space = pause with tail decay, Shift+Space = immediate silence)
 - Mix bus: per-voice volume/pan, master channel
 - Offline audio rendering for AI listen tool with voice isolation and configurable bar count
-- Audio snapshot evaluation via Gemini native audio
+- Audio snapshot evaluation via Gemini 3 Flash native audio
 - AudioContext-based capture timing (replaces setTimeout drift)
 - Concurrent recording/capture mutex guard
-- Native Gemini function calling with tool use
+- Dual-provider AI stack: GPT-5.4 planner (Responses API) + Gemini 3 Flash listener
+- Provider-agnostic AI layer with PlannerProvider/ListenerProvider interfaces
+- Dual-key config UI (OpenAI + Google API keys required, no silent fallback)
 
 ---
 
@@ -61,6 +63,9 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 | PR | Description | Merged |
 |---|---|---|
+| PR #278 | feat: GPT-5.4 planner + Gemini 3 Flash listener (#276) | 2026-03-15 |
+| PR #275 | refactor: provider abstraction for multi-model AI stack (#265) | 2026-03-15 |
+| PR #274 | fix: M5 regression batch and roadmap sync | 2026-03-14 |
 | PR #247 | feat: micro-timing display and quantize operation (#238) | 2026-03-14 |
 | PR #246 | fix: glitch-free chain rebuild + stop/start race fence (#139, #147) | 2026-03-14 |
 | PR #245 | feat: record parameter automation during transport playback (#236) | 2026-03-14 |
@@ -153,7 +158,7 @@ Gluon is a browser-based, AI-assisted instrument with:
 
 ### Evergreen
 
-- #72 — migrate to gemini-3-flash when function calling stable
+- #72 — ~~migrate to gemini-3-flash when function calling stable~~ (done — listener upgraded to gemini-3-flash-preview in PR #278)
 - #8 — graceful AI model layer degradation
 - #156 — per-track swing
 - #50 — Ableton sequencing adapter spike (M7)
@@ -182,15 +187,31 @@ M0 ✓  M1 ✓  M2 ✓  M3 ✓  M4 ✓  Phase 4B ✓  M5 ✓ (all sub-phases)
 
 ### AI Integration (`src/ai/`)
 
-**Gemini Chat (`api.ts`)**
-- `GluonAI` uses `@google/genai`, model `gemini-2.5-flash`
-- Native Gemini function calling with multi-round tool loop
-- Exchange-based history trimming for multi-turn coherence
+**Orchestrator (`api.ts`)**
+- `GluonAI` is provider-agnostic — takes `PlannerProvider` and `ListenerProvider` via constructor
+- Multi-round tool calling loop with bounded planner invocations
 - Cancellation support for stale requests and listen capture
-- Backoff/rate-limit handling
+- Neutral `ProviderError` taxonomy (`rate_limited`, `auth`, `server`, `unknown`) for consistent error handling
+- No `@google/genai` imports — all SDK-specific code in providers
 
-**Tool Calling (`tool-declarations.ts`)**
-- 19 declared tools: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`, `set_surface`, `pin`, `unpin`, `label_axes`
+**Provider Interfaces (`types.ts`)**
+- `PlannerProvider`: startTurn/continueTurn/commitTurn/discardTurn/trimHistory lifecycle
+- `ListenerProvider`: stateless audio evaluation (provider owns encoding)
+- `ToolSchema` / `JsonSchema`: standard JSON Schema format for tool declarations
+
+**OpenAI Planner (`providers/openai-planner.ts`)**
+- `OpenAIPlannerProvider`: GPT-5.4 via Responses API, response chaining for multi-turn tool-call continuity
+- Exchange-aware history: stores full exchange content (input + output items) for bounded-suffix replay after trimming
+- `trimHistory` breaks server-side chain and replays surviving exchanges as input; chain re-established on next commit
+
+**Gemini Providers (`providers/`)**
+- `GeminiPlannerProvider`: Gemini SDK calls, staged/permanent history, exchange-atomic trimming, thoughtSignature preservation (fallback planner)
+- `GeminiListenerProvider`: Gemini 3 Flash, blob-to-base64 encoding, stateless audio eval
+- `toGeminiDeclarations()`: JSON Schema → Gemini FunctionDeclaration conversion with strict-mode validation
+- `toOpenAITools()`: JSON Schema passthrough to OpenAI function calling format
+
+**Tool Schemas (`tool-schemas.ts`)**
+- 19 tools in standard JSON Schema format: `move`, `sketch`, `listen`, `set_transport`, `set_model`, `transform`, `add_view`, `remove_view`, `add_processor`, `remove_processor`, `replace_processor`, `add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`, `set_surface`, `pin`, `unpin`, `label_axes`
 - Tool responses are prevalidated against live session state before returning success to the model
 - `listen` is model-invoked rather than routed by regex intent detection
 

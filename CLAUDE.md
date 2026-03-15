@@ -139,6 +139,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/design-references.md` - Design references from synths, DAWs, and related tools: Guitar Rig (rack + inline params), Bitwig (modulation, remote controls), Reason, VCV Rack, Ableton, Max, and others. Includes parameter ground truth analysis and modulation display comparison.
+- `docs/audio-software-patterns.md` - Established audio software implementation patterns (parameter smoothing, denormals, voice allocation, tempo maps, accessibility, etc.) with Gluon coverage status and key references
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
 - `docs/status.md` - Current build status and milestone tracking
 
