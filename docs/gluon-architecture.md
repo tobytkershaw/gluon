@@ -141,7 +141,9 @@ The interface between the musical state and an LLM. The AI operates in a request
 
 **Audio evaluation (listen-then-judge):**
 
-The AI can "hear" its own work by rendering a few bars of audio and sending the clip to Gemini's native audio model. This is fundamentally different from continuous streaming — it's a discrete evaluation step, like a musician playing back a recording to check their work. The audio snapshot is rendered offline (not real-time streamed), sent as a base64 clip, and the model returns a text assessment. This informs whether to commit the changes or iterate.
+The AI can "hear" its own work by rendering a few bars of audio and sending the clip to a Gemini audio-capable model. This is fundamentally different from continuous streaming — it's a discrete evaluation step, like a musician playing back a recording to check their work. The audio snapshot is rendered offline (not real-time streamed), uploaded as a clip, and the model returns a text assessment. This informs whether to commit the changes or iterate.
+
+This architecture deliberately favors unary audio critique over a Live API session. A Live/native-audio listener remains a plausible future direction if Gluon later wants continuous real-time listening rather than discrete snapshot-based evaluation.
 
 **Model strategy:**
 
