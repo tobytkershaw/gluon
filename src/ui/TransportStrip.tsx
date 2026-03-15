@@ -80,7 +80,7 @@ export function TransportStrip({
       <div className="flex items-baseline gap-1">
         <span className="text-[9px] uppercase tracking-wider text-zinc-600">Pos</span>
         <span className="font-mono text-[11px] text-zinc-500 tabular-nums">
-          {bar}.{beat}
+          {bar}:{String(beat).padStart(2, '0')}
         </span>
       </div>
 

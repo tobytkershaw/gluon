@@ -262,21 +262,24 @@ export class AudioEngine {
   }
 
   /**
-   * Close all gates and clear scheduled events, but keep gain at baseline
-   * so envelopes decay naturally. Used on pause (vs. silenceAll on hard stop).
+   * Close all gates and fade out over ~50ms, then hold at zero.
+   * Used on pause (vs. silenceAll which cuts instantly on hard stop).
+   * restoreBaseline() resets gain to 0.3 on the next play.
    */
   releaseAll(): void {
     this.clearFence++;
     const fence = this.clearFence;
 
     const now = this.ctx?.currentTime ?? 0;
+    const fadeTime = now + 0.05; // 50ms fade-out
     for (const slot of this.tracks.values()) {
       slot.synth.silence(fence);
-      // Cancel any in-flight accent automation and reset to baseline (0.3).
-      // Without this, pausing during an accented note leaves gain boosted
-      // and a quick resume starts the next note at the stale accent level.
+      // Cancel any in-flight accent automation and fade to zero.
+      // The Plaits LPG has its own internal decay that can sustain sound
+      // for hundreds of ms after gate-off, so we fade the gain node to
+      // ensure silence regardless of the engine's internal behaviour.
       slot.accentGain.gain.cancelAndHoldAtTime(now);
-      slot.accentGain.gain.setValueAtTime(0.3, now);
+      slot.accentGain.gain.linearRampToValueAtTime(0, fadeTime);
       // Clear scheduled events in downstream processors (Rings/Clouds)
       // so their tails don't sustain indefinitely. Don't damp() Rings —
       // that's hard-stop behaviour; let the resonance decay naturally.
