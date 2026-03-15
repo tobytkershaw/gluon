@@ -158,6 +158,7 @@ export function applySketch(
     });
     updated = updateTrack(updated, trackId, {
       regions: [region, ...updatedTrack.regions.slice(1)],
+      _regionDirty: true,
     });
   }
 
@@ -240,6 +241,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     const updates: Partial<import('./types').Track> = {
       regions: updatedTrack.regions,
       pattern: updatedTrack.pattern,
+      _regionDirty: true,
     };
     if ('prevHiddenEvents' in snapshot) {
       updates._hiddenEvents = snapshot.prevHiddenEvents;
@@ -273,6 +275,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
       });
       updates.regions = updatedTrack.regions;
       updates.pattern = updatedTrack.pattern;
+      updates._regionDirty = true;
     } else if (track.regions.length > 0) {
       // Old snapshot without prevEvents: best-effort region sync from restored steps.
       // Uses stepsToEvents (lossy for NoteEvents — same limitation as the original sketch).
@@ -285,6 +288,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       });
       updates.regions = [region, ...track.regions.slice(1)];
+      updates._regionDirty = true;
     }
 
     // Restore hidden events if captured (#210)

@@ -100,6 +100,8 @@ export interface Track {
   views?: SequencerViewConfig[];
   /** Events hidden by setPatternLength, restored on expand. Persisted to prevent data loss. */
   _hiddenEvents?: CanonicalMusicalEvent[];
+  /** Internal flag: set when region events change, cleared after transport sync reads it. */
+  _regionDirty?: boolean;
   /** Processor chain (effects applied after source). */
   processors?: ProcessorConfig[];
   /** Modulator modules (control-rate signal generators). */

@@ -84,6 +84,7 @@ function applyEventEdit(
   const result = updateTrack(session, trackId, {
     regions: updatedTrack.regions,
     pattern: updatedTrack.pattern,
+    _regionDirty: true,
   });
 
   if (snapshot) {

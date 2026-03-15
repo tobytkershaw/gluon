@@ -258,6 +258,7 @@ describe('TransportController', () => {
       ...session.tracks[0].regions[0],
       events: [{ kind: 'trigger', at: 8, velocity: 0.8 }],
     };
+    session.tracks[0]._regionDirty = true;
     controller.syncArrangement();
 
     expect(scheduler.invalidateTrack).toHaveBeenCalledWith('v0', 6);

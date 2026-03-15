@@ -588,7 +588,7 @@ export function executeOperations(
           };
 
           next = {
-            ...updateTrack(next, action.trackId, { regions: newRegions, pattern }),
+            ...updateTrack(next, action.trackId, { regions: newRegions, pattern, _regionDirty: true }),
             undoStack: [...next.undoStack, snapshot],
           };
           eventsAfter = updatedRegion.events.length;
@@ -811,7 +811,7 @@ export function executeOperations(
         };
 
         next = {
-          ...updateTrack(next, action.trackId, { regions: newRegions, pattern }),
+          ...updateTrack(next, action.trackId, { regions: newRegions, pattern, _regionDirty: true }),
           undoStack: [...next.undoStack, snapshot],
         };
 
