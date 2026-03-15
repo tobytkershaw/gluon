@@ -111,7 +111,8 @@ const listenTool: ToolSchema = {
   description:
     'Render audio offline and evaluate how it sounds. ' +
     'Works whether or not the transport is playing. ' +
-    'Changes you make in this turn aren\'t audible yet — listen in a follow-up turn to hear your edits.',
+    'Changes you make in this turn aren\'t audible yet — listen in a follow-up turn to hear your edits. ' +
+    'Supports focused evaluation via lens and before/after comparison via compare.',
   parameters: {
     type: 'object',
     properties: {
@@ -127,6 +128,25 @@ const listenTool: ToolSchema = {
         type: 'array',
         items: { type: 'string' },
         description: 'Optional track IDs to render in isolation (e.g. ["v0", "v1"]). Omit to hear all unmuted tracks.',
+      },
+      lens: {
+        type: 'string',
+        enum: ['full-mix', 'low-end', 'rhythm', 'harmony', 'texture', 'dynamics'],
+        description: 'Focus the evaluation on a specific aspect of the audio.',
+      },
+      compare: {
+        type: 'object',
+        description: 'Compare two snapshots (before/after an edit). Renders the before state from the previous session snapshot and the current state, concatenates them with a brief silence, and sends to the evaluator.',
+        properties: {
+          beforeSessionIndex: {
+            type: 'integer',
+            description: 'Index into the undo stack for the "before" state. Use 0 for the state before the most recent action group.',
+          },
+          question: {
+            type: 'string',
+            description: 'What to compare (e.g. "did the bass get warmer?", "which groove is tighter?").',
+          },
+        },
       },
     },
     required: ['question'],

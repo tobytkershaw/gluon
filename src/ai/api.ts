@@ -9,7 +9,8 @@ import { projectRegionToPattern } from '../engine/region-projection';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
-import { buildListenPrompt } from './listen-prompt';
+import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
+import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse } from './types';
 import { ProviderError } from './types';
@@ -1196,6 +1197,16 @@ export class GluonAI {
         const rawTrackIds = args.trackIds as string[] | undefined;
         const trackIds = rawTrackIds && rawTrackIds.length > 0 ? rawTrackIds : undefined;
 
+        // Lens: focused evaluation aspect
+        const validLenses = new Set<string>(['full-mix', 'low-end', 'rhythm', 'harmony', 'texture', 'dynamics']);
+        const rawLens = args.lens as string | undefined;
+        const lens: ListenLens | undefined = rawLens && validLenses.has(rawLens)
+          ? rawLens as ListenLens
+          : undefined;
+
+        // Compare: before/after evaluation
+        const rawCompare = args.compare as Record<string, unknown> | undefined;
+
         if (trackIds) {
           const sessionTrackIds = new Set(session.tracks.map(v => v.id));
           const invalid = trackIds.filter(vid => !sessionTrackIds.has(vid));
@@ -1207,7 +1218,14 @@ export class GluonAI {
           }
         }
 
-        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds);
+        if (rawCompare) {
+          // Comparative listening: render before + after, concatenate, evaluate
+          const compareQuestion = (rawCompare.question as string) || question;
+          const result = await this.compareHandler(compareQuestion, session, ctx?.listen, bars, trackIds, lens);
+          return { actions: [], response: result };
+        }
+
+        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds, lens);
         return { actions: [], response: result };
       }
 
@@ -1359,6 +1377,7 @@ export class GluonAI {
     listen?: ListenContext,
     bars: number = 2,
     trackIds?: string[],
+    lens?: ListenLens,
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -1371,13 +1390,66 @@ export class GluonAI {
       const state = compressState(session);
 
       const critique = await this.listener.evaluate({
-        systemPrompt: buildListenPrompt(question),
+        systemPrompt: buildListenPromptWithLens(question, lens),
         stateJson: JSON.stringify(state),
         question,
         audioData: wavBlob,
         mimeType: 'audio/wav',
       });
-      return { critique };
+      return { critique, ...(lens ? { lens } : {}) };
+    } catch (error) {
+      if (error instanceof ProviderError) {
+        const actions = this.handleError(error);
+        const sayAction = actions.find(a => a.type === 'say');
+        return { error: sayAction && 'text' in sayAction ? sayAction.text : 'Audio evaluation failed.' };
+      }
+      return { error: 'Audio evaluation failed — try again.' };
+    } finally {
+      listen.onListening?.(false);
+    }
+  }
+
+  /**
+   * Comparative listening handler.
+   * Currently renders the current state only and sends with a compare prompt.
+   * TODO: When undo-snapshot-based before-state rendering is available, render
+   * both before and after audio, concatenate with silence, and send as one clip.
+   */
+  private async compareHandler(
+    question: string,
+    session: Session,
+    listen?: ListenContext,
+    bars: number = 2,
+    trackIds?: string[],
+    lens?: ListenLens,
+  ): Promise<Record<string, unknown>> {
+    if (!listen) {
+      return { error: 'Listen not available.' };
+    }
+
+    // TODO: Render before-state from undo snapshot and concatenate with after-state.
+    // For now, render the current (after) state and use the compare prompt to
+    // indicate that comparative evaluation is intended. The before-state rendering
+    // requires access to undo snapshots which is not yet wired through ListenContext.
+    try {
+      listen.onListening?.(true);
+
+      const wavBlob = await listen.renderOffline(session, trackIds, bars);
+      const state = compressState(session);
+
+      const critique = await this.listener.evaluate({
+        systemPrompt: buildComparePrompt(question, lens),
+        stateJson: JSON.stringify(state),
+        question,
+        audioData: wavBlob,
+        mimeType: 'audio/wav',
+      });
+      return {
+        critique,
+        mode: 'compare',
+        note: 'Before-state audio rendering not yet available. Evaluation based on current state with comparative prompt.',
+        ...(lens ? { lens } : {}),
+      };
     } catch (error) {
       if (error instanceof ProviderError) {
         const actions = this.handleError(error);
