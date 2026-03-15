@@ -12,6 +12,98 @@ import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 
+/**
+ * Extract sorted rhythm positions (the `at` values of note and trigger events)
+ * from a list of musical events. Parameter events are excluded because they
+ * don't define rhythm.
+ */
+export function extractRhythmPositions(events: MusicalEvent[]): number[] {
+  return events
+    .filter(e => e.kind === 'note' || e.kind === 'trigger')
+    .map(e => e.at)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Compare two rhythm position arrays for exact equality within a small
+ * tolerance (0.001 beats, matching the duplicate-event tolerance in
+ * region-helpers).
+ */
+export function rhythmsMatch(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  const TOLERANCE = 0.001;
+  for (let i = 0; i < a.length; i++) {
+    if (Math.abs(a[i] - b[i]) > TOLERANCE) return false;
+  }
+  return true;
+}
+
+/**
+ * Check whether a mutation would violate preservation constraints on a track.
+ * Returns null if the mutation is allowed, or a rejection reason string.
+ *
+ * Rules:
+ * - 'anchor' tracks block all rhythm/event mutations (sketch, transform).
+ * - 'approved' tracks with preserve_exact intent allow parameter-only changes
+ *   but block rhythm changes (different `at` positions for note/trigger events).
+ * - 'exploratory' and 'liked' tracks are unrestricted.
+ * - 'move' (parameter) actions are never blocked by preservation.
+ */
+function checkPreservationForSketch(
+  session: Session,
+  trackId: string,
+  newEvents?: MusicalEvent[],
+): string | null {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return null; // track-not-found is handled elsewhere
+  const approval = track.approval ?? 'exploratory';
+  if (approval !== 'approved' && approval !== 'anchor') return null;
+
+  const trackLabel = getTrackLabel(track).toUpperCase();
+
+  if (approval === 'anchor') {
+    return `Preservation: track ${trackLabel} (${trackId}) is anchored — all event mutations are blocked. Change its approval level first.`;
+  }
+
+  // approval === 'approved': check rhythm preservation
+  if (!newEvents) {
+    // Legacy pattern sketch — we can't reliably diff rhythm, so block
+    return `Preservation: track ${trackLabel} (${trackId}) is approved — legacy pattern sketches are blocked. Use canonical events instead.`;
+  }
+
+  const existingEvents = track.regions[0]?.events ?? [];
+  const existingRhythm = extractRhythmPositions(existingEvents);
+  const newRhythm = extractRhythmPositions(newEvents);
+
+  if (!rhythmsMatch(existingRhythm, newRhythm)) {
+    return `Preservation: track ${trackLabel} (${trackId}) is approved with preserve_exact rhythm — the proposed sketch changes rhythm positions. Change its approval level first, or preserve the same rhythm.`;
+  }
+
+  return null;
+}
+
+function checkPreservationForTransform(
+  session: Session,
+  trackId: string,
+  operation: string,
+): string | null {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return null;
+  const approval = track.approval ?? 'exploratory';
+  if (approval !== 'approved' && approval !== 'anchor') return null;
+
+  const trackLabel = getTrackLabel(track).toUpperCase();
+
+  if (approval === 'anchor') {
+    return `Preservation: track ${trackLabel} (${trackId}) is anchored — all transforms are blocked. Change its approval level first.`;
+  }
+
+  // approval === 'approved': transpose is allowed (pitch-only), others change rhythm
+  if (operation === 'transpose') return null;
+
+  return `Preservation: track ${trackLabel} (${trackId}) is approved with preserve_exact rhythm — '${operation}' would change rhythm positions. Only 'transpose' is allowed on approved tracks.`;
+}
+
 export interface OperationExecutionReport {
   session: Session;
   accepted: AIAction[];
@@ -116,6 +208,8 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
       if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const sketchPreservation = checkPreservationForSketch(session, action.trackId, action.events);
+      if (sketchPreservation) return sketchPreservation;
       return null;
     }
 
@@ -157,6 +251,8 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
       if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const transformPreservation = checkPreservationForTransform(session, action.trackId, action.operation);
+      if (transformPreservation) return transformPreservation;
       return null;
     }
 
