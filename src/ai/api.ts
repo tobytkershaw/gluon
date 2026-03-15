@@ -74,7 +74,10 @@ function projectAction(session: Session, action: AIAction): Session {
       const t = { ...session.transport };
       if (action.bpm !== undefined) t.bpm = Math.max(60, Math.min(200, action.bpm));
       if (action.swing !== undefined) t.swing = Math.max(0, Math.min(1, action.swing));
-      if (action.playing !== undefined) t.playing = action.playing;
+      if (action.playing !== undefined) {
+        t.playing = action.playing;
+        t.status = action.playing ? 'playing' : 'stopped';
+      }
       return { ...session, transport: t };
     }
     case 'sketch': {

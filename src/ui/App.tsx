@@ -9,7 +9,7 @@ import { normalizeRegionEvents } from '../engine/region-helpers';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, updateTrackParams, setModel,
-  setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
+  setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
@@ -28,7 +28,6 @@ import { OpenAIPlannerProvider } from '../ai/providers/openai-planner';
 import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
-import { Scheduler } from '../engine/scheduler';
 import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
 import { RackView } from './RackView';
@@ -39,6 +38,7 @@ import { useKeyboardPiano } from './useKeyboardPiano';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 import { computeSemanticRawUpdates } from './SemanticControlsSection';
+import { useTransportController } from './useTransportController';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -134,8 +134,6 @@ export default function App() {
     clearQaAudioTrace();
   }, []);
 
-  const schedulerRef = useRef<Scheduler | null>(null);
-
   const ensureAudio = useCallback(async () => {
     if (audioStarted) return;
     const s = sessionRef.current;
@@ -147,64 +145,37 @@ export default function App() {
     setAudioStarted(true);
   }, [audioStarted]);
 
-  // Create scheduler once audio starts
-  useEffect(() => {
-    if (!audioStarted) return;
-    schedulerRef.current = new Scheduler(
-      () => sessionRef.current,
-      () => audioRef.current.getCurrentTime(),
-      () => audioRef.current.getState(),
-      (note) => audioRef.current.scheduleNote(note),
-      (step) => { globalStepRef.current = step; setGlobalStep(step); },
-      (trackId) => arbRef.current.getHeldParams(trackId),
-      // Apply recorded automation events during playback
-      (trackId, controlId, value) => {
-        // Don't apply automation if the human is currently holding this param
-        const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
-        if (arbRef.current.isHoldingSource(trackId)) return;
-        setSession(s => {
-          const track = getTrack(s, trackId);
-          if (typeof value !== 'number') return s;
-          if (Math.abs((track.params[runtimeParam] ?? 0) - value) < 0.001) return s;
-          return updateTrackParams(s, trackId, { [runtimeParam]: value }, false, plaitsAdapter);
-        });
-      },
-    );
-    return () => { schedulerRef.current?.stop(); };
-  }, [audioStarted]);
+  const handleTransportPositionChange = useCallback((step: number) => {
+    globalStepRef.current = step;
+    setGlobalStep(step);
+  }, []);
 
-  // Whether the current stop should hard-silence all voices (vs. letting tails decay)
-  const hardStopRef = useRef(false);
+  const getHeldTransportParams = useCallback((trackId: string) => {
+    return arbRef.current.getHeldParams(trackId);
+  }, []);
 
-  // Control scheduler from transport state
-  useEffect(() => {
-    if (!schedulerRef.current) return;
-    if (session.transport.playing) {
-      audioRef.current.restoreBaseline();
-      schedulerRef.current.start();
-      recordQaAudioTrace({
-        type: 'transport.play-start',
-        audioTime: audioRef.current.getCurrentTime(),
-      });
-    } else {
-      schedulerRef.current.stop();
-      if (hardStopRef.current) {
-        audioRef.current.silenceAll();
-        hardStopRef.current = false;
-      } else {
-        // Pause: close gates and clear scheduled events so sound doesn't
-        // sustain indefinitely, but keep gain at baseline for natural decay.
-        audioRef.current.releaseAll();
-      }
-    }
-    recordQaAudioTrace({
-      type: 'transport.state',
-      playing: session.transport.playing,
-      bpm: session.transport.bpm,
-      swing: session.transport.swing,
+  const handleTransportParameterEvent = useCallback((trackId: string, controlId: string, value: number | string | boolean) => {
+    const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
+    if (arbRef.current.isHoldingSource(trackId)) return;
+    setSession(s => {
+      const track = getTrack(s, trackId);
+      if (typeof value !== 'number') return s;
+      if (Math.abs((track.params[runtimeParam] ?? 0) - value) < 0.001) return s;
+      return updateTrackParams(s, trackId, { [runtimeParam]: value }, false, plaitsAdapter);
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- bpm/swing logged as context, not dependencies
-  }, [session.transport.playing]);
+  }, []);
+
+  const getCurrentSession = useCallback(() => sessionRef.current, []);
+
+  const transportControllerRef = useTransportController({
+    audioStarted,
+    audio: audioRef.current,
+    session,
+    getSession: getCurrentSession,
+    onPositionChange: handleTransportPositionChange,
+    getHeldParams: getHeldTransportParams,
+    onParameterEvent: handleTransportParameterEvent,
+  });
 
   useEffect(() => {
     recordQaAudioTrace({
@@ -692,19 +663,14 @@ export default function App() {
     // Resume AudioContext if browser auto-suspended it after idle.
     // Must happen during user gesture to satisfy autoplay policy.
     await audioRef.current.resume();
-    setSession((s) => togglePlaying(s));
+    setSession((s) => s.transport.playing ? pauseTransport(s) : playTransport(s));
   }, [ensureAudio]);
 
   /** Hard stop: stop sequencing AND immediately silence all voices/tails. */
   const handleHardStop = useCallback(async () => {
     await ensureAudio();
-    hardStopRef.current = true;
-    setSession((s) => s.transport.playing ? togglePlaying(s) : s);
-    // If already stopped, still hard-silence any ringing tails
-    if (!sessionRef.current.transport.playing) {
-      audioRef.current.silenceAll();
-      hardStopRef.current = false;
-    }
+    transportControllerRef.current?.requestHardStop();
+    setSession((s) => stopTransport(s));
   }, [ensureAudio]);
 
   const handleToggleRecord = useCallback(() => {

@@ -34,7 +34,7 @@ function makeSession(events: (TriggerEvent | NoteEvent | ParameterEvent)[], dura
       },
     }],
     activeTrackId: 'track-1',
-    transport: { bpm: 120, swing: 0, playing: false },
+    transport: { status: 'stopped', bpm: 120, swing: 0, playing: false },
     master: { volume: 0.8, pan: 0 },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.5, density: 0.5 },

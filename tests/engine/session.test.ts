@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   createSession, setAgency, updateTrackParams, setModel,
-  setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, togglePlaying,
+  setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
 } from '../../src/engine/session';
 
 describe('Session (Phase 2)', () => {
@@ -10,7 +10,7 @@ describe('Session (Phase 2)', () => {
     const session = createSession();
     expect(session.tracks).toHaveLength(4);
     expect(session.activeTrackId).toBe(session.tracks[0].id);
-    expect(session.transport).toEqual({ playing: false, bpm: 120, swing: 0 });
+    expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0 });
   });
 
   it('track 0 is model 13 (kick), track 1 is model 0 (bass), track 2 is model 2 (lead), track 3 is model 4 (pad)', () => {
@@ -100,12 +100,17 @@ describe('Session (Phase 2)', () => {
     expect(s.transport.swing).toBe(0);
   });
 
-  it('toggles playing', () => {
+  it('sets explicit transport states', () => {
     let s = createSession();
-    s = togglePlaying(s);
+    s = playTransport(s);
     expect(s.transport.playing).toBe(true);
-    s = togglePlaying(s);
+    expect(s.transport.status).toBe('playing');
+    s = pauseTransport(s);
     expect(s.transport.playing).toBe(false);
+    expect(s.transport.status).toBe('paused');
+    s = stopTransport(s);
+    expect(s.transport.playing).toBe(false);
+    expect(s.transport.status).toBe('stopped');
   });
 
 });

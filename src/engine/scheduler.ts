@@ -60,14 +60,15 @@ export class Scheduler {
     this.onParameterEvent = onParameterEvent;
   }
 
-  start(startOffset = START_OFFSET_SEC): void {
+  start(startOffset = START_OFFSET_SEC, startStep = 0): void {
     if (this.intervalId !== null) return;
     // Offset start so first-beat events have future timestamps in the
     // worklet. Without this, messages race the render thread and may
     // be stale-drained or miss gain automation. Tests pass 0.
-    this.startTime = this.getAudioTime() + startOffset;
-    this.cursor = 0;
     const session = this.getSession();
+    const stepDuration = 60 / (session.transport.bpm * 4);
+    this.startTime = this.getAudioTime() + startOffset - startStep * stepDuration;
+    this.cursor = startStep;
     this.previousBpm = session.transport.bpm;
 
     this.tick();

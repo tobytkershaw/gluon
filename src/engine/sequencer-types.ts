@@ -14,6 +14,7 @@ export interface Pattern {
 }
 
 export interface Transport {
+  status: 'stopped' | 'playing' | 'paused';
   playing: boolean;
   bpm: number;
   swing: number;
