@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 
@@ -52,6 +52,13 @@ interface CompressedTrack {
   modulations: CompressedModulation[];
 }
 
+interface CompressedReaction {
+  actionGroupIndex: number;
+  verdict: 'approved' | 'rejected' | 'neutral';
+  rationale?: string;
+  age_ms: number;
+}
+
 interface CompressedHumanAction {
   trackId: string;
   param: string;
@@ -67,6 +74,7 @@ export interface CompressedState {
   context: { energy: number; density: number };
   undo_depth: number;
   recent_human_actions: CompressedHumanAction[];
+  recent_reactions: CompressedReaction[];
 }
 
 function round2(n: number): number {
@@ -201,6 +209,12 @@ export function compressState(session: Session): CompressedState {
       from: round2(a.from),
       to: round2(a.to),
       age_ms: now - a.timestamp,
+    })),
+    recent_reactions: (session.reactionHistory ?? []).slice(-10).map((r: Reaction) => ({
+      actionGroupIndex: r.actionGroupIndex,
+      verdict: r.verdict,
+      ...(r.rationale ? { rationale: r.rationale } : {}),
+      age_ms: now - r.timestamp,
     })),
   };
 

@@ -199,6 +199,7 @@ export function loadSession(): Session | null {
       master: session.master ?? { ...DEFAULT_MASTER },
       undoStack: session.undoStack ?? [],
       recentHumanActions: session.recentHumanActions ?? [],
+      reactionHistory: session.reactionHistory ?? [],
     };
   } catch {
     return null;
