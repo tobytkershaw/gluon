@@ -52,6 +52,24 @@ interface TrackSlot {
   currentModel: number;
 }
 
+interface ActiveVoice {
+  eventId: string;
+  generation: number;
+  trackId: string;
+  noteTime: number;
+  gateOffTime: number;
+  state: 'scheduled' | 'released' | 'silenced';
+}
+
+export interface ActiveVoiceSnapshot {
+  eventId: string;
+  generation: number;
+  trackId: string;
+  noteTime: number;
+  gateOffTime: number;
+  state: 'scheduled' | 'released' | 'silenced';
+}
+
 function toRingsPatchParams(params: Record<string, number>): RingsPatchParams {
   return {
     structure: params.structure ?? 0.5,
@@ -92,6 +110,7 @@ export class AudioEngine {
   private pendingProcessors = new Set<string>();
   /** Monotonic transport generation propagated to worklets to invalidate stale events. */
   private generation = 0;
+  private activeVoices = new Map<string, ActiveVoice>();
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -177,6 +196,7 @@ export class AudioEngine {
       slot.synth.destroy();
     }
     this.tracks.clear();
+    this.activeVoices.clear();
     this.pendingProcessors.clear();
     this.mixer?.disconnect();
     this.masterGain?.disconnect();
@@ -223,9 +243,17 @@ export class AudioEngine {
     return this.generation;
   }
 
+  getActiveVoices(): ActiveVoiceSnapshot[] {
+    this.pruneInactiveVoices();
+    return [...this.activeVoices.values()].map(voice => ({ ...voice }));
+  }
+
   scheduleNote(note: ScheduledNote, generation = this.generation): void {
     const slot = this.tracks.get(note.trackId);
     if (!slot) return;
+    this.pruneInactiveVoices(note.time);
+    const eventId = note.eventId ?? `manual:${note.trackId}:${note.time}:${note.gateOffTime}`;
+    const voiceGeneration = note.generation ?? generation;
 
     // --- Accent gain: schedule on accentGain (separate from muteGain) ---
     const accentLevel = note.accent ? 0.3 * ACCENT_GAIN_BOOST : 0.3;
@@ -235,8 +263,18 @@ export class AudioEngine {
       slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
     }
     slot.synth.scheduleNote(note, generation);
+    this.activeVoices.set(eventId, {
+      eventId,
+      generation: voiceGeneration,
+      trackId: note.trackId,
+      noteTime: note.time,
+      gateOffTime: note.gateOffTime,
+      state: 'scheduled',
+    });
     recordQaAudioTrace({
       type: 'audio.note',
+      eventId,
+      generation: voiceGeneration,
       trackId: note.trackId,
       time: note.time,
       gateOffTime: note.gateOffTime,
@@ -252,6 +290,11 @@ export class AudioEngine {
     const now = this.ctx?.currentTime ?? 0;
     slot.accentGain.gain.cancelAndHoldAtTime(now);
     slot.accentGain.gain.setValueAtTime(0.3, now);
+    for (const voice of this.activeVoices.values()) {
+      if (voice.trackId === trackId) {
+        voice.state = 'released';
+      }
+    }
   }
 
   /** Restore accent gains to baseline after silenceAll() zeroed them. */
@@ -278,10 +321,18 @@ export class AudioEngine {
     this.generation = generation <= this.generation
       ? this.generation + 1
       : generation;
+    this.releaseGeneration(this.generation);
+  }
+
+  releaseGeneration(generation: number): void {
+    this.generation = Math.max(this.generation, generation);
+    const activeTrackIds = this.collectTrackIdsThroughGeneration(generation);
 
     const now = this.ctx?.currentTime ?? 0;
     const fadeTime = now + 0.05; // 50ms fade-out
-    for (const slot of this.tracks.values()) {
+    for (const trackId of activeTrackIds) {
+      const slot = this.tracks.get(trackId);
+      if (!slot) continue;
       slot.synth.silence(this.generation);
       // Cancel any in-flight accent automation and fade to zero.
       // The Plaits LPG has its own internal decay that can sustain sound
@@ -303,15 +354,28 @@ export class AudioEngine {
         modSlot.engine.pause();
       }
     }
+    for (const voice of this.activeVoices.values()) {
+      if (voice.generation <= generation) {
+        voice.state = 'released';
+      }
+    }
   }
 
   silenceAll(generation = this.generation): void {
     this.generation = generation <= this.generation
       ? this.generation + 1
       : generation;
+    this.silenceGeneration(this.generation);
+  }
+
+  silenceGeneration(generation: number): void {
+    this.generation = Math.max(this.generation, generation);
+    const activeTrackIds = this.collectTrackIdsThroughGeneration(generation);
 
     const now = this.ctx?.currentTime ?? 0;
-    for (const slot of this.tracks.values()) {
+    for (const trackId of activeTrackIds) {
+      const slot = this.tracks.get(trackId);
+      if (!slot) continue;
       slot.synth.silence(this.generation);
       // Cancel pending accent automation and hard-mute the track chain.
       // Setting gain to 0 (not baseline 0.3) ensures processor tails
@@ -332,6 +396,34 @@ export class AudioEngine {
       for (const modSlot of modSlots) {
         modSlot.engine.silence(this.generation);
         modSlot.engine.pause();
+      }
+    }
+    for (const voice of this.activeVoices.values()) {
+      if (voice.generation <= generation) {
+        voice.state = 'silenced';
+      }
+    }
+  }
+
+  private collectTrackIdsThroughGeneration(generation: number): string[] {
+    this.pruneInactiveVoices();
+    const trackIds = new Set<string>();
+    for (const voice of this.activeVoices.values()) {
+      if (voice.generation <= generation) {
+        trackIds.add(voice.trackId);
+      }
+    }
+    return [...trackIds];
+  }
+
+  private pruneInactiveVoices(now = this.getCurrentTime()): void {
+    for (const [eventId, voice] of this.activeVoices) {
+      if (voice.state !== 'scheduled') {
+        this.activeVoices.delete(eventId);
+        continue;
+      }
+      if (voice.gateOffTime <= now) {
+        this.activeVoices.delete(eventId);
       }
     }
   }

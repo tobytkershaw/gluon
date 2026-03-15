@@ -52,6 +52,14 @@ describe('AudioEngine', () => {
     expect(synth.scheduleNote).toHaveBeenCalledWith(note, 0);
     expect(setValueAtTime).toHaveBeenNthCalledWith(1, 0.6, 1.25);
     expect(setValueAtTime).toHaveBeenNthCalledWith(2, 0.3, 1.5);
+    expect(engine.getActiveVoices()).toEqual([{
+      eventId: 'manual:v0:1.25:1.5',
+      generation: 0,
+      trackId: 'v0',
+      noteTime: 1.25,
+      gateOffTime: 1.5,
+      state: 'scheduled',
+    }]);
   });
 
   it('rebuildChain wires sourceOut -> chainOutGain when no processors', () => {
@@ -195,6 +203,15 @@ describe('AudioEngine', () => {
     ]);
 
     expect(engine.getGeneration()).toBe(0);
+    engine.scheduleNote({
+      eventId: 'evt-0',
+      generation: 0,
+      trackId: 'v0',
+      time: 0.1,
+      gateOffTime: 0.6,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    });
     engine.silenceAll();
 
     expect(engine.getGeneration()).toBe(1);
@@ -202,5 +219,53 @@ describe('AudioEngine', () => {
     expect(procSilence).toHaveBeenCalledWith(1);
     expect(modSilence).toHaveBeenCalledWith(1);
     expect(modPause).toHaveBeenCalled();
+  });
+
+  it('releases active voices through a target generation', () => {
+    const engine = new AudioEngine();
+    const synth = {
+      scheduleNote: vi.fn(),
+      setModel: vi.fn(),
+      setParams: vi.fn(),
+      destroy: vi.fn(),
+      silence: vi.fn(),
+    };
+    const accentGain = {
+      gain: {
+        setValueAtTime: vi.fn(),
+        cancelAndHoldAtTime: vi.fn(),
+        linearRampToValueAtTime: vi.fn(),
+      },
+    };
+
+    (engine as unknown as { ctx: { currentTime: number } }).ctx = { currentTime: 0 };
+    (engine as { tracks: Map<string, unknown> }).tracks = new Map([
+      ['v0', {
+        synth,
+        sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        chainOutGain: mockGainNode(),
+        muteGain: { gain: { value: 1 } },
+        accentGain,
+        processors: [],
+        currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+        currentModel: 0,
+      }],
+    ]);
+    (engine as { modulatorSlots: Map<string, unknown[]> }).modulatorSlots = new Map();
+
+    engine.scheduleNote({
+      eventId: 'evt-1',
+      generation: 1,
+      trackId: 'v0',
+      time: 0.1,
+      gateOffTime: 0.6,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    }, 1);
+
+    engine.releaseGeneration(2);
+
+    expect(synth.silence).toHaveBeenCalledWith(2);
+    expect(engine.getActiveVoices()).toEqual([]);
   });
 });
