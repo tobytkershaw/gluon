@@ -11,11 +11,12 @@ interface TrackStageProps {
   onToggleMute: (trackId: string) => void;
   onToggleSolo: (trackId: string) => void;
   onToggleAgency?: (trackId: string) => void;
+  onCycleApproval?: (trackId: string) => void;
 }
 
 export function TrackStage({
   tracks, activeTrackId, activityMap,
-  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
+  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onCycleApproval,
 }: TrackStageProps) {
   return (
     <div className="flex gap-1">
@@ -30,6 +31,7 @@ export function TrackStage({
           onToggleMute={() => onToggleMute(track.id)}
           onToggleSolo={() => onToggleSolo(track.id)}
           onToggleAgency={onToggleAgency ? () => onToggleAgency(track.id) : undefined}
+          onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
         />
       ))}
     </div>

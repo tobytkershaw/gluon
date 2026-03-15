@@ -2,13 +2,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { renderOffline } from '../audio/render-offline';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, SemanticControlDef, Snapshot } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, SemanticControlDef, Snapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getTrack, updateTrack } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
-  createSession, setAgency, updateTrackParams, setModel,
+  createSession, setAgency, setApproval, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster,
 } from '../engine/session';
@@ -1400,6 +1400,16 @@ export default function App() {
           const track = s.tracks.find(v => v.id === trackId);
           if (!track) return s;
           return setAgency(s, trackId, track.agency === 'OFF' ? 'ON' : 'OFF');
+        });
+      }}
+      onCycleApproval={(trackId) => {
+        const cycle: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
+        setSession(s => {
+          const track = s.tracks.find(v => v.id === trackId);
+          if (!track) return s;
+          const current = track.approval ?? 'exploratory';
+          const nextIdx = (cycle.indexOf(current) + 1) % cycle.length;
+          return setApproval(s, trackId, cycle[nextIdx]);
         });
       }}
       messages={session.messages}

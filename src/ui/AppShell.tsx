@@ -25,6 +25,7 @@ interface Props {
   onToggleSolo: (trackId: string) => void;
   onToggleAgency: (trackId: string) => void;
   onRenameTrack: (trackId: string, name: string) => void;
+  onCycleApproval?: (trackId: string) => void;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -83,7 +84,7 @@ const CHAT_COLLAPSE_WIDTH = 1280;
 
 export function AppShell({
   tracks, activeTrackId, activityMap,
-  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack,
+  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
   messages, onSend, isThinking, isListening,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
   chatOpen, onChatToggle, chatWidth, onChatResize,
@@ -221,6 +222,7 @@ export function AppShell({
           onToggleSolo={onToggleSolo}
           onToggleAgency={onToggleAgency}
           onRenameTrack={onRenameTrack}
+          onCycleApproval={onCycleApproval}
         />
       </div>
 
