@@ -24,7 +24,7 @@ import type { MusicalEvent } from '../engine/canonical-types';
 import { addView, removeView } from '../engine/view-primitives';
 import type { SequencerViewKind } from '../engine/types';
 import { GluonAI } from '../ai/api';
-import { GeminiPlannerProvider } from '../ai/providers/gemini-planner';
+import { OpenAIPlannerProvider } from '../ai/providers/openai-planner';
 import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
@@ -45,9 +45,9 @@ import { computeSemanticRawUpdates } from './SemanticControlsSection';
 // Low risk since adapter is stateless; revisit if tests require separate instances.
 const plaitsAdapter = createPlaitsAdapter();
 
-function createAI(geminiKey: string): GluonAI {
+function createAI(openaiKey: string, geminiKey: string): GluonAI {
   return new GluonAI(
-    new GeminiPlannerProvider(geminiKey),
+    new OpenAIPlannerProvider(openaiKey),
     new GeminiListenerProvider(geminiKey),
   );
 }
@@ -64,7 +64,9 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
-  const aiRef = useRef(createAI(import.meta.env.VITE_GOOGLE_API_KEY ?? ''));
+  const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY ?? '');
+  const [geminiKey, setGeminiKey] = useState(import.meta.env.VITE_GOOGLE_API_KEY ?? '');
+  const aiRef = useRef(createAI(openaiKey, geminiKey));
   // Signal to discard in-progress tracker inline edits when switching views.
   // mousedown on ViewToggle sets this true before blur fires on EditableCell.
   const cancelEditRef = useRef(false);
@@ -675,9 +677,11 @@ export default function App() {
     }
   }, [ensureAudio, dispatchAIActions]);
 
-  const handleApiKey = useCallback((key: string) => {
-    aiRef.current = createAI(key);
-    setApiConfigured(true);
+  const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string) => {
+    setOpenaiKey(newOpenaiKey);
+    setGeminiKey(newGeminiKey);
+    aiRef.current = createAI(newOpenaiKey, newGeminiKey);
+    setApiConfigured(aiRef.current.isConfigured());
   }, []);
 
   const handleTogglePlay = useCallback(async () => {
@@ -1346,6 +1350,8 @@ export default function App() {
       isListening={isListening}
       apiConfigured={apiConfigured}
       onApiKey={handleApiKey}
+      currentOpenaiKey={openaiKey}
+      currentGeminiKey={geminiKey}
       chatOpen={chatOpen}
       onChatToggle={() => setChatOpen(o => !o)}
       chatWidth={chatWidth}

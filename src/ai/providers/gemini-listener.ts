@@ -4,7 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import type { ListenerProvider } from '../types';
 import { ProviderError } from '../types';
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3-flash-preview';
 
 interface BackoffState {
   until: number;

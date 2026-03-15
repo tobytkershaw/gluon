@@ -14,7 +14,9 @@ interface Props {
   isThinking?: boolean;
   isListening?: boolean;
   apiConfigured: boolean;
-  onApiKey: (key: string) => void;
+  onApiKey: (openaiKey: string, geminiKey: string) => void;
+  currentOpenaiKey?: string;
+  currentGeminiKey?: string;
   open: boolean;
   width: number;
   onResize: (width: number) => void;
@@ -22,7 +24,8 @@ interface Props {
 
 export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false,
-  apiConfigured, onApiKey, open, width, onResize,
+  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
+  open, width, onResize,
 }: Props) {
   const dragging = useRef(false);
 
@@ -56,7 +59,7 @@ export function ChatSidebar({
     <div className="relative border-r border-zinc-800/40 flex flex-col min-h-0 bg-zinc-950/80" style={{ width }}>
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/40">
-        <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} />
+        <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} />
       </div>
 
       <ChatPanel

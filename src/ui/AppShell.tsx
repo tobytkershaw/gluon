@@ -31,7 +31,9 @@ interface Props {
   isThinking: boolean;
   isListening: boolean;
   apiConfigured: boolean;
-  onApiKey: (key: string) => void;
+  onApiKey: (openaiKey: string, geminiKey: string) => void;
+  currentOpenaiKey?: string;
+  currentGeminiKey?: string;
   chatOpen: boolean;
   onChatToggle: () => void;
   chatWidth: number;
@@ -83,7 +85,8 @@ export function AppShell({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack,
   messages, onSend, isThinking, isListening,
-  apiConfigured, onApiKey, chatOpen, onChatToggle, chatWidth, onChatResize,
+  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
+  chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -196,6 +199,8 @@ export function AppShell({
           isListening={isListening}
           apiConfigured={apiConfigured}
           onApiKey={onApiKey}
+          currentOpenaiKey={currentOpenaiKey}
+          currentGeminiKey={currentGeminiKey}
           open={chatOpen}
           width={chatWidth}
           onResize={onChatResize}

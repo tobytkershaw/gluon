@@ -1,4 +1,4 @@
-// src/ai/providers/schema-converters.ts — Convert neutral JSON Schema to Gemini format.
+// src/ai/providers/schema-converters.ts — Convert neutral JSON Schema to provider formats.
 
 import { Type } from '@google/genai';
 import type { FunctionDeclaration, Schema } from '@google/genai';
@@ -66,5 +66,25 @@ export function toGeminiDeclarations(tools: ToolSchema[]): FunctionDeclaration[]
     name: tool.name,
     description: tool.description,
     parameters: convertSchema(tool.parameters, tool.name),
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// OpenAI — JSON Schema passed through directly (no conversion needed).
+// ---------------------------------------------------------------------------
+
+export interface OpenAITool {
+  type: 'function';
+  name: string;
+  description: string;
+  parameters: JsonSchema;
+}
+
+export function toOpenAITools(tools: ToolSchema[]): OpenAITool[] {
+  return tools.map(tool => ({
+    type: 'function' as const,
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.parameters,
   }));
 }
