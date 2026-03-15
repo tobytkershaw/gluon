@@ -1,7 +1,7 @@
 // src/audio/render-spec.ts
 // Converts session state into a serializable RenderSpec for the offline render Worker.
 
-import type { Session, Track, ProcessorConfig } from '../engine/types';
+import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
@@ -15,7 +15,13 @@ export interface RenderSpec {
   sampleRate: number;       // always 48000
   bpm: number;
   bars: number;
+  master: RenderMasterSpec;
   tracks: RenderTrackSpec[];
+}
+
+export interface RenderMasterSpec {
+  volume: number;
+  pan: number;
 }
 
 export interface RenderTrackSpec {
@@ -25,6 +31,8 @@ export interface RenderTrackSpec {
   params: RenderSynthPatch;
   events: RenderEvent[];
   processors: RenderProcessorSpec[];
+  modulators: RenderModulatorSpec[];
+  modulations: RenderModulationSpec[];
 }
 
 export interface RenderSynthPatch {
@@ -36,8 +44,32 @@ export interface RenderSynthPatch {
 
 export interface RenderProcessorSpec {
   type: 'rings' | 'clouds';
+  id: string;
   model: number;
   params: Record<string, number>;
+}
+
+export interface RenderModulatorSpec {
+  id: string;
+  type: 'tides';
+  model: number;
+  params: {
+    frequency: number;
+    shape: number;
+    slope: number;
+    smoothness: number;
+  };
+}
+
+export type RenderModulationTargetSpec =
+  | { kind: 'source'; param: keyof RenderSynthPatch }
+  | { kind: 'processor'; processorId: string; param: string };
+
+export interface RenderModulationSpec {
+  id: string;
+  modulatorId: string;
+  target: RenderModulationTargetSpec;
+  depth: number;
 }
 
 export interface RenderEvent {
@@ -79,6 +111,10 @@ export function buildRenderSpec(
     sampleRate: 48000,
     bpm: session.transport.bpm,
     bars,
+    master: {
+      volume: session.master.volume,
+      pan: session.master.pan,
+    },
     tracks: selectedTracks.map(v => buildTrackSpec(v, bars)),
   };
 }
@@ -106,6 +142,8 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
 
   const events = collectEvents(track, bars);
   const processors = (track.processors ?? []).map(buildProcessorSpec);
+  const modulators = (track.modulators ?? []).map(buildModulatorSpec);
+  const modulations = buildModulationSpecs(track, modulators);
 
   return {
     id: track.id,
@@ -113,6 +151,8 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
     params,
     events,
     processors,
+    modulators,
+    modulations,
   };
 }
 
@@ -123,9 +163,69 @@ function clampModel(model: number): number {
 function buildProcessorSpec(proc: ProcessorConfig): RenderProcessorSpec {
   return {
     type: proc.type as 'rings' | 'clouds',
+    id: proc.id,
     model: proc.model,
     params: { ...proc.params },
   };
+}
+
+function buildModulatorSpec(mod: ModulatorConfig): RenderModulatorSpec {
+  if (mod.type !== 'tides') {
+    throw new Error(`Unsupported offline modulator type: ${mod.type}`);
+  }
+  return {
+    id: mod.id,
+    type: 'tides',
+    model: mod.model,
+    params: {
+      frequency: mod.params.frequency ?? 0.5,
+      shape: mod.params.shape ?? 0.5,
+      slope: mod.params.slope ?? 0.5,
+      smoothness: mod.params.smoothness ?? 0.5,
+    },
+  };
+}
+
+function buildModulationSpecs(track: Track, modulators: RenderModulatorSpec[]): RenderModulationSpec[] {
+  const modulatorIds = new Set(modulators.map(mod => mod.id));
+  const processorIds = new Set((track.processors ?? []).map(proc => proc.id));
+
+  return (track.modulations ?? []).flatMap((routing: ModulationRouting) => {
+    if (!modulatorIds.has(routing.modulatorId)) {
+      return [];
+    }
+    if (routing.target.kind === 'source') {
+      const runtimeParam = controlIdToRuntimeParam[routing.target.param] ?? routing.target.param;
+      if (!isRenderSourceParam(runtimeParam)) {
+        throw new Error(`Unsupported offline source modulation target: ${routing.target.param}`);
+      }
+      return [{
+        id: routing.id,
+        modulatorId: routing.modulatorId,
+        target: { kind: 'source', param: runtimeParam },
+        depth: routing.depth,
+      }];
+    }
+
+    if (!processorIds.has(routing.target.processorId)) {
+      return [];
+    }
+
+    return [{
+      id: routing.id,
+      modulatorId: routing.modulatorId,
+      target: {
+        kind: 'processor',
+        processorId: routing.target.processorId,
+        param: routing.target.param,
+      },
+      depth: routing.depth,
+    }];
+  });
+}
+
+function isRenderSourceParam(param: string): param is keyof RenderSynthPatch {
+  return param === 'harmonics' || param === 'timbre' || param === 'morph' || param === 'note';
 }
 
 /**

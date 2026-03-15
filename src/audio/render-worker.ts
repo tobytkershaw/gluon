@@ -9,7 +9,10 @@ import type {
   RenderProcessorSpec,
   RenderEvent,
   RenderSynthPatch,
+  RenderModulatorSpec,
 } from './render-spec';
+import { applyProcessorModulations, applySourceModulations, averageSignal } from './render-modulation';
+import { applyStereoGain, applyStereoPan, downmixStereoToMono, mixStereoBuffers, monoToStereo } from './render-mix';
 
 // ---------------------------------------------------------------------------
 // WASM interfaces (subset of what the worklet processors declare)
@@ -54,6 +57,18 @@ interface CloudsWasm {
   memory?: WebAssembly.Memory;
 }
 
+interface TidesWasm {
+  _malloc(size: number): number;
+  _free(ptr: number): void;
+  _tides_create(): number;
+  _tides_destroy(handle: number): void;
+  _tides_set_mode(handle: number, modeIndex: number): void;
+  _tides_set_parameters(handle: number, frequency: number, shape: number, slope: number, smoothness: number): void;
+  _tides_render(handle: number, outputPtr: number, frames: number): number;
+  HEAPF32?: Float32Array;
+  memory?: WebAssembly.Memory;
+}
+
 type CreateModuleFn<T> = (options?: {
   locateFile?: (path: string) => string;
   wasmBinary?: ArrayBuffer;
@@ -93,6 +108,7 @@ const BLOCK_SIZE = 128;
 let plaitsModulePromise: Promise<PlaitsWasm> | null = null;
 let ringsModulePromise: Promise<RingsWasm> | null = null;
 let cloudsModulePromise: Promise<CloudsWasm> | null = null;
+let tidesModulePromise: Promise<TidesWasm> | null = null;
 
 async function loadPlaitsModule(): Promise<PlaitsWasm> {
   if (!plaitsModulePromise) {
@@ -132,6 +148,19 @@ async function loadCloudsModule(): Promise<CloudsWasm> {
     })();
   }
   return cloudsModulePromise;
+}
+
+async function loadTidesModule(): Promise<TidesWasm> {
+  if (!tidesModulePromise) {
+    tidesModulePromise = (async () => {
+      const wasmBinary = await fetchWasm('/audio/tides.wasm');
+      importScripts('/audio/tides-module.js');
+      const factory = (self as unknown as Record<string, CreateModuleFn<TidesWasm>>).createTidesModule;
+      if (!factory) throw new Error('createTidesModule not found after loading module');
+      return factory({ wasmBinary });
+    })();
+  }
+  return tidesModulePromise;
 }
 
 async function fetchWasm(url: string): Promise<ArrayBuffer> {
@@ -179,6 +208,7 @@ async function renderTrack(
     handle: number;
     inPtr: number;
     outPtr: number;
+    spec: RenderProcessorSpec;
   }
   const procHandles: ProcessorHandle[] = [];
 
@@ -191,7 +221,7 @@ async function renderTrack(
       rings._rings_set_patch(rHandle, p.structure ?? 0.5, p.brightness ?? 0.5, p.damping ?? 0.7, p.position ?? 0.5);
       const inPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
-      procHandles.push({ type: 'rings', wasm: rings, handle: rHandle, inPtr, outPtr });
+      procHandles.push({ type: 'rings', wasm: rings, handle: rHandle, inPtr, outPtr, spec: proc });
     } else if (proc.type === 'clouds') {
       const clouds = await loadCloudsModule();
       const cHandle = clouds._clouds_create();
@@ -200,8 +230,13 @@ async function renderTrack(
       (clouds as CloudsWasm)._clouds_set_parameters(cHandle, p.position ?? 0.5, p.size ?? 0.5, p.density ?? 0.5, p.feedback ?? 0.0);
       const inPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
-      procHandles.push({ type: 'clouds', wasm: clouds, handle: cHandle, inPtr, outPtr });
+      procHandles.push({ type: 'clouds', wasm: clouds, handle: cHandle, inPtr, outPtr, spec: proc });
     }
+  }
+
+  const modHandles: ModulatorHandle[] = [];
+  for (const mod of track.modulators) {
+    modHandles.push(await createTidesHandle(mod));
   }
 
   // --- Sort events and prepare ---
@@ -224,8 +259,15 @@ async function renderTrack(
       eventIndex++;
     }
 
-    // Set current patch on Plaits
-    plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
+    const modulatorValues = renderModulationBlock(modHandles, framesToRender);
+    const effectivePatch = applySourceModulations(currentPatch, track.modulations, modulatorValues);
+    plaits._plaits_set_patch(
+      pHandle,
+      effectivePatch.harmonics,
+      effectivePatch.timbre,
+      effectivePatch.morph,
+      effectivePatch.note,
+    );
 
     // Render Plaits
     const rendered = plaits._plaits_render(pHandle, pOutPtr, framesToRender);
@@ -235,8 +277,16 @@ async function renderTrack(
 
     // Chain through processors
     for (const ph of procHandles) {
+      const effectiveProcessorParams = applyProcessorModulations(ph.spec, track.modulations, modulatorValues);
       if (ph.type === 'rings') {
         const rings = ph.wasm as RingsWasm;
+        rings._rings_set_patch(
+          ph.handle,
+          effectiveProcessorParams.structure ?? 0.5,
+          effectiveProcessorParams.brightness ?? 0.5,
+          effectiveProcessorParams.damping ?? 0.7,
+          effectiveProcessorParams.position ?? 0.5,
+        );
         let rHeap = getHeapF32(rings);
         const rInStart = ph.inPtr / Float32Array.BYTES_PER_ELEMENT;
         rHeap.set(blockBuf.subarray(0, framesToRender), rInStart);
@@ -246,6 +296,13 @@ async function renderTrack(
         blockBuf.set(rHeap.subarray(rOutStart, rOutStart + rRendered));
       } else if (ph.type === 'clouds') {
         const clouds = ph.wasm as CloudsWasm;
+        clouds._clouds_set_parameters(
+          ph.handle,
+          effectiveProcessorParams.position ?? 0.5,
+          effectiveProcessorParams.size ?? 0.5,
+          effectiveProcessorParams.density ?? 0.5,
+          effectiveProcessorParams.feedback ?? 0.0,
+        );
         let cHeap = getHeapF32(clouds);
         const cInStart = ph.inPtr / Float32Array.BYTES_PER_ELEMENT;
         cHeap.set(blockBuf.subarray(0, framesToRender), cInStart);
@@ -276,8 +333,50 @@ async function renderTrack(
       clouds._clouds_destroy(ph.handle);
     }
   }
+  for (const mod of modHandles) {
+    mod.wasm._free(mod.outPtr);
+    mod.wasm._tides_destroy(mod.handle);
+  }
 
   return output;
+}
+
+async function createTidesHandle(mod: RenderModulatorSpec): Promise<ModulatorHandle> {
+  const tides = await loadTidesModule();
+  const handle = tides._tides_create();
+  tides._tides_set_mode(handle, mod.model);
+  tides._tides_set_parameters(
+    handle,
+    mod.params.frequency,
+    mod.params.shape,
+    mod.params.slope,
+    mod.params.smoothness,
+  );
+  const outPtr = tides._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
+  return {
+    id: mod.id,
+    wasm: tides,
+    handle,
+    outPtr,
+  };
+}
+
+interface ModulatorHandle {
+  id: string;
+  wasm: TidesWasm;
+  handle: number;
+  outPtr: number;
+}
+
+function renderModulationBlock(modulators: ModulatorHandle[], framesToRender: number): Record<string, number> {
+  const values: Record<string, number> = {};
+  for (const mod of modulators) {
+    const rendered = mod.wasm._tides_render(mod.handle, mod.outPtr, framesToRender);
+    const heap = getHeapF32(mod.wasm);
+    const outStart = mod.outPtr / Float32Array.BYTES_PER_ELEMENT;
+    values[mod.id] = averageSignal(heap.subarray(outStart, outStart + rendered), rendered);
+  }
+  return values;
 }
 
 function applyEvent(
@@ -310,33 +409,6 @@ function applyEvent(
 }
 
 // ---------------------------------------------------------------------------
-// Mix tracks to mono
-// ---------------------------------------------------------------------------
-
-function mixTracks(trackOutputs: Float32Array[]): Float32Array {
-  if (trackOutputs.length === 0) return new Float32Array(0);
-
-  const maxLen = Math.max(...trackOutputs.map(v => v.length));
-  const mix = new Float32Array(maxLen);
-
-  for (const trackOut of trackOutputs) {
-    for (let i = 0; i < trackOut.length; i++) {
-      mix[i] += trackOut[i];
-    }
-  }
-
-  // Normalise to prevent clipping if multiple tracks are loud
-  if (trackOutputs.length > 1) {
-    const scale = 1 / Math.sqrt(trackOutputs.length);
-    for (let i = 0; i < mix.length; i++) {
-      mix[i] *= scale;
-    }
-  }
-
-  return mix;
-}
-
-// ---------------------------------------------------------------------------
 // Worker message handler
 // ---------------------------------------------------------------------------
 
@@ -350,8 +422,9 @@ self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
     const trackOutputs = await Promise.all(
       spec.tracks.map(track => renderTrack(track, spec.sampleRate, spec.bpm, totalSteps)),
     );
-
-    const pcm = mixTracks(trackOutputs);
+    const mixed = mixStereoBuffers(trackOutputs.map(monoToStereo));
+    const mastered = applyStereoPan(applyStereoGain(mixed, spec.master.volume), spec.master.pan);
+    const pcm = downmixStereoToMono(mastered);
 
     const response: RenderWorkerResponse = {
       type: 'done',
