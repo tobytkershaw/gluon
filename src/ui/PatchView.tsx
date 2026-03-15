@@ -5,6 +5,7 @@ import type { Session, Track, ModulationRouting } from '../engine/types';
 import { getActiveTrack } from '../engine/types';
 import { getModelName, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
+import { DraggableNumber } from './DraggableNumber';
 
 // --- Layout constants ---
 
@@ -116,6 +117,7 @@ interface AudioEdge {
 }
 
 interface ModEdge {
+  routeId: string;
   fromX: number;
   fromY: number;
   toX: number;
@@ -162,6 +164,7 @@ function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[]): ModE
     if (!targetNode) continue;
 
     edges.push({
+      routeId: route.id,
       fromX: modNode.x + NODE_W / 2,
       fromY: modNode.y,
       toX: targetNode.x + NODE_W / 2,
@@ -225,7 +228,6 @@ function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
 function ModEdgeSvg({ edge }: { edge: ModEdge }) {
   const midX = (edge.fromX + edge.toX) / 2;
   const midY = (edge.fromY + edge.toY) / 2;
-  const depthLabel = `${edge.depth > 0 ? '+' : ''}${edge.depth.toFixed(2)}`;
 
   return (
     <g>
@@ -241,16 +243,6 @@ function ModEdgeSvg({ edge }: { edge: ModEdge }) {
       />
       <text
         x={midX + 6}
-        y={midY}
-        fill="#67e8f9"
-        fontSize={9}
-        opacity={0.8}
-        dominantBaseline="middle"
-      >
-        {depthLabel}
-      </text>
-      <text
-        x={midX + 6}
         y={midY + 11}
         fill="#a1a1aa"
         fontSize={8}
@@ -260,6 +252,34 @@ function ModEdgeSvg({ edge }: { edge: ModEdge }) {
         {edge.targetParam}
       </text>
     </g>
+  );
+}
+
+/** HTML overlay for an interactive depth label on a modulation edge */
+function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
+  edge: ModEdge;
+  onDepthChange: (modulationId: string, depth: number) => void;
+  onDepthCommit?: (modulationId: string, depth: number) => void;
+}) {
+  const midX = (edge.fromX + edge.toX) / 2;
+  const midY = (edge.fromY + edge.toY) / 2;
+
+  return (
+    <div
+      className="absolute"
+      style={{ left: midX + 6, top: midY - 7 }}
+    >
+      <DraggableNumber
+        value={edge.depth}
+        min={-1}
+        max={1}
+        step={0.01}
+        decimals={2}
+        className="text-[9px] text-cyan-300/80 hover:text-cyan-200"
+        onChange={(v) => onDepthChange(edge.routeId, v)}
+        onCommit={onDepthCommit ? (v) => onDepthCommit(edge.routeId, v) : undefined}
+      />
+    </div>
   );
 }
 
@@ -280,9 +300,11 @@ function EmptyState() {
 
 interface Props {
   session: Session;
+  onModulationDepthChange?: (modulationId: string, depth: number) => void;
+  onModulationDepthCommit?: (modulationId: string, depth: number) => void;
 }
 
-export function PatchView({ session }: Props) {
+export function PatchView({ session, onModulationDepthChange, onModulationDepthCommit }: Props) {
   if (session.tracks.length === 0) return <EmptyState />;
 
   const track = getActiveTrack(session);
@@ -324,6 +346,16 @@ export function PatchView({ session }: Props) {
           {/* Node layer */}
           {nodes.map(n => (
             <NodeCard key={n.id} node={n} />
+          ))}
+
+          {/* Modulation depth overlays (interactive HTML on top of SVG edges) */}
+          {onModulationDepthChange && modEdges.map(e => (
+            <ModDepthOverlay
+              key={`depth-${e.routeId}`}
+              edge={e}
+              onDepthChange={onModulationDepthChange}
+              onDepthCommit={onModulationDepthCommit}
+            />
           ))}
         </div>
       </div>
