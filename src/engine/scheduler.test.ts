@@ -162,4 +162,33 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
     scheduler.stop();
   });
+
+  it('re-emits a future track event after that track is invalidated', () => {
+    const session = makeSession();
+    session.tracks[0].regions[0].events = [
+      { kind: 'trigger', at: 7.5, velocity: 0.8 },
+    ];
+    let audioTime = 0.9; // global step ~7.2 at 120 BPM
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    scheduler.start(0, 7, 4);
+    expect(onNote).toHaveBeenCalledTimes(1);
+
+    scheduler.invalidateTrack('v1', 7);
+    (scheduler as unknown as { cursor: number }).cursor = 7;
+    (scheduler as unknown as { tick: () => void }).tick();
+
+    expect(onNote).toHaveBeenCalledTimes(2);
+
+    scheduler.stop();
+  });
 });

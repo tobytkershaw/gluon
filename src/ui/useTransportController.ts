@@ -43,5 +43,9 @@ export function useTransportController({
     controllerRef.current?.sync();
   }, [session.transport]);
 
+  useEffect(() => {
+    controllerRef.current?.syncArrangement();
+  }, [session.tracks]);
+
   return controllerRef;
 }

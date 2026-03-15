@@ -14,6 +14,7 @@ import { recordQaAudioTrace } from '../qa/audio-trace';
 interface SchedulerLike {
   start(startOffset?: number, startStep?: number, generation?: number): void;
   stop(): void;
+  invalidateTrack(trackId: string, fromStep?: number): void;
 }
 
 interface TransportControllerDeps {
@@ -39,6 +40,7 @@ export class TransportController {
   private runtime: RuntimeTransportState;
   private pendingHardStop = false;
   private lastStep = 0;
+  private trackRegionSignatures = new Map<string, string>();
 
   constructor({
     audio,
@@ -74,6 +76,7 @@ export class TransportController {
           getHeldParams,
           onParameterEvent,
         );
+    this.syncArrangement();
   }
 
   sync(): void {
@@ -142,6 +145,36 @@ export class TransportController {
 
   requestHardStop(): void {
     this.pendingHardStop = true;
+  }
+
+  syncArrangement(): void {
+    const session = this.getSession();
+    for (const track of session.tracks) {
+      const region = track.regions[0];
+      const signature = region
+        ? `${region.id}:${region.duration}:${region.events.map(event => {
+            switch (event.kind) {
+              case 'parameter':
+                return `${event.kind}:${event.at}:${event.controlId}:${String(event.value)}`;
+              case 'note':
+                return `${event.kind}:${event.at}:${event.pitch}:${event.duration}:${event.velocity}`;
+              default:
+                return `${event.kind}:${event.at}:${event.velocity ?? ''}:${event.accent ?? ''}`;
+            }
+          }).join('|')}`
+        : 'none';
+      const previous = this.trackRegionSignatures.get(track.id);
+      if (previous !== undefined && previous !== signature && this.runtime.status === 'playing') {
+        this.scheduler.invalidateTrack(track.id, this.lastStep);
+        recordQaAudioTrace({
+          type: 'transport.arrangement-invalidated',
+          generation: this.runtime.generation,
+          trackId: track.id,
+          fromStep: this.lastStep,
+        });
+      }
+      this.trackRegionSignatures.set(track.id, signature);
+    }
   }
 
   dispose(): void {
