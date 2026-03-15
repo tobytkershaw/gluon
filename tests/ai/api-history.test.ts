@@ -409,4 +409,24 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(planner.userMessages[0]).toContain('Project state:');
     expect(planner.userMessages[0]).toContain('Human says: test message');
   });
+
+  it('does not commit turn when model returns empty response', async () => {
+    // Simulate safety filter suppression or thinking-only response
+    planner.startTurnResults.push({ textParts: [], functionCalls: [] });
+    const session = createSession();
+    await ai.ask(session, 'filtered message');
+
+    // Empty response should discard, not commit — prevents orphaned user-only exchanges
+    expect(planner.committed).toBe(0);
+    expect(planner.discarded).toBe(1);
+  });
+
+  it('isConfigured returns false when providers have empty keys', () => {
+    const emptyPlanner = createMockPlanner();
+    emptyPlanner.isConfigured = () => false;
+    const emptyListener = createMockListener();
+    emptyListener.isConfigured = () => false;
+    const unconfiguredAI = new GluonAI(emptyPlanner, emptyListener);
+    expect(unconfiguredAI.isConfigured()).toBe(false);
+  });
 });

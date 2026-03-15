@@ -19,7 +19,7 @@ interface ExchangeBoundary {
 
 export class GeminiPlannerProvider implements PlannerProvider {
   readonly name = 'gemini';
-  private ai: GoogleGenAI;
+  private ai: GoogleGenAI | null;
   private backoff: BackoffState = { until: 0, delay: 0 };
 
   private permanentContents: Content[] = [];
@@ -27,11 +27,11 @@ export class GeminiPlannerProvider implements PlannerProvider {
   private exchangeBoundaries: ExchangeBoundary[] = [];
 
   constructor(apiKey: string) {
-    this.ai = new GoogleGenAI({ apiKey });
+    this.ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
   }
 
   isConfigured(): boolean {
-    return true;
+    return this.ai !== null;
   }
 
   async startTurn(opts: {
@@ -90,6 +90,8 @@ export class GeminiPlannerProvider implements PlannerProvider {
   }
 
   private async generate(systemPrompt: string, tools: ToolSchema[]): Promise<GenerateResult> {
+    if (!this.ai) throw new ProviderError('API not configured.', 'auth');
+
     const now = Date.now();
     if (now < this.backoff.until) {
       throw new ProviderError('Rate limited — backing off.', 'rate_limited', this.backoff.until - now);

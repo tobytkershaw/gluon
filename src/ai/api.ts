@@ -315,6 +315,7 @@ export class GluonAI {
     const collectedActions: AIAction[] = [];
     let projectedSession = session;
     let hadError = false;
+    let hadModelContent = false;
 
     try {
       if (ctx?.isStale?.()) {
@@ -330,6 +331,10 @@ export class GluonAI {
       });
 
       while (invocationCount <= GluonAI.MAX_PLANNER_INVOCATIONS) {
+        if (result.textParts.length > 0 || result.functionCalls.length > 0) {
+          hadModelContent = true;
+        }
+
         for (const text of result.textParts) {
           collectedActions.push({ type: 'say', text });
         }
@@ -360,7 +365,7 @@ export class GluonAI {
       collectedActions.push(...this.handleError(error));
     }
 
-    if (!ctx?.isStale?.() && !hadError) {
+    if (!ctx?.isStale?.() && !hadError && hadModelContent) {
       this.planner.commitTurn();
     } else {
       this.planner.discardTurn();

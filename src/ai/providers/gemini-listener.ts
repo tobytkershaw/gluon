@@ -13,15 +13,15 @@ interface BackoffState {
 
 export class GeminiListenerProvider implements ListenerProvider {
   readonly name = 'gemini';
-  private ai: GoogleGenAI;
+  private ai: GoogleGenAI | null;
   private backoff: BackoffState = { until: 0, delay: 0 };
 
   constructor(apiKey: string) {
-    this.ai = new GoogleGenAI({ apiKey });
+    this.ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
   }
 
   isConfigured(): boolean {
-    return true;
+    return this.ai !== null;
   }
 
   async evaluate(opts: {
@@ -31,6 +31,8 @@ export class GeminiListenerProvider implements ListenerProvider {
     audioData: Blob;
     mimeType: string;
   }): Promise<string> {
+    if (!this.ai) throw new ProviderError('API not configured.', 'auth');
+
     const now = Date.now();
     if (now < this.backoff.until) {
       throw new ProviderError('Rate limited — try again shortly.', 'rate_limited', this.backoff.until - now);

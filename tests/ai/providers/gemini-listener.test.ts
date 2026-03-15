@@ -22,8 +22,13 @@ describe('GeminiListenerProvider', () => {
     listener = new GeminiListenerProvider('test-key');
   });
 
-  it('isConfigured returns true', () => {
+  it('isConfigured returns true with valid key', () => {
     expect(listener.isConfigured()).toBe(true);
+  });
+
+  it('isConfigured returns false with empty key', () => {
+    const empty = new GeminiListenerProvider('');
+    expect(empty.isConfigured()).toBe(false);
   });
 
   it('encodes audio blob as base64 inlineData', async () => {

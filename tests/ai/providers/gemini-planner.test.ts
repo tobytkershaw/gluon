@@ -56,8 +56,13 @@ describe('GeminiPlannerProvider', () => {
     planner = new GeminiPlannerProvider('test-key');
   });
 
-  it('isConfigured returns true', () => {
+  it('isConfigured returns true with valid key', () => {
     expect(planner.isConfigured()).toBe(true);
+  });
+
+  it('isConfigured returns false with empty key', () => {
+    const empty = new GeminiPlannerProvider('');
+    expect(empty.isConfigured()).toBe(false);
   });
 
   it('extracts text parts from response', async () => {
