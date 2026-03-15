@@ -5,6 +5,8 @@ import { createSession } from '../../src/engine/session';
 import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import { getTrack } from '../../src/engine/types';
+import type { Reaction, OpenDecision } from '../../src/engine/types';
+import type { TriggerEvent } from '../../src/engine/canonical-types';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -475,5 +477,138 @@ describe('persistence', () => {
     const track = getTrack(loaded!, 'v0');
     expect(track.regions.length).toBe(1);
     expect(track.regions[0].events).toHaveLength(0);
+  });
+
+  // --- M6 field persistence tests ---
+
+  it('round-trips all M6 fields (approval, importance, musicalRole, reactionHistory, openDecisions)', () => {
+    const session = createSession();
+    const reactions: Reaction[] = [
+      { actionGroupIndex: 0, verdict: 'approved', rationale: 'nice kick', timestamp: 100 },
+      { actionGroupIndex: 1, verdict: 'rejected', timestamp: 200 },
+    ];
+    const decisions: OpenDecision[] = [
+      { id: 'd1', question: 'Should we add reverb?', context: 'track is dry', options: ['yes', 'no'], trackIds: ['v0'], raisedAt: 300 },
+    ];
+    const modified = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      tracks: session.tracks.map((t, i) =>
+        i === 0
+          ? { ...t, approval: 'anchor' as const, importance: 0.8, musicalRole: 'driving rhythm' }
+          : t,
+      ),
+      reactionHistory: reactions,
+      openDecisions: decisions,
+    };
+
+    saveSession(modified);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+
+    // Track-level M6 fields
+    const track = getTrack(loaded!, 'v0');
+    expect(track.approval).toBe('anchor');
+    expect(track.importance).toBe(0.8);
+    expect(track.musicalRole).toBe('driving rhythm');
+
+    // Session-level M6 fields
+    expect(loaded!.reactionHistory).toHaveLength(2);
+    expect(loaded!.reactionHistory![0]).toMatchObject({ actionGroupIndex: 0, verdict: 'approved', rationale: 'nice kick' });
+    expect(loaded!.reactionHistory![1]).toMatchObject({ actionGroupIndex: 1, verdict: 'rejected' });
+    expect(loaded!.openDecisions).toHaveLength(1);
+    expect(loaded!.openDecisions![0]).toMatchObject({ id: 'd1', question: 'Should we add reverb?', trackIds: ['v0'] });
+  });
+
+  it('loads pre-M6 session (v4, no M6 fields) with correct defaults', () => {
+    const session = createSession();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate pre-M6 save data
+    const rawSession = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'x', timestamp: 1 }],
+      undoStack: [],
+      recentHumanActions: [],
+    } as any;
+
+    // Strip M6 fields from tracks
+    rawSession.tracks = rawSession.tracks.map((t: any) => {
+      const copy = { ...t };
+      delete copy.approval;
+      delete copy.importance;
+      delete copy.musicalRole;
+      return copy;
+    });
+
+    // Strip M6 session-level fields
+    delete rawSession.reactionHistory;
+    delete rawSession.openDecisions;
+
+    store.set('gluon-session', JSON.stringify({
+      version: 4,
+      session: rawSession,
+      savedAt: Date.now(),
+    }));
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+
+    // Track-level: approval migrated to 'exploratory', optional fields stay undefined
+    const track = getTrack(loaded!, 'v0');
+    expect(track.approval).toBe('exploratory');
+    expect(track.importance).toBeUndefined();
+    expect(track.musicalRole).toBeUndefined();
+
+    // Session-level: hydrated to empty arrays
+    expect(loaded!.reactionHistory).toEqual([]);
+    expect(loaded!.openDecisions).toEqual([]);
+  });
+
+  it('isNonDefault does not detect M6-only changes (accepted heuristic limitation)', () => {
+    // isNonDefault is a save-avoidance heuristic. It checks messages, transport, params,
+    // and pattern edits — but NOT approval, importance, musicalRole, reactionHistory, or
+    // openDecisions. This is an accepted limitation: worst case is an unnecessary no-op save,
+    // not data loss. See NOTE(#215) in isNonDefault's docstring.
+    const session = createSession();
+    const modified = {
+      ...session,
+      tracks: session.tracks.map((t, i) =>
+        i === 0 ? { ...t, approval: 'anchor' as const } : t,
+      ),
+    };
+    // No messages, no pattern changes — isNonDefault should return false
+    saveSession(modified);
+    expect(loadSession()).toBeNull(); // save was skipped, so load returns null
+  });
+
+  it('stripForPersistence preserves M6 fields', () => {
+    const session = createSession();
+    const reactions: Reaction[] = [
+      { actionGroupIndex: 0, verdict: 'neutral', timestamp: 50 },
+    ];
+    const decisions: OpenDecision[] = [
+      { id: 'd2', question: 'Key?', raisedAt: 60 },
+    ];
+    const modified = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'hi', timestamp: 1 }],
+      tracks: session.tracks.map((t, i) =>
+        i === 0
+          ? { ...t, approval: 'liked' as const, importance: 0.6, musicalRole: 'ambient pad' }
+          : t,
+      ),
+      reactionHistory: reactions,
+      openDecisions: decisions,
+    };
+
+    const stripped = stripForPersistence(modified);
+
+    // Session-level M6 fields preserved
+    expect(stripped.reactionHistory).toEqual(reactions);
+    expect(stripped.openDecisions).toEqual(decisions);
+
+    // Track-level M6 fields preserved
+    expect(stripped.tracks[0].approval).toBe('liked');
+    expect(stripped.tracks[0].importance).toBe(0.6);
+    expect(stripped.tracks[0].musicalRole).toBe('ambient pad');
   });
 });
