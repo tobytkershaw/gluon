@@ -1,7 +1,6 @@
 // src/audio/audio-engine.ts
 import type { SynthParams } from './synth-interface';
 import { DEFAULT_PARAMS } from './synth-interface';
-import type { SynthEngine } from './synth-interface';
 import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
@@ -13,12 +12,14 @@ import type { RingsPatchParams } from './rings-messages';
 import type { CloudsPatchParams } from './clouds-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
+import { VoicePool } from './voice-pool';
 
-const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
 /** Duration (seconds) for the gain ramp used during chain rebuild to avoid clicks. */
 const CHAIN_RAMP_SEC = 0.002; // ~2ms
 /** Keep completed voices around briefly so generation cleanup still reaches processor tails. */
 const TRACK_TAIL_GRACE_SEC = 2.0;
+/** Number of synth voices per track for overlap handling. */
+const VOICES_PER_TRACK = 2;
 
 type ProcessorEngine = RingsEngine | CloudsEngine;
 
@@ -44,11 +45,10 @@ interface ModulationRoute {
 }
 
 interface TrackSlot {
-  synth: SynthEngine;
+  pool: VoicePool;
   sourceOut: GainNode;   // routing node between source and processor chain
   chainOutGain: GainNode; // gain node at end of processor chain — ramped to 0 during rebuild to avoid clicks
   muteGain: GainNode;    // controlled by mute/solo -- never touched by scheduleNote
-  accentGain: GainNode;  // controlled by scheduleNote for accent boosts
   processors: ProcessorSlot[];
   currentParams: SynthParams;
   currentModel: number;
@@ -143,27 +143,34 @@ export class AudioEngine {
     this.masterPanner.connect(this.mediaStreamDest);
 
     for (const trackId of trackIds) {
-      // Signal chain: source -> sourceOut -> [processors] -> chainOutGain -> accentGain -> muteGain -> mixer
+      // Signal chain:
+      //   voice[n].synth → voice[n].accentGain ─┐
+      //                                          ├→ sourceOut → [processors] → chainOutGain → muteGain → mixer
+      //   voice[m].synth → voice[m].accentGain ─┘
       const sourceOut = this.ctx.createGain();
       sourceOut.gain.value = 1.0;
       const chainOutGain = this.ctx.createGain();
       chainOutGain.gain.value = 1.0;
-      const accentGain = this.ctx.createGain();
-      accentGain.gain.value = 0.3;
       const muteGain = this.ctx.createGain();
       muteGain.gain.value = 1.0; // 1 = audible, 0 = muted
       sourceOut.connect(chainOutGain);
-      chainOutGain.connect(accentGain);
-      accentGain.connect(muteGain);
+      chainOutGain.connect(muteGain);
       muteGain.connect(this.mixer);
 
-      const synth = await createPreferredSynth(this.ctx, sourceOut);
+      const poolVoices = [];
+      for (let i = 0; i < VOICES_PER_TRACK; i++) {
+        const accentGain = this.ctx.createGain();
+        accentGain.gain.value = 0.3;
+        const synth = await createPreferredSynth(this.ctx, accentGain);
+        accentGain.connect(sourceOut);
+        poolVoices.push({ synth, accentGain, lastNoteTime: 0, lastGateOffTime: 0 });
+      }
+
       this.tracks.set(trackId, {
-        synth,
+        pool: new VoicePool(poolVoices),
         sourceOut,
         chainOutGain,
         muteGain,
-        accentGain,
         processors: [],
         currentParams: { ...DEFAULT_PARAMS },
         currentModel: 0,
@@ -195,7 +202,7 @@ export class AudioEngine {
       for (const proc of slot.processors) {
         proc.engine.destroy();
       }
-      slot.synth.destroy();
+      slot.pool.destroy();
     }
     this.tracks.clear();
     this.activeVoices.clear();
@@ -219,20 +226,20 @@ export class AudioEngine {
     const slot = this.tracks.get(trackId);
     if (!slot) return;
     slot.currentModel = model;
-    slot.synth.setModel(model);
+    slot.pool.setModel(model);
   }
 
   setTrackParams(trackId: string, params: SynthParams): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;
     slot.currentParams = { ...params };
-    slot.synth.setParams(params);
+    slot.pool.setParams(params);
   }
 
   muteTrack(trackId: string, muted: boolean): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;
-    // Only touch muteGain -- accentGain is controlled by scheduleNote
+    // Only touch muteGain -- accentGain is per-voice, controlled by scheduleNote
     slot.muteGain.gain.value = muted ? 0 : 1;
   }
 
@@ -257,14 +264,8 @@ export class AudioEngine {
     const eventId = note.eventId ?? `manual:${note.trackId}:${note.time}:${note.gateOffTime}`;
     const voiceGeneration = note.generation ?? generation;
 
-    // --- Accent gain: schedule on accentGain (separate from muteGain) ---
-    const accentLevel = note.accent ? 0.3 * ACCENT_GAIN_BOOST : 0.3;
-    slot.accentGain.gain.setValueAtTime(accentLevel, note.time);
-    if (note.accent) {
-      // Revert accent at gate-off
-      slot.accentGain.gain.setValueAtTime(0.3, note.gateOffTime);
-    }
-    slot.synth.scheduleNote(note, generation);
+    // Delegate to voice pool: allocates a voice, schedules accent + note on it
+    slot.pool.scheduleNote(note, generation);
     this.activeVoices.set(eventId, {
       eventId,
       generation: voiceGeneration,
@@ -288,10 +289,8 @@ export class AudioEngine {
   releaseTrack(trackId: string): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;
-    slot.synth.silence();
     const now = this.ctx?.currentTime ?? 0;
-    slot.accentGain.gain.cancelAndHoldAtTime(now);
-    slot.accentGain.gain.setValueAtTime(0.3, now);
+    slot.pool.release(now);
     for (const voice of this.activeVoices.values()) {
       if (voice.trackId === trackId) {
         voice.state = 'released';
@@ -299,12 +298,11 @@ export class AudioEngine {
     }
   }
 
-  /** Restore accent gains to baseline after silenceAll() zeroed them. */
+  /** Restore accent gains to baseline after silence zeroed them. */
   restoreBaseline(): void {
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {
-      slot.accentGain.gain.cancelAndHoldAtTime(now);
-      slot.accentGain.gain.setValueAtTime(0.3, now);
+      slot.pool.restoreBaseline(now);
     }
     // Resume modulator output after pause
     for (const [, modSlots] of this.modulatorSlots) {
@@ -312,18 +310,6 @@ export class AudioEngine {
         modSlot.engine.resume();
       }
     }
-  }
-
-  /**
-   * Close all gates and fade out over ~50ms, then hold at zero.
-   * Used on pause (vs. silenceAll which cuts instantly on hard stop).
-   * restoreBaseline() resets gain to 0.3 on the next play.
-   */
-  releaseAll(generation = this.generation): void {
-    this.generation = generation <= this.generation
-      ? this.generation + 1
-      : generation;
-    this.releaseGeneration(this.generation);
   }
 
   releaseGeneration(generation: number): void {
@@ -335,13 +321,7 @@ export class AudioEngine {
     for (const trackId of activeTrackIds) {
       const slot = this.tracks.get(trackId);
       if (!slot) continue;
-      slot.synth.silence(this.generation);
-      // Cancel any in-flight accent automation and fade to zero.
-      // The Plaits LPG has its own internal decay that can sustain sound
-      // for hundreds of ms after gate-off, so we fade the gain node to
-      // ensure silence regardless of the engine's internal behaviour.
-      slot.accentGain.gain.cancelAndHoldAtTime(now);
-      slot.accentGain.gain.linearRampToValueAtTime(0, fadeTime);
+      slot.pool.releaseAll(this.generation, now, fadeTime);
       // Clear scheduled events in downstream processors (Rings/Clouds)
       // so their tails don't sustain indefinitely. Don't damp() Rings —
       // that's hard-stop behaviour; let the resonance decay naturally.
@@ -363,13 +343,6 @@ export class AudioEngine {
     }
   }
 
-  silenceAll(generation = this.generation): void {
-    this.generation = generation <= this.generation
-      ? this.generation + 1
-      : generation;
-    this.silenceGeneration(this.generation);
-  }
-
   silenceGeneration(generation: number): void {
     this.generation = Math.max(this.generation, generation);
     const activeTrackIds = this.collectTrackIdsThroughGeneration(generation);
@@ -378,13 +351,7 @@ export class AudioEngine {
     for (const trackId of activeTrackIds) {
       const slot = this.tracks.get(trackId);
       if (!slot) continue;
-      slot.synth.silence(this.generation);
-      // Cancel pending accent automation and hard-mute the track chain.
-      // Setting gain to 0 (not baseline 0.3) ensures processor tails
-      // (Rings resonance, Clouds reverb) are silenced immediately.
-      // The scheduler restores gain via setValueAtTime on the next note.
-      slot.accentGain.gain.cancelAndHoldAtTime(now);
-      slot.accentGain.gain.setValueAtTime(0, now);
+      slot.pool.silenceAll(this.generation, now);
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
         proc.engine.silence(this.generation);
@@ -683,19 +650,21 @@ export class AudioEngine {
     const modSlot = modSlots.find(s => s.id === modulatorId);
     if (!modSlot) return;
 
-    // Resolve the target AudioWorkletNode and AudioParam
-    const resolved = this.resolveModulationTarget(trackSlot, target);
-    if (!resolved) return;
+    // Resolve the target AudioWorkletNode(s) and AudioParam
+    const resolved = this.resolveModulationTargets(trackSlot, target);
+    if (resolved.length === 0) return;
 
-    // Create GainNode for depth scaling: Tides output → GainNode(depth) → target AudioParam
+    // Create GainNode for depth scaling: Tides output → GainNode(depth) → target AudioParam(s)
     const depthGain = this.ctx.createGain();
     depthGain.gain.value = depth;
     modSlot.engine.outputNode.connect(depthGain);
-    // Connect to AudioParam directly — Web Audio sums all inputs to the same param
-    depthGain.connect(resolved.audioParam);
+    // Connect to AudioParam on each voice — Web Audio sums all inputs to the same param
+    for (const r of resolved) {
+      depthGain.connect(r.audioParam);
+    }
 
     const routes = this.modulationRouteSlots.get(trackId) ?? [];
-    routes.push({ id: routeId, modulatorSlotId: modulatorId, depthGain, targetNode: resolved.targetNode, targetParam: resolved.paramName });
+    routes.push({ id: routeId, modulatorSlotId: modulatorId, depthGain, targetNode: resolved[0].targetNode, targetParam: resolved[0].paramName });
     this.modulationRouteSlots.set(trackId, routes);
     recordQaAudioTrace({
       type: 'modulation.route.add',
@@ -704,7 +673,7 @@ export class AudioEngine {
       modulatorId,
       target,
       depth,
-      targetParam: resolved.paramName,
+      targetParam: resolved[0].paramName,
     });
   }
 
@@ -759,30 +728,30 @@ export class AudioEngine {
   }
 
   /**
-   * Resolve a ModulationTarget to the AudioWorkletNode and param index for connection.
-   * Uses AudioWorkletNode.parameters to connect GainNode output to a specific AudioParam.
-   *
-   * Source targets use the Plaits worklet node (via synth.workletNode).
-   * Processor targets use the processor's inputNode (which is an AudioWorkletNode).
+   * Resolve a ModulationTarget to AudioWorkletNode(s) and AudioParam(s) for connection.
+   * Source targets connect to all worklet nodes in the voice pool.
+   * Processor targets use the processor's inputNode.
    */
-  private resolveModulationTarget(trackSlot: TrackSlot, target: ModulationTarget): { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam } | null {
+  private resolveModulationTargets(trackSlot: TrackSlot, target: ModulationTarget): { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam }[] {
     if (target.kind === 'source') {
-      const workletNode = trackSlot.synth.workletNode;
-      if (!workletNode) return null;
-      // Map canonical name → Plaits runtime param name via controlIdToRuntimeParam
+      const results: { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam }[] = [];
       const runtimeParam = controlIdToRuntimeParam[target.param] ?? target.param;
       const paramName = `mod-${runtimeParam}`;
-      const audioParam = workletNode.parameters.get(paramName);
-      if (!audioParam) return null;
-      return { targetNode: workletNode, paramName, audioParam };
+      for (const workletNode of trackSlot.pool.workletNodes) {
+        const audioParam = workletNode.parameters.get(paramName);
+        if (audioParam) {
+          results.push({ targetNode: workletNode, paramName, audioParam });
+        }
+      }
+      return results;
     } else {
       const proc = trackSlot.processors.find(p => p.id === target.processorId);
-      if (!proc) return null;
+      if (!proc) return [];
       const targetNode = proc.engine.inputNode as AudioWorkletNode;
       const paramName = `mod-${target.param}`;
       const audioParam = targetNode.parameters.get(paramName);
-      if (!audioParam) return null;
-      return { targetNode, paramName, audioParam };
+      if (!audioParam) return [];
+      return [{ targetNode, paramName, audioParam }];
     }
   }
 
