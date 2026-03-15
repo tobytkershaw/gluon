@@ -123,6 +123,7 @@ function EditableCell({
   return (
     <span
       className={`cursor-text select-text ${className ?? ''}`}
+      onClick={startEdit}
       onDoubleClick={startEdit}
     >
       {value}
@@ -159,11 +160,11 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             cancelEditRef={cancelEditRef}
           />
         );
-      } else {
-        primaryData = midiToNoteName(note.pitch);
-      }
-    } else if (event.kind === 'trigger') {
-      primaryData = (event as TriggerEvent).accent ? 'ACC' : '---';
+    } else {
+      primaryData = midiToNoteName(note.pitch);
+    }
+  } else if (event.kind === 'trigger') {
+      primaryData = (event as TriggerEvent).accent ? 'ACC' : 'TRG';
     } else if (event.kind === 'parameter') {
       primaryData = abbreviateControlId((event as ParameterEvent).controlId);
     }
@@ -181,7 +182,14 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       ) : vel.toFixed(2);
     } else if (event.kind === 'trigger') {
       const vel = (event as TriggerEvent).velocity;
-      valueNode = vel !== undefined ? vel.toFixed(2) : '--';
+      const display = vel !== undefined ? vel.toFixed(2) : '0.80';
+      valueNode = editable ? (
+        <EditableCell
+          value={display}
+          onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          cancelEditRef={cancelEditRef}
+        />
+      ) : display;
     } else if (event.kind === 'parameter') {
       const v = (event as ParameterEvent).value;
       const display = typeof v === 'number' ? v.toFixed(2) : String(v);
