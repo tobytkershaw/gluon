@@ -9,7 +9,7 @@ import { projectRegionToPattern } from '../engine/region-projection';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
-import { GLUON_LISTEN_PROMPT } from './listen-prompt';
+import { buildListenPrompt } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse } from './types';
 import { ProviderError } from './types';
@@ -1152,7 +1152,7 @@ export class GluonAI {
       const state = compressState(session);
 
       const critique = await this.listener.evaluate({
-        systemPrompt: GLUON_LISTEN_PROMPT,
+        systemPrompt: buildListenPrompt(question),
         stateJson: JSON.stringify(state),
         question,
         audioData: wavBlob,
