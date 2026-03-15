@@ -1,0 +1,55 @@
+import type { MusicalEvent } from './canonical-types';
+
+export type RuntimeEventId = string;
+
+interface PlannedEvent {
+  absoluteStep: number;
+}
+
+function formatStep(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(6);
+}
+
+export function buildRuntimeEventId(
+  generation: number,
+  trackId: string,
+  regionId: string,
+  event: MusicalEvent,
+  occurrence: number,
+): RuntimeEventId {
+  const suffix = event.kind === 'parameter'
+    ? `${event.controlId}@${formatStep(event.at)}`
+    : `${event.kind}@${formatStep(event.at)}`;
+  return `${generation}:${trackId}:${regionId}:${occurrence}:${suffix}`;
+}
+
+export class PlaybackPlan {
+  private generation = 0;
+  private planned = new Map<RuntimeEventId, PlannedEvent>();
+
+  reset(generation: number): void {
+    this.generation = generation;
+    this.planned.clear();
+  }
+
+  admit(eventId: RuntimeEventId, absoluteStep: number, generation: number): boolean {
+    if (generation !== this.generation) {
+      this.reset(generation);
+    }
+    if (this.planned.has(eventId)) return false;
+    this.planned.set(eventId, { absoluteStep });
+    return true;
+  }
+
+  pruneBeforeStep(minStep: number): void {
+    for (const [eventId, event] of this.planned) {
+      if (event.absoluteStep < minStep) {
+        this.planned.delete(eventId);
+      }
+    }
+  }
+
+  has(eventId: RuntimeEventId): boolean {
+    return this.planned.has(eventId);
+  }
+}

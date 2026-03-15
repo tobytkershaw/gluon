@@ -136,4 +136,30 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
     scheduler.stop();
   });
+
+  it('does not emit duplicate notes when the same window is rescanned', () => {
+    const session = makeSession();
+    let audioTime = 0;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    scheduler.start(0, 0, 7);
+    expect(onNote).toHaveBeenCalledTimes(1);
+
+    // Force an overlapping rescan of the same window.
+    (scheduler as unknown as { cursor: number }).cursor = 0;
+    (scheduler as unknown as { tick: () => void }).tick();
+
+    expect(onNote).toHaveBeenCalledTimes(1);
+
+    scheduler.stop();
+  });
 });
