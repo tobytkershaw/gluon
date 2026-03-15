@@ -2,7 +2,7 @@
 import type { SynthEngine, SynthParams } from './synth-interface';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
-const ACCENT_BASELINE = 0.3;
+export const ACCENT_BASELINE = 0.3;
 
 export interface PoolVoice {
   synth: SynthEngine;
@@ -52,7 +52,13 @@ export class VoicePool {
     }
   }
 
-  /** Release a single track (keyboard note-off): close gate and reset accent. */
+  /**
+   * Silence the entire track (keyboard note-off).
+   * Silences ALL voices in the pool — intentional, since the keyboard doesn't
+   * track which pool voice it was assigned. During sequenced playback a keyboard
+   * note-off will also silence the sequenced voice; this matches pre-pool behaviour
+   * where the single synth was shared.
+   */
   release(now: number): void {
     for (const voice of this.voices) {
       voice.synth.silence();

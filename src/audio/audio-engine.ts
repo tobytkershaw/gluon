@@ -12,7 +12,7 @@ import type { RingsPatchParams } from './rings-messages';
 import type { CloudsPatchParams } from './clouds-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
-import { VoicePool } from './voice-pool';
+import { VoicePool, ACCENT_BASELINE } from './voice-pool';
 
 /** Duration (seconds) for the gain ramp used during chain rebuild to avoid clicks. */
 const CHAIN_RAMP_SEC = 0.002; // ~2ms
@@ -160,7 +160,7 @@ export class AudioEngine {
       const poolVoices = [];
       for (let i = 0; i < VOICES_PER_TRACK; i++) {
         const accentGain = this.ctx.createGain();
-        accentGain.gain.value = 0.3;
+        accentGain.gain.value = ACCENT_BASELINE;
         const synth = await createPreferredSynth(this.ctx, accentGain);
         accentGain.connect(sourceOut);
         poolVoices.push({ synth, accentGain, lastNoteTime: 0, lastGateOffTime: 0 });
@@ -674,6 +674,7 @@ export class AudioEngine {
       target,
       depth,
       targetParam: resolved[0].paramName,
+      targetCount: resolved.length,
     });
   }
 
