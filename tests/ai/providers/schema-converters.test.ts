@@ -1,6 +1,6 @@
 // tests/ai/providers/schema-converters.test.ts
 import { describe, it, expect } from 'vitest';
-import { toGeminiDeclarations } from '../../../src/ai/providers/schema-converters';
+import { toGeminiDeclarations, toOpenAITools } from '../../../src/ai/providers/schema-converters';
 import { GLUON_TOOLS } from '../../../src/ai/tool-schemas';
 import type { ToolSchema } from '../../../src/ai/types';
 import { Type } from '@google/genai';
@@ -149,5 +149,38 @@ describe('toGeminiDeclarations', () => {
     const [moveDecl] = toGeminiDeclarations(GLUON_TOOLS.filter(t => t.name === 'move'));
     const paramProp = moveDecl.parameters!.properties!.param;
     expect(paramProp.description).toBeTruthy();
+  });
+});
+
+describe('toOpenAITools', () => {
+  it('converts all 19 tools', () => {
+    const tools = toOpenAITools(GLUON_TOOLS);
+    expect(tools).toHaveLength(19);
+  });
+
+  it('produces correct envelope format', () => {
+    const tools = toOpenAITools(GLUON_TOOLS);
+    for (const tool of tools) {
+      expect(tool.type).toBe('function');
+      expect(tool.name).toBeTruthy();
+      expect(tool.description).toBeTruthy();
+      expect(tool.parameters).toBeDefined();
+    }
+  });
+
+  it('preserves tool names and descriptions', () => {
+    const tools = toOpenAITools(GLUON_TOOLS);
+    for (let i = 0; i < GLUON_TOOLS.length; i++) {
+      expect(tools[i].name).toBe(GLUON_TOOLS[i].name);
+      expect(tools[i].description).toBe(GLUON_TOOLS[i].description);
+    }
+  });
+
+  it('passes JSON Schema through without conversion', () => {
+    const tools = toOpenAITools(GLUON_TOOLS);
+    const moveTool = tools.find(t => t.name === 'move')!;
+    // Parameters should be the exact same object reference — no conversion
+    const original = GLUON_TOOLS.find(t => t.name === 'move')!;
+    expect(moveTool.parameters).toBe(original.parameters);
   });
 });
