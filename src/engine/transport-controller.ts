@@ -82,7 +82,7 @@ export class TransportController {
       if (this.runtime.status === 'playing') {
         this.scheduler.stop();
         const generation = this.audio.advanceGeneration();
-        this.audio.releaseAll(generation);
+        this.audio.releaseGeneration(generation);
         this.runtime = pauseTransportState(
           { ...this.runtime, playheadBeats: this.lastStep / 4 },
           generation,
@@ -92,9 +92,9 @@ export class TransportController {
       this.scheduler.stop();
       const generation = this.audio.advanceGeneration();
       if (this.pendingHardStop) {
-        this.audio.silenceAll(generation);
+        this.audio.silenceGeneration(generation);
       } else {
-        this.audio.releaseAll(generation);
+        this.audio.releaseGeneration(generation);
       }
       this.pendingHardStop = false;
       this.lastStep = 0;
@@ -102,7 +102,7 @@ export class TransportController {
       this.onPositionChange(0);
     } else if (this.pendingHardStop) {
       const generation = this.audio.advanceGeneration();
-      this.audio.silenceAll(generation);
+      this.audio.silenceGeneration(generation);
       this.pendingHardStop = false;
       this.runtime = stopTransportState(this.runtime, generation);
       this.onPositionChange(0);

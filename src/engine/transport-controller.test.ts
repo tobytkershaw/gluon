@@ -29,8 +29,8 @@ describe('TransportController', () => {
       scheduleNote: vi.fn(),
       restoreBaseline: vi.fn(),
       advanceGeneration: vi.fn(() => 1),
-      releaseAll: vi.fn(),
-      silenceAll: vi.fn(),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -60,8 +60,8 @@ describe('TransportController', () => {
       advanceGeneration: vi.fn()
         .mockReturnValueOnce(1)
         .mockReturnValueOnce(2),
-      releaseAll: vi.fn(),
-      silenceAll: vi.fn(),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -76,8 +76,8 @@ describe('TransportController', () => {
     session.transport = { ...session.transport, status: 'paused', playing: false };
     controller.sync();
 
-    expect(audio.releaseAll).toHaveBeenCalledWith(2);
-    expect(audio.silenceAll).not.toHaveBeenCalled();
+    expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
+    expect(audio.silenceGeneration).not.toHaveBeenCalled();
 
     controller.dispose();
   });
@@ -93,8 +93,8 @@ describe('TransportController', () => {
       advanceGeneration: vi.fn()
         .mockReturnValueOnce(1)
         .mockReturnValueOnce(2),
-      releaseAll: vi.fn(),
-      silenceAll: vi.fn(),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -110,8 +110,8 @@ describe('TransportController', () => {
     session.transport = { ...session.transport, status: 'stopped', playing: false };
     controller.sync();
 
-    expect(audio.silenceAll).toHaveBeenCalledWith(2);
-    expect(audio.releaseAll).not.toHaveBeenCalledWith(2);
+    expect(audio.silenceGeneration).toHaveBeenCalledWith(2);
+    expect(audio.releaseGeneration).not.toHaveBeenCalledWith(2);
 
     controller.dispose();
   });

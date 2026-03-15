@@ -21,6 +21,8 @@ export interface Transport {
 }
 
 export interface ScheduledNote {
+  eventId?: string;
+  generation?: number;
   trackId: string;
   time: number;
   gateOffTime: number;

@@ -239,6 +239,8 @@ export class Scheduler {
           }
 
           this.onNote({
+            eventId: runtimeEventId,
+            generation: this.generation,
             trackId: track.id,
             time: noteTime,
             gateOffTime,
