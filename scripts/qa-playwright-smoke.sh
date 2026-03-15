@@ -665,7 +665,7 @@ for e in events:
     if e.get('type') == 'transport.settings' and e.get('bpm') == 90:
         after_change = True
         continue
-    if after_change and e.get('type') == 'scheduler.note' and e.get('voiceId') == 'v0':
+    if after_change and e.get('type') == 'scheduler.note' and (e.get('trackId') == 'v0' or e.get('voiceId') == 'v0'):
         note_times.append(float(e.get('noteTime')))
 
 diffs = [b - a for a, b in zip(note_times, note_times[1:])]
@@ -724,7 +724,7 @@ with open(path, 'r', encoding='utf-8') as f:
             continue
         event = json.loads(m.group(1))
         if event.get('type') == 'audio.note':
-            voices.add(event.get('voiceId'))
+            voices.add(event.get('trackId') or event.get('voiceId'))
 
 raise SystemExit(0 if {'v0', 'v1'}.issubset(voices) else 1)
 PY
