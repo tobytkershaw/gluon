@@ -71,44 +71,26 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { trackId: 'v0', model: 'virtual-analog' };
     case 'transform':
       return { trackId: 'v0', operation: 'reverse', description: 'test' };
-    case 'add_view':
-      return { trackId: 'v0', viewKind: 'step-grid', description: 'test' };
-    case 'remove_view':
-      return { trackId: 'v0', viewId: 'step-grid-v0', description: 'test' };
-    case 'add_processor':
-      return { trackId: 'v0', moduleType: 'rings', description: 'test' };
-    case 'remove_processor':
-      return { trackId: 'v0', processorId: 'rings-123', description: 'test' };
-    case 'replace_processor':
-      return { trackId: 'v0', processorId: 'rings-123', newModuleType: 'clouds', description: 'test' };
-    case 'add_modulator':
-      return { trackId: 'v0', moduleType: 'tides', description: 'test' };
-    case 'remove_modulator':
-      return { trackId: 'v0', modulatorId: 'tides-123', description: 'test' };
-    case 'connect_modulator':
-      return { trackId: 'v0', modulatorId: 'tides-123', targetKind: 'source', targetParam: 'brightness', depth: 0.2, description: 'test' };
-    case 'disconnect_modulator':
-      return { trackId: 'v0', modulationId: 'mod-123', description: 'test' };
+    case 'manage_view':
+      return { action: 'add', trackId: 'v0', viewKind: 'step-grid', description: 'test' };
+    case 'manage_processor':
+      return { action: 'add', trackId: 'v0', moduleType: 'rings', description: 'test' };
+    case 'manage_modulator':
+      return { action: 'add', trackId: 'v0', moduleType: 'tides', description: 'test' };
+    case 'modulation_route':
+      return { action: 'connect', trackId: 'v0', modulatorId: 'tides-123', targetKind: 'source', targetParam: 'brightness', depth: 0.2, description: 'test' };
     case 'set_surface':
       return { trackId: 'v0', semanticControls: [], description: 'test' };
-    case 'pin':
-      return { trackId: 'v0', moduleId: 'source', controlId: 'brightness' };
-    case 'unpin':
-      return { trackId: 'v0', moduleId: 'source', controlId: 'brightness' };
+    case 'pin_control':
+      return { action: 'pin', trackId: 'v0', moduleId: 'source', controlId: 'brightness' };
     case 'label_axes':
       return { trackId: 'v0', x: 'Brightness', y: 'Texture' };
-    case 'set_importance':
+    case 'set_track_meta':
       return { trackId: 'v0', importance: 0.5 };
-    case 'mark_approved':
-      return { trackId: 'v0', level: 'liked', reason: 'test' };
     case 'render':
       return { bars: 2 };
-    case 'spectral':
-      return { snapshotId: 'snap-1' };
-    case 'dynamics':
-      return { snapshotId: 'snap-1' };
-    case 'rhythm':
-      return { snapshotId: 'snap-1' };
+    case 'analyze':
+      return { snapshotId: 'snap-1', types: ['spectral'] };
     case 'raise_decision':
       return { question: 'which direction?' };
     default:
@@ -144,9 +126,9 @@ describe('API Structural Integrity', () => {
   // continueTurn. If the response contains { error: "Unknown tool: ..." }
   // the tool has no handler.
   //
-  // Tools that need external plumbing (listen, render, spectral, dynamics,
-  // rhythm) may return a different error (e.g. "not available", "snapshot
-  // not found") — that's fine, it proves the handler exists.
+  // Tools that need external plumbing (listen, render, analyze) may return
+  // a different error (e.g. "not available", "snapshot not found") — that's
+  // fine, it proves the handler exists.
 
   for (const toolName of toolNames) {
     it(`has a handler for tool "${toolName}"`, async () => {
@@ -181,26 +163,16 @@ describe('API Structural Integrity', () => {
   // -----------------------------------------------------------------------
 
   it('projectAction handles all action types that executeFunctionCall can produce', () => {
-    // This is a compile-time check reinforced at runtime.
-    // The AIAction union includes all types that executeFunctionCall creates.
-    // projectAction must handle each one (or fall through to default safely).
-    //
-    // We verify this by listing every action type that executeFunctionCall
-    // can produce and checking they're all covered.
-
-    // Tools that produce actions (not analysis-only tools like listen/render/spectral/dynamics/rhythm):
+    // Tools that produce actions (not analysis-only tools like listen/render/analyze):
     const actionProducingTools = [
       'move', 'sketch', 'set_transport', 'set_model', 'transform',
-      'add_view', 'remove_view',
-      'add_processor', 'remove_processor', 'replace_processor',
-      'add_modulator', 'remove_modulator',
-      'connect_modulator', 'disconnect_modulator',
-      'set_surface', 'pin', 'unpin', 'label_axes',
-      'set_importance', 'mark_approved', 'raise_decision',
+      'manage_view', 'manage_processor', 'manage_modulator',
+      'modulation_route', 'set_surface', 'pin_control', 'label_axes',
+      'set_track_meta', 'raise_decision',
     ];
 
     // Analysis-only tools produce no actions (actions: []):
-    const analysisOnlyTools = ['listen', 'render', 'spectral', 'dynamics', 'rhythm'];
+    const analysisOnlyTools = ['listen', 'render', 'analyze'];
 
     // Together they should cover all GLUON_TOOLS
     const allCovered = [...actionProducingTools, ...analysisOnlyTools].sort();
@@ -214,6 +186,125 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(26);
+    expect(GLUON_TOOLS.length).toBe(17);
+  });
+
+  // -----------------------------------------------------------------------
+  // Merged tool behavior tests
+  // -----------------------------------------------------------------------
+
+  it('manage_processor: action=add without moduleType returns error', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'manage_processor', args: { action: 'add', trackId: 'v0', description: 'test' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'manage_processor');
+    expect((response!.result as Record<string, unknown>).error).toContain('moduleType');
+  });
+
+  it('manage_processor: action=remove without processorId returns error', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'manage_processor', args: { action: 'remove', trackId: 'v0', description: 'test' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'manage_processor');
+    expect((response!.result as Record<string, unknown>).error).toContain('processorId');
+  });
+
+  it('manage_processor: action=replace without both returns error', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'manage_processor', args: { action: 'replace', trackId: 'v0', description: 'test' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'manage_processor');
+    expect((response!.result as Record<string, unknown>).error).toBeDefined();
+  });
+
+  it('set_track_meta: neither field returns error', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
+    expect((response!.result as Record<string, unknown>).error).toContain('At least one');
+  });
+
+  it('set_track_meta: approval fails without reason, importance still applied', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', approval: 'liked', importance: 0.8 } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
+    const result = response!.result as Record<string, unknown>;
+    expect(result.errors).toContain('approval requires reason');
+    expect(result.applied).toContain('importance');
+  });
+
+  it('set_track_meta: approval fails with bad enum, importance still applied', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', approval: 'bogus', reason: 'test', importance: 0.7 } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
+    const result = response!.result as Record<string, unknown>;
+    expect(result.errors).toBeDefined();
+    expect((result.errors as string[])[0]).toContain('Invalid approval level');
+    expect(result.applied).toContain('importance');
+  });
+
+  it('set_track_meta: only musicalRole preserves existing importance', async () => {
+    const session = createSession();
+    // Set a known importance on v0
+    const track = session.tracks.find(v => v.id === 'v0')!;
+    track.importance = 0.9;
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', musicalRole: 'driving rhythm' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    const actions = await ai.ask(session, 'test');
+    // The action should carry the existing importance value
+    const importanceAction = actions.find(a => a.type === 'set_importance');
+    expect(importanceAction).toBeDefined();
+    expect((importanceAction as { importance: number }).importance).toBe(0.9);
+    expect((importanceAction as { musicalRole: string }).musicalRole).toBe('driving rhythm');
+
+    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
+    const result = response!.result as Record<string, unknown>;
+    expect(result.applied).toContain('musicalRole');
+    expect(result.applied).not.toContain('importance');
+  });
+
+  it('analyze: deduplicates types', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'analyze', args: { snapshotId: 'nonexistent', types: ['spectral', 'spectral'] } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'analyze');
+    // Should get "Snapshot not found" error, not "Unknown tool"
+    expect((response!.result as Record<string, unknown>).error).toContain('Snapshot not found');
   });
 });
