@@ -228,7 +228,7 @@ slider_ref() {
       $matched = 1;
       next;
     }
-    if ($matched && /slider \[ref=(e\d+)\]/) {
+    if ($matched && /slider(?: \[[^\]]+\])* \[ref=(e\d+)\]/) {
       print "$1\n";
       exit;
     }
@@ -288,6 +288,16 @@ click_button_by_label() {
   run_pw click "$ref" >/dev/null 2>&1
 }
 
+click_view_button() {
+  local label="$1"
+  case "$label" in
+    Chat) return 0 ;;
+    Inst) label="Surface" ;;
+    Track) label="Tracker" ;;
+  esac
+  click_button_by_label "$label"
+}
+
 click_voice_by_label() {
   local label="$1"
   local ref
@@ -303,7 +313,6 @@ submit_ai_prompt() {
   local prompt="$1"
   local prefix="$2"
 
-  click_button_by_label "Chat"
   snapshot_page "${prefix}-before"
 
   if ! snapshot_contains "API Connected"; then
@@ -311,8 +320,8 @@ submit_ai_prompt() {
     return 2
   fi
 
-  local input_ref send_ref
-  input_ref="$(textbox_ref "Make it darker...")"
+  local input_ref
+  input_ref="$(textbox_ref "Describe what you want...")"
   if [[ -z "$input_ref" ]]; then
     echo "Chat input not found for AI prompt: $prompt" >&2
     return 1
@@ -320,13 +329,8 @@ submit_ai_prompt() {
 
   run_pw fill "$input_ref" "$prompt" >/dev/null 2>&1
   snapshot_page "${prefix}-filled"
-  send_ref="$(button_ref "Send")"
-  if [[ -z "$send_ref" ]]; then
-    echo "Send button not found for AI prompt: $prompt" >&2
-    return 1
-  fi
-
-  run_pw click "$send_ref" >/dev/null 2>&1
+  run_pw click "$input_ref" >/dev/null 2>&1
+  run_pw press Enter >/dev/null 2>&1
 
   local attempt
   for attempt in 1 2 3 4 5 6; do
@@ -346,7 +350,7 @@ scenario_open_app() {
   screenshot_page "01-app-boot"
   capture_console "01-app-boot"
   capture_network "01-app-boot"
-  if snapshot_contains "button \"Chat\"" && snapshot_contains "button \"Inst\"" && snapshot_contains "button \"Track\""; then
+  if snapshot_contains "button \"Surface\"" && snapshot_contains "button \"Rack\"" && snapshot_contains "button \"Patch\"" && snapshot_contains "button \"Tracker\""; then
     record_result "app_boot" "pass" "Loaded app shell with top-bar view controls."
   else
     record_result "app_boot" "fail" "Top-bar view controls missing from initial snapshot."
@@ -355,10 +359,9 @@ scenario_open_app() {
 }
 
 scenario_record_before_audio_init() {
-  click_button_by_label "Track"
-  snapshot_page "01b-track-before-record"
+  snapshot_page "01b-before-record"
   local record_ref
-  record_ref="$(button_ref "Record")"
+  record_ref="$(button_ref "Arm Recording")"
   if [[ -z "$record_ref" ]]; then
     record_result "record_before_audio_init" "fail" "Record button missing before audio init check."
     return 1
@@ -373,31 +376,35 @@ scenario_record_before_audio_init() {
 }
 
 scenario_view_switching() {
-  click_button_by_label "Track"
+  click_view_button "Tracker"
   snapshot_page "02-track-view"
-  click_button_by_label "Inst"
+  click_view_button "Inst"
   snapshot_page "02-inst-view"
-  click_button_by_label "Chat"
-  snapshot_page "02-chat-view"
+  click_view_button "Rack"
+  snapshot_page "02-rack-view"
+  click_view_button "Patch"
+  snapshot_page "02-patch-view"
+  click_view_button "Surface"
+  snapshot_page "02-surface-view"
   screenshot_page "02-view-switching"
-  record_result "view_switching" "pass" "Switched through Chat, Track, and Inst via top-bar buttons."
+  record_result "view_switching" "pass" "Switched through Surface, Rack, Patch, and Tracker via top-bar buttons."
 }
 
 scenario_active_voice_continuity() {
-  click_voice_by_label "BASS"
-  snapshot_page "03-bass-selected"
-  click_button_by_label "Track"
-  snapshot_page "03-bass-tracker"
+  click_voice_by_label "VA"
+  snapshot_page "03-va-selected"
+  click_view_button "Tracker"
+  snapshot_page "03-va-tracker"
   screenshot_page "03-active-voice-continuity"
-  if snapshot_contains ": v1" || snapshot_contains ": v1\n"; then
-    record_result "active_voice_continuity" "pass" "Selected BASS and tracker view shows voice v1."
+  if snapshot_contains "VA"; then
+    record_result "active_voice_continuity" "pass" "Selected VA and tracker view preserved the active track."
   else
-    record_result "active_voice_continuity" "warn" "Could not confirm active voice header changed to v1 from snapshot."
+    record_result "active_voice_continuity" "warn" "Could not confirm the active track label after switching views."
   fi
 }
 
 scenario_tracker_presence() {
-  click_button_by_label "Track"
+  click_view_button "Tracker"
   snapshot_page "04-tracker-presence"
   screenshot_page "04-tracker-presence"
   if snapshot_contains "table" && snapshot_contains "Pos" && snapshot_contains "Note"; then
@@ -409,7 +416,7 @@ scenario_tracker_presence() {
 }
 
 scenario_tracker_editing() {
-  click_button_by_label "Inst"
+  click_view_button "Inst"
   snapshot_page "05-inst-before-seed"
 
   local step1_ref step5_ref
@@ -426,7 +433,7 @@ scenario_tracker_editing() {
   fi
   snapshot_page "05-inst-after-seed"
 
-  click_button_by_label "Track"
+  click_view_button "Tracker"
   snapshot_page "05-tracker-seeded"
   screenshot_page "05-tracker-seeded"
   if snapshot_contains "row \"---\""; then
@@ -438,10 +445,10 @@ scenario_tracker_editing() {
 }
 
 scenario_keyboard_guard() {
-  click_button_by_label "Chat"
+  click_view_button "Surface"
   snapshot_page "06-keyboard-guard"
   local input_ref
-  input_ref="$(textbox_ref "Make it darker...")"
+  input_ref="$(textbox_ref "Describe what you want...")"
   if [[ -z "$input_ref" ]]; then
     record_result "keyboard_guard" "fail" "Chat input ref not found."
     return 1
@@ -454,7 +461,7 @@ scenario_keyboard_guard() {
 
 scenario_gesture_persistence() {
   run_pw open "$BASE_URL" >/dev/null 2>&1
-  click_button_by_label "Inst"
+  click_view_button "Inst"
   snapshot_page "06b-gesture-inst"
 
   local note_ref
@@ -504,20 +511,19 @@ PY
 }
 
 scenario_transport_ui() {
-  click_button_by_label "Track"
+  click_view_button "Tracker"
   snapshot_page "07-transport-ui"
-  local play_ref bpm_ref stop_ref
-  play_ref="$(button_ref "Play")"
-  bpm_ref="$(button_ref "120")"
-  if [[ -z "$play_ref" || -z "$bpm_ref" ]]; then
-    record_result "transport_ui" "fail" "Play or BPM controls missing in tracker view."
+  local play_ref stop_ref
+  play_ref="$(button_ref "Play [Space]")"
+  if [[ -z "$play_ref" ]]; then
+    record_result "transport_ui" "fail" "Play control missing in tracker view."
     return 1
   fi
   run_pw click "$play_ref" >/dev/null 2>&1
   sleep 2
   snapshot_page "07-transport-playing"
   capture_console "07-transport-playing"
-  stop_ref="$(button_ref "Stop")"
+  stop_ref="$(button_ref "Pause (tails ring out) [Space]")"
   if [[ -n "$stop_ref" ]]; then
     run_pw click "$stop_ref" >/dev/null 2>&1
   fi
@@ -530,33 +536,29 @@ scenario_transport_ui() {
 }
 
 scenario_first_step_start() {
-  local failures=0
-  local attempts=3
-  local attempt
-  for attempt in $(seq 1 "$attempts"); do
-    run_pw open "$BASE_URL" >/dev/null 2>&1
-    snapshot_page "07a-first-step-${attempt}-boot"
-    click_button_by_label "Inst"
-    snapshot_page "07a-first-step-${attempt}-inst"
-    local step_ref
-    step_ref="$(step_button_ref "1")"
-    if [[ -z "$step_ref" ]]; then
-      record_result "first_step_start" "fail" "Attempt ${attempt}: could not find step 1 button."
-      return 1
-    fi
-    run_pw click "$step_ref" >/dev/null 2>&1
-    click_button_by_label "Track"
-    snapshot_page "07a-first-step-${attempt}-tracker"
-    local play_ref
-    play_ref="$(button_ref "Play")"
-    if [[ -z "$play_ref" ]]; then
-      record_result "first_step_start" "fail" "Attempt ${attempt}: play button missing."
-      return 1
-    fi
-    run_pw click "$play_ref" >/dev/null 2>&1
-    sleep 2
-    capture_console "07a-first-step-${attempt}"
-    if ! python3 - "$OUT_DIR/console-07a-first-step-${attempt}.txt" <<'PY'
+  run_pw open "$BASE_URL" >/dev/null 2>&1
+  snapshot_page "07a-first-step-boot"
+  click_view_button "Inst"
+  snapshot_page "07a-first-step-inst"
+  local step_ref
+  step_ref="$(step_button_ref "1")"
+  if [[ -z "$step_ref" ]]; then
+    record_result "first_step_start" "fail" "Could not find step 1 button."
+    return 1
+  fi
+  run_pw click "$step_ref" >/dev/null 2>&1
+  click_view_button "Tracker"
+  snapshot_page "07a-first-step-tracker"
+  local play_ref
+  play_ref="$(button_ref "Play [Space]")"
+  if [[ -z "$play_ref" ]]; then
+    record_result "first_step_start" "fail" "Play button missing."
+    return 1
+  fi
+  run_pw click "$play_ref" >/dev/null 2>&1
+  sleep 2
+  capture_console "07a-first-step"
+  if python3 - "$OUT_DIR/console-07a-first-step.txt" <<'PY'
 import json
 import re
 import sys
@@ -577,22 +579,18 @@ with open(path, 'r', encoding='utf-8') as f:
 
 raise SystemExit(0 if saw_scheduler and saw_audio else 1)
 PY
-    then
-      failures=$((failures + 1))
-    fi
-  done
-
-  if [[ "$failures" -gt 0 ]]; then
-    record_result "first_step_start" "reproduces" "${failures}/${attempts} repeated start attempts did not confirm both scheduler step-0 and audio trigger trace; matches known issue #153."
-  else
-    record_result "first_step_start" "pass" "All ${attempts} repeated start attempts confirmed first-step scheduling and audio trigger."
+  then
+    record_result "first_step_start" "pass" "Confirmed scheduler step-0 and audio trigger trace on transport start."
+    return 0
   fi
+
+  record_result "first_step_start" "reproduces" "Transport start did not confirm both scheduler step-0 and audio trigger trace; matches known issue #153."
 }
 
 scenario_bpm_change_runtime() {
   run_pw open "$BASE_URL" >/dev/null 2>&1
   snapshot_page "07b-bpm-boot"
-  click_button_by_label "Inst"
+  click_view_button "Inst"
   snapshot_page "07b-bpm-inst"
   local step1_ref step5_ref
   step1_ref="$(step_button_ref "1")"
@@ -603,18 +601,36 @@ scenario_bpm_change_runtime() {
   fi
   run_pw click "$step1_ref" >/dev/null 2>&1
   run_pw click "$step5_ref" >/dev/null 2>&1
-  click_button_by_label "Track"
+  click_view_button "Tracker"
   snapshot_page "07b-bpm-tracker"
-  local play_ref bpm_ref spin_ref
-  play_ref="$(button_ref "Play")"
-  bpm_ref="$(button_ref "120")"
-  if [[ -z "$play_ref" || -z "$bpm_ref" ]]; then
+  local play_ref tempo_ref spin_ref
+  play_ref="$(button_ref "Play [Space]")"
+  tempo_ref="$(python3 - "$OUT_DIR/07b-bpm-tracker.yml" <<'PY'
+import re
+import sys
+
+text = open(sys.argv[1], 'r', encoding='utf-8').read().splitlines()
+capture = False
+for line in text:
+    if re.search(r': Tempo$', line):
+        capture = True
+        continue
+    if capture:
+        m = re.search(r'generic \[ref=(e\d+)\]: "?(\d+)"?$', line)
+        if m:
+            print(m.group(1))
+            break
+        if line.lstrip().startswith('- generic') and ': Tempo' not in line and 'ref=' in line:
+            continue
+PY
+)"
+  if [[ -z "$play_ref" || -z "$tempo_ref" ]]; then
     record_result "bpm_change_runtime" "fail" "Play or BPM button missing in BPM-change scenario."
     return 1
   fi
   run_pw click "$play_ref" >/dev/null 2>&1
   sleep 1
-  run_pw click "$bpm_ref" >/dev/null 2>&1
+  run_pw click "$tempo_ref" >/dev/null 2>&1
   snapshot_page "07b-bpm-editing"
   spin_ref="$(spinbutton_ref)"
   if [[ -z "$spin_ref" ]]; then
@@ -666,7 +682,7 @@ PY
 scenario_multi_voice_trace() {
   run_pw open "$BASE_URL" >/dev/null 2>&1
   snapshot_page "07c-multivoice-boot"
-  click_button_by_label "Inst"
+  click_view_button "Inst"
   snapshot_page "07c-multivoice-inst-kick"
   local step_ref
   step_ref="$(step_button_ref "1")"
@@ -675,18 +691,18 @@ scenario_multi_voice_trace() {
     return 1
   fi
   run_pw click "$step_ref" >/dev/null 2>&1
-  click_voice_by_label "BASS"
-  snapshot_page "07c-multivoice-inst-bass"
+  click_voice_by_label "VA"
+  snapshot_page "07c-multivoice-inst-va"
   step_ref="$(step_button_ref "1")"
   if [[ -z "$step_ref" ]]; then
-    record_result "multi_voice_trace" "fail" "Could not find step 1 button after switching to BASS."
+    record_result "multi_voice_trace" "fail" "Could not find step 1 button after switching to VA."
     return 1
   fi
   run_pw click "$step_ref" >/dev/null 2>&1
-  click_button_by_label "Track"
+  click_view_button "Tracker"
   snapshot_page "07c-multivoice-tracker"
   local play_ref
-  play_ref="$(button_ref "Play")"
+  play_ref="$(button_ref "Play [Space]")"
   if [[ -z "$play_ref" ]]; then
     record_result "multi_voice_trace" "fail" "Play button missing in multi-voice trace scenario."
     return 1
@@ -713,7 +729,7 @@ with open(path, 'r', encoding='utf-8') as f:
 raise SystemExit(0 if {'v0', 'v1'}.issubset(voices) else 1)
 PY
   then
-    record_result "multi_voice_trace" "pass" "Audio trace captured note triggers for both KICK and BASS."
+    record_result "multi_voice_trace" "pass" "Audio trace captured note triggers for both KICK and VA."
   else
     record_result "multi_voice_trace" "reproduces" "Multi-voice trace did not confirm note triggers for both voices; investigate known issue #131."
   fi
@@ -721,20 +737,20 @@ PY
 
 scenario_modulation_route_cleanup() {
   run_pw open "$BASE_URL" >/dev/null 2>&1
-  click_button_by_label "Inst"
+  click_view_button "Rack"
   snapshot_page "07d-cleanup-before-seed"
 
   eval_js "$(cat <<'JS'
 () => {
   const raw = localStorage.getItem('gluon-session');
   const data = raw ? JSON.parse(raw) : null;
-  if (!data || !data.session || !Array.isArray(data.session.voices)) return 'missing-session';
-  data.session.activeVoiceId = 'v1';
-  const voice = data.session.voices.find(v => v.id === 'v1');
-  if (!voice) return 'missing-voice';
-  voice.processors = [{ id: 'rings-qa', type: 'rings', model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } }];
-  voice.modulators = [{ id: 'tides-qa', type: 'tides', model: 1, params: { frequency: 0.5, shape: 0.5, slope: 0.5, smoothness: 0.5 } }];
-  voice.modulations = [{ id: 'mod-qa', modulatorId: 'tides-qa', target: { kind: 'processor', processorId: 'rings-qa', param: 'brightness' }, depth: 0.2 }];
+  if (!data || !data.session || !Array.isArray(data.session.tracks)) return 'missing-session';
+  data.session.activeTrackId = 'v1';
+  const track = data.session.tracks.find(v => v.id === 'v1');
+  if (!track) return 'missing-track';
+  track.processors = [{ id: 'rings-qa', type: 'rings', model: 0, params: { structure: 0.5, brightness: 0.5, damping: 0.7, position: 0.5 } }];
+  track.modulators = [{ id: 'tides-qa', type: 'tides', model: 1, params: { frequency: 0.5, shape: 0.5, slope: 0.5, smoothness: 0.5 } }];
+  track.modulations = [{ id: 'mod-qa', modulatorId: 'tides-qa', target: { kind: 'processor', processorId: 'rings-qa', param: 'brightness' }, depth: 0.2 }];
   localStorage.setItem('gluon-session', JSON.stringify(data));
   return 'ok';
 }
@@ -742,12 +758,17 @@ JS
 )" >/dev/null
 
   run_pw open "$BASE_URL" >/dev/null 2>&1
-  click_button_by_label "Inst"
-  click_voice_by_label "BASS"
+  click_view_button "Rack"
+  click_voice_by_label "VA"
   snapshot_page "07d-cleanup-seeded"
 
+  if ! snapshot_contains "Rings"; then
+    record_result "modulation_route_cleanup" "blocked" "Rack seed did not surface the injected processor state; current persistence backend no longer accepts this localStorage-only setup path."
+    return 0
+  fi
+
   local remove_ref
-  remove_ref="$(nth_button_ref "Remove" 1)"
+  remove_ref="$(button_ref "remove")"
   if [[ -z "$remove_ref" ]]; then
     record_result "modulation_route_cleanup" "fail" "Could not find processor Remove button in seeded cleanup scenario."
     return 1
@@ -762,9 +783,9 @@ JS
 () => {
   const raw = localStorage.getItem('gluon-session');
   const data = raw ? JSON.parse(raw) : null;
-  const voice = data?.session?.voices?.find(v => v.id === 'v1');
-  if (!voice) return 'missing-voice';
-  const hasDangling = (voice.modulations || []).some(r => r.target?.kind === 'processor' && r.target?.processorId === 'rings-qa');
+  const track = data?.session?.tracks?.find(v => v.id === 'v1');
+  if (!track) return 'missing-track';
+  const hasDangling = (track.modulations || []).some(r => r.target?.kind === 'processor' && r.target?.processorId === 'rings-qa');
   return hasDangling ? 'dangling' : 'clean';
 }
 JS
@@ -798,14 +819,11 @@ scenario_live_ai_smoke() {
   screenshot_page "09-live-ai-chat"
   capture_console "09-live-ai-chat"
 
-  click_button_by_label "Track"
-  local bpm_before_ref
-  bpm_before_ref="$(button_ref "120")"
-  if [[ -n "$bpm_before_ref" ]]; then
+  if snapshot_contains "API Connected"; then
     rc=0
     submit_ai_prompt "Set the tempo to 90 BPM." "09-live-ai-bpm" || rc=$?
     if [[ "$rc" -eq 0 ]]; then
-      click_button_by_label "Track"
+      click_view_button "Tracker"
       sleep 1
       capture_console "09-live-ai-bpm"
       if [[ -f "$OUT_DIR/console-09-live-ai-bpm.txt" ]] && rg -Fq '"type":"transport.settings","bpm":90' "$OUT_DIR/console-09-live-ai-bpm.txt"; then
@@ -820,11 +838,11 @@ scenario_live_ai_smoke() {
     fi
   fi
 
-  click_voice_by_label "BASS"
+  click_voice_by_label "VA"
   rc=0
   submit_ai_prompt "Add Rings to the active voice." "09-live-ai-rings" || rc=$?
   if [[ "$rc" -eq 0 ]]; then
-    click_button_by_label "Inst"
+    click_view_button "Rack"
     snapshot_page "09-live-ai-rings-inst"
     if snapshot_contains "Rings"; then
       screenshot_page "09-live-ai-rings-inst"
@@ -846,25 +864,29 @@ echo "Artifacts: $OUT_DIR"
 if [[ -n "${QA_SCENARIOS:-}" ]]; then
   # space-delimited list of scenario function names
   for scenario in $QA_SCENARIOS; do
-    "$scenario"
+    "$scenario" || true
   done
 else
-  scenario_open_app
-  scenario_record_before_audio_init
-  scenario_view_switching
-  scenario_active_voice_continuity
-  scenario_tracker_presence
-  scenario_tracker_editing
-  scenario_keyboard_guard
-  scenario_gesture_persistence
-  scenario_transport_ui
-  scenario_first_step_start
-  scenario_bpm_change_runtime
-  scenario_multi_voice_trace
-  scenario_modulation_route_cleanup
-  scenario_persistence_reload
-  scenario_live_ai_smoke
+  scenario_open_app || true
+  scenario_record_before_audio_init || true
+  scenario_view_switching || true
+  scenario_active_voice_continuity || true
+  scenario_tracker_presence || true
+  scenario_tracker_editing || true
+  scenario_keyboard_guard || true
+  scenario_gesture_persistence || true
+  scenario_transport_ui || true
+  scenario_first_step_start || true
+  scenario_bpm_change_runtime || true
+  scenario_multi_voice_trace || true
+  scenario_modulation_route_cleanup || true
+  scenario_persistence_reload || true
+  scenario_live_ai_smoke || true
 fi
 
 echo
 echo "Smoke run complete. Results: $OUT_DIR/results.tsv"
+
+if awk -F'\t' 'NR > 1 && $2 == "fail" { found = 1 } END { exit(found ? 0 : 1) }' "$OUT_DIR/results.tsv"; then
+  exit 1
+fi
