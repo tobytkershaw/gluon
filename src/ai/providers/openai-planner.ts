@@ -54,15 +54,17 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     tools: ToolSchema[];
     functionResponses: FunctionResponse[];
   }): Promise<GenerateResult> {
-    for (const fr of opts.functionResponses) {
-      this.pendingInput.push({
-        type: 'function_call_output',
-        call_id: fr.id,
-        output: JSON.stringify(fr.result),
-      } as ResponseInputItem.FunctionCallOutput);
-    }
+    // Build new input items but don't mutate pendingInput until after the
+    // API call succeeds. This keeps continueTurn atomic — on error, no
+    // function_call_output items are left in pendingInput to be duplicated
+    // if the caller retries.
+    const newItems: ResponseInput = opts.functionResponses.map(fr => ({
+      type: 'function_call_output',
+      call_id: fr.id,
+      output: JSON.stringify(fr.result),
+    } as ResponseInputItem.FunctionCallOutput));
 
-    return this.generate(opts.systemPrompt, opts.tools);
+    return this.generate(opts.systemPrompt, opts.tools, newItems);
   }
 
   commitTurn(): void {
@@ -89,7 +91,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     this.backoff = { until: 0, delay: 0 };
   }
 
-  private async generate(systemPrompt: string, tools: ToolSchema[]): Promise<GenerateResult> {
+  private async generate(systemPrompt: string, tools: ToolSchema[], extraInput: ResponseInput = []): Promise<GenerateResult> {
     if (!this.client) throw new ProviderError('API not configured.', 'auth');
 
     const now = Date.now();
@@ -102,13 +104,14 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     const previousId = this.pendingResponseId ?? this.responseIds.at(-1) ?? undefined;
 
     const openaiTools = toOpenAITools(tools);
+    const input = [...this.pendingInput, ...extraInput];
 
     let response: Response;
     try {
       response = await this.client.responses.create({
         model: MODEL,
         instructions: systemPrompt,
-        input: this.pendingInput,
+        input,
         tools: openaiTools,
         max_output_tokens: 2048,
         ...(previousId ? { previous_response_id: previousId } : {}),
@@ -117,9 +120,11 @@ export class OpenAIPlannerProvider implements PlannerProvider {
       throw this.translateError(error);
     }
 
+    // Only commit state after a successful API call.
     this.backoff = { until: 0, delay: 0 };
     this.pendingResponseId = response.id;
-    // Clear pending input — subsequent continueTurn calls build fresh input.
+    // Clear pending input — extraInput items are now part of the server-side
+    // chain via previous_response_id. Subsequent continueTurn calls build fresh.
     this.pendingInput = [];
 
     const textParts: string[] = [];
