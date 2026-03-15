@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { renderOffline } from '../audio/render-offline';
-import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, SemanticControlDef, Snapshot } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, SemanticControlDef, Snapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getTrack, updateTrack } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -1088,6 +1088,86 @@ export default function App() {
     setSelectedModulatorId(null);
   }, [ensureAudio]);
 
+  // Capture pre-drag modulation state for single-gesture undo
+  const modulationUndoRef = useRef<{
+    trackId: string;
+    prevModulations: import('../engine/types').ModulationRouting[];
+  } | null>(null);
+
+  const handleModulationDepthChange = useCallback((routeId: string, depth: number) => {
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const modulations = track.modulations ?? [];
+      const route = modulations.find(r => r.id === routeId);
+      if (!route) return s;
+      // Capture prev state on first change of a drag gesture
+      if (!modulationUndoRef.current) {
+        modulationUndoRef.current = {
+          trackId: vid,
+          prevModulations: modulations.map(r => ({ ...r })),
+        };
+      }
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid
+          ? { ...track, modulations: modulations.map(r => r.id === routeId ? { ...r, depth } : r) }
+          : v),
+      };
+    });
+  }, []);
+
+  const handleModulationDepthCommit = useCallback((routeId: string, depth: number) => {
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const modulations = track.modulations ?? [];
+      const captured = modulationUndoRef.current;
+      modulationUndoRef.current = null;
+      // Apply final depth value
+      const updatedModulations = modulations.map(r => r.id === routeId ? { ...r, depth } : r);
+      // Only push undo if we have a captured prev state (from onChange during drag)
+      if (!captured) return s;
+      const snapshot: ModulationRoutingSnapshot = {
+        kind: 'modulation-routing',
+        trackId: vid,
+        prevModulations: captured.prevModulations,
+        timestamp: Date.now(),
+        description: 'Edit modulation depth',
+      };
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid
+          ? { ...track, modulations: updatedModulations }
+          : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, []);
+
+  const handleRemoveModulation = useCallback((routeId: string) => {
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const modulations = track.modulations ?? [];
+      if (!modulations.some(r => r.id === routeId)) return s;
+      const snapshot: ModulationRoutingSnapshot = {
+        kind: 'modulation-routing',
+        trackId: vid,
+        prevModulations: modulations.map(r => ({ ...r })),
+        timestamp: Date.now(),
+        description: 'Remove modulation route',
+      };
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid
+          ? { ...track, modulations: modulations.filter(r => r.id !== routeId) }
+          : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, []);
+
   // --- Semantic control handlers ---
   // Maps canonical controlId → runtime param for source controls
   const semanticCanonicalToRuntime: Record<string, string> = {
@@ -1422,6 +1502,9 @@ export default function App() {
             onModulatorInteractionEnd={handleModulatorInteractionEnd}
             onModulatorModelChange={handleModulatorModelChange}
             onRemoveModulator={handleRemoveModulator}
+            onModulationDepthChange={handleModulationDepthChange}
+            onModulationDepthCommit={handleModulationDepthCommit}
+            onRemoveModulation={handleRemoveModulation}
             onAddProcessor={handleAddProcessor}
             onAddModulator={handleAddModulator}
           />

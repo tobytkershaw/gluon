@@ -7,6 +7,7 @@ import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { ControlSection } from './ControlSection';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
+import { DraggableNumber } from './DraggableNumber';
 
 interface RackViewProps {
   session: Session;
@@ -30,6 +31,10 @@ interface RackViewProps {
   onModulatorInteractionEnd: (modulatorId: string) => void;
   onModulatorModelChange: (modulatorId: string, model: number) => void;
   onRemoveModulator: (modulatorId: string) => void;
+  // Modulation routing editing
+  onModulationDepthChange: (routeId: string, depth: number) => void;
+  onModulationDepthCommit: (routeId: string, depth: number) => void;
+  onRemoveModulation: (routeId: string) => void;
   // Module browser
   onAddProcessor: (type: string) => void;
   onAddModulator: (type: string) => void;
@@ -53,6 +58,7 @@ export function RackView({
   onProcessorModelChange, onRemoveProcessor,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
+  onModulationDepthChange, onModulationDepthCommit, onRemoveModulation,
   onAddProcessor, onAddModulator,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -148,9 +154,28 @@ export function RackView({
                 {modRoutings.map(r => (
                   <span
                     key={r.id}
-                    className="text-[9px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
+                    className="inline-flex items-center gap-1 text-[9px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
                   >
-                    {'\u2192'} {formatRoutingTarget(r.target, activeTrack)} ({r.depth > 0 ? '+' : ''}{r.depth.toFixed(2)})
+                    <span className="opacity-60">{'\u2192'}</span>
+                    <span>{formatRoutingTarget(r.target, activeTrack)}</span>
+                    <DraggableNumber
+                      value={r.depth}
+                      min={-1}
+                      max={1}
+                      step={0.01}
+                      decimals={2}
+                      className="text-violet-200 hover:text-violet-100"
+                      onChange={(depth) => onModulationDepthChange(r.id, depth)}
+                      onCommit={(depth) => onModulationDepthCommit(r.id, depth)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onRemoveModulation(r.id)}
+                      className="ml-0.5 text-violet-400/40 hover:text-red-400 transition-colors leading-none"
+                      title="Remove route"
+                    >
+                      {'\u00d7'}
+                    </button>
                   </span>
                 ))}
               </div>
