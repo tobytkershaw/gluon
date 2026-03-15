@@ -102,6 +102,9 @@ export function eventsToSteps(
         break;
 
       case 'note':
+        // velocity=0 is the "ungated" sentinel — note exists to preserve
+        // pitch/duration state but should not produce a gate in the step grid.
+        if (event.velocity === 0) break;
         steps[idx].gate = true;
         if (event.velocity >= 0.95) steps[idx].accent = true;
         if (options?.midiToPitch) {

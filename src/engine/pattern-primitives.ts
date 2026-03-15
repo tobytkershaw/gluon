@@ -1,20 +1,34 @@
 // src/engine/pattern-primitives.ts
 import type { Session, SynthParamValues, RegionSnapshot } from './types';
 import { getTrack, updateTrack } from './types';
-import type { TriggerEvent, ParameterEvent, MusicalEvent } from './canonical-types';
+import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from './canonical-types';
 import { reprojectTrackPattern } from './region-projection';
 import { normalizeRegionEvents } from './region-helpers';
-import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { runtimeParamToControlId, controlIdToRuntimeParam, isPercussionByIndex } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
 // ---------------------------------------------------------------------------
 // Helpers for canonical event manipulation
 // ---------------------------------------------------------------------------
 
-/** Find the first event of a given kind at a step index (integer position). */
+/** Find the first trigger event at a step index (integer position). */
 function findTriggerAt(events: MusicalEvent[], stepIndex: number): number {
   return events.findIndex(
     e => e.kind === 'trigger' && Math.abs(e.at - stepIndex) < 0.001,
+  );
+}
+
+/** Find the first note event at a step index (integer position). */
+function findNoteAt(events: MusicalEvent[], stepIndex: number): number {
+  return events.findIndex(
+    e => e.kind === 'note' && Math.abs(e.at - stepIndex) < 0.001,
+  );
+}
+
+/** Find the first gate-bearing event (trigger or note) at a step index. */
+function findGateEventAt(events: MusicalEvent[], stepIndex: number): number {
+  return events.findIndex(
+    e => (e.kind === 'trigger' || e.kind === 'note') && Math.abs(e.at - stepIndex) < 0.001,
   );
 }
 
@@ -88,27 +102,53 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
   // All tracks must have regions — return unchanged if invariant is violated
   if (track.regions.length === 0) return session;
 
+  const pitched = !isPercussionByIndex(track.model);
   const events = [...track.regions[0].events];
-  const idx = findTriggerAt(events, stepIndex);
+  const idx = findGateEventAt(events, stepIndex);
+
   if (idx >= 0) {
-    const existing = events[idx] as TriggerEvent;
-    if (existing.velocity === 0) {
-      // Re-enable disabled trigger: restore accent state
-      events[idx] = {
-        ...existing,
-        velocity: existing.accent ? 1.0 : 0.8,
-      };
-    } else {
-      // Disable trigger: set velocity=0 to preserve accent state.
-      // The projection treats velocity=0 as ungated.
-      events[idx] = { ...existing, velocity: 0 };
+    const existing = events[idx];
+    if (existing.kind === 'trigger') {
+      const trigger = existing as TriggerEvent;
+      if (trigger.velocity === 0) {
+        // Re-enable disabled trigger: restore accent state
+        events[idx] = { ...trigger, velocity: trigger.accent ? 1.0 : 0.8 };
+      } else {
+        // Disable trigger: set velocity=0 to preserve accent state.
+        events[idx] = { ...trigger, velocity: 0 };
+      }
+    } else if (existing.kind === 'note') {
+      const note = existing as NoteEvent;
+      if (note.velocity === 0) {
+        // Re-enable disabled note
+        events[idx] = { ...note, velocity: 0.8 };
+      } else {
+        // Disable note: set velocity=0 to preserve pitch/duration state.
+        events[idx] = { ...note, velocity: 0 };
+      }
     }
   } else {
-    // Insert new trigger, keep sorted
-    const newTrigger: TriggerEvent = { kind: 'trigger', at: stepIndex, velocity: 0.8 };
+    // Insert new event, keep sorted
+    let newEvent: MusicalEvent;
+    if (pitched) {
+      const midiPitch = Math.round(Math.max(0, Math.min(127, track.params.note * 127)));
+      newEvent = {
+        kind: 'note',
+        at: stepIndex,
+        pitch: midiPitch,
+        velocity: 0.8,
+        duration: 1,
+      } as NoteEvent;
+    } else {
+      newEvent = {
+        kind: 'trigger',
+        at: stepIndex,
+        velocity: 0.8,
+      } as TriggerEvent;
+    }
     const insertAt = events.findIndex(e => e.at > stepIndex);
-    if (insertAt === -1) events.push(newTrigger);
-    else events.splice(insertAt, 0, newTrigger);
+    if (insertAt === -1) events.push(newEvent);
+    else events.splice(insertAt, 0, newEvent);
   }
   return applyRegionEdit(session, trackId, events, undefined, `Toggle gate at step ${stepIndex}`);
 }
@@ -121,19 +161,32 @@ export function toggleStepAccent(session: Session, trackId: string, stepIndex: n
   if (track.regions.length === 0) return session;
 
   const events = [...track.regions[0].events];
-  const idx = findTriggerAt(events, stepIndex);
+  const idx = findGateEventAt(events, stepIndex);
   if (idx >= 0) {
-    const trigger = events[idx] as TriggerEvent;
-    // Skip disabled triggers (velocity=0) — accent on an ungated step is a no-op
-    if (trigger.velocity !== 0) {
-      events[idx] = {
-        ...trigger,
-        accent: !trigger.accent,
-        velocity: trigger.accent ? 0.8 : 1.0,
-      };
+    const existing = events[idx];
+    if (existing.kind === 'trigger') {
+      const trigger = existing as TriggerEvent;
+      // Skip disabled triggers (velocity=0) — accent on an ungated step is a no-op
+      if (trigger.velocity !== 0) {
+        events[idx] = {
+          ...trigger,
+          accent: !trigger.accent,
+          velocity: trigger.accent ? 0.8 : 1.0,
+        };
+      }
+    } else if (existing.kind === 'note') {
+      const note = existing as NoteEvent;
+      // Skip disabled notes (velocity=0) — accent on an ungated step is a no-op
+      if (note.velocity !== 0) {
+        const isCurrentlyAccented = note.velocity >= 0.95;
+        events[idx] = {
+          ...note,
+          velocity: isCurrentlyAccented ? 0.8 : 1.0,
+        };
+      }
     }
   }
-  // If no trigger at this step (or disabled), accent toggle is a no-op
+  // If no gate event at this step (or disabled), accent toggle is a no-op
   return applyRegionEdit(session, trackId, events, undefined, `Toggle accent at step ${stepIndex}`);
 }
 

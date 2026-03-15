@@ -5,8 +5,8 @@ import {
   setPatternLength, clearPattern,
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
-import type { TriggerEvent } from '../../src/engine/canonical-types';
-import { getTrack } from '../../src/engine/types';
+import type { TriggerEvent, NoteEvent } from '../../src/engine/canonical-types';
+import { getTrack, updateTrack } from '../../src/engine/types';
 import { validateRegion } from '../../src/engine/region-helpers';
 
 describe('Pattern Primitives', () => {
@@ -56,6 +56,79 @@ describe('Pattern Primitives', () => {
       const region = getTrack(result, vid).regions[0];
       expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(true);
     });
+
+    it('creates NoteEvent for pitched instrument', () => {
+      const s = createSession();
+      // Track 1 (v1) is model 0 (virtual-analog) — pitched
+      const vid = s.tracks[1].id;
+      const result = toggleStepGate(s, vid, 0);
+      const region = getTrack(result, vid).regions[0];
+      const noteEvent = region.events.find(e => e.kind === 'note' && Math.abs(e.at) < 0.01);
+      expect(noteEvent).toBeDefined();
+      const ne = noteEvent as NoteEvent;
+      expect(ne.pitch).toBeGreaterThanOrEqual(0);
+      expect(ne.pitch).toBeLessThanOrEqual(127);
+      expect(ne.velocity).toBe(0.8);
+      expect(ne.duration).toBe(1);
+      // Should NOT have a trigger event
+      expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(false);
+    });
+
+    it('creates TriggerEvent for percussion instrument', () => {
+      const s = createSession();
+      // Track 0 (v0) is model 13 (analog-bass-drum) — percussion
+      const vid = s.tracks[0].id;
+      const result = toggleStepGate(s, vid, 0);
+      const region = getTrack(result, vid).regions[0];
+      expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(true);
+      expect(region.events.some(e => e.kind === 'note' && Math.abs(e.at) < 0.01)).toBe(false);
+    });
+
+    it('derives MIDI pitch from track note param', () => {
+      let s = createSession();
+      // Use a pitched track and set a specific note param
+      const vid = s.tracks[1].id;
+      s = updateTrack(s, vid, {
+        params: { ...getTrack(s, vid).params, note: 0.5 },
+      });
+      const result = toggleStepGate(s, vid, 0);
+      const region = getTrack(result, vid).regions[0];
+      const noteEvent = region.events.find(e => e.kind === 'note') as NoteEvent;
+      expect(noteEvent).toBeDefined();
+      // 0.5 * 127 = 63.5, rounded = 64
+      expect(noteEvent.pitch).toBe(64);
+    });
+
+    it('toggles NoteEvent off and back on for pitched instrument', () => {
+      let s = createSession();
+      const vid = s.tracks[1].id;
+      s = toggleStepGate(s, vid, 0);       // gate on (NoteEvent)
+      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(true);
+
+      s = toggleStepGate(s, vid, 0);       // gate off
+      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+
+      s = toggleStepGate(s, vid, 0);       // gate back on
+      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(true);
+    });
+
+    it('handles legacy TriggerEvent on pitched track (toggle off)', () => {
+      // Simulate a session with a TriggerEvent on a pitched track (from old saved data)
+      let s = createSession();
+      const vid = s.tracks[1].id;
+      const track = getTrack(s, vid);
+      // Manually inject a TriggerEvent into the region
+      const events = [...track.regions[0].events, { kind: 'trigger' as const, at: 3, velocity: 0.8 }];
+      s = updateTrack(s, vid, {
+        regions: [{ ...track.regions[0], events }],
+      });
+      // Toggle off should find and disable the TriggerEvent
+      const result = toggleStepGate(s, vid, 3);
+      const region = getTrack(result, vid).regions[0];
+      const trigger = region.events.find(e => e.kind === 'trigger' && Math.abs(e.at - 3) < 0.01) as TriggerEvent;
+      expect(trigger).toBeDefined();
+      expect(trigger.velocity).toBe(0);
+    });
   });
 
   describe('toggleStepAccent', () => {
@@ -87,6 +160,30 @@ describe('Pattern Primitives', () => {
 
       s = toggleStepAccent(s, vid, 0);      // accent toggle on disabled step
       // Gate must remain off — accent on a disabled step is a no-op
+      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+    });
+
+    it('toggles accent on a pitched NoteEvent', () => {
+      let s = createSession();
+      const vid = s.tracks[1].id;  // pitched track
+      s = toggleStepGate(s, vid, 0);
+      const result = toggleStepAccent(s, vid, 0);
+      expect(getTrack(result, vid).pattern.steps[0].accent).toBe(true);
+      // Verify the NoteEvent velocity was set to 1.0
+      const region = getTrack(result, vid).regions[0];
+      const noteEvent = region.events.find(e => e.kind === 'note' && Math.abs(e.at) < 0.01) as NoteEvent;
+      expect(noteEvent).toBeDefined();
+      expect(noteEvent.velocity).toBe(1.0);
+    });
+
+    it('does not re-enable a disabled NoteEvent step', () => {
+      let s = createSession();
+      const vid = s.tracks[1].id;  // pitched track
+      s = toggleStepGate(s, vid, 0);        // gate on (NoteEvent)
+      s = toggleStepGate(s, vid, 0);        // gate off (velocity=0)
+      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+
+      s = toggleStepAccent(s, vid, 0);      // accent on disabled NoteEvent
       expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
     });
   });
