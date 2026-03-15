@@ -434,7 +434,15 @@ self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
     const trackOutputs = await Promise.all(
       spec.tracks.map(track => renderTrack(track, spec.sampleRate, spec.bpm, totalSteps)),
     );
-    const mixed = mixStereoBuffers(trackOutputs.map(monoToStereo));
+    // Apply per-track volume and pan before mixing
+    const trackStereo = trackOutputs.map((pcm, i) => {
+      const trackSpec = spec.tracks[i];
+      let stereo = monoToStereo(pcm);
+      stereo = applyStereoGain(stereo, trackSpec.volume);
+      stereo = applyStereoPan(stereo, trackSpec.pan);
+      return stereo;
+    });
+    const mixed = mixStereoBuffers(trackStereo);
     const mastered = applyStereoPan(applyStereoGain(mixed, spec.master.volume), spec.master.pan);
     const pcm = downmixStereoToMono(mastered);
 

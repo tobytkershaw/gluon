@@ -40,6 +40,8 @@ function createTrack(index: number): Track {
     views: [{ kind: 'step-grid', id: `step-grid-${trackId}` }],
     muted: false,
     solo: false,
+    volume: 0.8,
+    pan: 0.0,
     controlProvenance: buildDefaultProvenance(defaults.model),
     surface: {
       semanticControls: [],

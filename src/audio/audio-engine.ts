@@ -48,6 +48,8 @@ interface TrackSlot {
   pool: VoicePool;
   sourceOut: GainNode;   // routing node between source and processor chain
   chainOutGain: GainNode; // gain node at end of processor chain — ramped to 0 during rebuild to avoid clicks
+  trackVolume: GainNode; // per-track volume (0.0–1.0)
+  trackPanner: StereoPannerNode; // per-track pan (-1.0 to 1.0)
   muteGain: GainNode;    // controlled by mute/solo -- never touched by scheduleNote
   processors: ProcessorSlot[];
   currentParams: SynthParams;
@@ -145,16 +147,22 @@ export class AudioEngine {
     for (const trackId of trackIds) {
       // Signal chain:
       //   voice[n].synth → voice[n].accentGain ─┐
-      //                                          ├→ sourceOut → [processors] → chainOutGain → muteGain → mixer
+      //                                          ├→ sourceOut → [processors] → chainOutGain → trackVolume → trackPanner → muteGain → mixer
       //   voice[m].synth → voice[m].accentGain ─┘
       const sourceOut = this.ctx.createGain();
       sourceOut.gain.value = 1.0;
       const chainOutGain = this.ctx.createGain();
       chainOutGain.gain.value = 1.0;
+      const trackVolume = this.ctx.createGain();
+      trackVolume.gain.value = 0.8; // default per-track volume
+      const trackPanner = this.ctx.createStereoPanner();
+      trackPanner.pan.value = 0.0; // center
       const muteGain = this.ctx.createGain();
       muteGain.gain.value = 1.0; // 1 = audible, 0 = muted
       sourceOut.connect(chainOutGain);
-      chainOutGain.connect(muteGain);
+      chainOutGain.connect(trackVolume);
+      trackVolume.connect(trackPanner);
+      trackPanner.connect(muteGain);
       muteGain.connect(this.mixer);
 
       const poolVoices = [];
@@ -170,6 +178,8 @@ export class AudioEngine {
         pool: new VoicePool(poolVoices),
         sourceOut,
         chainOutGain,
+        trackVolume,
+        trackPanner,
         muteGain,
         processors: [],
         currentParams: { ...DEFAULT_PARAMS },
@@ -241,6 +251,18 @@ export class AudioEngine {
     if (!slot) return;
     // Only touch muteGain -- accentGain is per-voice, controlled by scheduleNote
     slot.muteGain.gain.value = muted ? 0 : 1;
+  }
+
+  setTrackVolume(trackId: string, value: number): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot) return;
+    slot.trackVolume.gain.value = Math.max(0, Math.min(1, value));
+  }
+
+  setTrackPan(trackId: string, value: number): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot) return;
+    slot.trackPanner.pan.value = Math.max(-1, Math.min(1, value));
   }
 
   advanceGeneration(): number {

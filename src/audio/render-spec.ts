@@ -28,6 +28,10 @@ export interface RenderTrackSpec {
   id: string;
   /** Plaits engine index (already offset by +8 for the Plaits C ABI). */
   model: number;
+  /** Per-track volume (linear gain), 0.0–1.0 */
+  volume: number;
+  /** Per-track pan, -1.0 (left) to 1.0 (right) */
+  pan: number;
   params: RenderSynthPatch;
   events: RenderEvent[];
   processors: RenderProcessorSpec[];
@@ -148,6 +152,8 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
   return {
     id: track.id,
     model: clampModel(track.model) + GLUON_TO_PLAITS_ENGINE_OFFSET,
+    volume: track.volume ?? 0.8,
+    pan: track.pan ?? 0.0,
     params,
     events,
     processors,

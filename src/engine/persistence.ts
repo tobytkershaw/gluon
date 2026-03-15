@@ -10,7 +10,7 @@ import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/i
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
-export const CURRENT_VERSION = 4;
+export const CURRENT_VERSION = 5;
 export const MAX_PERSISTED_UNDO = 50;
 
 interface PersistedSession {
@@ -56,6 +56,7 @@ function isNonDefault(session: Session): boolean {
     if (v.agency !== d.agency) return true;
     if (v.model !== d.model) return true;
     if (v.muted !== d.muted || v.solo !== d.solo) return true;
+    if (v.volume !== d.volume || v.pan !== d.pan) return true;
     if (v.params.timbre !== d.params.timbre || v.params.morph !== d.params.morph) return true;
     if (v.params.harmonics !== d.params.harmonics || v.params.note !== d.params.note) return true;
     // Check regions for content
@@ -121,8 +122,13 @@ export function migrateTrack(track: Track): Track {
     }
   }
 
+  // Hydrate per-track volume/pan for tracks without them (v4 → v5 migration)
+  let migrated = { ...track, regions };
+  if (migrated.volume == null) migrated.volume = 0.8;
+  if (migrated.pan == null) migrated.pan = 0.0;
+
   // Hydrate surface for tracks without one (v2 → v3 migration)
-  let surfaced = { ...track, regions };
+  let surfaced = { ...migrated, regions };
   if (!surfaced.surface) {
     surfaced = {
       ...surfaced,
