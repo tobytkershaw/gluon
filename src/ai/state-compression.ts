@@ -42,6 +42,8 @@ interface CompressedTrack {
   agency: string;
   muted: boolean;
   solo: boolean;
+  volume: number;
+  pan: number;
   pattern: CompressedPattern;
   views: string[];
   processors: CompressedProcessor[];
@@ -148,6 +150,8 @@ export function compressState(session: Session): CompressedState {
       agency: track.agency,
       muted: track.muted,
       solo: track.solo,
+      volume: round2(track.volume),
+      pan: round2(track.pan),
       pattern: compressPattern(track),
       views: (track.views ?? []).map(v => `${v.kind}:${v.id}`),
       processors: (track.processors ?? []).map(p => ({

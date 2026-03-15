@@ -219,6 +219,15 @@ export default function App() {
     }
   }, [session.tracks, audioStarted]);
 
+  // Sync per-track volume/pan to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    for (const track of session.tracks) {
+      audioRef.current.setTrackVolume(track.id, track.volume);
+      audioRef.current.setTrackPan(track.id, track.pan);
+    }
+  }, [session.tracks, audioStarted]);
+
   // Sync master channel to audio engine
   useEffect(() => {
     if (!audioStarted) return;

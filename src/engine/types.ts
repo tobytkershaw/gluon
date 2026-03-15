@@ -95,6 +95,10 @@ export interface Track {
   regions: Region[];
   muted: boolean;
   solo: boolean;
+  /** Per-track volume (linear gain), 0.0–1.0, default 0.8 */
+  volume: number;
+  /** Per-track pan, -1.0 (left) to 1.0 (right), default 0.0 */
+  pan: number;
   controlProvenance?: ControlState;
   /** Addable sequencer views. Presentation state — persisted but not part of musical state. */
   views?: SequencerViewConfig[];
