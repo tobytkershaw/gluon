@@ -669,359 +669,371 @@ export class GluonAI {
         };
       }
 
-      case 'add_view': {
+      case 'manage_view': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
-        if (typeof args.viewKind !== 'string' || !args.viewKind) {
-          return { actions: [], response: errorPayload('Missing required parameter: viewKind') };
-        }
-        const validKinds = ['step-grid'];
-        if (!validKinds.includes(args.viewKind as string)) {
-          return { actions: [], response: errorPayload(`Unknown viewKind: ${args.viewKind}. Must be one of: ${validKinds.join(', ')}`) };
-        }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
+        const viewSubAction = args.action as string;
+        if (!viewSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        switch (viewSubAction) {
+          case 'add': {
+            if (typeof args.viewKind !== 'string' || !args.viewKind) {
+              return { actions: [], response: errorPayload('action=add requires viewKind') };
+            }
+            const validKinds = ['step-grid'];
+            if (!validKinds.includes(args.viewKind as string)) {
+              return { actions: [], response: errorPayload(`Unknown viewKind: ${args.viewKind}. Must be one of: ${validKinds.join(', ')}`) };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
 
-        const addViewAction: AIAddViewAction = {
-          type: 'add_view',
-          trackId: args.trackId as string,
-          viewKind: args.viewKind as AIAddViewAction['viewKind'],
-          description: args.description as string,
-        };
+            const addViewAction: AIAddViewAction = {
+              type: 'add_view',
+              trackId: args.trackId as string,
+              viewKind: args.viewKind as AIAddViewAction['viewKind'],
+              description: args.description as string,
+            };
 
-        const addViewRejection = ctx?.validateAction?.(addViewAction);
-        if (addViewRejection) return { actions: [], response: errorPayload(addViewRejection) };
+            const addViewRejection = ctx?.validateAction?.(addViewAction);
+            if (addViewRejection) return { actions: [], response: errorPayload(addViewRejection) };
 
-        return {
-          actions: [addViewAction],
-          response: {
-            applied: true,
-            trackId: addViewAction.trackId,
-            viewKind: addViewAction.viewKind,
-          },
-        };
-      }
-
-      case 'remove_view': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
-        }
-        if (typeof args.viewId !== 'string' || !args.viewId) {
-          return { actions: [], response: errorPayload('Missing required parameter: viewId') };
-        }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const removeViewAction: AIRemoveViewAction = {
-          type: 'remove_view',
-          trackId: args.trackId as string,
-          viewId: args.viewId as string,
-          description: args.description as string,
-        };
-
-        const removeViewRejection = ctx?.validateAction?.(removeViewAction);
-        if (removeViewRejection) return { actions: [], response: errorPayload(removeViewRejection) };
-
-        return {
-          actions: [removeViewAction],
-          response: {
-            applied: true,
-            trackId: removeViewAction.trackId,
-            viewId: removeViewAction.viewId,
-          },
-        };
-      }
-
-      case 'add_processor': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
-        }
-        if (typeof args.moduleType !== 'string' || !args.moduleType) {
-          return { actions: [], response: errorPayload('Missing required parameter: moduleType') };
-        }
-        const track = session.tracks.find(v => v.id === args.trackId);
-        if (track) {
-          const chainResult = validateChainMutation(track, { kind: 'add', type: args.moduleType as string });
-          if (!chainResult.valid) {
-            return { actions: [], response: errorPayload(chainResult.errors[0]) };
+            return {
+              actions: [addViewAction],
+              response: {
+                applied: true,
+                trackId: addViewAction.trackId,
+                viewKind: addViewAction.viewKind,
+              },
+            };
           }
-        }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
+          case 'remove': {
+            if (typeof args.viewId !== 'string' || !args.viewId) {
+              return { actions: [], response: errorPayload('action=remove requires viewId') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
 
-        const assignedProcessorId = `${args.moduleType}-${Date.now()}`;
+            const removeViewAction: AIRemoveViewAction = {
+              type: 'remove_view',
+              trackId: args.trackId as string,
+              viewId: args.viewId as string,
+              description: args.description as string,
+            };
 
-        const addProcAction: AIAddProcessorAction = {
-          type: 'add_processor',
-          trackId: args.trackId as string,
-          moduleType: args.moduleType as string,
-          processorId: assignedProcessorId,
-          description: args.description as string,
-        };
+            const removeViewRejection = ctx?.validateAction?.(removeViewAction);
+            if (removeViewRejection) return { actions: [], response: errorPayload(removeViewRejection) };
 
-        const addProcRejection = ctx?.validateAction?.(addProcAction);
-        if (addProcRejection) return { actions: [], response: errorPayload(addProcRejection) };
-
-        return {
-          actions: [addProcAction],
-          response: {
-            applied: true,
-            trackId: addProcAction.trackId,
-            moduleType: addProcAction.moduleType,
-            processorId: assignedProcessorId,
-          },
-        };
-      }
-
-      case 'remove_processor': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
-        }
-        if (typeof args.processorId !== 'string' || !args.processorId) {
-          return { actions: [], response: errorPayload('Missing required parameter: processorId') };
-        }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const removeProcAction: AIRemoveProcessorAction = {
-          type: 'remove_processor',
-          trackId: args.trackId as string,
-          processorId: args.processorId as string,
-          description: args.description as string,
-        };
-
-        const removeProcRejection = ctx?.validateAction?.(removeProcAction);
-        if (removeProcRejection) return { actions: [], response: errorPayload(removeProcRejection) };
-
-        return {
-          actions: [removeProcAction],
-          response: {
-            applied: true,
-            trackId: removeProcAction.trackId,
-            processorId: removeProcAction.processorId,
-          },
-        };
-      }
-
-      case 'replace_processor': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
-        }
-        if (typeof args.processorId !== 'string' || !args.processorId) {
-          return { actions: [], response: errorPayload('Missing required parameter: processorId') };
-        }
-        if (typeof args.newModuleType !== 'string' || !args.newModuleType) {
-          return { actions: [], response: errorPayload('Missing required parameter: newModuleType') };
-        }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const newProcessorId = `${args.newModuleType}-${Date.now()}`;
-
-        const replaceAction: AIReplaceProcessorAction = {
-          type: 'replace_processor',
-          trackId: args.trackId as string,
-          processorId: args.processorId as string,
-          newModuleType: args.newModuleType as string,
-          newProcessorId,
-          description: args.description as string,
-        };
-
-        const replaceRejection = ctx?.validateAction?.(replaceAction);
-        if (replaceRejection) return { actions: [], response: errorPayload(replaceRejection) };
-
-        return {
-          actions: [replaceAction],
-          response: {
-            applied: true,
-            trackId: replaceAction.trackId,
-            replacedProcessorId: replaceAction.processorId,
-            newModuleType: replaceAction.newModuleType,
-            newProcessorId,
-          },
-        };
-      }
-
-      case 'add_modulator': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
-        }
-        if (typeof args.moduleType !== 'string' || !args.moduleType) {
-          return { actions: [], response: errorPayload('Missing required parameter: moduleType') };
-        }
-        const track = session.tracks.find(v => v.id === args.trackId);
-        if (track) {
-          const modResult = validateModulatorMutation(track, { kind: 'add', type: args.moduleType as string });
-          if (!modResult.valid) {
-            return { actions: [], response: errorPayload(modResult.errors[0]) };
+            return {
+              actions: [removeViewAction],
+              response: {
+                applied: true,
+                trackId: removeViewAction.trackId,
+                viewId: removeViewAction.viewId,
+              },
+            };
           }
+          default:
+            return { actions: [], response: errorPayload(`Invalid action "${viewSubAction}". Use: add, remove`) };
         }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const assignedModulatorId = `${args.moduleType}-${Date.now()}`;
-
-        const addModAction: AIAddModulatorAction = {
-          type: 'add_modulator',
-          trackId: args.trackId as string,
-          moduleType: args.moduleType as string,
-          modulatorId: assignedModulatorId,
-          description: args.description as string,
-        };
-
-        const addModRejection = ctx?.validateAction?.(addModAction);
-        if (addModRejection) return { actions: [], response: errorPayload(addModRejection) };
-
-        return {
-          actions: [addModAction],
-          response: {
-            queued: true,
-            trackId: addModAction.trackId,
-            moduleType: addModAction.moduleType,
-            modulatorId: assignedModulatorId,
-          },
-        };
       }
 
-      case 'remove_modulator': {
+      case 'manage_processor': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
-        if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
-          return { actions: [], response: errorPayload('Missing required parameter: modulatorId') };
+        const procSubAction = args.action as string;
+        if (!procSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        switch (procSubAction) {
+          case 'add': {
+            if (typeof args.moduleType !== 'string' || !args.moduleType) {
+              return { actions: [], response: errorPayload('action=add requires moduleType') };
+            }
+            const track = session.tracks.find(v => v.id === args.trackId);
+            if (track) {
+              const chainResult = validateChainMutation(track, { kind: 'add', type: args.moduleType as string });
+              if (!chainResult.valid) {
+                return { actions: [], response: errorPayload(chainResult.errors[0]) };
+              }
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const assignedProcessorId = `${args.moduleType}-${Date.now()}`;
+
+            const addProcAction: AIAddProcessorAction = {
+              type: 'add_processor',
+              trackId: args.trackId as string,
+              moduleType: args.moduleType as string,
+              processorId: assignedProcessorId,
+              description: args.description as string,
+            };
+
+            const addProcRejection = ctx?.validateAction?.(addProcAction);
+            if (addProcRejection) return { actions: [], response: errorPayload(addProcRejection) };
+
+            return {
+              actions: [addProcAction],
+              response: {
+                applied: true,
+                trackId: addProcAction.trackId,
+                moduleType: addProcAction.moduleType,
+                processorId: assignedProcessorId,
+              },
+            };
+          }
+          case 'remove': {
+            if (typeof args.processorId !== 'string' || !args.processorId) {
+              return { actions: [], response: errorPayload('action=remove requires processorId') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const removeProcAction: AIRemoveProcessorAction = {
+              type: 'remove_processor',
+              trackId: args.trackId as string,
+              processorId: args.processorId as string,
+              description: args.description as string,
+            };
+
+            const removeProcRejection = ctx?.validateAction?.(removeProcAction);
+            if (removeProcRejection) return { actions: [], response: errorPayload(removeProcRejection) };
+
+            return {
+              actions: [removeProcAction],
+              response: {
+                applied: true,
+                trackId: removeProcAction.trackId,
+                processorId: removeProcAction.processorId,
+              },
+            };
+          }
+          case 'replace': {
+            if (typeof args.processorId !== 'string' || !args.processorId) {
+              return { actions: [], response: errorPayload('action=replace requires processorId') };
+            }
+            if (typeof args.moduleType !== 'string' || !args.moduleType) {
+              return { actions: [], response: errorPayload('action=replace requires moduleType') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const newProcessorId = `${args.moduleType}-${Date.now()}`;
+
+            const replaceAction: AIReplaceProcessorAction = {
+              type: 'replace_processor',
+              trackId: args.trackId as string,
+              processorId: args.processorId as string,
+              newModuleType: args.moduleType as string,
+              newProcessorId,
+              description: args.description as string,
+            };
+
+            const replaceRejection = ctx?.validateAction?.(replaceAction);
+            if (replaceRejection) return { actions: [], response: errorPayload(replaceRejection) };
+
+            return {
+              actions: [replaceAction],
+              response: {
+                applied: true,
+                trackId: replaceAction.trackId,
+                replacedProcessorId: replaceAction.processorId,
+                newModuleType: replaceAction.newModuleType,
+                newProcessorId,
+              },
+            };
+          }
+          default:
+            return { actions: [], response: errorPayload(`Invalid action "${procSubAction}". Use: add, remove, replace`) };
         }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const removeModAction: AIRemoveModulatorAction = {
-          type: 'remove_modulator',
-          trackId: args.trackId as string,
-          modulatorId: args.modulatorId as string,
-          description: args.description as string,
-        };
-
-        const removeModRejection = ctx?.validateAction?.(removeModAction);
-        if (removeModRejection) return { actions: [], response: errorPayload(removeModRejection) };
-
-        return {
-          actions: [removeModAction],
-          response: {
-            queued: true,
-            trackId: removeModAction.trackId,
-            modulatorId: removeModAction.modulatorId,
-          },
-        };
       }
 
-      case 'connect_modulator': {
+      case 'manage_modulator': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
-        if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
-          return { actions: [], response: errorPayload('Missing required parameter: modulatorId') };
+        const modSubAction = args.action as string;
+        if (!modSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        switch (modSubAction) {
+          case 'add': {
+            if (typeof args.moduleType !== 'string' || !args.moduleType) {
+              return { actions: [], response: errorPayload('action=add requires moduleType') };
+            }
+            const track = session.tracks.find(v => v.id === args.trackId);
+            if (track) {
+              const modResult = validateModulatorMutation(track, { kind: 'add', type: args.moduleType as string });
+              if (!modResult.valid) {
+                return { actions: [], response: errorPayload(modResult.errors[0]) };
+              }
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const assignedModulatorId = `${args.moduleType}-${Date.now()}`;
+
+            const addModAction: AIAddModulatorAction = {
+              type: 'add_modulator',
+              trackId: args.trackId as string,
+              moduleType: args.moduleType as string,
+              modulatorId: assignedModulatorId,
+              description: args.description as string,
+            };
+
+            const addModRejection = ctx?.validateAction?.(addModAction);
+            if (addModRejection) return { actions: [], response: errorPayload(addModRejection) };
+
+            return {
+              actions: [addModAction],
+              response: {
+                queued: true,
+                trackId: addModAction.trackId,
+                moduleType: addModAction.moduleType,
+                modulatorId: assignedModulatorId,
+              },
+            };
+          }
+          case 'remove': {
+            if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
+              return { actions: [], response: errorPayload('action=remove requires modulatorId') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const removeModAction: AIRemoveModulatorAction = {
+              type: 'remove_modulator',
+              trackId: args.trackId as string,
+              modulatorId: args.modulatorId as string,
+              description: args.description as string,
+            };
+
+            const removeModRejection = ctx?.validateAction?.(removeModAction);
+            if (removeModRejection) return { actions: [], response: errorPayload(removeModRejection) };
+
+            return {
+              actions: [removeModAction],
+              response: {
+                queued: true,
+                trackId: removeModAction.trackId,
+                modulatorId: removeModAction.modulatorId,
+              },
+            };
+          }
+          default:
+            return { actions: [], response: errorPayload(`Invalid action "${modSubAction}". Use: add, remove`) };
         }
-        if (typeof args.targetKind !== 'string' || !args.targetKind) {
-          return { actions: [], response: errorPayload('Missing required parameter: targetKind') };
-        }
-        if (typeof args.targetParam !== 'string' || !args.targetParam) {
-          return { actions: [], response: errorPayload('Missing required parameter: targetParam') };
-        }
-        if (typeof args.depth !== 'number') {
-          return { actions: [], response: errorPayload('Missing required parameter: depth') };
-        }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const targetKind = args.targetKind as string;
-        if (targetKind !== 'source' && targetKind !== 'processor') {
-          return { actions: [], response: errorPayload(`targetKind must be "source" or "processor", got "${targetKind}"`) };
-        }
-        if (targetKind === 'processor' && (typeof args.processorId !== 'string' || !args.processorId)) {
-          return { actions: [], response: errorPayload('processorId is required when targetKind is "processor"') };
-        }
-
-        const modTarget: ModulationTarget = targetKind === 'source'
-          ? { kind: 'source', param: args.targetParam as string }
-          : { kind: 'processor', processorId: args.processorId as string, param: args.targetParam as string };
-
-        const connectTrack = session.tracks.find(v => v.id === args.trackId);
-        const existingRoute = (connectTrack?.modulations ?? []).find(r =>
-          r.modulatorId === args.modulatorId &&
-          r.target.kind === modTarget.kind &&
-          r.target.param === modTarget.param &&
-          (modTarget.kind === 'source' || (modTarget.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === modTarget.processorId))
-        );
-
-        const preAssignedId = existingRoute?.id ?? `mod-${Date.now()}`;
-
-        const connectAction: AIConnectModulatorAction = {
-          type: 'connect_modulator',
-          trackId: args.trackId as string,
-          modulatorId: args.modulatorId as string,
-          target: modTarget,
-          depth: args.depth as number,
-          modulationId: preAssignedId,
-          description: args.description as string,
-        };
-
-        const connectRejection = ctx?.validateAction?.(connectAction);
-        if (connectRejection) return { actions: [], response: errorPayload(connectRejection) };
-
-        const targetStr = modTarget.kind === 'source'
-          ? `source:${modTarget.param}`
-          : `processor:${modTarget.processorId}:${modTarget.param}`;
-
-        return {
-          actions: [connectAction],
-          response: {
-            queued: true,
-            modulationId: preAssignedId,
-            created: !existingRoute,
-            ...(existingRoute ? { previousDepth: existingRoute.depth } : {}),
-            target: targetStr,
-            depth: args.depth,
-          },
-        };
       }
 
-      case 'disconnect_modulator': {
+      case 'modulation_route': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
-        if (typeof args.modulationId !== 'string' || !args.modulationId) {
-          return { actions: [], response: errorPayload('Missing required parameter: modulationId') };
+        const routeSubAction = args.action as string;
+        if (!routeSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        switch (routeSubAction) {
+          case 'connect': {
+            if (typeof args.modulatorId !== 'string' || !args.modulatorId) {
+              return { actions: [], response: errorPayload('action=connect requires modulatorId') };
+            }
+            if (typeof args.targetKind !== 'string' || !args.targetKind) {
+              return { actions: [], response: errorPayload('action=connect requires targetKind') };
+            }
+            if (typeof args.targetParam !== 'string' || !args.targetParam) {
+              return { actions: [], response: errorPayload('action=connect requires targetParam') };
+            }
+            if (typeof args.depth !== 'number') {
+              return { actions: [], response: errorPayload('action=connect requires depth') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const targetKind = args.targetKind as string;
+            if (targetKind !== 'source' && targetKind !== 'processor') {
+              return { actions: [], response: errorPayload(`targetKind must be "source" or "processor", got "${targetKind}"`) };
+            }
+            if (targetKind === 'processor' && (typeof args.processorId !== 'string' || !args.processorId)) {
+              return { actions: [], response: errorPayload('processorId is required when targetKind is "processor"') };
+            }
+
+            const modTarget: ModulationTarget = targetKind === 'source'
+              ? { kind: 'source', param: args.targetParam as string }
+              : { kind: 'processor', processorId: args.processorId as string, param: args.targetParam as string };
+
+            const connectTrack = session.tracks.find(v => v.id === args.trackId);
+            const existingRoute = (connectTrack?.modulations ?? []).find(r =>
+              r.modulatorId === args.modulatorId &&
+              r.target.kind === modTarget.kind &&
+              r.target.param === modTarget.param &&
+              (modTarget.kind === 'source' || (modTarget.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === modTarget.processorId))
+            );
+
+            const preAssignedId = existingRoute?.id ?? `mod-${Date.now()}`;
+
+            const connectAction: AIConnectModulatorAction = {
+              type: 'connect_modulator',
+              trackId: args.trackId as string,
+              modulatorId: args.modulatorId as string,
+              target: modTarget,
+              depth: args.depth as number,
+              modulationId: preAssignedId,
+              description: args.description as string,
+            };
+
+            const connectRejection = ctx?.validateAction?.(connectAction);
+            if (connectRejection) return { actions: [], response: errorPayload(connectRejection) };
+
+            const targetStr = modTarget.kind === 'source'
+              ? `source:${modTarget.param}`
+              : `processor:${modTarget.processorId}:${modTarget.param}`;
+
+            return {
+              actions: [connectAction],
+              response: {
+                queued: true,
+                modulationId: preAssignedId,
+                created: !existingRoute,
+                ...(existingRoute ? { previousDepth: existingRoute.depth } : {}),
+                target: targetStr,
+                depth: args.depth,
+              },
+            };
+          }
+          case 'disconnect': {
+            if (typeof args.modulationId !== 'string' || !args.modulationId) {
+              return { actions: [], response: errorPayload('action=disconnect requires modulationId') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            const disconnectAction: AIDisconnectModulatorAction = {
+              type: 'disconnect_modulator',
+              trackId: args.trackId as string,
+              modulationId: args.modulationId as string,
+              description: args.description as string,
+            };
+
+            const disconnectRejection = ctx?.validateAction?.(disconnectAction);
+            if (disconnectRejection) return { actions: [], response: errorPayload(disconnectRejection) };
+
+            return {
+              actions: [disconnectAction],
+              response: {
+                queued: true,
+                trackId: disconnectAction.trackId,
+                modulationId: disconnectAction.modulationId,
+              },
+            };
+          }
+          default:
+            return { actions: [], response: errorPayload(`Invalid action "${routeSubAction}". Use: connect, disconnect`) };
         }
-        if (typeof args.description !== 'string') {
-          return { actions: [], response: errorPayload('Missing required parameter: description') };
-        }
-
-        const disconnectAction: AIDisconnectModulatorAction = {
-          type: 'disconnect_modulator',
-          trackId: args.trackId as string,
-          modulationId: args.modulationId as string,
-          description: args.description as string,
-        };
-
-        const disconnectRejection = ctx?.validateAction?.(disconnectAction);
-        if (disconnectRejection) return { actions: [], response: errorPayload(disconnectRejection) };
-
-        return {
-          actions: [disconnectAction],
-          response: {
-            queued: true,
-            trackId: disconnectAction.trackId,
-            modulationId: disconnectAction.modulationId,
-          },
-        };
       }
 
       case 'set_surface': {
@@ -1081,7 +1093,7 @@ export class GluonAI {
         };
       }
 
-      case 'pin': {
+      case 'pin_control': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
@@ -1091,60 +1103,56 @@ export class GluonAI {
         if (typeof args.controlId !== 'string' || !args.controlId) {
           return { actions: [], response: errorPayload('Missing required parameter: controlId') };
         }
+        const pinSubAction = args.action as string;
+        if (!pinSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        switch (pinSubAction) {
+          case 'pin': {
+            const pinAction: AIPinAction = {
+              type: 'pin',
+              trackId: args.trackId as string,
+              moduleId: args.moduleId as string,
+              controlId: args.controlId as string,
+              description: `pin ${args.moduleId}:${args.controlId}`,
+            };
 
-        const pinAction: AIPinAction = {
-          type: 'pin',
-          trackId: args.trackId as string,
-          moduleId: args.moduleId as string,
-          controlId: args.controlId as string,
-          description: `pin ${args.moduleId}:${args.controlId}`,
-        };
+            const pinRejection = ctx?.validateAction?.(pinAction);
+            if (pinRejection) return { actions: [], response: errorPayload(pinRejection) };
 
-        const pinRejection = ctx?.validateAction?.(pinAction);
-        if (pinRejection) return { actions: [], response: errorPayload(pinRejection) };
+            return {
+              actions: [pinAction],
+              response: {
+                applied: true,
+                trackId: pinAction.trackId,
+                moduleId: pinAction.moduleId,
+                controlId: pinAction.controlId,
+              },
+            };
+          }
+          case 'unpin': {
+            const unpinAction: AIUnpinAction = {
+              type: 'unpin',
+              trackId: args.trackId as string,
+              moduleId: args.moduleId as string,
+              controlId: args.controlId as string,
+              description: `unpin ${args.moduleId}:${args.controlId}`,
+            };
 
-        return {
-          actions: [pinAction],
-          response: {
-            applied: true,
-            trackId: pinAction.trackId,
-            moduleId: pinAction.moduleId,
-            controlId: pinAction.controlId,
-          },
-        };
-      }
+            const unpinRejection = ctx?.validateAction?.(unpinAction);
+            if (unpinRejection) return { actions: [], response: errorPayload(unpinRejection) };
 
-      case 'unpin': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+            return {
+              actions: [unpinAction],
+              response: {
+                applied: true,
+                trackId: unpinAction.trackId,
+                moduleId: unpinAction.moduleId,
+                controlId: unpinAction.controlId,
+              },
+            };
+          }
+          default:
+            return { actions: [], response: errorPayload(`Invalid action "${pinSubAction}". Use: pin, unpin`) };
         }
-        if (typeof args.moduleId !== 'string' || !args.moduleId) {
-          return { actions: [], response: errorPayload('Missing required parameter: moduleId') };
-        }
-        if (typeof args.controlId !== 'string' || !args.controlId) {
-          return { actions: [], response: errorPayload('Missing required parameter: controlId') };
-        }
-
-        const unpinAction: AIUnpinAction = {
-          type: 'unpin',
-          trackId: args.trackId as string,
-          moduleId: args.moduleId as string,
-          controlId: args.controlId as string,
-          description: `unpin ${args.moduleId}:${args.controlId}`,
-        };
-
-        const unpinRejection = ctx?.validateAction?.(unpinAction);
-        if (unpinRejection) return { actions: [], response: errorPayload(unpinRejection) };
-
-        return {
-          actions: [unpinAction],
-          response: {
-            applied: true,
-            trackId: unpinAction.trackId,
-            moduleId: unpinAction.moduleId,
-            controlId: unpinAction.controlId,
-          },
-        };
       }
 
       case 'label_axes': {
@@ -1180,37 +1188,83 @@ export class GluonAI {
         };
       }
 
-      case 'set_importance': {
+      case 'set_track_meta': {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
-        if (typeof args.importance !== 'number') {
-          return { actions: [], response: errorPayload('Missing required parameter: importance (must be a number 0.0-1.0)') };
-        }
-        if (args.importance < 0 || args.importance > 1) {
-          return { actions: [], response: errorPayload('importance must be between 0.0 and 1.0') };
+        const hasApproval = args.approval !== undefined;
+        const hasImportance = args.importance !== undefined;
+        const hasRole = args.musicalRole !== undefined;
+        if (!hasApproval && !hasImportance && !hasRole) {
+          return { actions: [], response: errorPayload('At least one of approval, importance, musicalRole required') };
         }
 
-        const importanceTrack = session.tracks.find(v => v.id === args.trackId);
-        const prevImportance = importanceTrack?.importance ?? 0.5;
-        const importanceTrackName = importanceTrack ? getTrackLabel(importanceTrack) : args.trackId as string;
+        const metaActions: AIAction[] = [];
+        const applied: string[] = [];
+        const errors: string[] = [];
 
-        const setImportanceAction: AISetImportanceAction = {
-          type: 'set_importance',
-          trackId: args.trackId as string,
-          importance: args.importance as number,
-          ...(typeof args.musicalRole === 'string' ? { musicalRole: args.musicalRole } : {}),
-        };
+        if (hasApproval) {
+          const level = args.approval as string;
+          const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
+          if (!validLevels.includes(level as ApprovalLevel)) {
+            errors.push(`Invalid approval level: ${level}`);
+          } else if (!args.reason) {
+            errors.push('approval requires reason');
+          } else {
+            const markApprovedAction: AIMarkApprovedAction = {
+              type: 'mark_approved',
+              trackId: args.trackId as string,
+              level: level as ApprovalLevel,
+              reason: args.reason as string,
+            };
+            const rejection = ctx?.validateAction?.(markApprovedAction);
+            if (rejection) {
+              errors.push(rejection);
+            } else {
+              metaActions.push(markApprovedAction);
+              applied.push('approval');
+            }
+          }
+        }
+
+        if (hasImportance) {
+          if (typeof args.importance !== 'number' || !Number.isFinite(args.importance)) {
+            errors.push('importance must be a finite number (0.0-1.0)');
+          } else {
+            const importance = Math.max(0, Math.min(1, args.importance));
+            const setImportanceAction: AISetImportanceAction = {
+              type: 'set_importance',
+              trackId: args.trackId as string,
+              importance,
+              ...(hasRole ? { musicalRole: args.musicalRole as string } : {}),
+            };
+            metaActions.push(setImportanceAction);
+            applied.push('importance');
+            if (hasRole) applied.push('musicalRole');
+          }
+        } else if (hasRole) {
+          // musicalRole without importance — preserve current importance if it exists
+          const metaTrack = session.tracks.find(v => v.id === args.trackId);
+          if (metaTrack?.importance === undefined) {
+            errors.push('musicalRole requires importance to be set first (either in this call or previously)');
+          } else {
+            const setImportanceAction: AISetImportanceAction = {
+              type: 'set_importance',
+              trackId: args.trackId as string,
+              importance: metaTrack.importance,
+              musicalRole: args.musicalRole as string,
+            };
+            metaActions.push(setImportanceAction);
+            applied.push('musicalRole');
+          }
+        }
 
         return {
-          actions: [setImportanceAction],
+          actions: metaActions,
           response: {
-            applied: true,
-            trackId: setImportanceAction.trackId,
-            track: importanceTrackName,
-            from: Math.round(prevImportance * 100) / 100,
-            to: Math.round(setImportanceAction.importance * 100) / 100,
-            ...(setImportanceAction.musicalRole ? { musicalRole: setImportanceAction.musicalRole } : {}),
+            trackId: args.trackId,
+            applied,
+            ...(errors.length > 0 ? { errors } : {}),
           },
         };
       }
@@ -1340,85 +1394,49 @@ export class GluonAI {
         }
       }
 
-      case 'spectral': {
+      case 'analyze': {
         const snapshotId = args.snapshotId as string;
         if (!snapshotId) {
           return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
+        }
+        const rawTypes = args.types as string[];
+        if (!Array.isArray(rawTypes) || rawTypes.length === 0) {
+          return { actions: [], response: errorPayload('Missing required parameter: types (non-empty array)') };
         }
         const snapshot = getSnapshot(snapshotId);
         if (!snapshot) {
           return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
         }
-        const result = analyzeSpectral(snapshot.pcm, snapshot.sampleRate);
-        return { actions: [], response: result as unknown as Record<string, unknown> };
-      }
 
-      case 'dynamics': {
-        const snapshotId = args.snapshotId as string;
-        if (!snapshotId) {
-          return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
-        }
-        const snapshot = getSnapshot(snapshotId);
-        if (!snapshot) {
-          return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
-        }
-        const result = analyzeDynamics(snapshot.pcm, snapshot.sampleRate);
-        return { actions: [], response: result as unknown as Record<string, unknown> };
-      }
+        // Deduplicate to avoid wasted work
+        const types = [...new Set(rawTypes)];
+        const results: Record<string, unknown> = {};
+        const analysisErrors: string[] = [];
 
-      case 'rhythm': {
-        const snapshotId = args.snapshotId as string;
-        if (!snapshotId) {
-          return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
+        for (const t of types) {
+          switch (t) {
+            case 'spectral':
+              results.spectral = analyzeSpectral(snapshot.pcm, snapshot.sampleRate);
+              break;
+            case 'dynamics':
+              results.dynamics = analyzeDynamics(snapshot.pcm, snapshot.sampleRate);
+              break;
+            case 'rhythm': {
+              const bpm = session.transport.bpm;
+              results.rhythm = analyzeRhythm(snapshot.pcm, snapshot.sampleRate, bpm);
+              break;
+            }
+            default:
+              analysisErrors.push(`Unknown analysis type: ${t}`);
+          }
         }
-        const snapshot = getSnapshot(snapshotId);
-        if (!snapshot) {
-          return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
-        }
-        // Pass BPM from session transport for better rhythm analysis
-        const bpm = session.transport.bpm;
-        const result = analyzeRhythm(snapshot.pcm, snapshot.sampleRate, bpm);
-        return { actions: [], response: result as unknown as Record<string, unknown> };
-      }
-
-      case 'mark_approved': {
-        if (typeof args.trackId !== 'string' || !args.trackId) {
-          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
-        }
-        if (typeof args.level !== 'string' || !args.level) {
-          return { actions: [], response: errorPayload('Missing required parameter: level') };
-        }
-        const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
-        if (!validLevels.includes(args.level as ApprovalLevel)) {
-          return { actions: [], response: errorPayload(`Invalid level: ${args.level}. Must be one of: ${validLevels.join(', ')}`) };
-        }
-        if (typeof args.reason !== 'string' || !args.reason) {
-          return { actions: [], response: errorPayload('Missing required parameter: reason') };
-        }
-
-        const markApprovedAction: AIMarkApprovedAction = {
-          type: 'mark_approved',
-          trackId: args.trackId as string,
-          level: args.level as ApprovalLevel,
-          reason: args.reason as string,
-        };
-
-        const markApprovedRejection = ctx?.validateAction?.(markApprovedAction);
-        if (markApprovedRejection) return { actions: [], response: errorPayload(markApprovedRejection) };
-
-        const approvalTrack = session.tracks.find(v => v.id === args.trackId);
-        const prevLevel = approvalTrack?.approval ?? 'exploratory';
-        const trackName = approvalTrack ? getTrackLabel(approvalTrack) : args.trackId;
 
         return {
-          actions: [markApprovedAction],
+          actions: [],
           response: {
-            applied: true,
-            trackId: markApprovedAction.trackId,
-            track: trackName,
-            from: prevLevel,
-            to: markApprovedAction.level,
-            reason: markApprovedAction.reason,
+            snapshotId,
+            results,
+            ...(analysisErrors.length > 0 ? { errors: analysisErrors } : {}),
           },
         };
       }

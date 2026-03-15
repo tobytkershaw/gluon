@@ -227,239 +227,153 @@ const transformTool: ToolSchema = {
   },
 };
 
-const addViewTool: ToolSchema = {
-  name: 'add_view',
-  description:
-    'Add a sequencer view to a track. Use after sketching a pattern to make it visible in the appropriate editor.',
-  parameters: {
-    type: 'object',
-    properties: {
-      trackId: {
-        type: 'string',
-        description: 'Target track ID (e.g. "v0").',
-      },
-      viewKind: {
-        type: 'string',
-        description: 'View type: "step-grid".',
-      },
-      description: {
-        type: 'string',
-        description: 'Short description (e.g. "show kick pattern in step grid").',
-      },
-    },
-    required: ['trackId', 'viewKind', 'description'],
-  },
-};
+// --- Merged CRUD tools ---
 
-const removeViewTool: ToolSchema = {
-  name: 'remove_view',
+const manageProcessorTool: ToolSchema = {
+  name: 'manage_processor',
   description:
-    'Remove a sequencer view from a track by its ID.',
+    'Add, remove, or replace a processor module in a track\'s signal chain. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
-      trackId: {
+      action: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        enum: ['add', 'remove', 'replace'],
+        description: 'Operation to perform.',
       },
-      viewId: {
-        type: 'string',
-        description: 'The view ID to remove.',
-      },
-      description: {
-        type: 'string',
-        description: 'Short description (e.g. "remove step grid").',
-      },
-    },
-    required: ['trackId', 'viewId', 'description'],
-  },
-};
-
-const addProcessorTool: ToolSchema = {
-  name: 'add_processor',
-  description:
-    'Add a processor module to a track\'s signal chain (e.g. Rings resonator). The processor processes the track\'s audio output. Takes effect after this response.',
-  parameters: {
-    type: 'object',
-    properties: {
       trackId: {
         type: 'string',
         description: 'Target track ID (e.g. "v0").',
       },
       moduleType: {
         type: 'string',
-        description: 'Processor type to add. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor).',
+        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor).',
+      },
+      processorId: {
+        type: 'string',
+        description: 'Required for remove and replace. The processor ID to target (visible in project state).',
       },
       description: {
         type: 'string',
         description: 'Short description (e.g. "add Rings resonator for metallic texture").',
       },
     },
-    required: ['trackId', 'moduleType', 'description'],
+    required: ['action', 'trackId', 'description'],
   },
 };
 
-const removeProcessorTool: ToolSchema = {
-  name: 'remove_processor',
+const manageModulatorTool: ToolSchema = {
+  name: 'manage_modulator',
   description:
-    'Remove a processor module from a track\'s signal chain by its ID. Takes effect after this response.',
+    'Add or remove a modulator module (LFO/envelope) on a track. Use modulation_route to wire it up after adding. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
-      trackId: {
+      action: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        enum: ['add', 'remove'],
+        description: 'Operation to perform.',
       },
-      processorId: {
-        type: 'string',
-        description: 'The processor ID to remove (visible in project state).',
-      },
-      description: {
-        type: 'string',
-        description: 'Short description (e.g. "remove Rings from kick track").',
-      },
-    },
-    required: ['trackId', 'processorId', 'description'],
-  },
-};
-
-const replaceProcessorTool: ToolSchema = {
-  name: 'replace_processor',
-  description:
-    'Atomically swap one processor for another type in a track\'s signal chain. Keeps the same chain position. Takes effect after this response.',
-  parameters: {
-    type: 'object',
-    properties: {
-      trackId: {
-        type: 'string',
-        description: 'Target track ID (e.g. "v0").',
-      },
-      processorId: {
-        type: 'string',
-        description: 'The processor ID to replace (visible in project state).',
-      },
-      newModuleType: {
-        type: 'string',
-        description: 'New processor type. Available: "rings", "clouds".',
-      },
-      description: {
-        type: 'string',
-        description: 'Short description (e.g. "swap Rings for Clouds on kick track").',
-      },
-    },
-    required: ['trackId', 'processorId', 'newModuleType', 'description'],
-  },
-};
-
-const addModulatorTool: ToolSchema = {
-  name: 'add_modulator',
-  description:
-    'Add a modulator module (LFO/envelope) to a track. The modulator generates control-rate signals that can be routed to parameters on the source or processors. Use connect_modulator to wire it up after adding. Takes effect after this response.',
-  parameters: {
-    type: 'object',
-    properties: {
       trackId: {
         type: 'string',
         description: 'Target track ID (e.g. "v0").',
       },
       moduleType: {
         type: 'string',
-        description: 'Modulator type to add. Available: "tides" (Mutable Instruments Tides — function generator with LFO/envelope modes).',
+        description: 'Required for add. Available: "tides" (Mutable Instruments Tides — function generator with LFO/envelope modes).',
+      },
+      modulatorId: {
+        type: 'string',
+        description: 'Required for remove. The modulator ID to remove (visible in project state).',
       },
       description: {
         type: 'string',
         description: 'Short description (e.g. "add Tides LFO for slow brightness sweep").',
       },
     },
-    required: ['trackId', 'moduleType', 'description'],
+    required: ['action', 'trackId', 'description'],
   },
 };
 
-const removeModulatorTool: ToolSchema = {
-  name: 'remove_modulator',
+const modulationRouteTool: ToolSchema = {
+  name: 'modulation_route',
   description:
-    'Remove a modulator module from a track by its ID. Also disconnects all routings from this modulator. Takes effect after this response.',
+    'Connect or disconnect a modulation routing. Connect routes a modulator\'s output to a target parameter (idempotent: same modulator + target updates depth). Disconnect removes a routing by ID. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
+      action: {
+        type: 'string',
+        enum: ['connect', 'disconnect'],
+        description: 'Operation to perform.',
+      },
       trackId: {
         type: 'string',
         description: 'Target track ID (e.g. "v0").',
       },
       modulatorId: {
         type: 'string',
-        description: 'The modulator ID to remove (visible in project state).',
+        description: 'Required for connect. The modulator ID to route from.',
       },
-      description: {
+      modulationId: {
         type: 'string',
-        description: 'Short description (e.g. "remove LFO from kick track").',
-      },
-    },
-    required: ['trackId', 'modulatorId', 'description'],
-  },
-};
-
-const connectModulatorTool: ToolSchema = {
-  name: 'connect_modulator',
-  description:
-    'Route a modulator\'s output to a target parameter. Idempotent: calling again with the same modulator + target updates the depth. Human sets center, modulation adds around it. Multiple routings to the same target sum (additive). Strong combined modulation saturates at 0/1 boundaries. Takes effect after this response.',
-  parameters: {
-    type: 'object',
-    properties: {
-      trackId: {
-        type: 'string',
-        description: 'Target track ID (e.g. "v0").',
-      },
-      modulatorId: {
-        type: 'string',
-        description: 'The modulator ID to route from.',
+        description: 'Required for disconnect. The modulation routing ID to remove (visible in project state).',
       },
       targetKind: {
         type: 'string',
-        description: 'Target type: "source" for the track\'s Plaits source, or "processor" for a processor module.',
+        description: 'Required for connect. "source" for the track\'s Plaits source, or "processor" for a processor module.',
       },
       processorId: {
         type: 'string',
-        description: 'Required when targetKind is "processor". The processor ID to target.',
+        description: 'Required for connect when targetKind is "processor". The processor ID to target.',
       },
       targetParam: {
         type: 'string',
-        description: 'The parameter to modulate. Source: "brightness", "richness", "texture" (pitch excluded). Processor: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback").',
+        description: 'Required for connect. The parameter to modulate. Source: "brightness", "richness", "texture". Processor: depends on type.',
       },
       depth: {
         type: 'number',
-        description: 'Modulation depth (-1.0 to 1.0). Prefer shallow values (0.1-0.3) before aggressive ones. Negative depth inverts the modulation.',
+        description: 'Required for connect. Modulation depth (-1.0 to 1.0). Prefer shallow values (0.1-0.3). Negative inverts.',
       },
       description: {
         type: 'string',
         description: 'Short description (e.g. "route Tides to brightness for slow sweep").',
       },
     },
-    required: ['trackId', 'modulatorId', 'targetKind', 'targetParam', 'depth', 'description'],
+    required: ['action', 'trackId', 'description'],
   },
 };
 
-const disconnectModulatorTool: ToolSchema = {
-  name: 'disconnect_modulator',
+const manageViewTool: ToolSchema = {
+  name: 'manage_view',
   description:
-    'Remove a modulation routing by its ID. Takes effect after this response.',
+    'Add or remove a sequencer view on a track. Use after sketching a pattern to make it visible.',
   parameters: {
     type: 'object',
     properties: {
+      action: {
+        type: 'string',
+        enum: ['add', 'remove'],
+        description: 'Operation to perform.',
+      },
       trackId: {
         type: 'string',
         description: 'Target track ID (e.g. "v0").',
       },
-      modulationId: {
+      viewKind: {
         type: 'string',
-        description: 'The modulation routing ID to disconnect (visible in project state).',
+        description: 'Required for add. View type: "step-grid".',
+      },
+      viewId: {
+        type: 'string',
+        description: 'Required for remove. The view ID to remove.',
       },
       description: {
         type: 'string',
-        description: 'Short description (e.g. "disconnect brightness modulation").',
+        description: 'Short description (e.g. "show kick pattern in step grid").',
       },
     },
-    required: ['trackId', 'modulationId', 'description'],
+    required: ['action', 'trackId', 'description'],
   },
 };
 
@@ -529,33 +443,23 @@ const setSurfaceTool: ToolSchema = {
   },
 };
 
-const pinTool: ToolSchema = {
-  name: 'pin',
+const pinControlTool: ToolSchema = {
+  name: 'pin_control',
   description:
-    'Pin a raw module control to the track\'s surface for direct access. Max 4 pins per track. Does not require agency.',
+    'Pin or unpin a raw module control on the track\'s surface. Max 4 pins per track. Does not require agency.',
   parameters: {
     type: 'object',
     properties: {
+      action: {
+        type: 'string',
+        enum: ['pin', 'unpin'],
+        description: 'Operation to perform.',
+      },
       trackId: { type: 'string', description: 'Target track ID (e.g. "v0").' },
       moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
-      controlId: { type: 'string', description: 'The control to pin (e.g. "brightness", "structure").' },
+      controlId: { type: 'string', description: 'The control to pin or unpin (e.g. "brightness", "structure").' },
     },
-    required: ['trackId', 'moduleId', 'controlId'],
-  },
-};
-
-const unpinTool: ToolSchema = {
-  name: 'unpin',
-  description:
-    'Remove a pinned control from the track\'s surface. Does not require agency.',
-  parameters: {
-    type: 'object',
-    properties: {
-      trackId: { type: 'string', description: 'Target track ID (e.g. "v0").' },
-      moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
-      controlId: { type: 'string', description: 'The control to unpin.' },
-    },
-    required: ['trackId', 'moduleId', 'controlId'],
+    required: ['action', 'trackId', 'moduleId', 'controlId'],
   },
 };
 
@@ -574,10 +478,10 @@ const labelAxesTool: ToolSchema = {
   },
 };
 
-const setImportanceTool: ToolSchema = {
-  name: 'set_importance',
+const setTrackMetaTool: ToolSchema = {
+  name: 'set_track_meta',
   description:
-    'Set the musical importance and role of a track in the current mix. Importance is advisory metadata — it does not enforce anything, but helps you make better decisions about what to modify carefully vs. what is open for experimentation.',
+    'Set track metadata: approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -585,48 +489,32 @@ const setImportanceTool: ToolSchema = {
         type: 'string',
         description: 'Target track ID (e.g. "v0").',
       },
+      approval: {
+        type: 'string',
+        enum: ['exploratory', 'liked', 'approved', 'anchor'],
+        description: 'Approval level. exploratory=freely editable, liked=preserve unless asked, approved=preserve during expansion, anchor=core identity.',
+      },
       importance: {
         type: 'number',
         description: 'How important this track is to the mix (0.0-1.0). Higher = more essential.',
       },
       musicalRole: {
         type: 'string',
-        description: 'Brief description of the track\'s musical role (e.g. "driving rhythm", "ambient pad", "melodic lead").',
-      },
-    },
-    required: ['trackId', 'importance'],
-  },
-};
-
-const markApprovedTool: ToolSchema = {
-  name: 'mark_approved',
-  description:
-    'Set the approval level for a track\'s material. Approval levels control how aggressively the AI may edit the track in future turns. Requires agency ON.',
-  parameters: {
-    type: 'object',
-    properties: {
-      trackId: {
-        type: 'string',
-        description: 'Track to update (e.g. "v0").',
-      },
-      level: {
-        type: 'string',
-        enum: ['exploratory', 'liked', 'approved', 'anchor'],
-        description: 'New approval level. exploratory=freely editable, liked=preserve unless asked, approved=preserve during expansion, anchor=core identity.',
+        description: 'Brief description of the track\'s musical role (e.g. "driving rhythm", "ambient pad").',
       },
       reason: {
         type: 'string',
-        description: 'Why this approval level is appropriate.',
+        description: 'Required when setting approval. Why this approval level is appropriate.',
       },
     },
-    required: ['trackId', 'level', 'reason'],
+    required: ['trackId'],
   },
 };
 
 const renderTool: ToolSchema = {
   name: 'render',
   description:
-    'Capture an audio snapshot with explicit scope. Returns a snapshotId that can be passed to spectral, dynamics, rhythm, or listen for analysis. ' +
+    'Capture an audio snapshot with explicit scope. Returns a snapshotId that can be passed to analyze or listen. ' +
     'Cheap — use freely before analysis tools. ' +
     'Changes you make in this turn aren\'t audible yet — render in a follow-up turn to capture your edits.',
   parameters: {
@@ -643,12 +531,12 @@ const renderTool: ToolSchema = {
   },
 };
 
-const spectralTool: ToolSchema = {
-  name: 'spectral',
+const analyzeTool: ToolSchema = {
+  name: 'analyze',
   description:
-    'Measure timbral characteristics of a rendered audio snapshot. Returns spectral centroid (brightness), ' +
-    'rolloff, flatness, bandwidth, fundamental frequency estimate, pitch stability, and signal type classification. ' +
-    'Cheap — use after render to verify timbre changes, check pitch, or compare tonal character across tracks.',
+    'Run deterministic audio analysis on a rendered snapshot. Supports spectral (timbral), dynamics (loudness/range), and rhythm (onset/tempo) in a single call. ' +
+    'Use render first to capture a snapshot, then analyze for quantitative measurement. ' +
+    'For qualitative AI evaluation, use listen instead.',
   parameters: {
     type: 'object',
     properties: {
@@ -656,44 +544,16 @@ const spectralTool: ToolSchema = {
         type: 'string',
         description: 'Snapshot ID from a previous render call.',
       },
-    },
-    required: ['snapshotId'],
-  },
-};
-
-const dynamicsTool: ToolSchema = {
-  name: 'dynamics',
-  description:
-    'Measure loudness and dynamic range of a rendered audio snapshot. Returns LUFS, RMS, peak level, ' +
-    'crest factor, and dynamic range. Values in dB. ' +
-    'Cheap — use after render to check balance between tracks, detect over-compression, or verify level changes.',
-  parameters: {
-    type: 'object',
-    properties: {
-      snapshotId: {
-        type: 'string',
-        description: 'Snapshot ID from a previous render call.',
+      types: {
+        type: 'array',
+        items: {
+          type: 'string',
+          enum: ['spectral', 'dynamics', 'rhythm'],
+        },
+        description: 'Analysis types to run. Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing.',
       },
     },
-    required: ['snapshotId'],
-  },
-};
-
-const rhythmTool: ToolSchema = {
-  name: 'rhythm',
-  description:
-    'Measure rhythmic properties of a rendered audio snapshot. Returns tempo estimate, onset count and times, ' +
-    'rhythmic density, and swing estimate. ' +
-    'Cheap — use after render to verify pattern density, confirm swing adjustments, or compare onset patterns.',
-  parameters: {
-    type: 'object',
-    properties: {
-      snapshotId: {
-        type: 'string',
-        description: 'Snapshot ID from a previous render call.',
-      },
-    },
-    required: ['snapshotId'],
+    required: ['snapshotId', 'types'],
   },
 };
 
@@ -730,28 +590,19 @@ const raiseDecisionTool: ToolSchema = {
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
+  transformTool,
   listenTool,
   setTransportTool,
   setModelTool,
-  transformTool,
-  addViewTool,
-  removeViewTool,
-  addProcessorTool,
-  removeProcessorTool,
-  replaceProcessorTool,
-  addModulatorTool,
-  removeModulatorTool,
-  connectModulatorTool,
-  disconnectModulatorTool,
+  manageProcessorTool,
+  manageModulatorTool,
+  modulationRouteTool,
+  manageViewTool,
   setSurfaceTool,
-  pinTool,
-  unpinTool,
+  pinControlTool,
   labelAxesTool,
-  setImportanceTool,
-  markApprovedTool,
   renderTool,
-  spectralTool,
-  dynamicsTool,
-  rhythmTool,
+  analyzeTool,
+  setTrackMetaTool,
   raiseDecisionTool,
 ];

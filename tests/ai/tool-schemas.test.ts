@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { GLUON_TOOLS } from '../../src/ai/tool-schemas';
 
 describe('Tool Schemas', () => {
-  it('exports twenty-six tool schemas', () => {
-    expect(GLUON_TOOLS).toHaveLength(26);
+  it('exports seventeen tool schemas', () => {
+    expect(GLUON_TOOLS).toHaveLength(17);
   });
 
   it('declares all expected tools', () => {
@@ -15,26 +15,37 @@ describe('Tool Schemas', () => {
     expect(names).toContain('set_model');
     expect(names).toContain('set_transport');
     expect(names).toContain('transform');
-    expect(names).toContain('add_view');
-    expect(names).toContain('remove_view');
-    expect(names).toContain('add_processor');
-    expect(names).toContain('remove_processor');
-    expect(names).toContain('replace_processor');
-    expect(names).toContain('add_modulator');
-    expect(names).toContain('remove_modulator');
-    expect(names).toContain('connect_modulator');
-    expect(names).toContain('disconnect_modulator');
+    expect(names).toContain('manage_view');
+    expect(names).toContain('manage_processor');
+    expect(names).toContain('manage_modulator');
+    expect(names).toContain('modulation_route');
     expect(names).toContain('set_surface');
-    expect(names).toContain('pin');
-    expect(names).toContain('unpin');
+    expect(names).toContain('pin_control');
     expect(names).toContain('label_axes');
-    expect(names).toContain('set_importance');
-    expect(names).toContain('mark_approved');
+    expect(names).toContain('set_track_meta');
     expect(names).toContain('render');
-    expect(names).toContain('spectral');
-    expect(names).toContain('dynamics');
-    expect(names).toContain('rhythm');
+    expect(names).toContain('analyze');
     expect(names).toContain('raise_decision');
+  });
+
+  it('does not contain old tool names', () => {
+    const names = GLUON_TOOLS.map(t => t.name);
+    expect(names).not.toContain('add_view');
+    expect(names).not.toContain('remove_view');
+    expect(names).not.toContain('add_processor');
+    expect(names).not.toContain('remove_processor');
+    expect(names).not.toContain('replace_processor');
+    expect(names).not.toContain('add_modulator');
+    expect(names).not.toContain('remove_modulator');
+    expect(names).not.toContain('connect_modulator');
+    expect(names).not.toContain('disconnect_modulator');
+    expect(names).not.toContain('pin');
+    expect(names).not.toContain('unpin');
+    expect(names).not.toContain('set_importance');
+    expect(names).not.toContain('mark_approved');
+    expect(names).not.toContain('spectral');
+    expect(names).not.toContain('dynamics');
+    expect(names).not.toContain('rhythm');
   });
 
   it('all tools have description and name', () => {
@@ -68,5 +79,25 @@ describe('Tool Schemas', () => {
   it('set_transport tool has no required params', () => {
     const transport = GLUON_TOOLS.find(t => t.name === 'set_transport')!;
     expect(transport.parameters.required).toBeUndefined();
+  });
+
+  it('merged tools have action parameter with enum', () => {
+    const mergedTools = ['manage_processor', 'manage_modulator', 'modulation_route', 'manage_view', 'pin_control'];
+    for (const name of mergedTools) {
+      const tool = GLUON_TOOLS.find(t => t.name === name)!;
+      const actionProp = tool.parameters.properties?.action;
+      expect(actionProp, `${name} should have action property`).toBeDefined();
+      expect(actionProp?.enum, `${name} action should have enum`).toBeDefined();
+    }
+  });
+
+  it('analyze tool requires snapshotId and types', () => {
+    const analyze = GLUON_TOOLS.find(t => t.name === 'analyze')!;
+    expect(analyze.parameters.required).toEqual(['snapshotId', 'types']);
+  });
+
+  it('set_track_meta tool requires only trackId', () => {
+    const meta = GLUON_TOOLS.find(t => t.name === 'set_track_meta')!;
+    expect(meta.parameters.required).toEqual(['trackId']);
   });
 });
