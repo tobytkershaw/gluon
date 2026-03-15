@@ -31,221 +31,11 @@ SHORT_ID="$(printf '%s' "$RUN_ID" | tr -cd '[:alnum:]' | tail -c 9)"
 SESSION_NAME="qam${SHORT_ID}"
 PW_TIMEOUT="${QA_PW_TIMEOUT:-45}"
 AI_SETTLE_ATTEMPTS="${QA_AI_SETTLE_ATTEMPTS:-8}"
+AI_SETTLE_MAX_ATTEMPTS="$AI_SETTLE_ATTEMPTS"
 mkdir -p "$OUT_DIR"
 
-# ---------------------------------------------------------------------------
-# Helpers — copied from qa-playwright-smoke.sh to keep scripts self-contained
-# ---------------------------------------------------------------------------
-
-run_pw() {
-  python3 - "$SESSION_NAME" "$PWCLI" "$PW_TIMEOUT" "$@" <<'PY'
-import os
-import subprocess
-import sys
-
-session_name = sys.argv[1]
-pwcli = sys.argv[2]
-timeout_s = float(sys.argv[3])
-args = sys.argv[4:]
-
-env = os.environ.copy()
-env["PLAYWRIGHT_CLI_SESSION"] = session_name
-
-try:
-    completed = subprocess.run([pwcli, *args], env=env, timeout=timeout_s)
-    raise SystemExit(completed.returncode)
-except subprocess.TimeoutExpired:
-    print(f"Playwright command timed out after {timeout_s:.0f}s: {args}", file=sys.stderr)
-    raise SystemExit(124)
-PY
-}
-
-eval_js() {
-  local script="$1"
-  local ref="${2:-}"
-  local out_file
-  out_file="$(mktemp)"
-  if [[ -n "$ref" ]]; then
-    run_pw eval "$script" "$ref" >"$out_file" 2>&1
-  else
-    run_pw eval "$script" >"$out_file" 2>&1
-  fi
-  python3 - "$out_file" <<'PY'
-import re
-import sys
-
-path = sys.argv[1]
-text = open(path, 'r', encoding='utf-8').read()
-m = re.search(r'^### Result\s*\n(.*?)\n### Ran Playwright code', text, re.S | re.M)
-if not m:
-    raise SystemExit(1)
-result = m.group(1).strip()
-print(result)
-PY
-  rm -f "$out_file"
-}
-
-snapshot_page() {
-  local name="$1"
-  local out_file="$OUT_DIR/${name}-snapshot.txt"
-  run_pw snapshot >"$out_file" 2>&1
-  local snapshot_file
-  snapshot_file="$(perl -ne 'if (/\[Snapshot\]\(([^)]+)\)/) { print "$1\n"; exit }' "$out_file")"
-  if [[ -n "$snapshot_file" ]]; then
-    cp "$snapshot_file" "$OUT_DIR/${name}.yml"
-  fi
-}
-
-screenshot_page() {
-  local name="$1"
-  local out_file="$OUT_DIR/${name}-screenshot.txt"
-  run_pw screenshot >"$out_file" 2>&1
-  local screenshot_file
-  screenshot_file="$(perl -ne 'if (/\[Screenshot of viewport\]\(([^)]+)\)/) { print "$1\n"; exit }' "$out_file")"
-  if [[ -n "$screenshot_file" ]]; then
-    cp "$screenshot_file" "$OUT_DIR/${name}.png"
-  fi
-}
-
-current_snapshot_copy() {
-  ls -t "$OUT_DIR"/*.yml 2>/dev/null | head -n 1
-}
-
-button_ref() {
-  local label="$1"
-  local file
-  file="$(current_snapshot_copy)"
-  perl -ne '
-    if (/button "\Q'"$label"'\E"(?: \[[^\]]+\])* \[ref=(e\d+)\]/) {
-      print "$1\n";
-      exit;
-    }
-  ' "$file"
-}
-
-textbox_ref() {
-  local label="$1"
-  local file
-  file="$(current_snapshot_copy)"
-  rg -o "textbox \"$label\" \\[ref=(e[0-9]+)\\]" "$file" -r '$1' | head -n 1
-}
-
-voice_card_ref() {
-  local label="$1"
-  local file
-  file="$(current_snapshot_copy)"
-  perl -ne '
-    if (/generic \[ref=(e\d+)\] \[cursor=pointer\]:/) {
-      $parent = $1;
-      next;
-    }
-    if (defined $parent && /: \Q'"$label"'\E$/) {
-      print "$parent\n";
-      exit;
-    }
-  ' "$file"
-}
-
-snapshot_contains() {
-  local needle="$1"
-  local file
-  file="$(current_snapshot_copy)"
-  rg -Fq "$needle" "$file"
-}
-
-qa_anchor_ref() {
-  local ref
-  ref="$(button_ref "Tracker")"
-  if [[ -n "$ref" ]]; then
-    printf '%s\n' "$ref"
-    return 0
-  fi
-  ref="$(button_ref "Surface")"
-  if [[ -n "$ref" ]]; then
-    printf '%s\n' "$ref"
-    return 0
-  fi
-  ref="$(textbox_ref "Describe what you want...")"
-  if [[ -n "$ref" ]]; then
-    printf '%s\n' "$ref"
-    return 0
-  fi
-  return 1
-}
-
-record_result() {
-  local scenario="$1"
-  local result="$2"
-  local notes="$3"
-  printf '%s\t%s\t%s\n' "$scenario" "$result" "$notes" >>"$OUT_DIR/results.tsv"
-}
-
-click_button_by_label() {
-  local label="$1"
-  local ref
-  ref="$(button_ref "$label")"
-  if [[ -z "$ref" ]]; then
-    echo "Missing button ref for $label" >&2
-    return 1
-  fi
-  run_pw click "$ref" >/dev/null 2>&1
-}
-
-click_view_button() {
-  local label="$1"
-  case "$label" in
-    Chat) return 0 ;;
-    Inst) label="Surface" ;;
-    Track) label="Tracker" ;;
-  esac
-  click_button_by_label "$label"
-}
-
-click_voice_by_label() {
-  local label="$1"
-  local ref
-  ref="$(voice_card_ref "$label")"
-  if [[ -z "$ref" ]]; then
-    echo "Missing voice card ref for $label" >&2
-    return 1
-  fi
-  run_pw click "$ref" >/dev/null 2>&1
-}
-
-submit_ai_prompt() {
-  local prompt="$1"
-  local prefix="$2"
-
-  snapshot_page "${prefix}-before"
-
-  if ! snapshot_contains "API Connected"; then
-    record_result "musical_prereq" "blocked" "App UI does not show API Connected."
-    return 2
-  fi
-
-  local input_ref
-  input_ref="$(textbox_ref "Describe what you want...")"
-  if [[ -z "$input_ref" ]]; then
-    echo "Chat input not found for AI prompt: $prompt" >&2
-    return 1
-  fi
-
-  run_pw fill "$input_ref" "$prompt" >/dev/null 2>&1
-  snapshot_page "${prefix}-filled"
-  run_pw click "$input_ref" >/dev/null 2>&1
-  run_pw press Enter >/dev/null 2>&1
-
-  local attempt
-  for attempt in $(seq 1 "$AI_SETTLE_ATTEMPTS"); do
-    sleep 3
-    snapshot_page "${prefix}-after-${attempt}"
-    if snapshot_contains "AI" && snapshot_contains "YOU" && ! snapshot_contains "Thinking..."; then
-      return 0
-    fi
-  done
-
-  return 1
-}
+# shellcheck source=qa-playwright-helpers.sh
+source "$ROOT_DIR/scripts/qa-playwright-helpers.sh"
 
 # ---------------------------------------------------------------------------
 # Event extraction helper — returns JSON array of events from a track's first
@@ -262,16 +52,16 @@ extract_events() {
 el => {
   const raw = localStorage.getItem('gluon-session');
   const data = raw ? JSON.parse(raw) : null;
-  if (!data || !data.session) return JSON.stringify({ error: 'no-session' });
+  if (!data || !data.session) return { error: 'no-session' };
   const track = data.session.tracks.find(t => t.id === '${track_id}');
-  if (!track) return JSON.stringify({ error: 'no-track' });
+  if (!track) return { error: 'no-track' };
   const region = (track.regions || [])[0];
-  if (!region) return JSON.stringify({ error: 'no-region' });
+  if (!region) return { error: 'no-region' };
   const events = (region.events || []).filter(e => {
     if (e.velocity !== undefined && e.velocity === 0) return false;
     return true;
   });
-  return JSON.stringify(events);
+  return events;
 }
 JS
 )" "$ref"

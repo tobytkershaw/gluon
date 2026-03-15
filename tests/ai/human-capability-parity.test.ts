@@ -12,11 +12,9 @@ const AI_TOOL_NAMES = GLUON_TOOLS.map(t => t.name);
 
 // Tools that are inherently AI-facing and have no meaningful human UI equivalent.
 const AI_ONLY_TOOLS = new Set([
-  'render',        // human presses play and listens
-  'listen',        // multimodal audio evaluation
-  'spectral',      // audio analysis
-  'dynamics',      // audio analysis
-  'rhythm',        // audio analysis
+  'render',         // human presses play and listens
+  'listen',         // multimodal audio evaluation
+  'analyze',        // audio analysis (spectral/dynamics/rhythm)
   'raise_decision', // human types in chat
 ]);
 
@@ -26,26 +24,19 @@ const PARITY_OK_TOOLS = new Set([
   'set_model',         // Rack: mode selector dropdowns
   'set_transport',     // Global: BPM input, swing slider, play/stop buttons
   'sketch',            // Step grid (triggers), keyboard piano (notes) — partial: no param events
-  'add_processor',     // Rack: Module Browser
-  'remove_processor',  // Rack: Remove button per processor
-  'add_modulator',     // Rack: Module Browser
-  'remove_modulator',  // Rack: Remove button per modulator
-  'disconnect_modulator', // Rack: remove button on routing chip
-  'mark_approved',     // TrackList: cycle approval button
-  'add_view',          // Surface: + Step Grid button
-  'remove_view',       // Surface: remove button on view slot
+  'manage_processor',  // Rack: Module Browser (add), Remove button (remove) — replace has no UI but add/remove do
+  'manage_modulator',  // Rack: Module Browser (add), Remove button (remove)
+  'manage_view',       // Surface: + Step Grid (add), remove button (remove)
 ]);
 
 // Tools with identified parity gaps (no or partial UI path).
 const PARITY_GAP_TOOLS = new Set([
-  'connect_modulator',   // CRITICAL: no UI to create modulation routes
-  'replace_processor',   // MINOR: must remove+add manually
+  'modulation_route',    // CRITICAL: connect has no UI (disconnect does via routing chip)
   'transform',           // CRITICAL: no rotate/transpose/reverse/duplicate UI
   'set_surface',         // MODERATE: AI-only surface authoring
-  'pin',                 // MODERATE: no UI to pin controls
-  'unpin',               // MODERATE: no UI to unpin controls
+  'pin_control',         // MODERATE: no UI to pin/unpin controls
   'label_axes',          // MODERATE: no UI for axis labels
-  'set_importance',      // MODERATE: no UI for importance/musicalRole
+  'set_track_meta',      // MODERATE: approval has cycle button but importance/musicalRole have no UI
 ]);
 
 describe('Human Capability Parity', () => {
@@ -72,20 +63,20 @@ describe('Human Capability Parity', () => {
 
   it('documents the expected number of parity gaps', () => {
     // Update this count when gaps are closed or new ones discovered.
-    // Current gaps: connect_modulator, replace_processor, transform,
-    // set_surface, pin, unpin, label_axes, set_importance
-    expect(PARITY_GAP_TOOLS.size).toBe(8);
+    // Current gaps: modulation_route, transform, set_surface,
+    // pin_control, label_axes, set_track_meta
+    expect(PARITY_GAP_TOOLS.size).toBe(6);
   });
 
   it('documents the expected number of AI-only tools', () => {
-    expect(AI_ONLY_TOOLS.size).toBe(6);
+    expect(AI_ONLY_TOOLS.size).toBe(4);
   });
 
   it('most musical tools have UI parity', () => {
-    // At least 12 of the ~20 non-AI-only tools should have parity
+    // At least 7 of the 13 non-AI-only tools should have parity
     const nonAiTools = AI_TOOL_NAMES.filter(n => !AI_ONLY_TOOLS.has(n));
     const parityCount = nonAiTools.filter(n => PARITY_OK_TOOLS.has(n)).length;
-    expect(parityCount).toBeGreaterThanOrEqual(12);
+    expect(parityCount).toBeGreaterThanOrEqual(7);
   });
 
   // --- Structural checks: verify UI component exports exist ---
