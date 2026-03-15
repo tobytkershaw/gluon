@@ -24,6 +24,8 @@ import type { MusicalEvent } from '../engine/canonical-types';
 import { addView, removeView } from '../engine/view-primitives';
 import type { SequencerViewKind } from '../engine/types';
 import { GluonAI } from '../ai/api';
+import { GeminiPlannerProvider } from '../ai/providers/gemini-planner';
+import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { Scheduler } from '../engine/scheduler';
@@ -43,6 +45,13 @@ import { computeSemanticRawUpdates } from './SemanticControlsSection';
 // Low risk since adapter is stateless; revisit if tests require separate instances.
 const plaitsAdapter = createPlaitsAdapter();
 
+function createAI(geminiKey: string): GluonAI {
+  return new GluonAI(
+    new GeminiPlannerProvider(geminiKey),
+    new GeminiListenerProvider(geminiKey),
+  );
+}
+
 function shallowEqual(a: Record<string, number>, b: Record<string, number>): boolean {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
@@ -55,7 +64,7 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
-  const aiRef = useRef(new GluonAI());
+  const aiRef = useRef(createAI(import.meta.env.VITE_GOOGLE_API_KEY ?? ''));
   // Signal to discard in-progress tracker inline edits when switching views.
   // mousedown on ViewToggle sets this true before blur fires on EditableCell.
   const cancelEditRef = useRef(false);
@@ -667,7 +676,7 @@ export default function App() {
   }, [ensureAudio, dispatchAIActions]);
 
   const handleApiKey = useCallback((key: string) => {
-    aiRef.current.setApiKey(key);
+    aiRef.current = createAI(key);
     setApiConfigured(true);
   }, []);
 
