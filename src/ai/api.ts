@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -274,6 +274,18 @@ function projectAction(session: Session, action: AIAction): Session {
         importance: clamped,
         ...(action.musicalRole ? { musicalRole: action.musicalRole } : {}),
       });
+    }
+    case 'raise_decision': {
+      const decisions = (session.openDecisions ?? []).filter(d => !d.resolved);
+      const newDecision = {
+        id: action.decisionId,
+        question: action.question,
+        ...(action.context ? { context: action.context } : {}),
+        ...(action.options ? { options: action.options } : {}),
+        raisedAt: Date.now(),
+        ...(action.trackIds ? { trackIds: action.trackIds } : {}),
+      };
+      return { ...session, openDecisions: [...decisions, newDecision].slice(-20) };
     }
     case 'say':
     default:
@@ -1140,6 +1152,32 @@ export class GluonAI {
             trackId: setImportanceAction.trackId,
             importance: Math.round(setImportanceAction.importance * 100) / 100,
             ...(setImportanceAction.musicalRole ? { musicalRole: setImportanceAction.musicalRole } : {}),
+          },
+        };
+      }
+
+      case 'raise_decision': {
+        if (typeof args.question !== 'string' || !args.question) {
+          return { actions: [], response: errorPayload('Missing required parameter: question') };
+        }
+
+        const decisionId = `decision-${Date.now()}`;
+
+        const raiseAction: AIRaiseDecisionAction = {
+          type: 'raise_decision',
+          decisionId,
+          question: args.question as string,
+          ...(typeof args.context === 'string' ? { context: args.context } : {}),
+          ...(Array.isArray(args.options) ? { options: args.options as string[] } : {}),
+          ...(Array.isArray(args.trackIds) ? { trackIds: args.trackIds as string[] } : {}),
+        };
+
+        return {
+          actions: [raiseAction],
+          response: {
+            applied: true,
+            decisionId,
+            question: raiseAction.question,
           },
         };
       }

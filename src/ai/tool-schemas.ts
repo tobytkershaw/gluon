@@ -652,6 +652,36 @@ const rhythmTool: ToolSchema = {
   },
 };
 
+const raiseDecisionTool: ToolSchema = {
+  name: 'raise_decision',
+  description:
+    'Flag an unresolved question or choice that needs human input. Use when you encounter a subjective choice you should not make alone.',
+  parameters: {
+    type: 'object',
+    properties: {
+      question: {
+        type: 'string',
+        description: 'The question or decision that needs human input.',
+      },
+      context: {
+        type: 'string',
+        description: 'Why this decision matters for the current session.',
+      },
+      options: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Possible options the AI sees, if any.',
+      },
+      trackIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Which track(s) this decision relates to, if any.',
+      },
+    },
+    required: ['question'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -677,4 +707,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   spectralTool,
   dynamicsTool,
   rhythmTool,
+  raiseDecisionTool,
 ];

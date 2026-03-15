@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, Reaction } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, Reaction, OpenDecision } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateTrack, DEFAULT_MASTER } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
@@ -265,4 +265,27 @@ export function setMaster(session: Session, update: Partial<MasterChannel>): Ses
     pan: update.pan != null ? Math.max(-1, Math.min(1, update.pan)) : prev.pan,
   };
   return { ...session, master: next, undoStack: [...session.undoStack, snapshot] };
+}
+
+// --- Open decisions helpers ---
+
+/** Maximum number of open (unresolved) decisions to keep. Resolved ones are pruned first. */
+export const MAX_OPEN_DECISIONS = 20;
+
+/** Add a new open decision, pruning resolved decisions and enforcing the bound. */
+export function addDecision(session: Session, decision: OpenDecision): Session {
+  const prev = session.openDecisions ?? [];
+  // Prune resolved decisions first
+  const unresolved = prev.filter(d => !d.resolved);
+  const next = [...unresolved, decision].slice(-MAX_OPEN_DECISIONS);
+  return { ...session, openDecisions: next };
+}
+
+/** Mark an existing decision as resolved. */
+export function resolveDecision(session: Session, decisionId: string): Session {
+  const prev = session.openDecisions ?? [];
+  const next = prev.map(d => d.id === decisionId ? { ...d, resolved: true } : d);
+  // Prune resolved decisions to keep list bounded
+  const unresolved = next.filter(d => !d.resolved);
+  return { ...session, openDecisions: unresolved };
 }
