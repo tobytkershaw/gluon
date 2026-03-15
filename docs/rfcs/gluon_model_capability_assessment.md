@@ -215,6 +215,16 @@ For Gluon this role is particularly well suited to Gemini.
 
 Lower cost variants (e.g. Gemini Flash) may also be sufficient.
 
+Current implementation note:
+
+Gluon's current listener shape is a discrete evaluation tool: render an offline audio snapshot, upload the clip, and receive a text critique. That architecture fits Gemini's unary multimodal models better than a Live API session.
+
+Near-term, this means the best-fit listener path is likely a Gemini request/response model that accepts audio input and returns text output.
+
+Future direction:
+
+Google's Live / native-audio path remains attractive if Gluon evolves from discrete critique toward continuous real-time listening. That would be a product and architecture change, not just a model swap, because it introduces stateful streaming sessions, audio session management, and a different interaction posture for the listener.
+
 
 ---
 
@@ -257,6 +267,8 @@ Listener: Gemini 3.1 Pro
 
 
 This configuration reduces complexity by consolidating planner and editor.
+
+For the listener role, prefer a unary Gemini audio-reasoning model while Gluon keeps the offline render -> upload audio -> get text critique workflow. Treat Live/native-audio as a follow-on option if the product shifts toward always-on or conversational listening.
 
 
 ## 4.3 Single Provider Option
