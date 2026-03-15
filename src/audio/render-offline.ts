@@ -9,6 +9,28 @@ import type { RenderWorkerResponse, RenderWorkerError } from './render-worker';
 
 const RENDER_TIMEOUT_MS = 30_000; // 30s safety net
 
+/** Result of a raw PCM render (for analysis tools). */
+export interface PcmRenderResult {
+  pcm: Float32Array;
+  sampleRate: number;
+}
+
+/**
+ * Render audio offline and return raw PCM Float32Array + sample rate.
+ *
+ * Used by the audio analysis tools (spectral, dynamics, rhythm) which
+ * operate on raw PCM rather than encoded WAV.
+ */
+export async function renderOfflinePcm(
+  session: Session,
+  trackIds?: string[],
+  bars = 2,
+): Promise<PcmRenderResult> {
+  const spec = buildRenderSpec(session, trackIds, bars);
+  const pcm = await renderPcmFromSpec(spec);
+  return { pcm, sampleRate: spec.sampleRate };
+}
+
 /**
  * Render audio offline for the given session and return a WAV Blob.
  *
@@ -26,7 +48,12 @@ export async function renderOffline(
   bars = 2,
 ): Promise<Blob> {
   const spec = buildRenderSpec(session, trackIds, bars);
+  const pcm = await renderPcmFromSpec(spec);
+  return encodeWav(pcm, spec.sampleRate);
+}
 
+/** Internal: spawn a Worker, send a RenderSpec, return the raw PCM. */
+async function renderPcmFromSpec(spec: ReturnType<typeof buildRenderSpec>): Promise<Float32Array> {
   // Spawn a Worker using the Vite worker import pattern.
   // The `?worker` suffix tells Vite to bundle the worker as a separate entry.
   const worker = new Worker(
@@ -35,7 +62,7 @@ export async function renderOffline(
   );
 
   try {
-    const pcm = await new Promise<Float32Array>((resolve, reject) => {
+    return await new Promise<Float32Array>((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Offline render timed out'));
       }, RENDER_TIMEOUT_MS);
@@ -57,8 +84,6 @@ export async function renderOffline(
 
       worker.postMessage({ type: 'render', spec });
     });
-
-    return encodeWav(pcm, spec.sampleRate);
   } finally {
     worker.terminate();
   }
