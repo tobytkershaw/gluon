@@ -1,8 +1,15 @@
 // src/ui/TrackRow.tsx
 // Horizontal track row for the vertical track sidebar.
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Track } from '../engine/types';
+import type { Track, ApprovalLevel } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
+
+const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
+  exploratory: { label: '', color: '', title: 'Exploratory — AI may freely edit' },
+  liked: { label: 'L', color: 'bg-blue-500/20 text-blue-400', title: 'Liked — AI preserves unless asked' },
+  approved: { label: 'A', color: 'bg-emerald-500/20 text-emerald-400', title: 'Approved — AI preserves during expansion' },
+  anchor: { label: '#', color: 'bg-purple-500/20 text-purple-400', title: 'Anchor — core identity, changes need confirmation' },
+};
 
 interface Props {
   track: Track;
@@ -14,11 +21,12 @@ interface Props {
   onToggleSolo: () => void;
   onToggleAgency?: () => void;
   onRename?: (name: string) => void;
+  onCycleApproval?: () => void;
 }
 
 export function TrackRow({
   track, label, isActive, activityTimestamp,
-  onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename,
+  onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -70,6 +78,8 @@ export function TrackRow({
   }, [commitRename, cancelRename]);
 
   const thumbColor = computeThumbprintColor(track);
+  const approval = track.approval ?? 'exploratory';
+  const approvalInfo = APPROVAL_DISPLAY[approval];
 
   return (
     <div
@@ -123,7 +133,7 @@ export function TrackRow({
         <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
       )}
 
-      {/* M / S / C buttons */}
+      {/* M / S / C / Approval buttons */}
       <div className="flex gap-0.5 shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
@@ -152,6 +162,15 @@ export function TrackRow({
             }`}
           >
             C
+          </button>
+        )}
+        {onCycleApproval && approvalInfo.label && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
+            title={approvalInfo.title}
+            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${approvalInfo.color}`}
+          >
+            {approvalInfo.label}
           </button>
         )}
       </div>

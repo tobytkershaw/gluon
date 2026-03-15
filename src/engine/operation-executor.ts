@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ActionDiff, TrackSurface } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -318,6 +318,15 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
       // No agency check — importance is AI metadata, not musical mutation
+      return null;
+    }
+
+    case 'mark_approved': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
+      if (!validLevels.includes(action.level)) return `Invalid approval level: ${action.level}`;
       return null;
     }
 
@@ -1206,6 +1215,26 @@ export function executeOperations(
         };
         const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: vLabel, description: `axes: ${action.x} x ${action.y}`, diff: { kind: 'surface-label-axes', x: action.x, y: action.y } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'mark_approved': {
+        const track = getTrack(next, action.trackId);
+        const prevApproval = track.approval ?? 'exploratory';
+        const approvalSnapshot: ApprovalSnapshot = {
+          kind: 'approval',
+          trackId: action.trackId,
+          prevApproval,
+          timestamp: Date.now(),
+          description: `AI mark_approved: ${prevApproval} → ${action.level} (${action.reason})`,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { approval: action.level }),
+          undoStack: [...next.undoStack, approvalSnapshot],
+        };
+        const approvalLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: approvalLabel, description: `approval: ${prevApproval} → ${action.level}`, diff: { kind: 'approval-change', from: prevApproval, to: action.level } });
         accepted.push(action);
         break;
       }

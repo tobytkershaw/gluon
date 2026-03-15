@@ -13,12 +13,13 @@ interface Props {
   onToggleSolo: (trackId: string) => void;
   onToggleAgency: (trackId: string) => void;
   onRenameTrack?: (trackId: string, name: string) => void;
+  onCycleApproval?: (trackId: string) => void;
 }
 
 export function TrackList({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
-  onRenameTrack,
+  onRenameTrack, onCycleApproval,
 }: Props) {
   return (
     <div className="w-44 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
@@ -43,6 +44,7 @@ export function TrackList({
             onToggleSolo={() => onToggleSolo(track.id)}
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
+            onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
           />
         ))}
       </div>

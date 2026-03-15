@@ -29,6 +29,7 @@ describe('Tool Schemas', () => {
     expect(names).toContain('unpin');
     expect(names).toContain('label_axes');
     expect(names).toContain('set_importance');
+    expect(names).toContain('mark_approved');
     expect(names).toContain('render');
     expect(names).toContain('spectral');
     expect(names).toContain('dynamics');

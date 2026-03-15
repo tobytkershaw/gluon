@@ -1,7 +1,14 @@
 // src/ui/TrackCard.tsx
 import { useState, useEffect } from 'react';
-import type { Track } from '../engine/types';
+import type { Track, ApprovalLevel } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
+
+const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
+  exploratory: { label: '', color: '', title: 'Exploratory — AI may freely edit' },
+  liked: { label: 'L', color: 'bg-blue-500/20 text-blue-400', title: 'Liked — AI preserves unless asked' },
+  approved: { label: 'A', color: 'bg-emerald-500/20 text-emerald-400', title: 'Approved — AI preserves during expansion' },
+  anchor: { label: '#', color: 'bg-purple-500/20 text-purple-400', title: 'Anchor — core identity, changes need confirmation' },
+};
 
 interface TrackCardProps {
   track: Track;
@@ -12,11 +19,12 @@ interface TrackCardProps {
   onToggleMute: () => void;
   onToggleSolo: () => void;
   onToggleAgency?: () => void;
+  onCycleApproval?: () => void;
 }
 
 export function TrackCard({
   track, label, isActive, activityTimestamp,
-  onClick, onToggleMute, onToggleSolo, onToggleAgency,
+  onClick, onToggleMute, onToggleSolo, onToggleAgency, onCycleApproval,
 }: TrackCardProps) {
   const [pulsing, setPulsing] = useState(false);
 
@@ -29,6 +37,8 @@ export function TrackCard({
   }, [activityTimestamp]);
 
   const thumbColor = computeThumbprintColor(track);
+  const approval = track.approval ?? 'exploratory';
+  const approvalInfo = APPROVAL_DISPLAY[approval];
 
   return (
     <div
@@ -64,7 +74,7 @@ export function TrackCard({
         )}
       </div>
 
-      {/* M/S buttons */}
+      {/* M/S/C/Approval buttons */}
       <div className="flex gap-1">
         <button
           onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
@@ -93,6 +103,15 @@ export function TrackCard({
             }`}
           >
             C
+          </button>
+        )}
+        {onCycleApproval && approvalInfo.label && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
+            title={approvalInfo.title}
+            className={`text-[10px] px-0.5 rounded ${approvalInfo.color}`}
+          >
+            {approvalInfo.label}
           </button>
         )}
       </div>

@@ -79,22 +79,6 @@ export function setAgency(session: Session, trackId: string, agency: Agency): Se
   return updateTrack(session, trackId, { agency });
 }
 
-export function setApproval(session: Session, trackId: string, level: ApprovalLevel): Session {
-  const track = session.tracks.find(v => v.id === trackId);
-  if (!track) return session;
-  const prev = track.approval ?? 'exploratory';
-  if (prev === level) return session;
-  const snapshot: ApprovalSnapshot = {
-    kind: 'approval',
-    trackId,
-    prevApproval: prev,
-    timestamp: Date.now(),
-    description: `Set approval: ${prev} → ${level}`,
-  };
-  const updated = updateTrack(session, trackId, { approval: level });
-  return { ...updated, undoStack: [...updated.undoStack, snapshot] };
-}
-
 export function updateTrackParams(
   session: Session,
   trackId: string,
@@ -288,4 +272,25 @@ export function resolveDecision(session: Session, decisionId: string): Session {
   // Prune resolved decisions to keep list bounded
   const unresolved = next.filter(d => !d.resolved);
   return { ...session, openDecisions: unresolved };
+}
+
+// --- Approval helpers ---
+
+export function setApproval(session: Session, trackId: string, level: ApprovalLevel, description?: string): Session {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+
+  const prevApproval = track.approval ?? 'exploratory';
+  if (prevApproval === level) return session; // no-op
+
+  const snapshot: ApprovalSnapshot = {
+    kind: 'approval',
+    trackId,
+    prevApproval,
+    timestamp: Date.now(),
+    description: description ?? `Set approval: ${prevApproval} → ${level}`,
+  };
+
+  const result = updateTrack(session, trackId, { approval: level });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
 }

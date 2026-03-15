@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -286,6 +286,9 @@ function projectAction(session: Session, action: AIAction): Session {
         ...(action.trackIds ? { trackIds: action.trackIds } : {}),
       };
       return { ...session, openDecisions: [...decisions, newDecision].slice(-20) };
+    }
+    case 'mark_approved': {
+      return updateTrack(session, action.trackId, { approval: action.level });
     }
     case 'say':
     default:
@@ -1303,6 +1306,46 @@ export class GluonAI {
         const bpm = session.transport.bpm;
         const result = analyzeRhythm(snapshot.pcm, snapshot.sampleRate, bpm);
         return { actions: [], response: result as unknown as Record<string, unknown> };
+      }
+
+      case 'mark_approved': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.level !== 'string' || !args.level) {
+          return { actions: [], response: errorPayload('Missing required parameter: level') };
+        }
+        const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
+        if (!validLevels.includes(args.level as ApprovalLevel)) {
+          return { actions: [], response: errorPayload(`Invalid level: ${args.level}. Must be one of: ${validLevels.join(', ')}`) };
+        }
+        if (typeof args.reason !== 'string' || !args.reason) {
+          return { actions: [], response: errorPayload('Missing required parameter: reason') };
+        }
+
+        const markApprovedAction: AIMarkApprovedAction = {
+          type: 'mark_approved',
+          trackId: args.trackId as string,
+          level: args.level as ApprovalLevel,
+          reason: args.reason as string,
+        };
+
+        const markApprovedRejection = ctx?.validateAction?.(markApprovedAction);
+        if (markApprovedRejection) return { actions: [], response: errorPayload(markApprovedRejection) };
+
+        const track = session.tracks.find(v => v.id === args.trackId);
+        const prevLevel = track?.approval ?? 'exploratory';
+
+        return {
+          actions: [markApprovedAction],
+          response: {
+            applied: true,
+            trackId: markApprovedAction.trackId,
+            level: markApprovedAction.level,
+            previousLevel: prevLevel,
+            reason: markApprovedAction.reason,
+          },
+        };
       }
 
       default:

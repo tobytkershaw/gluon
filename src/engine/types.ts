@@ -466,7 +466,14 @@ export interface AIRaiseDecisionAction {
   trackIds?: string[];
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction;
+export interface AIMarkApprovedAction {
+  type: 'mark_approved';
+  trackId: string;
+  level: ApprovalLevel;
+  reason: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction;
 
 // --- Reaction History ---
 
@@ -541,7 +548,8 @@ export type ActionDiff =
   | { kind: 'surface-set'; controlCount: number; description: string }
   | { kind: 'surface-pin'; moduleId: string; controlId: string }
   | { kind: 'surface-unpin'; moduleId: string; controlId: string }
-  | { kind: 'surface-label-axes'; x: string; y: string };
+  | { kind: 'surface-label-axes'; x: string; y: string }
+  | { kind: 'approval-change'; from: ApprovalLevel; to: ApprovalLevel };
 
 export interface ActionLogEntry {
   trackId: string;

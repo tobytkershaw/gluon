@@ -578,6 +578,31 @@ const setImportanceTool: ToolSchema = {
   },
 };
 
+const markApprovedTool: ToolSchema = {
+  name: 'mark_approved',
+  description:
+    'Set the approval level for a track\'s material. Approval levels control how aggressively the AI may edit the track in future turns. Requires agency ON.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Track to update (e.g. "v0").',
+      },
+      level: {
+        type: 'string',
+        enum: ['exploratory', 'liked', 'approved', 'anchor'],
+        description: 'New approval level. exploratory=freely editable, liked=preserve unless asked, approved=preserve during expansion, anchor=core identity.',
+      },
+      reason: {
+        type: 'string',
+        description: 'Why this approval level is appropriate.',
+      },
+    },
+    required: ['trackId', 'level', 'reason'],
+  },
+};
+
 const renderTool: ToolSchema = {
   name: 'render',
   description:
@@ -703,6 +728,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   unpinTool,
   labelAxesTool,
   setImportanceTool,
+  markApprovedTool,
   renderTool,
   spectralTool,
   dynamicsTool,
