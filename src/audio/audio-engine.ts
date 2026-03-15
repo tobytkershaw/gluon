@@ -17,6 +17,8 @@ import { recordQaAudioTrace } from '../qa/audio-trace';
 const ACCENT_GAIN_BOOST = 2.0; // +6dB ~ 2x linear gain
 /** Duration (seconds) for the gain ramp used during chain rebuild to avoid clicks. */
 const CHAIN_RAMP_SEC = 0.002; // ~2ms
+/** Keep completed voices around briefly so generation cleanup still reaches processor tails. */
+const TRACK_TAIL_GRACE_SEC = 2.0;
 
 type ProcessorEngine = RingsEngine | CloudsEngine;
 
@@ -422,7 +424,7 @@ export class AudioEngine {
         this.activeVoices.delete(eventId);
         continue;
       }
-      if (voice.gateOffTime <= now) {
+      if (voice.gateOffTime + TRACK_TAIL_GRACE_SEC <= now) {
         this.activeVoices.delete(eventId);
       }
     }

@@ -115,4 +115,51 @@ describe('TransportController', () => {
 
     controller.dispose();
   });
+
+  it('resumes from the paused playhead on a fresh generation', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+    };
+    let schedulerPositionChange: ((step: number) => void) | null = null;
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2)
+        .mockReturnValueOnce(3),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onPositionChange }) => {
+        schedulerPositionChange = onPositionChange;
+        return scheduler;
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    schedulerPositionChange?.(8);
+    session.transport = { ...session.transport, status: 'paused', playing: false };
+    controller.sync();
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+
+    expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
+    expect(scheduler.start).toHaveBeenNthCalledWith(1, expect.any(Number), 0, 1);
+    expect(scheduler.start).toHaveBeenNthCalledWith(2, expect.any(Number), 8, 3);
+
+    controller.dispose();
+  });
 });
