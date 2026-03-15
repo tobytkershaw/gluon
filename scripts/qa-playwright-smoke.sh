@@ -421,7 +421,7 @@ scenario_record_before_audio_init() {
   run_pw click "$record_ref" >/dev/null 2>&1
   capture_console "01b-record-before-audio"
   if [[ -f "$OUT_DIR/console-01b-record-before-audio.txt" ]] && rg -Fq '"type":"recording.state","recording":false,"reason":"no-destination"' "$OUT_DIR/console-01b-record-before-audio.txt"; then
-    record_result "record_before_audio_init" "reproduces" "Record before audio init still no-ops; matches known issue #150."
+    record_result "record_before_audio_init" "fail" "Record before audio init still no-ops (issue #150 was fixed; this is a regression)."
   else
     record_result "record_before_audio_init" "pass" "Record before audio init did not hit the known no-destination path."
   fi
@@ -555,7 +555,7 @@ PY
     then
       record_result "gesture_persistence" "pass" "Note slider value persisted after pointer interaction and mouse-up."
     else
-      record_result "gesture_persistence" "reproduces" "Note slider value changed during pointer interaction but reverted after mouse-up; matches known issue #130."
+      record_result "gesture_persistence" "fail" "Note slider value changed during pointer interaction but reverted after mouse-up (issue #130 was fixed; this is a regression)."
     fi
   else
     record_result "gesture_persistence" "blocked" "Playwright pointer interaction did not move the Note slider at all, so gesture persistence is inconclusive in this runner."
@@ -636,7 +636,7 @@ PY
     return 0
   fi
 
-  record_result "first_step_start" "reproduces" "Transport start did not confirm both scheduler step-0 and audio trigger trace; matches known issue #153."
+  record_result "first_step_start" "fail" "Transport start did not confirm both scheduler step-0 and audio trigger trace (issue #153 was fixed; this is a regression)."
 }
 
 scenario_pause_stops_audio() {
@@ -911,7 +911,7 @@ PY
   then
     record_result "bpm_change_runtime" "pass" "BPM change to 90 updated transport settings and subsequent scheduled note spacing."
   else
-    record_result "bpm_change_runtime" "reproduces" "BPM change scenario did not confirm changed scheduling spacing; maps to known issues #120/#137."
+    record_result "bpm_change_runtime" "fail" "BPM change scenario did not confirm changed scheduling spacing (issues #120/#137 were fixed; this is a regression)."
   fi
 }
 
@@ -967,7 +967,7 @@ PY
   then
     record_result "multi_voice_trace" "pass" "Audio trace captured note triggers for both KICK and VA."
   else
-    record_result "multi_voice_trace" "reproduces" "Multi-voice trace did not confirm note triggers for both voices; investigate known issue #131."
+    record_result "multi_voice_trace" "fail" "Multi-voice trace did not confirm note triggers for both voices (issue #131 was fixed; this is a regression)."
   fi
 }
 
@@ -1030,7 +1030,7 @@ JS
   if [[ "$route_check" == '"clean"' || "$route_check" == 'clean' ]]; then
     record_result "modulation_route_cleanup" "pass" "Removing processor cleared processor-targeted modulation routes from persisted session state."
   else
-    record_result "modulation_route_cleanup" "reproduces" "Removing processor left dangling processor-targeted modulation routes; matches known issue #149."
+    record_result "modulation_route_cleanup" "fail" "Removing processor left dangling processor-targeted modulation routes (issue #149 was fixed; this is a regression)."
   fi
 }
 
@@ -1125,6 +1125,16 @@ fi
 echo
 echo "Smoke run complete. Results: $OUT_DIR/results.tsv"
 
-if awk -F'\t' 'NR > 1 && $2 == "fail" { found = 1 } END { exit(found ? 0 : 1) }' "$OUT_DIR/results.tsv"; then
+# Result semantics:
+#   pass       — scenario verified the expected behavior
+#   fail       — scenario detected a regression or missing behavior
+#   reproduces — scenario detected a known issue that is still present
+#   warn       — scenario ran but could not confirm expected behavior (inconclusive)
+#   blocked    — scenario could not run due to missing prerequisites
+#
+# Both "fail" and "reproduces" are treated as failures for the exit code.
+# A "reproduces" result means the smoke suite detected a bug — the suite should
+# not report green when it can prove something is broken.
+if awk -F'\t' 'NR > 1 && ($2 == "fail" || $2 == "reproduces") { found = 1 } END { exit(found ? 0 : 1) }' "$OUT_DIR/results.tsv"; then
   exit 1
 fi
