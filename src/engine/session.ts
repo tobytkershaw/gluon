@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, Reaction } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
 import { updateTrack, DEFAULT_MASTER } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
@@ -230,6 +230,18 @@ export function setMasterVolume(session: Session, volume: number): Session {
 export function setMasterPan(session: Session, pan: number): Session {
   const clamped = Math.max(-1, Math.min(1, pan));
   return { ...session, master: { ...session.master, pan: clamped } };
+}
+
+// --- Reaction history helpers ---
+
+/** Maximum number of reactions to keep in history. Older entries are discarded. */
+export const MAX_REACTION_HISTORY = 50;
+
+/** Append a reaction and bound the history to the most recent MAX_REACTION_HISTORY entries. */
+export function addReaction(session: Session, reaction: Reaction): Session {
+  const prev = session.reactionHistory ?? [];
+  const next = [...prev, reaction].slice(-MAX_REACTION_HISTORY);
+  return { ...session, reactionHistory: next };
 }
 
 export function setMaster(session: Session, update: Partial<MasterChannel>): Session {

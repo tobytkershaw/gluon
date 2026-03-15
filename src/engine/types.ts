@@ -447,6 +447,19 @@ export interface AILabelAxesAction {
 
 export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction;
 
+// --- Reaction History ---
+
+export interface Reaction {
+  /** Which action group this reaction is about */
+  actionGroupIndex: number;
+  /** The human's verdict */
+  verdict: 'approved' | 'rejected' | 'neutral';
+  /** Optional rationale explaining why */
+  rationale?: string;
+  /** When the reaction was recorded */
+  timestamp: number;
+}
+
 // --- Session ---
 
 export interface HumanAction {
@@ -466,6 +479,8 @@ export interface Session {
   context: MusicalContext;
   messages: ChatMessage[];
   recentHumanActions: HumanAction[];
+  /** History of human reactions to AI actions */
+  reactionHistory?: Reaction[];
 }
 
 export type ActionDiff =
