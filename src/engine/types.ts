@@ -11,6 +11,25 @@ export type Agency = 'OFF' | 'ON';
  */
 export type ApprovalLevel = 'exploratory' | 'liked' | 'approved' | 'anchor';
 
+/**
+ * Report generated after a sketch edit on a track with approval level 'liked' or higher.
+ * Informational only — does not block operations.
+ */
+export interface PreservationReport {
+  /** Track that was edited */
+  trackId: string;
+  /** What was preserved */
+  preserved: {
+    rhythmPositions: boolean;  // Did rhythm positions survive?
+    eventCount: boolean;       // Same number of events?
+    pitchContour: boolean;     // Relative pitch relationships maintained?
+  };
+  /** What changed */
+  changed: string[];  // Human-readable list of changes (e.g., "2 velocity values modified")
+  /** Track's approval level at time of edit */
+  approvalLevel: ApprovalLevel;
+}
+
 // --- Sequencer views (presentation state, not musical) ---
 
 export type SequencerViewKind = 'step-grid' | 'piano-roll';
