@@ -167,7 +167,7 @@ export class Scheduler {
               event,
               seg.loopCycle,
             );
-            if (!this.playbackPlan.admit(parameterEventId, parameterAbsoluteStep, this.generation)) {
+            if (!this.playbackPlan.admit(parameterEventId, parameterAbsoluteStep, this.generation, track.id)) {
               continue;
             }
             if (this.onParameterEvent) {
@@ -189,7 +189,7 @@ export class Scheduler {
             event,
             seg.loopCycle,
           );
-          if (!this.playbackPlan.admit(runtimeEventId, absoluteStep, this.generation)) {
+          if (!this.playbackPlan.admit(runtimeEventId, absoluteStep, this.generation, track.id)) {
             continue;
           }
 
