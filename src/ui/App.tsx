@@ -43,6 +43,7 @@ import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
 import { RackView } from './RackView';
 import { PatchView } from './PatchView';
+import { TrackMixStrip } from './TrackMixStrip';
 import { AppShell } from './AppShell';
 import { useShortcuts } from './useShortcuts';
 import { ShortcutsPanel } from './ShortcutsPanel';
@@ -1957,6 +1958,11 @@ export default function App() {
       onAbToggle={handleAbToggle}
       onAbClear={handleAbClear}
     >
+        <TrackMixStrip
+          activeTrack={activeTrack}
+          onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
+          onChangePan={(v) => handleChangePan(activeTrack.id, v)}
+        />
         {view === 'surface' && (
           <InstrumentView
             session={session}
