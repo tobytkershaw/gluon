@@ -1,6 +1,7 @@
 // src/ui/App.tsx
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
+import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline } from '../audio/render-offline';
 import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
@@ -81,6 +82,8 @@ export default function App() {
   const [recordArmed, setRecordArmed] = useState(false);
   const recordArmedRef = useRef(false);
   recordArmedRef.current = recordArmed;
+  const wavExporterRef = useRef(new AudioExporter());
+  const [exportingWav, setExportingWav] = useState(false);
   /** Tracks whether we've pushed an undo snapshot for the current recording session. */
   const recordingSnapshotPushed = useRef(false);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
@@ -693,6 +696,57 @@ export default function App() {
       return next;
     });
   }, []);
+
+  const handleExportWav = useCallback(async (bars: number) => {
+    await ensureAudio();
+    const dest = audioRef.current.getMediaStreamDestination();
+    const ctx = audioRef.current.getAudioContext();
+    if (!dest) return;
+
+    const s = sessionRef.current;
+    const patLen = s.tracks.length > 0
+      ? s.tracks.find(t => t.id === s.activeTrackId)?.pattern.length ?? 16
+      : 16;
+
+    // Start playback if not already playing
+    const wasPlaying = s.transport.playing;
+    if (!wasPlaying) {
+      await audioRef.current.resume();
+      setSession(prev => playTransport(prev));
+    }
+
+    setExportingWav(true);
+    try {
+      const blob = await wavExporterRef.current.captureNBars(
+        dest, bars, patLen, s.transport.bpm, ctx ?? undefined,
+      );
+      // Trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.projectName || 'gluon-export'}-${bars}bar.wav`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('WAV export failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setSession(prev => ({
+        ...prev,
+        messages: [
+          ...prev.messages,
+          { role: 'system' as const, text: `WAV export failed: ${msg}`, timestamp: Date.now() },
+        ],
+      }));
+    } finally {
+      setExportingWav(false);
+      // Stop if we started playback for the export
+      if (!wasPlaying) {
+        setSession(prev => pauseTransport(prev));
+      }
+    }
+  }, [ensureAudio, project.projectName]);
 
   // Push a single undo snapshot when a recording session starts (armed + playing).
   // The snapshot covers the entire session: from arm to disarm/stop.
@@ -1499,6 +1553,8 @@ export default function App() {
       onProjectDelete={project.deleteActiveProject}
       onProjectExport={project.exportActiveProject}
       onProjectImport={project.importProject}
+      onExportWav={handleExportWav}
+      exportingWav={exportingWav}
       playing={session.transport.playing}
       bpm={session.transport.bpm}
       swing={session.transport.swing}

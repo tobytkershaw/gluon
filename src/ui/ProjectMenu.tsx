@@ -14,16 +14,20 @@ interface Props {
   onDelete: () => void;
   onExport: () => void;
   onImport: (file: File) => Promise<void>;
+  onExportWav?: (bars: number) => void;
+  exportingWav?: boolean;
 }
 
 export function ProjectMenu({
   projectName, projects, saveError,
   onRename, onNew, onOpen, onDuplicate, onDelete, onExport, onImport,
+  onExportWav, exportingWav,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(projectName);
   const [importError, setImportError] = useState<string | null>(null);
+  const [wavBarPicker, setWavBarPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -37,6 +41,9 @@ export function ProjectMenu({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
+
+  // Reset bar picker when menu closes
+  useEffect(() => { if (!open) setWavBarPicker(false); }, [open]);
 
   // Focus input on edit
   useEffect(() => {
@@ -128,6 +135,32 @@ export function ProjectMenu({
             <input ref={fileRef} type="file" accept=".gluon,.json" className="hidden" onChange={handleFileChange} />
             {importError && (
               <div className="px-3 py-1.5 text-[10px] font-mono text-red-400/80">{importError}</div>
+            )}
+            {onExportWav && (
+              <>
+                <div className="border-t border-zinc-800/60 my-1" />
+                {!wavBarPicker ? (
+                  <MenuItem
+                    label={exportingWav ? 'Exporting...' : 'Export WAV'}
+                    onClick={() => { if (!exportingWav) setWavBarPicker(true); }}
+                  />
+                ) : (
+                  <div className="px-3 py-1.5">
+                    <div className="text-[9px] font-mono text-zinc-500 mb-1.5">Bars to export</div>
+                    <div className="flex gap-1">
+                      {[1, 2, 4, 8, 16].map(n => (
+                        <button
+                          key={n}
+                          onClick={() => { onExportWav(n); setWavBarPicker(false); setOpen(false); }}
+                          className="flex-1 px-1.5 py-1 text-[10px] font-mono text-zinc-300 bg-zinc-800 rounded hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
             <div className="border-t border-zinc-800/60 my-1" />
             <MenuItem label="Delete project" onClick={() => { onDelete(); setOpen(false); }} danger />
