@@ -667,6 +667,7 @@ export function addPattern(session: Session, trackId: string): Session | null {
     action: 'add',
     addedPatternId: newId,
     prevActivePatternId: track.activePatternId,
+    prevSequence: [...track.sequence],
     timestamp: Date.now(),
     description: `Add pattern to ${trackId}`,
   };
@@ -713,6 +714,7 @@ export function removePattern(session: Session, trackId: string, patternId: stri
     removedPattern,
     removedIndex: index,
     prevActivePatternId: track.activePatternId,
+    prevSequence: [...track.sequence],
     timestamp: Date.now(),
     description: `Remove pattern ${patternId} from ${trackId}`,
   };
@@ -761,6 +763,7 @@ export function duplicatePattern(session: Session, trackId: string, patternId: s
     action: 'duplicate',
     addedPatternId: newId,
     prevActivePatternId: track.activePatternId,
+    prevSequence: [...track.sequence],
     timestamp: Date.now(),
     description: `Duplicate pattern ${patternId} on ${trackId}`,
   };
