@@ -848,28 +848,9 @@ export default function App() {
   }, []);
 
   const handleExportWav = useCallback(async (bars: number) => {
-    await ensureAudio();
-    const dest = audioRef.current.getMediaStreamDestination();
-    const ctx = audioRef.current.getAudioContext();
-    if (!dest) return;
-
-    const s = sessionRef.current;
-    const patLen = s.tracks.length > 0
-      ? s.tracks.find(t => t.id === s.activeTrackId)?.pattern.length ?? 16
-      : 16;
-
-    // Start playback if not already playing
-    const wasPlaying = s.transport.playing;
-    if (!wasPlaying) {
-      await audioRef.current.resume();
-      setSession(prev => playTransport(prev));
-    }
-
     setExportingWav(true);
     try {
-      const blob = await wavExporterRef.current.captureNBars(
-        dest, bars, patLen, s.transport.bpm, ctx ?? undefined,
-      );
+      const blob = await renderOffline(sessionRef.current, undefined, bars, true);
       // Trigger download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -891,12 +872,8 @@ export default function App() {
       }));
     } finally {
       setExportingWav(false);
-      // Stop if we started playback for the export
-      if (!wasPlaying) {
-        setSession(prev => pauseTransport(prev));
-      }
     }
-  }, [ensureAudio, project.projectName]);
+  }, [project.projectName]);
 
   // Push a single undo snapshot when a recording session starts (armed + playing).
   // The snapshot covers the entire session: from arm to disarm/stop.
