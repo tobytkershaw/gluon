@@ -23,6 +23,7 @@ interface TransportControllerDeps {
   onPositionChange: (step: number) => void;
   getHeldParams: (trackId: string) => Partial<SynthParamValues>;
   onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  onSequenceEnd?: () => void;
   createScheduler?: (deps: {
     getSession: () => Session;
     onNote: (note: import('./sequencer-types').ScheduledNote) => void;
@@ -30,6 +31,7 @@ interface TransportControllerDeps {
     getHeldParams: (trackId: string) => Partial<SynthParamValues>;
     onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
     onClick?: (time: number, accent: boolean) => void;
+    onSequenceEnd?: () => void;
   }) => SchedulerLike;
 }
 
@@ -49,6 +51,7 @@ export class TransportController {
     onPositionChange,
     getHeldParams,
     onParameterEvent,
+    onSequenceEnd,
     createScheduler,
   }: TransportControllerDeps) {
     this.audio = audio;
@@ -69,6 +72,7 @@ export class TransportController {
           getHeldParams,
           onParameterEvent,
           onClick: handleClick,
+          onSequenceEnd,
         })
       : new Scheduler(
           getSession,
@@ -79,6 +83,7 @@ export class TransportController {
           getHeldParams,
           onParameterEvent,
           handleClick,
+          onSequenceEnd,
         );
     this.syncArrangement();
   }

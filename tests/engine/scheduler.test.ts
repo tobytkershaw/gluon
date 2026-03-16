@@ -572,10 +572,13 @@ describe('Scheduler', () => {
       { kind: 'trigger', at: 4, velocity: 0.8 } as TriggerEvent,
     ];
     const newRegion = { ...track.patterns[0], duration: 8, events };
+    // Mute all other tracks so the max pattern duration is 8 (not 16).
+    // Pattern-mode wrap uses the max active pattern duration across all
+    // audible tracks.
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, patterns: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : { ...v, muted: true }
       ),
     };
 

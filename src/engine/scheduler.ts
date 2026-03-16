@@ -127,25 +127,26 @@ export class Scheduler {
     const elapsed = currentAudioTime - this.startTime;
     let globalStep = elapsed / stepDuration;
 
-    // Pattern mode: wrap globalStep at the active pattern's duration
+    // Pattern mode: wrap globalStep at the max active pattern duration across
+    // all audible tracks. Using only one track's duration would silently truncate
+    // longer patterns on other tracks in a multi-track session.
     if (transportMode === 'pattern') {
       const audibleTracks = getAudibleTracks(session);
-      if (audibleTracks.length > 0) {
-        // Use the first audible track's active pattern duration for wrapping
-        const firstTrack = audibleTracks[0];
-        if (firstTrack.patterns.length > 0) {
-          const activePattern = getActivePattern(firstTrack);
-          const patternLen = activePattern.duration;
-          if (patternLen > 0 && globalStep >= patternLen) {
-            // Reanchor so playback loops seamlessly
-            const overshoot = globalStep - patternLen;
-            const wrappedOffset = overshoot % patternLen;
-            globalStep = wrappedOffset;
-            this.startTime = currentAudioTime - globalStep * stepDuration;
-            this.cursor = globalStep;
-            this.playbackPlan.reset(this.generation);
-          }
+      let maxPatternLen = 0;
+      for (const t of audibleTracks) {
+        if (t.patterns.length > 0) {
+          const len = getActivePattern(t).duration;
+          if (len > maxPatternLen) maxPatternLen = len;
         }
+      }
+      if (maxPatternLen > 0 && globalStep >= maxPatternLen) {
+        // Reanchor so playback loops seamlessly
+        const overshoot = globalStep - maxPatternLen;
+        const wrappedOffset = overshoot % maxPatternLen;
+        globalStep = wrappedOffset;
+        this.startTime = currentAudioTime - globalStep * stepDuration;
+        this.cursor = globalStep;
+        this.playbackPlan.reset(this.generation);
       }
     }
 
@@ -170,16 +171,30 @@ export class Scheduler {
 
     this.onPositionChange(globalStep);
 
-    // Cap catch-up window after resume
+    // Cap catch-up window after resume: if the cursor fell too far behind,
+    // advance it so we only schedule the most recent MAX_CATCHUP_STEPS.
+    // Events before the cap are silently dropped — lossy by design — because
+    // scheduling dozens of stale notes at once produces an audible burst of
+    // overlapping triggers that sounds worse than skipping them.
     if (globalStep - this.cursor > MAX_CATCHUP_STEPS) {
       this.cursor = globalStep - MAX_CATCHUP_STEPS;
     }
 
+    // Calculate lookahead window in step units. The window extends from the
+    // cursor to at least currentAudioTime + LOOKAHEAD_SEC. If the tab was
+    // backgrounded and the cursor fell behind the current audio position,
+    // the window naturally covers the gap — all missed events are scheduled
+    // in one batch without duplicates (cursor advances past them).
     const lookaheadSteps = LOOKAHEAD_SEC / stepDuration;
     const lookaheadEnd = Math.max(
       this.cursor + lookaheadSteps,
       globalStep + lookaheadSteps,
     );
+    // Prune at the playhead (globalStep), not the cursor (scheduling frontier).
+    // The cursor is always ahead of globalStep by the lookahead window. Pruning
+    // at cursor would remove plan entries for events between globalStep and
+    // cursor — events that haven't actually played yet — making them vulnerable
+    // to double-scheduling if invalidateTrack re-admits them.
     this.playbackPlan.pruneBeforeStep(Math.floor(globalStep));
 
     // Schedule metronome clicks if enabled
@@ -397,7 +412,12 @@ export class Scheduler {
       let localStart = Math.max(0, absStart - cycleStart);
       const localEnd = Math.min(patternLen, absEnd - cycleStart);
 
-      // Guard against floating-point dust at loop boundaries
+      // Guard against floating-point dust at loop boundaries: the cursor
+      // accumulates lookaheadSteps each tick via addition, and 0.1/stepDuration
+      // is not exactly representable in float64.  After many ticks the cursor
+      // overshoots exact multiples of patternLen by ~1e-15, producing a
+      // localStart just above 0.  lowerBound then skips events at position 0,
+      // silencing the first step on subsequent loops.
       if (localStart > 0 && localStart < 1e-9) localStart = 0;
 
       if (localEnd > localStart) {
