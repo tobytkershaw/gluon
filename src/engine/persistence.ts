@@ -47,6 +47,7 @@ export function stripForPersistence(session: Session): Session {
  */
 function isNonDefault(session: Session): boolean {
   const defaults = createSession();
+  if (session.tracks.length !== defaults.tracks.length) return true;
   if (session.messages.length > 0) return true;
   if (session.transport.bpm !== defaults.transport.bpm) return true;
   if (session.transport.swing !== defaults.transport.swing) return true;

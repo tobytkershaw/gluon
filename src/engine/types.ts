@@ -158,6 +158,9 @@ export interface MasterChannel {
 
 export const DEFAULT_MASTER: MasterChannel = { volume: 0.8, pan: 0.0 };
 
+/** Soft cap on the number of tracks in a session. */
+export const MAX_TRACKS = 16;
+
 export interface MusicalContext {
   key: string | null;
   scale: string | null;
@@ -293,7 +296,24 @@ export interface ApprovalSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot;
+export interface TrackAddSnapshot {
+  kind: 'track-add';
+  trackId: string;
+  timestamp: number;
+  description: string;
+}
+
+export interface TrackRemoveSnapshot {
+  kind: 'track-remove';
+  removedTrack: Track;
+  removedIndex: number;
+  /** If the active track was the removed one, stores the prev activeTrackId for restore. */
+  prevActiveTrackId: string;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';

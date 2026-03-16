@@ -1,7 +1,7 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, Reaction, OpenDecision } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, Reaction, OpenDecision } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateTrack, DEFAULT_MASTER } from './types';
+import { updateTrack, DEFAULT_MASTER, MAX_TRACKS } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
@@ -73,6 +73,110 @@ export function createSession(): Session {
     context,
     messages: [],
     recentHumanActions: [],
+  };
+}
+
+/**
+ * Derive the next unique track ID by scanning existing IDs.
+ * Track IDs follow the pattern "v0", "v1", etc.
+ */
+function nextTrackId(session: Session): string {
+  const existing = new Set(session.tracks.map(t => t.id));
+  for (let i = 0; i < MAX_TRACKS + 1; i++) {
+    const id = `v${i}`;
+    if (!existing.has(id)) return id;
+  }
+  return `v${Date.now()}`; // fallback
+}
+
+/**
+ * Create a new empty track with no source module.
+ * The track starts with an empty pattern and region, default volume/pan,
+ * and no engine/model (engine index -1).
+ */
+export function createEmptyTrack(trackId: string): Track {
+  return {
+    id: trackId,
+    engine: '',
+    model: -1,
+    params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    agency: 'ON',
+    pattern: createDefaultPattern(16),
+    regions: [createDefaultRegion(trackId, 16)],
+    views: [{ kind: 'step-grid', id: `step-grid-${trackId}` }],
+    muted: false,
+    solo: false,
+    volume: 0.8,
+    pan: 0.0,
+    surface: {
+      semanticControls: [],
+      pinnedControls: [],
+      xyAxes: { x: 'timbre', y: 'morph' },
+      thumbprint: { type: 'static-color' },
+    },
+    approval: 'exploratory',
+  };
+}
+
+/**
+ * Add a new empty track to the session. Returns null if at MAX_TRACKS.
+ * Pushes an undo snapshot so the add can be reverted.
+ */
+export function addTrack(session: Session): Session | null {
+  if (session.tracks.length >= MAX_TRACKS) return null;
+
+  const trackId = nextTrackId(session);
+  const newTrack = createEmptyTrack(trackId);
+
+  const snapshot: TrackAddSnapshot = {
+    kind: 'track-add',
+    trackId,
+    timestamp: Date.now(),
+    description: `Add track ${trackId}`,
+  };
+
+  return {
+    ...session,
+    tracks: [...session.tracks, newTrack],
+    activeTrackId: trackId,
+    undoStack: [...session.undoStack, snapshot],
+  };
+}
+
+/**
+ * Remove a track from the session. Returns null if only one track remains.
+ * Pushes an undo snapshot so the removal can be reverted.
+ */
+export function removeTrack(session: Session, trackId: string): Session | null {
+  if (session.tracks.length <= 1) return null;
+
+  const index = session.tracks.findIndex(t => t.id === trackId);
+  if (index === -1) return null;
+
+  const removedTrack = session.tracks[index];
+  const newTracks = session.tracks.filter(t => t.id !== trackId);
+
+  // If the removed track was active, switch to an adjacent track
+  let newActiveTrackId = session.activeTrackId;
+  if (session.activeTrackId === trackId) {
+    const newIndex = Math.min(index, newTracks.length - 1);
+    newActiveTrackId = newTracks[newIndex].id;
+  }
+
+  const snapshot: TrackRemoveSnapshot = {
+    kind: 'track-remove',
+    removedTrack,
+    removedIndex: index,
+    prevActiveTrackId: session.activeTrackId,
+    timestamp: Date.now(),
+    description: `Remove track ${trackId}`,
+  };
+
+  return {
+    ...session,
+    tracks: newTracks,
+    activeTrackId: newActiveTrackId,
+    undoStack: [...session.undoStack, snapshot],
   };
 }
 

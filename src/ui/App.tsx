@@ -12,6 +12,7 @@ import {
   createSession, setAgency, setApproval, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster, setTrackVolume, setTrackPan,
+  addTrack, removeTrack,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -161,8 +162,10 @@ export default function App() {
     const s = sessionRef.current;
     await audioRef.current.start(s.tracks.map(v => v.id));
     for (const track of s.tracks) {
-      audioRef.current.setTrackModel(track.id, track.model);
-      audioRef.current.setTrackParams(track.id, track.params);
+      if (track.model !== -1) {
+        audioRef.current.setTrackModel(track.id, track.model);
+        audioRef.current.setTrackParams(track.id, track.params);
+      }
     }
     setAudioStarted(true);
   }, [audioStarted]);
@@ -207,12 +210,47 @@ export default function App() {
     });
   }, [session.transport.bpm, session.transport.swing]);
 
+  // Ensure audio engine slots match session tracks (handles add, remove, undo)
+  useEffect(() => {
+    if (!audioStarted) return;
+    const audio = audioRef.current;
+    // Add engine slots for tracks not yet in the audio engine
+    for (const track of session.tracks) {
+      if (!audio.hasTrack(track.id)) {
+        void audio.addTrack(track.id).then(() => {
+          // After the async add, sync model/params from current session
+          const s = sessionRef.current;
+          const t = s.tracks.find(v => v.id === track.id);
+          if (t && t.model !== -1) {
+            audio.setTrackModel(t.id, t.model);
+            audio.setTrackParams(t.id, t.params);
+          }
+        });
+      }
+    }
+    // Remove engine slots for tracks no longer in session (undo of track-add)
+    for (const engineTrackId of audio.getTrackIds()) {
+      if (!session.tracks.some(t => t.id === engineTrackId)) {
+        audio.removeTrack(engineTrackId);
+      }
+    }
+  }, [session.tracks, audioStarted]);
+
   // Sync audio params for all tracks when session changes
   useEffect(() => {
     if (!audioStarted) return;
     for (const track of session.tracks) {
       const key = track.id;
       const prev = prevTrackStateRef.current.get(key);
+
+      // Skip model/param sync for empty tracks (model -1 = no source module)
+      if (track.model === -1) {
+        prevTrackStateRef.current.set(key, {
+          model: track.model,
+          params: { ...track.params },
+        });
+        continue;
+      }
 
       // Model always syncs — hold only suppresses params (#141)
       if (!prev || prev.model !== track.model) {
@@ -875,6 +913,30 @@ export default function App() {
     ensureAudio();
     setSession((s) => setTrackPan(s, trackId, value));
   }, [ensureAudio]);
+
+  const handleAddTrack = useCallback(() => {
+    setSession((s) => {
+      const result = addTrack(s);
+      if (!result) return s;
+      // Audio engine slot is provisioned by the sync effect watching session.tracks
+      return result;
+    });
+    setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
+    setDeepViewModuleId(null);
+  }, []);
+
+  const handleRemoveTrack = useCallback((trackId: string) => {
+    setSession((s) => {
+      const result = removeTrack(s, trackId);
+      if (!result) return s;
+      // Audio engine slot is torn down by the sync effect watching session.tracks
+      return result;
+    });
+    setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
+    setDeepViewModuleId(null);
+  }, []);
 
   const handleMasterVolumeChange = useCallback((v: number) => {
     ensureAudio();
@@ -1599,6 +1661,8 @@ export default function App() {
       }}
       onChangeVolume={handleChangeVolume}
       onChangePan={handleChangePan}
+      onAddTrack={handleAddTrack}
+      onRemoveTrack={handleRemoveTrack}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}
