@@ -2,7 +2,7 @@
 // Eurorack-style vertical module panel for the Rack view grid layout.
 // Displays large knobs for primary controls, small knobs for secondary,
 // toggles for booleans, and a mode selector for multi-engine modules.
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { ControlDef } from './module-controls';
 import { Knob } from './Knob';
 
@@ -105,9 +105,9 @@ function DiscreteSelector({ control, accentColor, onChange }: {
           <button
             key={step}
             type="button"
-            onClick={() => onChange(control.id, step)}
+            onClick={() => onChange(control.id, (step - min) / (max - min))}
             className={`w-5 h-5 rounded text-[9px] font-mono transition-colors border ${
-              Math.round(control.value) === step
+              Math.round(control.value * (max - min) + min) === step
                 ? accent.selectorActive
                 : `border-transparent ${accent.selectorInactive}`
             }`}
@@ -206,8 +206,8 @@ export function ModulePanel({
   // Partition controls by size and kind
   const largeKnobs = controls.filter(c => c.size === 'large' && c.kind === 'continuous');
   const smallKnobs = controls.filter(c => c.size === 'small' && c.kind === 'continuous');
-  const booleanControls = controls.filter(c => c.kind === 'boolean');
-  const discreteControls = controls.filter(c => c.kind === 'discrete');
+  const booleanControls = controls.filter(c => c.kind === 'boolean' || c.kind === 'trigger');
+  const discreteControls = controls.filter(c => c.kind === 'discrete' || c.kind === 'enum');
 
   // Count how many primary knobs to determine panel width
   // Base: 2 columns of large knobs. If > 4 primary, use 3 columns.
