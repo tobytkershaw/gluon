@@ -91,7 +91,7 @@ export default function App() {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       if (next === prev) return prev;
       // If undoStack grew and redoStack wasn't already cleared by applyUndo/applyRedo
-      if (next.undoStack.length > prev.undoStack.length && next.redoStack.length > 0
+      if (next.undoStack.length > prev.undoStack.length && (next.redoStack ?? []).length > 0
           && next.redoStack === prev.redoStack) {
         return { ...next, redoStack: [] };
       }
@@ -726,7 +726,7 @@ export default function App() {
   const handleRedo = useCallback(() => {
     ensureAudio();
     setSession((s) => {
-      if (s.redoStack.length === 0) return s;
+      if ((s.redoStack ?? []).length === 0) return s;
       const topEntry = s.redoStack[s.redoStack.length - 1];
       const description = topEntry.description ?? 'last action';
       const redone = applyRedo(s);
@@ -1846,7 +1846,7 @@ export default function App() {
       view={view}
       onViewChange={setView}
       undoStack={session.undoStack}
-      redoStack={session.redoStack}
+      redoStack={session.redoStack ?? []}
       onUndo={handleUndo}
       onRedo={handleRedo}
       cancelEditRef={cancelEditRef}

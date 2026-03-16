@@ -283,6 +283,7 @@ function restoreSession(session: Session): Session {
     tracks: session.tracks.map(migrateTrack),
     master: session.master ?? { ...DEFAULT_MASTER },
     undoStack: session.undoStack ?? [],
+    redoStack: session.redoStack ?? [],
     recentHumanActions: session.recentHumanActions ?? [],
   };
 }
