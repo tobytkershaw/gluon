@@ -27,7 +27,7 @@ interface Props {
   activityMap: Record<string, number>;
   onSelectTrack: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
-  onToggleSolo: (trackId: string) => void;
+  onToggleSolo: (trackId: string, additive?: boolean) => void;
   onToggleAgency: (trackId: string) => void;
   onRenameTrack: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;

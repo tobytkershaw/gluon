@@ -1016,9 +1016,9 @@ export default function App() {
     setSession((s) => toggleMute(s, trackId));
   }, [ensureAudio]);
 
-  const handleToggleSolo = useCallback((trackId: string) => {
+  const handleToggleSolo = useCallback((trackId: string, additive?: boolean) => {
     ensureAudio();
-    setSession((s) => toggleSolo(s, trackId));
+    setSession((s) => toggleSolo(s, trackId, !additive));
   }, [ensureAudio]);
 
   const handleRenameTrack = useCallback((trackId: string, name: string) => {
@@ -1849,7 +1849,7 @@ export default function App() {
     onHardStop: handleHardStop,
     onToggleRecord: handleToggleRecord,
     onToggleMute: () => handleToggleMute(session.activeTrackId),
-    onToggleSolo: () => handleToggleSolo(session.activeTrackId),
+    onToggleSolo: (additive) => handleToggleSolo(session.activeTrackId, additive),
     onTrackUp: handleTrackUp,
     onTrackDown: handleTrackDown,
     onBpmNudge: handleBpmNudge,

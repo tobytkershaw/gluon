@@ -321,10 +321,23 @@ export function toggleMute(session: Session, trackId: string): Session {
   return updateTrack(session, trackId, { muted: !track.muted });
 }
 
-export function toggleSolo(session: Session, trackId: string): Session {
+export function toggleSolo(session: Session, trackId: string, exclusive = true): Session {
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return session;
-  return updateTrack(session, trackId, { solo: !track.solo });
+
+  const newSolo = !track.solo;
+
+  // When turning solo ON exclusively, clear solo on all other tracks first
+  if (newSolo && exclusive) {
+    const tracks = session.tracks.map(t =>
+      t.id === trackId
+        ? { ...t, solo: true }
+        : t.solo ? { ...t, solo: false } : t,
+    );
+    return { ...session, tracks };
+  }
+
+  return updateTrack(session, trackId, { solo: newSolo });
 }
 
 export function renameTrack(session: Session, trackId: string, name: string): Session {

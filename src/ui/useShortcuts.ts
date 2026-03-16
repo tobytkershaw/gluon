@@ -11,7 +11,7 @@ interface ShortcutActions {
   onHardStop: () => void;
   onToggleRecord: () => void;
   onToggleMute: () => void;
-  onToggleSolo: () => void;
+  onToggleSolo: (additive?: boolean) => void;
   onTrackUp: () => void;
   onTrackDown: () => void;
   onBpmNudge: (delta: number) => void;
@@ -65,7 +65,8 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: `${mod}?`, label: 'Shortcuts reference', section: 'view' },
   // Mixing
   { key: 'M', label: 'Mute active track', section: 'mixing' },
-  { key: 'S', label: 'Solo active track', section: 'mixing' },
+  { key: 'S', label: 'Solo active track (exclusive)', section: 'mixing' },
+  { key: 'Shift+S', label: 'Solo active track (additive)', section: 'mixing' },
   { key: '\u2191 / \u2193', label: 'Switch track', section: 'mixing' },
   // Editing
   { key: `${mod}Z`, label: 'Undo', section: 'editing' },
@@ -185,10 +186,10 @@ export function useShortcuts({
         onToggleMute();
         return;
       }
-      if ((e.key === 's' || e.key === 'S') && !e.shiftKey) {
+      if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
         e.stopImmediatePropagation();
-        onToggleSolo();
+        onToggleSolo(e.shiftKey);
         return;
       }
 

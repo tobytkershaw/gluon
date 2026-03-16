@@ -22,7 +22,7 @@ interface Props {
   activityTimestamp: number | null;
   onClick: () => void;
   onToggleMute: () => void;
-  onToggleSolo: () => void;
+  onToggleSolo: (additive?: boolean) => void;
   onToggleAgency?: () => void;
   onRename?: (name: string) => void;
   onCycleApproval?: () => void;
@@ -168,7 +168,7 @@ export function TrackRow({
           M
         </button>
         <button
-          onClick={(e) => { e.stopPropagation(); onToggleSolo(); }}
+          onClick={(e) => { e.stopPropagation(); onToggleSolo(e.shiftKey); }}
           className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
             track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
