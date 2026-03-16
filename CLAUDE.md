@@ -105,6 +105,7 @@ Work flows continuously — no wave branches, no batch-and-review cycles.
 - One task per branch, one agent per branch
 - Rebase onto `main` before opening a PR, not during parallel editing
 - Merge small PRs frequently rather than letting branches drift
+- **Clean up after merging:** after merging a PR, remove the worktree (`git worktree remove`) and delete the local branch (`git branch -d`). During consolidation passes, run `git worktree prune`, `git fetch --prune`, and delete all merged/gone local branches. Branch bloat slows git operations.
 
 ### Avoiding Conflicts
 - Split work by **module boundary** (`src/audio/`, `src/ai/`, `src/engine/`, `src/ui/`), not by task type
