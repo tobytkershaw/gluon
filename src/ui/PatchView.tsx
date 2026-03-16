@@ -169,6 +169,22 @@ function selectedBorderColor(kind: NodePos['kind']): string {
   }
 }
 
+// --- Bezier helpers ---
+
+/** Midpoint of a cubic bezier curve at t=0.5 */
+function bezierMidpoint(
+  x0: number, y0: number,
+  cx0: number, cy0: number,
+  cx1: number, cy1: number,
+  x1: number, y1: number,
+): { x: number; y: number } {
+  const t = 0.5;
+  const mt = 1 - t;
+  const x = mt*mt*mt*x0 + 3*mt*mt*t*cx0 + 3*mt*t*t*cx1 + t*t*t*x1;
+  const y = mt*mt*mt*y0 + 3*mt*mt*t*cy0 + 3*mt*t*t*cy1 + t*t*t*y1;
+  return { x, y };
+}
+
 // --- Edge helpers ---
 
 interface AudioEdge {
@@ -184,6 +200,10 @@ interface ModEdge {
   fromY: number;
   toX: number;
   toY: number;
+  cx0: number;
+  cy0: number;
+  cx1: number;
+  cy1: number;
   depth: number;
   targetParam: string;
 }
@@ -208,6 +228,17 @@ function buildAudioEdges(nodes: NodePos[]): AudioEdge[] {
 function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[], targetPorts: PortInfo[]): ModEdge[] {
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
   const edges: ModEdge[] = [];
+
+  // Track how many modulators target the same (node, param) pair for disambiguation
+  const targetCounts = new Map<string, number>();
+  const targetIndices = new Map<string, number>();
+
+  for (const route of modulations) {
+    const targetKey = route.target.kind === 'source'
+      ? `source:${route.target.param}`
+      : `${route.target.processorId}:${route.target.param}`;
+    targetCounts.set(targetKey, (targetCounts.get(targetKey) ?? 0) + 1);
+  }
 
   for (const route of modulations) {
     const modNode = nodeMap.get(route.modulatorId);
@@ -245,12 +276,38 @@ function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[], targe
       toY = targetNode.y + NODE_H;
     }
 
+    const targetKey = route.target.kind === 'source'
+      ? `source:${route.target.param}`
+      : `${route.target.processorId}:${route.target.param}`;
+    const count = targetCounts.get(targetKey) ?? 1;
+    const index = targetIndices.get(targetKey) ?? 0;
+    targetIndices.set(targetKey, index + 1);
+
+    // Compute X offset for disambiguation when multiple modulators target the same param
+    let xOffset = 0;
+    if (count > 1) {
+      xOffset = (index - (count - 1) / 2) * 10;
+    }
+
+    const fromX = modNode.x + NODE_W / 2;
+    const fromY = modNode.y;
+
+    // Vertical bezier: control points pull up from modulator and down from target
+    const cx0 = fromX + xOffset;
+    const cy0 = fromY - 30;
+    const cx1 = toX + xOffset;
+    const cy1 = toY + 30;
+
     edges.push({
       routeId: route.id,
-      fromX: modNode.x + NODE_W / 2,
-      fromY: modNode.y,
+      fromX,
+      fromY,
       toX,
       toY,
+      cx0,
+      cy0,
+      cx1,
+      cy1,
       depth: route.depth,
       targetParam,
     });
@@ -447,14 +504,13 @@ function NodeDetailPanel({ node, track }: { node: NodePos; track: Track }) {
 }
 
 function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
+  const cx = (edge.fromX + edge.toX) / 2;
   return (
-    <line
-      x1={edge.fromX}
-      y1={edge.fromY}
-      x2={edge.toX}
-      y2={edge.toY}
+    <path
+      d={`M ${edge.fromX} ${edge.fromY} C ${cx} ${edge.fromY}, ${cx} ${edge.toY}, ${edge.toX} ${edge.toY}`}
       stroke="#52525b"
       strokeWidth={1.5}
+      fill="none"
     />
   );
 }
@@ -464,37 +520,39 @@ function ModEdgeSvg({ edge, selected, onSelect }: {
   selected: boolean;
   onSelect: (routeId: string) => void;
 }) {
-  const midX = (edge.fromX + edge.toX) / 2;
-  const midY = (edge.fromY + edge.toY) / 2;
+  const mid = bezierMidpoint(
+    edge.fromX, edge.fromY,
+    edge.cx0, edge.cy0,
+    edge.cx1, edge.cy1,
+    edge.toX, edge.toY,
+  );
+  const pathD = `M ${edge.fromX} ${edge.fromY} C ${edge.cx0} ${edge.cy0}, ${edge.cx1} ${edge.cy1}, ${edge.toX} ${edge.toY}`;
 
   return (
     <g>
       {/* Invisible wider stroke for hit detection */}
-      <line
-        x1={edge.fromX}
-        y1={edge.fromY}
-        x2={edge.toX}
-        y2={edge.toY}
+      <path
+        d={pathD}
         stroke="transparent"
-        strokeWidth={12}
+        strokeWidth={16}
+        fill="none"
         style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
         onMouseDown={(e) => { e.stopPropagation(); onSelect(edge.routeId); }}
       />
       {/* Visible edge */}
-      <line
-        x1={edge.fromX}
-        y1={edge.fromY}
-        x2={edge.toX}
-        y2={edge.toY}
+      <path
+        d={pathD}
         stroke={selected ? '#67e8f9' : '#22d3ee'}
         strokeWidth={selected ? 1.5 : 1}
         strokeDasharray="4 3"
+        fill="none"
         opacity={selected ? 1 : 0.7}
+        markerEnd={selected ? 'url(#mod-arrow-selected)' : 'url(#mod-arrow)'}
         pointerEvents="none"
       />
       <text
-        x={midX + 6}
-        y={midY + 11}
+        x={mid.x + 6}
+        y={mid.y + 11}
         fill="#a1a1aa"
         fontSize={8}
         opacity={0.6}
@@ -512,13 +570,12 @@ function EdgeDeleteButton({ edge, onRemove }: {
   edge: ModEdge;
   onRemove: (routeId: string) => void;
 }) {
-  const midX = (edge.fromX + edge.toX) / 2;
-  const midY = (edge.fromY + edge.toY) / 2;
+  const mid = bezierMidpoint(edge.fromX, edge.fromY, edge.cx0, edge.cy0, edge.cx1, edge.cy1, edge.toX, edge.toY);
 
   return (
     <div
       className="absolute flex items-center justify-center w-4 h-4 rounded-full bg-zinc-800 border border-red-500/60 text-red-400 text-[10px] leading-none cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors"
-      style={{ left: midX - 16, top: midY - 8 }}
+      style={{ left: mid.x - 16, top: mid.y - 8 }}
       onMouseDown={(e) => {
         e.stopPropagation();
         onRemove(edge.routeId);
@@ -535,13 +592,12 @@ function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
   onDepthChange: (modulationId: string, depth: number) => void;
   onDepthCommit?: (modulationId: string, depth: number) => void;
 }) {
-  const midX = (edge.fromX + edge.toX) / 2;
-  const midY = (edge.fromY + edge.toY) / 2;
+  const mid = bezierMidpoint(edge.fromX, edge.fromY, edge.cx0, edge.cy0, edge.cx1, edge.cy1, edge.toX, edge.toY);
 
   return (
     <div
       className="absolute"
-      style={{ left: midX + 6, top: midY - 7 }}
+      style={{ left: mid.x + 6, top: mid.y - 7 }}
     >
       <DraggableNumber
         value={edge.depth}
@@ -733,6 +789,30 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
             height={maxY}
             style={{ pointerEvents: 'none' }}
           >
+            <defs>
+              <marker
+                id="mod-arrow"
+                viewBox="0 0 10 7"
+                refX="10"
+                refY="3.5"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" opacity="0.7" />
+              </marker>
+              <marker
+                id="mod-arrow-selected"
+                viewBox="0 0 10 7"
+                refX="10"
+                refY="3.5"
+                markerWidth="8"
+                markerHeight="6"
+                orient="auto-start-reverse"
+              >
+                <polygon points="0 0, 10 3.5, 0 7" fill="#67e8f9" />
+              </marker>
+            </defs>
             {audioEdges.map((e, i) => (
               <AudioEdgeSvg key={`audio-${i}`} edge={e} />
             ))}
