@@ -132,38 +132,20 @@ export function AppShell({
       {/* Global top bar — mirrors three-column body layout */}
       <div className="flex items-center h-9 border-b border-zinc-800/50 shrink-0">
         {/* Chat-column zone: project menu */}
-        {chatOpen && (
-          <div style={{ width: chatWidth }} className="shrink-0 flex items-center px-3 border-r border-zinc-800/30">
-            <ProjectMenu
-              projectName={projectName}
-              projects={projects}
-              saveError={saveError}
-              onRename={onProjectRename}
-              onNew={onProjectNew}
-              onOpen={onProjectOpen}
-              onDuplicate={onProjectDuplicate}
-              onDelete={onProjectDelete}
-              onExport={onProjectExport}
-              onImport={onProjectImport}
-            />
-          </div>
-        )}
-        {!chatOpen && (
-          <div className="shrink-0 flex items-center px-3 border-r border-zinc-800/30">
-            <ProjectMenu
-              projectName={projectName}
-              projects={projects}
-              saveError={saveError}
-              onRename={onProjectRename}
-              onNew={onProjectNew}
-              onOpen={onProjectOpen}
-              onDuplicate={onProjectDuplicate}
-              onDelete={onProjectDelete}
-              onExport={onProjectExport}
-              onImport={onProjectImport}
-            />
-          </div>
-        )}
+        <div style={chatOpen ? { width: chatWidth } : undefined} className="shrink-0 flex items-center px-3 border-r border-zinc-800/30">
+          <ProjectMenu
+            projectName={projectName}
+            projects={projects}
+            saveError={saveError}
+            onRename={onProjectRename}
+            onNew={onProjectNew}
+            onOpen={onProjectOpen}
+            onDuplicate={onProjectDuplicate}
+            onDelete={onProjectDelete}
+            onExport={onProjectExport}
+            onImport={onProjectImport}
+          />
+        </div>
         {/* Content-column zone: view toggle, transport, undo */}
         <div className="flex-1 flex items-center gap-3 px-3">
           <ViewToggle view={view} onViewChange={onViewChange} cancelEditRef={cancelEditRef} />

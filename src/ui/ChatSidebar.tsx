@@ -4,7 +4,7 @@
 // Collapsed: renders nothing (composer moves to the global footer).
 import { useCallback, useRef } from 'react';
 import type { ChatMessage } from '../engine/types';
-import { ChatPanel } from './ChatPanel';
+import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
 
@@ -62,11 +62,9 @@ export function ChatSidebar({
         <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} />
       </div>
 
-      <ChatPanel
-        messages={messages}
-        isThinking={isThinking}
-        isListening={isListening}
-      />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} />
+      </div>
 
       {/* Composer at bottom of sidebar */}
       <div className="shrink-0 border-t border-zinc-800/40">
