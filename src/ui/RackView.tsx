@@ -4,25 +4,15 @@
 // at the container edge. Each module is a vertical panel with large knobs for
 // primary controls, small knobs for secondary, selectors/toggles for mode pickers.
 import { useState, useMemo } from 'react';
-import type { Track, ModulationTarget } from '../engine/types';
+import type { Track } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { ModulePanel } from './ModulePanel';
 import { ChainStrip } from './ChainStrip';
+import { RoutingChips } from './RoutingChip';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
-import { DraggableNumber } from './DraggableNumber';
 import type { KnobModulationInfo } from './Knob';
-
-/** Human-readable label for a modulation target */
-function formatRoutingTarget(target: ModulationTarget, track: Track): string {
-  if (target.kind === 'source') {
-    return `Source / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
-  }
-  const proc = (track.processors ?? []).find(p => p.id === target.processorId);
-  const procLabel = proc ? getProcessorInstrument(proc.type)?.label ?? proc.type : target.processorId;
-  return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
-}
 
 interface RackViewProps {
   activeTrack: Track;
@@ -215,49 +205,15 @@ export function RackView({
               onModelChange={(model) => onModulatorModelChange(mod.id, model)}
               onRemove={() => onRemoveModulator(mod.id)}
             >
-              {/* Routing chips (read-only display with depth editing + removal) */}
-              {modRoutings.length > 0 && (
-                <div className="border-t border-zinc-800/40 pt-2">
-                  <div className="flex flex-wrap gap-1">
-                    {modRoutings.map(r => (
-                      <span
-                        key={r.id}
-                        className="inline-flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
-                      >
-                        <span className="opacity-60">{'\u2192'}</span>
-                        <span className="truncate max-w-[80px]">{formatRoutingTarget(r.target, activeTrack)}</span>
-                        <DraggableNumber
-                          value={r.depth}
-                          min={-1}
-                          max={1}
-                          step={0.01}
-                          decimals={2}
-                          className="text-violet-200 hover:text-violet-100"
-                          onChange={(depth) => onModulationDepthChange(r.id, depth)}
-                          onCommit={(depth) => onModulationDepthCommit(r.id, depth)}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => onRemoveModulation(r.id)}
-                          className="ml-0.5 text-violet-400/40 hover:text-red-400 transition-colors leading-none"
-                          title="Remove route"
-                        >
-                          {'\u00d7'}
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  {onNavigateToPatch && (
-                    <button
-                      type="button"
-                      onClick={onNavigateToPatch}
-                      className="mt-1.5 text-[8px] font-mono uppercase tracking-wider text-violet-400/50 hover:text-violet-400 transition-colors"
-                    >
-                      Edit routes in Patch
-                    </button>
-                  )}
-                </div>
-              )}
+              <RoutingChips
+                routings={modRoutings}
+                track={activeTrack}
+                interactive
+                onDepthChange={onModulationDepthChange}
+                onDepthCommit={onModulationDepthCommit}
+                onRemove={onRemoveModulation}
+                onNavigateToPatch={onNavigateToPatch}
+              />
             </ModulePanel>
           );
         })}
