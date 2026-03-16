@@ -8,6 +8,8 @@ interface Props {
   max: number;
   step?: number;
   decimals?: number;
+  /** Decimal places for text-entry mode (defaults to `decimals`). */
+  editDecimals?: number;
   suffix?: string;
   className?: string;
   onChange: (value: number) => void;
@@ -15,9 +17,10 @@ interface Props {
 }
 
 export function DraggableNumber({
-  value, min, max, step = 1, decimals = 0, suffix = '', className = '',
+  value, min, max, step = 1, decimals = 0, editDecimals, suffix = '', className = '',
   onChange, onCommit,
 }: Props) {
+  const textDecimals = editDecimals ?? decimals;
   const [editing, setEditing] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const dragRef = useRef<{ startY: number; startValue: number; moved: boolean } | null>(null);
@@ -48,25 +51,26 @@ export function DraggableNumber({
     if (!drag) return;
     dragRef.current = null;
     if (!drag.moved) {
-      // Click — open edit mode
-      setInputValue(value.toFixed(decimals));
+      // Click — open edit mode with full precision
+      setInputValue(value.toFixed(textDecimals));
       setEditing(true);
     } else {
       onCommit?.(value);
     }
-  }, [value, decimals, onCommit]);
+  }, [value, textDecimals, onCommit]);
 
   const submitInput = useCallback(() => {
     const parsed = parseFloat(inputValue);
     if (!isNaN(parsed)) {
       const clamped = clamp(parsed);
-      onChange(Number(clamped.toFixed(decimals)));
-      onCommit?.(Number(clamped.toFixed(decimals)));
+      onChange(Number(clamped.toFixed(textDecimals)));
+      onCommit?.(Number(clamped.toFixed(textDecimals)));
     }
     setEditing(false);
-  }, [inputValue, clamp, decimals, onChange, onCommit]);
+  }, [inputValue, clamp, textDecimals, onChange, onCommit]);
 
   if (editing) {
+    const editStep = textDecimals > 0 ? Number((10 ** -textDecimals).toFixed(textDecimals)) : step;
     return (
       <input
         type="number"
@@ -79,7 +83,7 @@ export function DraggableNumber({
         onFocus={(e) => e.target.select()}
         min={min}
         max={max}
-        step={step}
+        step={editStep}
       />
     );
   }

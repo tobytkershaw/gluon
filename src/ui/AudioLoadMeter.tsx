@@ -31,11 +31,11 @@ export function AudioLoadMeter({ audioContext }: Props) {
       aria-label={`Audio load: ${percent}%`}
     >
       <span className="text-[10px] text-zinc-500 font-mono">CPU</span>
-      <div className="w-8 h-1.5 bg-zinc-800 rounded-sm overflow-hidden">
+      <div className="w-10 h-1.5 bg-zinc-800 rounded-sm overflow-hidden">
         <div
           className="h-full rounded-sm transition-all duration-200"
           style={{
-            width: `${Math.max(percent, 2)}%`,
+            width: `${Math.max(percent, 8)}%`,
             backgroundColor: color,
           }}
         />
