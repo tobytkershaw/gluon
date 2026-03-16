@@ -23,7 +23,7 @@ const moveTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0"). Defaults to active track if omitted.',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). Defaults to active track if omitted.',
       },
       processorId: {
         type: 'string',
@@ -51,7 +51,7 @@ const sketchTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       description: {
         type: 'string',
@@ -128,7 +128,7 @@ const listenTool: ToolSchema = {
       trackIds: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Optional track IDs to render in isolation (e.g. ["v0", "v1"]). Omit to hear all unmuted tracks.',
+        description: 'Optional tracks to render in isolation (e.g. ["Track 1", "Track 2"] or ["v0", "v1"]). Omit to hear all unmuted tracks.',
       },
       lens: {
         type: 'string',
@@ -194,7 +194,7 @@ const setModelTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       model: {
         type: 'string',
@@ -252,7 +252,7 @@ const manageProcessorTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       moduleType: {
         type: 'string',
@@ -289,7 +289,7 @@ const manageModulatorTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       moduleType: {
         type: 'string',
@@ -322,7 +322,7 @@ const modulationRouteTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       modulatorId: {
         type: 'string',
@@ -371,7 +371,7 @@ const manageViewTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       viewKind: {
         type: 'string',
@@ -399,7 +399,7 @@ const setSurfaceTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       semanticControls: {
         type: 'array',
@@ -500,7 +500,7 @@ const setTrackMetaTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track ID (e.g. "v0").',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
       },
       approval: {
         type: 'string',
@@ -534,7 +534,7 @@ const renderTool: ToolSchema = {
     type: 'object',
     properties: {
       scope: {
-        description: 'Track ID ("v0"), array of track IDs (["v0", "v1"]), or omit for full mix. Use the narrowest scope that answers your question.',
+        description: 'Track reference ("Track 1" or "v0"), array of references (["Track 1", "Track 2"]), or omit for full mix. Use the narrowest scope that answers your question.',
       },
       bars: {
         type: 'integer',

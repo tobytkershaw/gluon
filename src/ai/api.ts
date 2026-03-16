@@ -4,7 +4,7 @@ import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
-import { getTrackLabel } from '../engine/track-labels';
+import { resolveTrackId } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { generatePreservationReport } from '../engine/operation-executor';
@@ -429,6 +429,53 @@ export class GluonAI {
     ctx?: AskContext,
   ): Promise<{ actions: AIAction[]; response: Record<string, unknown> }> {
     const { name, args, id } = fc;
+
+    // Resolve ordinal track references (e.g. "Track 1") to internal IDs
+    if (typeof args.trackId === 'string' && args.trackId) {
+      const resolved = resolveTrackId(args.trackId, session);
+      if (resolved) {
+        args.trackId = resolved;
+      } else {
+        return { actions: [], response: errorPayload(`Unknown track: "${fc.args.trackId}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+      }
+    }
+
+    // Also resolve trackIds arrays (used by listen)
+    if (Array.isArray(args.trackIds)) {
+      const resolvedIds: string[] = [];
+      for (const ref of args.trackIds) {
+        if (typeof ref !== 'string') continue;
+        const resolved = resolveTrackId(ref, session);
+        if (resolved) {
+          resolvedIds.push(resolved);
+        } else {
+          return { actions: [], response: errorPayload(`Unknown track in trackIds: "${ref}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+        }
+      }
+      args.trackIds = resolvedIds;
+    }
+
+    // Resolve scope field (used by render — can be string or string[])
+    if (typeof args.scope === 'string') {
+      const resolved = resolveTrackId(args.scope, session);
+      if (resolved) {
+        args.scope = resolved;
+      } else {
+        return { actions: [], response: errorPayload(`Unknown track in scope: "${args.scope}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+      }
+    } else if (Array.isArray(args.scope)) {
+      const resolvedScope: string[] = [];
+      for (const ref of args.scope) {
+        if (typeof ref !== 'string') continue;
+        const resolved = resolveTrackId(ref, session);
+        if (resolved) {
+          resolvedScope.push(resolved);
+        } else {
+          return { actions: [], response: errorPayload(`Unknown track in scope: "${ref}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+        }
+      }
+      args.scope = resolvedScope;
+    }
 
     switch (name) {
       case 'move': {
