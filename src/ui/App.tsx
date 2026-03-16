@@ -15,6 +15,7 @@ import {
   addTrack, removeTrack,
   addSend, removeSend, setSendLevel,
   toggleMetronome, setMetronomeVolume,
+  addReaction,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -784,6 +785,27 @@ export default function App() {
       }
     }
   }, [ensureAudio, dispatchAIActions]);
+
+  const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected') => {
+    setSession((s) => {
+      // Toggle off if clicking the same verdict again
+      const existing = (s.reactionHistory ?? []).find(r => r.actionGroupIndex === messageIndex);
+      if (existing && existing.verdict === verdict) {
+        // Remove the reaction (toggle off)
+        return {
+          ...s,
+          reactionHistory: (s.reactionHistory ?? []).filter(r => r.actionGroupIndex !== messageIndex),
+        };
+      }
+      // Replace any existing reaction for this message, or add new
+      const filtered = (s.reactionHistory ?? []).filter(r => r.actionGroupIndex !== messageIndex);
+      return addReaction({ ...s, reactionHistory: filtered }, {
+        actionGroupIndex: messageIndex,
+        verdict,
+        timestamp: Date.now(),
+      });
+    });
+  }, []);
 
   const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string) => {
     setOpenaiKey(newOpenaiKey);
@@ -1703,6 +1725,8 @@ export default function App() {
       isThinking={isThinking}
       isListening={isListening}
       streamingText={streamingText}
+      reactions={session.reactionHistory}
+      onReaction={handleReaction}
       apiConfigured={apiConfigured}
       onApiKey={handleApiKey}
       currentOpenaiKey={openaiKey}

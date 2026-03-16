@@ -88,6 +88,8 @@ Work flows continuously — no wave branches, no batch-and-review cycles.
 
 **Why this matters:** We have had incidents where Codex review work switched the branch in the main checkout mid-session, causing commits to land on wrong branches and modified files to contaminate unrelated work. Worktrees prevent this entirely.
 
+**Never chain `cd` with git commands using `&&`** (e.g. `cd /path && git checkout -b branch`). This triggers bare-repository attack prevention and causes excessive permission prompts. Use separate commands, pass `-C /path` to git, or (in worktree isolation mode) just run git directly — your cwd is already set.
+
 ### Branching
 - `main` is the integration branch — never commit directly during parallel work
 - One task per branch, one agent per branch
