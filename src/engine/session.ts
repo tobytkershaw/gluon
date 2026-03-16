@@ -1,7 +1,7 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, Reaction, OpenDecision } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind } from './types';
 import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateTrack, DEFAULT_MASTER, MAX_TRACKS } from './types';
+import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
@@ -53,8 +53,45 @@ function createTrack(index: number): Track {
   };
 }
 
+/**
+ * Create a bus track. Bus tracks have no source engine, empty patterns/regions,
+ * and exist to receive audio from sends and apply processing.
+ */
+export function createBusTrack(trackId: string, name?: string): Track {
+  return {
+    id: trackId,
+    name,
+    kind: 'bus',
+    engine: '',
+    model: -1,
+    params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    agency: 'OFF',
+    pattern: createDefaultPattern(16),
+    regions: [createDefaultRegion(trackId, 16)],
+    views: [],
+    muted: false,
+    solo: false,
+    volume: 0.8,
+    pan: 0.0,
+    sends: [],
+    surface: {
+      semanticControls: [],
+      pinnedControls: [],
+      xyAxes: { x: 'timbre', y: 'morph' },
+      thumbprint: { type: 'static-color' },
+    },
+    approval: 'exploratory',
+  };
+}
+
+/** Create the master bus track. */
+function createMasterBus(): Track {
+  return createBusTrack(MASTER_BUS_ID, 'Master');
+}
+
 export function createSession(): Session {
-  const tracks = Array.from({ length: 4 }, (_, i) => createTrack(i));
+  const audioTracks = Array.from({ length: 4 }, (_, i) => createTrack(i));
+  const tracks = [...audioTracks, createMasterBus()];
   const context: MusicalContext = {
     key: null,
     scale: null,
@@ -121,46 +158,100 @@ export function createEmptyTrack(trackId: string): Track {
 /**
  * Add a new empty track to the session. Returns null if at MAX_TRACKS.
  * Pushes an undo snapshot so the add can be reverted.
+ *
+ * Audio tracks are inserted before bus tracks. Bus tracks are inserted
+ * before the master bus. The master bus always remains last.
  */
-export function addTrack(session: Session): Session | null {
+export function addTrack(session: Session, kind: TrackKind = 'audio'): Session | null {
   if (session.tracks.length >= MAX_TRACKS) return null;
 
   const trackId = nextTrackId(session);
-  const newTrack = createEmptyTrack(trackId);
+  const newTrack = kind === 'bus'
+    ? createBusTrack(trackId)
+    : createEmptyTrack(trackId);
 
   const snapshot: TrackAddSnapshot = {
     kind: 'track-add',
     trackId,
     timestamp: Date.now(),
-    description: `Add track ${trackId}`,
+    description: `Add ${kind} track ${trackId}`,
   };
+
+  // Insert at the correct position to maintain ordering:
+  // audio tracks → bus tracks → master bus
+  const newTracks = [...session.tracks];
+  let insertIndex: number;
+  if (kind === 'audio') {
+    // Insert before the first bus track
+    insertIndex = newTracks.findIndex(t => getTrackKind(t) === 'bus');
+    if (insertIndex === -1) insertIndex = newTracks.length;
+  } else {
+    // Insert before the master bus (or at end if no master)
+    insertIndex = newTracks.findIndex(t => t.id === MASTER_BUS_ID);
+    if (insertIndex === -1) insertIndex = newTracks.length;
+  }
+  newTracks.splice(insertIndex, 0, newTrack);
 
   return {
     ...session,
-    tracks: [...session.tracks, newTrack],
+    tracks: newTracks,
     activeTrackId: trackId,
     undoStack: [...session.undoStack, snapshot],
   };
 }
 
 /**
- * Remove a track from the session. Returns null if only one track remains.
+ * Remove a track from the session. Returns null if only one audio track remains
+ * or if attempting to remove the master bus.
+ * Also removes any sends targeting this track from other tracks.
  * Pushes an undo snapshot so the removal can be reverted.
  */
 export function removeTrack(session: Session, trackId: string): Session | null {
-  if (session.tracks.length <= 1) return null;
+  // Never remove the master bus
+  if (trackId === MASTER_BUS_ID) return null;
 
   const index = session.tracks.findIndex(t => t.id === trackId);
   if (index === -1) return null;
 
-  const removedTrack = session.tracks[index];
-  const newTracks = session.tracks.filter(t => t.id !== trackId);
+  // Must keep at least 1 audio track
+  const audioCount = session.tracks.filter(t => getTrackKind(t) === 'audio').length;
+  const removingAudio = getTrackKind(session.tracks[index]) === 'audio';
+  if (removingAudio && audioCount <= 1) return null;
 
-  // If the removed track was active, switch to an adjacent track
+  const removedTrack = session.tracks[index];
+
+  // Collect sends that point at the removed track before stripping them
+  const affectedSends: Array<{ trackId: string; prevSends: Send[] }> = [];
+  for (const t of session.tracks) {
+    if (t.id === trackId) continue;
+    const sends = t.sends;
+    if (!sends || sends.length === 0) continue;
+    if (sends.some(s => s.busId === trackId)) {
+      affectedSends.push({ trackId: t.id, prevSends: [...sends] });
+    }
+  }
+
+  // Remove sends targeting this track from all other tracks
+  let newTracks = session.tracks
+    .filter(t => t.id !== trackId)
+    .map(t => {
+      const sends = t.sends;
+      if (!sends || sends.length === 0) return t;
+      const filtered = sends.filter(s => s.busId !== trackId);
+      if (filtered.length === sends.length) return t;
+      return { ...t, sends: filtered };
+    });
+
+  // If the removed track was active, switch to an adjacent audio track
   let newActiveTrackId = session.activeTrackId;
   if (session.activeTrackId === trackId) {
-    const newIndex = Math.min(index, newTracks.length - 1);
-    newActiveTrackId = newTracks[newIndex].id;
+    const audioTracks = newTracks.filter(t => getTrackKind(t) === 'audio');
+    if (audioTracks.length > 0) {
+      const newIndex = Math.min(index, audioTracks.length - 1);
+      newActiveTrackId = audioTracks[newIndex].id;
+    } else {
+      newActiveTrackId = newTracks[0].id;
+    }
   }
 
   const snapshot: TrackRemoveSnapshot = {
@@ -168,6 +259,7 @@ export function removeTrack(session: Session, trackId: string): Session | null {
     removedTrack,
     removedIndex: index,
     prevActiveTrackId: session.activeTrackId,
+    affectedSends: affectedSends.length > 0 ? affectedSends : undefined,
     timestamp: Date.now(),
     description: `Remove track ${trackId}`,
   };
@@ -405,5 +497,82 @@ export function setApproval(session: Session, trackId: string, level: ApprovalLe
   };
 
   const result = updateTrack(session, trackId, { approval: level });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+// --- Send routing helpers ---
+
+/**
+ * Add a send from a track to a bus track. Returns null if the bus doesn't exist,
+ * the send already exists, or if trying to send from a bus to itself.
+ */
+export function addSend(session: Session, trackId: string, busId: string, level = 1.0): Session | null {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return null;
+  // Target must be a bus
+  const bus = session.tracks.find(t => t.id === busId);
+  if (!bus || getTrackKind(bus) !== 'bus') return null;
+  // No self-sends
+  if (trackId === busId) return null;
+  const sends = track.sends ?? [];
+  // No duplicate sends
+  if (sends.some(s => s.busId === busId)) return null;
+
+  const snapshot: SendSnapshot = {
+    kind: 'send',
+    trackId,
+    prevSends: [...sends],
+    timestamp: Date.now(),
+    description: `Add send from ${trackId} to ${busId}`,
+  };
+
+  const clamped = Math.max(0, Math.min(1, level));
+  const result = updateTrack(session, trackId, { sends: [...sends, { busId, level: clamped }] });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/**
+ * Remove a send from a track to a bus track.
+ */
+export function removeSend(session: Session, trackId: string, busId: string): Session | null {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return null;
+  const sends = track.sends ?? [];
+  if (!sends.some(s => s.busId === busId)) return null;
+
+  const snapshot: SendSnapshot = {
+    kind: 'send',
+    trackId,
+    prevSends: [...sends],
+    timestamp: Date.now(),
+    description: `Remove send from ${trackId} to ${busId}`,
+  };
+
+  const result = updateTrack(session, trackId, { sends: sends.filter(s => s.busId !== busId) });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/**
+ * Set the send level for an existing send.
+ */
+export function setSendLevel(session: Session, trackId: string, busId: string, level: number): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  const sends = track.sends ?? [];
+  const idx = sends.findIndex(s => s.busId === busId);
+  if (idx === -1) return session;
+
+  const snapshot: SendSnapshot = {
+    kind: 'send',
+    trackId,
+    prevSends: [...sends],
+    timestamp: Date.now(),
+    description: `Set send level from ${trackId} to ${busId}`,
+  };
+
+  const clamped = Math.max(0, Math.min(1, level));
+  const newSends = [...sends];
+  newSends[idx] = { ...newSends[idx], level: clamped };
+  const result = updateTrack(session, trackId, { sends: newSends });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }

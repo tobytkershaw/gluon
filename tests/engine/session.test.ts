@@ -9,11 +9,15 @@ import {
 import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
 
 describe('Session (Phase 2)', () => {
-  it('creates a session with 4 tracks', () => {
+  it('creates a session with 4 audio tracks plus a master bus', () => {
     const session = createSession();
-    expect(session.tracks).toHaveLength(4);
+    expect(session.tracks).toHaveLength(5); // 4 audio + 1 master bus
     expect(session.activeTrackId).toBe(session.tracks[0].id);
     expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0 });
+    // Master bus is last
+    const masterBus = session.tracks[session.tracks.length - 1];
+    expect(masterBus.id).toBe('master-bus');
+    expect(masterBus.kind).toBe('bus');
   });
 
   it('track 0 is model 13 (kick), track 1 is model 0 (bass), track 2 is model 2 (lead), track 3 is model 4 (pad)', () => {
@@ -34,10 +38,14 @@ describe('Session (Phase 2)', () => {
     }
   });
 
-  it('creates tracks with agency ON by default', () => {
+  it('creates audio tracks with agency ON by default (bus tracks have agency OFF)', () => {
     const s = createSession();
     for (const track of s.tracks) {
-      expect(track.agency).toBe('ON');
+      if (track.kind === 'bus') {
+        expect(track.agency).toBe('OFF');
+      } else {
+        expect(track.agency).toBe('ON');
+      }
     }
   });
 

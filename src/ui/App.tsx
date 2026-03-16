@@ -5,7 +5,7 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline } from '../audio/render-offline';
 import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
-import { getActiveTrack, getTrack, updateTrack } from '../engine/types';
+import { getActiveTrack, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -13,6 +13,7 @@ import {
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster, setTrackVolume, setTrackPan,
   addTrack, removeTrack,
+  addSend, removeSend, setSendLevel,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -160,11 +161,20 @@ export default function App() {
   const ensureAudio = useCallback(async () => {
     if (audioStarted) return;
     const s = sessionRef.current;
-    await audioRef.current.start(s.tracks.map(v => v.id));
+    const audioTrackIds = s.tracks.filter(t => getTrackKind(t) === 'audio').map(t => t.id);
+    const busTrackIds = s.tracks.filter(t => getTrackKind(t) === 'bus').map(t => t.id);
+    const masterBusId = s.tracks.find(t => t.id === MASTER_BUS_ID) ? MASTER_BUS_ID : undefined;
+    await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId);
     for (const track of s.tracks) {
-      if (track.model !== -1) {
+      if (track.model !== -1 && getTrackKind(track) === 'audio') {
         audioRef.current.setTrackModel(track.id, track.model);
         audioRef.current.setTrackParams(track.id, track.params);
+      }
+    }
+    // Sync initial sends
+    for (const track of s.tracks) {
+      if (track.sends && track.sends.length > 0) {
+        audioRef.current.syncSends(track.id, track.sends);
       }
     }
     setAudioStarted(true);
@@ -217,13 +227,18 @@ export default function App() {
     // Add engine slots for tracks not yet in the audio engine
     for (const track of session.tracks) {
       if (!audio.hasTrack(track.id)) {
-        void audio.addTrack(track.id).then(() => {
+        const isBus = getTrackKind(track) === 'bus';
+        void audio.addTrack(track.id, isBus).then(() => {
           // After the async add, sync model/params from current session
           const s = sessionRef.current;
           const t = s.tracks.find(v => v.id === track.id);
-          if (t && t.model !== -1) {
+          if (t && t.model !== -1 && !isBus) {
             audio.setTrackModel(t.id, t.model);
             audio.setTrackParams(t.id, t.params);
+          }
+          // If this is the master bus, set it as such
+          if (track.id === MASTER_BUS_ID) {
+            audio.setMasterBus(MASTER_BUS_ID);
           }
         });
       }
@@ -285,6 +300,14 @@ export default function App() {
     for (const track of session.tracks) {
       audioRef.current.setTrackVolume(track.id, track.volume);
       audioRef.current.setTrackPan(track.id, track.pan);
+    }
+  }, [session.tracks, audioStarted]);
+
+  // Sync sends to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    for (const track of session.tracks) {
+      audioRef.current.syncSends(track.id, track.sends ?? []);
     }
   }, [session.tracks, audioStarted]);
 
@@ -914,9 +937,9 @@ export default function App() {
     setSession((s) => setTrackPan(s, trackId, value));
   }, [ensureAudio]);
 
-  const handleAddTrack = useCallback(() => {
+  const handleAddTrack = useCallback((kind?: import('../engine/types').TrackKind) => {
     setSession((s) => {
-      const result = addTrack(s);
+      const result = addTrack(s, kind ?? 'audio');
       if (!result) return s;
       // Audio engine slot is provisioned by the sync effect watching session.tracks
       return result;

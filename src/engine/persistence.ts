@@ -1,8 +1,8 @@
 // src/engine/persistence.ts
 import type { Session, Track, ModulatorConfig, ModulationRouting } from './types';
-import { DEFAULT_MASTER } from './types';
+import { DEFAULT_MASTER, MASTER_BUS_ID, getTrackKind } from './types';
 import type { Region } from './canonical-types';
-import { createSession } from './session';
+import { createSession, createBusTrack } from './session';
 import { stepsToEvents } from './event-conversion';
 import { reprojectTrackPattern } from './region-projection';
 import { createDefaultRegion } from './region-helpers';
@@ -148,6 +148,14 @@ export function migrateTrack(track: Track): Track {
     surfaced = { ...surfaced, approval: 'exploratory' };
   }
 
+  // Hydrate kind and sends for tracks from pre-bus-routing saves
+  if (!surfaced.kind) {
+    surfaced = { ...surfaced, kind: surfaced.id === MASTER_BUS_ID ? 'bus' : 'audio' };
+  }
+  if (!surfaced.sends) {
+    surfaced = { ...surfaced, sends: [] };
+  }
+
   // Validate modulators: strip unknown types and dangling modulation references
   const registeredModTypes = getRegisteredModulatorTypes();
   const validModulators = (surfaced.modulators ?? []).filter(
@@ -189,7 +197,12 @@ export function loadSession(): Session | null {
 
     // Migrate all tracks (handles both v1 and v2)
     const session = data.session;
-    const migratedTracks = session.tracks.map(migrateTrack);
+    let migratedTracks = session.tracks.map(migrateTrack);
+
+    // Ensure a master bus exists (backward compat for pre-bus-routing saves)
+    if (!migratedTracks.some(t => t.id === MASTER_BUS_ID)) {
+      migratedTracks = [...migratedTracks, createBusTrack(MASTER_BUS_ID, 'Master')];
+    }
 
     return {
       ...session,
@@ -197,7 +210,7 @@ export function loadSession(): Session | null {
         ...session.transport,
         status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
       },
-      tracks: migratedTracks,
+      tracks: migratedTracks as Track[],
       master: session.master ?? { ...DEFAULT_MASTER },
       undoStack: session.undoStack ?? [],
       redoStack: session.redoStack ?? [],

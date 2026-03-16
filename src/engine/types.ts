@@ -4,6 +4,15 @@ import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent, Seman
 
 export type Agency = 'OFF' | 'ON';
 
+/** Discriminates audio tracks (sound sources) from bus tracks (send/return mixing). */
+export type TrackKind = 'audio' | 'bus';
+
+/** A send from one track to a bus track, with a post-fader send level. */
+export interface Send {
+  busId: string;
+  level: number; // 0.0–1.0, default 1.0
+}
+
 /**
  * Approval level for a track's current material.
  * Controls how the AI should treat the material during edits.
@@ -113,6 +122,8 @@ export interface Track {
   id: string;
   /** Human-assigned display name. When absent, derived from the engine model. */
   name?: string;
+  /** Track kind: 'audio' (default) generates sound, 'bus' receives audio via sends. */
+  kind?: TrackKind;
   engine: string;
   model: number;
   params: SynthParamValues;
@@ -125,6 +136,8 @@ export interface Track {
   volume: number;
   /** Per-track pan, -1.0 (left) to 1.0 (right), default 0.0 */
   pan: number;
+  /** Post-fader sends to bus tracks. Default: [] */
+  sends?: Send[];
   controlProvenance?: ControlState;
   /** Addable sequencer views. Presentation state — persisted but not part of musical state. */
   views?: SequencerViewConfig[];
@@ -160,6 +173,9 @@ export const DEFAULT_MASTER: MasterChannel = { volume: 0.8, pan: 0.0 };
 
 /** Soft cap on the number of tracks in a session. */
 export const MAX_TRACKS = 16;
+
+/** Well-known ID for the master bus track. */
+export const MASTER_BUS_ID = 'master-bus';
 
 export interface MusicalContext {
   key: string | null;
@@ -309,11 +325,21 @@ export interface TrackRemoveSnapshot {
   removedIndex: number;
   /** If the active track was the removed one, stores the prev activeTrackId for restore. */
   prevActiveTrackId: string;
+  /** Sends from other tracks that pointed at the removed track, captured before stripping. */
+  affectedSends?: Array<{ trackId: string; prevSends: Send[] }>;
   timestamp: number;
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot;
+export interface SendSnapshot {
+  kind: 'send';
+  trackId: string;
+  prevSends: Send[];
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -628,4 +654,44 @@ export function updateTrack(session: Session, trackId: string, update: Partial<T
 /** Effective tempo: transport.bpm when transport exists, else context.tempo fallback */
 export function getEffectiveTempo(session: Session): number | null {
   return session.transport.bpm ?? session.context.tempo;
+}
+
+/** Return the kind of a track, defaulting to 'audio' for backward compatibility. */
+export function getTrackKind(track: Track): TrackKind {
+  return track.kind ?? 'audio';
+}
+
+/** Return all audio tracks (excluding buses). */
+export function getAudioTracks(session: Session): Track[] {
+  return session.tracks.filter(t => getTrackKind(t) === 'audio');
+}
+
+/** Return all bus tracks. */
+export function getBusTracks(session: Session): Track[] {
+  return session.tracks.filter(t => getTrackKind(t) === 'bus');
+}
+
+/** Return the master bus track, or undefined if not present. */
+export function getMasterBus(session: Session): Track | undefined {
+  return session.tracks.find(t => t.id === MASTER_BUS_ID);
+}
+
+/**
+ * Return tracks sorted for display: audio tracks first, then non-master bus tracks,
+ * then the master bus last.
+ */
+export function getOrderedTracks(session: Session): Track[] {
+  const audio: Track[] = [];
+  const buses: Track[] = [];
+  let master: Track | undefined;
+  for (const t of session.tracks) {
+    if (t.id === MASTER_BUS_ID) {
+      master = t;
+    } else if (getTrackKind(t) === 'bus') {
+      buses.push(t);
+    } else {
+      audio.push(t);
+    }
+  }
+  return [...audio, ...buses, ...(master ? [master] : [])];
 }

@@ -45,15 +45,25 @@ interface ModulationRoute {
 }
 
 interface TrackSlot {
-  pool: VoicePool;
+  pool: VoicePool | null; // null for bus tracks (they have no voices)
   sourceOut: GainNode;   // routing node between source and processor chain
   chainOutGain: GainNode; // gain node at end of processor chain — ramped to 0 during rebuild to avoid clicks
   trackVolume: GainNode; // per-track volume (0.0–1.0)
   trackPanner: StereoPannerNode; // per-track pan (-1.0 to 1.0)
   muteGain: GainNode;    // controlled by mute/solo -- never touched by scheduleNote
+  /** Bus input node: audio sent from other tracks is summed here, then into chainOutGain. */
+  busInput: GainNode | null; // non-null only for bus tracks
   processors: ProcessorSlot[];
   currentParams: SynthParams;
   currentModel: number;
+  /** Whether this is a bus track (no voice pool). */
+  isBus: boolean;
+}
+
+/** Per-track send routing: a gain node controlling send level, connected to a bus's busInput. */
+interface SendGainSlot {
+  busId: string;
+  sendGain: GainNode;
 }
 
 interface ActiveVoice {
@@ -133,12 +143,16 @@ export class AudioEngine {
   /** Monotonic transport generation propagated to worklets to invalidate stale events. */
   private generation = 0;
   private activeVoices = new Map<string, ActiveVoice>();
+  /** Per-track send gain nodes: trackId → SendGainSlot[] */
+  private sendSlots: Map<string, SendGainSlot[]> = new Map();
+  /** The master bus track ID, used for routing all track outputs. */
+  private masterBusId: string | null = null;
 
   get isRunning(): boolean {
     return this._isRunning;
   }
 
-  async start(trackIds: string[]): Promise<void> {
+  async start(trackIds: string[], busTrackIds: string[] = [], masterBusId?: string): Promise<void> {
     if (this._isRunning) return;
     this.ctx = new AudioContext({ sampleRate: 48000 });
 
@@ -162,101 +176,29 @@ export class AudioEngine {
     this.analyser.connect(this.ctx.destination);
     this.masterPanner.connect(this.mediaStreamDest);
 
-    for (const trackId of trackIds) {
-      // Signal chain:
-      //   voice[n].synth → voice[n].accentGain ─┐
-      //                                          ├→ sourceOut → [processors] → chainOutGain → trackVolume → trackPanner → muteGain → mixer
-      //   voice[m].synth → voice[m].accentGain ─┘
-      const sourceOut = this.ctx.createGain();
-      sourceOut.gain.value = 1.0;
-      const chainOutGain = this.ctx.createGain();
-      chainOutGain.gain.value = 1.0;
-      const trackVolume = this.ctx.createGain();
-      trackVolume.gain.value = 0.8; // default per-track volume
-      const trackPanner = this.ctx.createStereoPanner();
-      trackPanner.pan.value = 0.0; // center
-      const muteGain = this.ctx.createGain();
-      muteGain.gain.value = 1.0; // 1 = audible, 0 = muted
-      sourceOut.connect(chainOutGain);
-      chainOutGain.connect(trackVolume);
-      trackVolume.connect(trackPanner);
-      trackPanner.connect(muteGain);
-      muteGain.connect(this.mixer);
+    const allBusIds = new Set(busTrackIds);
+    this.masterBusId = masterBusId ?? null;
 
-      const poolVoices = [];
-      for (let i = 0; i < VOICES_PER_TRACK; i++) {
-        const accentGain = this.ctx.createGain();
-        accentGain.gain.value = ACCENT_BASELINE;
-        const synth = await createPreferredSynth(this.ctx, accentGain);
-        accentGain.connect(sourceOut);
-        poolVoices.push({ synth, accentGain, lastNoteTime: 0, lastGateOffTime: 0 });
-      }
-
-      this.tracks.set(trackId, {
-        pool: new VoicePool(poolVoices),
-        sourceOut,
-        chainOutGain,
-        trackVolume,
-        trackPanner,
-        muteGain,
-        processors: [],
-        currentParams: { ...DEFAULT_PARAMS },
-        currentModel: 0,
-      });
+    // Create all bus tracks first so audio tracks can reference the master bus
+    for (const busId of busTrackIds) {
+      await this.createBusSlot(busId);
     }
+
+    // Create audio track slots
+    for (const trackId of trackIds) {
+      if (allBusIds.has(trackId)) continue; // already created as bus
+      await this.createAudioSlot(trackId);
+    }
+
+    // Route non-master tracks to the master bus if it exists
+    this.rerouteToMasterBus();
 
     this._isRunning = true;
   }
 
-  stop(): void {
-    if (!this._isRunning) return;
-    // Destroy modulators and routes
-    for (const [, modSlots] of this.modulatorSlots) {
-      for (const modSlot of modSlots) {
-        modSlot.engine.destroy();
-        modSlot.keepAliveGain.disconnect();
-      }
-    }
-    for (const [, routes] of this.modulationRouteSlots) {
-      for (const route of routes) {
-        route.depthGain.disconnect();
-      }
-    }
-    this.modulatorSlots.clear();
-    this.modulationRouteSlots.clear();
-    this.pendingModulators.clear();
-    // Destroy processors and tracks
-    for (const slot of this.tracks.values()) {
-      for (const proc of slot.processors) {
-        proc.engine.destroy();
-      }
-      slot.pool.destroy();
-    }
-    this.tracks.clear();
-    this.activeVoices.clear();
-    this.pendingProcessors.clear();
-    this.mixer?.disconnect();
-    this.masterGain?.disconnect();
-    this.masterPanner?.disconnect();
-    this.analyser?.disconnect();
-    this.mediaStreamDest?.disconnect();
-    this.ctx?.close();
-    this.ctx = null;
-    this.mixer = null;
-    this.masterGain = null;
-    this.masterPanner = null;
-    this.analyser = null;
-    this.mediaStreamDest = null;
-    this._isRunning = false;
-  }
-
-  /**
-   * Dynamically add a new track slot to the running audio engine.
-   * Creates a voice pool and the per-track gain/pan chain.
-   */
-  async addTrack(trackId: string): Promise<void> {
+  /** Create an audio track slot with a voice pool. */
+  private async createAudioSlot(trackId: string): Promise<void> {
     if (!this.ctx || !this.mixer) return;
-    if (this.tracks.has(trackId)) return;
 
     const sourceOut = this.ctx.createGain();
     sourceOut.gain.value = 1.0;
@@ -290,15 +232,142 @@ export class AudioEngine {
       trackVolume,
       trackPanner,
       muteGain,
+      busInput: null,
       processors: [],
       currentParams: { ...DEFAULT_PARAMS },
       currentModel: 0,
+      isBus: false,
+    });
+  }
+
+  /** Create a bus track slot — gain/pan nodes but no voice pool. */
+  private async createBusSlot(busId: string): Promise<void> {
+    if (!this.ctx || !this.mixer) return;
+
+    // Bus input: all sends sum here
+    const busInput = this.ctx.createGain();
+    busInput.gain.value = 1.0;
+    // sourceOut isn't used by buses directly, but keeps the slot shape consistent
+    const sourceOut = this.ctx.createGain();
+    sourceOut.gain.value = 1.0;
+    const chainOutGain = this.ctx.createGain();
+    chainOutGain.gain.value = 1.0;
+    const trackVolume = this.ctx.createGain();
+    trackVolume.gain.value = 0.8;
+    const trackPanner = this.ctx.createStereoPanner();
+    trackPanner.pan.value = 0.0;
+    const muteGain = this.ctx.createGain();
+    muteGain.gain.value = 1.0;
+
+    // Bus signal chain: busInput → [processors] → chainOutGain → trackVolume → trackPanner → muteGain → mixer
+    busInput.connect(chainOutGain);
+    chainOutGain.connect(trackVolume);
+    trackVolume.connect(trackPanner);
+    trackPanner.connect(muteGain);
+    muteGain.connect(this.mixer);
+
+    this.tracks.set(busId, {
+      pool: null,
+      sourceOut,
+      chainOutGain,
+      trackVolume,
+      trackPanner,
+      muteGain,
+      busInput,
+      processors: [],
+      currentParams: { ...DEFAULT_PARAMS },
+      currentModel: 0,
+      isBus: true,
     });
   }
 
   /**
+   * Route all non-master track muteGain outputs to the master bus's busInput
+   * instead of directly to the mixer. The master bus then routes to the mixer.
+   */
+  private rerouteToMasterBus(): void {
+    if (!this.masterBusId || !this.mixer) return;
+    const masterSlot = this.tracks.get(this.masterBusId);
+    if (!masterSlot?.busInput) return;
+
+    for (const [trackId, slot] of this.tracks) {
+      if (trackId === this.masterBusId) continue;
+      // Disconnect from mixer, reconnect to master bus input
+      slot.muteGain.disconnect();
+      slot.muteGain.connect(masterSlot.busInput);
+    }
+  }
+
+  stop(): void {
+    if (!this._isRunning) return;
+    // Destroy modulators and routes
+    for (const [, modSlots] of this.modulatorSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.destroy();
+        modSlot.keepAliveGain.disconnect();
+      }
+    }
+    for (const [, routes] of this.modulationRouteSlots) {
+      for (const route of routes) {
+        route.depthGain.disconnect();
+      }
+    }
+    this.modulatorSlots.clear();
+    this.modulationRouteSlots.clear();
+    this.pendingModulators.clear();
+    // Destroy send gain nodes
+    for (const [, slots] of this.sendSlots) {
+      for (const s of slots) s.sendGain.disconnect();
+    }
+    this.sendSlots.clear();
+    this.masterBusId = null;
+    // Destroy processors and tracks
+    for (const slot of this.tracks.values()) {
+      for (const proc of slot.processors) {
+        proc.engine.destroy();
+      }
+      if (slot.pool) slot.pool.destroy();
+    }
+    this.tracks.clear();
+    this.activeVoices.clear();
+    this.pendingProcessors.clear();
+    this.mixer?.disconnect();
+    this.masterGain?.disconnect();
+    this.masterPanner?.disconnect();
+    this.analyser?.disconnect();
+    this.mediaStreamDest?.disconnect();
+    this.ctx?.close();
+    this.ctx = null;
+    this.mixer = null;
+    this.masterGain = null;
+    this.masterPanner = null;
+    this.analyser = null;
+    this.mediaStreamDest = null;
+    this._isRunning = false;
+  }
+
+  /**
+   * Dynamically add a new track slot to the running audio engine.
+   * Creates a voice pool and the per-track gain/pan chain.
+   * For bus tracks, pass isBus=true to skip voice pool creation.
+   */
+  async addTrack(trackId: string, isBus = false): Promise<void> {
+    if (!this.ctx || !this.mixer) return;
+    if (this.tracks.has(trackId)) return;
+
+    if (isBus) {
+      await this.createBusSlot(trackId);
+    } else {
+      await this.createAudioSlot(trackId);
+    }
+
+    // If a master bus exists, route this new track through it
+    this.rerouteToMasterBus();
+  }
+
+  /**
    * Dynamically remove a track slot from the running audio engine.
-   * Destroys voice pool, processors, modulators, and disconnects all nodes.
+   * Destroys voice pool, processors, modulators, sends, and disconnects all nodes.
    */
   removeTrack(trackId: string): void {
     const slot = this.tracks.get(trackId);
@@ -332,18 +401,43 @@ export class AudioEngine {
     for (const key of [...this.pendingModulators]) {
       if (key.startsWith(trackId + ':')) this.pendingModulators.delete(key);
     }
+    // Clean up send gain nodes from this track
+    const sends = this.sendSlots.get(trackId);
+    if (sends) {
+      for (const s of sends) s.sendGain.disconnect();
+      this.sendSlots.delete(trackId);
+    }
+    // Clean up sends from other tracks that point to this track (if it's a bus)
+    if (slot.isBus) {
+      for (const [otherTrackId, otherSends] of this.sendSlots) {
+        const filtered = otherSends.filter(s => {
+          if (s.busId === trackId) {
+            s.sendGain.disconnect();
+            return false;
+          }
+          return true;
+        });
+        this.sendSlots.set(otherTrackId, filtered);
+      }
+    }
     // Clean up active voices for this track
     for (const [eventId, voice] of this.activeVoices) {
       if (voice.trackId === trackId) this.activeVoices.delete(eventId);
     }
     // Destroy voice pool and disconnect audio nodes
-    slot.pool.destroy();
+    if (slot.pool) slot.pool.destroy();
     slot.sourceOut.disconnect();
     slot.chainOutGain.disconnect();
     slot.trackVolume.disconnect();
     slot.trackPanner.disconnect();
     slot.muteGain.disconnect();
+    if (slot.busInput) slot.busInput.disconnect();
     this.tracks.delete(trackId);
+
+    // If master bus was removed, clear the reference
+    if (trackId === this.masterBusId) {
+      this.masterBusId = null;
+    }
   }
 
   /** Check whether a track slot exists in the audio engine. */
@@ -358,14 +452,14 @@ export class AudioEngine {
 
   setTrackModel(trackId: string, model: number): void {
     const slot = this.tracks.get(trackId);
-    if (!slot) return;
+    if (!slot || !slot.pool) return;
     slot.currentModel = model;
     slot.pool.setModel(model);
   }
 
   setTrackParams(trackId: string, params: SynthParams): void {
     const slot = this.tracks.get(trackId);
-    if (!slot) return;
+    if (!slot || !slot.pool) return;
     slot.currentParams = { ...params };
     slot.pool.setParams(params);
   }
@@ -405,7 +499,7 @@ export class AudioEngine {
 
   scheduleNote(note: ScheduledNote, generation = this.generation): void {
     const slot = this.tracks.get(note.trackId);
-    if (!slot) return;
+    if (!slot || !slot.pool) return;
     this.pruneInactiveVoices(note.time);
     const eventId = note.eventId ?? `manual:${note.trackId}:${note.time}:${note.gateOffTime}`;
     const voiceGeneration = note.generation ?? generation;
@@ -434,7 +528,7 @@ export class AudioEngine {
   /** Silence a single track: close gate and reset accent gain. Used by keyboard piano for note-off. */
   releaseTrack(trackId: string): void {
     const slot = this.tracks.get(trackId);
-    if (!slot) return;
+    if (!slot || !slot.pool) return;
     const now = this.ctx?.currentTime ?? 0;
     slot.pool.release(now);
     for (const voice of this.activeVoices.values()) {
@@ -448,7 +542,7 @@ export class AudioEngine {
   restoreBaseline(): void {
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {
-      slot.pool.restoreBaseline(now);
+      if (slot.pool) slot.pool.restoreBaseline(now);
     }
     // Resume modulator output after pause
     for (const [, modSlots] of this.modulatorSlots) {
@@ -467,7 +561,7 @@ export class AudioEngine {
     for (const trackId of activeTrackIds) {
       const slot = this.tracks.get(trackId);
       if (!slot) continue;
-      slot.pool.releaseAll(this.generation, now, fadeTime);
+      if (slot.pool) slot.pool.releaseAll(this.generation, now, fadeTime);
       // Clear scheduled events in downstream processors (Rings/Clouds)
       // so their tails don't sustain indefinitely. Don't damp() Rings —
       // that's hard-stop behaviour; let the resonance decay naturally.
@@ -497,7 +591,7 @@ export class AudioEngine {
     for (const trackId of activeTrackIds) {
       const slot = this.tracks.get(trackId);
       if (!slot) continue;
-      slot.pool.silenceAll(this.generation, now);
+      if (slot.pool) slot.pool.silenceAll(this.generation, now);
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
         proc.engine.silence(this.generation);
@@ -690,18 +784,21 @@ export class AudioEngine {
     slot.chainOutGain.gain.setValueAtTime(slot.chainOutGain.gain.value, now);
     slot.chainOutGain.gain.linearRampToValueAtTime(0, now + CHAIN_RAMP_SEC);
 
-    // Disconnect sourceOut and all processors, then rewire
-    slot.sourceOut.disconnect();
+    // For bus tracks, the input is busInput; for audio tracks, it's sourceOut
+    const inputNode = slot.isBus && slot.busInput ? slot.busInput : slot.sourceOut;
+
+    // Disconnect input and all processors, then rewire
+    inputNode.disconnect();
     for (const proc of slot.processors) {
       proc.engine.inputNode.disconnect();
     }
 
     if (slot.processors.length === 0) {
-      // Direct: sourceOut -> chainOutGain
-      slot.sourceOut.connect(slot.chainOutGain);
+      // Direct: input -> chainOutGain
+      inputNode.connect(slot.chainOutGain);
     } else {
-      // Chain: sourceOut -> proc[0] -> ... -> proc[n] -> chainOutGain
-      slot.sourceOut.connect(slot.processors[0].engine.inputNode);
+      // Chain: input -> proc[0] -> ... -> proc[n] -> chainOutGain
+      inputNode.connect(slot.processors[0].engine.inputNode);
       for (let i = 0; i < slot.processors.length - 1; i++) {
         slot.processors[i].engine.inputNode.connect(slot.processors[i + 1].engine.inputNode);
       }
@@ -895,6 +992,7 @@ export class AudioEngine {
   private resolveModulationTargets(trackSlot: TrackSlot, target: ModulationTarget): { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam }[] {
     if (target.kind === 'source') {
       const results: { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam }[] = [];
+      if (!trackSlot.pool) return results;
       const runtimeParam = controlIdToRuntimeParam[target.param] ?? target.param;
       const paramName = `mod-${runtimeParam}`;
       for (const workletNode of trackSlot.pool.workletNodes) {
@@ -912,6 +1010,70 @@ export class AudioEngine {
       const audioParam = targetNode.parameters.get(paramName);
       if (!audioParam) return [];
       return [{ targetNode, paramName, audioParam }];
+    }
+  }
+
+  // --- Send routing ---
+
+  /** Set the master bus ID and re-route all existing tracks through it. */
+  setMasterBus(masterBusId: string): void {
+    this.masterBusId = masterBusId;
+    this.rerouteToMasterBus();
+  }
+
+  /** Whether a track slot is a bus. */
+  isTrackBus(trackId: string): boolean {
+    return this.tracks.get(trackId)?.isBus ?? false;
+  }
+
+  /**
+   * Sync send routing for a track to match the given sends array.
+   * Creates/removes/updates send gain nodes as needed.
+   */
+  syncSends(trackId: string, sends: Array<{ busId: string; level: number }>): void {
+    if (!this.ctx) return;
+    const slot = this.tracks.get(trackId);
+    if (!slot) return;
+
+    const existing = this.sendSlots.get(trackId) ?? [];
+    const desiredBusIds = new Set(sends.map(s => s.busId));
+
+    // Remove sends that are no longer desired
+    const kept: SendGainSlot[] = [];
+    for (const s of existing) {
+      if (!desiredBusIds.has(s.busId)) {
+        s.sendGain.disconnect();
+      } else {
+        kept.push(s);
+      }
+    }
+
+    // Update or add sends
+    const result: SendGainSlot[] = [];
+    for (const send of sends) {
+      const busSlot = this.tracks.get(send.busId);
+      if (!busSlot?.busInput) continue; // target bus doesn't exist or isn't a bus
+
+      const existingSlot = kept.find(s => s.busId === send.busId);
+      if (existingSlot) {
+        // Update level
+        existingSlot.sendGain.gain.value = send.level;
+        result.push(existingSlot);
+      } else {
+        // Create new send gain node
+        // Tap from post-fader output (muteGain) to bus input
+        const sendGain = this.ctx.createGain();
+        sendGain.gain.value = send.level;
+        slot.muteGain.connect(sendGain);
+        sendGain.connect(busSlot.busInput);
+        result.push({ busId: send.busId, sendGain });
+      }
+    }
+
+    if (result.length > 0) {
+      this.sendSlots.set(trackId, result);
+    } else {
+      this.sendSlots.delete(trackId);
     }
   }
 
