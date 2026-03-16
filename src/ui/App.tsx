@@ -1616,6 +1616,7 @@ export default function App() {
             onTranspose={handleTranspose}
             onReverse={handleReverse}
             onDuplicate={handleDuplicate}
+            onPatternLengthChange={handlePatternLength}
             cancelEditRef={cancelEditRef}
           />
         )}
