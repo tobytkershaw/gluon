@@ -61,6 +61,7 @@ class CloudsProcessor extends AudioWorkletProcessor {
       { name: 'mod-size', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mod-density', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mod-feedback', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'min-fence', defaultValue: 0, minValue: 0, maxValue: 1e9, automationRate: 'k-rate' },
     ];
   }
 
@@ -245,6 +246,13 @@ class CloudsProcessor extends AudioWorkletProcessor {
     const modSize = parameters['mod-size'][0];
     const modDensity = parameters['mod-density'][0];
     const modFeedback = parameters['mod-feedback'][0];
+
+    // Synchronous fence via AudioParam — read before draining the queue so
+    // stale events are filtered in the same process() block as the fence update.
+    const newMinFence = Math.floor(parameters['min-fence'][0]);
+    if (newMinFence > this.minFence) {
+      this.minFence = newMinFence;
+    }
 
     const blockStart = currentTime;
     const frameCount = left.length;

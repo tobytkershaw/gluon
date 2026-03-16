@@ -60,6 +60,7 @@ class RingsProcessor extends AudioWorkletProcessor {
       { name: 'mod-brightness', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mod-damping', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mod-position', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'min-fence', defaultValue: 0, minValue: 0, maxValue: 1e9, automationRate: 'k-rate' },
     ];
   }
 
@@ -258,6 +259,13 @@ class RingsProcessor extends AudioWorkletProcessor {
     const modBrightness = parameters['mod-brightness'][0];
     const modDamping = parameters['mod-damping'][0];
     const modPosition = parameters['mod-position'][0];
+
+    // Synchronous fence via AudioParam — read before draining the queue so
+    // stale events are filtered in the same process() block as the fence update.
+    const newMinFence = Math.floor(parameters['min-fence'][0]);
+    if (newMinFence > this.minFence) {
+      this.minFence = newMinFence;
+    }
 
     const blockStart = currentTime;
     const frameCount = left.length;
