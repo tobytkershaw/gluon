@@ -85,10 +85,31 @@ This maps directly to Gluon's arbitration principle: the human's value is the ba
 - Per-note modulation extends to individual voices (CLAP's "MPE on steroids")
 - Thread-safe parameter sync uses wait-free queues, not mutexes
 
+### Three-Layer Composition Model (Industry Consensus)
+
+Research across CLAP, Bitwig, Ableton, and Pro Tools converges on three composable parameter layers:
+
+```
+effective_value = clamp(base_value + automation_delta + sum(modulation_offsets))
+```
+
+| Layer | What | Persisted |
+|-------|------|-----------|
+| **Base** | The knob position. Set by human or AI `move`. | Yes |
+| **Automation** | Time-varying value from `ParameterEvent` in regions. | Yes |
+| **Modulation** | Real-time offsets from LFOs, envelopes, expression. Non-destructive. | Config only |
+
+Gluon's current `ControlValue.value` is the base layer. `ParameterEvent` in regions is the automation layer. Modulation offset has no representation yet. See `docs/rfcs/parameter-automation-research.md` for full research and #307 for implementation tracking.
+
 ### References
 - [CLAP: The New Audio Plug-in Standard — Bitwig](https://www.bitwig.com/stories/clap-the-new-audio-plug-in-standard-201/)
 - [CLAP GitHub Repository](https://github.com/free-audio/clap)
-- Bitwig's unified modulation system: unlimited modulators per device, all at audio rate
+- [CLAP params.h — event types](https://github.com/free-audio/clap/blob/main/include/clap/ext/params.h)
+- [CLAP Tutorial Part 2 — modulation implementation](https://nakst.gitlab.io/tutorial/clap-part-2.html)
+- [Bitwig Unified Modulation System](https://www.bitwig.com/userguide/latest/the_unified_modulation_system/)
+- [Ableton Automation and Clip Envelopes](https://www.ableton.com/en/manual/automation-and-editing-envelopes/)
+- [Pro Tools Trim Automation](https://www.production-expert.com/production-expert-1/trim-mode-in-pro-tools-automation-what-you-should-know)
+- `docs/rfcs/parameter-automation-research.md` — full research report
 
 ---
 

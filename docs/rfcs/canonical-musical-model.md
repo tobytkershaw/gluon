@@ -332,7 +332,25 @@ interface Region {
 }
 ```
 
-A voice can own multiple regions (verse pattern, chorus pattern, fills). For now, most voices will have a single looping pattern region. When a voice is instantiated, it is created with one default region: a looping pattern region spanning one bar. When an AI `sketch` operation omits `regionId`, it targets this default region. The current `Pattern` type (steps with gate/accent/params) becomes an adapter that reads and writes the default region for the step-grid renderer.
+A voice can own multiple regions (verse pattern, chorus pattern, fills, automation lanes). For now, most voices will have a single looping pattern region. When a voice is instantiated, it is created with one default region: a looping pattern region spanning one bar. When an AI `sketch` operation omits `regionId`, it targets this default region. The current `Pattern` type (steps with gate/accent/params) becomes an adapter that reads and writes the default region for the step-grid renderer.
+
+#### Automation Lane Regions
+
+An `automation_lane` region contains only `ParameterEvent`s for a single `controlId`. This separates continuous automation curves (filter sweeps, volume swells) from per-step parameter locks that live inline with notes in the pattern region.
+
+**Composition rules at playback:**
+
+```
+At any given step:
+  if inline_param_lock exists for (trackId, controlId, step):
+    use inline_param_lock.value            // most specific
+  else if automation_lane exists for (trackId, controlId):
+    interpolate automation_lane at position // continuous curve
+  else:
+    use track.params[controlId]            // base value
+```
+
+This follows the Renoise hybrid model where inline effect commands and graphical automation envelopes coexist on the same parameter. See `docs/rfcs/parameter-automation-research.md` for full research and #463 for implementation tracking.
 
 ### Musical Event
 
@@ -364,12 +382,13 @@ interface ParameterEvent extends BaseEvent {
   controlId: string;
   value: number | string | boolean;
   interpolation?: 'step' | 'linear' | 'curve';  // default: 'step'
+  tension?: number;                     // -1.0 to 1.0, curve shape (0 = linear). Only meaningful when interpolation is 'curve'.
 }
 
 type MusicalEvent = NoteEvent | TriggerEvent | ParameterEvent;
 ```
 
-This abstraction backs step sequencers, trackers, piano rolls, MIDI clips, and arrangement automation.
+This abstraction backs step sequencers, trackers, piano rolls, MIDI clips, and arrangement automation. The `tension` field follows Reaper's per-point curvature model — a single scalar that shapes the curve between two breakpoints without requiring full bezier control points. See #408 for interpolation implementation.
 
 ### Project
 
