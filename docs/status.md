@@ -45,7 +45,9 @@ Bus tracks with send/return routing, explicit master bus.
 
 ### Stabilisation — In progress
 
-Pattern/sequence model refactor (#516, PR #517) merged. Adopted standard tracker model, simplified scheduler, added song mode. Remaining stabilisation issues: #506-#515 (from QA walkthrough).
+Pattern/sequence model refactor (#516, PR #517) merged. Adopted standard tracker model, simplified scheduler, added song mode.
+
+QA triage: #506 (dropped notes) and #508 (delayed params) closed — fixed by #517. #511 point 6 (pattern model) and #514 point 2 (loop → mode toggle) addressed. Metronome stop (#507), small knob drag (#510), L shortcut rewire, and targeted test coverage in PR #518. Remaining: #509 (A/B comparison), #511 (tracker overhaul), #512 (track sidebar), #513 (patch view), #514 (sig dropdown + polish), #515 (AI contract).
 
 ### Wave 4: "Make it polished" — Not started
 
