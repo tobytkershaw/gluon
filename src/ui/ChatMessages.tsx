@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import type { ChatMessage, Reaction } from '../engine/types';
+import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 
@@ -13,9 +13,13 @@ interface Props {
   reactions?: Reaction[];
   /** Callback when user clicks approve/reject on an AI message. */
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
+  /** Current undo stack, used to determine which AI messages can be undone. */
+  undoStack?: UndoEntry[];
+  /** Callback when user clicks the undo button on an AI message. */
+  onUndoMessage?: (messageIndex: number) => void;
 }
 
-export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', reactions = [], onReaction }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', reactions = [], onReaction, undoStack = [], onUndoMessage }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,6 +41,13 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
       {messages.map((msg, i) => {
         const hasActions = msg.role === 'ai' && msg.actions && msg.actions.length > 0;
         const reaction = hasActions ? reactions.find(r => r.actionGroupIndex === i) : undefined;
+        // A message can be undone if it has an undoStackIndex and that entry
+        // is currently on top of the undo stack (LIFO — only the most recent
+        // AI change can be cleanly reverted).
+        const canUndo = hasActions
+          && msg.undoStackIndex != null
+          && undoStack.length > 0
+          && msg.undoStackIndex === undoStack.length - 1;
 
         return (
           <div
@@ -76,12 +87,29 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               {msg.toolCalls && msg.toolCalls.length > 0 && (
                 <ToolCallsView toolCalls={msg.toolCalls} />
               )}
-              {hasActions && onReaction && (
-                <ReactionButtons
-                  messageIndex={i}
-                  currentVerdict={reaction?.verdict}
-                  onReaction={onReaction}
-                />
+              {hasActions && (onReaction || canUndo) && (
+                <div className="flex items-center gap-1 mt-1.5">
+                  {onUndoMessage && canUndo && (
+                    <button
+                      onClick={() => onUndoMessage(i)}
+                      className="flex items-center justify-center w-5 h-5 rounded transition-colors text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
+                      title="Undo this change"
+                    >
+                      <svg viewBox="0 0 16 16" className="w-3 h-3" fill="currentColor">
+                        <path d="M2.5 1a.5.5 0 0 1 .5.5V4h2.5a5.5 5.5 0 1 1 0 11H4a.5.5 0 0 1 0-1h1.5a4.5 4.5 0 1 0 0-9H3v2.5a.5.5 0 0 1-.854.354l-2-2a.5.5 0 0 1 0-.708l2-2A.5.5 0 0 1 2.5 1z" />
+                      </svg>
+                    </button>
+                  )}
+                  {onReaction && (
+                    <>
+                      <ReactionButtons
+                        messageIndex={i}
+                        currentVerdict={reaction?.verdict}
+                        onReaction={onReaction}
+                      />
+                    </>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -132,7 +160,7 @@ function ReactionButtons({
   const isRejected = currentVerdict === 'rejected';
 
   return (
-    <div className="flex items-center gap-1 mt-1.5">
+    <>
       <button
         onClick={() => onReaction(messageIndex, 'approved')}
         className={`flex items-center justify-center w-5 h-5 rounded transition-colors ${
@@ -159,7 +187,7 @@ function ReactionButtons({
           <path d="M8.834.066c.763.087 1.5.295 2.01.884.505.581.656 1.378.656 2.3 0 .467-.087 1.119-.157 1.637L11.328 5h1.422c.603 0 1.174.085 1.668.485.486.392.804.97.804 1.765a1.38 1.38 0 0 1-.089.46l-1.532 4.14c-.293.815-.852 1.39-1.601 1.65-.718.248-1.498.2-2.187.2H6.5A1.5 1.5 0 0 1 5 12.2V7.5c0-.47.176-.919.495-1.265l3.384-3.677c.291-.316.478-.736.495-1.191L9.39.695a.932.932 0 0 0-.556-.629ZM4 7.5a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-5Z" />
         </svg>
       </button>
-    </div>
+    </>
   );
 }
 

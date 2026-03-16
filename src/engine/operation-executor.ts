@@ -1606,6 +1606,9 @@ export function executeOperations(
   // Add message
   const combinedSay = sayTexts.join(' ');
   if (combinedSay || log.length > 0) {
+    // If this AI turn produced undo entries, record the undo stack index
+    // so the UI can offer per-message undo when the entry is on top.
+    const hasUndoEntries = next.undoStack.length > undoBaseline;
     next = {
       ...next,
       messages: [...next.messages, {
@@ -1614,6 +1617,7 @@ export function executeOperations(
         timestamp: Date.now(),
         ...(log.length > 0 ? { actions: log } : {}),
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(hasUndoEntries ? { undoStackIndex: next.undoStack.length - 1 } : {}),
       }],
     };
   }

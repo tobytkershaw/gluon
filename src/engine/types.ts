@@ -673,6 +673,9 @@ export interface ChatMessage {
   actions?: ActionLogEntry[];
   /** Tool calls the AI made during this turn (for transparency display). */
   toolCalls?: ToolCallEntry[];
+  /** Index into the undo stack where this message's grouped undo entry lives.
+   *  Set by executeOperations on AI messages that produce undoable changes. */
+  undoStackIndex?: number;
 }
 
 // --- Helpers ---

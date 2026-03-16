@@ -95,6 +95,7 @@ interface Props {
   redoStack: UndoEntry[];
   onUndo: () => void;
   onRedo: () => void;
+  onUndoMessage?: (messageIndex: number) => void;
   /** Shared ref: when true on blur, in-progress inline edits discard instead of committing. */
   cancelEditRef?: MutableRefObject<boolean>;
   // Master channel
@@ -128,7 +129,7 @@ export function AppShell({
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   loopEnabled, loopStart, loopEnd, onToggleLoop, onLoopStartChange, onLoopEndChange,
   view, onViewChange,
-  undoStack, redoStack, onUndo, onRedo,
+  undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
   masterVolume, masterPan, analyser, stereoAnalysers, audioContext, onMasterVolumeChange, onMasterPanChange,
   children,
@@ -238,6 +239,8 @@ export function AppShell({
           streamingText={streamingText}
           reactions={reactions}
           onReaction={onReaction}
+          undoStack={undoStack}
+          onUndoMessage={onUndoMessage}
           apiConfigured={apiConfigured}
           onApiKey={onApiKey}
           currentOpenaiKey={currentOpenaiKey}
