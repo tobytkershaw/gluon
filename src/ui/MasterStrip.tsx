@@ -14,7 +14,7 @@ interface Props {
 }
 
 const METER_WIDTH = 20;   // total width: two bars + gap
-const METER_HEIGHT = 28;  // match knob height
+const METER_HEIGHT = 22;  // match knob height
 const BAR_WIDTH = 4;
 const BAR_GAP = 2;
 const PEAK_HOLD_MS = 1500;
@@ -28,7 +28,7 @@ function levelColor(level: number): string {
 }
 
 /** Stereo peak meter — vertical L/R bars with peak-hold indicators. */
-function PeakMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode, AnalyserNode] | null }) {
+export function PeakMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode, AnalyserNode] | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const bufLRef = useRef<Float32Array | null>(null);
@@ -153,7 +153,7 @@ export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers,
           label="Vol"
           accentColor="zinc"
           onChange={onVolumeChange}
-          size={28}
+          size={22}
         />
       </div>
 
@@ -170,7 +170,7 @@ export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers,
           label="Pan"
           accentColor="zinc"
           onChange={handlePanKnobChange}
-          size={28}
+          size={22}
         />
       </div>
 

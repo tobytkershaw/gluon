@@ -65,15 +65,15 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
   if (variant === 'sidebar') {
     return (
       <form onSubmit={handleSubmit} className="px-3 pb-3 pt-2">
-        <div className="flex items-end gap-2 bg-zinc-800/60 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2">
           <textarea
             {...textareaProps}
-            className="flex-1 bg-transparent text-zinc-200 placeholder:text-zinc-500 outline-none font-mono min-w-0 text-xs overflow-y-auto"
+            className="flex-1 bg-transparent text-zinc-900 placeholder:text-zinc-400 outline-none font-mono min-w-0 text-xs overflow-y-auto"
           />
           <button
             type="submit"
             disabled={disabled || !input.trim()}
-            className="shrink-0 rounded-full flex items-center justify-center transition-colors w-6 h-6 text-amber-400/70 disabled:text-zinc-700 hover:text-amber-300"
+            className="shrink-0 rounded-full flex items-center justify-center transition-colors w-6 h-6 text-zinc-900 disabled:text-zinc-300 hover:text-zinc-600"
           >
             <svg viewBox="0 0 16 16" className="fill-current w-3 h-3">
               <path d="M2 2l12 6-12 6V9.5l7-.5-7-.5V2z" />

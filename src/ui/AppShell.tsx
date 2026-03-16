@@ -17,7 +17,7 @@ import { TransportStrip } from './TransportStrip';
 import { ABControls } from './TransportStrip';
 import { UndoButton } from './UndoButton';
 import { RedoButton } from './RedoButton';
-import { MasterStrip } from './MasterStrip';
+import { PeakMeter as PeakMeterFooter } from './MasterStrip';
 import { AudioLoadMeter } from './AudioLoadMeter';
 
 interface Props {
@@ -296,20 +296,13 @@ export function AppShell({
       </div>
 
       {/* Global footer bar */}
-      <div className="flex items-center h-10 border-t border-zinc-800/50 shrink-0">
-        {/* Workstation footer: audio load + master strip */}
-        <div className="flex-1 flex items-center justify-end">
+      <div className="flex items-center h-7 border-t border-zinc-800/50 shrink-0">
+        {/* Workstation footer: audio load + stereo meter */}
+        <div className="flex-1 flex items-center gap-2 px-3">
           <AudioLoadMeter audioContext={audioContext} />
-          <MasterStrip
-            volume={masterVolume}
-            pan={masterPan}
-            analyser={analyser}
-            stereoAnalysers={stereoAnalysers}
-            onVolumeChange={onMasterVolumeChange}
-            onPanChange={onMasterPanChange}
-          />
+          <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
         </div>
-        {/* Chat toggle button — always visible in footer */}
+        {/* Chat toggle button */}
         <div className="shrink-0 flex items-center px-1 border-l border-zinc-800/30">
           <button
             onClick={onChatToggle}
@@ -334,34 +327,13 @@ export function AppShell({
         </div>
       </div>
 
-      {/* Floating composer pill — visible when chat is collapsed */}
+      {/* Floating composer — bare input, no chrome. pl-[2px] matches the border-left in open state. */}
       {!chatOpen && (
         <div
-          className="ai-composer-pill fixed z-50 flex items-center gap-2 rounded-xl px-3 py-2"
-          style={{ bottom: 52, right: 16, width: 340 }}
+          className="fixed z-50 pl-[2px]"
+          style={{ bottom: 34, right: 0, width: chatWidth }}
         >
-          {/* Open chat button */}
-          <button
-            onClick={onChatToggle}
-            className="shrink-0 p-1 rounded hover:bg-violet-500/15 transition-colors"
-            title="Open AI chat (Cmd+/)"
-          >
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-violet-400/70 hover:text-violet-300 transition-colors">
-              <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {/* Composer input */}
-          <div className="flex-1 min-w-0">
-            <ChatComposer onSend={handleFloatingComposerSend} disabled={isThinking || isListening} variant="footer" />
-          </div>
-          {/* Thinking indicator */}
-          {(isThinking || isListening) && (
-            <span
-              className="shrink-0 w-2 h-2 rounded-full bg-violet-400"
-              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-              title={isListening ? 'Listening...' : 'Thinking...'}
-            />
-          )}
+          <ChatComposer onSend={handleFloatingComposerSend} disabled={isThinking || isListening} variant="sidebar" />
         </div>
       )}
     </div>
