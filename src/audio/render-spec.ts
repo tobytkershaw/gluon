@@ -33,6 +33,8 @@ export interface RenderTrackSpec {
   /** Per-track pan, -1.0 (left) to 1.0 (right) */
   pan: number;
   params: RenderSynthPatch;
+  /** Plaits extended parameters (FM, LPG, etc.) */
+  extendedParams: RenderPlaitsExtended;
   events: RenderEvent[];
   processors: RenderProcessorSpec[];
   modulators: RenderModulatorSpec[];
@@ -44,6 +46,14 @@ export interface RenderSynthPatch {
   timbre: number;
   morph: number;
   note: number;
+}
+
+export interface RenderPlaitsExtended {
+  fm_amount: number;
+  timbre_mod_amount: number;
+  morph_mod_amount: number;
+  decay: number;
+  lpg_colour: number;
 }
 
 export interface RenderProcessorSpec {
@@ -62,6 +72,12 @@ export interface RenderModulatorSpec {
     shape: number;
     slope: number;
     smoothness: number;
+  };
+  /** Tides extended parameters (shift, output mode, range). */
+  extendedParams: {
+    shift: number;
+    output_mode: number;
+    range: number;
   };
 }
 
@@ -144,6 +160,14 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
     note: track.params.note,
   };
 
+  const extendedParams: RenderPlaitsExtended = {
+    fm_amount: track.params.fm_amount ?? 0.0,
+    timbre_mod_amount: track.params.timbre_mod_amount ?? 0.0,
+    morph_mod_amount: track.params.morph_mod_amount ?? 0.0,
+    decay: track.params.decay ?? 0.5,
+    lpg_colour: track.params.lpg_colour ?? 0.5,
+  };
+
   const events = collectEvents(track, bars);
   const processors = (track.processors ?? []).map(buildProcessorSpec);
   const modulators = (track.modulators ?? []).map(buildModulatorSpec);
@@ -155,6 +179,7 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
     volume: track.volume ?? 0.8,
     pan: track.pan ?? 0.0,
     params,
+    extendedParams,
     events,
     processors,
     modulators,
@@ -188,6 +213,11 @@ function buildModulatorSpec(mod: ModulatorConfig): RenderModulatorSpec {
       shape: mod.params.shape ?? 0.5,
       slope: mod.params.slope ?? 0.5,
       smoothness: mod.params.smoothness ?? 0.5,
+    },
+    extendedParams: {
+      shift: mod.params.shift ?? 0.0,
+      output_mode: Math.round(mod.params['output-mode'] ?? 1),
+      range: Math.round(mod.params.range ?? 0),
     },
   };
 }

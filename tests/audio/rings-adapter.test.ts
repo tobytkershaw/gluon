@@ -73,10 +73,10 @@ describe('rings-adapter', () => {
     expect(result.valid).toBe(true);
   });
 
-  it('getControlSchemas returns 6 controls for modal engine', () => {
+  it('getControlSchemas returns 7 controls for modal engine', () => {
     const schemas = adapter.getControlSchemas('modal');
-    expect(schemas).toHaveLength(6);
-    expect(schemas.map(s => s.id)).toEqual(['structure', 'brightness', 'damping', 'position', 'polyphony', 'internal-exciter']);
+    expect(schemas).toHaveLength(7);
+    expect(schemas.map(s => s.id)).toEqual(['structure', 'brightness', 'damping', 'position', 'polyphony', 'internal-exciter', 'fine-tune']);
   });
 
   it('getControlSchemas returns empty for unknown engine', () => {

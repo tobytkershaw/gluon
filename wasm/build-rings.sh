@@ -31,7 +31,7 @@ emcc \
   -s NO_EXIT_RUNTIME=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=2097152 \
-  -s EXPORTED_FUNCTIONS='["_rings_create","_rings_destroy","_rings_set_model","_rings_set_polyphony","_rings_set_patch","_rings_set_note","_rings_set_internal_exciter","_rings_strum","_rings_render","_malloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_rings_create","_rings_destroy","_rings_set_model","_rings_set_polyphony","_rings_set_patch","_rings_set_note","_rings_set_fine_tune","_rings_set_internal_exciter","_rings_strum","_rings_render","_malloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["HEAPF32"]' \
   -o "$OUT_DIR/rings-module.js"
 

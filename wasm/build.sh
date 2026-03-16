@@ -29,7 +29,7 @@ emcc \
   -s ENVIRONMENT=worker \
   -s FILESYSTEM=0 \
   -s NO_EXIT_RUNTIME=1 \
-  -s EXPORTED_FUNCTIONS='["_plaits_create","_plaits_destroy","_plaits_set_model","_plaits_set_patch","_plaits_trigger","_plaits_set_gate","_plaits_render","_malloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_plaits_create","_plaits_destroy","_plaits_set_model","_plaits_set_patch","_plaits_set_extended","_plaits_trigger","_plaits_set_gate","_plaits_render","_malloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["HEAPF32"]' \
   -o "$OUT_DIR/plaits-module.js"
 

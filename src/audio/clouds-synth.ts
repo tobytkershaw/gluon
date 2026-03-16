@@ -1,4 +1,4 @@
-import type { CloudsProcessorCommand, CloudsProcessorStatus, CloudsPatchParams } from './clouds-messages';
+import type { CloudsProcessorCommand, CloudsProcessorStatus, CloudsPatchParams, CloudsExtendedParams } from './clouds-messages';
 
 const WORKLET_URL = '/audio/clouds-worklet.js';
 const MODULE_URL = '/audio/clouds-module.js';
@@ -10,6 +10,7 @@ export interface CloudsEngine {
   readonly inputNode: AudioNode;
   setMode(mode: number): void;
   setPatch(params: CloudsPatchParams): void;
+  setExtended(params: CloudsExtendedParams): void;
   setFreeze(freeze: boolean): void;
   /** Clear all scheduled events from the worklet queue. */
   silence(fence?: number): void;
@@ -121,6 +122,10 @@ export class CloudsSynth implements CloudsEngine {
   setPatch(params: CloudsPatchParams): void {
     this.currentPatch = { ...params };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  setExtended(params: CloudsExtendedParams): void {
+    this.post({ type: 'set-extended', extended: params });
   }
 
   setFreeze(freeze: boolean): void {

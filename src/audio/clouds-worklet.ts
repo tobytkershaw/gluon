@@ -24,6 +24,14 @@ interface CloudsPatch {
   feedback: number;
 }
 
+interface CloudsExtendedParams {
+  texture: number;
+  pitch: number;
+  dry_wet: number;
+  stereo_spread: number;
+  reverb: number;
+}
+
 interface CloudsWasm {
   _malloc(size: number): number;
   _free(ptr: number): void;
@@ -31,6 +39,7 @@ interface CloudsWasm {
   _clouds_destroy(handle: number): void;
   _clouds_set_mode(handle: number, modeIndex: number): void;
   _clouds_set_parameters(handle: number, position: number, size: number, density: number, feedback: number): void;
+  _clouds_set_extended(handle: number, texture: number, pitch: number, dry_wet: number, stereo_spread: number, reverb: number): void;
   _clouds_set_freeze(handle: number, freeze: number): void;
   _clouds_render(handle: number, inputPtr: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
@@ -40,6 +49,7 @@ interface CloudsWasm {
 type ScheduledEvent =
   | { type: 'set-mode'; time?: number; seq: number; fence?: number; mode: number }
   | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: CloudsPatch }
+  | { type: 'set-extended'; time?: number; seq: number; fence?: number; extended: CloudsExtendedParams }
   | { type: 'set-freeze'; time?: number; seq: number; fence?: number; freeze: boolean }
   | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
   | { type: 'destroy'; time?: undefined; seq: number; fence?: number };
@@ -144,6 +154,16 @@ class CloudsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-patch':
         this.currentPatch = event.patch;
+        break;
+      case 'set-extended':
+        this.wasm._clouds_set_extended(
+          this.handle,
+          event.extended.texture,
+          event.extended.pitch,
+          event.extended.dry_wet,
+          event.extended.stereo_spread,
+          event.extended.reverb,
+        );
         break;
       case 'set-freeze':
         this.wasm._clouds_set_freeze(this.handle, event.freeze ? 1 : 0);

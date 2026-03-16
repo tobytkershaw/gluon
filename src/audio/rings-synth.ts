@@ -11,6 +11,7 @@ export interface RingsEngine {
   setModel(model: number): void;
   setPatch(params: RingsPatchParams): void;
   setNote(tonic: number, note: number): void;
+  setFineTune(offset: number): void;
   setPolyphony(polyphony: number): void;
   setInternalExciter(enabled: boolean): void;
   strum(time: number): void;
@@ -130,6 +131,10 @@ export class RingsSynth implements RingsEngine {
 
   setNote(tonic: number, note: number): void {
     this.post({ type: 'set-note', tonic, note });
+  }
+
+  setFineTune(offset: number): void {
+    this.post({ type: 'set-fine-tune', offset });
   }
 
   setPolyphony(polyphony: number): void {

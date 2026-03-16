@@ -27,6 +27,7 @@ export interface CloudsDestroyMessage {
 
 export type CloudsProcessorCommand =
   | CloudsPatchMessage
+  | CloudsExtendedMessage
   | CloudsModeMessage
   | CloudsFreezeMessage
   | CloudsClearScheduledMessage
@@ -48,4 +49,18 @@ export interface CloudsPatchParams {
   size: number;
   density: number;
   feedback: number;
+}
+
+export interface CloudsExtendedParams {
+  texture: number;
+  pitch: number;
+  dry_wet: number;
+  stereo_spread: number;
+  reverb: number;
+}
+
+export interface CloudsExtendedMessage {
+  type: 'set-extended';
+  extended: CloudsExtendedParams;
+  time?: number;
 }

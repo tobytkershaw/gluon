@@ -49,9 +49,12 @@ struct RingsState {
   SmoothedParam smooth_damping;
   SmoothedParam smooth_position;
 
+  // Fine tune offset in semitones, applied at render time (not accumulated)
+  float fine_tune_offset;
+
   bool strum_pending;
 
-  RingsState() : strum_pending(false) {
+  RingsState() : fine_tune_offset(0.0f), strum_pending(false) {
     std::memset(&patch, 0, sizeof(patch));
     std::memset(&performance, 0, sizeof(performance));
   }
@@ -133,6 +136,14 @@ void rings_set_note(void* handle, float tonic, float note) {
   state->performance.note = note;
 }
 
+void rings_set_fine_tune(void* handle, float offset) {
+  auto* state = static_cast<RingsState*>(handle);
+  if (!state) return;
+  // Fine tune: store offset in semitones (not accumulated).
+  // Normalized 0-1 maps to -1..+1 semitones. Applied in rings_render.
+  state->fine_tune_offset = (offset - 0.5f) * 2.0f;
+}
+
 void rings_set_internal_exciter(void* handle, int enabled) {
   auto* state = static_cast<RingsState*>(handle);
   if (!state) return;
@@ -180,8 +191,13 @@ int rings_render(void* handle, const float* input, float* output, int num_frames
     state->performance.strum = state->strum_pending;
     state->strum_pending = false;
 
+    // Apply fine tune offset to a copy of performance state so the base
+    // note is never permanently mutated.
+    PerformanceState perf = state->performance;
+    perf.note += state->fine_tune_offset;
+
     state->part.Process(
-      state->performance,
+      perf,
       state->patch,
       state->in_buffer,
       state->out_buffer,

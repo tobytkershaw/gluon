@@ -80,18 +80,56 @@ function defaultControls(): ControlSchema[] {
       'Fundamental pitch of the sound. 0.0 is the lowest, 1.0 is the highest.',
       'note',
     ),
+    // --- Extended parameters (via _plaits_set_extended) ---
+    makePlaitsControl(
+      'fm-amount',
+      'FM Amount',
+      'richness',
+      'Frequency modulation depth. Controls how much the internal envelope modulates the pitch.',
+      'fm_amount',
+      0.0,
+      'small',
+    ),
+    makePlaitsControl(
+      'timbre-mod-amount',
+      'Timbre Mod',
+      'brightness',
+      'How much the internal envelope modulates the timbre parameter.',
+      'timbre_mod_amount',
+      0.0,
+      'small',
+    ),
+    makePlaitsControl(
+      'morph-mod-amount',
+      'Morph Mod',
+      'texture',
+      'How much the internal envelope modulates the morph parameter.',
+      'morph_mod_amount',
+      0.0,
+      'small',
+    ),
+    makePlaitsControl(
+      'decay',
+      'Decay',
+      'decay',
+      'LPG decay time. Controls how long the internal low-pass gate stays open after a trigger.',
+      'decay',
+      0.5,
+      'small',
+    ),
+    makePlaitsControl(
+      'lpg-colour',
+      'LPG Colour',
+      'brightness',
+      'LPG response character. Low values are more like a VCA, high values add more filtering.',
+      'lpg_colour',
+      0.5,
+      'small',
+    ),
   ];
 }
 
-// --- Missing Plaits parameters (need C++ WASM bridge work) ---
-// The Plaits Patch struct has these additional fields that are initialized in
-// gluon_plaits.cpp but not exposed via _plaits_set_patch():
-//   - frequency_modulation_amount (FM amount)
-//   - timbre_modulation_amount (timbre envelope amount)
-//   - morph_modulation_amount (morph envelope amount)
-//   - decay (LPG decay)
-//   - lpg_colour (LPG colour / response)
-// Follow-on: add new C++ setter(s), worklet messages, and ControlSchema entries.
+// --- Plaits extended parameters (exposed via _plaits_set_extended) ---
 
 // --- Engine definitions ---
 
@@ -225,12 +263,19 @@ function ringsControls(): ControlSchema[] {
         path: 'params.internal-exciter',
       },
     },
+    makeRingsControl(
+      'fine-tune',
+      'Fine Tune',
+      'pitch',
+      'Fine pitch offset in semitones. 0.5 is centered (no offset), 0.0 is -1 semitone, 1.0 is +1 semitone.',
+      'continuous',
+      0.5,
+      'small',
+    ),
   ];
 }
 
-// --- Missing Rings parameters (need C++ WASM bridge work) ---
-// - fine tune (would modify performance.note with fine offset)
-// Follow-on: add C++ setter, worklet message, and ControlSchema entry.
+// --- Rings extended parameters (exposed via _rings_set_fine_tune) ---
 
 // --- Rings engine definitions ---
 
@@ -365,7 +410,7 @@ function cloudsControls(): ControlSchema[] {
       'continuous',
       0.0,
     ),
-    // --- Secondary control (WASM bridge exists) ---
+    // --- Secondary controls (WASM bridge exists) ---
     {
       id: 'freeze',
       name: 'Freeze',
@@ -381,19 +426,49 @@ function cloudsControls(): ControlSchema[] {
         path: 'params.freeze',
       },
     },
+    // --- Extended parameters (via _clouds_set_extended) ---
+    makeCloudsControl(
+      'texture',
+      'Texture',
+      'texture',
+      'Grain envelope shape. Controls the window function applied to each grain.',
+    ),
+    makeCloudsControl(
+      'pitch',
+      'Pitch',
+      'pitch',
+      'Grain transposition. 0.5 is no shift, lower values pitch down, higher values pitch up.',
+      'continuous',
+      0.5,
+    ),
+    makeCloudsControl(
+      'dry-wet',
+      'Dry/Wet',
+      'body',
+      'Blend between dry input and processed wet signal.',
+    ),
+    makeCloudsControl(
+      'stereo-spread',
+      'Stereo Spread',
+      'density',
+      'Width of the stereo image. 0 is mono, 1 is full stereo spread.',
+      'continuous',
+      0.0,
+      'small',
+    ),
+    makeCloudsControl(
+      'reverb',
+      'Reverb',
+      'decay',
+      'Built-in reverb amount. Adds space and depth to the processed signal.',
+      'continuous',
+      0.0,
+      'small',
+    ),
   ];
 }
 
-// --- Missing Clouds parameters (need C++ WASM bridge work) ---
-// The Clouds GranularProcessor params struct has these fields that are set in
-// clouds_create() but not exposed via _clouds_set_parameters():
-//   - texture (grain envelope / window shape)
-//   - pitch (pitch shift in semitones)
-//   - dry_wet (dry/wet mix)
-//   - stereo_spread (stereo image width)
-//   - reverb (built-in reverb amount)
-// Follow-on: extend _clouds_set_parameters() or add new setter(s),
-// update CloudsPatchParams, worklet messages, and ControlSchema entries.
+// --- Clouds extended parameters (exposed via _clouds_set_extended) ---
 
 // --- Clouds engine definitions ---
 
@@ -491,16 +566,49 @@ function tidesControls(): ControlSchema[] {
       'Waveform smoothing. Low values are sharp/stepped, high values are smooth/rounded.',
       0.5,
     ),
+    // --- Extended parameters (via _tides_set_extended) ---
+    makeTidesControl(
+      'shift',
+      'Shift',
+      'texture',
+      'Multi-channel phase spread. Controls the phase offset between output channels.',
+      0.0,
+      'small',
+    ),
+    {
+      id: 'output-mode',
+      name: 'Output Mode',
+      kind: 'discrete' as ControlKind,
+      semanticRole: 'body',
+      description: 'Output signal type: gates (0), amplitude (1), slope/phase (2), frequency (3).',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 3, default: 1 },
+      size: 'small',
+      binding: {
+        adapterId: 'tides',
+        path: 'params.output-mode',
+      },
+    } as ControlSchema,
+    {
+      id: 'range',
+      name: 'Range',
+      kind: 'discrete' as ControlKind,
+      semanticRole: 'pitch',
+      description: 'Operating range: control rate (0) for LFO use, audio rate (1) for oscillator use.',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 1, default: 0 },
+      size: 'small',
+      binding: {
+        adapterId: 'tides',
+        path: 'params.range',
+      },
+    } as ControlSchema,
   ];
 }
 
-// --- Missing Tides parameters (need C++ WASM bridge work) ---
-// The Tides PolySlopeGenerator::Render() call accepts these parameters that
-// are currently hardcoded in gluon_tides.cpp:
-//   - shift (multi-channel phase spread, hardcoded to 0.0)
-//   - output_mode (OUTPUT_MODE_AMPLITUDE hardcoded — could expose frequency, phase, etc.)
-//   - range (RANGE_CONTROL hardcoded — could allow audio-rate oscillation)
-// Follow-on: add new C++ setter(s), worklet messages, and ControlSchema entries.
+// --- Tides extended parameters (exposed via _tides_set_extended) ---
 
 // --- Tides engine definitions ---
 

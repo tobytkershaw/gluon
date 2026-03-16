@@ -26,8 +26,8 @@ describe('Rings instrument registry', () => {
     expect(ringsInstrument.adapterId).toBe('rings');
   });
 
-  it('every engine has 6 controls: structure, brightness, damping, position, polyphony, internal-exciter', () => {
-    const expected = ['structure', 'brightness', 'damping', 'position', 'polyphony', 'internal-exciter'];
+  it('every engine has 7 controls: structure, brightness, damping, position, polyphony, internal-exciter, fine-tune', () => {
+    const expected = ['structure', 'brightness', 'damping', 'position', 'polyphony', 'internal-exciter', 'fine-tune'];
     for (const engine of ringsInstrument.engines) {
       const controlIds = engine.controls.map(c => c.id);
       expect(controlIds, `engine ${engine.id}`).toEqual(expected);

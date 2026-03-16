@@ -32,7 +32,7 @@ emcc \
   -s NO_EXIT_RUNTIME=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=8388608 \
-  -s EXPORTED_FUNCTIONS='["_clouds_create","_clouds_destroy","_clouds_set_mode","_clouds_set_parameters","_clouds_set_freeze","_clouds_render","_malloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_clouds_create","_clouds_destroy","_clouds_set_mode","_clouds_set_parameters","_clouds_set_extended","_clouds_set_freeze","_clouds_render","_malloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["HEAPF32"]' \
   -o "$OUT_DIR/clouds-module.js"
 

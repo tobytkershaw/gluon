@@ -17,6 +17,12 @@ export interface RingsNoteMessage {
   time?: number;
 }
 
+export interface RingsFineTuneMessage {
+  type: 'set-fine-tune';
+  offset: number;
+  time?: number;
+}
+
 export interface RingsPolyphonyMessage {
   type: 'set-polyphony';
   polyphony: number;
@@ -51,6 +57,7 @@ export type RingsProcessorCommand =
   | RingsPatchMessage
   | RingsModelMessage
   | RingsNoteMessage
+  | RingsFineTuneMessage
   | RingsPolyphonyMessage
   | RingsInternalExciterMessage
   | RingsStrumMessage

@@ -19,21 +19,39 @@ using tides::RAMP_MODE_AR;
 using tides::OUTPUT_MODE_AMPLITUDE;
 using tides::RANGE_CONTROL;
 
+// One-pole lowpass for parameter smoothing (prevents clicks on parameter jumps).
+struct SmoothedParam {
+  float current;
+  float target;
+
+  void set(float value) { target = value; }
+  void reset(float value) { current = target = value; }
+
+  void step(float coeff) {
+    current += coeff * (target - current);
+  }
+};
+
 struct TidesState {
   PolySlopeGenerator generator;
   PolySlopeGenerator::OutputSample output_buffer[128];
   stmlib::GateFlags gate_buffer[128];
 
-  // Parameters (normalized 0-1)
-  float frequency;
-  float shape;
-  float slope;
-  float smoothness;
+  // Smoothed parameters (normalized 0-1)
+  SmoothedParam smooth_frequency;
+  SmoothedParam smooth_shape;
+  SmoothedParam smooth_slope;
+  SmoothedParam smooth_smoothness;
+  SmoothedParam smooth_shift;
 
   // Mode: 0=AD, 1=Looping, 2=AR
   int ramp_mode;
+  // Output mode (0=amplitude, 1=frequency, 2=phase, 3=tidal)
+  int output_mode;
+  // Range (0=control, 1=audio)
+  int range;
 
-  TidesState() : frequency(0.5f), shape(0.5f), slope(0.5f), smoothness(0.5f), ramp_mode(1) {}
+  TidesState() : ramp_mode(1), output_mode(1), range(0) {}
 };
 
 inline float clamp01(float value) {
@@ -63,6 +81,13 @@ void* tides_create() {
   state->generator.Init();
   // Fill gate buffer with GATE_FLAG_HIGH for free-running mode
   std::fill(state->gate_buffer, state->gate_buffer + 128, stmlib::GATE_FLAG_HIGH);
+
+  state->smooth_frequency.reset(0.5f);
+  state->smooth_shape.reset(0.5f);
+  state->smooth_slope.reset(0.5f);
+  state->smooth_smoothness.reset(0.5f);
+  state->smooth_shift.reset(0.0f);
+
   return state;
 }
 
@@ -79,17 +104,35 @@ void tides_set_mode(void* handle, int mode) {
 void tides_set_parameters(void* handle, float frequency, float shape, float slope, float smoothness) {
   auto* state = static_cast<TidesState*>(handle);
   if (!state) return;
-  state->frequency = clamp01(frequency);
-  state->shape = clamp01(shape);
-  state->slope = clamp01(slope);
-  state->smoothness = clamp01(smoothness);
+  state->smooth_frequency.set(clamp01(frequency));
+  state->smooth_shape.set(clamp01(shape));
+  state->smooth_slope.set(clamp01(slope));
+  state->smooth_smoothness.set(clamp01(smoothness));
+}
+
+void tides_set_extended(void* handle, float shift, int output_mode, int range) {
+  auto* state = static_cast<TidesState*>(handle);
+  if (!state) return;
+  state->smooth_shift.set(clamp01(shift));
+  state->output_mode = std::max(0, std::min(output_mode, 3));
+  state->range = std::max(0, std::min(range, 1));
 }
 
 int tides_render(void* handle, float* output, int num_frames) {
   auto* state = static_cast<TidesState*>(handle);
   if (!state || !output || num_frames <= 0) return 0;
 
+  // Smoothing coefficient: ~5ms settling at 48kHz.
+  constexpr float kSmoothCoeff = 0.4f;
+
   const int frames = std::min(num_frames, 128);
+
+  // Advance smoothed parameters toward targets
+  state->smooth_frequency.step(kSmoothCoeff);
+  state->smooth_shape.step(kSmoothCoeff);
+  state->smooth_slope.step(kSmoothCoeff);
+  state->smooth_smoothness.step(kSmoothCoeff);
+  state->smooth_shift.step(kSmoothCoeff);
 
   RampMode mode;
   switch (state->ramp_mode) {
@@ -98,17 +141,28 @@ int tides_render(void* handle, float* output, int num_frames) {
     default: mode = RAMP_MODE_LOOPING; break;
   }
 
-  float freq = mapFrequency(state->frequency);
+  OutputMode out_mode;
+  switch (state->output_mode) {
+    case 0: out_mode = tides::OUTPUT_MODE_GATES; break;
+    case 1: out_mode = OUTPUT_MODE_AMPLITUDE; break;
+    case 2: out_mode = tides::OUTPUT_MODE_SLOPE_PHASE; break;
+    case 3: out_mode = tides::OUTPUT_MODE_FREQUENCY; break;
+    default: out_mode = OUTPUT_MODE_AMPLITUDE; break;
+  }
+
+  Range rng = (state->range == 1) ? tides::RANGE_AUDIO : RANGE_CONTROL;
+
+  float freq = mapFrequency(state->smooth_frequency.current);
 
   state->generator.Render(
     mode,
-    OUTPUT_MODE_AMPLITUDE,   // Use amplitude output — single shaped waveform
-    RANGE_CONTROL,           // Control rate range (LFO, not audio oscillator)
+    out_mode,
+    rng,
     freq,
-    state->slope,            // pulse width / slope
-    state->shape,            // waveshape
-    state->smoothness,
-    0.0f,                    // shift (fixed at center — no multi-channel spread)
+    state->smooth_slope.current,
+    state->smooth_shape.current,
+    state->smooth_smoothness.current,
+    state->smooth_shift.current,
     state->gate_buffer,
     nullptr,                 // no external ramp
     state->output_buffer,
