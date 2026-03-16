@@ -5,11 +5,6 @@ import type { EventSelector } from '../engine/event-primitives';
 import { microTimingOffset, formatMicroOffset } from '../engine/micro-timing';
 import type { SlotRow, FxColumnDef } from './Tracker';
 
-export interface AvailableControl {
-  id: string;
-  label: string;
-}
-
 interface Props {
   slot: SlotRow;
   /** Total note columns to render (auto-expanded based on max polyphony). */
@@ -24,8 +19,6 @@ interface Props {
   showBeatSeparator: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
-  /** Available controls for param lock FX cells. */
-  availableControls?: AvailableControl[];
   /** Callback to add a new parameter event (for empty FX cell picker). */
   onAddParamEvent?: (at: number, controlId: string, value: number) => void;
   /** Callback to add a note event at a given step. */
@@ -295,8 +288,8 @@ function FxCell({
     return <span className="text-blue-300">{String(value).slice(0, 3)}</span>;
   }
 
-  // Display as 0-99 integer (2-char compact format)
-  const displayVal = Math.round(value * 99);
+  // Display as 0-100 integer (compact format)
+  const displayVal = Math.round(value * 100);
   const displayStr = String(displayVal).padStart(2, '0');
 
   if (editable && onUpdate) {
@@ -306,8 +299,8 @@ function FxCell({
         value={displayStr}
         className="text-blue-300"
         onCommit={(v) => {
-          const clamped = Math.max(0, Math.min(99, Math.round(v)));
-          onUpdate(selector, { value: clamped / 99 } as Partial<MusicalEvent>);
+          const clamped = Math.max(0, Math.min(100, Math.round(v)));
+          onUpdate(selector, { value: clamped / 100 } as Partial<MusicalEvent>);
         }}
         parse={(s) => {
           const n = parseInt(s, 10);
@@ -329,7 +322,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     slot, maxNoteColumns, fxColumns,
     cursorNoteColumn, cursorFxColumn,
     isAtPlayhead, showBeatSeparator,
-    onUpdate, onDelete, availableControls, onAddParamEvent, onAddNote,
+    onUpdate, onDelete, onAddParamEvent, onAddNote,
     cancelEditRef,
     isCursorRow, cursorColumnType, editRequestCounter,
     isSelected, onRowClick,
@@ -361,8 +354,8 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const cursorFxCellClass = (fxIdx: number) =>
       isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
 
-    // Row color: emerald for steps with notes, neutral for empty
-    const rowColor = hasNotes ? 'text-emerald-300' : 'text-zinc-500';
+    // Row color: emerald for steps with notes or active triggers, neutral for empty
+    const rowColor = (hasNotes || slot.hasGate) ? 'text-emerald-300' : 'text-zinc-500';
 
     // Build note column cells
     const noteColumnCells: React.ReactNode[] = [];
@@ -479,8 +472,10 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             <button
               className="text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={() => {
-                const firstEvent = slot.allEvents[0];
-                onDelete(selectorFromEvent(firstEvent));
+                // Prefer note/trigger events over parameter events
+                const gateEvent = slot.allEvents.find(e => e.kind === 'note' || e.kind === 'trigger');
+                const target = gateEvent ?? slot.allEvents[0];
+                onDelete(selectorFromEvent(target));
               }}
               title="Delete event"
             >

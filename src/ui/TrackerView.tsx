@@ -346,8 +346,6 @@ export function TrackerView({
                 region={activeRegion}
                 playheadStep={currentStep}
                 playing={playing}
-                engineModel={activeTrack.model}
-                processors={activeTrack.processors}
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}
                 onAddNote={onEventAdd ? handleAddNote : undefined}

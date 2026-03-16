@@ -173,7 +173,7 @@ describe('TrackerRow', () => {
 
     // FX column header should be visible
     expect(screen.getByText('TBR')).toBeTruthy();
-    // FX value should be displayed (0.75 * 99 = ~74)
-    expect(screen.getByText('74')).toBeTruthy();
+    // FX value should be displayed (0.75 * 100 = 75)
+    expect(screen.getByText('75')).toBeTruthy();
   });
 });

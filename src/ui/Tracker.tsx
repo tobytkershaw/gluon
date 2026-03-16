@@ -2,9 +2,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObject } from 'react';
 import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
-import { TrackerRow, type AvailableControl } from './TrackerRow';
-import { getEngineByIndex, getProcessorInstrument } from '../audio/instrument-registry';
-import type { ProcessorConfig } from '../engine/types';
+import { TrackerRow } from './TrackerRow';
 
 /** Number of rows to jump for Page Up / Page Down. */
 const PAGE_JUMP = 8;
@@ -48,10 +46,6 @@ interface Props {
   /** Current playhead step, or null when the playhead is in a different pattern (song mode). */
   playheadStep: number | null;
   playing: boolean;
-  /** Engine model index for the track (used to derive available controls). */
-  engineModel?: number;
-  /** Processor chain for the track (used to derive processor controls). */
-  processors?: ProcessorConfig[];
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
@@ -70,24 +64,22 @@ interface Props {
   stepsPerBeat?: number;
 }
 
-const AT_TOLERANCE = 0.001;
-
-function sameAt(a: number, b: number): boolean {
-  return Math.abs(a - b) < AT_TOLERANCE;
-}
-
 /**
  * Build a slot-based grid: one SlotRow per integer step (0..duration-1).
  * Events are grouped into their nearest integer step.
  * Notes are separated from parameter events; triggers are treated as notes.
  * Returns { slots, maxNoteColumns, fxColumns }.
+ *
+ * Note: the slot model does not support inline position editing — event
+ * repositioning is handled via delete + add-at-new-step. This is a deliberate
+ * trade-off for the simpler, more robust grid-based display.
  */
 function buildSlotGrid(events: MusicalEvent[], duration: number): {
   slots: SlotRow[];
   maxNoteColumns: number;
   fxColumns: FxColumnDef[];
 } {
-  const stepCount = Math.max(1, Math.floor(duration));
+  const stepCount = Math.max(1, Math.ceil(duration));
 
   // Initialize empty slots
   const slots: SlotRow[] = Array.from({ length: stepCount }, (_, i) => ({
@@ -116,8 +108,9 @@ function buildSlotGrid(events: MusicalEvent[], duration: number): {
       slot.notes.push(event as NoteEvent);
       slot.hasGate = true;
     } else if (event.kind === 'trigger') {
-      // Treat triggers as gate-bearing but don't add them to note columns
-      slot.hasGate = true;
+      // Treat triggers as gate-bearing but don't add them to note columns.
+      // velocity=0 sentinels (note-off) should not count as active gates.
+      if ((event as any).velocity !== 0) slot.hasGate = true;
     } else if (event.kind === 'parameter') {
       const pe = event as ParameterEvent;
       slot.fxValues.set(pe.controlId, pe);
@@ -173,44 +166,6 @@ function shouldShowBeatSeparator(step: number, stepsPerBeat = 4): boolean {
   return step % stepsPerBeat === 0;
 }
 
-/**
- * Compute available controls from the engine model and processor chain.
- */
-function computeAvailableControls(
-  engineModel?: number,
-  processors?: ProcessorConfig[],
-): AvailableControl[] {
-  const controls: AvailableControl[] = [];
-
-  // Source engine controls (Plaits default: brightness, richness, texture, pitch)
-  if (engineModel !== undefined) {
-    const engine = getEngineByIndex(engineModel);
-    if (engine) {
-      for (const ctrl of engine.controls) {
-        controls.push({ id: ctrl.id, label: ctrl.name });
-      }
-    }
-  }
-
-  // Processor controls
-  if (processors) {
-    for (const proc of processors) {
-      const inst = getProcessorInstrument(proc.type);
-      if (inst && inst.engines.length > 0) {
-        // Use the processor's current engine mode
-        const engine = inst.engines[proc.model] ?? inst.engines[0];
-        for (const ctrl of engine.controls) {
-          controls.push({
-            id: `${proc.type}.${ctrl.id}`,
-            label: `${proc.type}:${ctrl.name}`,
-          });
-        }
-      }
-    }
-  }
-
-  return controls;
-}
 
 /**
  * Compute total navigable columns.
@@ -221,7 +176,7 @@ function getColCount(noteColumns: number, fxColumns: number): number {
   return 1 + noteColumns + 2 + fxColumns;
 }
 
-export function Tracker({ region, playheadStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4 }: Props) {
+export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4 }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -282,11 +237,6 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
       onCursorStepChange(slots[cursorRow].step);
     }
   }, [cursorRow, slots, onCursorStepChange]);
-
-  const availableControls = useMemo(
-    () => computeAvailableControls(engineModel, processors),
-    [engineModel, processors],
-  );
 
   // --- Selection helpers ---
 
@@ -516,16 +466,27 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
             const selector: EventSelector = { at: note.at, kind: 'note' as const, pitch: note.pitch };
             onDelete(selector);
           } else {
-            // Delete the first note/trigger event in this slot
-            const gateEvent = slot.allEvents.find(e => e.kind === 'note' || e.kind === 'trigger');
-            if (gateEvent) {
-              let selector: EventSelector;
-              if (gateEvent.kind === 'note') {
-                selector = { at: gateEvent.at, kind: 'note' as const, pitch: (gateEvent as NoteEvent).pitch };
-              } else {
-                selector = { at: gateEvent.at, kind: 'trigger' as const };
+            // If cursor is on an FX column, delete that specific parameter event
+            const fxColIdx = getFxColumnIndex(cursorCol);
+            if (fxColIdx !== null && fxColIdx < fxColumns.length) {
+              const controlId = fxColumns[fxColIdx].controlId;
+              const paramEvent = slot.fxValues.get(controlId);
+              if (paramEvent) {
+                const selector: EventSelector = { at: paramEvent.at, kind: 'parameter' as const, controlId };
+                onDelete(selector);
               }
-              onDelete(selector);
+            } else {
+              // Default: delete the first note/trigger event in this slot
+              const gateEvent = slot.allEvents.find(e => e.kind === 'note' || e.kind === 'trigger');
+              if (gateEvent) {
+                let selector: EventSelector;
+                if (gateEvent.kind === 'note') {
+                  selector = { at: gateEvent.at, kind: 'note' as const, pitch: (gateEvent as NoteEvent).pitch };
+                } else {
+                  selector = { at: gateEvent.at, kind: 'trigger' as const };
+                }
+                onDelete(selector);
+              }
             }
           }
         }
@@ -534,7 +495,7 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
       default:
         return;
     }
-  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex]);
+  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns]);
 
   /** Handle row click — set cursor, optionally extend selection with Shift. */
   const handleRowClick = useCallback((rowIndex: number, shiftKey: boolean) => {
@@ -613,7 +574,6 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
                 showBeatSeparator={showBeatSep}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
-                availableControls={availableControls}
                 onAddParamEvent={onAddParamEvent}
                 onAddNote={onAddNote}
                 cancelEditRef={cancelEditRef}
