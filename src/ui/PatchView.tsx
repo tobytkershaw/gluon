@@ -1,26 +1,65 @@
 // src/ui/PatchView.tsx
 // Ground-truth node graph for signal chain and modulation routing (#158)
+// Port rendering from hardware I/O registry (#394)
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Session, Track, ModulationRouting, ModulationTarget } from '../engine/types';
 import { getActiveTrack } from '../engine/types';
 import { getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorControlIds } from '../audio/instrument-registry';
+import { getModulePortDef, getSourceModTargets } from '../audio/port-registry';
+import type { PortDef, PortSignalType } from '../audio/port-registry';
 import { getTrackLabel } from '../engine/track-labels';
 import { DraggableNumber } from './DraggableNumber';
 
 // --- Layout constants ---
 
-const NODE_W = 148;
-const NODE_H = 56;
-const NODE_GAP = 72;
+const NODE_W = 168;
+const NODE_HEADER_H = 36;  // title + sublabel area
+const PORT_ROW_H = 14;     // height per port row
+const PORT_MIN_ROWS = 2;   // minimum port rows even when fewer ports
+const NODE_GAP = 80;
 const PAD_X = 40;
 const PAD_Y = 32;
 const AUDIO_ROW_Y = PAD_Y;
-const MOD_ROW_Y = AUDIO_ROW_Y + NODE_H + 100;
 const OUTPUT_R = 10;
+const PORT_CIRCLE_R = 4;   // radius of port circles
 
-// Valid source modulation targets (must match chain-validation.ts)
-const VALID_SOURCE_MOD_TARGETS = ['timbre', 'harmonics', 'morph'];
+/** Compute the node height based on its port count */
+function nodeHeight(inputCount: number, outputCount: number): number {
+  const rows = Math.max(inputCount, outputCount, PORT_MIN_ROWS);
+  return NODE_HEADER_H + rows * PORT_ROW_H + 8; // 8px bottom padding
+}
+
+/** Fallback height when no port definitions are available */
+const NODE_H_FALLBACK = NODE_HEADER_H + PORT_MIN_ROWS * PORT_ROW_H + 8;
+/** Compact height for the output terminal node (no ports, just header) */
+const OUTPUT_NODE_H = NODE_HEADER_H + 8;
+
+// --- Port signal type colors ---
+
+function portSignalColor(signal: PortSignalType): string {
+  switch (signal) {
+    case 'audio': return 'bg-amber-400/80 border-amber-300';
+    case 'cv':    return 'bg-emerald-400/60 border-emerald-300';
+    case 'gate':  return 'bg-rose-400/60 border-rose-300';
+  }
+}
+
+function portSignalStroke(signal: PortSignalType): string {
+  switch (signal) {
+    case 'audio': return '#fbbf24';  // amber-400
+    case 'cv':    return '#34d399';  // emerald-400
+    case 'gate':  return '#fb7185';  // rose-400
+  }
+}
+
+function portSignalLabelColor(signal: PortSignalType): string {
+  switch (signal) {
+    case 'audio': return 'text-amber-400/70';
+    case 'cv':    return 'text-emerald-400/60';
+    case 'gate':  return 'text-rose-400/60';
+  }
+}
 
 // --- Helpers ---
 
@@ -31,6 +70,21 @@ interface NodePos {
   label: string;
   sublabel: string;
   kind: 'source' | 'processor' | 'modulator' | 'output';
+  /** Adapter ID for port registry lookup */
+  adapterId?: string;
+  /** Computed node height (varies per module based on port count) */
+  h: number;
+  /** Resolved input ports with positions */
+  inputPorts: ResolvedPort[];
+  /** Resolved output ports with positions */
+  outputPorts: ResolvedPort[];
+}
+
+/** A port definition with computed position relative to the node */
+interface ResolvedPort {
+  def: PortDef;
+  /** Y offset from node top */
+  yOffset: number;
 }
 
 /** Per-node port metadata for modulation targets */
@@ -44,12 +98,35 @@ interface PortInfo {
   target: ModulationTarget;
 }
 
+/** Resolve input/output ports and compute their Y offsets within the node */
+function resolveNodePorts(adapterId: string | undefined): {
+  inputPorts: ResolvedPort[];
+  outputPorts: ResolvedPort[];
+} {
+  if (!adapterId) return { inputPorts: [], outputPorts: [] };
+  const portDef = getModulePortDef(adapterId);
+  if (!portDef) return { inputPorts: [], outputPorts: [] };
+
+  const inputPorts = portDef.inputs.map((def, i) => ({
+    def,
+    yOffset: NODE_HEADER_H + i * PORT_ROW_H + PORT_ROW_H / 2,
+  }));
+  const outputPorts = portDef.outputs.map((def, i) => ({
+    def,
+    yOffset: NODE_HEADER_H + i * PORT_ROW_H + PORT_ROW_H / 2,
+  }));
+  return { inputPorts, outputPorts };
+}
+
 function layoutNodes(track: Track): NodePos[] {
   const nodes: NodePos[] = [];
   let x = PAD_X;
 
   // Source node
   const engineLabel = getModelName(track.model);
+  const sourceAdapterId = 'plaits';
+  const sourcePorts = resolveNodePorts(sourceAdapterId);
+  const sourceH = nodeHeight(sourcePorts.inputPorts.length, sourcePorts.outputPorts.length);
   nodes.push({
     id: 'source',
     x,
@@ -57,6 +134,9 @@ function layoutNodes(track: Track): NodePos[] {
     label: engineLabel,
     sublabel: 'Source',
     kind: 'source',
+    adapterId: sourceAdapterId,
+    h: sourceH,
+    ...sourcePorts,
   });
   x += NODE_W + NODE_GAP;
 
@@ -65,6 +145,9 @@ function layoutNodes(track: Track): NodePos[] {
     const inst = getProcessorInstrument(proc.type);
     const label = inst?.label ?? proc.type;
     const mode = inst?.engines[proc.model]?.label;
+    const procAdapterId = inst?.adapterId ?? proc.type;
+    const procPorts = resolveNodePorts(procAdapterId);
+    const procH = nodeHeight(procPorts.inputPorts.length, procPorts.outputPorts.length);
     nodes.push({
       id: proc.id,
       x,
@@ -72,11 +155,14 @@ function layoutNodes(track: Track): NodePos[] {
       label,
       sublabel: mode ?? '',
       kind: 'processor',
+      adapterId: procAdapterId,
+      h: procH,
+      ...procPorts,
     });
     x += NODE_W + NODE_GAP;
   }
 
-  // Output terminal
+  // Output terminal — compact height, no ports
   nodes.push({
     id: 'output',
     x,
@@ -84,10 +170,16 @@ function layoutNodes(track: Track): NodePos[] {
     label: 'Out',
     sublabel: '',
     kind: 'output',
+    h: OUTPUT_NODE_H,
+    inputPorts: [],
+    outputPorts: [],
   });
 
   // Modulator nodes — spread horizontally, centered under audio chain
   const mods = track.modulators ?? [];
+  const maxAudioH = Math.max(...nodes.filter(n => n.kind !== 'output').map(n => n.h), NODE_H_FALLBACK);
+  const modRowY = AUDIO_ROW_Y + maxAudioH + 100;
+
   if (mods.length > 0) {
     const audioChainWidth = x - PAD_X + OUTPUT_R * 2;
     const modTotalWidth = mods.length * NODE_W + (mods.length - 1) * NODE_GAP;
@@ -95,16 +187,22 @@ function layoutNodes(track: Track): NodePos[] {
 
     for (let i = 0; i < mods.length; i++) {
       const mod = mods[i];
-      const inst = getModulatorInstrument(mod.type);
-      const label = inst?.label ?? mod.type;
-      const mode = inst?.engines[mod.model]?.label;
+      const modInst = getModulatorInstrument(mod.type);
+      const label = modInst?.label ?? mod.type;
+      const mode = modInst?.engines[mod.model]?.label;
+      const modAdapterId = modInst?.adapterId ?? mod.type;
+      const modPorts = resolveNodePorts(modAdapterId);
+      const modH = nodeHeight(modPorts.inputPorts.length, modPorts.outputPorts.length);
       nodes.push({
         id: mod.id,
         x: modStartX + i * (NODE_W + NODE_GAP),
-        y: MOD_ROW_Y,
+        y: modRowY,
         label,
         sublabel: mode ?? '',
         kind: 'modulator',
+        adapterId: modAdapterId,
+        h: modH,
+        ...modPorts,
       });
     }
   }
@@ -117,7 +215,7 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
   const ports: PortInfo[] = [];
   for (const node of nodes) {
     if (node.kind === 'source') {
-      const params = VALID_SOURCE_MOD_TARGETS;
+      const params = getSourceModTargets();
       const spacing = NODE_W / (params.length + 1);
       params.forEach((p, i) => {
         ports.push({
@@ -125,7 +223,7 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
           paramId: p,
           paramLabel: p.slice(0, 4),
           x: node.x + spacing * (i + 1),
-          y: node.y + NODE_H,
+          y: node.y + node.h,
           target: { kind: 'source', param: p },
         });
       });
@@ -140,7 +238,7 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
             paramId: c,
             paramLabel: c.slice(0, 4),
             x: node.x + spacing * (i + 1),
-            y: node.y + NODE_H,
+            y: node.y + node.h,
             target: { kind: 'processor', processorId: proc.id, param: c },
           });
         });
@@ -192,6 +290,8 @@ interface AudioEdge {
   fromY: number;
   toX: number;
   toY: number;
+  /** Stroke color derived from the output port's signal type */
+  stroke: string;
 }
 
 interface ModEdge {
@@ -216,11 +316,24 @@ function buildAudioEdges(nodes: NodePos[]): AudioEdge[] {
   for (let i = 0; i < audioNodes.length - 1; i++) {
     const from = audioNodes[i];
     const to = audioNodes[i + 1];
+
+    // Use the first audio output port's Y position if available, else center
+    const firstAudioOutput = from.outputPorts.find(p => p.def.signal === 'audio');
     const fromX = from.kind === 'output' ? from.x + OUTPUT_R : from.x + NODE_W;
-    const fromY = from.y + NODE_H / 2;
+    const fromY = firstAudioOutput
+      ? from.y + firstAudioOutput.yOffset
+      : from.y + from.h / 2;
+
+    // Use the first audio input port's Y position if available, else center
+    const firstAudioInput = to.inputPorts.find(p => p.def.signal === 'audio');
     const toX = to.kind === 'output' ? to.x + OUTPUT_R : to.x;
-    const toY = to.y + NODE_H / 2;
-    edges.push({ fromX, fromY, toX, toY });
+    const toY = firstAudioInput
+      ? to.y + firstAudioInput.yOffset
+      : to.y + to.h / 2;
+
+    // Color from the source output port signal type
+    const stroke = firstAudioOutput ? portSignalStroke(firstAudioOutput.def.signal) : '#52525b';
+    edges.push({ fromX, fromY, toX, toY, stroke });
   }
   return edges;
 }
@@ -273,7 +386,7 @@ function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[], targe
       }
       if (!targetNode) continue;
       toX = targetNode.x + NODE_W / 2;
-      toY = targetNode.y + NODE_H;
+      toY = targetNode.y + targetNode.h;
     }
 
     const targetKey = route.target.kind === 'source'
@@ -327,6 +440,54 @@ interface DragState {
 
 // --- Components ---
 
+/** Renders input port labels and circles on the left edge of a node */
+function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: number }) {
+  if (ports.length === 0) return null;
+  return (
+    <>
+      {ports.map(port => (
+        <div
+          key={port.def.id}
+          className="absolute flex items-center gap-1"
+          style={{ left: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
+        >
+          <div
+            className={`rounded-full border ${portSignalColor(port.def.signal)}`}
+            style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
+          />
+          <span className={`text-[7px] leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+            {port.def.name}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Renders output port labels and circles on the right edge of a node */
+function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: number }) {
+  if (ports.length === 0) return null;
+  return (
+    <>
+      {ports.map(port => (
+        <div
+          key={port.def.id}
+          className="absolute flex items-center justify-end gap-1"
+          style={{ right: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
+        >
+          <span className={`text-[7px] leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+            {port.def.name}
+          </span>
+          <div
+            className={`rounded-full border ${portSignalColor(port.def.signal)}`}
+            style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
+          />
+        </div>
+      ))}
+    </>
+  );
+}
+
 function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPorts, dragState, hoveredPortKey }: {
   node: NodePos;
   selected: boolean;
@@ -342,7 +503,7 @@ function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPo
         className="absolute flex items-center justify-center"
         style={{
           left: node.x,
-          top: node.y + NODE_H / 2 - OUTPUT_R,
+          top: node.y + node.h / 2 - OUTPUT_R,
           width: OUTPUT_R * 2,
           height: OUTPUT_R * 2,
         }}
@@ -363,38 +524,29 @@ function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPo
 
   return (
     <div
-      className={`absolute rounded-md border border-l-2 bg-zinc-800 px-3 py-2 select-none cursor-pointer ${
+      className={`absolute rounded-md border border-l-2 bg-zinc-800 select-none cursor-pointer overflow-visible ${
         selected
           ? `${selectedBorderColor(node.kind)}`
           : `border-zinc-700 ${accentColor(node.kind)}`
       }`}
-      style={{ left: node.x, top: node.y, width: NODE_W, height: NODE_H }}
+      style={{ left: node.x, top: node.y, width: NODE_W, height: node.h }}
       onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
     >
-      <div className="text-[11px] font-medium text-zinc-200 truncate leading-tight">
-        {node.label}
-      </div>
-      {node.sublabel && (
-        <div className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5">
-          {node.sublabel}
+      {/* Header area */}
+      <div className="px-3 pt-2">
+        <div className="text-[11px] font-medium text-zinc-200 truncate leading-tight">
+          {node.label}
         </div>
-      )}
+        {node.sublabel && (
+          <div className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5">
+            {node.sublabel}
+          </div>
+        )}
+      </div>
 
-      {/* Audio chain ports */}
-      {isAudioNode && (
-        <>
-          {/* Output port (right edge) */}
-          <div
-            className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
-            style={{ right: -6, top: NODE_H / 2 - 6 }}
-          />
-          {/* Input port (left edge) */}
-          <div
-            className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
-            style={{ left: -6, top: NODE_H / 2 - 6 }}
-          />
-        </>
-      )}
+      {/* Named I/O ports */}
+      <InputPortColumn ports={node.inputPorts} nodeH={node.h} />
+      <OutputPortColumn ports={node.outputPorts} nodeW={NODE_W} />
 
       {/* Modulator output port (top edge) */}
       {node.kind === 'modulator' && (
@@ -426,7 +578,7 @@ function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPo
               <div
                 key={portKey}
                 className="absolute flex flex-col items-center"
-                style={{ left: port.x - node.x - 5, top: NODE_H - 4 }}
+                style={{ left: port.x - node.x - 5, top: node.h - 4 }}
               >
                 {/* Hit area for drop target */}
                 <div
@@ -489,7 +641,7 @@ function NodeDetailPanel({ node, track }: { node: NodePos; track: Track }) {
       className="absolute bg-zinc-900/95 border border-zinc-700 rounded px-2 py-1.5 pointer-events-none"
       style={{
         left: node.x,
-        top: node.y + NODE_H + (node.kind === 'source' || node.kind === 'processor' ? 16 : 4),
+        top: node.y + node.h + (node.kind === 'source' || node.kind === 'processor' ? 16 : 4),
         minWidth: NODE_W,
       }}
     >
@@ -508,9 +660,10 @@ function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
   return (
     <path
       d={`M ${edge.fromX} ${edge.fromY} C ${cx} ${edge.fromY}, ${cx} ${edge.toY}, ${edge.toX} ${edge.toY}`}
-      stroke="#52525b"
+      stroke={edge.stroke}
       strokeWidth={1.5}
       fill="none"
+      opacity={0.6}
     />
   );
 }
@@ -676,7 +829,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
   // Compute SVG canvas size from node positions — extend for detail panels and port labels
   const maxX = Math.max(...nodes.map(n => n.x + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_W))) + PAD_X;
-  const maxY = Math.max(...nodes.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_H))) + PAD_Y + 60;
+  const maxY = Math.max(...nodes.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : n.h))) + PAD_Y + 60;
 
   const handleCanvasMouseDown = useCallback(() => {
     setSelectedNodeId(null);

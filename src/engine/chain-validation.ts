@@ -8,12 +8,13 @@ import {
   getRegisteredProcessorTypes, getProcessorControlIds, getProcessorEngineByName,
   getRegisteredModulatorTypes, getModulatorControlIds, getModulatorEngineByName,
 } from '../audio/instrument-registry';
+import { getSourceModTargets } from '../audio/port-registry';
 
 const MAX_PROCESSORS = 2;
 const MAX_MODULATORS = 2;
 
-/** Source params that can be modulation targets (frequency excluded — needs different depth semantics) */
-const VALID_SOURCE_MOD_TARGETS = new Set(['timbre', 'harmonics', 'morph']);
+/** Source params that can be modulation targets — derived from port-registry (single source of truth) */
+const VALID_SOURCE_MOD_TARGETS = new Set(getSourceModTargets());
 
 export interface ChainValidationResult {
   valid: boolean;
