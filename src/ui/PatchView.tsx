@@ -32,6 +32,8 @@ function nodeHeight(inputCount: number, outputCount: number): number {
 
 /** Fallback height when no port definitions are available */
 const NODE_H_FALLBACK = NODE_HEADER_H + PORT_MIN_ROWS * PORT_ROW_H + 8;
+/** Compact height for the output terminal node (no ports, just header) */
+const OUTPUT_NODE_H = NODE_HEADER_H + 8;
 
 // --- Port signal type colors ---
 
@@ -160,7 +162,7 @@ function layoutNodes(track: Track): NodePos[] {
     x += NODE_W + NODE_GAP;
   }
 
-  // Output terminal
+  // Output terminal — compact height, no ports
   nodes.push({
     id: 'output',
     x,
@@ -168,7 +170,7 @@ function layoutNodes(track: Track): NodePos[] {
     label: 'Out',
     sublabel: '',
     kind: 'output',
-    h: NODE_H_FALLBACK,
+    h: OUTPUT_NODE_H,
     inputPorts: [],
     outputPorts: [],
   });

@@ -7,14 +7,15 @@ import { useState, useRef, useEffect } from 'react';
 import type { Track, ModulationTarget } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { getSourceModTargets } from '../audio/port-registry';
 import { ModulePanel } from './ModulePanel';
 import { ChainStrip } from './ChainStrip';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
 import { DraggableNumber } from './DraggableNumber';
 
-/** Valid source params that can be modulation targets (matches chain-validation.ts) */
-const VALID_SOURCE_MOD_TARGETS = ['timbre', 'harmonics', 'morph'];
+/** Valid source params that can be modulation targets — derived from port-registry (single source of truth) */
+const VALID_SOURCE_MOD_TARGETS = getSourceModTargets();
 
 interface ModulationTargetOption {
   moduleId: string;  // 'source' or processorId

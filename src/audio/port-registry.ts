@@ -60,20 +60,26 @@ const ringsPortDef: ModulePortDef = {
   ],
 };
 
+// Clouds (Mutable Instruments, 2014 hardware revision).
+// All CV inputs listed below match the hardware panel jacks.
+// Software backing status:
+//   - audio-in, position-cv, size-cv, density-cv, texture-cv: bridged in WASM
+//   - pitch-cv, blend-cv: hardware-only (no WASM bridge yet)
+//   - freeze, trigger: gate inputs, hardware-only (no WASM bridge yet)
 const cloudsPortDef: ModulePortDef = {
   inputs: [
-    { id: 'audio-in',    name: 'IN L/R',       signal: 'audio' },
-    { id: 'position-cv', name: 'POS CV',       signal: 'cv' },
-    { id: 'size-cv',     name: 'SIZE CV',      signal: 'cv' },
-    { id: 'density-cv',  name: 'DENS CV',      signal: 'cv' },
-    { id: 'texture-cv',  name: 'TEXT CV',      signal: 'cv' },
-    { id: 'pitch-cv',    name: 'PITCH CV',     signal: 'cv' },
-    { id: 'blend-cv',    name: 'BLEND CV',     signal: 'cv' },
-    { id: 'freeze',      name: 'FREEZE',       signal: 'gate' },
-    { id: 'trigger',     name: 'TRIGGER',      signal: 'gate' },
+    { id: 'audio-in',    name: 'IN L/R',       signal: 'audio' },  // stereo audio input
+    { id: 'position-cv', name: 'POS CV',       signal: 'cv' },     // grain position CV
+    { id: 'size-cv',     name: 'SIZE CV',      signal: 'cv' },     // grain size CV
+    { id: 'density-cv',  name: 'DENS CV',      signal: 'cv' },     // grain density CV
+    { id: 'texture-cv',  name: 'TEXT CV',      signal: 'cv' },     // grain texture CV
+    { id: 'pitch-cv',    name: 'PITCH CV',     signal: 'cv' },     // pitch shift CV (no WASM bridge)
+    { id: 'blend-cv',    name: 'BLEND CV',     signal: 'cv' },     // dry/wet blend CV (no WASM bridge)
+    { id: 'freeze',      name: 'FREEZE',       signal: 'gate' },   // buffer freeze gate (no WASM bridge)
+    { id: 'trigger',     name: 'TRIGGER',      signal: 'gate' },   // grain trigger gate (no WASM bridge)
   ],
   outputs: [
-    { id: 'audio-out', name: 'OUT L/R', signal: 'audio' },
+    { id: 'audio-out', name: 'OUT L/R', signal: 'audio' },  // stereo audio output
   ],
 };
 
@@ -122,14 +128,17 @@ export function getModuleInputs(adapterId: string): PortDef[] {
 }
 
 /**
- * Get the valid modulation target parameter IDs for the source (Plaits).
- * Derived from the CV input ports on the module.
- * This replaces the hardcoded VALID_SOURCE_MOD_TARGETS array.
+ * Curated list of source (Plaits) parameters that can be modulation targets.
+ *
+ * This is THE single source of truth — all other modules (chain-validation,
+ * RackView, PatchView) import from here instead of maintaining their own copies.
+ *
+ * Each entry corresponds to a CV input on the Plaits hardware panel (e.g.
+ * 'timbre' ← TIMBRE CV, 'harmonics' ← HARMONICS CV, 'morph' ← MORPH CV).
+ * Frequency/note modulation is intentionally excluded (needs different depth
+ * semantics — see Phase 4B).
  */
 export function getSourceModTargets(): string[] {
-  // Map CV input port IDs to the runtime parameter names they modulate.
-  // Only include params that are currently wired in the modulation system.
-  // (frequency/note modulation is excluded per Phase 4B)
   return ['timbre', 'harmonics', 'morph'];
 }
 
