@@ -1,7 +1,7 @@
 # Gluon — Build Status
 
 **As of:** 2026-03-16
-**Build:** 1035 tests, 69 test files, zero type errors
+**Build:** 1045 tests, 70 test files, zero type errors
 
 ---
 
@@ -47,7 +47,7 @@ Bus tracks with send/return routing, explicit master bus.
 
 Pattern/sequence model refactor (#516, PR #517) merged. Adopted standard tracker model, simplified scheduler, added song mode.
 
-QA triage: #506 (dropped notes) and #508 (delayed params) closed — fixed by #517. #511 point 6 (pattern model) and #514 point 2 (loop → mode toggle) addressed. Metronome stop (#507), small knob drag (#510), L shortcut rewire, and targeted test coverage in PR #518. Remaining: #509 (A/B comparison), #511 (tracker overhaul), #512 (track sidebar), #513 (patch view), #514 (sig dropdown + polish), #515 (AI contract).
+QA triage: #506 (dropped notes) and #508 (delayed params) closed — fixed by #517. #511 point 6 (pattern model) and #514 point 2 (loop → mode toggle) addressed. PR #518 merged: metronome stop fix (#507), small knob drag fix (#510), L shortcut rewired to pattern/song mode, metronome volume restore on play, 11 new tests. Filed #519 (transport shortcut undo parity). Remaining: #509 (A/B comparison), #511 (tracker overhaul), #512 (track sidebar), #513 (patch view), #514 (sig dropdown + polish), #515 (AI contract), #519 (transport undo).
 
 ### Wave 4: "Make it polished" — Not started
 
