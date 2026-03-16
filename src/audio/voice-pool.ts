@@ -137,7 +137,7 @@ export class VoicePool {
   /** Schedule a note on the next available voice with per-voice accent automation. */
   scheduleNote(note: ScheduledNote, generation: number, eventId?: string): PoolVoice {
     const voice = this.allocate(note.time);
-    const stolen = voice.lastGateOffTime >= note.time;
+    const stolen = voice.lastGateOffTime > 0 && voice.lastGateOffTime >= note.time;
     const accentLevel = note.accent ? ACCENT_BASELINE * 2.0 : ACCENT_BASELINE;
     if (stolen) {
       // Voice is still sustaining — ramp gain to 0 before the new note to avoid clicks
