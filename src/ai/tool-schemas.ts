@@ -193,7 +193,7 @@ const setModelTool: ToolSchema = {
           'Model/mode ID. For track: virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
           'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
           'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat. ' +
-          'For Rings processor: modal, sympathetic-string, string, fm-track, sympathetic-quantized, string-and-reverb. ' +
+          'For Rings processor: modal, sympathetic-string, string, fm-voice, sympathetic-quantized, string-and-reverb. ' +
           'For Clouds processor: granular, pitch-shifter, looping-delay, spectral. ' +
           'For Tides modulator: ad, looping, ar.',
       },

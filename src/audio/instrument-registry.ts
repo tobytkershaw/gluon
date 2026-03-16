@@ -218,6 +218,7 @@ function ringsControls(): ControlSchema[] {
       description: 'When enabled, Rings uses its own built-in exciter instead of processing external audio input.',
       readable: true,
       writable: true,
+      range: { min: 0, max: 1, default: 1 },
       size: 'small',
       binding: {
         adapterId: 'rings',
@@ -373,6 +374,7 @@ function cloudsControls(): ControlSchema[] {
       description: 'When enabled, freezes the recording buffer so no new audio is captured. Grains read from the frozen buffer.',
       readable: true,
       writable: true,
+      range: { min: 0, max: 1, default: 0 },
       size: 'small',
       binding: {
         adapterId: 'clouds',
@@ -557,6 +559,13 @@ export function getProcessorControlIds(type: string): string[] {
   const inst = processorInstruments.get(type);
   if (!inst || inst.engines.length === 0) return [];
   return inst.engines[0].controls.map(c => c.id);
+}
+
+/** Look up a ControlSchema for a processor type by control ID */
+export function getProcessorControlSchema(type: string, controlId: string): ControlSchema | undefined {
+  const inst = processorInstruments.get(type);
+  if (!inst || inst.engines.length === 0) return undefined;
+  return inst.engines[0].controls.find(c => c.id === controlId);
 }
 
 /** Get all registered processor type names */

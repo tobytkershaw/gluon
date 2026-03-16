@@ -9,7 +9,7 @@ import { rotate, transpose, reverse, duplicate } from './transformations';
 import { projectRegionToPattern } from './region-projection';
 import { normalizeRegionEvents, validateRegion } from './region-helpers';
 import { getTrackLabel } from './track-labels';
-import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
+import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 
 /**
@@ -666,7 +666,14 @@ export function executeOperations(
           const proc = processors[procIndex];
           const currentVal = proc.params[action.param] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
-          const targetVal = Math.max(0, Math.min(1, rawTarget));
+          // Clamp to the control's declared range (discrete controls like polyphony use 1-4, not 0-1).
+          // Boolean controls store 0/1 numerically. Default to 0-1 for unknown controls.
+          const schema = getProcessorControlSchema(proc.type, action.param);
+          const clampMin = schema?.range?.min ?? 0;
+          const clampMax = schema?.range?.max ?? 1;
+          let targetVal = Math.max(clampMin, Math.min(clampMax, rawTarget));
+          // Round discrete controls to integers
+          if (schema?.kind === 'discrete') targetVal = Math.round(targetVal);
 
           const snapshot: ProcessorStateSnapshot = {
             kind: 'processor-state',

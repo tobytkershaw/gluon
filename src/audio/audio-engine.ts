@@ -511,11 +511,17 @@ export class AudioEngine {
     if (!slot) return;
     const proc = slot.processors.find(p => p.id === processorId);
     if (!proc) return;
-    // Each processor type has its own setPatch shape — dispatch by type
+    // Each processor type has its own setPatch shape — dispatch by type.
+    // Continuous params go via setPatch; discrete/boolean params use dedicated setters.
     if (proc.type === 'rings') {
-      (proc.engine as import('./rings-synth').RingsEngine).setPatch(toRingsPatchParams(params));
+      const engine = proc.engine as import('./rings-synth').RingsEngine;
+      engine.setPatch(toRingsPatchParams(params));
+      if (params.polyphony !== undefined) engine.setPolyphony(Math.round(params.polyphony));
+      if (params['internal-exciter'] !== undefined) engine.setInternalExciter(params['internal-exciter'] >= 0.5);
     } else if (proc.type === 'clouds') {
-      (proc.engine as import('./clouds-synth').CloudsEngine).setPatch(toCloudsPatchParams(params));
+      const engine = proc.engine as import('./clouds-synth').CloudsEngine;
+      engine.setPatch(toCloudsPatchParams(params));
+      if (params.freeze !== undefined) engine.setFreeze(params.freeze >= 0.5);
     }
   }
 

@@ -30,7 +30,7 @@ interface CompressedModulator {
 interface CompressedModulation {
   id: string;
   modulatorId: string;
-  target: string;  // "source:brightness" or "processor:rings-xxx:position"
+  target: string;  // "source:timbre" or "processor:rings-xxx:position"
   depth: number;
 }
 
