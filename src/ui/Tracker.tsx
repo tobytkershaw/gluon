@@ -206,13 +206,12 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
     }
   }, [cursorRow]);
 
-  const events = region.events;
   const playheadAt = playheadStep !== null ? playheadStep % region.duration : null;
 
   // Build slot-based grid
   const { slots, maxNoteColumns, fxColumns } = useMemo(
-    () => buildSlotGrid(events, region.duration),
-    [events, region.duration],
+    () => buildSlotGrid(region.events, region.duration),
+    [region],
   );
   const rowCount = slots.length;
   const colCount = getColCount(maxNoteColumns, fxColumns.length);
@@ -268,16 +267,16 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
 
   /** Copy events from selected slots to internal clipboard. */
   const copyToClipboard = useCallback((indices: number[]) => {
-    if (indices.length === 0 || events.length === 0) return;
-    const baseAt = events[indices[0]].at;
+    if (indices.length === 0 || region.events.length === 0) return;
+    const baseAt = region.events[indices[0]].at;
     const entries: ClipboardEntry[] = indices
-      .filter(i => i >= 0 && i < events.length)
+      .filter(i => i >= 0 && i < region.events.length)
       .map(i => ({
-        offset: events[i].at - baseAt,
-        event: { ...events[i] },
+        offset: region.events[i].at - baseAt,
+        event: { ...region.events[i] },
       }));
     setClipboard(entries);
-  }, [events]);
+  }, [region]);
 
   /** Build paste events from clipboard, offset to the cursor's step position. */
   const buildPasteEvents = useCallback((): MusicalEvent[] => {
