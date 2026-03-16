@@ -166,6 +166,59 @@ describe('Scheduler — AudioContext suspend handling', () => {
     scheduler.stop();
   });
 
+  it('uses configurable gate length for trigger events', () => {
+    const session = makeSession();
+    session.tracks[0].regions[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8, gate: 2 },
+    ];
+    let audioTime = 0;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    // At 120 BPM, stepDuration = 60 / (120 * 4) = 0.125s
+    scheduler.start(0, 0, 0);
+    expect(onNote).toHaveBeenCalledTimes(1);
+    const note: ScheduledNote = onNote.mock.calls[0][0];
+    // gate=2 steps → gateOffTime should be 2 * 0.125 = 0.25s after noteTime
+    expect(note.gateOffTime - note.time).toBeCloseTo(0.25, 5);
+
+    scheduler.stop();
+  });
+
+  it('defaults trigger gate length to 1 step when gate is absent', () => {
+    const session = makeSession();
+    session.tracks[0].regions[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },
+    ];
+    let audioTime = 0;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    scheduler.start(0, 0, 0);
+    expect(onNote).toHaveBeenCalledTimes(1);
+    const note: ScheduledNote = onNote.mock.calls[0][0];
+    // default gate=1 step → gateOffTime should be 1 * 0.125 = 0.125s after noteTime
+    expect(note.gateOffTime - note.time).toBeCloseTo(0.125, 5);
+
+    scheduler.stop();
+  });
+
   it('re-emits a future track event after that track is invalidated', () => {
     const session = makeSession();
     session.tracks[0].regions[0].events = [
