@@ -4,7 +4,7 @@ import type { Session } from '../engine/types';
 import type { RestraintLevel } from './state-compression';
 import { deriveRestraintLevel } from './state-compression';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
-import { getTrackKind } from '../engine/types';
+import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
@@ -23,8 +23,9 @@ function generateParameterSection(): string {
 
 function generateTrackSetup(session: Session): string {
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+  const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const trackLines = session.tracks.map(v => {
-    const ordinalLabel = getTrackOrdinalLabel(v, audioTracks);
+    const ordinalLabel = getTrackOrdinalLabel(v, audioTracks, busTracks);
     const engine = getEngineByIndex(v.model);
     const engineLabel = engine?.label ?? `Model ${v.model}`;
     const engineId = engine?.id ?? '';

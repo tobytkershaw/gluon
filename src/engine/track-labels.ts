@@ -45,11 +45,18 @@ export function getTrackLabel(track: Track): string {
  * Format: "Track N (user-name)" or "Track N (Engine)" for unnamed tracks.
  * Bus format: "Master Bus" or "Bus N".
  */
-export function getTrackOrdinalLabel(track: Track, audioTracks: Track[]): string {
+export function getTrackOrdinalLabel(track: Track, audioTracks: Track[], busTracks?: Track[]): string {
   if (getTrackKind(track) === 'bus') {
-    return track.id === MASTER_BUS_ID ? 'Master Bus' : `Bus`;
+    if (track.id === MASTER_BUS_ID) return 'Master Bus';
+    const busIndex = busTracks ? busTracks.indexOf(track) : -1;
+    return busIndex >= 0 ? `Bus ${busIndex + 1}` : 'Bus';
   }
-  const ordinal = audioTracks.indexOf(track) + 1;
+  const index = audioTracks.indexOf(track);
+  if (index < 0) {
+    const suffix = track.name ? track.name : getTrackLabel(track);
+    return `Track ? (${suffix})`;
+  }
+  const ordinal = index + 1;
   const suffix = track.name ? track.name : getTrackLabel(track);
   return `Track ${ordinal} (${suffix})`;
 }
@@ -65,8 +72,11 @@ export function resolveTrackId(ref: string, session: Session): string | null {
   // Direct match on internal ID
   if (session.tracks.some(t => t.id === ref)) return ref;
 
+  // Strip parenthetical suffix: "Track 1 (Kick)" → "Track 1"
+  const cleaned = ref.replace(/\s*\(.*\)\s*$/, '');
+
   // Try ordinal resolution: "Track 1", "track 1", or bare "1"
-  const ordinalMatch = ref.match(/^(?:track\s+)?(\d+)$/i);
+  const ordinalMatch = cleaned.match(/^(?:track\s+)?(\d+)$/i);
   if (ordinalMatch) {
     const ordinal = parseInt(ordinalMatch[1], 10);
     const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
@@ -75,8 +85,18 @@ export function resolveTrackId(ref: string, session: Session): string | null {
     }
   }
 
+  // Try "Bus N" — resolve to Nth non-master bus track
+  const busMatch = cleaned.match(/^bus\s+(\d+)$/i);
+  if (busMatch) {
+    const busOrdinal = parseInt(busMatch[1], 10);
+    const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
+    if (busOrdinal >= 1 && busOrdinal <= busTracks.length) {
+      return busTracks[busOrdinal - 1].id;
+    }
+  }
+
   // Try "Master Bus" or "master-bus"
-  if (/^master[\s-]?bus$/i.test(ref)) {
+  if (/^master[\s-]?bus$/i.test(cleaned)) {
     const master = session.tracks.find(t => t.id === MASTER_BUS_ID);
     if (master) return master.id;
   }

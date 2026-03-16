@@ -3,7 +3,7 @@ import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, Preservatio
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
-import { getTrackKind } from '../engine/types';
+import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 
 interface CompressedPattern {
   length: number;
@@ -338,10 +338,11 @@ function compressPreservationReport(report: PreservationReport): CompressedPrese
 export function compressState(session: Session, recentPreservationReports?: PreservationReport[]): CompressedState {
   const now = Date.now();
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+  const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const result: CompressedState = {
     tracks: session.tracks.map(track => ({
       id: track.id,
-      label: getTrackOrdinalLabel(track, audioTracks),
+      label: getTrackOrdinalLabel(track, audioTracks, busTracks),
       ...(track.kind === 'bus' ? { kind: 'bus' as const } : {}),
       model: modelName(track.model),
       params: {

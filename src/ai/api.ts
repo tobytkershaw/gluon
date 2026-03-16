@@ -4,7 +4,7 @@ import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
-import { getTrackLabel, resolveTrackId } from '../engine/track-labels';
+import { resolveTrackId } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { generatePreservationReport } from '../engine/operation-executor';
