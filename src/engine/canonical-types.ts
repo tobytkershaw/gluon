@@ -72,14 +72,14 @@ export type RegionKind = 'pattern' | 'clip' | 'automation_lane';
  * ## Collision rules (per kind)
  * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001)
  * 9. No duplicate ParameterEvents for the same `controlId` at the same `at` (tolerance 0.001)
- * 10. No simultaneous NoteEvents in a track (monophonic in M1)
+ * 10. Multiple NoteEvents allowed at the same `at` (polyphonic, max 4 columns)
+ *     — no duplicate (same pitch at same `at`)
  *
  * ## Deferred
  * - Cross-region overlap detection
  * - Region splitting / merging
  * - Non-looping clip playback
  * - Automation lane semantics
- * - Polyphonic tracks
  */
 export interface Region {
   id: string;
@@ -112,7 +112,8 @@ export interface BaseEvent {
  * 6. `pitch` in 0–127 (MIDI range)
  * 6. `velocity` in 0–1
  * 6. `duration > 0`
- * 10. No simultaneous NoteEvents in a track (monophonic in M1)
+ * 10. Multiple notes allowed at same position (polyphonic, max 4)
+ *     — no duplicate pitch at same `at`
  */
 export interface NoteEvent extends BaseEvent {
   kind: 'note';

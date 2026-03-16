@@ -16,12 +16,12 @@ import type { InverseConversionOptions } from './event-conversion';
  * Uniquely identifies an event within a region, mirroring the dedup invariants
  * in normalizeRegionEvents():
  * - triggers: one per position (invariant #8)
- * - notes: one per position, monophonic (invariant #10)
+ * - notes: one per (position, pitch) — polyphonic (invariant #10)
  * - parameters: one per (position, controlId) (invariant #9)
  */
 export type EventSelector =
   | { at: number; kind: 'trigger' }
-  | { at: number; kind: 'note' }
+  | { at: number; kind: 'note'; pitch?: number }
   | { at: number; kind: 'parameter'; controlId: string };
 
 const POSITION_TOLERANCE = 0.001;
@@ -33,6 +33,9 @@ function matchesSelector(event: MusicalEvent, selector: EventSelector): boolean 
   if (selector.kind === 'parameter') {
     return (event as ParameterEvent).controlId === selector.controlId;
   }
+  if (selector.kind === 'note' && selector.pitch !== undefined) {
+    return (event as NoteEvent).pitch === selector.pitch;
+  }
   return true;
 }
 
@@ -40,6 +43,9 @@ function matchesSelector(event: MusicalEvent, selector: EventSelector): boolean 
 export function selectorFromEvent(event: MusicalEvent): EventSelector {
   if (event.kind === 'parameter') {
     return { at: event.at, kind: 'parameter', controlId: (event as ParameterEvent).controlId };
+  }
+  if (event.kind === 'note') {
+    return { at: event.at, kind: 'note', pitch: (event as NoteEvent).pitch };
   }
   return { at: event.at, kind: event.kind };
 }

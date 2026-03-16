@@ -125,9 +125,15 @@ export function validateRegion(region: Region): { valid: boolean; errors: string
         );
       }
 
-      // Invariant 10: no simultaneous notes (monophonic)
-      if (a.kind === 'note' && b.kind === 'note') {
-        errors.push(`Simultaneous NoteEvents at at≈${a.at} (monophonic in M1)`);
+      // Invariant 10: no duplicate notes at same pitch (polyphonic, max 4)
+      if (
+        a.kind === 'note' &&
+        b.kind === 'note' &&
+        (a as NoteEvent).pitch === (b as NoteEvent).pitch
+      ) {
+        errors.push(
+          `Duplicate NoteEvents at pitch=${(a as NoteEvent).pitch} at at≈${a.at}`,
+        );
       }
     }
   }
@@ -177,7 +183,8 @@ function deduplicationKey(event: MusicalEvent): string {
     case 'trigger':
       return `trigger@${bucket}`;
     case 'note':
-      return `note@${bucket}`;
+      // Polyphonic: dedup by (position, pitch) — different pitches coexist
+      return `note:${(event as NoteEvent).pitch}@${bucket}`;
     case 'parameter':
       return `parameter:${(event as ParameterEvent).controlId}@${bucket}`;
   }
