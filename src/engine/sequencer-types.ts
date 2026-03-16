@@ -30,6 +30,8 @@ export interface Transport {
   loopStart?: number;
   /** Loop end position in steps (exclusive). Default: patternLength. */
   loopEnd?: number;
+  /** When set, next play should start from this step (consumed on play). */
+  playFromStep?: number;
 }
 
 export interface ScheduledNote {

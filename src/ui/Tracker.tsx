@@ -59,6 +59,8 @@ interface Props {
   loopEnabled?: boolean;
   loopStart?: number;
   loopEnd?: number;
+  /** Report cursor step position changes (for play-from-cursor). */
+  onCursorStepChange?: (step: number) => void;
 }
 
 const AT_TOLERANCE = 0.001;
@@ -172,7 +174,7 @@ function getColCount(noteColumns: number): number {
   return 2 + noteColumns + 2;
 }
 
-export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, loopEnabled, loopStart, loopEnd }: Props) {
+export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, loopEnabled, loopStart, loopEnd, onCursorStepChange }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -223,6 +225,13 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
       setCursorCol(colCount - 1);
     }
   }, [colCount, cursorCol]);
+
+  // Report cursor step to parent for play-from-cursor
+  useEffect(() => {
+    if (onCursorStepChange && cursorRow < groups.length) {
+      onCursorStepChange(groups[cursorRow].at);
+    }
+  }, [cursorRow, groups, onCursorStepChange]);
 
   // Compute next available step for the add button
   const nextStep = useMemo(() => {

@@ -7,6 +7,7 @@ interface ShortcutActions {
   onUndo: () => void;
   onRedo: () => void;
   onTogglePlay: () => void;
+  onPlayFromCursor: () => void;
   onHardStop: () => void;
   onToggleRecord: () => void;
   onToggleMute: () => void;
@@ -46,7 +47,8 @@ const mod = isMac ? '\u2318' : 'Ctrl+';
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // Transport
   { key: 'Space', label: 'Play / Pause', section: 'transport' },
-  { key: 'Shift+Space', label: 'Hard stop (silence all)', section: 'transport' },
+  { key: 'Shift+Space', label: 'Play from cursor', section: 'transport' },
+  { key: `${mod}Shift+Space`, label: 'Hard stop (silence all)', section: 'transport' },
   { key: 'R', label: 'Toggle record arm', section: 'transport' },
   { key: ']', label: 'BPM +1', section: 'transport' },
   { key: '[', label: 'BPM -1', section: 'transport' },
@@ -81,7 +83,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 ];
 
 export function useShortcuts({
-  onUndo, onRedo, onTogglePlay, onHardStop, onToggleRecord,
+  onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
   onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
   onToggleLoop, setView, setChatOpen,
 }: ShortcutActions) {
@@ -144,10 +146,16 @@ export function useShortcuts({
         setView((v: ViewMode) => order[(order.indexOf(v) + 1) % order.length]);
         return;
       }
-      // Shift+Space for hard stop (silence all voices immediately)
-      if (e.key === ' ' && e.shiftKey && !e.repeat && !isEditable()) {
+      // Cmd/Ctrl+Shift+Space for hard stop (silence all voices immediately)
+      if (e.key === ' ' && isMod && e.shiftKey && !e.repeat && !isEditable()) {
         e.preventDefault();
         onHardStop();
+        return;
+      }
+      // Shift+Space for play from cursor position
+      if (e.key === ' ' && e.shiftKey && !e.repeat && !isEditable()) {
+        e.preventDefault();
+        onPlayFromCursor();
         return;
       }
       // Space for play/pause (tails ring out on stop)
@@ -217,7 +225,7 @@ export function useShortcuts({
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onUndo, onRedo, onTogglePlay, onHardStop, onToggleRecord,
+  }, [onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
       onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
       onToggleLoop, setView, setChatOpen]);
 
