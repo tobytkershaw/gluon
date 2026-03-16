@@ -3,6 +3,8 @@ import type { SynthEngine, SynthParams } from './synth-interface';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
 export const ACCENT_BASELINE = 0.3;
+/** Duration (seconds) to ramp gain to zero when stealing an active voice. */
+export const STEAL_RAMP_TIME = 0.003;
 
 export interface PoolVoice {
   synth: SynthEngine;
@@ -135,7 +137,14 @@ export class VoicePool {
   /** Schedule a note on the next available voice with per-voice accent automation. */
   scheduleNote(note: ScheduledNote, generation: number, eventId?: string): PoolVoice {
     const voice = this.allocate(note.time);
+    const stolen = voice.lastGateOffTime > 0 && voice.lastGateOffTime >= note.time;
     const accentLevel = note.accent ? ACCENT_BASELINE * 2.0 : ACCENT_BASELINE;
+    if (stolen) {
+      // Voice is still sustaining — ramp gain to 0 before the new note to avoid clicks
+      const rampStart = Math.max(0, note.time - STEAL_RAMP_TIME);
+      voice.accentGain.gain.cancelAndHoldAtTime(rampStart);
+      voice.accentGain.gain.linearRampToValueAtTime(0, note.time);
+    }
     voice.accentGain.gain.setValueAtTime(accentLevel, note.time);
     if (note.accent) {
       voice.accentGain.gain.setValueAtTime(ACCENT_BASELINE, note.gateOffTime);
