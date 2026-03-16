@@ -326,7 +326,7 @@ function pushMusicalEvent(
         accentLevel: te.accent ? 1.0 : (te.velocity ?? 0.8),
       });
       out.push({ beatTime, type: 'gate-on' });
-      out.push({ beatTime: beatTime + NOTE_DURATION_STEPS, type: 'gate-off' });
+      out.push({ beatTime: beatTime + (te.gate ?? 1), type: 'gate-off' });
       break;
     }
     case 'note': {

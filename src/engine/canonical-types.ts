@@ -133,6 +133,8 @@ export interface TriggerEvent extends BaseEvent {
   kind: 'trigger';
   velocity?: number;
   accent?: boolean;
+  /** Gate length in steps. Default: 1. */
+  gate?: number;
 }
 
 /**

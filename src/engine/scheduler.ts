@@ -282,7 +282,7 @@ export class Scheduler {
       if (event.kind === 'note') {
         gateOffAbsolute = absoluteStep + (event as NoteEvent).duration;
       } else {
-        gateOffAbsolute = absoluteStep + 1;
+        gateOffAbsolute = absoluteStep + ((event as TriggerEvent).gate ?? 1);
       }
       const gateOffBase = this.startTime + gateOffAbsolute * stepDuration;
       const gateOffOdd = Math.floor(gateOffAbsolute) % 2 === 1;

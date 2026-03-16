@@ -500,6 +500,16 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           editRequested={durEditReq}
         />
       ) : dur.toFixed(2);
+    } else if (event.kind === 'trigger') {
+      const gate = (event as TriggerEvent).gate ?? 1;
+      durNode = editable ? (
+        <EditableCell
+          value={gate.toFixed(2)}
+          onCommit={(v) => onUpdate(selector, { gate: Math.max(0.01, v) } as Partial<MusicalEvent>)}
+          cancelEditRef={cancelEditRef}
+          editRequested={durEditReq}
+        />
+      ) : gate.toFixed(2);
     }
 
     // Cursor cell highlight: ring on the active cell
