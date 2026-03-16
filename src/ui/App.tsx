@@ -729,6 +729,16 @@ export default function App() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('WAV export failed:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setSession(prev => ({
+        ...prev,
+        messages: [
+          ...prev.messages,
+          { role: 'system' as const, text: `WAV export failed: ${msg}`, timestamp: Date.now() },
+        ],
+      }));
     } finally {
       setExportingWav(false);
       // Stop if we started playback for the export
