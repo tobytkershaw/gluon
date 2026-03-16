@@ -10,7 +10,7 @@ import { createDefaultPattern } from './region-helpers';
 function createDefaultTrack(index: number): Track {
   const trackId = `v${index}`;
   const track = createEmptyTrack(trackId);
-  return { ...track, name: `Track ${index + 1}` };
+  return { ...track, name: `T${index + 1}` };
 }
 
 /**
