@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { ControlDef } from './module-controls';
 import { Knob } from './Knob';
+import type { KnobModulationInfo } from './Knob';
 
 // --- Accent color mapping ---
 
@@ -194,6 +195,9 @@ interface ModulePanelProps {
   // Bypass toggle (processors only)
   enabled?: boolean;
   onToggleEnabled?: () => void;
+  // Modulation indicators per control ID (read-only display)
+  modulationMap?: Map<string, KnobModulationInfo[]>;
+  onModulationClick?: () => void;
   // Extra bottom content (e.g. routing UI for modulators)
   children?: React.ReactNode;
 }
@@ -203,6 +207,7 @@ export function ModulePanel({
   onParamChange, onInteractionStart, onInteractionEnd,
   isHighlighted, engines, currentModel, onModelChange, onRemove,
   enabled, onToggleEnabled,
+  modulationMap, onModulationClick,
   children,
 }: ModulePanelProps) {
   const accent = ACCENT[accentColor];
@@ -280,6 +285,8 @@ export function ModulePanel({
                 onPointerDown={onInteractionStart}
                 onPointerUp={onInteractionEnd}
                 size={LARGE_KNOB_SIZE}
+                modulations={modulationMap?.get(control.id)}
+                onModulationClick={onModulationClick}
               />
             ))}
           </div>
@@ -300,6 +307,8 @@ export function ModulePanel({
                   onPointerDown={onInteractionStart}
                   onPointerUp={onInteractionEnd}
                   size={SMALL_KNOB_SIZE}
+                  modulations={modulationMap?.get(control.id)}
+                  onModulationClick={onModulationClick}
                 />
               ))}
             </div>

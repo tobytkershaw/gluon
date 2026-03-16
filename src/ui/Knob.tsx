@@ -3,6 +3,12 @@
 // Adapted from SemanticKnob but with configurable accent colors.
 import { useRef, useCallback } from 'react';
 
+/** Modulation info for a single routing targeting this knob */
+export interface KnobModulationInfo {
+  modulatorLabel: string;
+  depth: number;  // -1.0 to 1.0
+}
+
 interface KnobProps {
   value: number;          // 0-1
   label: string;          // control name
@@ -11,6 +17,10 @@ interface KnobProps {
   onPointerDown?: () => void;
   onPointerUp?: () => void;
   size?: number;          // diameter in px, default 40
+  /** Active modulation routings targeting this control */
+  modulations?: KnobModulationInfo[];
+  /** Called when user clicks on a modulation indicator */
+  onModulationClick?: () => void;
 }
 
 const DEFAULT_SIZE = 40;
@@ -35,6 +45,18 @@ function describeArc(cx: number, cy: number, r: number, fraction: number): strin
   return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
 }
 
+/** Arc between two fractional positions (for modulation range display) */
+function describeArcRange(cx: number, cy: number, r: number, from: number, to: number): string {
+  const startAngle = ARC_START + ARC_SWEEP * from;
+  const endAngle = ARC_START + ARC_SWEEP * to;
+  const x1 = cx + r * Math.cos(startAngle);
+  const y1 = cy + r * Math.sin(startAngle);
+  const x2 = cx + r * Math.cos(endAngle);
+  const y2 = cy + r * Math.sin(endAngle);
+  const largeArc = (endAngle - startAngle) > Math.PI ? 1 : 0;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`;
+}
+
 function indicatorPosition(cx: number, cy: number, r: number, fraction: number) {
   const angle = ARC_START + ARC_SWEEP * fraction;
   return {
@@ -46,6 +68,7 @@ function indicatorPosition(cx: number, cy: number, r: number, fraction: number) 
 export function Knob({
   value, label, accentColor, onChange,
   onPointerDown, onPointerUp, size = DEFAULT_SIZE,
+  modulations, onModulationClick,
 }: KnobProps) {
   const dragging = useRef(false);
   const startY = useRef(0);
@@ -133,12 +156,43 @@ export function Knob({
           strokeWidth={1.5}
           strokeLinecap="round"
         />
+        {/* Modulation range arcs (cyan ring showing depth extent) */}
+        {modulations && modulations.length > 0 && (() => {
+          // Aggregate total absolute depth for the ring display
+          const totalDepth = modulations.reduce((sum, m) => sum + m.depth, 0);
+          const modStart = Math.max(0, Math.min(1, value));
+          const modEnd = Math.max(0, Math.min(1, value + totalDepth));
+          const arcFrom = Math.min(modStart, modEnd);
+          const arcTo = Math.max(modStart, modEnd);
+          if (Math.abs(arcTo - arcFrom) < 0.005) return null;
+          return (
+            <path
+              d={describeArcRange(cx, cy, r - 0.5, arcFrom, arcTo)}
+              fill="none"
+              stroke="rgb(34 211 238)" /* cyan-400 */
+              strokeWidth={2}
+              strokeLinecap="round"
+              opacity={0.6}
+            />
+          );
+        })()}
       </svg>
 
-      {/* Value readout */}
-      <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[7px]' : 'text-[8px]'}`}>
-        {Math.round(value * 100)}
-      </span>
+      {/* Modulation badge (clickable to navigate to Patch view) */}
+      {modulations && modulations.length > 0 ? (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onModulationClick?.(); }}
+          className={`font-mono leading-tight truncate max-w-full text-cyan-400/70 hover:text-cyan-300 transition-colors ${isSmall ? 'text-[6px]' : 'text-[7px]'}`}
+          title={modulations.map(m => `${m.modulatorLabel} (${m.depth > 0 ? '+' : ''}${m.depth.toFixed(2)})`).join(', ')}
+        >
+          {modulations.map(m => m.modulatorLabel).join(', ')}
+        </button>
+      ) : (
+        <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[7px]' : 'text-[8px]'}`}>
+          {Math.round(value * 100)}
+        </span>
+      )}
     </div>
   );
 }
