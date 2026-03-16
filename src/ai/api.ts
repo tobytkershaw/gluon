@@ -399,7 +399,7 @@ export class GluonAI {
           systemPrompt,
           tools: GLUON_TOOLS,
           functionResponses: responses,
-          onStreamText,
+          // Don't stream on continueTurn — tool loop text would interleave
         });
       }
     } catch (error) {

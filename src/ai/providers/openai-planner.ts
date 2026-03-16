@@ -204,21 +204,23 @@ export class OpenAIPlannerProvider implements PlannerProvider {
         throw this.translateError(error);
       }
 
-      if (completedResponse) {
-        this.pendingResponseId = completedResponse.id;
-        this.pendingInput = [...this.pendingInput, ...extraInput];
-        this.pendingOutputItems.push(...completedResponse.output);
+      if (!completedResponse) {
+        throw new ProviderError('Stream ended without response.completed event.', 'server');
+      }
 
-        // Extract function calls from the completed response
-        for (const item of completedResponse.output) {
-          if (item.type === 'function_call') {
-            const fc = item as ResponseFunctionToolCall;
-            functionCalls.push({
-              id: fc.call_id,
-              name: fc.name,
-              args: JSON.parse(fc.arguments),
-            });
-          }
+      this.pendingResponseId = completedResponse.id;
+      this.pendingInput = [...this.pendingInput, ...extraInput];
+      this.pendingOutputItems.push(...completedResponse.output);
+
+      // Extract function calls from the completed response
+      for (const item of completedResponse.output) {
+        if (item.type === 'function_call') {
+          const fc = item as ResponseFunctionToolCall;
+          functionCalls.push({
+            id: fc.call_id,
+            name: fc.name,
+            args: JSON.parse(fc.arguments),
+          });
         }
       }
     } else {
