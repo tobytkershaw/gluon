@@ -219,6 +219,18 @@ export function removeTrack(session: Session, trackId: string): Session | null {
   if (removingAudio && audioCount <= 1) return null;
 
   const removedTrack = session.tracks[index];
+
+  // Collect sends that point at the removed track before stripping them
+  const affectedSends: Array<{ trackId: string; prevSends: Send[] }> = [];
+  for (const t of session.tracks) {
+    if (t.id === trackId) continue;
+    const sends = t.sends;
+    if (!sends || sends.length === 0) continue;
+    if (sends.some(s => s.busId === trackId)) {
+      affectedSends.push({ trackId: t.id, prevSends: [...sends] });
+    }
+  }
+
   // Remove sends targeting this track from all other tracks
   let newTracks = session.tracks
     .filter(t => t.id !== trackId)
@@ -247,6 +259,7 @@ export function removeTrack(session: Session, trackId: string): Session | null {
     removedTrack,
     removedIndex: index,
     prevActiveTrackId: session.activeTrackId,
+    affectedSends: affectedSends.length > 0 ? affectedSends : undefined,
     timestamp: Date.now(),
     description: `Remove track ${trackId}`,
   };
@@ -549,8 +562,17 @@ export function setSendLevel(session: Session, trackId: string, busId: string, l
   const idx = sends.findIndex(s => s.busId === busId);
   if (idx === -1) return session;
 
+  const snapshot: SendSnapshot = {
+    kind: 'send',
+    trackId,
+    prevSends: [...sends],
+    timestamp: Date.now(),
+    description: `Set send level from ${trackId} to ${busId}`,
+  };
+
   const clamped = Math.max(0, Math.min(1, level));
   const newSends = [...sends];
   newSends[idx] = { ...newSends[idx], level: clamped };
-  return updateTrack(session, trackId, { sends: newSends });
+  const result = updateTrack(session, trackId, { sends: newSends });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
 }

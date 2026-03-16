@@ -246,9 +246,15 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   if (snapshot.kind === 'track-remove') {
     // Undo a remove: re-insert the track at its original position
-    const newTracks = [...session.tracks];
+    let newTracks = [...session.tracks];
     const insertAt = Math.min(snapshot.removedIndex, newTracks.length);
     newTracks.splice(insertAt, 0, snapshot.removedTrack);
+    // Restore sends on other tracks that were stripped when the bus was removed
+    if (snapshot.affectedSends) {
+      for (const { trackId, prevSends } of snapshot.affectedSends) {
+        newTracks = newTracks.map(t => t.id === trackId ? { ...t, sends: prevSends } : t);
+      }
+    }
     return { ...session, tracks: newTracks, activeTrackId: snapshot.prevActiveTrackId };
   }
 

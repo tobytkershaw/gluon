@@ -325,6 +325,8 @@ export interface TrackRemoveSnapshot {
   removedIndex: number;
   /** If the active track was the removed one, stores the prev activeTrackId for restore. */
   prevActiveTrackId: string;
+  /** Sends from other tracks that pointed at the removed track, captured before stripping. */
+  affectedSends?: Array<{ trackId: string; prevSends: Send[] }>;
   timestamp: number;
   description: string;
 }
