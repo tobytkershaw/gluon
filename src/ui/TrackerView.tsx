@@ -31,6 +31,10 @@ interface Props {
   onDuplicate?: () => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
+  /** Bulk delete events by their indices (for selection cut/delete). */
+  onDeleteByIndices?: (indices: number[]) => void;
+  /** Paste events into the region (for clipboard paste). */
+  onPasteEvents?: (events: MusicalEvent[]) => void;
 }
 
 // --- Inline number input for Rotate/Transpose ---
@@ -83,6 +87,7 @@ export function TrackerView({
   onPatternLengthChange, onClearPattern,
   onRotate, onTranspose, onReverse, onDuplicate,
   cancelEditRef,
+  onDeleteByIndices, onPasteEvents,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
   const hasEvents = activeTrack.regions.length > 0 && activeTrack.regions[0].events.length > 0;
@@ -243,6 +248,8 @@ export function TrackerView({
                 onDelete={onEventDelete}
                 onAddNote={onEventAdd ? handleAddNote : undefined}
                 cancelEditRef={cancelEditRef}
+                onDeleteByIndices={onDeleteByIndices}
+                onPasteEvents={onPasteEvents}
               />
             ) : (
               <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">
