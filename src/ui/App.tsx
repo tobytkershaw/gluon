@@ -142,7 +142,7 @@ export default function App() {
 
   // Dirty-check refs for sync effects (#142)
   const prevTrackStateRef = useRef<Map<string, { model: number; params?: Record<string, number> }>>(new Map());
-  const prevProcessorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
+  const prevProcessorStateRef = useRef<Map<string, { model: number; params: Record<string, number>; enabled?: boolean }>>(new Map());
   const prevModulatorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
 
   // Capture param + region state at interaction start for undo
@@ -354,7 +354,7 @@ export default function App() {
             if (!fresh) return; // removed during WASM load
             audio.setProcessorModel(track.id, sp.id, fresh.model);
             audio.setProcessorPatch(track.id, sp.id, fresh.params);
-            prevProcessorStateRef.current.set(pKey, { model: fresh.model, params: { ...fresh.params } });
+            prevProcessorStateRef.current.set(pKey, { model: fresh.model, params: { ...fresh.params }, enabled: fresh.enabled !== false });
           });
         } else {
           // #142: dirty-check before syncing existing processors
@@ -365,7 +365,12 @@ export default function App() {
           if (!prev || !shallowEqual(prev.params, sp.params)) {
             audio.setProcessorPatch(track.id, sp.id, sp.params);
           }
-          prevProcessorStateRef.current.set(pKey, { model: sp.model, params: { ...sp.params } });
+          // #436: sync bypass state
+          const spEnabled = sp.enabled !== false;
+          if (!prev || prev.enabled !== spEnabled) {
+            audio.setProcessorEnabled(track.id, sp.id, spEnabled);
+          }
+          prevProcessorStateRef.current.set(pKey, { model: sp.model, params: { ...sp.params }, enabled: spEnabled });
         }
       }
 
@@ -1250,6 +1255,34 @@ export default function App() {
     setSelectedProcessorId(null);
   }, [ensureAudio]);
 
+  const handleToggleProcessorEnabled = useCallback((processorId: string) => {
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const processors = track.processors ?? [];
+      const proc = processors.find(p => p.id === processorId);
+      if (!proc) return s;
+
+      const snapshot: ProcessorSnapshot = {
+        kind: 'processor',
+        trackId: vid,
+        prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
+        timestamp: Date.now(),
+        description: proc.enabled === false ? 'Enable processor' : 'Bypass processor',
+      };
+
+      const newEnabled = proc.enabled === false ? undefined : false;
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid ? {
+          ...v,
+          processors: processors.map(p => p.id === processorId ? { ...p, enabled: newEnabled } : p),
+        } : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, []);
+
   // Capture modulator state at drag start for single-gesture undo
   const modulatorUndoRef = useRef<{
     trackId: string;
@@ -1825,6 +1858,7 @@ export default function App() {
             onProcessorInteractionEnd={handleProcessorInteractionEnd}
             onProcessorModelChange={handleProcessorModelChange}
             onRemoveProcessor={handleRemoveProcessor}
+            onToggleProcessorEnabled={handleToggleProcessorEnabled}
             selectedModulatorId={selectedModulatorId}
             onSelectModulator={setSelectedModulatorId}
             onModulatorParamChange={handleModulatorParamChange}
@@ -1864,6 +1898,7 @@ export default function App() {
             onProcessorInteractionEnd={handleProcessorInteractionEnd}
             onProcessorModelChange={handleProcessorModelChange}
             onRemoveProcessor={handleRemoveProcessor}
+            onToggleProcessorEnabled={handleToggleProcessorEnabled}
             onModulatorParamChange={handleModulatorParamChange}
             onModulatorInteractionStart={handleModulatorInteractionStart}
             onModulatorInteractionEnd={handleModulatorInteractionEnd}

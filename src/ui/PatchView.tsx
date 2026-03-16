@@ -78,6 +78,8 @@ interface NodePos {
   inputPorts: ResolvedPort[];
   /** Resolved output ports with positions */
   outputPorts: ResolvedPort[];
+  /** Whether this processor is bypassed (disabled). */
+  bypassed?: boolean;
 }
 
 /** A port definition with computed position relative to the node */
@@ -158,6 +160,7 @@ function layoutNodes(track: Track): NodePos[] {
       adapterId: procAdapterId,
       h: procH,
       ...procPorts,
+      bypassed: proc.enabled === false,
     });
     x += NODE_W + NODE_GAP;
   }
@@ -528,13 +531,13 @@ function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPo
         selected
           ? `${selectedBorderColor(node.kind)}`
           : `border-zinc-700 ${accentColor(node.kind)}`
-      }`}
+      } ${node.bypassed ? 'opacity-40 border-dashed' : ''}`}
       style={{ left: node.x, top: node.y, width: NODE_W, height: node.h }}
       onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
     >
       {/* Header area */}
       <div className="px-3 pt-2">
-        <div className="text-[11px] font-medium text-zinc-200 truncate leading-tight">
+        <div className={`text-[11px] font-medium truncate leading-tight ${node.bypassed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
           {node.label}
         </div>
         {node.sublabel && (

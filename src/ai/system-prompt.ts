@@ -146,7 +146,7 @@ ${getRegisteredProcessorTypes().map(type => {
   return `- **${type}** — ${inst.label}.\n  Models: ${models}.\n  Controls: ${controls}.`;
 }).filter(Boolean).join('\n')}
 
-Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types.
+Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types, 'bypass' to toggle enabled/disabled.
 To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx").
 To switch processor modes, use **set_model** with the processorId parameter (e.g. set_model model="string" processorId="rings-xxx").
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.

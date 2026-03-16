@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
 import { getTrack, getActiveRegion, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -863,8 +863,35 @@ export class GluonAI {
               },
             };
           }
+          case 'bypass': {
+            if (typeof args.processorId !== 'string' || !args.processorId) {
+              return { actions: [], response: errorPayload('action=bypass requires processorId') };
+            }
+            if (typeof args.description !== 'string') {
+              return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+            const bypassEnabled = args.enabled !== false; // default to re-enabling if not specified
+
+            const bypassAction: AIBypassProcessorAction = {
+              type: 'bypass_processor',
+              trackId: args.trackId as string,
+              processorId: args.processorId as string,
+              enabled: bypassEnabled,
+              description: args.description as string,
+            };
+
+            return {
+              actions: [bypassAction],
+              response: {
+                applied: true,
+                trackId: bypassAction.trackId,
+                processorId: bypassAction.processorId,
+                enabled: bypassEnabled,
+              },
+            };
+          }
           default:
-            return { actions: [], response: errorPayload(`Invalid action "${procSubAction}". Use: add, remove, replace`) };
+            return { actions: [], response: errorPayload(`Invalid action "${procSubAction}". Use: add, remove, replace, bypass`) };
         }
       }
 

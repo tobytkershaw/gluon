@@ -19,6 +19,7 @@ interface CompressedProcessor {
   type: string;
   model: string;
   params: Record<string, number>;
+  enabled?: boolean;
 }
 
 interface CompressedModulator {
@@ -371,6 +372,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
         type: p.type,
         model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
         params: Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, round2(v)])),
+        ...(p.enabled === false ? { enabled: false } : {}),
       })),
       modulators: (track.modulators ?? []).map(m => ({
         id: m.id,

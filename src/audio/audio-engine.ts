@@ -27,6 +27,8 @@ interface ProcessorSlot {
   id: string;
   type: string;
   engine: ProcessorEngine;
+  /** Whether this processor is wired into the chain. Default: true. */
+  enabled: boolean;
 }
 
 interface ModulatorSlot {
@@ -712,7 +714,7 @@ export class AudioEngine {
       // After async gap: only insert if still wanted (key not cancelled
       // by removeProcessor) and not already present (dedupe).
       if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
-        slot.processors.push({ id: processorId, type: processorType, engine });
+        slot.processors.push({ id: processorId, type: processorType, engine, enabled: true });
         this.rebuildChain(slot);
       } else {
         engine.destroy();
@@ -770,6 +772,17 @@ export class AudioEngine {
     }
   }
 
+  /** Enable or bypass a processor, rebuilding the chain to wire around it. */
+  setProcessorEnabled(trackId: string, processorId: string, enabled: boolean): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot) return;
+    const proc = slot.processors.find(p => p.id === processorId);
+    if (!proc) return;
+    if (proc.enabled === enabled) return;
+    proc.enabled = enabled;
+    this.rebuildChain(slot);
+  }
+
   getProcessors(trackId: string): { id: string; type: string }[] {
     const slot = this.tracks.get(trackId);
     if (!slot) return [];
@@ -802,16 +815,19 @@ export class AudioEngine {
       proc.engine.inputNode.disconnect();
     }
 
-    if (slot.processors.length === 0) {
-      // Direct: input -> chainOutGain
+    // Filter to only enabled processors for the active chain
+    const activeProcs = slot.processors.filter(p => p.enabled !== false);
+
+    if (activeProcs.length === 0) {
+      // Direct: input -> chainOutGain (all processors bypassed or none exist)
       inputNode.connect(slot.chainOutGain);
     } else {
       // Chain: input -> proc[0] -> ... -> proc[n] -> chainOutGain
-      inputNode.connect(slot.processors[0].engine.inputNode);
-      for (let i = 0; i < slot.processors.length - 1; i++) {
-        slot.processors[i].engine.inputNode.connect(slot.processors[i + 1].engine.inputNode);
+      inputNode.connect(activeProcs[0].engine.inputNode);
+      for (let i = 0; i < activeProcs.length - 1; i++) {
+        activeProcs[i].engine.inputNode.connect(activeProcs[i + 1].engine.inputNode);
       }
-      slot.processors[slot.processors.length - 1].engine.inputNode.connect(slot.chainOutGain);
+      activeProcs[activeProcs.length - 1].engine.inputNode.connect(slot.chainOutGain);
     }
 
     // Ramp chainOutGain back to 1 after reconnect

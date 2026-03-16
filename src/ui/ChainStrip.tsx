@@ -70,7 +70,7 @@ export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, on
                 isSelected
                   ? 'bg-sky-400/20 border border-sky-400/40 text-sky-200'
                   : 'bg-sky-400/10 border border-sky-400/20 text-sky-300 hover:bg-sky-400/15 hover:border-sky-400/30'
-              }`}
+              } ${proc.enabled === false ? 'opacity-40 line-through' : ''}`}
             >
               {getProcessorLabel(proc.type, proc.model)}
               {onNodeClick && (

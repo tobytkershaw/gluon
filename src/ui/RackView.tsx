@@ -40,6 +40,7 @@ interface RackViewProps {
   onProcessorInteractionEnd: (processorId: string) => void;
   onProcessorModelChange: (processorId: string, model: number) => void;
   onRemoveProcessor: (processorId: string) => void;
+  onToggleProcessorEnabled?: (processorId: string) => void;
   // Modulator editing
   onModulatorParamChange: (modulatorId: string, param: string, value: number) => void;
   onModulatorInteractionStart: (modulatorId: string) => void;
@@ -188,7 +189,7 @@ export function RackView({
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onNoteChange, onHarmonicsChange,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
-  onProcessorModelChange, onRemoveProcessor,
+  onProcessorModelChange, onRemoveProcessor, onToggleProcessorEnabled,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
   onModulationDepthChange, onModulationDepthCommit, onRemoveModulation,
@@ -267,6 +268,8 @@ export function RackView({
               currentModel={proc.model}
               onModelChange={(model) => onProcessorModelChange(proc.id, model)}
               onRemove={() => onRemoveProcessor(proc.id)}
+              enabled={proc.enabled}
+              onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
             />
           );
         })}

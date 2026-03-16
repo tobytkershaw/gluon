@@ -191,6 +191,9 @@ interface ModulePanelProps {
   onModelChange?: (model: number) => void;
   // Remove button (processors/modulators only)
   onRemove?: () => void;
+  // Bypass toggle (processors only)
+  enabled?: boolean;
+  onToggleEnabled?: () => void;
   // Extra bottom content (e.g. routing UI for modulators)
   children?: React.ReactNode;
 }
@@ -199,9 +202,11 @@ export function ModulePanel({
   label, accentColor, controls,
   onParamChange, onInteractionStart, onInteractionEnd,
   isHighlighted, engines, currentModel, onModelChange, onRemove,
+  enabled, onToggleEnabled,
   children,
 }: ModulePanelProps) {
   const accent = ACCENT[accentColor];
+  const isBypassed = enabled === false;
 
   // Partition controls by size and kind
   const largeKnobs = controls.filter(c => c.size === 'large' && c.kind === 'continuous');
@@ -217,14 +222,25 @@ export function ModulePanel({
     <div
       className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden ${
         isHighlighted ? accent.highlight : 'border-zinc-800/60'
-      }`}
+      } ${isBypassed ? 'opacity-50' : ''}`}
       style={{ width: largeCols === 3 ? 220 : 168 }}
     >
       {/* Header bar */}
       <div className={`flex items-center justify-between gap-1 px-3 py-1.5 ${accent.headerBg} border-b border-zinc-800/40`}>
         <div className="flex items-center gap-1.5 min-w-0">
-          <div className={`w-1.5 h-1.5 rounded-full ${accent.dot} shrink-0`} />
-          <span className={`text-[10px] font-medium truncate ${accent.header}`}>{label}</span>
+          {onToggleEnabled ? (
+            <button
+              type="button"
+              onClick={onToggleEnabled}
+              className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
+                isBypassed ? 'bg-zinc-600' : accent.dot
+              }`}
+              title={isBypassed ? 'Enable' : 'Bypass'}
+            />
+          ) : (
+            <div className={`w-1.5 h-1.5 rounded-full ${accent.dot} shrink-0`} />
+          )}
+          <span className={`text-[10px] font-medium truncate ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
         </div>
         {onRemove && (
           <button

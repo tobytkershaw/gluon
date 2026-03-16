@@ -239,8 +239,8 @@ const manageProcessorTool: ToolSchema = {
     properties: {
       action: {
         type: 'string',
-        enum: ['add', 'remove', 'replace'],
-        description: 'Operation to perform.',
+        enum: ['add', 'remove', 'replace', 'bypass'],
+        description: 'Operation to perform. "bypass" toggles the processor enabled/disabled state.',
       },
       trackId: {
         type: 'string',
@@ -253,6 +253,10 @@ const manageProcessorTool: ToolSchema = {
       processorId: {
         type: 'string',
         description: 'Required for remove and replace. The processor ID to target (visible in project state).',
+      },
+      enabled: {
+        type: 'boolean',
+        description: 'Set to false to bypass the processor (audio skips it). Set to true to re-enable. Only valid with action "add" (to add bypassed) or as a standalone toggle when processorId is given.',
       },
       description: {
         type: 'string',

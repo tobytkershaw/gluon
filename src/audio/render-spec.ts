@@ -169,7 +169,7 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
   };
 
   const events = collectEvents(track, bars);
-  const processors = (track.processors ?? []).map(buildProcessorSpec);
+  const processors = (track.processors ?? []).filter(p => p.enabled !== false).map(buildProcessorSpec);
   const modulators = (track.modulators ?? []).map(buildModulatorSpec);
   const modulations = buildModulationSpecs(track, modulators);
 
@@ -224,7 +224,7 @@ function buildModulatorSpec(mod: ModulatorConfig): RenderModulatorSpec {
 
 function buildModulationSpecs(track: Track, modulators: RenderModulatorSpec[]): RenderModulationSpec[] {
   const modulatorIds = new Set(modulators.map(mod => mod.id));
-  const processorIds = new Set((track.processors ?? []).map(proc => proc.id));
+  const processorIds = new Set((track.processors ?? []).filter(p => p.enabled !== false).map(proc => proc.id));
 
   return (track.modulations ?? []).flatMap((routing: ModulationRouting) => {
     if (!modulatorIds.has(routing.modulatorId)) {
