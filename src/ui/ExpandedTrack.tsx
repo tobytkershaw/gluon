@@ -1,6 +1,6 @@
 // src/ui/ExpandedTrack.tsx
 // Layer 2: expanded track layout with module-grouped controls.
-import type { Session, Track, Agency, SequencerViewKind, ModulationTarget, SemanticControlDef } from '../engine/types';
+import type { Session, Track, Agency, SequencerViewKind, SemanticControlDef } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
@@ -9,7 +9,8 @@ import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
 import { SequencerViewSlot } from './SequencerViewSlot';
 import { ChainStrip } from './ChainStrip';
-import { ControlSection } from './ControlSection';
+import { ModulePanel } from './ModulePanel';
+import { RoutingChips } from './RoutingChip';
 import { DeepView } from './DeepView';
 import { SemanticControlsSection } from './SemanticControlsSection';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
@@ -66,16 +67,6 @@ interface ExpandedTrackProps {
   onOpenDeepView: (moduleId: string | null) => void;
   // Audio
   analyser: AnalyserNode | null;
-}
-
-/** Human-readable label for a modulation target */
-function formatRoutingTarget(target: ModulationTarget, track: Track): string {
-  if (target.kind === 'source') {
-    return `Source / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
-  }
-  const proc = (track.processors ?? []).find(p => p.id === target.processorId);
-  const procLabel = proc ? getProcessorInstrument(proc.type)?.label ?? proc.type : target.processorId;
-  return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
 }
 
 export function ExpandedTrack({
@@ -165,7 +156,7 @@ export function ExpandedTrack({
           )}
 
           {/* Source controls */}
-          <ControlSection
+          <ModulePanel
             label={sourceLabel}
             accentColor="amber"
             controls={getSourceControls(activeTrack)}
@@ -197,7 +188,7 @@ export function ExpandedTrack({
             const procEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
 
             return (
-              <ControlSection
+              <ModulePanel
                 key={proc.id}
                 label={procLabel}
                 accentColor="sky"
@@ -226,34 +217,25 @@ export function ExpandedTrack({
             const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
 
             return (
-              <div key={mod.id}>
-                <ControlSection
-                  label={modLabel}
-                  accentColor="violet"
-                  controls={getModulatorControls(mod)}
-                  onParamChange={(controlId, value) => onModulatorParamChange(mod.id, controlId, value)}
-                  onInteractionStart={() => onModulatorInteractionStart(mod.id)}
-                  onInteractionEnd={() => onModulatorInteractionEnd(mod.id)}
-                  isHighlighted={selectedModulatorId === mod.id}
-                  engines={modEngines}
-                  currentModel={mod.model}
-                  onModelChange={(model) => onModulatorModelChange(mod.id, model)}
-                  onRemove={() => onRemoveModulator(mod.id)}
+              <ModulePanel
+                key={mod.id}
+                label={modLabel}
+                accentColor="violet"
+                controls={getModulatorControls(mod)}
+                onParamChange={(controlId, value) => onModulatorParamChange(mod.id, controlId, value)}
+                onInteractionStart={() => onModulatorInteractionStart(mod.id)}
+                onInteractionEnd={() => onModulatorInteractionEnd(mod.id)}
+                isHighlighted={selectedModulatorId === mod.id}
+                engines={modEngines}
+                currentModel={mod.model}
+                onModelChange={(model) => onModulatorModelChange(mod.id, model)}
+                onRemove={() => onRemoveModulator(mod.id)}
+              >
+                <RoutingChips
+                  routings={modRoutings}
+                  track={activeTrack}
                 />
-                {/* Routing chips */}
-                {modRoutings.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-1.5 px-1">
-                    {modRoutings.map(r => (
-                      <span
-                        key={r.id}
-                        className="text-[9px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
-                      >
-                        → {formatRoutingTarget(r.target, activeTrack)} ({r.depth > 0 ? '+' : ''}{r.depth.toFixed(2)})
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              </ModulePanel>
             );
           })}
 
