@@ -1813,6 +1813,7 @@ export default function App() {
       projectName={project.projectName}
       projects={project.projects}
       saveError={project.saveError}
+      saveStatus={project.saveStatus}
       onProjectRename={project.renameActiveProject}
       onProjectNew={() => project.createProject()}
       onProjectOpen={project.switchProject}
