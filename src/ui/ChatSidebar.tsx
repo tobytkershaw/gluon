@@ -65,14 +65,11 @@ export function ChatSidebar({
 
   // Expanded: full sidebar with bold visual identity
   return (
-    <div className="relative flex min-h-0">
-      {/* Bioelectric membrane — the seam between workstation and AI */}
-      <div className={`ai-membrane shrink-0 ${isActive ? 'ai-membrane--active' : ''}`} />
-
-      {/* AI space */}
+    <div className="relative flex min-h-0 my-1.5">
+      {/* AI space — the curved left edge IS the membrane */}
       <div
-        className={`ai-space flex flex-col min-h-0 flex-1 ${isActive ? 'ai-space--active' : ''}`}
-        style={{ width: width - 2 }}
+        className={`ai-space ai-space--bordered flex flex-col min-h-0 flex-1 rounded-l-2xl overflow-hidden ${isActive ? 'ai-space--active' : ''}`}
+        style={{ width }}
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-900/20">
@@ -90,7 +87,7 @@ export function ChatSidebar({
           <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
         </div>
 
-        {/* Drag handle on LEFT edge (overlays the membrane) */}
+        {/* Drag handle on LEFT edge */}
         <div
           className="absolute top-0 left-0 w-2 h-full cursor-col-resize hover:bg-violet-500/10 active:bg-violet-400/15 transition-colors z-10"
           onPointerDown={handlePointerDown}

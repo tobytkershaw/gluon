@@ -72,20 +72,7 @@ input[type="range"]::-moz-range-thumb {
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* AI collaborator — bioelectric membrane between workstation and AI space */
-.ai-membrane {
-  width: 2px;
-  background: linear-gradient(to bottom,
-    rgba(139, 92, 246, 0.4),
-    rgba(168, 85, 247, 0.12),
-    rgba(139, 92, 246, 0.25),
-    rgba(168, 85, 247, 0.12),
-    rgba(139, 92, 246, 0.4)
-  );
-  box-shadow:
-    -4px 0 16px rgba(139, 92, 246, 0.08),
-    4px 0 16px rgba(139, 92, 246, 0.08);
-}
+/* AI collaborator — the curved left edge glows as the membrane */
 
 /* AI breathing animation — subtle background pulse when active */
 @keyframes ai-breathe {
@@ -93,29 +80,38 @@ input[type="range"]::-moz-range-thumb {
   50% { background-color: #17142A; }
 }
 
-@keyframes ai-breathe-glow {
-  0%, 100% {
-    box-shadow:
-      -4px 0 16px rgba(139, 92, 246, 0.08),
-      4px 0 16px rgba(139, 92, 246, 0.08);
-  }
-  50% {
-    box-shadow:
-      -4px 0 20px rgba(139, 92, 246, 0.18),
-      4px 0 20px rgba(139, 92, 246, 0.18);
-  }
-}
-
 .ai-space {
   background-color: #13111C;
+}
+
+.ai-space--bordered {
+  border-left: 2px solid rgba(139, 92, 246, 0.35);
+  box-shadow:
+    -6px 0 20px rgba(139, 92, 246, 0.08),
+    inset 3px 0 12px rgba(139, 92, 246, 0.06);
 }
 
 .ai-space--active {
   animation: ai-breathe 3s ease-in-out infinite;
 }
 
-.ai-membrane--active {
-  animation: ai-breathe-glow 3s ease-in-out infinite;
+.ai-space--active.ai-space--bordered {
+  animation: ai-breathe 3s ease-in-out infinite, ai-breathe-border 3s ease-in-out infinite;
+}
+
+@keyframes ai-breathe-border {
+  0%, 100% {
+    border-left-color: rgba(139, 92, 246, 0.35);
+    box-shadow:
+      -6px 0 20px rgba(139, 92, 246, 0.08),
+      inset 3px 0 12px rgba(139, 92, 246, 0.06);
+  }
+  50% {
+    border-left-color: rgba(139, 92, 246, 0.55);
+    box-shadow:
+      -8px 0 24px rgba(139, 92, 246, 0.15),
+      inset 4px 0 16px rgba(139, 92, 246, 0.1);
+  }
 }
 
 /* Floating composer pill */
