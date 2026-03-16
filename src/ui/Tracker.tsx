@@ -509,6 +509,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
       ref={containerRef}
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      data-shortcut-scope="tracker"
       className="outline-none h-full"
     >
       <table className="w-full border-collapse select-none">

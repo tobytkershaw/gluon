@@ -42,6 +42,7 @@ import { RackView } from './RackView';
 import { PatchView } from './PatchView';
 import { AppShell } from './AppShell';
 import { useShortcuts } from './useShortcuts';
+import { ShortcutsPanel } from './ShortcutsPanel';
 import { useKeyboardPiano } from './useKeyboardPiano';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
@@ -1719,13 +1720,52 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  // Track up/down navigation for keyboard shortcuts
+  const handleTrackUp = useCallback(() => {
+    setSession((s) => {
+      const ordered = getOrderedTracks(s);
+      const idx = ordered.findIndex(t => t.id === s.activeTrackId);
+      if (idx <= 0) return s;
+      return setActiveTrack(s, ordered[idx - 1].id);
+    });
+  }, []);
+
+  const handleTrackDown = useCallback(() => {
+    setSession((s) => {
+      const ordered = getOrderedTracks(s);
+      const idx = ordered.findIndex(t => t.id === s.activeTrackId);
+      if (idx < 0 || idx >= ordered.length - 1) return s;
+      return setActiveTrack(s, ordered[idx + 1].id);
+    });
+  }, []);
+
+  const handleBpmNudge = useCallback((delta: number) => {
+    ensureAudio();
+    setSession((s) => setTransportBpm(s, s.transport.bpm + delta));
+  }, [ensureAudio]);
+
   // Global keyboard shortcuts (extracted to hook)
-  useShortcuts({ onUndo: handleUndo, onRedo: handleRedo, onTogglePlay: handleTogglePlay, onHardStop: handleHardStop, onToggleLoop: () => setSession(s => toggleLoop(s)), setView, setChatOpen });
+  const { showShortcuts, toggleShortcuts } = useShortcuts({
+    onUndo: handleUndo,
+    onRedo: handleRedo,
+    onTogglePlay: handleTogglePlay,
+    onHardStop: handleHardStop,
+    onToggleRecord: handleToggleRecord,
+    onToggleMute: () => handleToggleMute(session.activeTrackId),
+    onToggleSolo: () => handleToggleSolo(session.activeTrackId),
+    onTrackUp: handleTrackUp,
+    onTrackDown: handleTrackDown,
+    onBpmNudge: handleBpmNudge,
+    onToggleLoop: () => setSession(s => toggleLoop(s)),
+    setView,
+    setChatOpen,
+  });
 
   // Keyboard piano: map computer keys to musical notes for real-time audition
   useKeyboardPiano(audioRef, session, recordArmed, globalStepRef, handleRecordEvents);
 
   return (
+    <>
     <AppShell
       tracks={session.tracks}
       activeTrackId={session.activeTrackId}
@@ -1926,5 +1966,7 @@ export default function App() {
           />
         )}
     </AppShell>
+    {showShortcuts && <ShortcutsPanel onClose={toggleShortcuts} />}
+    </>
   );
 }
