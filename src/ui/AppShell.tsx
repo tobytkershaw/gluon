@@ -15,6 +15,7 @@ import { TransportStrip } from './TransportStrip';
 import { UndoButton } from './UndoButton';
 import { RedoButton } from './RedoButton';
 import { MasterStrip } from './MasterStrip';
+import { AudioLoadMeter } from './AudioLoadMeter';
 
 interface Props {
   // Track sidebar
@@ -98,6 +99,7 @@ interface Props {
   masterVolume: number;
   masterPan: number;
   analyser: AnalyserNode | null;
+  audioContext: AudioContext | null;
   onMasterVolumeChange: (v: number) => void;
   onMasterPanChange: (p: number) => void;
   // Main content
@@ -125,7 +127,7 @@ export function AppShell({
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo,
   cancelEditRef,
-  masterVolume, masterPan, analyser, onMasterVolumeChange, onMasterPanChange,
+  masterVolume, masterPan, analyser, audioContext, onMasterVolumeChange, onMasterPanChange,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -300,8 +302,9 @@ export function AppShell({
             />
           )}
         </div>
-        {/* Master channel strip */}
+        {/* Master channel strip + audio load */}
         <div className="flex-1 flex items-center justify-end">
+          <AudioLoadMeter audioContext={audioContext} />
           <MasterStrip
             volume={masterVolume}
             pan={masterPan}
