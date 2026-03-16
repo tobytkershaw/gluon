@@ -149,6 +149,9 @@ export interface ParameterEvent extends BaseEvent {
   controlId: string;
   value: number | string | boolean;
   interpolation?: 'step' | 'linear' | 'curve';
+  /** Curve tension for 'curve' interpolation. Range: -1.0 to 1.0.
+   *  0 = linear, positive = fast start/slow end, negative = slow start/fast end. */
+  tension?: number;
 }
 
 export type MusicalEvent = NoteEvent | TriggerEvent | ParameterEvent;
