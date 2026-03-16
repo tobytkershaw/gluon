@@ -101,6 +101,7 @@ interface Props {
   masterVolume: number;
   masterPan: number;
   analyser: AnalyserNode | null;
+  stereoAnalysers: [AnalyserNode, AnalyserNode] | null;
   audioContext: AudioContext | null;
   onMasterVolumeChange: (v: number) => void;
   onMasterPanChange: (p: number) => void;
@@ -129,7 +130,7 @@ export function AppShell({
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo,
   cancelEditRef,
-  masterVolume, masterPan, analyser, audioContext, onMasterVolumeChange, onMasterPanChange,
+  masterVolume, masterPan, analyser, stereoAnalysers, audioContext, onMasterVolumeChange, onMasterPanChange,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -312,6 +313,7 @@ export function AppShell({
             volume={masterVolume}
             pan={masterPan}
             analyser={analyser}
+            stereoAnalysers={stereoAnalysers}
             onVolumeChange={onMasterVolumeChange}
             onPanChange={onMasterPanChange}
           />
