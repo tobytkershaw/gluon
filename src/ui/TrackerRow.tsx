@@ -452,7 +452,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         className={`
           group text-[11px] font-mono leading-5 ${rowColor}
           ${isAtPlayhead && !isCursorRow ? 'bg-amber-500/15' : ''}
-          ${isCursorRow ? 'bg-amber-500/8' : ''}
+          ${isCursorRow ? 'bg-amber-500/10' : ''}
           ${!isAtPlayhead && !isCursorRow ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}

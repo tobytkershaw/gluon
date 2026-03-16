@@ -188,6 +188,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
       case 'Tab': {
         // Tab cycles columns forward, Shift+Tab cycles backward
         e.preventDefault();
+        e.stopPropagation();
         if (e.shiftKey) {
           setCursorCol(c => (c === 0 ? (COL_COUNT - 1) as TrackerColumn : (c - 1) as TrackerColumn));
         } else {
