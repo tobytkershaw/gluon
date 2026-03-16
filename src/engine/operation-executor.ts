@@ -316,6 +316,18 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'bypass_processor': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      const proc = (track.processors ?? []).find(p => p.id === action.processorId);
+      if (!proc) return `Processor not found: ${action.processorId}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
+      }
+      return null;
+    }
+
     case 'add_modulator': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
@@ -1240,6 +1252,29 @@ export function executeOperations(
         next = maybeApplySurfaceTemplate(next, action.trackId, action.description);
         const vLabel3 = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: vLabel3, description: `replaced ${prevProcessors[idx].type} with ${action.newModuleType}`, diff: { kind: 'processor-replace', fromType: prevProcessors[idx].type, toType: action.newModuleType } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'bypass_processor': {
+        const track = getTrack(next, action.trackId);
+        const prevProcessors = [...(track.processors ?? [])].map(p => ({ ...p, params: { ...p.params } }));
+        const newProcessors = prevProcessors.map(p =>
+          p.id === action.processorId ? { ...p, enabled: action.enabled } : p,
+        );
+        const snapshot: ProcessorSnapshot = {
+          kind: 'processor',
+          trackId: action.trackId,
+          prevProcessors,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { processors: newProcessors }),
+          undoStack: [...next.undoStack, snapshot],
+        };
+        const vLabel4 = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: vLabel4, description: `${action.enabled ? 'enabled' : 'bypassed'} processor ${action.processorId}` });
         accepted.push(action);
         break;
       }

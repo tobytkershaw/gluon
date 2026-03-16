@@ -28,6 +28,9 @@ interface ControlSectionProps {
   onModelChange?: (model: number) => void;
   // Remove button (processors only)
   onRemove?: () => void;
+  // Bypass toggle (processors only)
+  enabled?: boolean;
+  onToggleEnabled?: () => void;
 }
 
 const ACCENT = {
@@ -55,24 +58,39 @@ export function ControlSection({
   label, accentColor, controls,
   onParamChange, onInteractionStart, onInteractionEnd,
   isHighlighted, engines, currentModel, onModelChange, onRemove,
+  enabled, onToggleEnabled,
 }: ControlSectionProps) {
   const accent = ACCENT[accentColor];
+  const isBypassed = enabled === false;
 
   return (
     <div className={`bg-zinc-900/50 border rounded-lg p-3 space-y-3 ${
       isHighlighted ? accent.highlight : 'border-zinc-800/50'
-    }`}>
+    } ${isBypassed ? 'opacity-50' : ''}`}>
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <span className={`text-[11px] font-medium ${accent.header}`}>{label}</span>
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="text-[9px] text-zinc-600 hover:text-red-400 uppercase tracking-widest transition-colors"
-          >
-            Remove
-          </button>
-        )}
+        <span className={`text-[11px] font-medium ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
+        <div className="flex items-center gap-2">
+          {onToggleEnabled && (
+            <button
+              onClick={onToggleEnabled}
+              className={`text-[9px] uppercase tracking-widest transition-colors ${
+                isBypassed ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-600 hover:text-zinc-300'
+              }`}
+              title={isBypassed ? 'Enable' : 'Bypass'}
+            >
+              {isBypassed ? 'Off' : 'On'}
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={onRemove}
+              className="text-[9px] text-zinc-600 hover:text-red-400 uppercase tracking-widest transition-colors"
+            >
+              Remove
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Mode selector */}

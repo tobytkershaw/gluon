@@ -36,6 +36,7 @@ interface ExpandedTrackProps {
   onProcessorInteractionEnd: (processorId: string) => void;
   onProcessorModelChange: (processorId: string, model: number) => void;
   onRemoveProcessor: (processorId: string) => void;
+  onToggleProcessorEnabled?: (processorId: string) => void;
   // Modulator editing
   selectedModulatorId: string | null;
   onSelectModulator: (modulatorId: string | null) => void;
@@ -84,7 +85,7 @@ export function ExpandedTrack({
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   selectedProcessorId, onSelectProcessor,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
-  onProcessorModelChange, onRemoveProcessor,
+  onProcessorModelChange, onRemoveProcessor, onToggleProcessorEnabled,
   selectedModulatorId, onSelectModulator,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
@@ -209,6 +210,8 @@ export function ExpandedTrack({
                 currentModel={proc.model}
                 onModelChange={(model) => onProcessorModelChange(proc.id, model)}
                 onRemove={() => onRemoveProcessor(proc.id)}
+                enabled={proc.enabled}
+                onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
               />
             );
           })}

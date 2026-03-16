@@ -61,6 +61,9 @@ export interface ProcessorConfig {
   type: string;
   model: number;
   params: Record<string, number>;
+  /** Whether this processor is active in the signal chain. Default: true (enabled).
+   *  When false, audio bypasses this processor entirely. */
+  enabled?: boolean;
 }
 
 export interface ModulatorConfig {
@@ -463,6 +466,14 @@ export interface AIReplaceProcessorAction {
   description: string;
 }
 
+export interface AIBypassProcessorAction {
+  type: 'bypass_processor';
+  trackId: string;
+  processorId: string;
+  enabled: boolean;
+  description: string;
+}
+
 export interface AIAddModulatorAction {
   type: 'add_modulator';
   trackId: string;
@@ -557,7 +568,7 @@ export interface AIMarkApprovedAction {
   reason: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction;
 
 // --- Reaction History ---
 
