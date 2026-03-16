@@ -10,7 +10,7 @@ import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, setApproval, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
-  renameTrack, setMaster,
+  renameTrack, setMaster, setTrackVolume, setTrackPan,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -764,6 +764,16 @@ export default function App() {
     setSession((s) => renameTrack(s, trackId, name));
   }, []);
 
+  const handleChangeVolume = useCallback((trackId: string, value: number) => {
+    ensureAudio();
+    setSession((s) => setTrackVolume(s, trackId, value));
+  }, [ensureAudio]);
+
+  const handleChangePan = useCallback((trackId: string, value: number) => {
+    ensureAudio();
+    setSession((s) => setTrackPan(s, trackId, value));
+  }, [ensureAudio]);
+
   const handleMasterVolumeChange = useCallback((v: number) => {
     ensureAudio();
     setSession((s) => setMaster(s, { volume: v }));
@@ -1477,6 +1487,8 @@ export default function App() {
           return setApproval(s, trackId, cycle[nextIdx]);
         });
       }}
+      onChangeVolume={handleChangeVolume}
+      onChangePan={handleChangePan}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}

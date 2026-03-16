@@ -169,6 +169,14 @@ export function renameTrack(session: Session, trackId: string, name: string): Se
   return updateTrack(session, trackId, { name });
 }
 
+export function setTrackVolume(session: Session, trackId: string, volume: number): Session {
+  return updateTrack(session, trackId, { volume: Math.max(0, Math.min(1, volume)) });
+}
+
+export function setTrackPan(session: Session, trackId: string, pan: number): Session {
+  return updateTrack(session, trackId, { pan: Math.max(-1, Math.min(1, pan)) });
+}
+
 export function setTransportBpm(session: Session, bpm: number): Session {
   return {
     ...session,

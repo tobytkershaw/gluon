@@ -14,12 +14,14 @@ interface Props {
   onToggleAgency: (trackId: string) => void;
   onRenameTrack?: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;
+  onChangeVolume?: (trackId: string, value: number) => void;
+  onChangePan?: (trackId: string, value: number) => void;
 }
 
 export function TrackList({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
-  onRenameTrack, onCycleApproval,
+  onRenameTrack, onCycleApproval, onChangeVolume, onChangePan,
 }: Props) {
   return (
     <div className="w-44 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
@@ -45,6 +47,8 @@ export function TrackList({
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
+            onChangeVolume={onChangeVolume ? (v) => onChangeVolume(track.id, v) : undefined}
+            onChangePan={onChangePan ? (v) => onChangePan(track.id, v) : undefined}
           />
         ))}
       </div>
