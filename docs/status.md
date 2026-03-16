@@ -1,7 +1,7 @@
 # Gluon — Build Status
 
 **As of:** 2026-03-16
-**Build:** 986 tests, 67 test files, zero type errors
+**Build:** 992 tests, 67 test files, zero type errors
 
 ---
 
@@ -15,7 +15,7 @@ Browser-based AI-assisted music instrument. Human directs AI via natural languag
 
 **AI:** 17 tools, dual-provider stack (GPT-5.4 planner + Gemini 3 Flash listener), streaming responses with progressive text rendering, dual-posture system prompt (collaborator for discussion, precise for actions), preservation contracts, reaction history, structured listening.
 
-**UX:** Undo + redo, audio export (WAV), multi-line chat, per-track volume/pan knobs, BPM 20-300 with fractional support, voice stealing gain ramp.
+**UX:** Undo + redo, audio export (WAV), multi-line chat, per-track volume/pan knobs, BPM 20-300 with fractional support, voice stealing gain ramp, metronome click track, A/B loop points, module bypass toggle.
 
 ---
 
@@ -35,12 +35,13 @@ Tracker keyboard nav + copy/paste, Eurorack rack grid, Patch view real ports, WA
 
 Bus tracks with send/return routing, explicit master bus.
 
-### Wave 3: "Make it complete" — Not started
+### Wave 3: "Make it complete" — In progress (7/7 first batch merged)
 
-**3A Arrangement:** multiple regions (#399), song timeline (#429), loop selection (#404)
-**3B Routing:** port-level patch graph (#395), module bypass (#436)
-**3C AI depth:** tool-call visibility (#414), reaction UI (#431), diff tool (#434), bug report tool (#441)
-**3D Scheduling:** metronome (#403), time signatures (#412), param interpolation (#408), gate length (#410), piano roll (#430)
+**Merged:** multiple regions (#399), loop selection (#404), metronome (#403), module bypass (#436), tool-call visibility (#414), reaction UI (#431), multi-region review fixes (#473)
+
+**Design decisions:** #395 (port-level graph) deferred to post-finalization (#466). #429 (arrangement) split into layers — regions + loop = finalization, scenes (#469) + timeline = later.
+
+**Remaining (priority:next):** #379 (render fix), #391 (modulation to Patch), #408 (interpolation), #409 (microtiming), #410 (gate length), #411 (stereo render), #432 (automation UI), #433 (keyboard shortcuts), #469 (scenes — post-finalization)
 
 ### Wave 4: "Make it polished" — Not started
 
@@ -57,11 +58,14 @@ Bus tracks with send/return routing, explicit master bus.
 
 ## Milestones Complete
 
-M0 (Stabilization) → M1 (Sequencer) → M2 (Expressivity) → M3 (Views) → M4 (Chains) → Phase 4B (Modulation) → M5 (UI Layers) → M6 (AI Collaboration) → Finalization Waves 1-2
+M0 (Stabilization) → M1 (Sequencer) → M2 (Expressivity) → M3 (Views) → M4 (Chains) → Phase 4B (Modulation) → M5 (UI Layers) → M6 (AI Collaboration) → Finalization Waves 1-2 → Wave 3 (in progress)
 
 ## Key Design Decisions
 
 - **Tracks:** 1-16 dynamic, typed (`audio` | `bus`), empty by default (no auto-Plaits)
 - **Polyphony:** Free-form simultaneous events, max 4 notes per step, column ≠ voice
 - **Bus routing:** Post-fader sends, explicit master bus, send state on sending track
+- **Regions:** Multiple per track, active region tracking, region CRUD with undo, scheduler plays all at start offsets
+- **Port graph:** Deferred (#466) — chain model is shallow and not blocking. Module bypass standalone.
+- **Arrangement:** Layered approach — regions + loop now, scenes later (#469), timeline much later
 - **Views:** Tracker = canonical event view, Rack = parameter ground truth, Patch = topology ground truth, Surface = AI-curated
