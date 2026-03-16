@@ -32,6 +32,7 @@ const ACCENT_COLORS: Record<string, string> = {
   amber:  'rgb(251 191 36)',  // amber-400
   sky:    'rgb(56 189 248)',   // sky-400
   violet: 'rgb(167 139 250)', // violet-400
+  zinc:   'rgb(161 161 170)', // zinc-400
 };
 
 function describeArc(cx: number, cy: number, r: number, fraction: number): string {
