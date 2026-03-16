@@ -319,6 +319,9 @@ export interface ListenContext {
  */
 export type ActionValidator = (action: AIAction) => string | null;
 
+/** Callback fired when the AI invokes a tool during a turn. */
+export type ToolCallCallback = (name: string, args: Record<string, unknown>) => void;
+
 /** Context passed to ask() for listen support and cancellation */
 export interface AskContext {
   listen?: ListenContext;
@@ -326,6 +329,8 @@ export interface AskContext {
   validateAction?: ActionValidator;
   /** Called with each text chunk as it arrives during streaming generation. */
   onStreamText?: StreamTextCallback;
+  /** Called each time the AI invokes a tool (for transparency display). */
+  onToolCall?: ToolCallCallback;
 }
 
 export class GluonAI {
@@ -384,6 +389,7 @@ export class GluonAI {
 
         const responses: FunctionResponse[] = [];
         for (const fc of result.functionCalls) {
+          ctx?.onToolCall?.(fc.name, fc.args);
           const execResult = await this.executeFunctionCall(fc, projectedSession, ctx);
           collectedActions.push(...execResult.actions);
           responses.push({ id: fc.id, name: fc.name, result: execResult.response });

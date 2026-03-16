@@ -625,11 +625,21 @@ export interface ActionLogEntry {
   diff?: ActionDiff;
 }
 
+/** A tool call the AI made during a turn, for display in chat. */
+export interface ToolCallEntry {
+  /** Raw tool name (e.g. "move", "listen", "sketch") */
+  name: string;
+  /** Tool arguments (for optional detail display) */
+  args: Record<string, unknown>;
+}
+
 export interface ChatMessage {
   role: 'human' | 'ai' | 'system';
   text: string;
   timestamp: number;
   actions?: ActionLogEntry[];
+  /** Tool calls the AI made during this turn (for transparency display). */
+  toolCalls?: ToolCallEntry[];
 }
 
 // --- Helpers ---
