@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import type { ChatMessage } from '../engine/types';
+import type { ChatMessage, Reaction } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 
@@ -9,9 +9,13 @@ interface Props {
   isListening?: boolean;
   /** Partial text being streamed from the AI before the full response completes. */
   streamingText?: string;
+  /** Recorded reactions, keyed by message index. */
+  reactions?: Reaction[];
+  /** Callback when user clicks approve/reject on an AI message. */
+  onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
 }
 
-export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '' }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', reactions = [], onReaction }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -30,47 +34,59 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
         </div>
       )}
 
-      {messages.map((msg, i) => (
-        <div
-          key={i}
-          className={`flex gap-2 rounded px-2.5 py-2 ${
-            msg.role === 'ai' ? 'bg-zinc-800/20' : ''
-          }`}
-          style={{ animation: 'fade-up 0.15s ease-out' }}
-        >
-          {/* Role indicator bar */}
+      {messages.map((msg, i) => {
+        const hasActions = msg.role === 'ai' && msg.actions && msg.actions.length > 0;
+        const reaction = hasActions ? reactions.find(r => r.actionGroupIndex === i) : undefined;
+
+        return (
           <div
-            className={`w-px shrink-0 rounded-full mt-0.5 ${
-              msg.role === 'ai' ? 'bg-teal-500/70' : msg.role === 'system' ? 'bg-zinc-600' : 'bg-zinc-700'
+            key={i}
+            className={`flex gap-2 rounded px-2.5 py-2 ${
+              msg.role === 'ai' ? 'bg-zinc-800/20' : ''
             }`}
-            style={{ minHeight: '1rem' }}
-          />
-          <div className="min-w-0 flex-1">
-            <div className={`text-[8px] font-mono uppercase tracking-[0.2em] mb-1 ${
-              msg.role === 'ai' ? 'text-teal-600/80' : 'text-zinc-600'
-            }`}>
-              {msg.role === 'ai' ? 'AI' : msg.role === 'system' ? 'SYS' : 'YOU'}
-            </div>
-            {msg.text && (
-              <div className={`text-[11px] leading-[1.6] break-words ${
-                msg.role === 'ai' ? 'text-zinc-300' : msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
+            style={{ animation: 'fade-up 0.15s ease-out' }}
+          >
+            {/* Role indicator bar */}
+            <div
+              className={`w-px shrink-0 rounded-full mt-0.5 ${
+                msg.role === 'ai' ? 'bg-teal-500/70' : msg.role === 'system' ? 'bg-zinc-600' : 'bg-zinc-700'
+              }`}
+              style={{ minHeight: '1rem' }}
+            />
+            <div className="min-w-0 flex-1">
+              <div className={`text-[8px] font-mono uppercase tracking-[0.2em] mb-1 ${
+                msg.role === 'ai' ? 'text-teal-600/80' : 'text-zinc-600'
               }`}>
-                {msg.text}
+                {msg.role === 'ai' ? 'AI' : msg.role === 'system' ? 'SYS' : 'YOU'}
               </div>
-            )}
-            {msg.actions && msg.actions.length > 0 && (
-              <div className="mt-2 space-y-px">
-                {msg.actions.map((a, j) => (
-                  <ActionDiffView key={j} entry={a} />
-                ))}
-              </div>
-            )}
-            {msg.toolCalls && msg.toolCalls.length > 0 && (
-              <ToolCallsView toolCalls={msg.toolCalls} />
-            )}
+              {msg.text && (
+                <div className={`text-[11px] leading-[1.6] break-words ${
+                  msg.role === 'ai' ? 'text-zinc-300' : msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
+                }`}>
+                  {msg.text}
+                </div>
+              )}
+              {msg.actions && msg.actions.length > 0 && (
+                <div className="mt-2 space-y-px">
+                  {msg.actions.map((a, j) => (
+                    <ActionDiffView key={j} entry={a} />
+                  ))}
+                </div>
+              )}
+              {msg.toolCalls && msg.toolCalls.length > 0 && (
+                <ToolCallsView toolCalls={msg.toolCalls} />
+              )}
+              {hasActions && onReaction && (
+                <ReactionButtons
+                  messageIndex={i}
+                  currentVerdict={reaction?.verdict}
+                  onReaction={onReaction}
+                />
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {(isThinking || isListening) && (
         <div className="flex gap-2 rounded px-2.5 py-2 bg-zinc-800/20" style={{ animation: 'fade-up 0.15s ease-out' }}>
@@ -99,6 +115,50 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ReactionButtons({
+  messageIndex,
+  currentVerdict,
+  onReaction,
+}: {
+  messageIndex: number;
+  currentVerdict?: 'approved' | 'rejected' | 'neutral';
+  onReaction: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
+}) {
+  const isApproved = currentVerdict === 'approved';
+  const isRejected = currentVerdict === 'rejected';
+
+  return (
+    <div className="flex items-center gap-1 mt-1.5">
+      <button
+        onClick={() => onReaction(messageIndex, 'approved')}
+        className={`flex items-center justify-center w-5 h-5 rounded transition-colors ${
+          isApproved
+            ? 'bg-emerald-900/50 text-emerald-400'
+            : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50'
+        }`}
+        title="Approve"
+      >
+        <svg viewBox="0 0 16 16" className="w-3 h-3" fill="currentColor">
+          <path d="M8.834.066c.763.087 1.5.295 2.01.884.505.581.656 1.378.656 2.3 0 .467-.087 1.119-.157 1.637L11.328 5h1.422c.603 0 1.174.085 1.668.485.486.392.804.97.804 1.765a1.38 1.38 0 0 1-.089.46l-1.532 4.14c-.293.815-.852 1.39-1.601 1.65-.718.248-1.498.2-2.187.2H6.5A1.5 1.5 0 0 1 5 12.2V7.5c0-.47.176-.919.495-1.265l3.384-3.677c.291-.316.478-.736.495-1.191L9.39.695a.932.932 0 0 0-.556-.629ZM4 7.5a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-5Z" />
+        </svg>
+      </button>
+      <button
+        onClick={() => onReaction(messageIndex, 'rejected')}
+        className={`flex items-center justify-center w-5 h-5 rounded transition-colors ${
+          isRejected
+            ? 'bg-red-900/50 text-red-400'
+            : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50'
+        }`}
+        title="Reject"
+      >
+        <svg viewBox="0 0 16 16" className="w-3 h-3 rotate-180" fill="currentColor">
+          <path d="M8.834.066c.763.087 1.5.295 2.01.884.505.581.656 1.378.656 2.3 0 .467-.087 1.119-.157 1.637L11.328 5h1.422c.603 0 1.174.085 1.668.485.486.392.804.97.804 1.765a1.38 1.38 0 0 1-.089.46l-1.532 4.14c-.293.815-.852 1.39-1.601 1.65-.718.248-1.498.2-2.187.2H6.5A1.5 1.5 0 0 1 5 12.2V7.5c0-.47.176-.919.495-1.265l3.384-3.677c.291-.316.478-.736.495-1.191L9.39.695a.932.932 0 0 0-.556-.629ZM4 7.5a.5.5 0 0 0-.5-.5h-2a.5.5 0 0 0-.5.5v5a.5.5 0 0 0 .5.5h2a.5.5 0 0 0 .5-.5v-5Z" />
+        </svg>
+      </button>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 // Open: full sidebar with messages and composer at bottom.
 // Collapsed: renders nothing (composer moves to the global footer).
 import { useCallback, useRef } from 'react';
-import type { ChatMessage } from '../engine/types';
+import type { ChatMessage, Reaction } from '../engine/types';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -14,6 +14,8 @@ interface Props {
   isThinking?: boolean;
   isListening?: boolean;
   streamingText?: string;
+  reactions?: Reaction[];
+  onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
   apiConfigured: boolean;
   onApiKey: (openaiKey: string, geminiKey: string) => void;
   currentOpenaiKey?: string;
@@ -25,6 +27,7 @@ interface Props {
 
 export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false, streamingText = '',
+  reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
   open, width, onResize,
 }: Props) {
@@ -64,7 +67,7 @@ export function ChatSidebar({
       </div>
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} />
+        <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} reactions={reactions} onReaction={onReaction} />
       </div>
 
       {/* Composer at bottom of sidebar */}

@@ -3,7 +3,7 @@
 // Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
 // Handles responsive collapse thresholds via ResizeObserver.
 import { useRef, useEffect, useCallback, type ReactNode, type MutableRefObject } from 'react';
-import type { Track, ChatMessage, UndoEntry } from '../engine/types';
+import type { Track, ChatMessage, UndoEntry, Reaction } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import { TrackList } from './TrackList';
@@ -37,6 +37,8 @@ interface Props {
   isThinking: boolean;
   isListening: boolean;
   streamingText?: string;
+  reactions?: Reaction[];
+  onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
   apiConfigured: boolean;
   onApiKey: (openaiKey: string, geminiKey: string) => void;
   currentOpenaiKey?: string;
@@ -102,6 +104,7 @@ export function AppShell({
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval, onChangeVolume, onChangePan,
   onAddTrack, onRemoveTrack,
   messages, onSend, isThinking, isListening, streamingText,
+  reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
   chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError,
@@ -210,6 +213,8 @@ export function AppShell({
           isThinking={isThinking}
           isListening={isListening}
           streamingText={streamingText}
+          reactions={reactions}
+          onReaction={onReaction}
           apiConfigured={apiConfigured}
           onApiKey={onApiKey}
           currentOpenaiKey={currentOpenaiKey}
