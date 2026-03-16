@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { renderOffline } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, SemanticControlDef, Snapshot } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getTrack, updateTrack } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -1177,6 +1177,51 @@ export default function App() {
     });
   }, []);
 
+  const handleConnectModulator = useCallback((modulatorId: string, target: ModulationTarget, depth: number) => {
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const modulations = track.modulations ?? [];
+      const prevModulations = modulations.map(r => ({ ...r }));
+      // Check for existing route with same identity
+      const existingIdx = modulations.findIndex(r =>
+        r.modulatorId === modulatorId &&
+        r.target.kind === target.kind &&
+        r.target.param === target.param &&
+        (target.kind === 'source' || (target.kind === 'processor' && r.target.kind === 'processor' && r.target.processorId === target.processorId))
+      );
+      let newModulations: ModulationRouting[];
+      if (existingIdx >= 0) {
+        // Update depth on existing route
+        newModulations = [...modulations];
+        newModulations[existingIdx] = { ...newModulations[existingIdx], depth };
+      } else {
+        // Create new route
+        const newRouting: ModulationRouting = {
+          id: `mod-${Date.now()}`,
+          modulatorId,
+          target,
+          depth,
+        };
+        newModulations = [...modulations, newRouting];
+      }
+      const snapshot: ModulationRoutingSnapshot = {
+        kind: 'modulation-routing',
+        trackId: vid,
+        prevModulations,
+        timestamp: Date.now(),
+        description: 'Connect modulation route',
+      };
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid
+          ? { ...track, modulations: newModulations }
+          : v),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, []);
+
   // --- Semantic control handlers ---
   // Maps canonical controlId → runtime param for source controls
   const semanticCanonicalToRuntime: Record<string, string> = {
@@ -1503,7 +1548,6 @@ export default function App() {
         )}
         {view === 'rack' && (
           <RackView
-            session={session}
             activeTrack={activeTrack}
             onParamChange={handleParamChange}
             onInteractionStart={handleSourceInteractionStart}
@@ -1524,6 +1568,7 @@ export default function App() {
             onModulationDepthChange={handleModulationDepthChange}
             onModulationDepthCommit={handleModulationDepthCommit}
             onRemoveModulation={handleRemoveModulation}
+            onConnectModulator={handleConnectModulator}
             onAddProcessor={handleAddProcessor}
             onAddModulator={handleAddModulator}
           />

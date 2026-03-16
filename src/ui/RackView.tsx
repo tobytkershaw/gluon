@@ -1,16 +1,27 @@
 // src/ui/RackView.tsx
 // Rack view: Guitar Rig-style vertical stack of module panels for the active track.
-import { useState } from 'react';
-import type { Session, Track, ModulationTarget } from '../engine/types';
+import { useState, useRef, useEffect } from 'react';
+import type { Track, ModulationTarget } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { ControlSection } from './ControlSection';
+import { ChainStrip } from './ChainStrip';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
 import { DraggableNumber } from './DraggableNumber';
 
+/** Valid source params that can be modulation targets (matches chain-validation.ts) */
+const VALID_SOURCE_MOD_TARGETS = ['brightness', 'richness', 'texture'];
+
+interface ModulationTargetOption {
+  moduleId: string;  // 'source' or processorId
+  moduleLabel: string;
+  paramId: string;
+  paramLabel: string;
+  target: ModulationTarget;
+}
+
 interface RackViewProps {
-  session: Session;
   activeTrack: Track;
   // Source param editing
   onParamChange: (timbre: number, morph: number) => void;
@@ -35,6 +46,7 @@ interface RackViewProps {
   onModulationDepthChange: (routeId: string, depth: number) => void;
   onModulationDepthCommit: (routeId: string, depth: number) => void;
   onRemoveModulation: (routeId: string) => void;
+  onConnectModulator: (modulatorId: string, target: ModulationTarget, depth: number) => void;
   // Module browser
   onAddProcessor: (type: string) => void;
   onAddModulator: (type: string) => void;
@@ -50,6 +62,123 @@ function formatRoutingTarget(target: ModulationTarget, track: Track): string {
   return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
 }
 
+/** Build list of valid modulation targets for a given modulator on a track */
+function buildTargetOptions(track: Track, modulatorId: string): ModulationTargetOption[] {
+  const options: ModulationTargetOption[] = [];
+  const existingRoutes = (track.modulations ?? []).filter(r => r.modulatorId === modulatorId);
+
+  // Source targets (brightness, richness, texture — not pitch)
+  const sourceEngine = getEngineByIndex(track.model);
+  if (sourceEngine) {
+    for (const control of sourceEngine.controls) {
+      if (!VALID_SOURCE_MOD_TARGETS.includes(control.id)) continue;
+      // Skip if this modulator already routes to this source param
+      const alreadyRouted = existingRoutes.some(
+        r => r.target.kind === 'source' && r.target.param === control.id
+      );
+      if (alreadyRouted) continue;
+      options.push({
+        moduleId: 'source',
+        moduleLabel: 'Plaits',
+        paramId: control.id,
+        paramLabel: control.name,
+        target: { kind: 'source', param: control.id },
+      });
+    }
+  }
+
+  // Processor targets
+  const processors = track.processors ?? [];
+  for (const proc of processors) {
+    const inst = getProcessorInstrument(proc.type);
+    if (!inst) continue;
+    const engine = inst.engines[proc.model] ?? inst.engines[0];
+    if (!engine) continue;
+    for (const control of engine.controls) {
+      const alreadyRouted = existingRoutes.some(
+        r => r.target.kind === 'processor' && r.target.processorId === proc.id && r.target.param === control.id
+      );
+      if (alreadyRouted) continue;
+      options.push({
+        moduleId: proc.id,
+        moduleLabel: inst.label.replace('Mutable Instruments ', ''),
+        paramId: control.id,
+        paramLabel: control.name,
+        target: { kind: 'processor', processorId: proc.id, param: control.id },
+      });
+    }
+  }
+
+  return options;
+}
+
+function TargetPicker({ options, onSelect, onClose }: {
+  options: ModulationTargetOption[];
+  onSelect: (option: ModulationTargetOption) => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    document.addEventListener('keydown', keyHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
+  }, [onClose]);
+
+  // Group options by module
+  const groups = new Map<string, { label: string; isSource: boolean; options: ModulationTargetOption[] }>();
+  for (const opt of options) {
+    if (!groups.has(opt.moduleId)) {
+      groups.set(opt.moduleId, {
+        label: opt.moduleLabel,
+        isSource: opt.moduleId === 'source',
+        options: [],
+      });
+    }
+    groups.get(opt.moduleId)!.options.push(opt);
+  }
+
+  if (options.length === 0) {
+    return (
+      <div ref={ref} className="mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg p-2">
+        <span className="text-[10px] text-zinc-500 italic">No available targets</span>
+      </div>
+    );
+  }
+
+  return (
+    <div ref={ref} className="mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+      {Array.from(groups.entries()).map(([moduleId, group]) => (
+        <div key={moduleId} className="p-1">
+          <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-1 ${
+            group.isSource ? 'text-amber-400/70' : 'text-sky-400/70'
+          }`}>
+            {group.label}
+          </div>
+          {group.options.map((opt) => (
+            <button
+              key={`${opt.moduleId}-${opt.paramId}`}
+              onClick={() => onSelect(opt)}
+              className="block w-full text-left px-2 py-1 rounded text-[10px] text-zinc-300 hover:bg-violet-400/10 hover:text-violet-200 transition-colors"
+            >
+              {opt.paramLabel}
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function RackView({
   activeTrack,
   onParamChange, onInteractionStart, onInteractionEnd,
@@ -59,9 +188,11 @@ export function RackView({
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
   onModulationDepthChange, onModulationDepthCommit, onRemoveModulation,
+  onConnectModulator,
   onAddProcessor, onAddModulator,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [routePickerModulatorId, setRoutePickerModulatorId] = useState<string | null>(null);
 
   const processors = activeTrack.processors ?? [];
   const modulators = activeTrack.modulators ?? [];
@@ -76,6 +207,15 @@ export function RackView({
 
   return (
     <div className="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-y-auto">
+      {/* Chain strip (if processors or modulators exist) */}
+      {(processors.length > 0 || modulators.length > 0) && (
+        <div className="mb-0">
+          <ChainStrip
+            track={activeTrack}
+          />
+        </div>
+      )}
+
       {/* Source module */}
       <ControlSection
         label={sourceLabel}
@@ -133,6 +273,7 @@ export function RackView({
         const modLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
         const modEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
         const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
+        const isPickerOpen = routePickerModulatorId === mod.id;
 
         return (
           <div key={mod.id}>
@@ -148,6 +289,26 @@ export function RackView({
               onModelChange={(model) => onModulatorModelChange(mod.id, model)}
               onRemove={() => onRemoveModulator(mod.id)}
             />
+            {/* "+ Route" button and target picker */}
+            <div className="mt-1.5 px-1">
+              <button
+                type="button"
+                onClick={() => setRoutePickerModulatorId(isPickerOpen ? null : mod.id)}
+                className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-dashed border-violet-400/30 text-violet-400/60 hover:text-violet-400 hover:border-violet-400/50 transition-colors"
+              >
+                + Route
+              </button>
+              {isPickerOpen && (
+                <TargetPicker
+                  options={buildTargetOptions(activeTrack, mod.id)}
+                  onSelect={(opt) => {
+                    onConnectModulator(mod.id, opt.target, 0.2);
+                    setRoutePickerModulatorId(null);
+                  }}
+                  onClose={() => setRoutePickerModulatorId(null)}
+                />
+              )}
+            </div>
             {/* Routing chips */}
             {modRoutings.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-1.5 px-1">
