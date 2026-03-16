@@ -71,3 +71,68 @@ input[type="range"]::-moz-range-thumb {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* AI collaborator — bioelectric membrane between workstation and AI space */
+.ai-membrane {
+  width: 2px;
+  background: linear-gradient(to bottom,
+    rgba(139, 92, 246, 0.4),
+    rgba(168, 85, 247, 0.12),
+    rgba(139, 92, 246, 0.25),
+    rgba(168, 85, 247, 0.12),
+    rgba(139, 92, 246, 0.4)
+  );
+  box-shadow:
+    -4px 0 16px rgba(139, 92, 246, 0.08),
+    4px 0 16px rgba(139, 92, 246, 0.08);
+}
+
+/* AI breathing animation — subtle background pulse when active */
+@keyframes ai-breathe {
+  0%, 100% { background-color: #13111C; }
+  50% { background-color: #17142A; }
+}
+
+@keyframes ai-breathe-glow {
+  0%, 100% {
+    box-shadow:
+      -4px 0 16px rgba(139, 92, 246, 0.08),
+      4px 0 16px rgba(139, 92, 246, 0.08);
+  }
+  50% {
+    box-shadow:
+      -4px 0 20px rgba(139, 92, 246, 0.18),
+      4px 0 20px rgba(139, 92, 246, 0.18);
+  }
+}
+
+.ai-space {
+  background-color: #13111C;
+}
+
+.ai-space--active {
+  animation: ai-breathe 3s ease-in-out infinite;
+}
+
+.ai-membrane--active {
+  animation: ai-breathe-glow 3s ease-in-out infinite;
+}
+
+/* Floating composer pill */
+.ai-composer-pill {
+  background: rgba(19, 17, 28, 0.92);
+  backdrop-filter: blur(12px);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(139, 92, 246, 0.08),
+    inset 0 1px 0 rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+/* AI space scrollbar — matches the warm tint */
+.ai-space .chat-scroll::-webkit-scrollbar-thumb {
+  background: #2a2240;
+}
+.ai-space .chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
