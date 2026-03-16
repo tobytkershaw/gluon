@@ -92,7 +92,7 @@ Work flows continuously — no wave branches, no batch-and-review cycles.
 
 **Every agent MUST work in a worktree, never in the main checkout.** The main checkout is shared — if one agent switches branches or leaves modified files, it breaks every other agent.
 
-- **Claude Code:** Use `isolation: "worktree"` on every Agent tool call that writes code. For the main conversation, create a worktree branch before making changes: `git worktree add .claude/worktrees/<task-name> -b <branch-name>`
+- **Claude Code:** Use `isolation: "worktree"` and `mode: "bypassPermissions"` on every Agent tool call that writes code. For the main conversation, create a worktree branch before making changes: `git worktree add .claude/worktrees/<task-name> -b <branch-name>`
 - **Codex:** Uses `.codex-worktrees/` (auto-managed)
 - Both `.claude/worktrees/` and `.codex-worktrees/` are gitignored
 - Vitest excludes worktree directories (see `vite.config.ts`)
