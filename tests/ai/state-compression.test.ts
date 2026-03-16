@@ -3,9 +3,19 @@ import { describe, it, expect } from 'vitest';
 import { compressState } from '../../src/ai/state-compression';
 import { createSession, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
-import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel } from '../../src/engine/types';
+import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session } from '../../src/engine/types';
 import { resolveTrackId, getTrackOrdinalLabel } from '../../src/engine/track-labels';
-import { getTrackKind } from '../../src/engine/types';
+import { getTrackKind, updateTrack } from '../../src/engine/types';
+
+/** Create a session with legacy engine assignments for tests that check engine-specific labels. */
+function createLegacySession(): Session {
+  let s = createSession();
+  s = updateTrack(s, 'v0', { model: 13, engine: 'plaits:analog_bass_drum', name: undefined });
+  s = updateTrack(s, 'v1', { model: 0, engine: 'plaits:virtual_analog', name: undefined });
+  s = updateTrack(s, 'v2', { model: 2, engine: 'plaits:fm', name: undefined });
+  s = updateTrack(s, 'v3', { model: 4, engine: 'plaits:harmonic', name: undefined });
+  return s;
+}
 
 describe('State Compression (Phase 2)', () => {
   it('compresses multi-track session', () => {
@@ -383,7 +393,7 @@ describe('Time signature in compressed state', () => {
 
 describe('Ordinal track labels in compressed state', () => {
   it('audio tracks get 1-indexed ordinal labels', () => {
-    const session = createSession();
+    const session = createLegacySession();
     const result = compressState(session);
     const audioTracks = result.tracks.filter(t => !('kind' in t && t.kind === 'bus'));
     expect(audioTracks[0].label).toBe('Track 1 (Kick)');
