@@ -959,11 +959,33 @@ export default function App() {
       if (track.patterns.length === 0) return s;
       const region = getActivePattern(track);
 
+      // Ensure an undo snapshot exists for this recording session.
+      // The useEffect above may not have fired yet (effects are async),
+      // so push the snapshot here on first invocation if needed.
+      let session = s;
+      if (!recordingSnapshotPushed.current) {
+        const snapshot: PatternEditSnapshot = {
+          kind: 'pattern-edit',
+          trackId: track.id,
+          patternId: region.id,
+          prevEvents: [...region.events],
+          prevDuration: region.duration,
+          prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+          timestamp: Date.now(),
+          description: `Live recording on ${track.name ?? track.id}`,
+        };
+        session = {
+          ...session,
+          undoStack: [...session.undoStack, snapshot],
+        };
+        recordingSnapshotPushed.current = true;
+      }
+
       // Overdub: merge new events with existing
       const merged = [...region.events, ...events];
       const updatedRegion = normalizePatternEvents({ ...region, events: merged });
 
-      return updateTrack(s, trackId, {
+      return updateTrack(session, trackId, {
         patterns: track.patterns.map(r => r.id === region.id ? updatedRegion : r),
       });
     });

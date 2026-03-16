@@ -238,22 +238,24 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   if (snapshot.kind === 'pattern-crud') {
     const track = getTrack(session, snapshot.trackId);
     if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
-      // Undo add/duplicate: remove the added region
+      // Undo add/duplicate: remove the added region and restore sequence
       const newRegions = track.patterns.filter(r => r.id !== snapshot.addedPatternId);
       return updateTrack(session, snapshot.trackId, {
         patterns: newRegions,
         activePatternId: snapshot.prevActivePatternId,
+        ...(snapshot.prevSequence ? { sequence: snapshot.prevSequence } : {}),
         _patternDirty: true,
       });
     }
     if (snapshot.action === 'remove' && snapshot.removedPattern != null && snapshot.removedIndex != null) {
-      // Undo remove: re-insert the removed region at its original position
+      // Undo remove: re-insert the removed region at its original position and restore sequence
       const newRegions = [...track.patterns];
       const insertAt = Math.min(snapshot.removedIndex, newRegions.length);
       newRegions.splice(insertAt, 0, snapshot.removedPattern);
       return updateTrack(session, snapshot.trackId, {
         patterns: newRegions,
         activePatternId: snapshot.prevActivePatternId,
+        ...(snapshot.prevSequence ? { sequence: snapshot.prevSequence } : {}),
         _patternDirty: true,
       });
     }
@@ -538,6 +540,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
         removedIndex: addedIndex >= 0 ? addedIndex : undefined,
         addedPatternId: undefined,
         prevActivePatternId: track.activePatternId,
+        prevSequence: [...track.sequence],
         timestamp: now,
       };
     }
@@ -550,6 +553,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
         removedPattern: undefined,
         removedIndex: undefined,
         prevActivePatternId: track.activePatternId,
+        prevSequence: [...track.sequence],
         timestamp: now,
       };
     }

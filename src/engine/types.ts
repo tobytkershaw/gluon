@@ -364,6 +364,8 @@ export interface PatternCrudSnapshot {
   /** For rename: the pattern that was renamed and its previous name. */
   patternId?: string;
   previousName?: string;
+  /** Previous sequence state, so undo restores dangling/missing refs. */
+  prevSequence?: import('./sequencer-types').PatternRef[];
   timestamp: number;
   description: string;
 }
