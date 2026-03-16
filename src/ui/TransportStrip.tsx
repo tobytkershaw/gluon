@@ -66,9 +66,7 @@ interface Props {
   recordArmed: boolean;
   globalStep: number;
   patternLength: number;
-  loopEnabled: boolean;
-  loopStart: number;
-  loopEnd: number;
+  transportMode: import('../engine/sequencer-types').TransportMode;
   onTogglePlay: () => void;
   onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
@@ -78,9 +76,7 @@ interface Props {
   metronomeVolume: number;
   onToggleMetronome: () => void;
   onMetronomeVolumeChange: (v: number) => void;
-  onToggleLoop: () => void;
-  onLoopStartChange: (step: number) => void;
-  onLoopEndChange: (step: number) => void;
+  onTransportModeChange: (mode: import('../engine/sequencer-types').TransportMode) => void;
   // Time signature
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
@@ -89,10 +85,10 @@ interface Props {
 
 export function TransportStrip({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
-  loopEnabled, loopStart, loopEnd,
+  transportMode,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
-  onToggleLoop, onLoopStartChange, onLoopEndChange,
+  onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
 }: Props) {
   const bar = Math.floor(globalStep / patternLength) + 1;
@@ -150,19 +146,15 @@ export function TransportStrip({
           }`} />
         </button>
         <button
-          onClick={onToggleLoop}
-          className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
-            loopEnabled
+          onClick={() => onTransportModeChange(transportMode === 'pattern' ? 'song' : 'pattern')}
+          className={`h-6 px-1.5 rounded-full flex items-center justify-center transition-colors text-[9px] font-bold tracking-wider ${
+            transportMode === 'song'
               ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
-              : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-cyan-400'
+              : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
           }`}
-          title={loopEnabled ? 'Disable loop [L]' : 'Enable loop [L]'}
+          title={transportMode === 'pattern' ? 'Pattern mode (loops active pattern) — click for Song mode' : 'Song mode (plays sequence) — click for Pattern mode'}
         >
-          {/* Loop icon: two arrows forming a cycle */}
-          <svg viewBox="0 0 16 16" className="w-3 h-3 fill-current">
-            <path d="M4 4h6l-2-2h3l3 3-3 3h-3l2-2H5v3H3V5a1 1 0 011-1z" />
-            <path d="M12 12H6l2 2H5l-3-3 3-3h3l-2 2h5V7h2v4a1 1 0 01-1 1z" />
-          </svg>
+          {transportMode === 'song' ? 'SONG' : 'PTN'}
         </button>
       </div>
 
@@ -218,30 +210,9 @@ export function TransportStrip({
         onVolumeChange={onMetronomeVolumeChange}
       />
 
-      {/* Loop region — shown when loop is enabled */}
-      {loopEnabled && (
-        <div className="flex items-baseline gap-1">
-          <span className="text-[9px] uppercase tracking-wider text-cyan-600">Loop</span>
-          <DraggableNumber
-            value={loopStart}
-            min={0}
-            max={loopEnd - 1}
-            step={1}
-            decimals={0}
-            className="text-cyan-400 hover:text-cyan-300 transition-colors"
-            onChange={onLoopStartChange}
-          />
-          <span className="text-[9px] text-zinc-600">-</span>
-          <DraggableNumber
-            value={loopEnd}
-            min={loopStart + 1}
-            max={256}
-            step={1}
-            decimals={0}
-            className="text-cyan-400 hover:text-cyan-300 transition-colors"
-            onChange={onLoopEndChange}
-          />
-        </div>
+      {/* Transport mode indicator */}
+      {transportMode === 'song' && (
+        <span className="text-[9px] uppercase tracking-wider text-cyan-500">Song</span>
       )}
 
     </div>

@@ -126,8 +126,8 @@ describe('Chain validation accepts Clouds', () => {
     const track = {
       id: 'v0', engine: 'virtual-analog', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-      agency: 'ON' as const, pattern: { steps: [], length: 16 },
-      regions: [], muted: false, solo: false,
+      agency: 'ON' as const, stepGrid: { steps: [], length: 16 },
+      patterns: [], muted: false, solo: false,
     };
     const result = validateChainMutation(track, { kind: 'add', type: 'clouds' });
     expect(result.valid).toBe(true);
@@ -138,8 +138,8 @@ describe('Chain validation accepts Clouds', () => {
     const track = {
       id: 'v0', engine: 'virtual-analog', model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-      agency: 'ON' as const, pattern: { steps: [], length: 16 },
-      regions: [], muted: false, solo: false,
+      agency: 'ON' as const, stepGrid: { steps: [], length: 16 },
+      patterns: [], muted: false, solo: false,
       processors: [{ id: 'clouds-1', type: 'clouds', model: 0, params: { position: 0.5, size: 0.5, density: 0.5, feedback: 0 } }],
     };
     expect(validateProcessorTarget(track, 'clouds-1', { param: 'position' }).valid).toBe(true);

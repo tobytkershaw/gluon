@@ -11,6 +11,7 @@ interface UseTransportControllerOptions {
   onPositionChange: (step: number) => void;
   getHeldParams: (trackId: string) => Partial<SynthParamValues>;
   onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  onSequenceEnd?: () => void;
 }
 
 export function useTransportController({
@@ -21,6 +22,7 @@ export function useTransportController({
   onPositionChange,
   getHeldParams,
   onParameterEvent,
+  onSequenceEnd,
 }: UseTransportControllerOptions) {
   const controllerRef = useRef<TransportController | null>(null);
 
@@ -32,6 +34,7 @@ export function useTransportController({
       onPositionChange,
       getHeldParams,
       onParameterEvent,
+      onSequenceEnd,
     });
     return () => {
       controllerRef.current?.dispose();

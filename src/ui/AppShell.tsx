@@ -82,13 +82,9 @@ interface Props {
   metronomeVolume: number;
   onToggleMetronome: () => void;
   onMetronomeVolumeChange: (v: number) => void;
-  // Loop
-  loopEnabled: boolean;
-  loopStart: number;
-  loopEnd: number;
-  onToggleLoop: () => void;
-  onLoopStartChange: (step: number) => void;
-  onLoopEndChange: (step: number) => void;
+  // Transport mode
+  transportMode: import('../engine/sequencer-types').TransportMode;
+  onTransportModeChange: (mode: import('../engine/sequencer-types').TransportMode) => void;
   // Time signature
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
@@ -138,7 +134,7 @@ export function AppShell({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
-  loopEnabled, loopStart, loopEnd, onToggleLoop, onLoopStartChange, onLoopEndChange,
+  transportMode, onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
@@ -206,9 +202,7 @@ export function AppShell({
             recordArmed={recordArmed}
             globalStep={globalStep}
             patternLength={patternLength}
-            loopEnabled={loopEnabled}
-            loopStart={loopStart}
-            loopEnd={loopEnd}
+            transportMode={transportMode}
             onTogglePlay={onTogglePlay}
             onHardStop={onHardStop}
             onBpmChange={onBpmChange}
@@ -218,9 +212,7 @@ export function AppShell({
             metronomeVolume={metronomeVolume}
             onToggleMetronome={onToggleMetronome}
             onMetronomeVolumeChange={onMetronomeVolumeChange}
-            onToggleLoop={onToggleLoop}
-            onLoopStartChange={onLoopStartChange}
-            onLoopEndChange={onLoopEndChange}
+            onTransportModeChange={onTransportModeChange}
             timeSignatureNumerator={timeSignatureNumerator}
             timeSignatureDenominator={timeSignatureDenominator}
             onTimeSignatureChange={onTimeSignatureChange}

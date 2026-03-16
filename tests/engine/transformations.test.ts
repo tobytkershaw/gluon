@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { rotate, transpose, reverse, duplicate } from '../../src/engine/transformations';
-import { validateRegion } from '../../src/engine/region-helpers';
+import { validatePattern } from '../../src/engine/region-helpers';
 import type {
-  Region,
+  Pattern,
   MusicalEvent,
   NoteEvent,
   TriggerEvent,
@@ -13,14 +13,12 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeRegion(events: MusicalEvent[], duration: number): Region {
+function makeRegion(events: MusicalEvent[], duration: number): Pattern {
   return {
     id: 'r1',
     kind: 'pattern',
-    start: 0,
-    duration,
-    loop: true,
-    events,
+        duration,
+        events,
   };
 }
 
@@ -240,34 +238,34 @@ describe('duplicate', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Validation property: outputs pass validateRegion
+// Validation property: outputs pass validatePattern
 // ---------------------------------------------------------------------------
 
 describe('validation property', () => {
   const baseEvents: MusicalEvent[] = [note(1), note(3), note(5)];
   const duration = 8;
 
-  it('rotate output passes validateRegion', () => {
+  it('rotate output passes validatePattern', () => {
     const result = rotate(baseEvents, 2, duration);
     const region = makeRegion(result, duration);
-    expect(validateRegion(region).valid).toBe(true);
+    expect(validatePattern(region).valid).toBe(true);
   });
 
-  it('transpose output passes validateRegion', () => {
+  it('transpose output passes validatePattern', () => {
     const result = transpose(baseEvents, 5);
     const region = makeRegion(result, duration);
-    expect(validateRegion(region).valid).toBe(true);
+    expect(validatePattern(region).valid).toBe(true);
   });
 
-  it('reverse output passes validateRegion', () => {
+  it('reverse output passes validatePattern', () => {
     const result = reverse(baseEvents, duration);
     const region = makeRegion(result, duration);
-    expect(validateRegion(region).valid).toBe(true);
+    expect(validatePattern(region).valid).toBe(true);
   });
 
-  it('duplicate output passes validateRegion', () => {
+  it('duplicate output passes validatePattern', () => {
     const result = duplicate(baseEvents, duration);
     const region = makeRegion(result.events, result.duration);
-    expect(validateRegion(region).valid).toBe(true);
+    expect(validatePattern(region).valid).toBe(true);
   });
 });

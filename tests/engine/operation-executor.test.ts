@@ -138,8 +138,8 @@ describe('operation-executor', () => {
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.accepted).toHaveLength(1);
     const track = report.session.tracks.find(v => v.id === 'v0')!;
-    expect(track.pattern.steps[0].gate).toBe(true);
-    expect(track.pattern.steps[4].gate).toBe(true);
+    expect(track.stepGrid.steps[0].gate).toBe(true);
+    expect(track.stepGrid.steps[4].gate).toBe(true);
   });
 
   it('mixes accepted and rejected in same batch', () => {
@@ -232,9 +232,9 @@ describe('operation-executor', () => {
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.accepted).toHaveLength(1);
     const track = report.session.tracks.find(v => v.id === 'v0')!;
-    expect(track.pattern.steps[0].gate).toBe(true);
-    expect(track.pattern.steps[0].accent).toBe(true);
-    expect(track.pattern.steps[4].gate).toBe(true);
+    expect(track.stepGrid.steps[0].gate).toBe(true);
+    expect(track.stepGrid.steps[0].accent).toBe(true);
+    expect(track.stepGrid.steps[4].gate).toBe(true);
   });
 
   it('preserves param-only events on silent steps in canonical sketch', () => {
@@ -251,10 +251,10 @@ describe('operation-executor', () => {
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.accepted).toHaveLength(1);
     const track = report.session.tracks.find(v => v.id === 'v0')!;
-    expect(track.pattern.steps[0].gate).toBe(true);
+    expect(track.stepGrid.steps[0].gate).toBe(true);
     // Step 2 is silent but should have the param lock
-    expect(track.pattern.steps[2].gate).toBe(false);
-    expect((track.pattern.steps[2].params as Record<string, unknown>)?.['timbre']).toBe(0.9);
+    expect(track.stepGrid.steps[2].gate).toBe(false);
+    expect((track.stepGrid.steps[2].params as Record<string, unknown>)?.['timbre']).toBe(0.9);
   });
 
   describe('transform actions', () => {
@@ -263,14 +263,14 @@ describe('operation-executor', () => {
       session = setAgency(session, 'v0', 'ON');
       // Write trigger events to v0's region
       const track = session.tracks.find(v => v.id === 'v0')!;
-      const region = { ...track.regions[0], events: [
+      const region = { ...track.patterns[0], events: [
         { kind: 'trigger' as const, at: 0, velocity: 1.0 },
         { kind: 'trigger' as const, at: 4, velocity: 0.8 },
         { kind: 'trigger' as const, at: 8, velocity: 0.6 },
       ]};
       session = {
         ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, regions: [region] } : v),
+        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, patterns: [region] } : v),
       };
       return session;
     }
@@ -287,7 +287,7 @@ describe('operation-executor', () => {
       const report = executeOperations(session, actions, adapter, new Arbitrator());
       expect(report.accepted).toHaveLength(1);
       const track = report.session.tracks.find(v => v.id === 'v0')!;
-      const ats = track.regions[0].events.map(e => e.at);
+      const ats = track.patterns[0].events.map(e => e.at);
       expect(ats).toEqual([2, 6, 10]);
     });
 
@@ -302,7 +302,7 @@ describe('operation-executor', () => {
       const report = executeOperations(session, actions, adapter, new Arbitrator());
       expect(report.accepted).toHaveLength(1);
       const track = report.session.tracks.find(v => v.id === 'v0')!;
-      const ats = track.regions[0].events.map(e => e.at);
+      const ats = track.patterns[0].events.map(e => e.at);
       // 0 → 0 (wraps), 4 → 12, 8 → 8
       expect(ats).toEqual([0, 8, 12]);
     });
@@ -324,7 +324,7 @@ describe('operation-executor', () => {
 
     it('undo reverts transform cleanly', () => {
       const session = setupWithEvents();
-      const originalAts = session.tracks.find(v => v.id === 'v0')!.regions[0].events.map(e => e.at);
+      const originalAts = session.tracks.find(v => v.id === 'v0')!.patterns[0].events.map(e => e.at);
 
       const actions: AIAction[] = [{
         type: 'transform',
@@ -337,13 +337,13 @@ describe('operation-executor', () => {
       expect(report.accepted).toHaveLength(1);
 
       const afterUndo = applyUndo(report.session);
-      const restoredAts = afterUndo.tracks.find(v => v.id === 'v0')!.regions[0].events.map(e => e.at);
+      const restoredAts = afterUndo.tracks.find(v => v.id === 'v0')!.patterns[0].events.map(e => e.at);
       expect(restoredAts).toEqual(originalAts);
     });
 
     it('duplicate doubles events and duration', () => {
       const session = setupWithEvents();
-      const origDuration = session.tracks.find(v => v.id === 'v0')!.regions[0].duration;
+      const origDuration = session.tracks.find(v => v.id === 'v0')!.patterns[0].duration;
 
       const actions: AIAction[] = [{
         type: 'transform',
@@ -354,8 +354,8 @@ describe('operation-executor', () => {
       const report = executeOperations(session, actions, adapter, new Arbitrator());
       expect(report.accepted).toHaveLength(1);
       const track = report.session.tracks.find(v => v.id === 'v0')!;
-      expect(track.regions[0].events.length).toBe(6);
-      expect(track.regions[0].duration).toBe(origDuration * 2);
+      expect(track.patterns[0].events.length).toBe(6);
+      expect(track.patterns[0].duration).toBe(origDuration * 2);
     });
   });
 });

@@ -1,9 +1,9 @@
 // src/engine/event-primitives.ts
-import type { Session, RegionSnapshot } from './types';
-import { getTrack, getActiveRegion } from './types';
+import type { Session, PatternEditSnapshot } from './types';
+import { getTrack, getActivePattern } from './types';
 import type { MusicalEvent, NoteEvent, ParameterEvent } from './canonical-types';
-import { normalizeRegionEvents } from './region-helpers';
-import { reprojectTrackPattern } from './region-projection';
+import { normalizePatternEvents } from './region-helpers';
+import { reprojectTrackStepGrid } from './region-projection';
 import { updateTrack } from './types';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
@@ -14,7 +14,7 @@ import type { InverseConversionOptions } from './event-conversion';
 
 /**
  * Uniquely identifies an event within a region, mirroring the dedup invariants
- * in normalizeRegionEvents():
+ * in normalizePatternEvents():
  * - triggers: one per position (invariant #8)
  * - notes: one per (position, pitch) — polyphonic (invariant #10)
  * - parameters: one per (position, controlId) (invariant #9)
@@ -60,7 +60,7 @@ const defaultInverseOpts: InverseConversionOptions = {
 
 /**
  * Apply a new event list to the track's region, normalize, and re-project pattern.
- * Pushes a RegionSnapshot for undo when a description is provided.
+ * Pushes a PatternEditSnapshot for undo when a description is provided.
  */
 function applyEventEdit(
   session: Session,
@@ -69,31 +69,31 @@ function applyEventEdit(
   description?: string,
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
 
-  const snapshot: RegionSnapshot | undefined = description
+  const snapshot: PatternEditSnapshot | undefined = description
     ? {
-        kind: 'region',
+        kind: 'pattern-edit',
         trackId,
-        regionId: activeReg.id,
+        patternId: activeReg.id,
         prevEvents: [...activeReg.events],
         timestamp: Date.now(),
         description,
       }
     : undefined;
 
-  const region = normalizeRegionEvents({
+  const region = normalizePatternEvents({
     ...activeReg,
     events: newEvents,
   });
-  const newRegions = track.regions.map(r => r.id === activeReg.id ? region : r);
-  const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
+  const newRegions = track.patterns.map(r => r.id === activeReg.id ? region : r);
+  const updatedTrack = reprojectTrackStepGrid({ ...track, patterns: newRegions }, defaultInverseOpts);
   const result = updateTrack(session, trackId, {
-    regions: updatedTrack.regions,
-    pattern: updatedTrack.pattern,
-    _regionDirty: true,
+    patterns: updatedTrack.patterns,
+    stepGrid: updatedTrack.stepGrid,
+    _patternDirty: true,
   });
 
   if (snapshot) {
@@ -109,9 +109,9 @@ function applyEventEdit(
 /** Add an event to a track's active region. */
 export function addEvent(session: Session, trackId: string, event: MusicalEvent): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = [...activeReg.events, event];
   return applyEventEdit(session, trackId, events, `Add ${event.kind} event at ${event.at}`);
 }
@@ -119,9 +119,9 @@ export function addEvent(session: Session, trackId: string, event: MusicalEvent)
 /** Remove the event matching the given selector. */
 export function removeEvent(session: Session, trackId: string, selector: EventSelector): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = activeReg.events.filter(e => !matchesSelector(e, selector));
   if (events.length === activeReg.events.length) return session; // nothing matched
   return applyEventEdit(session, trackId, events, `Remove ${selector.kind} event at ${selector.at}`);
@@ -135,9 +135,9 @@ export function updateEvent(
   updates: Partial<MusicalEvent>,
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = activeReg.events.map(e => {
     if (matchesSelector(e, selector)) {
       return { ...e, ...updates } as MusicalEvent;
@@ -154,9 +154,9 @@ export function removeEventsByIndices(
   indices: number[],
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const indexSet = new Set(indices);
   const events = activeReg.events.filter((_, i) => !indexSet.has(i));
   if (events.length === activeReg.events.length) return session;
@@ -170,10 +170,10 @@ export function addEvents(
   newEvents: MusicalEvent[],
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
   if (newEvents.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = [...activeReg.events, ...newEvents];
   return applyEventEdit(session, trackId, events, `Paste ${newEvents.length} event(s)`);
 }

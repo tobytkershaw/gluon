@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_PERSISTED_UNDO } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
-import { createDefaultPattern } from '../../src/engine/sequencer-helpers';
+import { createDefaultStepGrid } from '../../src/engine/sequencer-helpers';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import { getTrack } from '../../src/engine/types';
 import type { Reaction, OpenDecision } from '../../src/engine/types';
@@ -91,9 +91,9 @@ describe('persistence', () => {
         i === 0
           ? {
               ...v,
-              pattern: {
-                ...v.pattern,
-                steps: v.pattern.steps.map((s, j) =>
+              stepGrid: {
+                ...v.stepGrid,
+                steps: v.stepGrid.steps.map((s, j) =>
                   j === 0 ? { ...s, gate: true } : s,
                 ),
               },
@@ -113,9 +113,9 @@ describe('persistence', () => {
         i === 0
           ? {
               ...v,
-              pattern: {
-                ...v.pattern,
-                steps: v.pattern.steps.map((s, j) =>
+              stepGrid: {
+                ...v.stepGrid,
+                steps: v.stepGrid.steps.map((s, j) =>
                   j === 2 ? { ...s, accent: true } : s,
                 ),
               },
@@ -135,9 +135,9 @@ describe('persistence', () => {
         i === 1
           ? {
               ...v,
-              pattern: {
-                ...v.pattern,
-                steps: v.pattern.steps.map((s, j) =>
+              stepGrid: {
+                ...v.stepGrid,
+                steps: v.stepGrid.steps.map((s, j) =>
                   j === 0 ? { ...s, micro: 0.3 } : s,
                 ),
               },
@@ -154,7 +154,7 @@ describe('persistence', () => {
     const modified = {
       ...session,
       tracks: session.tracks.map((v, i) =>
-        i === 0 ? { ...v, pattern: createDefaultPattern(8) } : v,
+        i === 0 ? { ...v, stepGrid: createDefaultStepGrid(8) } : v,
       ),
     };
     saveSession(modified);
@@ -260,9 +260,9 @@ describe('persistence', () => {
     const session = createSession();
     const v1Track = {
       ...session.tracks[0],
-      pattern: {
-        ...session.tracks[0].pattern,
-        steps: session.tracks[0].pattern.steps.map((s, j) =>
+      stepGrid: {
+        ...session.tracks[0].stepGrid,
+        steps: session.tracks[0].stepGrid.steps.map((s, j) =>
           j === 0 ? { ...s, gate: true } : j === 4 ? { ...s, gate: true, accent: true } : s,
         ),
       },
@@ -270,7 +270,7 @@ describe('persistence', () => {
     // Remove regions to simulate v1
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate legacy v1 data without regions
     const v1TrackNoRegions = { ...v1Track } as any;
-    delete v1TrackNoRegions.regions;
+    delete v1TrackNoRegions.patterns;
 
     const v1Session = {
       ...session,
@@ -287,12 +287,12 @@ describe('persistence', () => {
     expect(loaded).not.toBeNull();
     const track = getTrack(loaded!, 'v0');
     // Regions should be hydrated
-    expect(track.regions).toBeDefined();
-    expect(track.regions.length).toBeGreaterThan(0);
+    expect(track.patterns).toBeDefined();
+    expect(track.patterns.length).toBeGreaterThan(0);
     // Pattern should be re-projected from regions and match original gates
-    expect(track.pattern.steps[0].gate).toBe(true);
-    expect(track.pattern.steps[4].gate).toBe(true);
-    expect(track.pattern.steps[4].accent).toBe(true);
+    expect(track.stepGrid.steps[0].gate).toBe(true);
+    expect(track.stepGrid.steps[4].gate).toBe(true);
+    expect(track.stepGrid.steps[4].accent).toBe(true);
   });
 
   it('loads v2 session: pattern is re-projected from regions, not from saved data', () => {
@@ -305,15 +305,15 @@ describe('persistence', () => {
 
     // Tamper with the saved pattern to prove it gets re-projected
     const raw = JSON.parse(store.get('gluon-session')!);
-    raw.session.tracks[0].pattern.steps[0].gate = false; // corrupt pattern
+    raw.session.tracks[0].stepGrid.steps[0].gate = false; // corrupt pattern
     store.set('gluon-session', JSON.stringify(raw));
 
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
     const track = getTrack(loaded!, 'v0');
     // Pattern should be re-projected from regions (ignoring corrupted saved pattern)
-    expect(track.pattern.steps[0].gate).toBe(true);
-    expect(track.pattern.steps[4].gate).toBe(true);
+    expect(track.stepGrid.steps[0].gate).toBe(true);
+    expect(track.stepGrid.steps[4].gate).toBe(true);
   });
 
   it('round-trips v2 save: regions and projected pattern match', () => {
@@ -326,10 +326,10 @@ describe('persistence', () => {
     expect(loaded).not.toBeNull();
 
     const track = getTrack(loaded!, 'v0');
-    expect(track.regions[0].events.length).toBe(2);
-    expect(track.pattern.steps[0].gate).toBe(true);
-    expect(track.pattern.steps[8].gate).toBe(true);
-    expect(track.pattern.steps[1].gate).toBe(false);
+    expect(track.patterns[0].events.length).toBe(2);
+    expect(track.stepGrid.steps[0].gate).toBe(true);
+    expect(track.stepGrid.steps[8].gate).toBe(true);
+    expect(track.stepGrid.steps[1].gate).toBe(false);
   });
 
   it('saves session when regions have events (non-default check)', () => {
@@ -343,14 +343,14 @@ describe('persistence', () => {
     const session = createSession();
     const v1Track = {
       ...session.tracks[0],
-      pattern: {
-        steps: session.tracks[0].pattern.steps.map((s, j) =>
+      stepGrid: {
+        steps: session.tracks[0].stepGrid.steps.map((s, j) =>
           j === 2 ? { ...s, gate: true } : s,
         ),
         length: 16,
       },
     } as any; // eslint-disable-line @typescript-eslint/no-explicit-any -- simulate legacy v1 data
-    delete v1Track.regions;
+    delete v1Track.patterns;
 
     store.set('gluon-session', JSON.stringify({
       version: 1,
@@ -366,9 +366,9 @@ describe('persistence', () => {
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
     const track = getTrack(loaded!, 'v0');
-    expect(track.regions.length).toBe(1);
-    expect(track.regions[0].events.some(e => e.kind === 'trigger' && Math.abs(e.at - 2) < 0.01)).toBe(true);
-    expect(track.pattern.steps[2].gate).toBe(true);
+    expect(track.patterns.length).toBe(1);
+    expect(track.patterns[0].events.some(e => e.kind === 'trigger' && Math.abs(e.at - 2) < 0.01)).toBe(true);
+    expect(track.stepGrid.steps[2].gate).toBe(true);
   });
 
   // --- Views and hidden events persistence ---
@@ -451,15 +451,15 @@ describe('persistence', () => {
     expect(loaded).not.toBeNull();
     const track = getTrack(loaded!, 'v0');
     // Track should load without error — views may be undefined but track is usable
-    expect(track.regions.length).toBeGreaterThan(0);
+    expect(track.patterns.length).toBeGreaterThan(0);
   });
 
   it('recovery: neither regions nor pattern → empty default region', () => {
     const session = createSession();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- simulate broken legacy data
     const brokenTrack = { ...session.tracks[0] } as any;
-    delete brokenTrack.regions;
-    brokenTrack.pattern = { steps: [], length: 0 };
+    delete brokenTrack.patterns;
+    brokenTrack.stepGrid = { steps: [], length: 0 };
 
     store.set('gluon-session', JSON.stringify({
       version: 1,
@@ -475,8 +475,8 @@ describe('persistence', () => {
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
     const track = getTrack(loaded!, 'v0');
-    expect(track.regions.length).toBe(1);
-    expect(track.regions[0].events).toHaveLength(0);
+    expect(track.patterns.length).toBe(1);
+    expect(track.patterns[0].events).toHaveLength(0);
   });
 
   // --- M6 field persistence tests ---

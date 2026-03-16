@@ -1,6 +1,6 @@
 // src/engine/types.ts
-import type { Pattern, PatternSketch, Step, Transport } from './sequencer-types';
-import type { ControlState, Region, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
+import type { StepGrid, StepGridSketch, Step, Transport, PatternRef } from './sequencer-types';
+import type { ControlState, Pattern, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
 
@@ -131,8 +131,12 @@ export interface Track {
   model: number;
   params: SynthParamValues;
   agency: Agency;
-  pattern: Pattern;
-  regions: Region[];
+  /** Derived step-grid cache — always re-projected from patterns, never mutated directly. */
+  stepGrid: StepGrid;
+  /** Canonical pattern containers (content, no position). */
+  patterns: Pattern[];
+  /** Per-track arrangement: ordered list of pattern references. */
+  sequence: PatternRef[];
   muted: boolean;
   solo: boolean;
   /** Per-track volume (linear gain), 0.0–1.0, default 0.8 */
@@ -146,8 +150,8 @@ export interface Track {
   views?: SequencerViewConfig[];
   /** Events hidden by setPatternLength, restored on expand. Persisted to prevent data loss. */
   _hiddenEvents?: CanonicalMusicalEvent[];
-  /** Internal flag: set when region events change, cleared after transport sync reads it. */
-  _regionDirty?: boolean;
+  /** Internal flag: set when pattern events change, cleared after transport sync reads it. */
+  _patternDirty?: boolean;
   /** Processor chain (effects applied after source). */
   processors?: ProcessorConfig[];
   /** Modulator modules (control-rate signal generators). */
@@ -163,8 +167,8 @@ export interface Track {
   importance?: number;
   /** Brief description of this track's musical role (e.g., "driving rhythm", "ambient pad") */
   musicalRole?: string;
-  /** ID of the currently-active region for editing. Falls back to regions[0] if unset. */
-  activeRegionId?: string;
+  /** ID of the currently-active pattern for editing. Falls back to patterns[0] if unset. */
+  activePatternId?: string;
 }
 
 // --- Master channel ---
@@ -207,7 +211,7 @@ export interface PatternSnapshot {
   trackId: string;
   prevSteps: { index: number; step: Step }[];
   prevLength?: number;
-  /** Region events before the legacy sketch was applied (for full undo). */
+  /** Pattern events before the legacy sketch was applied (for full undo). */
   prevEvents?: CanonicalMusicalEvent[];
   /** Hidden events before the legacy sketch was applied (for length undo). */
   prevHiddenEvents?: CanonicalMusicalEvent[];
@@ -231,11 +235,11 @@ export interface ModelSnapshot {
   description: string;
 }
 
-export interface RegionSnapshot {
-  kind: 'region';
+export interface PatternEditSnapshot {
+  kind: 'pattern-edit';
   trackId: string;
-  /** Which region was edited. When absent, defaults to the active region. */
-  regionId?: string;
+  /** Which pattern was edited. When absent, defaults to the active pattern. */
+  patternId?: string;
   prevEvents: CanonicalMusicalEvent[];
   prevDuration?: number;
   prevHiddenEvents?: CanonicalMusicalEvent[];
@@ -346,25 +350,27 @@ export interface SendSnapshot {
   description: string;
 }
 
-export interface RegionCrudSnapshot {
-  kind: 'region-crud';
+export interface PatternCrudSnapshot {
+  kind: 'pattern-crud';
   trackId: string;
   action: 'add' | 'remove' | 'duplicate' | 'rename';
-  /** For remove: the removed region and its index for reinsertion. */
-  removedRegion?: import('./canonical-types').Region;
+  /** For remove: the removed pattern and its index for reinsertion. */
+  removedPattern?: import('./canonical-types').Pattern;
   removedIndex?: number;
-  /** For add/duplicate: the ID of the added region, so undo can remove it. */
-  addedRegionId?: string;
-  /** Previous activeRegionId, so undo restores the selection. */
-  prevActiveRegionId?: string;
-  /** For rename: the region that was renamed and its previous name. */
-  regionId?: string;
+  /** For add/duplicate: the ID of the added pattern, so undo can remove it. */
+  addedPatternId?: string;
+  /** Previous activePatternId, so undo restores the selection. */
+  prevActivePatternId?: string;
+  /** For rename: the pattern that was renamed and its previous name. */
+  patternId?: string;
   previousName?: string;
+  /** Previous sequence state, so undo restores dangling/missing refs. */
+  prevSequence?: import('./sequencer-types').PatternRef[];
   timestamp: number;
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | RegionCrudSnapshot;
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -399,8 +405,8 @@ export interface AISketchAction {
   type: 'sketch';
   trackId: string;
   description: string;
-  /** Legacy pattern shape */
-  pattern?: PatternSketch;
+  /** Legacy step-grid shape */
+  pattern?: StepGridSketch;
   /** Canonical event shape */
   events?: CanonicalMusicalEvent[];
 }
@@ -692,13 +698,13 @@ export function getActiveTrack(session: Session): Track {
   return getTrack(session, session.activeTrackId);
 }
 
-/** Return the active region for a track (by activeRegionId), falling back to regions[0]. */
-export function getActiveRegion(track: Track): import('./canonical-types').Region {
-  if (track.activeRegionId) {
-    const region = track.regions.find(r => r.id === track.activeRegionId);
-    if (region) return region;
+/** Return the active pattern for a track (by activePatternId), falling back to patterns[0]. */
+export function getActivePattern(track: Track): import('./canonical-types').Pattern {
+  if (track.activePatternId) {
+    const pattern = track.patterns.find(p => p.id === track.activePatternId);
+    if (pattern) return pattern;
   }
-  return track.regions[0];
+  return track.patterns[0];
 }
 
 export function updateTrack(session: Session, trackId: string, update: Partial<Track>): Session {
@@ -708,12 +714,12 @@ export function updateTrack(session: Session, trackId: string, update: Partial<T
   };
 }
 
-/** Update a specific region within a track, returning a new session with the region replaced. */
-export function updateRegion(
+/** Update a specific pattern within a track, returning a new session with the pattern replaced. */
+export function updatePattern(
   session: Session,
   trackId: string,
-  regionId: string,
-  regionUpdate: Partial<import('./canonical-types').Region>,
+  patternId: string,
+  patternUpdate: Partial<import('./canonical-types').Pattern>,
 ): Session {
   return {
     ...session,
@@ -721,7 +727,7 @@ export function updateRegion(
       if (t.id !== trackId) return t;
       return {
         ...t,
-        regions: t.regions.map(r => r.id === regionId ? { ...r, ...regionUpdate } : r),
+        patterns: t.patterns.map(p => p.id === patternId ? { ...p, ...patternUpdate } : p),
       };
     }),
   };

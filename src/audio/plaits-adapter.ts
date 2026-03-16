@@ -1,7 +1,7 @@
 // src/audio/plaits-adapter.ts
 import type {
   SourceAdapter, ControlBinding, ControlState, ControlSchema,
-  Region, MusicalEvent, AIOperation,
+  Pattern, MusicalEvent, AIOperation,
 } from '../engine/canonical-types';
 import {
   controlIdToRuntimeParam, runtimeParamToControlId,
@@ -54,7 +54,7 @@ export function createPlaitsAdapter(): SourceAdapter {
       return {};
     },
 
-    readRegions(): Region[] {
+    readPatterns(): Pattern[] {
       return [];
     },
 

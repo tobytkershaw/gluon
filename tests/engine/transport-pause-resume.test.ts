@@ -14,7 +14,7 @@ function makeTrack(id: string): Track {
     agency: 'OFF',
     mute: false,
     solo: false,
-    regions: [{
+    patterns: [{
       id: `${id}-region`,
       trackId: id,
       startBeat: 0,

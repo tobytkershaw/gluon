@@ -3,10 +3,11 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
-import { getActiveTrack, getActiveRegion, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
-import { normalizeRegionEvents } from '../engine/region-helpers';
+import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
+import { normalizePatternEvents } from '../engine/region-helpers';
+import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, setApproval, updateTrackParams, setModel,
@@ -16,8 +17,8 @@ import {
   addSend, removeSend, setSendLevel,
   toggleMetronome, setMetronomeVolume,
   addReaction,
-  addRegion, removeRegion, duplicateRegion, renameRegion, setActiveRegionOnTrack,
-  toggleLoop, setLoopStart, setLoopEnd, setTimeSignature,
+  addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack,
+  setTimeSignature, setTransportMode,
   captureABSnapshot, restoreABSnapshot,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
@@ -214,6 +215,10 @@ export default function App() {
 
   const getCurrentSession = useCallback(() => sessionRef.current, []);
 
+  const handleSequenceEnd = useCallback(() => {
+    setSession((s) => stopTransport(s));
+  }, []);
+
   const transportControllerRef = useTransportController({
     audioStarted,
     audio: audioRef.current,
@@ -222,6 +227,7 @@ export default function App() {
     onPositionChange: handleTransportPositionChange,
     getHeldParams: getHeldTransportParams,
     onParameterEvent: handleTransportParameterEvent,
+    onSequenceEnd: handleSequenceEnd,
   });
 
   useEffect(() => {
@@ -636,7 +642,7 @@ export default function App() {
       trackId: s.activeTrackId,
       prevParams: { timbre: track.params.timbre, morph: track.params.morph },
       prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
-      prevEvents: track.regions.length > 0 ? [...getActiveRegion(track).events] : undefined,
+      prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : undefined,
     };
   }, []);
 
@@ -647,7 +653,7 @@ export default function App() {
       interactionUndoRef.current = null;
       setSession((s) => {
         const track = getTrack(s, captured.trackId);
-        const snapshots: (ParamSnapshot | RegionSnapshot)[] = [];
+        const snapshots: (ParamSnapshot | PatternEditSnapshot)[] = [];
 
         // Check if params changed
         const currentValues: Partial<SynthParamValues> = {};
@@ -670,13 +676,13 @@ export default function App() {
         }
 
         // Check if region events changed (param lock during drag)
-        if (captured.prevEvents && track.regions.length > 0) {
-          const curEvents = getActiveRegion(track).events;
+        if (captured.prevEvents && track.patterns.length > 0) {
+          const curEvents = getActivePattern(track).events;
           const eventsChanged = curEvents.length !== captured.prevEvents.length ||
             curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
           if (eventsChanged) {
             snapshots.push({
-              kind: 'region',
+              kind: 'pattern-edit',
               trackId: captured.trackId,
               prevEvents: captured.prevEvents,
               timestamp: Date.now(),
@@ -928,12 +934,12 @@ export default function App() {
       // Snapshot the active track's region before recording starts
       const s = sessionRef.current;
       const track = getActiveTrack(s);
-      const region = track && track.regions.length > 0 ? getActiveRegion(track) : undefined;
+      const region = track && track.patterns.length > 0 ? getActivePattern(track) : undefined;
       if (region && track) {
-        const snapshot: RegionSnapshot = {
-          kind: 'region',
+        const snapshot: PatternEditSnapshot = {
+          kind: 'pattern-edit',
           trackId: track.id,
-          regionId: region.id,
+          patternId: region.id,
           prevEvents: [...region.events],
           prevDuration: region.duration,
           prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
@@ -956,15 +962,42 @@ export default function App() {
   const handleRecordEvents = useCallback((trackId: string, events: NoteEvent[]) => {
     setSession(s => {
       const track = getTrack(s, trackId);
-      if (track.regions.length === 0) return s;
-      const region = getActiveRegion(track);
+      if (track.patterns.length === 0) return s;
+      const region = getActivePattern(track);
+
+      // Ensure an undo snapshot exists for this recording session.
+      // The useEffect above may not have fired yet (effects are async),
+      // so push the snapshot here on first invocation if needed.
+      let session = s;
+      if (!recordingSnapshotPushed.current) {
+        const snapshot: PatternEditSnapshot = {
+          kind: 'pattern-edit',
+          trackId: track.id,
+          patternId: region.id,
+          prevEvents: [...region.events],
+          prevDuration: region.duration,
+          prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+          timestamp: Date.now(),
+          description: `Live recording on ${track.name ?? track.id}`,
+        };
+        session = {
+          ...session,
+          undoStack: [...session.undoStack, snapshot],
+        };
+        recordingSnapshotPushed.current = true;
+      }
 
       // Overdub: merge new events with existing
       const merged = [...region.events, ...events];
-      const updatedRegion = normalizeRegionEvents({ ...region, events: merged });
+      const updatedRegion = normalizePatternEvents({ ...region, events: merged });
+      const newPatterns = track.patterns.map(r => r.id === region.id ? updatedRegion : r);
 
-      return updateTrack(s, trackId, {
-        regions: track.regions.map(r => r.id === region.id ? updatedRegion : r),
+      // Reproject stepGrid (derived cache) and mark dirty for transport invalidation
+      const reprojected = reprojectTrackStepGrid({ ...track, patterns: newPatterns });
+      return updateTrack(session, trackId, {
+        patterns: reprojected.patterns,
+        stepGrid: reprojected.stepGrid,
+        _patternDirty: true,
       });
     });
   }, []);
@@ -1098,23 +1131,23 @@ export default function App() {
 
   // --- Region CRUD ---
   const handleAddRegion = useCallback(() => {
-    setSession((s) => addRegion(s, s.activeTrackId) ?? s);
+    setSession((s) => addPattern(s, s.activeTrackId) ?? s);
   }, []);
 
-  const handleRemoveRegion = useCallback((regionId: string) => {
-    setSession((s) => removeRegion(s, s.activeTrackId, regionId) ?? s);
+  const handleRemoveRegion = useCallback((patternId: string) => {
+    setSession((s) => removePattern(s, s.activeTrackId, patternId) ?? s);
   }, []);
 
-  const handleDuplicateRegion = useCallback((regionId: string) => {
-    setSession((s) => duplicateRegion(s, s.activeTrackId, regionId) ?? s);
+  const handleDuplicateRegion = useCallback((patternId: string) => {
+    setSession((s) => duplicatePattern(s, s.activeTrackId, patternId) ?? s);
   }, []);
 
-  const handleRenameRegion = useCallback((regionId: string, name: string) => {
-    setSession((s) => renameRegion(s, s.activeTrackId, regionId, name));
+  const handleRenameRegion = useCallback((patternId: string, name: string) => {
+    setSession((s) => renamePattern(s, s.activeTrackId, patternId, name));
   }, []);
 
-  const handleSetActiveRegion = useCallback((regionId: string) => {
-    setSession((s) => setActiveRegionOnTrack(s, s.activeTrackId, regionId));
+  const handleSetActiveRegion = useCallback((patternId: string) => {
+    setSession((s) => setActivePatternOnTrack(s, s.activeTrackId, patternId));
   }, []);
 
   const handleAddView = useCallback((kind: SequencerViewKind) => {
@@ -1819,7 +1852,7 @@ export default function App() {
     onTrackUp: handleTrackUp,
     onTrackDown: handleTrackDown,
     onBpmNudge: handleBpmNudge,
-    onToggleLoop: () => setSession(s => toggleLoop(s)),
+    onToggleLoop: () => {}, // Loop replaced by transport mode
     setView,
     setChatOpen,
   });
@@ -1891,7 +1924,7 @@ export default function App() {
       swing={session.transport.swing}
       recordArmed={recordArmed}
       globalStep={globalStep}
-      patternLength={activeTrack.pattern.length}
+      patternLength={getActivePattern(activeTrack).duration}
       onTogglePlay={handleTogglePlay}
       onHardStop={handleHardStop}
       onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
@@ -1901,12 +1934,8 @@ export default function App() {
       metronomeVolume={session.transport.metronome.volume}
       onToggleMetronome={() => setSession(s => toggleMetronome(s))}
       onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
-      loopEnabled={session.transport.loopEnabled ?? false}
-      loopStart={session.transport.loopStart ?? 0}
-      loopEnd={session.transport.loopEnd ?? activeTrack.pattern.length}
-      onToggleLoop={() => setSession(s => toggleLoop(s))}
-      onLoopStartChange={(step) => setSession(s => setLoopStart(s, step))}
-      onLoopEndChange={(step) => setSession(s => setLoopEnd(s, step))}
+      transportMode={session.transport.mode ?? 'pattern'}
+      onTransportModeChange={(mode: import('../engine/sequencer-types').TransportMode) => setSession(s => setTransportMode(s, mode))}
       timeSignatureNumerator={session.transport.timeSignature?.numerator ?? 4}
       timeSignatureDenominator={session.transport.timeSignature?.denominator ?? 4}
       onTimeSignatureChange={(num, den) => setSession(s => setTimeSignature(s, num, den))}

@@ -1,7 +1,7 @@
 // tests/engine/sequencer-helpers.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createDefaultStep, createDefaultPattern, getAudibleTracks,
+  createDefaultStep, createDefaultStepGrid, getAudibleTracks,
 } from '../../src/engine/sequencer-helpers';
 import { createSession, toggleMute, toggleSolo } from '../../src/engine/session';
 
@@ -15,22 +15,22 @@ describe('createDefaultStep', () => {
   });
 });
 
-describe('createDefaultPattern', () => {
+describe('createDefaultStepGrid', () => {
   it('creates a 16-step pattern by default', () => {
-    const pattern = createDefaultPattern();
+    const pattern = createDefaultStepGrid();
     expect(pattern.length).toBe(16);
     expect(pattern.steps).toHaveLength(16);
   });
 
   it('creates a pattern with custom length', () => {
-    const pattern = createDefaultPattern(32);
+    const pattern = createDefaultStepGrid(32);
     expect(pattern.length).toBe(32);
     expect(pattern.steps).toHaveLength(32);
   });
 
   it('clamps length to 1-64', () => {
-    expect(createDefaultPattern(0).length).toBe(1);
-    expect(createDefaultPattern(100).length).toBe(64);
+    expect(createDefaultStepGrid(0).length).toBe(1);
+    expect(createDefaultStepGrid(100).length).toBe(64);
   });
 });
 

@@ -22,24 +22,24 @@ function triggerEvent(at: number, velocity = 0.8, accent = false): TriggerEvent 
 /** Apply a sketch action's events to a track's first region (mirrors projectAction logic). */
 function applySketch(session: ReturnType<typeof createSession>, trackId: string, events: MusicalEvent[]) {
   const track = getTrack(session, trackId);
-  const region = track.regions[0];
+  const region = track.patterns[0];
   const updatedRegion = { ...region, events };
   return updateTrack(session, trackId, {
-    regions: [updatedRegion, ...track.regions.slice(1)],
+    patterns: [updatedRegion, ...track.patterns.slice(1)],
     _regionDirty: true,
   });
 }
 
 /** Extract NoteEvents from a track's first region. */
 function getNotes(session: ReturnType<typeof createSession>, trackId: string): NoteEvent[] {
-  return getTrack(session, trackId).regions[0].events.filter(
+  return getTrack(session, trackId).patterns[0].events.filter(
     (e): e is NoteEvent => e.kind === 'note',
   );
 }
 
 /** Extract TriggerEvents (velocity > 0) from a track's first region. */
 function getTriggers(session: ReturnType<typeof createSession>, trackId: string): TriggerEvent[] {
-  return getTrack(session, trackId).regions[0].events.filter(
+  return getTrack(session, trackId).patterns[0].events.filter(
     (e): e is TriggerEvent => e.kind === 'trigger' && (e.velocity ?? 1) > 0,
   );
 }

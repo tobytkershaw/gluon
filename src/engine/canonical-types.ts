@@ -57,17 +57,18 @@ export interface ControlValue {
 
 export type ControlState = Record<string, ControlValue>;
 
-// --- Region ---
-export type RegionKind = 'pattern' | 'clip' | 'automation_lane';
+// --- Pattern (content container) ---
+export type PatternKind = 'pattern' | 'clip' | 'automation_lane';
 
 /**
- * A Region is a time-bounded container for musical events.
+ * A Pattern is a content container for musical events.
+ * Patterns have NO position (no `start` field) — arrangement is handled
+ * by the per-track sequence (Track.sequence: PatternRef[]).
  *
  * ## Structural invariants
  * 1. `duration > 0`
- * 2. `start >= 0`
- * 3. All events: `0 <= event.at < duration`
- * 4. Events are sorted ascending by `at` (enforced via normalization on write)
+ * 2. All events: `0 <= event.at < duration`
+ * 3. Events are sorted ascending by `at` (enforced via normalization on write)
  *
  * ## Collision rules (per kind)
  * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001)
@@ -76,17 +77,15 @@ export type RegionKind = 'pattern' | 'clip' | 'automation_lane';
  *     — no duplicate (same pitch at same `at`)
  *
  * ## Deferred
- * - Cross-region overlap detection
- * - Region splitting / merging
+ * - Cross-pattern overlap detection
+ * - Pattern splitting / merging
  * - Non-looping clip playback
  * - Automation lane semantics
  */
-export interface Region {
+export interface Pattern {
   id: string;
-  kind: RegionKind;
-  start: number;
+  kind: PatternKind;
   duration: number;
-  loop: boolean;
   name?: string;
   events: MusicalEvent[];
 }
@@ -98,7 +97,7 @@ export type EventKind = 'note' | 'trigger' | 'parameter';
  * Base for all musical events.
  *
  * ## Invariant
- * 3. `0 <= at < region.duration` (validated in region context)
+ * 2. `0 <= at < duration` (validated in pattern context)
  */
 export interface BaseEvent {
   at: number;
@@ -183,7 +182,7 @@ export interface SourceAdapter {
 
   // Read path (runtime -> canonical)
   readControlState(): ControlState;
-  readRegions(): Region[];
+  readPatterns(): Pattern[];
 
   // Inverse mapping (runtime -> canonical) - bare param key, NOT dotted path
   mapRuntimeParamKey(paramKey: string): string | null;
@@ -209,7 +208,7 @@ export interface MoveOp {
 export interface SketchOp {
   type: 'sketch';
   trackId: string;
-  regionId?: string;
+  patternId?: string;
   mode: 'replace' | 'merge';
   events: MusicalEvent[];
   description: string;

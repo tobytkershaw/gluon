@@ -1,9 +1,9 @@
 // src/engine/pattern-primitives.ts
-import type { Session, SynthParamValues, RegionSnapshot } from './types';
-import { getTrack, getActiveRegion, updateTrack } from './types';
+import type { Session, SynthParamValues, PatternEditSnapshot } from './types';
+import { getTrack, getActivePattern, updateTrack } from './types';
 import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from './canonical-types';
-import { reprojectTrackPattern } from './region-projection';
-import { normalizeRegionEvents } from './region-helpers';
+import { reprojectTrackStepGrid } from './region-projection';
+import { normalizePatternEvents } from './region-helpers';
 import { runtimeParamToControlId, controlIdToRuntimeParam, isPercussionByIndex } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
@@ -48,7 +48,7 @@ const defaultInverseOpts: InverseConversionOptions = {
 
 /**
  * Update track regions and re-project pattern. Returns updated session.
- * Pushes a RegionSnapshot for undo when a description is provided.
+ * Pushes a PatternEditSnapshot for undo when a description is provided.
  */
 function applyRegionEdit(
   session: Session,
@@ -58,15 +58,15 @@ function applyRegionEdit(
   description?: string,
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
 
-  const snapshot: RegionSnapshot | undefined = description
+  const snapshot: PatternEditSnapshot | undefined = description
     ? {
-        kind: 'region',
+        kind: 'pattern-edit',
         trackId,
-        regionId: activeReg.id,
+        patternId: activeReg.id,
         prevEvents: [...activeReg.events],
         prevDuration: regionUpdates?.duration !== undefined ? activeReg.duration : undefined,
         prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
@@ -75,17 +75,17 @@ function applyRegionEdit(
       }
     : undefined;
 
-  const region = normalizeRegionEvents({
+  const region = normalizePatternEvents({
     ...activeReg,
     events: newEvents,
     ...(regionUpdates ?? {}),
   });
-  const newRegions = track.regions.map(r => r.id === activeReg.id ? region : r);
-  const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
+  const newRegions = track.patterns.map(r => r.id === activeReg.id ? region : r);
+  const updatedTrack = reprojectTrackStepGrid({ ...track, patterns: newRegions }, defaultInverseOpts);
   const result = updateTrack(session, trackId, {
-    regions: updatedTrack.regions,
-    pattern: updatedTrack.pattern,
-    _regionDirty: true,
+    patterns: updatedTrack.patterns,
+    stepGrid: updatedTrack.stepGrid,
+    _patternDirty: true,
   });
 
   if (snapshot) {
@@ -100,13 +100,13 @@ function applyRegionEdit(
 
 export function toggleStepGate(session: Session, trackId: string, stepIndex: number): Session {
   const track = getTrack(session, trackId);
-  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
+  if (stepIndex < 0 || stepIndex >= getActivePattern(track).duration) return session;
 
   // All tracks must have regions — return unchanged if invariant is violated
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
   const pitched = !isPercussionByIndex(track.model);
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = [...activeReg.events];
   const idx = findGateEventAt(events, stepIndex);
 
@@ -159,12 +159,12 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
 
 export function toggleStepAccent(session: Session, trackId: string, stepIndex: number): Session {
   const track = getTrack(session, trackId);
-  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
+  if (stepIndex < 0 || stepIndex >= getActivePattern(track).duration) return session;
 
   // All tracks must have regions — return unchanged if invariant is violated
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = [...activeReg.events];
   const idx = findGateEventAt(events, stepIndex);
   if (idx >= 0) {
@@ -203,12 +203,12 @@ export function setStepParamLock(
   options?: { pushUndo?: boolean },
 ): Session {
   const track = getTrack(session, trackId);
-  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
+  if (stepIndex < 0 || stepIndex >= getActivePattern(track).duration) return session;
 
   // All tracks must have regions — return unchanged if invariant is violated
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = [...activeReg.events];
   for (const [runtimeKey, value] of Object.entries(params)) {
     const controlId = runtimeParamToControlId[runtimeKey] ?? runtimeKey;
@@ -238,13 +238,13 @@ export function clearStepParamLock(
   param: string,
 ): Session {
   const track = getTrack(session, trackId);
-  if (stepIndex < 0 || stepIndex >= track.pattern.length) return session;
+  if (stepIndex < 0 || stepIndex >= getActivePattern(track).duration) return session;
 
   // All tracks must have regions — return unchanged if invariant is violated
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
   const controlId = runtimeParamToControlId[param] ?? param;
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   const events = [...activeReg.events];
   const idx = findParamAt(events, stepIndex, controlId);
   if (idx < 0) return session;
@@ -255,16 +255,16 @@ export function clearStepParamLock(
 export function setPatternLength(session: Session, trackId: string, length: number): Session {
   const track = getTrack(session, trackId);
   const clamped = Math.max(1, Math.min(64, length));
-  if (clamped === track.pattern.length) return session;
+  if (clamped === getActivePattern(track).duration) return session;
 
   // All tracks must have regions — return unchanged if invariant is violated
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
   // Update region duration, re-project.
   // Events beyond the new duration are stashed in track._hiddenEvents
   // so expanding later restores them. The region invariant (event.at < duration)
   // is preserved at all times.
-  const currentEvents = getActiveRegion(track).events;
+  const currentEvents = getActivePattern(track).events;
   const prevHidden = track._hiddenEvents ?? [];
 
   // Merge current events + previously hidden events, then split by new duration
@@ -293,9 +293,9 @@ export function insertAutomationEvent(
   value: number,
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   // Wrap position into region (loop-aware)
   const wrappedAt = ((at % activeReg.duration) + activeReg.duration) % activeReg.duration;
 
@@ -325,10 +325,10 @@ export function clearPattern(session: Session, trackId: string): Session {
   const track = getTrack(session, trackId);
 
   // All tracks must have regions — return unchanged if invariant is violated
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
   // Clear all events (including hidden stash)
-  if (getActiveRegion(track).events.length === 0 && !track._hiddenEvents?.length) return session;
+  if (getActivePattern(track).events.length === 0 && !track._hiddenEvents?.length) return session;
   let result = applyRegionEdit(session, trackId, [], undefined, 'Clear pattern');
   result = updateTrack(result, trackId, { _hiddenEvents: undefined });
   return result;
@@ -340,9 +340,9 @@ export function clearPattern(session: Session, trackId: string): Session {
 
 /**
  * Snap all events in the active region to the nearest grid position.
- * Default grid is 0.25 (sixteenth note). Undoable via RegionSnapshot.
+ * Default grid is 0.25 (sixteenth note). Undoable via PatternEditSnapshot.
  *
- * After snapping, events are re-sorted and deduplicated via normalizeRegionEvents
+ * After snapping, events are re-sorted and deduplicated via normalizePatternEvents
  * (called by applyRegionEdit). Events that would snap to >= region.duration are
  * clamped to duration - gridSize to preserve the region invariant (event.at < duration).
  */
@@ -352,9 +352,9 @@ export function quantizeRegion(
   gridSize: number = 0.25,
 ): Session {
   const track = getTrack(session, trackId);
-  if (track.regions.length === 0) return session;
+  if (track.patterns.length === 0) return session;
 
-  const activeReg = getActiveRegion(track);
+  const activeReg = getActivePattern(track);
   if (activeReg.events.length === 0) return session;
 
   const quantized = activeReg.events.map(e => {

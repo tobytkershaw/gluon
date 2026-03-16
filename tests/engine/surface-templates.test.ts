@@ -9,8 +9,8 @@ function makeTrack(overrides: Partial<Track> = {}): Track {
     model: 0,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     agency: 'ON',
-    pattern: { steps: [], length: 16, swing: 0 },
-    regions: [{ start: 0, duration: 4, events: [] }],
+    stepGrid: { steps: [], length: 16, swing: 0 },
+    patterns: [{ duration: 4, events: [] }],
     muted: false,
     solo: false,
     surface: {

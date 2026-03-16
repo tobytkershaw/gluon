@@ -8,10 +8,13 @@ export interface Step {
   micro: number;
 }
 
-export interface Pattern {
+/** Derived step-grid cache — read-only projection from canonical Pattern events. */
+export interface StepGrid {
   steps: Step[];
   length: number;
 }
+
+export type TransportMode = 'pattern' | 'song';
 
 export interface MetronomeState {
   enabled: boolean;
@@ -33,14 +36,15 @@ export interface Transport {
   metronome: MetronomeState;
   /** Time signature. Default: 4/4. */
   timeSignature: TimeSignature;
-  /** When true, playback wraps between loopStart and loopEnd instead of the full pattern. */
-  loopEnabled?: boolean;
-  /** Loop start position in steps (inclusive). Default: 0. */
-  loopStart?: number;
-  /** Loop end position in steps (exclusive). Default: patternLength. */
-  loopEnd?: number;
+  /** Transport mode: 'pattern' loops active pattern, 'song' walks sequence. Default: 'pattern'. */
+  mode?: TransportMode;
   /** When set, next play should start from this step (consumed on play). */
   playFromStep?: number;
+}
+
+/** A reference to a pattern within a track's sequence (arrangement). */
+export interface PatternRef {
+  patternId: string;
 }
 
 export interface ScheduledNote {
@@ -55,7 +59,7 @@ export interface ScheduledNote {
   baseParams?: SynthParamValues;
 }
 
-export interface PatternSketch {
+export interface StepGridSketch {
   length?: number;
   steps: StepSketch[];
 }

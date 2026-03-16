@@ -1,6 +1,6 @@
 // src/engine/region-helpers.ts
 import type {
-  Region,
+  Pattern,
   MusicalEvent,
   NoteEvent,
   TriggerEvent,
@@ -19,13 +19,13 @@ function sameAt(a: number, b: number): boolean {
 // ---------------------------------------------------------------------------
 
 /**
- * Validate a single event against its region context.
+ * Validate a single event against its pattern context.
  * Returns an error string, or null if valid.
  */
-export function validateEvent(event: MusicalEvent, region: Region): string | null {
-  // Invariant 3: event.at in [0, duration)
-  if (event.at < 0 || event.at >= region.duration) {
-    return `Event at=${event.at} out of range [0, ${region.duration})`;
+export function validateEvent(event: MusicalEvent, pattern: Pattern): string | null {
+  // Invariant 2: event.at in [0, duration)
+  if (event.at < 0 || event.at >= pattern.duration) {
+    return `Event at=${event.at} out of range [0, ${pattern.duration})`;
   }
 
   switch (event.kind) {
@@ -67,46 +67,41 @@ export function validateEvent(event: MusicalEvent, region: Region): string | nul
 }
 
 // ---------------------------------------------------------------------------
-// Region validation
+// Pattern validation
 // ---------------------------------------------------------------------------
 
 /**
- * Validate all invariants on a Region.
+ * Validate all invariants on a Pattern.
  * Returns `{ valid, errors }` — errors is empty when valid.
  */
-export function validateRegion(region: Region): { valid: boolean; errors: string[] } {
+export function validatePattern(pattern: Pattern): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Invariant 1: duration > 0
-  if (region.duration <= 0) {
-    errors.push(`Region duration=${region.duration} must be > 0`);
+  if (pattern.duration <= 0) {
+    errors.push(`Pattern duration=${pattern.duration} must be > 0`);
   }
 
-  // Invariant 2: start >= 0
-  if (region.start < 0) {
-    errors.push(`Region start=${region.start} must be >= 0`);
-  }
-
-  // Per-event validation (invariants 3, 5, 6, 7)
-  for (let i = 0; i < region.events.length; i++) {
-    const err = validateEvent(region.events[i], region);
+  // Per-event validation (invariants 2, 5, 6, 7)
+  for (let i = 0; i < pattern.events.length; i++) {
+    const err = validateEvent(pattern.events[i], pattern);
     if (err) errors.push(`events[${i}]: ${err}`);
   }
 
-  // Invariant 4: sorted by at
-  for (let i = 1; i < region.events.length; i++) {
-    if (region.events[i].at < region.events[i - 1].at) {
+  // Invariant 3: sorted by at
+  for (let i = 1; i < pattern.events.length; i++) {
+    if (pattern.events[i].at < pattern.events[i - 1].at) {
       errors.push(
-        `events[${i}] at=${region.events[i].at} is before events[${i - 1}] at=${region.events[i - 1].at} — not sorted`,
+        `events[${i}] at=${pattern.events[i].at} is before events[${i - 1}] at=${pattern.events[i - 1].at} — not sorted`,
       );
     }
   }
 
   // Collision rules
-  for (let i = 0; i < region.events.length; i++) {
-    for (let j = i + 1; j < region.events.length; j++) {
-      const a = region.events[i];
-      const b = region.events[j];
+  for (let i = 0; i < pattern.events.length; i++) {
+    for (let j = i + 1; j < pattern.events.length; j++) {
+      const a = pattern.events[i];
+      const b = pattern.events[j];
       if (!sameAt(a.at, b.at)) continue;
 
       // Invariant 8: no duplicate triggers at same position
@@ -140,7 +135,7 @@ export function validateRegion(region: Region): { valid: boolean; errors: string
 
   // Invariant 10b: max 4 notes at the same position (polyphonic column limit)
   const noteCountByBucket = new Map<number, number>();
-  for (const event of region.events) {
+  for (const event of pattern.events) {
     if (event.kind !== 'note') continue;
     const bucket = Math.floor(event.at / AT_TOLERANCE);
     const count = (noteCountByBucket.get(bucket) ?? 0) + 1;
@@ -153,6 +148,9 @@ export function validateRegion(region: Region): { valid: boolean; errors: string
   return { valid: errors.length === 0, errors };
 }
 
+/** @deprecated Use validatePattern instead. */
+export const validateRegion = validatePattern;
+
 // ---------------------------------------------------------------------------
 // Normalization
 // ---------------------------------------------------------------------------
@@ -162,9 +160,9 @@ export function validateRegion(region: Region): { valid: boolean; errors: string
  * For parameter events, deduplication is per controlId.
  * When duplicates exist the last one wins (latest in original order).
  */
-export function normalizeRegionEvents(region: Region): Region {
+export function normalizePatternEvents(pattern: Pattern): Pattern {
   // Stable-sort by at
-  const sorted = [...region.events].sort((a, b) => a.at - b.at);
+  const sorted = [...pattern.events].sort((a, b) => a.at - b.at);
 
   // Deduplicate: walk backwards so later entries win
   const seen = new Set<string>();
@@ -194,13 +192,16 @@ export function normalizeRegionEvents(region: Region): Region {
     return count <= MAX_NOTES_PER_STEP;
   });
 
-  return { ...region, events: capped };
+  return { ...pattern, events: capped };
 }
+
+/** @deprecated Use normalizePatternEvents instead. */
+export const normalizeRegionEvents = normalizePatternEvents;
 
 /**
  * Build a dedup key using Math.floor bucketing (aligned with AT_TOLERANCE).
  * Math.floor ensures that values within the same bucket are always within
- * tolerance, consistent with sameAt() used by validateRegion().
+ * tolerance, consistent with sameAt() used by validatePattern().
  */
 function deduplicationKey(event: MusicalEvent): string {
   const bucket = Math.floor(event.at / AT_TOLERANCE);
@@ -220,16 +221,17 @@ function deduplicationKey(event: MusicalEvent): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a valid empty region for a given track.
+ * Create a valid empty pattern for a given track.
  * Duration is set to `stepCount` (integer step grid).
  */
-export function createDefaultRegion(trackId: string, stepCount: number): Region {
+export function createDefaultPattern(trackId: string, stepCount: number): Pattern {
   return {
-    id: `${trackId}-region-0`,
+    id: `${trackId}-pattern-0`,
     kind: 'pattern',
-    start: 0,
     duration: stepCount,
-    loop: true,
     events: [],
   };
 }
+
+/** @deprecated Use createDefaultPattern instead. */
+export const createDefaultRegion = createDefaultPattern;

@@ -1,6 +1,6 @@
 // src/ui/SequencerViewSlot.tsx
 import type { SequencerViewConfig } from '../engine/types';
-import type { Pattern } from '../engine/sequencer-types';
+import type { StepGrid as StepGridType } from '../engine/sequencer-types';
 import { StepGrid } from './StepGrid';
 import { PatternControls } from './PatternControls';
 
@@ -8,7 +8,7 @@ interface Props {
   config: SequencerViewConfig;
   onRemove: (viewId: string) => void;
   // Step grid props (passed through when kind === 'step-grid')
-  pattern: Pattern;
+  stepGrid: StepGridType;
   currentStep: number;
   playing: boolean;
   stepPage: number;
@@ -28,12 +28,12 @@ const VIEW_LABELS: Record<string, string> = {
 
 export function SequencerViewSlot({
   config, onRemove,
-  pattern, currentStep, playing,
+  stepGrid, currentStep, playing,
   stepPage, selectedStep,
   onStepToggle, onStepAccent, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
 }: Props) {
-  const totalPages = Math.ceil(pattern.length / 16);
+  const totalPages = Math.ceil(stepGrid.length / 16);
 
   return (
     <div className="relative group/view">
@@ -53,7 +53,7 @@ export function SequencerViewSlot({
       {config.kind === 'step-grid' && (
         <div className="flex items-center gap-3">
           <StepGrid
-            pattern={pattern}
+            pattern={stepGrid}
             currentStep={currentStep}
             playing={playing}
             page={stepPage}
@@ -63,7 +63,7 @@ export function SequencerViewSlot({
             onStepSelect={onStepSelect}
           />
           <PatternControls
-            patternLength={pattern.length}
+            patternLength={stepGrid.length}
             totalPages={totalPages}
             currentPage={stepPage}
             onLengthChange={onPatternLength}

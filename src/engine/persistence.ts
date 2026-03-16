@@ -1,16 +1,16 @@
 // src/engine/persistence.ts
 import type { Session, Track, ModulatorConfig, ModulationRouting } from './types';
-import { DEFAULT_MASTER, MASTER_BUS_ID, getTrackKind } from './types';
-import type { Region } from './canonical-types';
+import { DEFAULT_MASTER, MASTER_BUS_ID } from './types';
+import type { Pattern } from './canonical-types';
 import { createSession, createBusTrack } from './session';
 import { stepsToEvents } from './event-conversion';
-import { reprojectTrackPattern } from './region-projection';
-import { createDefaultRegion } from './region-helpers';
+import { reprojectTrackStepGrid } from './region-projection';
+import { createDefaultPattern } from './region-helpers';
 import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 
 const STORAGE_KEY = 'gluon-session';
-export const CURRENT_VERSION = 5;
+export const CURRENT_VERSION = 6;
 export const MAX_PERSISTED_UNDO = 50;
 
 interface PersistedSession {
@@ -19,7 +19,7 @@ interface PersistedSession {
   savedAt: number;
 }
 
-/** Default inverse options for re-projecting pattern from regions on load. */
+/** Default inverse options for re-projecting step-grid from patterns on load. */
 const defaultInverseOpts: InverseConversionOptions = {
   canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
 };
@@ -39,11 +39,6 @@ export function stripForPersistence(session: Session): Session {
 
 /**
  * Check whether a session differs from the default enough to be worth saving.
- *
- * NOTE(#215): The param checks below are hardcoded to {timbre, morph, harmonics, note}.
- * If future engines add params beyond these, this function won't detect their changes
- * as non-default. This is acceptable since the function is a save-avoidance heuristic
- * (legacy path) — worst case is an unnecessary no-op save, not data loss.
  */
 function isNonDefault(session: Session): boolean {
   const defaults = createSession();
@@ -61,11 +56,11 @@ function isNonDefault(session: Session): boolean {
     if (v.volume !== d.volume || v.pan !== d.pan) return true;
     if (v.params.timbre !== d.params.timbre || v.params.morph !== d.params.morph) return true;
     if (v.params.harmonics !== d.params.harmonics || v.params.note !== d.params.note) return true;
-    // Check regions for content
-    if (v.regions.some(r => r.events.length > 0)) return true;
-    // Fallback: check pattern for content (covers legacy or direct pattern edits)
-    if (v.pattern.length !== d.pattern.length) return true;
-    for (const step of v.pattern.steps) {
+    // Check patterns for content
+    if (v.patterns.some(p => p.events.length > 0)) return true;
+    // Fallback: check step-grid for content
+    if (v.stepGrid.length !== d.stepGrid.length) return true;
+    for (const step of v.stepGrid.steps) {
       if (step.gate || step.accent || step.micro !== 0 || step.params) return true;
     }
   }
@@ -87,50 +82,111 @@ export function isValidSession(obj: unknown): obj is Session {
 }
 
 /**
- * Hydrate regions for a track that was saved without them (v1 legacy).
- * Converts step-grid pattern to canonical events in a default region.
+ * Hydrate patterns for a track that was saved without them (v1 legacy).
+ * Converts step-grid to canonical events in a default pattern.
  */
-function hydrateRegionsFromPattern(track: Track): Region[] {
-  const events = stepsToEvents(track.pattern.steps);
-  const region = createDefaultRegion(track.id, track.pattern.length);
-  return [{ ...region, events }];
+function hydratePatternsFromStepGrid(track: Record<string, unknown>): Pattern[] {
+  const stepGrid = track.stepGrid as { steps: unknown[]; length: number } | undefined
+    ?? track.pattern as { steps: unknown[]; length: number } | undefined;
+  if (!stepGrid?.steps?.length) return [createDefaultPattern(track.id as string, 16)];
+  const events = stepsToEvents(stepGrid.steps as import('./sequencer-types').Step[]);
+  const pattern = createDefaultPattern(track.id as string, stepGrid.length);
+  return [{ ...pattern, events }];
 }
 
 /**
- * Ensure track has valid regions and re-project pattern from regions.
- * Recovery hierarchy:
- * 1. Regions present and valid → use as-is, re-project pattern
- * 2. Regions missing but pattern exists → hydrate regions from pattern
- * 3. Regions invalid but pattern exists → warn, hydrate from pattern
- * 4. Neither recoverable → fall back to empty default region
+ * Migrate a v5 track (with regions) to v6 (with patterns + sequence).
+ * Strips `start` and `loop` from regions, builds sequence from sorted order.
+ * Lossy for gaps/overlaps — logs warnings.
  */
-export function migrateTrack(track: Track): Track {
-  let regions = track.regions;
-
+function migrateV5Regions(track: Record<string, unknown>): { patterns: Pattern[]; sequence: import('./sequencer-types').PatternRef[] } {
+  const regions = track.regions as Array<Record<string, unknown>> | undefined;
   if (!regions || !Array.isArray(regions) || regions.length === 0) {
-    // No regions — hydrate from pattern if available
-    if (track.pattern?.steps?.length > 0) {
-      regions = hydrateRegionsFromPattern(track);
-    } else {
-      regions = [createDefaultRegion(track.id, 16)];
-    }
-  } else if (regions[0] && (!regions[0].events || !Array.isArray(regions[0].events))) {
-    // Regions present but invalid
-    console.warn(`[persistence] Track ${track.id}: invalid regions, hydrating from pattern`);
-    if (track.pattern?.steps?.length > 0) {
-      regions = hydrateRegionsFromPattern(track);
-    } else {
-      regions = [createDefaultRegion(track.id, 16)];
+    const defaultPat = createDefaultPattern(track.id as string, 16);
+    return { patterns: [defaultPat], sequence: [{ patternId: defaultPat.id }] };
+  }
+
+  // Sort by start ascending
+  const sorted = [...regions].sort((a, b) => ((a.start as number) ?? 0) - ((b.start as number) ?? 0));
+
+  // Check for gaps/overlaps and warn
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const curr = sorted[i];
+    const next = sorted[i + 1];
+    const currEnd = ((curr.start as number) ?? 0) + ((curr.duration as number) ?? 16);
+    const nextStart = (next.start as number) ?? 0;
+    if (Math.abs(nextStart - currEnd) > 0.001) {
+      console.warn(`[persistence] Track ${track.id}: v5→v6 migration lossy — region gap/overlap between ${curr.id} (end=${currEnd}) and ${next.id} (start=${nextStart}). Serializing as contiguous.`);
     }
   }
 
-  // Hydrate per-track volume/pan for tracks without them (v4 → v5 migration)
-  let migrated = { ...track, regions };
-  if (migrated.volume == null) migrated.volume = 0.8;
-  if (migrated.pan == null) migrated.pan = 0.0;
+  // Convert regions to patterns (strip start and loop)
+  const patterns: Pattern[] = sorted.map(r => ({
+    id: r.id as string,
+    kind: (r.kind as Pattern['kind']) ?? 'pattern',
+    duration: (r.duration as number) ?? 16,
+    name: r.name as string | undefined,
+    events: (r.events as Pattern['events']) ?? [],
+  }));
 
-  // Hydrate surface for tracks without one (v2 → v3 migration)
-  let surfaced = { ...migrated, regions };
+  // Build sequence from sorted order
+  const sequence = sorted.map(r => ({ patternId: r.id as string }));
+
+  return { patterns, sequence };
+}
+
+/**
+ * Ensure track has valid patterns and re-project step-grid from patterns.
+ * Handles v1 (no regions), v5 (regions with start/loop), and v6 (patterns + sequence).
+ */
+export function migrateTrack(track: Track): Track {
+  // Use 'as any' to read legacy fields that may exist on persisted data
+  const raw = track as unknown as Record<string, unknown>;
+  let patterns: Pattern[];
+  let sequence: import('./sequencer-types').PatternRef[];
+
+  // Check if this is a v5 track with regions (has .regions but no .sequence)
+  if (raw.regions && Array.isArray(raw.regions) && (raw.regions as unknown[]).length > 0 && !raw.sequence) {
+    const migrated = migrateV5Regions(raw);
+    patterns = migrated.patterns;
+    sequence = migrated.sequence;
+  } else if (track.patterns && Array.isArray(track.patterns) && track.patterns.length > 0) {
+    // v6 or already migrated
+    patterns = track.patterns;
+    sequence = track.sequence ?? track.patterns.map(p => ({ patternId: p.id }));
+  } else {
+    // No patterns — hydrate from step-grid if available
+    patterns = hydratePatternsFromStepGrid(raw);
+    sequence = patterns.map(p => ({ patternId: p.id }));
+  }
+
+  // Validate patterns have events arrays
+  if (patterns[0] && (!patterns[0].events || !Array.isArray(patterns[0].events))) {
+    console.warn(`[persistence] Track ${track.id}: invalid patterns, hydrating from step-grid`);
+    patterns = hydratePatternsFromStepGrid(raw);
+    sequence = patterns.map(p => ({ patternId: p.id }));
+  }
+
+  // Hydrate per-track volume/pan for tracks without them
+  let migrated: Record<string, unknown> = { ...track, patterns, sequence };
+  if ((migrated.volume as number | undefined) == null) migrated.volume = 0.8;
+  if ((migrated.pan as number | undefined) == null) migrated.pan = 0.0;
+
+  // Rename legacy field names
+  if (migrated.activeRegionId && !migrated.activePatternId) {
+    migrated.activePatternId = migrated.activeRegionId;
+  }
+  delete migrated.activeRegionId;
+  delete migrated.regions;
+  // Rename legacy stepGrid field
+  if (migrated.pattern && !migrated.stepGrid) {
+    migrated.stepGrid = migrated.pattern;
+  }
+  delete migrated.pattern;
+
+  let surfaced = migrated as unknown as Track;
+
+  // Hydrate surface for tracks without one
   if (!surfaced.surface) {
     surfaced = {
       ...surfaced,
@@ -143,12 +199,12 @@ export function migrateTrack(track: Track): Track {
     };
   }
 
-  // Hydrate approval for tracks without one (pre-approval migration)
+  // Hydrate approval for tracks without one
   if (!surfaced.approval) {
     surfaced = { ...surfaced, approval: 'exploratory' };
   }
 
-  // Hydrate kind and sends for tracks from pre-bus-routing saves
+  // Hydrate kind and sends
   if (!surfaced.kind) {
     surfaced = { ...surfaced, kind: surfaced.id === MASTER_BUS_ID ? 'bus' : 'audio' };
   }
@@ -156,7 +212,7 @@ export function migrateTrack(track: Track): Track {
     surfaced = { ...surfaced, sends: [] };
   }
 
-  // Validate modulators: strip unknown types and dangling modulation references
+  // Validate modulators
   const registeredModTypes = getRegisteredModulatorTypes();
   const validModulators = (surfaced.modulators ?? []).filter(
     (m: ModulatorConfig) => registeredModTypes.includes(m.type),
@@ -167,8 +223,8 @@ export function migrateTrack(track: Track): Track {
   );
   surfaced = { ...surfaced, modulators: validModulators, modulations: validModulations };
 
-  // Always re-project pattern from regions (pattern is derived, never trusted from save)
-  return reprojectTrackPattern(surfaced, defaultInverseOpts);
+  // Always re-project step-grid from patterns (step-grid is derived, never trusted from save)
+  return reprojectTrackStepGrid(surfaced, defaultInverseOpts);
 }
 
 export function saveSession(session: Session): void {
@@ -195,13 +251,18 @@ export function loadSession(): Session | null {
     if (data.version > CURRENT_VERSION) return null;
     if (!isValidSession(data.session)) return null;
 
-    // Migrate all tracks (handles both v1 and v2)
     const session = data.session;
     let migratedTracks = session.tracks.map(migrateTrack);
 
-    // Ensure a master bus exists (backward compat for pre-bus-routing saves)
+    // Ensure a master bus exists
     if (!migratedTracks.some(t => t.id === MASTER_BUS_ID)) {
       migratedTracks = [...migratedTracks, createBusTrack(MASTER_BUS_ID, 'Master')];
+    }
+
+    // Clear undo/redo on v5→v6 migration (old snapshots reference removed fields)
+    const clearUndo = data.version < 6;
+    if (clearUndo) {
+      console.warn('[persistence] v5→v6 migration: clearing undo/redo stacks (old snapshots incompatible)');
     }
 
     return {
@@ -211,11 +272,12 @@ export function loadSession(): Session | null {
         status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
         metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
         timeSignature: session.transport.timeSignature ?? { numerator: 4, denominator: 4 },
+        mode: session.transport.mode ?? 'pattern',
       },
       tracks: migratedTracks as Track[],
       master: session.master ?? { ...DEFAULT_MASTER },
-      undoStack: session.undoStack ?? [],
-      redoStack: session.redoStack ?? [],
+      undoStack: clearUndo ? [] : (session.undoStack ?? []),
+      redoStack: clearUndo ? [] : (session.redoStack ?? []),
       recentHumanActions: session.recentHumanActions ?? [],
       reactionHistory: session.reactionHistory ?? [],
       openDecisions: session.openDecisions ?? [],

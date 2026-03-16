@@ -1,10 +1,11 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, RegionCrudSnapshot } from './types';
-import type { SourceAdapter, ControlState, Region } from './canonical-types';
-import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActiveRegion } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot } from './types';
+import type { SourceAdapter, ControlState, Pattern } from './canonical-types';
+import type { TransportMode } from './sequencer-types';
+import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
-import { createDefaultPattern } from './sequencer-helpers';
-import { createDefaultRegion } from './region-helpers';
+import { createDefaultStepGrid } from './sequencer-helpers';
+import { createDefaultPattern } from './region-helpers';
 
 const TRACK_DEFAULTS: { model: number; engine: string }[] = [
   { model: 13, engine: 'plaits:analog_bass_drum' },
@@ -29,14 +30,16 @@ function buildDefaultProvenance(modelIndex: number): ControlState {
 function createTrack(index: number): Track {
   const defaults = TRACK_DEFAULTS[index] ?? TRACK_DEFAULTS[0];
   const trackId = `v${index}`;
+  const defaultPattern = createDefaultPattern(trackId, 16);
   return {
     id: trackId,
     engine: defaults.engine,
     model: defaults.model,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     agency: 'ON',
-    pattern: createDefaultPattern(16),
-    regions: [createDefaultRegion(trackId, 16)],
+    stepGrid: createDefaultStepGrid(16),
+    patterns: [defaultPattern],
+    sequence: [{ patternId: defaultPattern.id }],
     views: [{ kind: 'step-grid', id: `step-grid-${trackId}` }],
     muted: false,
     solo: false,
@@ -54,10 +57,11 @@ function createTrack(index: number): Track {
 }
 
 /**
- * Create a bus track. Bus tracks have no source engine, empty patterns/regions,
+ * Create a bus track. Bus tracks have no source engine, empty patterns,
  * and exist to receive audio from sends and apply processing.
  */
 export function createBusTrack(trackId: string, name?: string): Track {
+  const defaultPattern = createDefaultPattern(trackId, 16);
   return {
     id: trackId,
     name,
@@ -66,8 +70,9 @@ export function createBusTrack(trackId: string, name?: string): Track {
     model: -1,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     agency: 'OFF',
-    pattern: createDefaultPattern(16),
-    regions: [createDefaultRegion(trackId, 16)],
+    stepGrid: createDefaultStepGrid(16),
+    patterns: [defaultPattern],
+    sequence: [{ patternId: defaultPattern.id }],
     views: [],
     muted: false,
     solo: false,
@@ -128,18 +133,20 @@ function nextTrackId(session: Session): string {
 
 /**
  * Create a new empty track with no source module.
- * The track starts with an empty pattern and region, default volume/pan,
+ * The track starts with an empty pattern, default volume/pan,
  * and no engine/model (engine index -1).
  */
 export function createEmptyTrack(trackId: string): Track {
+  const defaultPattern = createDefaultPattern(trackId, 16);
   return {
     id: trackId,
     engine: '',
     model: -1,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     agency: 'ON',
-    pattern: createDefaultPattern(16),
-    regions: [createDefaultRegion(trackId, 16)],
+    stepGrid: createDefaultStepGrid(16),
+    patterns: [defaultPattern],
+    sequence: [{ patternId: defaultPattern.id }],
     views: [{ kind: 'step-grid', id: `step-grid-${trackId}` }],
     muted: false,
     solo: false,
@@ -232,7 +239,7 @@ export function removeTrack(session: Session, trackId: string): Session | null {
   }
 
   // Remove sends targeting this track from all other tracks
-  let newTracks = session.tracks
+  const newTracks = session.tracks
     .filter(t => t.id !== trackId)
     .map(t => {
       const sends = t.sends;
@@ -437,33 +444,12 @@ export function stopTransport(session: Session): Session {
   };
 }
 
-// --- Loop region helpers ---
+// --- Transport mode ---
 
-export function toggleLoop(session: Session): Session {
+export function setTransportMode(session: Session, mode: TransportMode): Session {
   return {
     ...session,
-    transport: { ...session.transport, loopEnabled: !session.transport.loopEnabled },
-  };
-}
-
-export function setLoopStart(session: Session, step: number): Session {
-  const clamped = Math.max(0, Math.floor(step));
-  const loopEnd = session.transport.loopEnd ?? 16;
-  return {
-    ...session,
-    transport: {
-      ...session.transport,
-      loopStart: Math.min(clamped, loopEnd - 1),
-    },
-  };
-}
-
-export function setLoopEnd(session: Session, step: number): Session {
-  const loopStart = session.transport.loopStart ?? 0;
-  const clamped = Math.max(loopStart + 1, Math.floor(step));
-  return {
-    ...session,
-    transport: { ...session.transport, loopEnd: clamped },
+    transport: { ...session.transport, mode },
   };
 }
 
@@ -635,197 +621,201 @@ export function setSendLevel(session: Session, trackId: string, busId: string, l
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
-// --- Region CRUD helpers ---
+// --- Pattern CRUD helpers ---
 
-/** Maximum regions per track. */
-export const MAX_REGIONS_PER_TRACK = 16;
+/** Maximum patterns per track. */
+export const MAX_PATTERNS_PER_TRACK = 16;
 
 /**
- * Derive a unique region ID within a track.
+ * Derive a unique pattern ID within a track.
  */
-function nextRegionId(track: Track): string {
-  const existing = new Set(track.regions.map(r => r.id));
-  for (let i = 0; i < MAX_REGIONS_PER_TRACK + 1; i++) {
-    const id = `${track.id}-region-${i}`;
+function nextPatternId(track: Track): string {
+  const existing = new Set(track.patterns.map(p => p.id));
+  for (let i = 0; i < MAX_PATTERNS_PER_TRACK + 1; i++) {
+    const id = `${track.id}-pattern-${i}`;
     if (!existing.has(id)) return id;
   }
-  return `${track.id}-region-${Date.now()}`;
+  return `${track.id}-pattern-${Date.now()}`;
 }
 
 /**
- * Add a new empty region to a track. Inserts after `afterRegionId` if given,
- * otherwise appends at the end. Returns null if at MAX_REGIONS_PER_TRACK.
- * Sets the new region as active and pushes an undo snapshot.
+ * Add a new empty pattern to a track. Returns null if at MAX_PATTERNS_PER_TRACK.
+ * Sets the new pattern as active, adds a PatternRef to the sequence, and pushes an undo snapshot.
  */
-export function addRegion(session: Session, trackId: string, afterRegionId?: string): Session | null {
+export function addPattern(session: Session, trackId: string): Session | null {
   const track = session.tracks.find(t => t.id === trackId);
   if (!track) return null;
-  if (track.regions.length >= MAX_REGIONS_PER_TRACK) return null;
+  if (track.patterns.length >= MAX_PATTERNS_PER_TRACK) return null;
 
-  const activeRegion = getActiveRegion(track);
-  const newId = nextRegionId(track);
-  const duration = activeRegion?.duration ?? 16;
+  const activePattern = getActivePattern(track);
+  const newId = nextPatternId(track);
+  const duration = activePattern?.duration ?? 16;
 
-  let start: number;
-  if (afterRegionId) {
-    const afterRegion = track.regions.find(r => r.id === afterRegionId);
-    start = afterRegion ? afterRegion.start + afterRegion.duration : 0;
-  } else {
-    const lastRegion = track.regions[track.regions.length - 1];
-    start = lastRegion ? lastRegion.start + lastRegion.duration : 0;
-  }
-
-  const newRegion: Region = {
+  const newPattern: Pattern = {
     id: newId,
     kind: 'pattern',
-    start,
     duration,
-    loop: true,
     events: [],
   };
 
-  const newRegions = [...track.regions];
-  if (afterRegionId) {
-    const idx = newRegions.findIndex(r => r.id === afterRegionId);
-    newRegions.splice(idx === -1 ? newRegions.length : idx + 1, 0, newRegion);
-  } else {
-    newRegions.push(newRegion);
-  }
+  const newPatterns = [...track.patterns, newPattern];
+  const newSequence = [...track.sequence, { patternId: newId }];
 
-  const snapshot: RegionCrudSnapshot = {
-    kind: 'region-crud',
+  const snapshot: PatternCrudSnapshot = {
+    kind: 'pattern-crud',
     trackId,
     action: 'add',
-    addedRegionId: newId,
-    prevActiveRegionId: track.activeRegionId,
+    addedPatternId: newId,
+    prevActivePatternId: track.activePatternId,
+    prevSequence: [...track.sequence],
     timestamp: Date.now(),
-    description: `Add region to ${trackId}`,
+    description: `Add pattern to ${trackId}`,
   };
 
   const result = updateTrack(session, trackId, {
-    regions: newRegions,
-    activeRegionId: newId,
-    _regionDirty: true,
+    patterns: newPatterns,
+    sequence: newSequence,
+    activePatternId: newId,
+    _patternDirty: true,
   });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
+/** @deprecated Use addPattern instead. */
+export const addRegion = (session: Session, trackId: string) => addPattern(session, trackId);
+
 /**
- * Remove a region from a track. Returns null if only one region remains.
- * Pushes an undo snapshot.
+ * Remove a pattern from a track. Returns null if only one pattern remains.
+ * Also removes sequence refs to the removed pattern. Pushes an undo snapshot.
  */
-export function removeRegion(session: Session, trackId: string, regionId: string): Session | null {
+export function removePattern(session: Session, trackId: string, patternId: string): Session | null {
   const track = session.tracks.find(t => t.id === trackId);
   if (!track) return null;
-  if (track.regions.length <= 1) return null;
+  if (track.patterns.length <= 1) return null;
 
-  const index = track.regions.findIndex(r => r.id === regionId);
+  const index = track.patterns.findIndex(p => p.id === patternId);
   if (index === -1) return null;
 
-  const removedRegion = track.regions[index];
-  const newRegions = track.regions.filter(r => r.id !== regionId);
+  const removedPattern = track.patterns[index];
+  const newPatterns = track.patterns.filter(p => p.id !== patternId);
+  const newSequence = track.sequence.filter(ref => ref.patternId !== patternId);
 
-  // If the removed region was active, select an adjacent one
-  let newActiveRegionId = track.activeRegionId;
-  if (track.activeRegionId === regionId || !track.activeRegionId) {
-    const newIdx = Math.min(index, newRegions.length - 1);
-    newActiveRegionId = newRegions[newIdx].id;
+  // If the removed pattern was active, select an adjacent one
+  let newActivePatternId = track.activePatternId;
+  if (track.activePatternId === patternId || !track.activePatternId) {
+    const newIdx = Math.min(index, newPatterns.length - 1);
+    newActivePatternId = newPatterns[newIdx].id;
   }
 
-  const snapshot: RegionCrudSnapshot = {
-    kind: 'region-crud',
+  const snapshot: PatternCrudSnapshot = {
+    kind: 'pattern-crud',
     trackId,
     action: 'remove',
-    removedRegion,
+    removedPattern,
     removedIndex: index,
-    prevActiveRegionId: track.activeRegionId,
+    prevActivePatternId: track.activePatternId,
+    prevSequence: [...track.sequence],
     timestamp: Date.now(),
-    description: `Remove region ${regionId} from ${trackId}`,
+    description: `Remove pattern ${patternId} from ${trackId}`,
   };
 
   const result = updateTrack(session, trackId, {
-    regions: newRegions,
-    activeRegionId: newActiveRegionId,
-    _regionDirty: true,
+    patterns: newPatterns,
+    sequence: newSequence,
+    activePatternId: newActivePatternId,
+    _patternDirty: true,
   });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
+
+/** @deprecated Use removePattern instead. */
+export const removeRegion = removePattern;
 
 /**
- * Duplicate a region on a track. The copy is inserted immediately after the source.
- * Returns null if at MAX_REGIONS_PER_TRACK.
+ * Duplicate a pattern on a track. The copy is inserted after the source.
+ * Also adds a PatternRef to the sequence. Returns null if at MAX_PATTERNS_PER_TRACK.
  */
-export function duplicateRegion(session: Session, trackId: string, regionId: string): Session | null {
+export function duplicatePattern(session: Session, trackId: string, patternId: string): Session | null {
   const track = session.tracks.find(t => t.id === trackId);
   if (!track) return null;
-  if (track.regions.length >= MAX_REGIONS_PER_TRACK) return null;
+  if (track.patterns.length >= MAX_PATTERNS_PER_TRACK) return null;
 
-  const sourceRegion = track.regions.find(r => r.id === regionId);
-  if (!sourceRegion) return null;
+  const sourcePattern = track.patterns.find(p => p.id === patternId);
+  if (!sourcePattern) return null;
 
-  const newId = nextRegionId(track);
-  const lastRegion = track.regions[track.regions.length - 1];
-  const copyStart = lastRegion ? lastRegion.start + lastRegion.duration : 0;
-  const copy: Region = {
-    ...sourceRegion,
+  const newId = nextPatternId(track);
+  const copy: Pattern = {
+    ...sourcePattern,
     id: newId,
-    name: sourceRegion.name ? `${sourceRegion.name} (copy)` : undefined,
-    start: copyStart,
-    events: sourceRegion.events.map(e => ({ ...e })),
+    name: sourcePattern.name ? `${sourcePattern.name} (copy)` : undefined,
+    events: sourcePattern.events.map(e => ({ ...e })),
   };
 
-  const newRegions = [...track.regions];
-  const sourceIdx = newRegions.findIndex(r => r.id === regionId);
-  newRegions.splice(sourceIdx + 1, 0, copy);
+  const newPatterns = [...track.patterns];
+  const sourceIdx = newPatterns.findIndex(p => p.id === patternId);
+  newPatterns.splice(sourceIdx + 1, 0, copy);
 
-  const snapshot: RegionCrudSnapshot = {
-    kind: 'region-crud',
+  const newSequence = [...track.sequence, { patternId: newId }];
+
+  const snapshot: PatternCrudSnapshot = {
+    kind: 'pattern-crud',
     trackId,
     action: 'duplicate',
-    addedRegionId: newId,
-    prevActiveRegionId: track.activeRegionId,
+    addedPatternId: newId,
+    prevActivePatternId: track.activePatternId,
+    prevSequence: [...track.sequence],
     timestamp: Date.now(),
-    description: `Duplicate region ${regionId} on ${trackId}`,
+    description: `Duplicate pattern ${patternId} on ${trackId}`,
   };
 
   const result = updateTrack(session, trackId, {
-    regions: newRegions,
-    activeRegionId: newId,
-    _regionDirty: true,
+    patterns: newPatterns,
+    sequence: newSequence,
+    activePatternId: newId,
+    _patternDirty: true,
   });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
-/** Rename a region. */
-export function renameRegion(session: Session, trackId: string, regionId: string, name: string): Session {
+/** @deprecated Use duplicatePattern instead. */
+export const duplicateRegion = duplicatePattern;
+
+/** Rename a pattern. */
+export function renamePattern(session: Session, trackId: string, patternId: string, name: string): Session {
   const track = session.tracks.find(t => t.id === trackId);
   if (!track) return session;
-  const region = track.regions.find(r => r.id === regionId);
-  if (!region) return session;
+  const pattern = track.patterns.find(p => p.id === patternId);
+  if (!pattern) return session;
 
-  const snapshot: RegionCrudSnapshot = {
-    kind: 'region-crud',
+  const snapshot: PatternCrudSnapshot = {
+    kind: 'pattern-crud',
     trackId,
     action: 'rename',
-    regionId,
-    previousName: region.name,
+    patternId,
+    previousName: pattern.name,
     timestamp: Date.now(),
-    description: `Rename region ${regionId} on ${trackId}`,
+    description: `Rename pattern ${patternId} on ${trackId}`,
   };
 
   const result = updateTrack(session, trackId, {
-    regions: track.regions.map(r => r.id === regionId ? { ...r, name } : r),
+    patterns: track.patterns.map(p => p.id === patternId ? { ...p, name } : p),
   });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
-/** Set the active region on a track. */
-export function setActiveRegionOnTrack(session: Session, trackId: string, regionId: string): Session {
+/** @deprecated Use renamePattern instead. */
+export const renameRegion = renamePattern;
+
+/** Set the active pattern on a track. */
+export function setActivePatternOnTrack(session: Session, trackId: string, patternId: string): Session {
   const track = session.tracks.find(t => t.id === trackId);
   if (!track) return session;
-  if (!track.regions.some(r => r.id === regionId)) return session;
-  return updateTrack(session, trackId, { activeRegionId: regionId });
+  if (!track.patterns.some(p => p.id === patternId)) return session;
+  return updateTrack(session, trackId, { activePatternId: patternId });
 }
+
+/** @deprecated Use setActivePatternOnTrack instead. */
+export const setActiveRegionOnTrack = setActivePatternOnTrack;
 
 
 // --- A/B comparison helpers ---
@@ -842,8 +832,9 @@ function deepCopyTrack(track: Track): Track {
   return {
     ...track,
     params: { ...track.params },
-    pattern: { ...track.pattern, steps: track.pattern.steps.map(s => ({ ...s, paramLocks: s.paramLocks ? { ...s.paramLocks } : undefined })) },
-    regions: track.regions.map(r => ({ ...r, events: r.events.map(e => ({ ...e })) })),
+    stepGrid: { ...track.stepGrid, steps: track.stepGrid.steps.map(s => ({ ...s })) },
+    patterns: track.patterns.map(p => ({ ...p, events: p.events.map(e => ({ ...e })) })),
+    sequence: track.sequence.map(ref => ({ ...ref })),
     processors: track.processors?.map(p => ({ ...p, params: { ...p.params } })),
     modulators: track.modulators?.map(m => ({ ...m, params: { ...m.params } })),
     modulations: track.modulations?.map(r => ({ ...r, target: { ...r.target } })),

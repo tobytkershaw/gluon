@@ -3,11 +3,11 @@ import type {
   Session, ParamSnapshot, PatternSnapshot, Snapshot, UndoEntry,
   SynthParamValues, ActionGroupSnapshot,
 } from './types';
-import { getTrack, getActiveRegion, updateTrack } from './types';
-import type { PatternSketch, Step } from './sequencer-types';
-import { reprojectTrackPattern } from './region-projection';
+import { getTrack, getActivePattern, updateTrack } from './types';
+import type { StepGridSketch, Step } from './sequencer-types';
+import { reprojectTrackStepGrid } from './region-projection';
 import { stepsToEvents } from './event-conversion';
-import { normalizeRegionEvents } from './region-helpers';
+import { normalizePatternEvents } from './region-helpers';
 import { runtimeParamToControlId } from '../audio/instrument-registry';
 
 function clampParam(value: number): number {
@@ -98,14 +98,14 @@ export function applySketch(
   session: Session,
   trackId: string,
   description: string,
-  sketch: PatternSketch,
+  sketch: StepGridSketch,
 ): Session {
   const track = getTrack(session, trackId);
   const prevSteps: { index: number; step: Step }[] = [];
-  const newSteps = [...track.pattern.steps];
-  let newLength = track.pattern.length;
-  const prevLength = sketch.length !== undefined && sketch.length !== track.pattern.length
-    ? track.pattern.length
+  const newSteps = [...track.stepGrid.steps];
+  let newLength = track.stepGrid.length;
+  const prevLength = sketch.length !== undefined && sketch.length !== track.stepGrid.length
+    ? track.stepGrid.length
     : undefined;
 
   if (sketch.length !== undefined) {
@@ -136,30 +136,30 @@ export function applySketch(
     prevSteps,
     prevLength,
     // Capture region events so undo can fully restore them (#209, #214)
-    prevEvents: track.regions.length > 0 ? [...getActiveRegion(track).events] : undefined,
+    prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : undefined,
     prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
     timestamp: Date.now(),
     description,
   };
 
   const newPattern = { steps: newSteps, length: newLength };
-  let updated = updateTrack(session, trackId, { pattern: newPattern });
+  let updated = updateTrack(session, trackId, { stepGrid: newPattern });
 
   // Project pattern steps to canonical events in the active region
   const updatedTrack = getTrack(updated, trackId);
-  if (updatedTrack.regions.length > 0) {
-    const activeReg = getActiveRegion(updatedTrack);
+  if (updatedTrack.patterns.length > 0) {
+    const activeReg = getActivePattern(updatedTrack);
     const events = stepsToEvents(newSteps.slice(0, newLength), {
       runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
     });
-    const region = normalizeRegionEvents({
+    const region = normalizePatternEvents({
       ...activeReg,
       events,
       duration: newLength,
     });
     updated = updateTrack(updated, trackId, {
-      regions: updatedTrack.regions.map(r => r.id === activeReg.id ? region : r),
-      _regionDirty: true,
+      patterns: updatedTrack.patterns.map(r => r.id === activeReg.id ? region : r),
+      _patternDirty: true,
     });
   }
 
@@ -235,33 +235,35 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { sends: snapshot.prevSends });
   }
 
-  if (snapshot.kind === 'region-crud') {
+  if (snapshot.kind === 'pattern-crud') {
     const track = getTrack(session, snapshot.trackId);
     if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
-      // Undo add/duplicate: remove the added region
-      const newRegions = track.regions.filter(r => r.id !== snapshot.addedRegionId);
+      // Undo add/duplicate: remove the added region and restore sequence
+      const newRegions = track.patterns.filter(r => r.id !== snapshot.addedPatternId);
       return updateTrack(session, snapshot.trackId, {
-        regions: newRegions,
-        activeRegionId: snapshot.prevActiveRegionId,
-        _regionDirty: true,
+        patterns: newRegions,
+        activePatternId: snapshot.prevActivePatternId,
+        ...(snapshot.prevSequence ? { sequence: snapshot.prevSequence } : {}),
+        _patternDirty: true,
       });
     }
-    if (snapshot.action === 'remove' && snapshot.removedRegion != null && snapshot.removedIndex != null) {
-      // Undo remove: re-insert the removed region at its original position
-      const newRegions = [...track.regions];
+    if (snapshot.action === 'remove' && snapshot.removedPattern != null && snapshot.removedIndex != null) {
+      // Undo remove: re-insert the removed region at its original position and restore sequence
+      const newRegions = [...track.patterns];
       const insertAt = Math.min(snapshot.removedIndex, newRegions.length);
-      newRegions.splice(insertAt, 0, snapshot.removedRegion);
+      newRegions.splice(insertAt, 0, snapshot.removedPattern);
       return updateTrack(session, snapshot.trackId, {
-        regions: newRegions,
-        activeRegionId: snapshot.prevActiveRegionId,
-        _regionDirty: true,
+        patterns: newRegions,
+        activePatternId: snapshot.prevActivePatternId,
+        ...(snapshot.prevSequence ? { sequence: snapshot.prevSequence } : {}),
+        _patternDirty: true,
       });
     }
-    if (snapshot.action === 'rename' && snapshot.regionId != null) {
+    if (snapshot.action === 'rename' && snapshot.patternId != null) {
       // Undo rename: restore the previous name
       return updateTrack(session, snapshot.trackId, {
-        regions: track.regions.map(r =>
-          r.id === snapshot.regionId ? { ...r, name: snapshot.previousName } : r,
+        patterns: track.patterns.map(r =>
+          r.id === snapshot.patternId ? { ...r, name: snapshot.previousName } : r,
         ),
       });
     }
@@ -292,27 +294,27 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return { ...session, tracks: newTracks, activeTrackId: snapshot.prevActiveTrackId };
   }
 
-  if (snapshot.kind === 'region') {
+  if (snapshot.kind === 'pattern-edit') {
     const track = getTrack(session, snapshot.trackId);
-    if (track.regions.length === 0) return session;
-    // Find the target region by regionId, or fall back to the active region
-    const targetRegionId = snapshot.regionId;
+    if (track.patterns.length === 0) return session;
+    // Find the target region by patternId, or fall back to the active region
+    const targetRegionId = snapshot.patternId;
     const targetRegion = targetRegionId
-      ? track.regions.find(r => r.id === targetRegionId) ?? getActiveRegion(track)
-      : getActiveRegion(track);
+      ? track.patterns.find(r => r.id === targetRegionId) ?? getActivePattern(track)
+      : getActivePattern(track);
     const restoredRegion = {
       ...targetRegion,
       events: snapshot.prevEvents,
       ...(snapshot.prevDuration !== undefined ? { duration: snapshot.prevDuration } : {}),
     };
-    const updatedTrack = reprojectTrackPattern({
+    const updatedTrack = reprojectTrackStepGrid({
       ...track,
-      regions: track.regions.map(r => r.id === targetRegion.id ? restoredRegion : r),
+      patterns: track.patterns.map(r => r.id === targetRegion.id ? restoredRegion : r),
     });
     const updates: Partial<import('./types').Track> = {
-      regions: updatedTrack.regions,
-      pattern: updatedTrack.pattern,
-      _regionDirty: true,
+      patterns: updatedTrack.patterns,
+      stepGrid: updatedTrack.stepGrid,
+      _patternDirty: true,
     };
     if ('prevHiddenEvents' in snapshot) {
       updates._hiddenEvents = snapshot.prevHiddenEvents;
@@ -322,45 +324,45 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   if (snapshot.kind === 'pattern') {
     const track = getTrack(session, snapshot.trackId);
-    const newSteps = [...track.pattern.steps];
+    const newSteps = [...track.stepGrid.steps];
     for (const { index, step } of snapshot.prevSteps) {
       if (index < newSteps.length) {
         newSteps[index] = step;
       }
     }
-    const newLength = snapshot.prevLength ?? track.pattern.length;
+    const newLength = snapshot.prevLength ?? track.stepGrid.length;
     const updates: Partial<import('./types').Track> = {
-      pattern: { steps: newSteps, length: newLength },
+      stepGrid: { steps: newSteps, length: newLength },
     };
 
     // Restore region events if they were captured (#209, #214)
-    if (snapshot.prevEvents && track.regions.length > 0) {
-      const activeReg = getActiveRegion(track);
+    if (snapshot.prevEvents && track.patterns.length > 0) {
+      const activeReg = getActivePattern(track);
       const restoredRegion = {
         ...activeReg,
         events: snapshot.prevEvents,
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       };
-      const updatedTrack = reprojectTrackPattern({
+      const updatedTrack = reprojectTrackStepGrid({
         ...track,
-        regions: track.regions.map(r => r.id === activeReg.id ? restoredRegion : r),
+        patterns: track.patterns.map(r => r.id === activeReg.id ? restoredRegion : r),
       });
-      updates.regions = updatedTrack.regions;
-      updates.pattern = updatedTrack.pattern;
-      updates._regionDirty = true;
-    } else if (track.regions.length > 0) {
+      updates.patterns = updatedTrack.patterns;
+      updates.stepGrid = updatedTrack.stepGrid;
+      updates._patternDirty = true;
+    } else if (track.patterns.length > 0) {
       // Old snapshot without prevEvents: best-effort region sync from restored steps.
-      const activeReg = getActiveRegion(track);
+      const activeReg = getActivePattern(track);
       const events = stepsToEvents(newSteps.slice(0, newLength), {
         runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
       });
-      const region = normalizeRegionEvents({
+      const region = normalizePatternEvents({
         ...activeReg,
         events,
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       });
-      updates.regions = track.regions.map(r => r.id === activeReg.id ? region : r);
-      updates._regionDirty = true;
+      updates.patterns = track.patterns.map(r => r.id === activeReg.id ? region : r);
+      updates._patternDirty = true;
     }
 
     // Restore hidden events if captured (#210)
@@ -422,25 +424,25 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     const track = getTrack(session, snapshot.trackId);
     const prevSteps = snapshot.prevSteps.map(({ index }) => ({
       index,
-      step: { ...track.pattern.steps[index] },
+      step: { ...track.stepGrid.steps[index] },
     }));
     return {
       ...snapshot,
       prevSteps,
-      prevLength: snapshot.prevLength !== undefined ? track.pattern.length : undefined,
-      prevEvents: track.regions.length > 0 ? [...getActiveRegion(track).events] : undefined,
+      prevLength: snapshot.prevLength !== undefined ? track.stepGrid.length : undefined,
+      prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : undefined,
       prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
       timestamp: now,
     };
   }
 
-  if (snapshot.kind === 'region') {
+  if (snapshot.kind === 'pattern-edit') {
     const track = getTrack(session, snapshot.trackId);
-    if (track.regions.length === 0) return { ...snapshot, timestamp: now };
+    if (track.patterns.length === 0) return { ...snapshot, timestamp: now };
     // Use the region targeted by the snapshot, not the active region
-    const targetRegion = snapshot.regionId
-      ? track.regions.find(r => r.id === snapshot.regionId) ?? getActiveRegion(track)
-      : getActiveRegion(track);
+    const targetRegion = snapshot.patternId
+      ? track.patterns.find(r => r.id === snapshot.patternId) ?? getActivePattern(track)
+      : getActivePattern(track);
     return {
       ...snapshot,
       prevEvents: [...targetRegion.events],
@@ -525,19 +527,20 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     return { ...snapshot, prevSends: [...(track.sends ?? [])], timestamp: now };
   }
 
-  if (snapshot.kind === 'region-crud') {
+  if (snapshot.kind === 'pattern-crud') {
     const track = getTrack(session, snapshot.trackId);
     if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
       // Reverse of add is remove
-      const addedRegion = track.regions.find(r => r.id === snapshot.addedRegionId);
-      const addedIndex = track.regions.findIndex(r => r.id === snapshot.addedRegionId);
+      const addedRegion = track.patterns.find(r => r.id === snapshot.addedPatternId);
+      const addedIndex = track.patterns.findIndex(r => r.id === snapshot.addedPatternId);
       return {
         ...snapshot,
         action: 'remove' as const,
-        removedRegion: addedRegion ? { ...addedRegion, events: addedRegion.events.map(e => ({ ...e })) } : undefined,
+        removedPattern: addedRegion ? { ...addedRegion, events: addedRegion.events.map(e => ({ ...e })) } : undefined,
         removedIndex: addedIndex >= 0 ? addedIndex : undefined,
-        addedRegionId: undefined,
-        prevActiveRegionId: track.activeRegionId,
+        addedPatternId: undefined,
+        prevActivePatternId: track.activePatternId,
+        prevSequence: [...track.sequence],
         timestamp: now,
       };
     }
@@ -546,16 +549,17 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
       return {
         ...snapshot,
         action: 'add' as const,
-        addedRegionId: snapshot.removedRegion?.id,
-        removedRegion: undefined,
+        addedPatternId: snapshot.removedPattern?.id,
+        removedPattern: undefined,
         removedIndex: undefined,
-        prevActiveRegionId: track.activeRegionId,
+        prevActivePatternId: track.activePatternId,
+        prevSequence: [...track.sequence],
         timestamp: now,
       };
     }
-    if (snapshot.action === 'rename' && snapshot.regionId) {
+    if (snapshot.action === 'rename' && snapshot.patternId) {
       // Reverse of rename: capture current name so redo can restore it
-      const region = track.regions.find(r => r.id === snapshot.regionId);
+      const region = track.patterns.find(r => r.id === snapshot.patternId);
       return {
         ...snapshot,
         previousName: region?.name,

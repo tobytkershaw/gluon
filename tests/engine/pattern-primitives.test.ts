@@ -7,7 +7,7 @@ import {
 import { createSession } from '../../src/engine/session';
 import type { TriggerEvent, NoteEvent } from '../../src/engine/canonical-types';
 import { getTrack, updateTrack } from '../../src/engine/types';
-import { validateRegion } from '../../src/engine/region-helpers';
+import { validatePattern } from '../../src/engine/region-helpers';
 
 describe('Pattern Primitives', () => {
   describe('toggleStepGate', () => {
@@ -15,9 +15,9 @@ describe('Pattern Primitives', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
       const result = toggleStepGate(s, vid, 0);
-      expect(getTrack(result, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(result, vid).stepGrid.steps[0].gate).toBe(true);
       expect(result.undoStack.length).toBe(1);
-      expect(result.undoStack[0].kind).toBe('region');
+      expect(result.undoStack[0].kind).toBe('pattern-edit');
     });
 
     it('toggles gate off', () => {
@@ -25,7 +25,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepGate(s, vid, 0);
-      expect(getTrack(result, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(result, vid).stepGrid.steps[0].gate).toBe(false);
     });
 
     it('preserves accent when toggling gate off and back on', () => {
@@ -33,14 +33,14 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);       // gate on
       s = toggleStepAccent(s, vid, 0);      // accent on
-      expect(getTrack(s, vid).pattern.steps[0].accent).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[0].accent).toBe(true);
 
       s = toggleStepGate(s, vid, 0);        // gate off
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
 
       s = toggleStepGate(s, vid, 0);        // gate back on
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(true);
-      expect(getTrack(s, vid).pattern.steps[0].accent).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[0].accent).toBe(true);
     });
 
     it('ignores out-of-range step index', () => {
@@ -53,7 +53,7 @@ describe('Pattern Primitives', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
       const result = toggleStepGate(s, vid, 0);
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(true);
     });
 
@@ -62,7 +62,7 @@ describe('Pattern Primitives', () => {
       // Track 1 (v1) is model 0 (virtual-analog) — pitched
       const vid = s.tracks[1].id;
       const result = toggleStepGate(s, vid, 0);
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       const noteEvent = region.events.find(e => e.kind === 'note' && Math.abs(e.at) < 0.01);
       expect(noteEvent).toBeDefined();
       const ne = noteEvent as NoteEvent;
@@ -79,7 +79,7 @@ describe('Pattern Primitives', () => {
       // Track 0 (v0) is model 13 (analog-bass-drum) — percussion
       const vid = s.tracks[0].id;
       const result = toggleStepGate(s, vid, 0);
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(true);
       expect(region.events.some(e => e.kind === 'note' && Math.abs(e.at) < 0.01)).toBe(false);
     });
@@ -92,7 +92,7 @@ describe('Pattern Primitives', () => {
         params: { ...getTrack(s, vid).params, note: 0.5 },
       });
       const result = toggleStepGate(s, vid, 0);
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       const noteEvent = region.events.find(e => e.kind === 'note') as NoteEvent;
       expect(noteEvent).toBeDefined();
       // 0.5 * 127 = 63.5, rounded = 64
@@ -103,13 +103,13 @@ describe('Pattern Primitives', () => {
       let s = createSession();
       const vid = s.tracks[1].id;
       s = toggleStepGate(s, vid, 0);       // gate on (NoteEvent)
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(true);
 
       s = toggleStepGate(s, vid, 0);       // gate off
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
 
       s = toggleStepGate(s, vid, 0);       // gate back on
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(true);
     });
 
     it('handles legacy TriggerEvent on pitched track (toggle off)', () => {
@@ -118,13 +118,13 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[1].id;
       const track = getTrack(s, vid);
       // Manually inject a TriggerEvent into the region
-      const events = [...track.regions[0].events, { kind: 'trigger' as const, at: 3, velocity: 0.8 }];
+      const events = [...track.patterns[0].events, { kind: 'trigger' as const, at: 3, velocity: 0.8 }];
       s = updateTrack(s, vid, {
-        regions: [{ ...track.regions[0], events }],
+        patterns: [{ ...track.patterns[0], events }],
       });
       // Toggle off should find and disable the TriggerEvent
       const result = toggleStepGate(s, vid, 3);
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       const trigger = region.events.find(e => e.kind === 'trigger' && Math.abs(e.at - 3) < 0.01) as TriggerEvent;
       expect(trigger).toBeDefined();
       expect(trigger.velocity).toBe(0);
@@ -137,7 +137,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepAccent(s, vid, 0);
-      expect(getTrack(result, vid).pattern.steps[0].accent).toBe(true);
+      expect(getTrack(result, vid).stepGrid.steps[0].accent).toBe(true);
     });
 
     it('updates canonical region events', () => {
@@ -145,7 +145,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepAccent(s, vid, 0);
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       const trigger = region.events.find(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01);
       expect(trigger).toBeDefined();
       expect((trigger as TriggerEvent).accent).toBe(true);
@@ -156,11 +156,11 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);        // gate on
       s = toggleStepGate(s, vid, 0);        // gate off (disabled sentinel)
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
 
       s = toggleStepAccent(s, vid, 0);      // accent toggle on disabled step
       // Gate must remain off — accent on a disabled step is a no-op
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
     });
 
     it('toggles accent on a pitched NoteEvent', () => {
@@ -168,9 +168,9 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[1].id;  // pitched track
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepAccent(s, vid, 0);
-      expect(getTrack(result, vid).pattern.steps[0].accent).toBe(true);
+      expect(getTrack(result, vid).stepGrid.steps[0].accent).toBe(true);
       // Verify the NoteEvent velocity was set to 1.0
-      const region = getTrack(result, vid).regions[0];
+      const region = getTrack(result, vid).patterns[0];
       const noteEvent = region.events.find(e => e.kind === 'note' && Math.abs(e.at) < 0.01) as NoteEvent;
       expect(noteEvent).toBeDefined();
       expect(noteEvent.velocity).toBe(1.0);
@@ -181,10 +181,10 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[1].id;  // pitched track
       s = toggleStepGate(s, vid, 0);        // gate on (NoteEvent)
       s = toggleStepGate(s, vid, 0);        // gate off (velocity=0)
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
 
       s = toggleStepAccent(s, vid, 0);      // accent on disabled NoteEvent
-      expect(getTrack(s, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
     });
   });
 
@@ -193,7 +193,7 @@ describe('Pattern Primitives', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
       const result = setStepParamLock(s, vid, 0, { timbre: 0.9 });
-      expect(getTrack(result, vid).pattern.steps[0].params?.timbre).toBe(0.9);
+      expect(getTrack(result, vid).stepGrid.steps[0].params?.timbre).toBe(0.9);
       expect(result.undoStack.length).toBe(1);
     });
 
@@ -202,7 +202,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       const result = setStepParamLock(s, vid, 0, { morph: 0.3 });
-      const step = getTrack(result, vid).pattern.steps[0];
+      const step = getTrack(result, vid).stepGrid.steps[0];
       expect(step.params?.timbre).toBe(0.9);
       expect(step.params?.morph).toBe(0.3);
     });
@@ -214,7 +214,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = setStepParamLock(s, vid, 0, { timbre: 0.9, morph: 0.3 });
       const result = clearStepParamLock(s, vid, 0, 'timbre');
-      const step = getTrack(result, vid).pattern.steps[0];
+      const step = getTrack(result, vid).stepGrid.steps[0];
       expect(step.params?.timbre).toBeUndefined();
       expect(step.params?.morph).toBe(0.3);
     });
@@ -224,7 +224,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = setStepParamLock(s, vid, 0, { timbre: 0.9 });
       const result = clearStepParamLock(s, vid, 0, 'timbre');
-      expect(getTrack(result, vid).pattern.steps[0].params).toBeUndefined();
+      expect(getTrack(result, vid).stepGrid.steps[0].params).toBeUndefined();
     });
   });
 
@@ -233,7 +233,7 @@ describe('Pattern Primitives', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
       const result = setPatternLength(s, vid, 8);
-      expect(getTrack(result, vid).pattern.length).toBe(8);
+      expect(getTrack(result, vid).stepGrid.length).toBe(8);
       expect(result.undoStack.length).toBe(1);
     });
 
@@ -241,7 +241,7 @@ describe('Pattern Primitives', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
       const result = setPatternLength(s, vid, 32);
-      const pattern = getTrack(result, vid).pattern;
+      const pattern = getTrack(result, vid).stepGrid;
       expect(pattern.length).toBe(32);
       expect(pattern.steps.length).toBe(32);
     });
@@ -249,28 +249,28 @@ describe('Pattern Primitives', () => {
     it('clamps to 1-64', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
-      expect(getTrack(setPatternLength(s, vid, 0), vid).pattern.length).toBe(1);
-      expect(getTrack(setPatternLength(s, vid, 100), vid).pattern.length).toBe(64);
+      expect(getTrack(setPatternLength(s, vid, 0), vid).stepGrid.length).toBe(1);
+      expect(getTrack(setPatternLength(s, vid, 100), vid).stepGrid.length).toBe(64);
     });
 
     it('updates canonical region duration', () => {
       const s = createSession();
       const vid = s.tracks[0].id;
       const result = setPatternLength(s, vid, 32);
-      expect(getTrack(result, vid).regions[0].duration).toBe(32);
+      expect(getTrack(result, vid).patterns[0].duration).toBe(32);
     });
 
     it('shortening then expanding restores hidden content', () => {
       let s = createSession();
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 12);       // gate at step 12
-      expect(getTrack(s, vid).pattern.steps[12].gate).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[12].gate).toBe(true);
 
       s = setPatternLength(s, vid, 8);       // shorten to 8 — step 12 hidden
-      expect(getTrack(s, vid).pattern.length).toBe(8);
+      expect(getTrack(s, vid).stepGrid.length).toBe(8);
 
       s = setPatternLength(s, vid, 16);      // expand back to 16
-      expect(getTrack(s, vid).pattern.steps[12].gate).toBe(true);
+      expect(getTrack(s, vid).stepGrid.steps[12].gate).toBe(true);
     });
 
     it('shortened region still passes validation (no out-of-range events)', () => {
@@ -279,8 +279,8 @@ describe('Pattern Primitives', () => {
       s = toggleStepGate(s, vid, 12);
       s = setPatternLength(s, vid, 8);
 
-      const region = getTrack(s, vid).regions[0];
-      const { valid, errors } = validateRegion(region);
+      const region = getTrack(s, vid).patterns[0];
+      const { valid, errors } = validatePattern(region);
       expect(valid).toBe(true);
       expect(errors).toHaveLength(0);
       // Out-of-range events are stashed, not in the region
@@ -295,11 +295,11 @@ describe('Pattern Primitives', () => {
       s = toggleStepGate(s, vid, 0);
       s = toggleStepGate(s, vid, 4);
       const result = clearPattern(s, vid);
-      const pattern = getTrack(result, vid).pattern;
+      const pattern = getTrack(result, vid).stepGrid;
       expect(pattern.steps.every(step => !step.gate)).toBe(true);
       // clearPattern pushes its own snapshot; prior toggleStepGate snapshots also present
       expect(result.undoStack.length).toBeGreaterThan(0);
-      expect(result.undoStack[result.undoStack.length - 1].kind).toBe('region');
+      expect(result.undoStack[result.undoStack.length - 1].kind).toBe('pattern-edit');
     });
 
     it('clears canonical region events', () => {
@@ -307,7 +307,7 @@ describe('Pattern Primitives', () => {
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = clearPattern(s, vid);
-      expect(getTrack(result, vid).regions[0].events).toHaveLength(0);
+      expect(getTrack(result, vid).patterns[0].events).toHaveLength(0);
     });
 
     it('clears hidden events so expand after clear does not resurrect old notes', () => {
@@ -321,8 +321,8 @@ describe('Pattern Primitives', () => {
       expect(getTrack(s, vid)._hiddenEvents).toBeUndefined();
 
       s = setPatternLength(s, vid, 16);         // expand back
-      expect(getTrack(s, vid).pattern.steps[12].gate).toBe(false);
-      expect(getTrack(s, vid).regions[0].events).toHaveLength(0);
+      expect(getTrack(s, vid).stepGrid.steps[12].gate).toBe(false);
+      expect(getTrack(s, vid).patterns[0].events).toHaveLength(0);
     });
   });
 });

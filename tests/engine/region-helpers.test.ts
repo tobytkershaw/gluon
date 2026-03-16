@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateRegion,
+  validatePattern,
   validateEvent,
-  normalizeRegionEvents,
-  createDefaultRegion,
+  normalizePatternEvents,
+  createDefaultPattern,
 } from '../../src/engine/region-helpers';
 import type {
-  Region,
+  Pattern,
   MusicalEvent,
   TriggerEvent,
   NoteEvent,
@@ -17,14 +17,12 @@ import type {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeRegion(overrides: Partial<Region> = {}): Region {
+function makeRegion(overrides: Partial<Pattern> = {}): Pattern {
   return {
     id: 'r1',
     kind: 'pattern',
-    start: 0,
-    duration: 16,
-    loop: true,
-    events: [],
+        duration: 16,
+        events: [],
     ...overrides,
   };
 }
@@ -42,12 +40,12 @@ function param(at: number, controlId: string, value: number): ParameterEvent {
 }
 
 // ---------------------------------------------------------------------------
-// validateRegion
+// validatePattern
 // ---------------------------------------------------------------------------
 
-describe('validateRegion', () => {
+describe('validatePattern', () => {
   it('accepts a valid empty region', () => {
-    const { valid, errors } = validateRegion(makeRegion());
+    const { valid, errors } = validatePattern(makeRegion());
     expect(valid).toBe(true);
     expect(errors).toHaveLength(0);
   });
@@ -56,64 +54,52 @@ describe('validateRegion', () => {
     const region = makeRegion({
       events: [trigger(0), trigger(4), param(8, 'timbre', 0.5)],
     });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   // Invariant 1: duration > 0
   it('rejects duration <= 0', () => {
-    const { valid, errors } = validateRegion(makeRegion({ duration: 0 }));
+    const { valid, errors } = validatePattern(makeRegion({ duration: 0 }));
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('duration'))).toBe(true);
   });
 
   it('rejects negative duration', () => {
-    const { valid } = validateRegion(makeRegion({ duration: -1 }));
+    const { valid } = validatePattern(makeRegion({ duration: -1 }));
     expect(valid).toBe(false);
   });
 
-  // Invariant 2: start >= 0
-  it('rejects negative start', () => {
-    const { valid, errors } = validateRegion(makeRegion({ start: -1 }));
-    expect(valid).toBe(false);
-    expect(errors.some(e => e.includes('start'))).toBe(true);
-  });
-
-  it('accepts start = 0', () => {
-    const { valid } = validateRegion(makeRegion({ start: 0 }));
-    expect(valid).toBe(true);
-  });
-
-  // Invariant 3: events in [0, duration)
+  // Invariant 2: events in [0, duration)
   it('rejects event at >= duration', () => {
     const region = makeRegion({ duration: 8, events: [trigger(8)] });
-    const { valid, errors } = validateRegion(region);
+    const { valid, errors } = validatePattern(region);
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('out of range'))).toBe(true);
   });
 
   it('rejects event at < 0', () => {
     const region = makeRegion({ events: [trigger(-1)] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   it('accepts event at boundary at=0', () => {
     const region = makeRegion({ events: [trigger(0)] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   it('accepts event just below duration', () => {
     const region = makeRegion({ duration: 8, events: [trigger(7.999)] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   // Invariant 4: sorted by at
   it('rejects unsorted events', () => {
     const region = makeRegion({ events: [trigger(4), trigger(2)] });
-    const { valid, errors } = validateRegion(region);
+    const { valid, errors } = validatePattern(region);
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('not sorted'))).toBe(true);
   });
@@ -121,52 +107,52 @@ describe('validateRegion', () => {
   // Invariant 5: trigger velocity 0-1
   it('rejects trigger velocity > 1', () => {
     const region = makeRegion({ events: [trigger(0, { velocity: 1.5 })] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   it('rejects trigger velocity < 0', () => {
     const region = makeRegion({ events: [trigger(0, { velocity: -0.1 })] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   it('accepts trigger without velocity', () => {
     const region = makeRegion({ events: [trigger(0)] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   // Invariant 6: note constraints
   it('rejects note pitch out of range', () => {
     const region = makeRegion({ events: [note(0, { pitch: 128 })] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   it('rejects note velocity out of range', () => {
     const region = makeRegion({ events: [note(0, { velocity: -0.1 })] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   it('rejects note duration <= 0', () => {
     const region = makeRegion({ events: [note(0, { duration: 0 })] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   // Invariant 7: parameter controlId non-empty
   it('rejects parameter with empty controlId', () => {
     const region = makeRegion({ events: [param(0, '', 0.5)] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(false);
   });
 
   // Invariant 8: no duplicate triggers
   it('rejects duplicate triggers at same position', () => {
     const region = makeRegion({ events: [trigger(4), trigger(4.0005)] });
-    const { valid, errors } = validateRegion(region);
+    const { valid, errors } = validatePattern(region);
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('Duplicate TriggerEvents'))).toBe(true);
   });
@@ -176,7 +162,7 @@ describe('validateRegion', () => {
     const region = makeRegion({
       events: [param(2, 'timbre', 0.3), param(2, 'timbre', 0.7)],
     });
-    const { valid, errors } = validateRegion(region);
+    const { valid, errors } = validatePattern(region);
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('Duplicate ParameterEvents'))).toBe(true);
   });
@@ -185,20 +171,20 @@ describe('validateRegion', () => {
     const region = makeRegion({
       events: [param(2, 'timbre', 0.3), param(2, 'decay', 0.7)],
     });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   // Invariant 10: polyphonic — different pitches at same position are valid
   it('accepts simultaneous notes with different pitches', () => {
     const region = makeRegion({ events: [note(4), note(4, { pitch: 72 })] });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   it('rejects duplicate notes at same pitch and position', () => {
     const region = makeRegion({ events: [note(4, { pitch: 60 }), note(4, { pitch: 60, velocity: 0.5 })] });
-    const { valid, errors } = validateRegion(region);
+    const { valid, errors } = validatePattern(region);
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('Duplicate NoteEvents'))).toBe(true);
   });
@@ -213,7 +199,7 @@ describe('validateRegion', () => {
         note(4, { pitch: 72 }),
       ],
     });
-    const { valid } = validateRegion(region);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
@@ -227,7 +213,7 @@ describe('validateRegion', () => {
         note(4, { pitch: 76 }),
       ],
     });
-    const { valid, errors } = validateRegion(region);
+    const { valid, errors } = validatePattern(region);
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('More than 4 NoteEvents'))).toBe(true);
   });
@@ -262,13 +248,13 @@ describe('validateEvent', () => {
 });
 
 // ---------------------------------------------------------------------------
-// normalizeRegionEvents
+// normalizePatternEvents
 // ---------------------------------------------------------------------------
 
-describe('normalizeRegionEvents', () => {
+describe('normalizePatternEvents', () => {
   it('sorts events by at', () => {
     const region = makeRegion({ events: [trigger(4), trigger(1), trigger(2)] });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events.map(e => e.at)).toEqual([1, 2, 4]);
   });
 
@@ -279,7 +265,7 @@ describe('normalizeRegionEvents', () => {
         { kind: 'trigger', at: 4, velocity: 1.0 } as TriggerEvent,
       ],
     });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events).toHaveLength(1);
     expect((result.events[0] as TriggerEvent).velocity).toBe(1.0);
   });
@@ -288,7 +274,7 @@ describe('normalizeRegionEvents', () => {
     const region = makeRegion({
       events: [param(2, 'timbre', 0.3), param(2, 'timbre', 0.9)],
     });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events).toHaveLength(1);
     expect((result.events[0] as ParameterEvent).value).toBe(0.9);
   });
@@ -297,7 +283,7 @@ describe('normalizeRegionEvents', () => {
     const region = makeRegion({
       events: [param(2, 'timbre', 0.3), param(2, 'decay', 0.7)],
     });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events).toHaveLength(2);
   });
 
@@ -305,7 +291,7 @@ describe('normalizeRegionEvents', () => {
     const region = makeRegion({
       events: [note(4, { pitch: 60 }), note(4, { pitch: 72 })],
     });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events).toHaveLength(2);
   });
 
@@ -313,7 +299,7 @@ describe('normalizeRegionEvents', () => {
     const region = makeRegion({
       events: [note(4, { pitch: 60, velocity: 0.5 }), note(4, { pitch: 60, velocity: 1.0 })],
     });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events).toHaveLength(1);
     expect((result.events[0] as NoteEvent).velocity).toBe(1.0);
   });
@@ -321,13 +307,13 @@ describe('normalizeRegionEvents', () => {
   it('does not mutate the original region', () => {
     const events: MusicalEvent[] = [trigger(4), trigger(1)];
     const region = makeRegion({ events });
-    normalizeRegionEvents(region);
+    normalizePatternEvents(region);
     expect(region.events[0].at).toBe(4); // unchanged
   });
 
   it('handles empty events array', () => {
     const region = makeRegion({ events: [] });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     expect(result.events).toHaveLength(0);
   });
 
@@ -342,7 +328,7 @@ describe('normalizeRegionEvents', () => {
         note(4, { pitch: 79 }),
       ],
     });
-    const result = normalizeRegionEvents(region);
+    const result = normalizePatternEvents(region);
     const notesAtStep4 = result.events.filter(
       e => e.kind === 'note' && Math.abs(e.at - 4) < 0.001,
     );
@@ -351,27 +337,25 @@ describe('normalizeRegionEvents', () => {
 });
 
 // ---------------------------------------------------------------------------
-// createDefaultRegion
+// createDefaultPattern
 // ---------------------------------------------------------------------------
 
-describe('createDefaultRegion', () => {
+describe('createDefaultPattern', () => {
   it('produces a valid region', () => {
-    const region = createDefaultRegion('track-1', 16);
-    const { valid } = validateRegion(region);
+    const region = createDefaultPattern('track-1', 16);
+    const { valid } = validatePattern(region);
     expect(valid).toBe(true);
   });
 
   it('has correct duration and empty events', () => {
-    const region = createDefaultRegion('kick', 8);
+    const region = createDefaultPattern('kick', 8);
     expect(region.duration).toBe(8);
     expect(region.events).toHaveLength(0);
-    expect(region.start).toBe(0);
-    expect(region.loop).toBe(true);
     expect(region.kind).toBe('pattern');
   });
 
   it('includes trackId in the region id', () => {
-    const region = createDefaultRegion('snare', 16);
+    const region = createDefaultPattern('snare', 16);
     expect(region.id).toContain('snare');
   });
 });

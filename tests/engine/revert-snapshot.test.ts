@@ -234,7 +234,7 @@ describe('revertSnapshot (via applyUndo)', () => {
     const s = createSession();
     const trackId = s.activeTrackId;
     const track = getTrack(s, trackId);
-    const prevEvents = track.regions[0]?.events ?? [];
+    const prevEvents = track.patterns[0]?.events ?? [];
     // Simulate adding events to the region
     const newEvents = [
       { kind: 'trigger' as const, at: 0, velocity: 0.8 },
@@ -245,21 +245,21 @@ describe('revertSnapshot (via applyUndo)', () => {
       tracks: s.tracks.map(v => v.id === trackId
         ? {
             ...v,
-            regions: v.regions.map((r, i) => i === 0 ? { ...r, events: newEvents } : r),
+            patterns: v.patterns.map((r, i) => i === 0 ? { ...r, events: newEvents } : r),
           }
         : v),
     };
     const snapshot: RegionSnapshot = {
-      kind: 'region',
+      kind: 'pattern-edit',
       trackId,
       prevEvents,
       timestamp: Date.now(),
       description: 'edit region',
     };
     modified = withSnapshot(modified, snapshot);
-    expect(getTrack(modified, trackId).regions[0].events).toHaveLength(2);
+    expect(getTrack(modified, trackId).patterns[0].events).toHaveLength(2);
     const undone = applyUndo(modified);
-    expect(getTrack(undone, trackId).regions[0].events).toHaveLength(prevEvents.length);
+    expect(getTrack(undone, trackId).patterns[0].events).toHaveLength(prevEvents.length);
   });
 });
 

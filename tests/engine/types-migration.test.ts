@@ -6,18 +6,30 @@ import type {
 } from '../../src/engine/types';
 
 describe('Phase 2 type shapes', () => {
-  it('Trackhas pattern, muted, solo fields', () => {
-    const track: Track= {
+  it('Track has stepGrid, patterns, sequence, muted, solo fields', () => {
+    const track: Track = {
       id: 'v0',
       engine: 'plaits:virtual_analog',
       model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
       agency: 'ON',
-      pattern: { steps: [{ gate: false, accent: false, micro: 0 }], length: 1 },
+      stepGrid: { steps: [{ gate: false, accent: false, micro: 0 }], length: 1 },
+      patterns: [{ id: 'v0-pattern-0', kind: 'pattern', duration: 1, events: [] }],
+      sequence: [{ patternId: 'v0-pattern-0' }],
       muted: false,
       solo: false,
+      volume: 0.8,
+      pan: 0.0,
+      surface: {
+        semanticControls: [],
+        pinnedControls: [],
+        xyAxes: { x: 'timbre', y: 'morph' },
+        thumbprint: { type: 'static-color' },
+      },
     };
-    expect(track.pattern.length).toBe(1);
+    expect(track.stepGrid.length).toBe(1);
+    expect(track.patterns).toHaveLength(1);
+    expect(track.sequence).toHaveLength(1);
     expect(track.muted).toBe(false);
   });
 
@@ -46,7 +58,7 @@ describe('Phase 2 type shapes', () => {
     expect(snapshot.prevSteps).toHaveLength(1);
   });
 
-  it('AISketchAction has trackId and PatternSketch', () => {
+  it('AISketchAction has trackId and StepGridSketch', () => {
     const action: AISketchAction = {
       type: 'sketch',
       trackId: 'v0',
@@ -62,15 +74,17 @@ describe('Phase 2 type shapes', () => {
       },
     };
     expect(action.type).toBe('sketch');
-    expect(action.pattern.steps).toHaveLength(4);
+    expect(action.pattern!.steps).toHaveLength(4);
   });
 
   it('Session has tracks array, activeTrackId, transport', () => {
     const session: Session = {
       tracks: [],
       activeTrackId: 'v0',
-      transport: { playing: false, bpm: 120, swing: 0 },
+      transport: { status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
+      master: { volume: 0.8, pan: 0.0 },
       undoStack: [],
+      redoStack: [],
       context: { key: null, scale: null, tempo: null, energy: 0.3, density: 0.2 },
       messages: [],
       recentHumanActions: [],

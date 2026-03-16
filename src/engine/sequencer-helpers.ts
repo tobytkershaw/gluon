@@ -1,5 +1,5 @@
 // src/engine/sequencer-helpers.ts
-import type { Step, Pattern } from './sequencer-types';
+import type { Step, StepGrid } from './sequencer-types';
 import type { Session, Track, SynthParamValues } from './types';
 import { getTrackKind } from './types';
 import type { MusicalEvent, ParameterEvent } from './canonical-types';
@@ -8,7 +8,7 @@ export function createDefaultStep(): Step {
   return { gate: false, accent: false, micro: 0 };
 }
 
-export function createDefaultPattern(length = 16): Pattern {
+export function createDefaultStepGrid(length = 16): StepGrid {
   const clamped = Math.max(1, Math.min(64, length));
   return {
     steps: Array.from({ length: clamped }, createDefaultStep),

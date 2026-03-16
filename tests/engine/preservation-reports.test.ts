@@ -39,10 +39,10 @@ describe('PreservationReport generation', () => {
     }
     // Write events to v0's region
     const track = session.tracks.find(v => v.id === 'v0')!;
-    const region = { ...track.regions[0], events: [...events] };
+    const region = { ...track.patterns[0], events: [...events] };
     session = {
       ...session,
-      tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, regions: [region] } : v),
+      tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, patterns: [region] } : v),
     };
     return session;
   }
@@ -305,7 +305,7 @@ describe('PreservationReport generation', () => {
         type: 'sketch',
         trackId: 'v0',
         description: 'legacy pattern',
-        pattern: { steps: [{ index: 0, gate: true }] },
+        stepGrid: { steps: [{ index: 0, gate: true }] },
       }];
 
       const report = executeOperations(session, actions, adapter, new Arbitrator());

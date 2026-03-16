@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type {
   ControlSchema,
   ControlState,
-  Region,
+  Pattern,
   NoteEvent,
   TriggerEvent,
   ParameterEvent,
@@ -117,15 +117,13 @@ describe('canonical-types', () => {
     });
   });
 
-  describe('Region', () => {
+  describe('Pattern', () => {
     it('accepts a looping pattern region', () => {
-      const region: Region = {
+      const region: Pattern = {
         id: 'r1',
         kind: 'pattern',
-        start: 0,
-        duration: 4,
-        loop: true,
-        events: [
+                duration: 4,
+                events: [
           { kind: 'trigger', at: 0, accent: true },
           { kind: 'trigger', at: 1 },
         ],
