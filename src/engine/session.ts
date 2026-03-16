@@ -813,3 +813,65 @@ export function setActiveRegionOnTrack(session: Session, trackId: string, region
   if (!track.regions.some(r => r.id === regionId)) return session;
   return updateTrack(session, trackId, { activeRegionId: regionId });
 }
+
+
+// --- A/B comparison helpers ---
+
+/** Musical state snapshot for A/B comparison (excludes UI, undo, messages). */
+export interface ABSnapshot {
+  tracks: Track[];
+  transport: import('./sequencer-types').Transport;
+  master: MasterChannel;
+  context: MusicalContext;
+}
+
+function deepCopyTrack(track: Track): Track {
+  return {
+    ...track,
+    params: { ...track.params },
+    pattern: { ...track.pattern, steps: track.pattern.steps.map(s => ({ ...s, paramLocks: s.paramLocks ? { ...s.paramLocks } : undefined })) },
+    regions: track.regions.map(r => ({ ...r, events: r.events.map(e => ({ ...e })) })),
+    processors: track.processors?.map(p => ({ ...p, params: { ...p.params } })),
+    modulators: track.modulators?.map(m => ({ ...m, params: { ...m.params } })),
+    modulations: track.modulations?.map(r => ({ ...r, target: { ...r.target } })),
+    sends: track.sends?.map(s => ({ ...s })),
+    surface: {
+      ...track.surface,
+      semanticControls: track.surface.semanticControls.map(sc => ({
+        ...sc,
+        weights: sc.weights.map(w => ({ ...w })),
+        range: { ...sc.range },
+      })),
+      pinnedControls: track.surface.pinnedControls.map(pc => ({ ...pc })),
+      xyAxes: { ...track.surface.xyAxes },
+      thumbprint: { ...track.surface.thumbprint },
+    },
+    controlProvenance: track.controlProvenance ? { ...track.controlProvenance } : undefined,
+    views: track.views?.map(v => ({ ...v })),
+    _hiddenEvents: track._hiddenEvents?.map(e => ({ ...e })),
+  };
+}
+
+/** Capture the musical state of a session for A/B comparison. */
+export function captureABSnapshot(session: Session): ABSnapshot {
+  return {
+    tracks: session.tracks.map(deepCopyTrack),
+    transport: { ...session.transport, metronome: { ...session.transport.metronome } },
+    master: { ...session.master },
+    context: { ...session.context },
+  };
+}
+
+/** Restore an A/B snapshot into a session, preserving non-musical state. */
+export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Session {
+  return {
+    ...session,
+    tracks: snapshot.tracks.map(deepCopyTrack),
+    transport: { ...snapshot.transport, metronome: { ...snapshot.transport.metronome } },
+    master: { ...snapshot.master },
+    context: { ...snapshot.context },
+    activeTrackId: snapshot.tracks.some(t => t.id === session.activeTrackId)
+      ? session.activeTrackId
+      : snapshot.tracks[0]?.id ?? session.activeTrackId,
+  };
+}

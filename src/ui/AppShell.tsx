@@ -98,6 +98,11 @@ interface Props {
   onUndoMessage?: (messageIndex: number) => void;
   /** Shared ref: when true on blur, in-progress inline edits discard instead of committing. */
   cancelEditRef?: MutableRefObject<boolean>;
+  // A/B comparison
+  abActive: 'a' | 'b' | null;
+  onAbCapture: () => void;
+  onAbToggle: () => void;
+  onAbClear: () => void;
   // Master channel
   masterVolume: number;
   masterPan: number;
@@ -131,6 +136,7 @@ export function AppShell({
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
+  abActive, onAbCapture, onAbToggle, onAbClear,
   masterVolume, masterPan, analyser, stereoAnalysers, audioContext, onMasterVolumeChange, onMasterPanChange,
   children,
 }: Props) {
@@ -213,6 +219,10 @@ export function AppShell({
             onToggleLoop={onToggleLoop}
             onLoopStartChange={onLoopStartChange}
             onLoopEndChange={onLoopEndChange}
+            abActive={abActive}
+            onAbCapture={onAbCapture}
+            onAbToggle={onAbToggle}
+            onAbClear={onAbClear}
           />
           <div className="flex-1" />
           <UndoButton

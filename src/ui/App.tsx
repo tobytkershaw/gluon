@@ -18,7 +18,9 @@ import {
   addReaction,
   addRegion, removeRegion, duplicateRegion, renameRegion, setActiveRegionOnTrack,
   toggleLoop, setLoopStart, setLoopEnd,
+  captureABSnapshot, restoreABSnapshot,
 } from '../engine/session';
+import type { ABSnapshot } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
 import { applyParamDirect, applyUndo, applyRedo } from '../engine/primitives';
@@ -132,6 +134,9 @@ export default function App() {
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
   const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
+  // A/B comparison state
+  const [abSnapshot, setAbSnapshot] = useState<ABSnapshot | null>(null);
+  const [abActive, setAbActive] = useState<'a' | 'b' | null>(null);
   const arbRef = useRef(new Arbitrator());
   const [holdGeneration, setHoldGeneration] = useState(0);
   const autoRef = useRef(new AutomationEngine());
@@ -1782,6 +1787,25 @@ export default function App() {
     setSession((s) => setTransportBpm(s, s.transport.bpm + delta));
   }, [ensureAudio]);
 
+  // --- A/B comparison handlers ---
+  const handleAbCapture = useCallback(() => {
+    setAbSnapshot(captureABSnapshot(sessionRef.current));
+    setAbActive('a');
+  }, []);
+
+  const handleAbToggle = useCallback(() => {
+    if (!abSnapshot || !abActive) return;
+    const current = captureABSnapshot(sessionRef.current);
+    setSession(s => restoreABSnapshot(s, abSnapshot));
+    setAbSnapshot(current);
+    setAbActive(abActive === 'a' ? 'b' : 'a');
+  }, [abSnapshot, abActive]);
+
+  const handleAbClear = useCallback(() => {
+    setAbSnapshot(null);
+    setAbActive(null);
+  }, []);
+
   // Global keyboard shortcuts (extracted to hook)
   const { showShortcuts, toggleShortcuts } = useShortcuts({
     onUndo: handleUndo,
@@ -1898,6 +1922,10 @@ export default function App() {
       audioContext={audioStarted ? audioRef.current.getAudioContext() : null}
       onMasterVolumeChange={handleMasterVolumeChange}
       onMasterPanChange={handleMasterPanChange}
+      abActive={abActive}
+      onAbCapture={handleAbCapture}
+      onAbToggle={handleAbToggle}
+      onAbClear={handleAbClear}
     >
         {view === 'surface' && (
           <InstrumentView
