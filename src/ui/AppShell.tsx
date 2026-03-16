@@ -13,6 +13,7 @@ import { ProjectMenu } from './ProjectMenu';
 import { ViewToggle } from './ViewToggle';
 import { TransportStrip } from './TransportStrip';
 import { UndoButton } from './UndoButton';
+import { RedoButton } from './RedoButton';
 import { MasterStrip } from './MasterStrip';
 
 interface Props {
@@ -67,9 +68,11 @@ interface Props {
   // View
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
-  // Undo
+  // Undo / Redo
   undoStack: UndoEntry[];
+  redoStack: UndoEntry[];
   onUndo: () => void;
+  onRedo: () => void;
   /** Shared ref: when true on blur, in-progress inline edits discard instead of committing. */
   cancelEditRef?: MutableRefObject<boolean>;
   // Master channel
@@ -97,7 +100,7 @@ export function AppShell({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   view, onViewChange,
-  undoStack, onUndo,
+  undoStack, redoStack, onUndo, onRedo,
   cancelEditRef,
   masterVolume, masterPan, analyser, onMasterVolumeChange, onMasterPanChange,
   children,
@@ -173,6 +176,11 @@ export function AppShell({
             onClick={onUndo}
             disabled={undoStack.length === 0}
             description={undoStack.length > 0 ? undoStack[undoStack.length - 1].description : undefined}
+          />
+          <RedoButton
+            onClick={onRedo}
+            disabled={redoStack.length === 0}
+            description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
           />
         </div>
       </div>

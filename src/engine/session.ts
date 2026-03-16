@@ -69,6 +69,7 @@ export function createSession(): Session {
     transport: { status: 'stopped', playing: false, bpm: 120, swing: 0 },
     master: { ...DEFAULT_MASTER },
     undoStack: [],
+    redoStack: [],
     context,
     messages: [],
     recentHumanActions: [],

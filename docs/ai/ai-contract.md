@@ -277,6 +277,7 @@ Each turn, the AI receives compressed session state as JSON:
   "transport": { "bpm": 120, "swing": 0.00, "playing": true },
   "context": { "energy": 0.50, "density": 0.30 },
   "undo_depth": 2,
+  "redo_depth": 1,
   "recent_human_actions": [
     { "trackId": "v0", "param": "brightness", "from": 0.80, "to": 0.65, "age_ms": 3200 }
   ]
@@ -294,6 +295,7 @@ Fields:
 - **transport** — tempo, swing, and playing state
 - **context** — global energy and density (0.0–1.0)
 - **undo_depth** — how many action groups can be undone
+- **redo_depth** — how many action groups can be redone (Cmd+Shift+Z)
 - **recent_human_actions** — last 5 parameter changes with voice, semantic param name, values, and age
 
 ---
@@ -381,7 +383,10 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 - AI actions are grouped per turn into a single undo entry; human edits push individual snapshots
 - Transport, model, view, processor, and modulator changes are included in the undo group
 - The human can undo with Cmd+Z; one press reverts the most recent action or action group
+- The human can redo with Cmd+Shift+Z; one press re-applies the most recently undone action
+- New actions clear the redo stack
 - `undo_depth` in the state tells the model how many groups can be undone
+- `redo_depth` in the state tells the model how many groups can be redone
 
 ---
 

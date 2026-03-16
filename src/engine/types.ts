@@ -541,6 +541,8 @@ export interface Session {
   transport: Transport;
   master: MasterChannel;
   undoStack: UndoEntry[];
+  /** Redo stack: entries moved here on undo, cleared on new user actions. */
+  redoStack: UndoEntry[];
   context: MusicalContext;
   messages: ChatMessage[];
   recentHumanActions: HumanAction[];

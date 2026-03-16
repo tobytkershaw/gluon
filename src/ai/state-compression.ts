@@ -93,6 +93,7 @@ export interface CompressedState {
   transport: { bpm: number; swing: number; playing: boolean };
   context: { energy: number; density: number };
   undo_depth: number;
+  redo_depth: number;
   recent_human_actions: CompressedHumanAction[];
   recent_reactions: CompressedReaction[];
   observed_patterns: string[];
@@ -382,6 +383,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       density: round2(session.context.density),
     },
     undo_depth: session.undoStack.length,
+    redo_depth: session.redoStack.length,
     recent_human_actions: session.recentHumanActions.slice(-5).map(a => ({
       trackId: a.trackId,
       param: runtimeParamToControlId[a.param] ?? a.param,
