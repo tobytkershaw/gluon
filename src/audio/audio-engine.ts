@@ -138,6 +138,9 @@ export class AudioEngine {
   private masterGain: GainNode | null = null;
   private masterPanner: StereoPannerNode | null = null;
   private analyser: AnalyserNode | null = null;
+  private analyserL: AnalyserNode | null = null;
+  private analyserR: AnalyserNode | null = null;
+  private channelSplitter: ChannelSplitterNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private _isRunning = false;
   /** Tracks processor IDs currently being created (async in-flight guard). */
@@ -170,15 +173,22 @@ export class AudioEngine {
     this.masterPanner.pan.value = 0.0; // center
 
     this.analyser = this.ctx.createAnalyser();
+    this.channelSplitter = this.ctx.createChannelSplitter(2);
+    this.analyserL = this.ctx.createAnalyser();
+    this.analyserR = this.ctx.createAnalyser();
     this.mediaStreamDest = this.ctx.createMediaStreamDestination();
 
     // Signal chain: mixer -> masterGain -> masterPanner -> analyser -> destination
     //                                                   -> mediaStreamDest
+    //                                                   -> splitter -> analyserL/R
     this.mixer.connect(this.masterGain);
     this.masterGain.connect(this.masterPanner);
     this.masterPanner.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
     this.masterPanner.connect(this.mediaStreamDest);
+    this.masterPanner.connect(this.channelSplitter);
+    this.channelSplitter.connect(this.analyserL, 0);
+    this.channelSplitter.connect(this.analyserR, 1);
 
     // Metronome: direct to destination, not through mixer/master chain
     this.metronomeGain = this.ctx.createGain();
@@ -344,6 +354,9 @@ export class AudioEngine {
     this.masterGain?.disconnect();
     this.masterPanner?.disconnect();
     this.analyser?.disconnect();
+    this.channelSplitter?.disconnect();
+    this.analyserL?.disconnect();
+    this.analyserR?.disconnect();
     this.metronomeGain?.disconnect();
     this.mediaStreamDest?.disconnect();
     this.ctx?.close();
@@ -352,6 +365,9 @@ export class AudioEngine {
     this.masterGain = null;
     this.masterPanner = null;
     this.analyser = null;
+    this.channelSplitter = null;
+    this.analyserL = null;
+    this.analyserR = null;
     this.mediaStreamDest = null;
     this.metronomeGain = null;
     this._isRunning = false;
@@ -665,6 +681,10 @@ export class AudioEngine {
 
   getAnalyser(): AnalyserNode | null {
     return this.analyser;
+  }
+
+  getStereoAnalysers(): [AnalyserNode, AnalyserNode] | null {
+    return this.analyserL && this.analyserR ? [this.analyserL, this.analyserR] : null;
   }
 
   getMediaStreamDestination(): MediaStreamAudioDestinationNode | null {
