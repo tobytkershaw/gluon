@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Track, ApprovalLevel } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
+import { MiniKnob } from './MiniKnob';
 
 const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
   exploratory: { label: '', color: '', title: 'Exploratory — AI may freely edit' },
@@ -22,11 +23,14 @@ interface Props {
   onToggleAgency?: () => void;
   onRename?: (name: string) => void;
   onCycleApproval?: () => void;
+  onChangeVolume?: (value: number) => void;
+  onChangePan?: (value: number) => void;
 }
 
 export function TrackRow({
   track, label, isActive, activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
+  onChangeVolume, onChangePan,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -131,6 +135,26 @@ export function TrackRow({
       {/* Agency indicator */}
       {track.agency === 'ON' && (
         <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+      )}
+
+      {/* Volume / Pan knobs */}
+      {onChangeVolume && onChangePan && (
+        <div className="flex gap-0.5 shrink-0 items-center">
+          <MiniKnob
+            value={track.volume}
+            accentColor="rgb(251 191 36)"
+            title={`Volume: ${Math.round(track.volume * 100)}%`}
+            onChange={onChangeVolume}
+          />
+          <MiniKnob
+            value={track.pan}
+            min={-1}
+            max={1}
+            accentColor="rgb(56 189 248)"
+            title={`Pan: ${track.pan === 0 ? 'C' : track.pan < 0 ? `L${Math.round(Math.abs(track.pan) * 100)}` : `R${Math.round(track.pan * 100)}`}`}
+            onChange={onChangePan}
+          />
+        </div>
       )}
 
       {/* M / S / C / Approval buttons */}
