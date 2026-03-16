@@ -5,6 +5,7 @@ import type { ViewMode } from './view-types';
 
 interface ShortcutActions {
   onUndo: () => void;
+  onRedo: () => void;
   onTogglePlay: () => void;
   onHardStop: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
@@ -18,9 +19,15 @@ export function isEditable(): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
 }
 
-export function useShortcuts({ onUndo, onTogglePlay, onHardStop, setView, setChatOpen }: ShortcutActions) {
+export function useShortcuts({ onUndo, onRedo, onTogglePlay, onHardStop, setView, setChatOpen }: ShortcutActions) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Cmd+Shift+Z = redo (must check before Cmd+Z)
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+        e.preventDefault();
+        onRedo();
+        return;
+      }
       if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
         e.preventDefault();
         onUndo();
@@ -67,5 +74,5 @@ export function useShortcuts({ onUndo, onTogglePlay, onHardStop, setView, setCha
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onUndo, onTogglePlay, onHardStop, setView, setChatOpen]);
+  }, [onUndo, onRedo, onTogglePlay, onHardStop, setView, setChatOpen]);
 }

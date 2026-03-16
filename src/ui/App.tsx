@@ -14,7 +14,7 @@ import {
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
-import { applyParamDirect, applyUndo } from '../engine/primitives';
+import { applyParamDirect, applyUndo, applyRedo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
@@ -72,7 +72,25 @@ export default function App() {
   // mousedown on ViewToggle sets this true before blur fires on EditableCell.
   const cancelEditRef = useRef(false);
 
-  const [session, setSession] = useState<Session>(() => loadSession() ?? createSession());
+  const [session, setSessionRaw] = useState<Session>(() => loadSession() ?? createSession());
+
+  // Wrap setSession to auto-clear redoStack when a new undo entry is pushed
+  // (standard undo/redo behavior: new actions invalidate the redo stack).
+  // applyUndo/applyRedo manage both stacks themselves, so this only fires
+  // for genuine new actions.
+  const setSession = useCallback((updater: Session | ((prev: Session) => Session)) => {
+    setSessionRaw((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (next === prev) return prev;
+      // If undoStack grew and redoStack wasn't already cleared by applyUndo/applyRedo
+      if (next.undoStack.length > prev.undoStack.length && next.redoStack.length > 0
+          && next.redoStack === prev.redoStack) {
+        return { ...next, redoStack: [] };
+      }
+      return next;
+    });
+  }, []);
+
   const project = useProjectLifecycle(session, setSession);
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
@@ -620,6 +638,23 @@ export default function App() {
         messages: [
           ...undone.messages,
           { role: 'system' as const, text: `Undid: ${description}`, timestamp: Date.now() },
+        ],
+      };
+    });
+  }, [ensureAudio]);
+
+  const handleRedo = useCallback(() => {
+    ensureAudio();
+    setSession((s) => {
+      if (s.redoStack.length === 0) return s;
+      const topEntry = s.redoStack[s.redoStack.length - 1];
+      const description = topEntry.description ?? 'last action';
+      const redone = applyRedo(s);
+      return {
+        ...redone,
+        messages: [
+          ...redone.messages,
+          { role: 'system' as const, text: `Redid: ${description}`, timestamp: Date.now() },
         ],
       };
     });
@@ -1446,7 +1481,7 @@ export default function App() {
   }, [ensureAudio]);
 
   // Global keyboard shortcuts (extracted to hook)
-  useShortcuts({ onUndo: handleUndo, onTogglePlay: handleTogglePlay, onHardStop: handleHardStop, setView, setChatOpen });
+  useShortcuts({ onUndo: handleUndo, onRedo: handleRedo, onTogglePlay: handleTogglePlay, onHardStop: handleHardStop, setView, setChatOpen });
 
   // Keyboard piano: map computer keys to musical notes for real-time audition
   useKeyboardPiano(audioRef, session, recordArmed, globalStepRef, handleRecordEvents);
@@ -1513,7 +1548,9 @@ export default function App() {
       view={view}
       onViewChange={setView}
       undoStack={session.undoStack}
+      redoStack={session.redoStack}
       onUndo={handleUndo}
+      onRedo={handleRedo}
       cancelEditRef={cancelEditRef}
       masterVolume={session.master.volume}
       masterPan={session.master.pan}

@@ -1,7 +1,7 @@
 // src/engine/primitives.ts
 import type {
-  Session, ParamSnapshot, PatternSnapshot, Snapshot,
-  SynthParamValues,
+  Session, ParamSnapshot, PatternSnapshot, Snapshot, UndoEntry,
+  SynthParamValues, ActionGroupSnapshot,
 } from './types';
 import { getTrack, updateTrack } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
@@ -330,11 +330,146 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   return updateTrack(session, snapshot.trackId, updates);
 }
 
+/**
+ * Capture a reverse snapshot: given a snapshot about to be reverted,
+ * record the current state so we can redo (re-apply) it later.
+ * The reverse snapshot has the same kind/description but stores
+ * the current values as prev* fields.
+ */
+function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot {
+  const now = Date.now();
+
+  if (snapshot.kind === 'param') {
+    const track = getTrack(session, snapshot.trackId);
+    const prevValues: Partial<SynthParamValues> = {};
+    const aiTargetValues: Partial<SynthParamValues> = {};
+    for (const param of Object.keys(snapshot.prevValues)) {
+      prevValues[param] = track.params[param] ?? 0;
+      aiTargetValues[param] = snapshot.prevValues[param] as number;
+    }
+    return { ...snapshot, prevValues, aiTargetValues, timestamp: now };
+  }
+
+  if (snapshot.kind === 'pattern') {
+    const track = getTrack(session, snapshot.trackId);
+    const prevSteps = snapshot.prevSteps.map(({ index }) => ({
+      index,
+      step: { ...track.pattern.steps[index] },
+    }));
+    return {
+      ...snapshot,
+      prevSteps,
+      prevLength: snapshot.prevLength !== undefined ? track.pattern.length : undefined,
+      prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
+      prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+      timestamp: now,
+    };
+  }
+
+  if (snapshot.kind === 'region') {
+    const track = getTrack(session, snapshot.trackId);
+    if (track.regions.length === 0) return { ...snapshot, timestamp: now };
+    return {
+      ...snapshot,
+      prevEvents: [...track.regions[0].events],
+      prevDuration: track.regions[0].duration,
+      prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+      timestamp: now,
+    };
+  }
+
+  if (snapshot.kind === 'transport') {
+    return { ...snapshot, prevTransport: { ...session.transport }, timestamp: now };
+  }
+
+  if (snapshot.kind === 'model') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevModel: track.model, prevEngine: track.engine, timestamp: now };
+  }
+
+  if (snapshot.kind === 'view') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevViews: [...(track.views ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'processor') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevProcessors: [...(track.processors ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'processor-state') {
+    const track = getTrack(session, snapshot.trackId);
+    const proc = (track.processors ?? []).find(p => p.id === snapshot.processorId);
+    return {
+      ...snapshot,
+      prevParams: proc ? { ...proc.params } : { ...snapshot.prevParams },
+      prevModel: proc ? proc.model : snapshot.prevModel,
+      timestamp: now,
+    };
+  }
+
+  if (snapshot.kind === 'modulator') {
+    const track = getTrack(session, snapshot.trackId);
+    return {
+      ...snapshot,
+      prevModulators: [...(track.modulators ?? [])],
+      prevModulations: [...(track.modulations ?? [])],
+      timestamp: now,
+    };
+  }
+
+  if (snapshot.kind === 'modulator-state') {
+    const track = getTrack(session, snapshot.trackId);
+    const mod = (track.modulators ?? []).find(m => m.id === snapshot.modulatorId);
+    return {
+      ...snapshot,
+      prevParams: mod ? { ...mod.params } : { ...snapshot.prevParams },
+      prevModel: mod ? mod.model : snapshot.prevModel,
+      timestamp: now,
+    };
+  }
+
+  if (snapshot.kind === 'modulation-routing') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevModulations: [...(track.modulations ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'master') {
+    return { ...snapshot, prevMaster: { ...session.master }, timestamp: now };
+  }
+
+  if (snapshot.kind === 'surface') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevSurface: { ...track.surface }, timestamp: now };
+  }
+
+  if (snapshot.kind === 'approval') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevApproval: track.approval ?? 'exploratory', timestamp: now };
+  }
+
+  return { ...snapshot, timestamp: now };
+}
+
+function captureReverseEntry(session: Session, entry: UndoEntry): UndoEntry {
+  if (entry.kind === 'group') {
+    return {
+      ...entry,
+      snapshots: entry.snapshots.map(s => captureReverseSnapshot(session, s)),
+      timestamp: Date.now(),
+    };
+  }
+  return captureReverseSnapshot(session, entry);
+}
+
 export function applyUndo(session: Session): Session {
   if (session.undoStack.length === 0) return session;
 
   const newStack = [...session.undoStack];
   const entry = newStack.pop()!;
+
+  // Capture reverse entry before reverting so redo can restore current state
+  const reverseEntry = captureReverseEntry(session, entry);
 
   if (entry.kind === 'group') {
     let result = session;
@@ -342,8 +477,28 @@ export function applyUndo(session: Session): Session {
     for (let i = entry.snapshots.length - 1; i >= 0; i--) {
       result = revertSnapshot(result, entry.snapshots[i]);
     }
-    return { ...result, undoStack: newStack };
+    return { ...result, undoStack: newStack, redoStack: [...session.redoStack, reverseEntry] };
   }
 
-  return { ...revertSnapshot(session, entry), undoStack: newStack };
+  return { ...revertSnapshot(session, entry), undoStack: newStack, redoStack: [...session.redoStack, reverseEntry] };
+}
+
+export function applyRedo(session: Session): Session {
+  if (session.redoStack.length === 0) return session;
+
+  const newRedoStack = [...session.redoStack];
+  const entry = newRedoStack.pop()!;
+
+  // Capture reverse entry before reverting so undo can restore current state
+  const reverseEntry = captureReverseEntry(session, entry);
+
+  if (entry.kind === 'group') {
+    let result = session;
+    for (let i = entry.snapshots.length - 1; i >= 0; i--) {
+      result = revertSnapshot(result, entry.snapshots[i]);
+    }
+    return { ...result, undoStack: [...session.undoStack, reverseEntry], redoStack: newRedoStack };
+  }
+
+  return { ...revertSnapshot(session, entry), undoStack: [...session.undoStack, reverseEntry], redoStack: newRedoStack };
 }

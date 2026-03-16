@@ -29,6 +29,7 @@ export function stripForPersistence(session: Session): Session {
   return {
     ...session,
     undoStack: session.undoStack.slice(-MAX_PERSISTED_UNDO),
+    redoStack: session.redoStack.slice(-MAX_PERSISTED_UNDO),
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
     transport: { ...session.transport, status: 'stopped', playing: false },
@@ -198,6 +199,7 @@ export function loadSession(): Session | null {
       tracks: migratedTracks,
       master: session.master ?? { ...DEFAULT_MASTER },
       undoStack: session.undoStack ?? [],
+      redoStack: session.redoStack ?? [],
       recentHumanActions: session.recentHumanActions ?? [],
       reactionHistory: session.reactionHistory ?? [],
       openDecisions: session.openDecisions ?? [],
