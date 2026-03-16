@@ -349,7 +349,7 @@ export interface SendSnapshot {
 export interface RegionCrudSnapshot {
   kind: 'region-crud';
   trackId: string;
-  action: 'add' | 'remove' | 'duplicate';
+  action: 'add' | 'remove' | 'duplicate' | 'rename';
   /** For remove: the removed region and its index for reinsertion. */
   removedRegion?: import('./canonical-types').Region;
   removedIndex?: number;
@@ -357,6 +357,9 @@ export interface RegionCrudSnapshot {
   addedRegionId?: string;
   /** Previous activeRegionId, so undo restores the selection. */
   prevActiveRegionId?: string;
+  /** For rename: the region that was renamed and its previous name. */
+  regionId?: string;
+  previousName?: string;
   timestamp: number;
   description: string;
 }
