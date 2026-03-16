@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
-import { renderOffline } from '../audio/render-offline';
+import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActiveRegion, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
@@ -763,6 +763,7 @@ export default function App() {
       const actions = await aiRef.current.ask(sessionRef.current, message, {
         listen: {
           renderOffline: (s, vIds, bars) => renderOffline(s, vIds, bars),
+          renderOfflinePcm: (s, vIds, bars) => renderOfflinePcm(s, vIds, bars),
           onListening: setIsListening,
         },
         isStale: () => thisRequest !== requestIdRef.current,
