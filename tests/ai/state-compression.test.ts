@@ -1,7 +1,7 @@
 // tests/ai/state-compression.test.ts
 import { describe, it, expect } from 'vitest';
 import { compressState } from '../../src/ai/state-compression';
-import { createSession, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
+import { createSession, addTrack, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
 import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session } from '../../src/engine/types';
 import { resolveTrackId, getTrackOrdinalLabel } from '../../src/engine/track-labels';
@@ -10,6 +10,10 @@ import { getTrackKind, updateTrack } from '../../src/engine/types';
 /** Create a session with legacy engine assignments for tests that check engine-specific labels. */
 function createLegacySession(): Session {
   let s = createSession();
+  // Default session now starts with 1 track; add 3 more for legacy tests
+  s = addTrack(s)!;
+  s = addTrack(s)!;
+  s = addTrack(s)!;
   s = updateTrack(s, 'v0', { model: 13, engine: 'plaits:analog_bass_drum', name: undefined });
   s = updateTrack(s, 'v1', { model: 0, engine: 'plaits:virtual_analog', name: undefined });
   s = updateTrack(s, 'v2', { model: 2, engine: 'plaits:fm', name: undefined });
@@ -21,7 +25,7 @@ describe('State Compression (Phase 2)', () => {
   it('compresses multi-track session', () => {
     const session = createSession();
     const result = compressState(session);
-    expect(result.tracks).toHaveLength(5); // 4 audio + 1 master bus
+    expect(result.tracks).toHaveLength(2); // 1 audio + 1 master bus
     // Default tracks are empty (no engine)
     expect(result.tracks[0].model).toBe('unknown_-1');
     expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false, time_signature: '4/4' });
@@ -422,15 +426,24 @@ describe('Ordinal track labels in compressed state', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveTrackId', () => {
+  /** Create a session with 4 audio tracks for ordinal resolution tests. */
+  function createMultiTrackSession() {
+    let s = createSession();
+    s = addTrack(s)!;
+    s = addTrack(s)!;
+    s = addTrack(s)!;
+    return s;
+  }
+
   it('resolves internal IDs directly', () => {
-    const session = createSession();
+    const session = createMultiTrackSession();
     expect(resolveTrackId('v0', session)).toBe('v0');
     expect(resolveTrackId('v1', session)).toBe('v1');
     expect(resolveTrackId('master-bus', session)).toBe('master-bus');
   });
 
   it('resolves "Track 1" to first audio track', () => {
-    const session = createSession();
+    const session = createMultiTrackSession();
     expect(resolveTrackId('Track 1', session)).toBe('v0');
     expect(resolveTrackId('Track 2', session)).toBe('v1');
     expect(resolveTrackId('Track 3', session)).toBe('v2');
@@ -438,13 +451,13 @@ describe('resolveTrackId', () => {
   });
 
   it('resolves case-insensitive "track 1"', () => {
-    const session = createSession();
+    const session = createMultiTrackSession();
     expect(resolveTrackId('track 1', session)).toBe('v0');
     expect(resolveTrackId('TRACK 2', session)).toBe('v1');
   });
 
   it('resolves bare ordinal "1"', () => {
-    const session = createSession();
+    const session = createMultiTrackSession();
     expect(resolveTrackId('1', session)).toBe('v0');
     expect(resolveTrackId('4', session)).toBe('v3');
   });
@@ -469,7 +482,11 @@ describe('resolveTrackId', () => {
   });
 
   it('ordinal numbering skips bus tracks', () => {
-    const session = createSession();
+    let session = createSession();
+    // Default session now starts with 1 track; add more to test ordinals
+    session = addTrack(session)!;
+    session = addTrack(session)!;
+    session = addTrack(session)!;
     // Audio tracks are v0-v3, master-bus is not counted in ordinals
     const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
     expect(audioTracks).toHaveLength(4);

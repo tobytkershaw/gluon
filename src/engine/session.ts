@@ -52,7 +52,7 @@ function createMasterBus(): Track {
 }
 
 export function createSession(): Session {
-  const audioTracks = Array.from({ length: 4 }, (_, i) => createDefaultTrack(i));
+  const audioTracks = Array.from({ length: 1 }, (_, i) => createDefaultTrack(i));
   const tracks = [...audioTracks, createMasterBus()];
   const context: MusicalContext = {
     key: null,
