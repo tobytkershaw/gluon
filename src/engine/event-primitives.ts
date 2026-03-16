@@ -1,7 +1,7 @@
 // src/engine/event-primitives.ts
 import type { Session, RegionSnapshot } from './types';
 import { getTrack } from './types';
-import type { MusicalEvent, ParameterEvent } from './canonical-types';
+import type { MusicalEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { normalizeRegionEvents } from './region-helpers';
 import { reprojectTrackPattern } from './region-projection';
 import { updateTrack } from './types';
@@ -21,7 +21,7 @@ import type { InverseConversionOptions } from './event-conversion';
  */
 export type EventSelector =
   | { at: number; kind: 'trigger' }
-  | { at: number; kind: 'note'; pitch?: number }
+  | { at: number; kind: 'note'; pitch: number }
   | { at: number; kind: 'parameter'; controlId: string };
 
 const POSITION_TOLERANCE = 0.001;
@@ -33,7 +33,7 @@ function matchesSelector(event: MusicalEvent, selector: EventSelector): boolean 
   if (selector.kind === 'parameter') {
     return (event as ParameterEvent).controlId === selector.controlId;
   }
-  if (selector.kind === 'note' && selector.pitch !== undefined) {
+  if (selector.kind === 'note') {
     return (event as NoteEvent).pitch === selector.pitch;
   }
   return true;

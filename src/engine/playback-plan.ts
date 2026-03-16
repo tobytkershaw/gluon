@@ -1,4 +1,4 @@
-import type { MusicalEvent } from './canonical-types';
+import type { MusicalEvent, NoteEvent } from './canonical-types';
 
 export type RuntimeEventId = string;
 
@@ -19,7 +19,9 @@ export function buildRuntimeEventId(
   event: MusicalEvent,
   occurrence: number,
 ): RuntimeEventId {
-  const suffix = event.kind === 'parameter'
+  const suffix = event.kind === 'note'
+    ? `note:${(event as NoteEvent).pitch}@${formatStep(event.at)}`
+    : event.kind === 'parameter'
     ? `${event.controlId}@${formatStep(event.at)}`
     : `${event.kind}@${formatStep(event.at)}`;
   return `${generation}:${trackId}:${regionId}:${occurrence}:${suffix}`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PlaybackPlan, buildRuntimeEventId } from './playback-plan';
-import type { TriggerEvent, ParameterEvent } from './canonical-types';
+import type { TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 
 describe('PlaybackPlan', () => {
   it('admits an event only once per generation', () => {
@@ -34,6 +34,22 @@ describe('PlaybackPlan', () => {
     expect(buildRuntimeEventId(1, 'v1', 'r1', cutoff, 0)).not.toEqual(
       buildRuntimeEventId(1, 'v1', 'r1', morph, 0),
     );
+  });
+
+  it('distinguishes note events by pitch at the same step (chords)', () => {
+    const plan = new PlaybackPlan();
+    plan.reset(1);
+    const noteC: NoteEvent = { kind: 'note', at: 4, pitch: 60, velocity: 0.8, duration: 1 };
+    const noteE: NoteEvent = { kind: 'note', at: 4, pitch: 64, velocity: 0.8, duration: 1 };
+
+    const idC = buildRuntimeEventId(1, 'v1', 'r1', noteC, 0);
+    const idE = buildRuntimeEventId(1, 'v1', 'r1', noteE, 0);
+
+    // IDs must be distinct so both notes are admitted
+    expect(idC).not.toEqual(idE);
+
+    expect(plan.admit(idC, 4, 1, 'v1')).toBe(true);
+    expect(plan.admit(idE, 4, 1, 'v1')).toBe(true);
   });
 
   it('invalidates planned events for a track from a minimum step', () => {

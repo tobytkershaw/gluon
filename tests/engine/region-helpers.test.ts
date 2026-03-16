@@ -202,6 +202,35 @@ describe('validateRegion', () => {
     expect(valid).toBe(false);
     expect(errors.some(e => e.includes('Duplicate NoteEvents'))).toBe(true);
   });
+
+  // Invariant 10b: max 4 notes per step
+  it('accepts 4 notes at the same position', () => {
+    const region = makeRegion({
+      events: [
+        note(4, { pitch: 60 }),
+        note(4, { pitch: 64 }),
+        note(4, { pitch: 67 }),
+        note(4, { pitch: 72 }),
+      ],
+    });
+    const { valid } = validateRegion(region);
+    expect(valid).toBe(true);
+  });
+
+  it('rejects more than 4 notes at the same position', () => {
+    const region = makeRegion({
+      events: [
+        note(4, { pitch: 60 }),
+        note(4, { pitch: 64 }),
+        note(4, { pitch: 67 }),
+        note(4, { pitch: 72 }),
+        note(4, { pitch: 76 }),
+      ],
+    });
+    const { valid, errors } = validateRegion(region);
+    expect(valid).toBe(false);
+    expect(errors.some(e => e.includes('More than 4 NoteEvents'))).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -300,6 +329,24 @@ describe('normalizeRegionEvents', () => {
     const region = makeRegion({ events: [] });
     const result = normalizeRegionEvents(region);
     expect(result.events).toHaveLength(0);
+  });
+
+  it('truncates notes per step to max 4 (keeps first 4)', () => {
+    const region = makeRegion({
+      events: [
+        note(4, { pitch: 60 }),
+        note(4, { pitch: 64 }),
+        note(4, { pitch: 67 }),
+        note(4, { pitch: 72 }),
+        note(4, { pitch: 76 }),
+        note(4, { pitch: 79 }),
+      ],
+    });
+    const result = normalizeRegionEvents(region);
+    const notesAtStep4 = result.events.filter(
+      e => e.kind === 'note' && Math.abs(e.at - 4) < 0.001,
+    );
+    expect(notesAtStep4).toHaveLength(4);
   });
 });
 
