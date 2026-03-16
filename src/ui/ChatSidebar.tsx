@@ -1,7 +1,7 @@
 // src/ui/ChatSidebar.tsx
-// Persistent collapsible chat sidebar — always visible across all views.
-// Open: full sidebar with messages and composer at bottom.
-// Collapsed: renders nothing (composer moves to the global footer).
+// Persistent collapsible chat sidebar — the AI collaborator's space.
+// Open: full sidebar with messages, composer, and bold visual identity.
+// Collapsed: renders nothing (floating composer pill appears in AppShell).
 import { useCallback, useRef } from 'react';
 import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
 import { ChatMessages } from './ChatMessages';
@@ -43,7 +43,8 @@ export function ChatSidebar({
 
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!dragging.current) return;
-    const newWidth = Math.min(600, Math.max(240, e.clientX));
+    // Chat is on the right — left edge resize: window width minus pointer X = new width
+    const newWidth = Math.min(600, Math.max(240, window.innerWidth - e.clientX));
     onResize(newWidth);
   }, [onResize]);
 
@@ -55,36 +56,49 @@ export function ChatSidebar({
     onResize(320);
   }, [onResize]);
 
-  // Collapsed: render nothing — composer is in the global footer
+  const isActive = isThinking || isListening;
+
+  // Collapsed: render nothing — floating composer pill is in AppShell
   if (!open) {
     return null;
   }
 
-  // Expanded: full sidebar with composer at bottom
+  // Expanded: full sidebar with bold visual identity
   return (
-    <div className="relative border-r border-zinc-800/40 flex flex-col min-h-0 bg-zinc-950/80" style={{ width }}>
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800/40">
-        <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} />
-      </div>
+    <div className="relative flex min-h-0">
+      {/* Bioelectric membrane — the seam between workstation and AI */}
+      <div className={`ai-membrane shrink-0 ${isActive ? 'ai-membrane--active' : ''}`} />
 
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
-      </div>
-
-      {/* Composer at bottom of sidebar */}
-      <div className="shrink-0 border-t border-zinc-800/40">
-        <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
-      </div>
-
-      {/* Drag handle on right edge */}
+      {/* AI space */}
       <div
-        className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-zinc-500/40 active:bg-zinc-400/50 transition-colors"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onDoubleClick={handleDoubleClick}
-      />
+        className={`ai-space flex flex-col min-h-0 flex-1 ${isActive ? 'ai-space--active' : ''}`}
+        style={{ width: width - 2 }}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-900/20">
+          <span className="text-[9px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">AI</span>
+          <div className="flex-1" />
+          <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} />
+        </div>
+
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
+        </div>
+
+        {/* Composer at bottom of sidebar */}
+        <div className="shrink-0 border-t border-violet-900/20">
+          <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
+        </div>
+
+        {/* Drag handle on LEFT edge (overlays the membrane) */}
+        <div
+          className="absolute top-0 left-0 w-2 h-full cursor-col-resize hover:bg-violet-500/10 active:bg-violet-400/15 transition-colors z-10"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onDoubleClick={handleDoubleClick}
+        />
+      </div>
     </div>
   );
 }

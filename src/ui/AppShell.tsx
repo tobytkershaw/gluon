@@ -1,7 +1,8 @@
 // src/ui/AppShell.tsx
-// Three-column layout shell: TrackList | main content | ChatSidebar
-// Global top bar: ProjectMenu | ViewToggle | TransportStrip | UndoButton
-// Handles responsive collapse thresholds via ResizeObserver.
+// Layout shell: Workstation (instrument + tracks) left, AI Collaborator right.
+// Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
+// Footer: AudioLoadMeter + MasterStrip (workstation width only)
+// When chat collapsed: floating composer pill at bottom-right.
 import { useRef, useEffect, useCallback, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry, Reaction } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
@@ -13,6 +14,7 @@ import { ChatComposer } from './ChatComposer';
 import { ProjectMenu } from './ProjectMenu';
 import { ViewToggle } from './ViewToggle';
 import { TransportStrip } from './TransportStrip';
+import { ABControls } from './TransportStrip';
 import { UndoButton } from './UndoButton';
 import { RedoButton } from './RedoButton';
 import { MasterStrip } from './MasterStrip';
@@ -148,8 +150,8 @@ export function AppShell({
   const shellRef = useRef<HTMLDivElement>(null);
   const prevNarrowRef = useRef(false);
 
-  // Sending from the collapsed footer composer reopens the sidebar
-  const handleFooterSend = useCallback((message: string) => {
+  // Sending from the floating composer pill reopens the sidebar
+  const handleFloatingComposerSend = useCallback((message: string) => {
     onSend(message);
     if (!chatOpen) onChatToggle();
   }, [onSend, chatOpen, onChatToggle]);
@@ -175,10 +177,10 @@ export function AppShell({
 
   return (
     <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
-      {/* Global top bar — mirrors three-column body layout */}
+      {/* Global top bar — split into workstation (left) and collaboration (right) zones */}
       <div className="flex items-center h-9 border-b border-zinc-800/50 shrink-0">
-        {/* Chat-column zone: project menu */}
-        <div style={chatOpen ? { width: chatWidth } : undefined} className="shrink-0 flex items-center px-3 border-r border-zinc-800/30">
+        {/* Left zone: workstation controls */}
+        <div className="flex-1 flex items-center gap-3 px-3">
           <ProjectMenu
             projectName={projectName}
             projects={projects}
@@ -194,9 +196,7 @@ export function AppShell({
             onExportWav={onExportWav}
             exportingWav={exportingWav}
           />
-        </div>
-        {/* Content-column zone: view toggle, transport, undo */}
-        <div className="flex-1 flex items-center gap-3 px-3">
+          <div className="w-px h-4 bg-zinc-800" />
           <ViewToggle view={view} onViewChange={onViewChange} cancelEditRef={cancelEditRef} />
           <div className="w-px h-4 bg-zinc-800" />
           <TransportStrip
@@ -218,21 +218,16 @@ export function AppShell({
             metronomeVolume={metronomeVolume}
             onToggleMetronome={onToggleMetronome}
             onMetronomeVolumeChange={onMetronomeVolumeChange}
-            loopEnabled={loopEnabled}
-            loopStart={loopStart}
-            loopEnd={loopEnd}
             onToggleLoop={onToggleLoop}
             onLoopStartChange={onLoopStartChange}
             onLoopEndChange={onLoopEndChange}
             timeSignatureNumerator={timeSignatureNumerator}
             timeSignatureDenominator={timeSignatureDenominator}
             onTimeSignatureChange={onTimeSignatureChange}
-            abActive={abActive}
-            onAbCapture={onAbCapture}
-            onAbToggle={onAbToggle}
-            onAbClear={onAbClear}
           />
-          <div className="flex-1" />
+        </div>
+        {/* Right zone: collaboration controls (undo/redo + A/B) */}
+        <div className="shrink-0 flex items-center gap-1 px-3 border-l border-zinc-800/30">
           <UndoButton
             onClick={onUndo}
             disabled={undoStack.length === 0}
@@ -243,12 +238,43 @@ export function AppShell({
             disabled={redoStack.length === 0}
             description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
           />
+          <div className="w-px h-4 bg-zinc-800" />
+          <ABControls
+            abActive={abActive}
+            onAbCapture={onAbCapture}
+            onAbToggle={onAbToggle}
+            onAbClear={onAbClear}
+          />
         </div>
       </div>
 
       {/* Body row */}
       <div className="flex-1 flex min-h-0">
-        {/* Left: Chat sidebar */}
+        {/* Workstation: instrument + track list */}
+        <div className="flex-1 flex min-h-0">
+          {/* Main content (instrument view) */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {children}
+          </div>
+          {/* Track sidebar */}
+          <TrackList
+            tracks={tracks}
+            activeTrackId={activeTrackId}
+            activityMap={activityMap}
+            onSelectTrack={onSelectTrack}
+            onToggleMute={onToggleMute}
+            onToggleSolo={onToggleSolo}
+            onToggleAgency={onToggleAgency}
+            onRenameTrack={onRenameTrack}
+            onCycleApproval={onCycleApproval}
+            onChangeVolume={onChangeVolume}
+            onChangePan={onChangePan}
+            onAddTrack={onAddTrack}
+            onRemoveTrack={onRemoveTrack}
+          />
+        </div>
+
+        {/* AI Collaborator */}
         <ChatSidebar
           messages={messages}
           onSend={onSend}
@@ -267,67 +293,11 @@ export function AppShell({
           width={chatWidth}
           onResize={onChatResize}
         />
-
-        {/* Center: Main content */}
-        <div className="flex-1 min-w-0 flex flex-col">
-          {children}
-        </div>
-
-        {/* Right: Track sidebar */}
-        <TrackList
-          tracks={tracks}
-          activeTrackId={activeTrackId}
-          activityMap={activityMap}
-          onSelectTrack={onSelectTrack}
-          onToggleMute={onToggleMute}
-          onToggleSolo={onToggleSolo}
-          onToggleAgency={onToggleAgency}
-          onRenameTrack={onRenameTrack}
-          onCycleApproval={onCycleApproval}
-          onChangeVolume={onChangeVolume}
-          onChangePan={onChangePan}
-          onAddTrack={onAddTrack}
-          onRemoveTrack={onRemoveTrack}
-        />
       </div>
 
       {/* Global footer bar */}
       <div className="flex items-center h-10 border-t border-zinc-800/50 shrink-0">
-        {/* Chat-column zone: toggle always here, composer only when collapsed */}
-        <div
-          style={{ width: chatOpen ? chatWidth : 320 }}
-          className={`shrink-0 flex items-center ${chatOpen ? 'border-r border-zinc-800/30' : ''}`}
-        >
-          <button
-            onClick={onChatToggle}
-            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
-            title={chatOpen ? 'Collapse chat (Cmd+/)' : 'Expand chat (Cmd+/)'}
-          >
-            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400 transition-colors">
-              <path d={chatOpen ? 'M10 4l-4 4 4 4' : 'M6 4l4 4-4 4'} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {!chatOpen && (
-            <>
-              <ChatComposer onSend={handleFooterSend} disabled={isThinking || isListening} variant="footer" />
-              {(isThinking || isListening) && (
-                <span
-                  className="shrink-0 w-2 h-2 rounded-full bg-amber-400 mr-2"
-                  style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-                  title={isListening ? 'Listening...' : 'Thinking...'}
-                />
-              )}
-            </>
-          )}
-          {chatOpen && (isThinking || isListening) && (
-            <span
-              className="shrink-0 w-2 h-2 rounded-full bg-amber-400 ml-1"
-              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-              title={isListening ? 'Listening...' : 'Thinking...'}
-            />
-          )}
-        </div>
-        {/* Master channel strip + audio load */}
+        {/* Workstation footer: audio load + master strip */}
         <div className="flex-1 flex items-center justify-end">
           <AudioLoadMeter audioContext={audioContext} />
           <MasterStrip
@@ -339,7 +309,61 @@ export function AppShell({
             onPanChange={onMasterPanChange}
           />
         </div>
+        {/* Chat toggle button — always visible in footer */}
+        <div className="shrink-0 flex items-center px-1 border-l border-zinc-800/30">
+          <button
+            onClick={onChatToggle}
+            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
+            title={chatOpen ? 'Collapse chat (Cmd+/)' : 'Expand chat (Cmd+/)'}
+          >
+            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-violet-400 transition-colors">
+              {chatOpen ? (
+                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              ) : (
+                <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+            </svg>
+          </button>
+          {chatOpen && (isThinking || isListening) && (
+            <span
+              className="shrink-0 w-2 h-2 rounded-full bg-violet-400 mr-1"
+              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
+              title={isListening ? 'Listening...' : 'Thinking...'}
+            />
+          )}
+        </div>
       </div>
+
+      {/* Floating composer pill — visible when chat is collapsed */}
+      {!chatOpen && (
+        <div
+          className="ai-composer-pill fixed z-50 flex items-center gap-2 rounded-xl px-3 py-2"
+          style={{ bottom: 52, right: 16, width: 340 }}
+        >
+          {/* Open chat button */}
+          <button
+            onClick={onChatToggle}
+            className="shrink-0 p-1 rounded hover:bg-violet-500/15 transition-colors"
+            title="Open AI chat (Cmd+/)"
+          >
+            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-violet-400/70 hover:text-violet-300 transition-colors">
+              <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {/* Composer input */}
+          <div className="flex-1 min-w-0">
+            <ChatComposer onSend={handleFloatingComposerSend} disabled={isThinking || isListening} variant="footer" />
+          </div>
+          {/* Thinking indicator */}
+          {(isThinking || isListening) && (
+            <span
+              className="shrink-0 w-2 h-2 rounded-full bg-violet-400"
+              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
+              title={isListening ? 'Listening...' : 'Thinking...'}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

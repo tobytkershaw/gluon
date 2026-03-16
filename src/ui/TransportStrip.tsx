@@ -3,6 +3,62 @@
 import { useState, useRef, useEffect } from 'react';
 import { DraggableNumber } from './DraggableNumber';
 
+export interface ABControlsProps {
+  abActive: 'a' | 'b' | null;
+  onAbCapture: () => void;
+  onAbToggle: () => void;
+  onAbClear: () => void;
+}
+
+/** Standalone A/B comparison controls — rendered in the top-right collaboration zone. */
+export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABControlsProps) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {abActive === null ? (
+        <button
+          onClick={onAbCapture}
+          className="h-5 px-1.5 rounded text-[9px] font-medium tracking-wider uppercase transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
+          title="Snapshot current state as A"
+        >
+          A/B
+        </button>
+      ) : (
+        <>
+          <button
+            onClick={onAbToggle}
+            className={`h-5 w-5 rounded-l text-[10px] font-bold transition-colors border ${
+              abActive === 'a'
+                ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
+                : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
+            }`}
+            title="Switch to A"
+          >
+            A
+          </button>
+          <button
+            onClick={onAbToggle}
+            className={`h-5 w-5 rounded-r text-[10px] font-bold transition-colors border border-l-0 ${
+              abActive === 'b'
+                ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
+                : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
+            }`}
+            title="Switch to B"
+          >
+            B
+          </button>
+          <button
+            onClick={onAbClear}
+            className="h-5 w-4 rounded text-[9px] transition-colors bg-zinc-800 text-zinc-600 border border-zinc-700 hover:text-zinc-300 ml-0.5"
+            title="Discard A/B snapshot"
+          >
+            x
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 interface Props {
   playing: boolean;
   bpm: number;
@@ -29,11 +85,6 @@ interface Props {
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
   onTimeSignatureChange: (numerator: number, denominator: number) => void;
-  // A/B comparison
-  abActive: 'a' | 'b' | null;
-  onAbCapture: () => void;
-  onAbToggle: () => void;
-  onAbClear: () => void;
 }
 
 export function TransportStrip({
@@ -43,7 +94,6 @@ export function TransportStrip({
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   onToggleLoop, onLoopStartChange, onLoopEndChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
-  abActive, onAbCapture, onAbToggle, onAbClear,
 }: Props) {
   const bar = Math.floor(globalStep / patternLength) + 1;
   const beat = Math.floor(globalStep % patternLength) + 1;
@@ -194,50 +244,6 @@ export function TransportStrip({
         </div>
       )}
 
-      {/* A/B comparison */}
-      <div className="flex items-center gap-0.5">
-        {abActive === null ? (
-          <button
-            onClick={onAbCapture}
-            className="h-5 px-1.5 rounded text-[9px] font-medium tracking-wider uppercase transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
-            title="Snapshot current state as A"
-          >
-            A/B
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={onAbToggle}
-              className={`h-5 w-5 rounded-l text-[10px] font-bold transition-colors border ${
-                abActive === 'a'
-                  ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
-                  : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
-              }`}
-              title="Switch to A"
-            >
-              A
-            </button>
-            <button
-              onClick={onAbToggle}
-              className={`h-5 w-5 rounded-r text-[10px] font-bold transition-colors border border-l-0 ${
-                abActive === 'b'
-                  ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
-                  : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
-              }`}
-              title="Switch to B"
-            >
-              B
-            </button>
-            <button
-              onClick={onAbClear}
-              className="h-5 w-4 rounded text-[9px] transition-colors bg-zinc-800 text-zinc-600 border border-zinc-700 hover:text-zinc-300 ml-0.5"
-              title="Discard A/B snapshot"
-            >
-              x
-            </button>
-          </>
-        )}
-      </div>
     </div>
   );
 }
