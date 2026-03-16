@@ -1,6 +1,6 @@
 // src/engine/event-primitives.ts
 import type { Session, RegionSnapshot } from './types';
-import { getTrack } from './types';
+import { getTrack, getActiveRegion } from './types';
 import type { MusicalEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { normalizeRegionEvents } from './region-helpers';
 import { reprojectTrackPattern } from './region-projection';
@@ -71,21 +71,24 @@ function applyEventEdit(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
+  const activeReg = getActiveRegion(track);
+
   const snapshot: RegionSnapshot | undefined = description
     ? {
         kind: 'region',
         trackId,
-        prevEvents: [...track.regions[0].events],
+        regionId: activeReg.id,
+        prevEvents: [...activeReg.events],
         timestamp: Date.now(),
         description,
       }
     : undefined;
 
   const region = normalizeRegionEvents({
-    ...track.regions[0],
+    ...activeReg,
     events: newEvents,
   });
-  const newRegions = [region, ...track.regions.slice(1)];
+  const newRegions = track.regions.map(r => r.id === activeReg.id ? region : r);
   const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
   const result = updateTrack(session, trackId, {
     regions: updatedTrack.regions,
@@ -103,12 +106,13 @@ function applyEventEdit(
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Add an event to a track's region. */
+/** Add an event to a track's active region. */
 export function addEvent(session: Session, trackId: string, event: MusicalEvent): Session {
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
-  const events = [...track.regions[0].events, event];
+  const activeReg = getActiveRegion(track);
+  const events = [...activeReg.events, event];
   return applyEventEdit(session, trackId, events, `Add ${event.kind} event at ${event.at}`);
 }
 
@@ -117,8 +121,9 @@ export function removeEvent(session: Session, trackId: string, selector: EventSe
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
-  const events = track.regions[0].events.filter(e => !matchesSelector(e, selector));
-  if (events.length === track.regions[0].events.length) return session; // nothing matched
+  const activeReg = getActiveRegion(track);
+  const events = activeReg.events.filter(e => !matchesSelector(e, selector));
+  if (events.length === activeReg.events.length) return session; // nothing matched
   return applyEventEdit(session, trackId, events, `Remove ${selector.kind} event at ${selector.at}`);
 }
 
@@ -132,7 +137,8 @@ export function updateEvent(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
-  const events = track.regions[0].events.map(e => {
+  const activeReg = getActiveRegion(track);
+  const events = activeReg.events.map(e => {
     if (matchesSelector(e, selector)) {
       return { ...e, ...updates } as MusicalEvent;
     }
@@ -141,7 +147,7 @@ export function updateEvent(
   return applyEventEdit(session, trackId, events, `Update ${selector.kind} event at ${selector.at}`);
 }
 
-/** Remove events by their indices in the region's event array. */
+/** Remove events by their indices in the active region's event array. */
 export function removeEventsByIndices(
   session: Session,
   trackId: string,
@@ -150,13 +156,14 @@ export function removeEventsByIndices(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
+  const activeReg = getActiveRegion(track);
   const indexSet = new Set(indices);
-  const events = track.regions[0].events.filter((_, i) => !indexSet.has(i));
-  if (events.length === track.regions[0].events.length) return session;
+  const events = activeReg.events.filter((_, i) => !indexSet.has(i));
+  if (events.length === activeReg.events.length) return session;
   return applyEventEdit(session, trackId, events, `Delete ${indices.length} event(s)`);
 }
 
-/** Insert multiple events into a track's region. */
+/** Insert multiple events into a track's active region. */
 export function addEvents(
   session: Session,
   trackId: string,
@@ -166,6 +173,7 @@ export function addEvents(
   if (track.regions.length === 0) return session;
   if (newEvents.length === 0) return session;
 
-  const events = [...track.regions[0].events, ...newEvents];
+  const activeReg = getActiveRegion(track);
+  const events = [...activeReg.events, ...newEvents];
   return applyEventEdit(session, trackId, events, `Paste ${newEvents.length} event(s)`);
 }

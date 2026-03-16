@@ -1,7 +1,7 @@
 // src/engine/scheduler.ts
-import type { Session, SynthParamValues } from './types';
+import type { Session, SynthParamValues, Track } from './types';
 import type { ScheduledNote } from './sequencer-types';
-import type { MusicalEvent, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
+import type { MusicalEvent, Region, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
@@ -162,138 +162,158 @@ export class Scheduler {
 
     for (const track of audibleTracks) {
       if (track.regions.length === 0) continue;
-      const region = track.regions[0];
-      const events = region.events;
-      const regionLen = region.duration;
-      if (regionLen <= 0 || events.length === 0) continue;
 
-      // Convert absolute window to region-local segments, handling loop wrapping
-      const segments = this.getLocalSegments(this.cursor, lookaheadEnd, regionLen);
+      for (const region of track.regions) {
+        const events = region.events;
+        const regionLen = region.duration;
+        if (regionLen <= 0 || events.length === 0) continue;
 
-      for (const seg of segments) {
-        const startIdx = lowerBound(events, seg.localStart);
+        const regionStart = region.start;
 
-        for (let i = startIdx; i < events.length; i++) {
-          const event = events[i];
-          if (event.at >= seg.localEnd) break;
-          if (event.at < seg.localStart) continue;
-
-          // Standalone parameter events: fire callback to apply automation values.
-          // Parameter events co-located with triggers/notes are still resolved
-          // inline via resolveEventParams below.
-          if (event.kind === 'parameter') {
-            const parameterAbsoluteStep = seg.loopCycle * regionLen + event.at;
-            const parameterEventId = buildRuntimeEventId(
-              this.generation,
-              track.id,
-              region.id,
-              event,
-              seg.loopCycle,
-            );
-            if (!this.playbackPlan.admit(parameterEventId, parameterAbsoluteStep, this.generation, track.id)) {
-              continue;
-            }
-            if (this.onParameterEvent) {
-              const pe = event as ParameterEvent;
-              this.onParameterEvent(track.id, pe.controlId, pe.value);
-            }
-            continue;
-          }
-          // velocity=0 is the "ungated" sentinel — trigger exists to preserve
-          // accent state but should not produce a gate (matches event-conversion.ts)
-          if (event.kind === 'trigger' && (event as TriggerEvent).velocity === 0) continue;
-
-          // Absolute step position of this event
-          const absoluteStep = seg.loopCycle * regionLen + event.at;
-          const runtimeEventId = buildRuntimeEventId(
-            this.generation,
-            track.id,
-            region.id,
-            event,
-            seg.loopCycle,
+        if (region.loop) {
+          // Looping region: compute segments relative to region start
+          const relStart = this.cursor - regionStart;
+          const relEnd = lookaheadEnd - regionStart;
+          if (relEnd <= 0) continue;
+          const segments = this.getLocalSegments(
+            Math.max(0, relStart),
+            relEnd,
+            regionLen,
           );
-          if (!this.playbackPlan.admit(runtimeEventId, absoluteStep, this.generation, track.id)) {
-            continue;
+          for (const seg of segments) {
+            this.scheduleSegmentEvents(track, region, events, regionLen, regionStart, seg, stepDuration, swing);
           }
-
-          // Base time
-          const baseTime = this.startTime + absoluteStep * stepDuration;
-
-          // Apply swing to odd positions in beat pairs (positions 1, 3 within a beat)
-          const isOddInPair = Math.floor(absoluteStep) % 2 === 1;
-          const swingDelay = isOddInPair ? swing * (stepDuration * 0.75) : 0;
-          const noteTime = baseTime + swingDelay;
-
-          // Gate-off time
-          // Known M2 limitation: gate-off times are computed using the current
-          // stepDuration. If BPM changes after a note-on is scheduled but before
-          // its gate-off fires, the gate-off will land at the wrong wall-clock
-          // time. Fixing this would require tracking in-flight gate-offs and
-          // recomputing them on tempo change, deferred to M3.
-          let gateOffAbsolute: number;
-          if (event.kind === 'note') {
-            gateOffAbsolute = absoluteStep + (event as NoteEvent).duration;
-          } else {
-            // TriggerEvent: fixed gate length of 1 step
-            gateOffAbsolute = absoluteStep + 1;
-          }
-          const gateOffBase = this.startTime + gateOffAbsolute * stepDuration;
-          // Apply swing to gate-off position
-          const gateOffOdd = Math.floor(gateOffAbsolute) % 2 === 1;
-          const gateOffSwingDelay = gateOffOdd ? swing * (stepDuration * 0.75) : 0;
-          const gateOffTime = gateOffBase + gateOffSwingDelay;
-
-          // Determine accent — must match projection rules in eventsToSteps():
-          // accent is true if event.accent is set OR velocity >= 0.95
-          const accent = event.kind === 'trigger'
-            ? !!((event as TriggerEvent).accent || ((event as TriggerEvent).velocity !== undefined && (event as TriggerEvent).velocity! >= 0.95))
-            : (event as NoteEvent).velocity >= 0.95;
-
-          // Resolve params: track base + parameter events at same position + held
-          const heldParams = this.getHeldParams(track.id);
-          const resolvedParams = resolveEventParams(
-            events,
-            event.at,
-            track.params,
-            heldParams,
-            (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
-          );
-
-          // Inject NoteEvent pitch into resolved params — resolveEventParams
-          // only collects ParameterEvents, so NoteEvent.pitch would be lost.
-          if (event.kind === 'note') {
-            resolvedParams.note = (event as NoteEvent).pitch / 127;
-          }
-
-          this.onNote({
-            eventId: runtimeEventId,
-            generation: this.generation,
-            trackId: track.id,
-            time: noteTime,
-            gateOffTime,
-            accent,
-            params: resolvedParams,
-            baseParams: track.params,
-          });
-
-          recordQaAudioTrace({
-            type: 'scheduler.note',
-            trackId: track.id,
-            generation: this.generation,
-            eventId: runtimeEventId,
-            eventKind: event.kind,
-            at: event.at,
-            absoluteStep,
-            noteTime,
-            gateOffTime,
-            accent,
-          });
+        } else {
+          // Non-looping region: play once at region.start
+          const regionEnd = regionStart + regionLen;
+          if (regionEnd <= this.cursor || regionStart >= lookaheadEnd) continue;
+          const localStart = Math.max(0, this.cursor - regionStart);
+          const localEnd = Math.min(regionLen, lookaheadEnd - regionStart);
+          if (localEnd <= localStart) continue;
+          this.scheduleSegmentEvents(track, region, events, regionLen, regionStart, { localStart, localEnd, loopCycle: 0 }, stepDuration, swing);
         }
       }
     }
 
     // Advance cursor past everything we've scheduled
     this.cursor = lookaheadEnd;
+  }
+
+  /**
+   * Schedule events from a single region segment. Extracted from the main loop
+   * to support multi-region iteration (both looping and non-looping regions).
+   */
+  private scheduleSegmentEvents(
+    track: Track,
+    region: Region,
+    events: MusicalEvent[],
+    regionLen: number,
+    regionStart: number,
+    seg: { localStart: number; localEnd: number; loopCycle: number },
+    stepDuration: number,
+    swing: number,
+  ): void {
+    const startIdx = lowerBound(events, seg.localStart);
+
+    for (let i = startIdx; i < events.length; i++) {
+      const event = events[i];
+      if (event.at >= seg.localEnd) break;
+      if (event.at < seg.localStart) continue;
+
+      // Absolute step includes the region's start offset
+      const absoluteStep = regionStart + seg.loopCycle * regionLen + event.at;
+
+      // Standalone parameter events: fire callback to apply automation values.
+      if (event.kind === 'parameter') {
+        const parameterEventId = buildRuntimeEventId(
+          this.generation,
+          track.id,
+          region.id,
+          event,
+          seg.loopCycle,
+        );
+        if (!this.playbackPlan.admit(parameterEventId, absoluteStep, this.generation, track.id)) {
+          continue;
+        }
+        if (this.onParameterEvent) {
+          const pe = event as ParameterEvent;
+          this.onParameterEvent(track.id, pe.controlId, pe.value);
+        }
+        continue;
+      }
+      // velocity=0 is the "ungated" sentinel
+      if (event.kind === 'trigger' && (event as TriggerEvent).velocity === 0) continue;
+
+      const runtimeEventId = buildRuntimeEventId(
+        this.generation,
+        track.id,
+        region.id,
+        event,
+        seg.loopCycle,
+      );
+      if (!this.playbackPlan.admit(runtimeEventId, absoluteStep, this.generation, track.id)) {
+        continue;
+      }
+
+      // Base time
+      const baseTime = this.startTime + absoluteStep * stepDuration;
+      const isOddInPair = Math.floor(absoluteStep) % 2 === 1;
+      const swingDelay = isOddInPair ? swing * (stepDuration * 0.75) : 0;
+      const noteTime = baseTime + swingDelay;
+
+      // Gate-off time
+      let gateOffAbsolute: number;
+      if (event.kind === 'note') {
+        gateOffAbsolute = absoluteStep + (event as NoteEvent).duration;
+      } else {
+        gateOffAbsolute = absoluteStep + 1;
+      }
+      const gateOffBase = this.startTime + gateOffAbsolute * stepDuration;
+      const gateOffOdd = Math.floor(gateOffAbsolute) % 2 === 1;
+      const gateOffSwingDelay = gateOffOdd ? swing * (stepDuration * 0.75) : 0;
+      const gateOffTime = gateOffBase + gateOffSwingDelay;
+
+      const accent = event.kind === 'trigger'
+        ? !!((event as TriggerEvent).accent || ((event as TriggerEvent).velocity !== undefined && (event as TriggerEvent).velocity! >= 0.95))
+        : (event as NoteEvent).velocity >= 0.95;
+
+      const heldParams = this.getHeldParams(track.id);
+      const resolvedParams = resolveEventParams(
+        events,
+        event.at,
+        track.params,
+        heldParams,
+        (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
+      );
+
+      if (event.kind === 'note') {
+        resolvedParams.note = (event as NoteEvent).pitch / 127;
+      }
+
+      this.onNote({
+        eventId: runtimeEventId,
+        generation: this.generation,
+        trackId: track.id,
+        time: noteTime,
+        gateOffTime,
+        accent,
+        params: resolvedParams,
+        baseParams: track.params,
+      });
+
+      recordQaAudioTrace({
+        type: 'scheduler.note',
+        trackId: track.id,
+        generation: this.generation,
+        eventId: runtimeEventId,
+        eventKind: event.kind,
+        at: event.at,
+        absoluteStep,
+        noteTime,
+        gateOffTime,
+        accent,
+      });
+    }
   }
 
   /**

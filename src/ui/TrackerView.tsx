@@ -2,6 +2,7 @@
 // Thin shell: full-height Tracker (top bar moved to AppShell)
 import { useState, useCallback, useRef, type MutableRefObject } from 'react';
 import type { Session, Track } from '../engine/types';
+import { getActiveRegion } from '../engine/types';
 import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { getModelName } from '../audio/instrument-registry';
@@ -35,6 +36,12 @@ interface Props {
   onDeleteByIndices?: (indices: number[]) => void;
   /** Paste events into the region (for clipboard paste). */
   onPasteEvents?: (events: MusicalEvent[]) => void;
+  // Region CRUD
+  onAddRegion?: () => void;
+  onRemoveRegion?: (regionId: string) => void;
+  onDuplicateRegion?: (regionId: string) => void;
+  onRenameRegion?: (regionId: string, name: string) => void;
+  onSetActiveRegion?: (regionId: string) => void;
 }
 
 // --- Inline number input for Rotate/Transpose ---
@@ -88,9 +95,15 @@ export function TrackerView({
   onRotate, onTranspose, onReverse, onDuplicate,
   cancelEditRef,
   onDeleteByIndices, onPasteEvents,
+  onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
-  const hasEvents = activeTrack.regions.length > 0 && activeTrack.regions[0].events.length > 0;
+  const activeRegion = activeTrack.regions.length > 0 ? getActiveRegion(activeTrack) : undefined;
+  const hasEvents = activeRegion ? activeRegion.events.length > 0 : false;
+
+  // Region rename state
+  const [renamingRegionId, setRenamingRegionId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const handleAddNote = useCallback((step: number) => {
     if (!onEventAdd) return;
@@ -235,11 +248,85 @@ export function TrackerView({
             </div>
           </div>
 
+          {/* Region tabs */}
+          {activeTrack.regions.length > 0 && (
+            <div className="flex items-center gap-1 text-[10px]">
+              {activeTrack.regions.map((region, idx) => {
+                const isActive = activeRegion?.id === region.id;
+                const label = region.name || `R${idx + 1}`;
+                return (
+                  <div key={region.id} className="flex items-center group">
+                    {renamingRegionId === region.id ? (
+                      <input
+                        className="w-16 text-[10px] bg-zinc-800 border border-amber-500/50 rounded px-1 py-0.5 text-zinc-200 outline-none"
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            onRenameRegion?.(region.id, renameValue);
+                            setRenamingRegionId(null);
+                          } else if (e.key === 'Escape') {
+                            setRenamingRegionId(null);
+                          }
+                        }}
+                        onBlur={() => setRenamingRegionId(null)}
+                        autoFocus
+                      />
+                    ) : (
+                      <button
+                        className={`px-2 py-0.5 rounded transition-colors ${
+                          isActive
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'
+                        }`}
+                        onClick={() => onSetActiveRegion?.(region.id)}
+                        onDoubleClick={() => {
+                          setRenamingRegionId(region.id);
+                          setRenameValue(region.name || '');
+                        }}
+                        title={`Region ${idx + 1}${region.name ? `: ${region.name}` : ''} — double-click to rename`}
+                      >
+                        {label}
+                      </button>
+                    )}
+                    {isActive && activeTrack.regions.length > 1 && (
+                      <button
+                        className="ml-0.5 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onRemoveRegion?.(region.id)}
+                        title="Remove region"
+                      >
+                        x
+                      </button>
+                    )}
+                    {isActive && (
+                      <button
+                        className="ml-0.5 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => onDuplicateRegion?.(region.id)}
+                        title="Duplicate region"
+                      >
+                        d
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {onAddRegion && (
+                <button
+                  className="px-1.5 py-0.5 text-zinc-600 hover:text-zinc-300 transition-colors"
+                  onClick={onAddRegion}
+                  title="Add new region"
+                >
+                  +
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Full-height tracker scroll container */}
           <div className="flex-1 min-h-0 overflow-y-auto rounded border border-zinc-800/50 bg-zinc-900/40">
-            {activeTrack.regions.length > 0 ? (
+            {activeRegion ? (
               <Tracker
-                region={activeTrack.regions[0]}
+                region={activeRegion}
                 currentStep={currentStep}
                 playing={playing}
                 engineModel={activeTrack.model}

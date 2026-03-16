@@ -22,7 +22,10 @@ function makeSession(overrides?: Partial<Session>): Session {
       pattern: { steps: [], length: 16 },
       regions: [{
         id: 'r1',
+        kind: 'pattern' as const,
+        start: 0,
         duration: 16,
+        loop: true,
         events: [triggerEvent],
       }],
       surface: {
