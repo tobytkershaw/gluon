@@ -103,7 +103,7 @@ export function createSession(): Session {
   return {
     tracks,
     activeTrackId: tracks[0].id,
-    transport: { status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 } },
+    transport: { status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
     master: { ...DEFAULT_MASTER },
     undoStack: [],
     redoStack: [],
@@ -400,6 +400,19 @@ export function setTransportSwing(session: Session, swing: number): Session {
   return {
     ...session,
     transport: { ...session.transport, swing: Math.max(0, Math.min(1, swing)) },
+  };
+}
+
+export function setTimeSignature(session: Session, numerator: number, denominator: number): Session {
+  const clampedNum = Math.max(1, Math.min(16, Math.round(numerator)));
+  const validDenominators = [2, 4, 8, 16];
+  const clampedDen = validDenominators.includes(denominator) ? denominator : 4;
+  return {
+    ...session,
+    transport: {
+      ...session.transport,
+      timeSignature: { numerator: clampedNum, denominator: clampedDen },
+    },
   };
 }
 

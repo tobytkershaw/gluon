@@ -345,6 +345,7 @@ export function TrackerView({
                 loopStart={session.transport.loopStart}
                 loopEnd={session.transport.loopEnd}
                 onCursorStepChange={onCursorStepChange}
+                stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
               />
             ) : (
               <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">

@@ -11,7 +11,7 @@ describe('State Compression (Phase 2)', () => {
     const result = compressState(session);
     expect(result.tracks).toHaveLength(5); // 4 audio + 1 master bus
     expect(result.tracks[0].model).toBe('analog_bass_drum');
-    expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false });
+    expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false, time_signature: '4/4' });
     expect(result.activeTrackId).toBe(session.activeTrackId);
     // Master bus should be compressed with kind: 'bus'
     const masterTrack = result.tracks.find((t: Record<string, unknown>) => t.id === 'master-bus');
@@ -348,5 +348,27 @@ describe('Recent preservation reports', () => {
     const session = createSession();
     const result = compressState(session, []);
     expect('recent_preservation' in result).toBe(false);
+  });
+});
+
+describe('Time signature in compressed state', () => {
+  it('includes time_signature in transport (default 4/4)', () => {
+    const session = createSession();
+    const result = compressState(session);
+    expect(result.transport.time_signature).toBe('4/4');
+  });
+
+  it('reflects non-default time signature', () => {
+    const session = createSession();
+    session.transport.timeSignature = { numerator: 3, denominator: 4 };
+    const result = compressState(session);
+    expect(result.transport.time_signature).toBe('3/4');
+  });
+
+  it('handles 6/8 time signature', () => {
+    const session = createSession();
+    session.transport.timeSignature = { numerator: 6, denominator: 8 };
+    const result = compressState(session);
+    expect(result.transport.time_signature).toBe('6/8');
   });
 });

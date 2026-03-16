@@ -687,4 +687,130 @@ describe('Scheduler', () => {
     // Track base params not overridden should remain
     expect(notes[0].params.timbre).toBe(0.5);
   });
+
+  // --- Time signature tests ---
+
+  it('metronome uses time signature for beat grouping (3/4)', () => {
+    // Set 3/4 time: stepsPerBeat = 16/4 = 4, stepsPerBar = 4*3 = 12
+    session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        metronome: { enabled: true, volume: 0.5 },
+        timeSignature: { numerator: 3, denominator: 4 },
+      },
+    };
+
+    const clicks: { time: number; accent: boolean }[] = [];
+    const sched = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      (note) => notes.push(note),
+      (pos) => positions.push(pos),
+      () => ({}),
+      undefined,
+      (time, accent) => clicks.push({ time, accent }),
+    );
+
+    sched.start(0);
+    // At 120 BPM, step duration = 0.125s
+    // 3/4 time: stepsPerBeat=4, stepsPerBar=12
+    // Beat clicks at steps 0, 4, 8, 12, 16, 20, 24...
+    // Downbeats at steps 0, 12, 24... (every 12 steps = 1.5s)
+    audioTime = 3.5; // enough for ~28 steps
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    expect(clicks.length).toBeGreaterThan(0);
+    // First click should be a downbeat (step 0)
+    expect(clicks[0].accent).toBe(true);
+    // In 3/4, downbeats happen every 3 beats (12 steps).
+    // Clicks at steps 0,4,8,12,16,20,24 → downbeats at 0,12,24
+    // clicks[0]=step 0 (accent), clicks[1]=step 4 (no accent), clicks[2]=step 8 (no accent), clicks[3]=step 12 (accent)
+    if (clicks.length >= 4) {
+      expect(clicks[1].accent).toBe(false); // beat 2
+      expect(clicks[2].accent).toBe(false); // beat 3
+      expect(clicks[3].accent).toBe(true);  // downbeat of bar 2
+    }
+  });
+
+  it('metronome uses time signature for beat grouping (6/8)', () => {
+    // 6/8 time: stepsPerBeat = 16/8 = 2, stepsPerBar = 2*6 = 12
+    session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        metronome: { enabled: true, volume: 0.5 },
+        timeSignature: { numerator: 6, denominator: 8 },
+      },
+    };
+
+    const clicks: { time: number; accent: boolean }[] = [];
+    const sched = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      (note) => notes.push(note),
+      (pos) => positions.push(pos),
+      () => ({}),
+      undefined,
+      (time, accent) => clicks.push({ time, accent }),
+    );
+
+    sched.start(0);
+    audioTime = 2.0;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    expect(clicks.length).toBeGreaterThan(0);
+    // In 6/8: stepsPerBeat=2, stepsPerBar=12
+    // Clicks at steps 0,2,4,6,8,10,12...
+    // Downbeats at 0, 12, 24 (every 12 steps)
+    expect(clicks[0].accent).toBe(true);   // step 0 = downbeat
+    if (clicks.length >= 7) {
+      expect(clicks[1].accent).toBe(false); // step 2
+      expect(clicks[6].accent).toBe(true);  // step 12 = downbeat of bar 2
+    }
+  });
+
+  it('default time signature (4/4) behaves like hardcoded 4', () => {
+    // The default session has 4/4, which should have the same behavior as before
+    session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        metronome: { enabled: true, volume: 0.5 },
+        timeSignature: { numerator: 4, denominator: 4 },
+      },
+    };
+
+    const clicks: { time: number; accent: boolean }[] = [];
+    const sched = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      (note) => notes.push(note),
+      (pos) => positions.push(pos),
+      () => ({}),
+      undefined,
+      (time, accent) => clicks.push({ time, accent }),
+    );
+
+    sched.start(0);
+    audioTime = 2.5;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    expect(clicks.length).toBeGreaterThan(0);
+    // 4/4: stepsPerBeat=4, stepsPerBar=16
+    // Clicks at 0,4,8,12,16... Downbeats at 0,16...
+    expect(clicks[0].accent).toBe(true);  // step 0 = downbeat
+    if (clicks.length >= 5) {
+      expect(clicks[1].accent).toBe(false);
+      expect(clicks[2].accent).toBe(false);
+      expect(clicks[3].accent).toBe(false);
+      expect(clicks[4].accent).toBe(true);  // step 16 = downbeat of bar 2
+    }
+  });
 });

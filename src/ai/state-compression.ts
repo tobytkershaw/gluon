@@ -103,7 +103,7 @@ interface CompressedPreservationReport {
 export interface CompressedState {
   tracks: CompressedTrack[];
   activeTrackId: string;
-  transport: { bpm: number; swing: number; playing: boolean };
+  transport: { bpm: number; swing: number; playing: boolean; time_signature: string };
   context: { energy: number; density: number };
   undo_depth: number;
   redo_depth: number;
@@ -406,6 +406,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
       playing: session.transport.playing,
+      time_signature: `${session.transport.timeSignature?.numerator ?? 4}/${session.transport.timeSignature?.denominator ?? 4}`,
     },
     context: {
       energy: round2(session.context.energy),

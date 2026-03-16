@@ -17,7 +17,7 @@ import {
   toggleMetronome, setMetronomeVolume,
   addReaction,
   addRegion, removeRegion, duplicateRegion, renameRegion, setActiveRegionOnTrack,
-  toggleLoop, setLoopStart, setLoopEnd,
+  toggleLoop, setLoopStart, setLoopEnd, setTimeSignature,
   captureABSnapshot, restoreABSnapshot,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
@@ -1907,6 +1907,9 @@ export default function App() {
       onToggleLoop={() => setSession(s => toggleLoop(s))}
       onLoopStartChange={(step) => setSession(s => setLoopStart(s, step))}
       onLoopEndChange={(step) => setSession(s => setLoopEnd(s, step))}
+      timeSignatureNumerator={session.transport.timeSignature?.numerator ?? 4}
+      timeSignatureDenominator={session.transport.timeSignature?.denominator ?? 4}
+      onTimeSignatureChange={(num, den) => setSession(s => setTimeSignature(s, num, den))}
       view={view}
       onViewChange={setView}
       undoStack={session.undoStack}

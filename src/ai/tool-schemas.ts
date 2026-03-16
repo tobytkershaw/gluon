@@ -157,7 +157,7 @@ const listenTool: ToolSchema = {
 const setTransportTool: ToolSchema = {
   name: 'set_transport',
   description:
-    'Change tempo, swing, or play/stop state. Takes effect after this response.',
+    'Change tempo, swing, time signature, or play/stop state. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
@@ -172,6 +172,14 @@ const setTransportTool: ToolSchema = {
       playing: {
         type: 'boolean',
         description: 'True to start playback, false to stop.',
+      },
+      timeSignatureNumerator: {
+        type: 'number',
+        description: 'Beats per bar (1-16). E.g. 3 for 3/4 time.',
+      },
+      timeSignatureDenominator: {
+        type: 'number',
+        description: 'Beat unit (2, 4, 8, or 16). E.g. 4 for quarter-note beats.',
       },
     },
   },

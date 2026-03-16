@@ -18,12 +18,21 @@ export interface MetronomeState {
   volume: number; // 0.0–1.0
 }
 
+export interface TimeSignature {
+  /** Beats per bar (numerator). Default: 4. */
+  numerator: number;
+  /** Beat unit (denominator). Default: 4 (quarter note). */
+  denominator: number;
+}
+
 export interface Transport {
   status: 'stopped' | 'playing' | 'paused';
   playing: boolean;
   bpm: number;
   swing: number;
   metronome: MetronomeState;
+  /** Time signature. Default: 4/4. */
+  timeSignature: TimeSignature;
   /** When true, playback wraps between loopStart and loopEnd instead of the full pattern. */
   loopEnabled?: boolean;
   /** Loop start position in steps (inclusive). Default: 0. */

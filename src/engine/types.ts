@@ -410,6 +410,8 @@ export interface AITransportAction {
   bpm?: number;
   swing?: number;
   playing?: boolean;
+  timeSignatureNumerator?: number;
+  timeSignatureDenominator?: number;
 }
 
 export interface AISetModelAction {
