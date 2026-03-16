@@ -1,6 +1,6 @@
 // src/ui/useShortcuts.ts
 // Global keyboard shortcut handler — extracted from App.tsx.
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import type { ViewMode } from './view-types';
 
 interface ShortcutActions {
@@ -8,6 +8,12 @@ interface ShortcutActions {
   onRedo: () => void;
   onTogglePlay: () => void;
   onHardStop: () => void;
+  onToggleRecord: () => void;
+  onToggleMute: () => void;
+  onToggleSolo: () => void;
+  onTrackUp: () => void;
+  onTrackDown: () => void;
+  onBpmNudge: (delta: number) => void;
   onToggleLoop?: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
   setChatOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
@@ -20,46 +26,123 @@ export function isEditable(): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
 }
 
-export function useShortcuts({ onUndo, onRedo, onTogglePlay, onHardStop, onToggleLoop, setView, setChatOpen }: ShortcutActions) {
+/** Returns true when focus is inside the tracker grid (which handles its own arrow keys). */
+function isTrackerFocused(): boolean {
+  const el = document.activeElement;
+  if (!el) return false;
+  return !!(el as HTMLElement).closest?.('[data-shortcut-scope="tracker"]');
+}
+
+/** Shortcut definition for the reference panel. */
+export interface ShortcutDef {
+  key: string;
+  label: string;
+  section: 'transport' | 'view' | 'mixing' | 'editing' | 'tracker';
+}
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+const mod = isMac ? '\u2318' : 'Ctrl+';
+
+export const SHORTCUT_DEFS: ShortcutDef[] = [
+  // Transport
+  { key: 'Space', label: 'Play / Pause', section: 'transport' },
+  { key: 'Shift+Space', label: 'Hard stop (silence all)', section: 'transport' },
+  { key: 'R', label: 'Toggle record arm', section: 'transport' },
+  { key: ']', label: 'BPM +1', section: 'transport' },
+  { key: '[', label: 'BPM -1', section: 'transport' },
+  { key: 'Shift+]', label: 'BPM +10', section: 'transport' },
+  { key: 'Shift+[', label: 'BPM -10', section: 'transport' },
+  { key: 'L', label: 'Toggle loop', section: 'transport' },
+  // View
+  { key: `${mod}1`, label: 'Surface view', section: 'view' },
+  { key: `${mod}2`, label: 'Rack view', section: 'view' },
+  { key: `${mod}3`, label: 'Patch view', section: 'view' },
+  { key: `${mod}4`, label: 'Tracker view', section: 'view' },
+  { key: 'Tab', label: 'Cycle views', section: 'view' },
+  { key: `${mod}/`, label: 'Toggle chat', section: 'view' },
+  { key: `${mod}?`, label: 'Shortcuts reference', section: 'view' },
+  // Mixing
+  { key: 'M', label: 'Mute active track', section: 'mixing' },
+  { key: 'S', label: 'Solo active track', section: 'mixing' },
+  { key: '\u2191 / \u2193', label: 'Switch track', section: 'mixing' },
+  // Editing
+  { key: `${mod}Z`, label: 'Undo', section: 'editing' },
+  { key: `${mod}Shift+Z`, label: 'Redo', section: 'editing' },
+  // Tracker
+  { key: 'Arrows', label: 'Navigate grid', section: 'tracker' },
+  { key: 'Tab / Shift+Tab', label: 'Next / prev column', section: 'tracker' },
+  { key: 'PgUp / PgDn', label: 'Jump 8 rows', section: 'tracker' },
+  { key: 'Home / End', label: 'First / last row', section: 'tracker' },
+  { key: 'Enter', label: 'Edit cell', section: 'tracker' },
+  { key: 'Escape', label: 'Cancel / Deselect', section: 'tracker' },
+  { key: `${mod}A`, label: 'Select all', section: 'tracker' },
+  { key: `${mod}C / ${mod}X / ${mod}V`, label: 'Copy / Cut / Paste', section: 'tracker' },
+  { key: 'Delete', label: 'Remove event', section: 'tracker' },
+];
+
+export function useShortcuts({
+  onUndo, onRedo, onTogglePlay, onHardStop, onToggleRecord,
+  onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
+  onToggleLoop, setView, setChatOpen,
+}: ShortcutActions) {
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const toggleShortcuts = useCallback(() => setShowShortcuts(o => !o), []);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const isMod = e.metaKey || e.ctrlKey;
+
       // Cmd+Shift+Z = redo (must check before Cmd+Z)
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'z') {
+      if (isMod && e.shiftKey && e.key === 'z') {
         e.preventDefault();
         onRedo();
         return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      if (isMod && e.key === 'z') {
         e.preventDefault();
         onUndo();
+        return;
+      }
+      // Cmd+? (Cmd+Shift+/) toggles shortcuts reference
+      if (isMod && e.shiftKey && e.key === '?' && !isEditable()) {
+        e.preventDefault();
+        setShowShortcuts(o => !o);
+        return;
       }
       // Cmd+1–4 for view switching
-      if ((e.metaKey || e.ctrlKey) && e.key === '1' && !isEditable()) {
+      if (isMod && e.key === '1' && !isEditable()) {
         e.preventDefault();
         setView('surface');
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === '2' && !isEditable()) {
+      if (isMod && e.key === '2' && !isEditable()) {
         e.preventDefault();
         setView('rack');
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === '3' && !isEditable()) {
+      if (isMod && e.key === '3' && !isEditable()) {
         e.preventDefault();
         setView('patch');
+        return;
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === '4' && !isEditable()) {
+      if (isMod && e.key === '4' && !isEditable()) {
         e.preventDefault();
         setView('tracker');
+        return;
       }
       // Cmd+/ toggles chat sidebar
-      if ((e.metaKey || e.ctrlKey) && e.key === '/' && !isEditable()) {
+      if (isMod && e.key === '/' && !isEditable()) {
         e.preventDefault();
         setChatOpen((o: boolean) => !o);
+        return;
       }
       // Tab cycles views: surface → rack → patch → tracker → surface
-      if (e.key === 'Tab' && !isEditable()) {
+      // Skip when tracker is focused (tracker uses Tab for column cycling)
+      if (e.key === 'Tab' && !isEditable() && !isTrackerFocused()) {
         e.preventDefault();
         const order: ViewMode[] = ['surface', 'rack', 'patch', 'tracker'];
         setView((v: ViewMode) => order[(order.indexOf(v) + 1) % order.length]);
+        return;
       }
       // Shift+Space for hard stop (silence all voices immediately)
       if (e.key === ' ' && e.shiftKey && !e.repeat && !isEditable()) {
@@ -71,14 +154,72 @@ export function useShortcuts({ onUndo, onRedo, onTogglePlay, onHardStop, onToggl
       if (e.key === ' ' && !e.repeat && !isEditable()) {
         e.preventDefault();
         onTogglePlay();
+        return;
       }
-      // L toggles loop on/off
-      if ((e.key === 'l' || e.key === 'L') && !e.repeat && !isEditable() && !(e.metaKey || e.ctrlKey)) {
+
+      // --- Unmodified key shortcuts (skip when editing or with modifiers) ---
+      if (isEditable() || isMod || e.altKey) return;
+
+      // R = toggle record arm
+      // M = mute active track
+      // S = solo active track
+      // These take priority over the keyboard piano for these keys.
+      // stopImmediatePropagation prevents the piano handler from also firing.
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onToggleRecord();
+        return;
+      }
+      if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onToggleMute();
+        return;
+      }
+      if ((e.key === 's' || e.key === 'S') && !e.shiftKey) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        onToggleSolo();
+        return;
+      }
+
+      // L = toggle loop
+      if ((e.key === 'l' || e.key === 'L') && !e.repeat) {
         e.preventDefault();
         onToggleLoop?.();
+        return;
+      }
+
+      // Up/Down arrows = switch track (only when tracker grid is not focused)
+      if (e.key === 'ArrowUp' && !isTrackerFocused()) {
+        e.preventDefault();
+        onTrackUp();
+        return;
+      }
+      if (e.key === 'ArrowDown' && !isTrackerFocused()) {
+        e.preventDefault();
+        onTrackDown();
+        return;
+      }
+
+      // ] / [ = BPM nudge (+/- 1, with Shift +/- 10)
+      if (e.key === ']' || e.key === '}') {
+        e.preventDefault();
+        onBpmNudge(e.shiftKey ? 10 : 1);
+        return;
+      }
+      if (e.key === '[' || e.key === '{') {
+        e.preventDefault();
+        onBpmNudge(e.shiftKey ? -10 : -1);
+        return;
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onUndo, onRedo, onTogglePlay, onHardStop, onToggleLoop, setView, setChatOpen]);
+  }, [onUndo, onRedo, onTogglePlay, onHardStop, onToggleRecord,
+      onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
+      onToggleLoop, setView, setChatOpen]);
+
+  return { showShortcuts, toggleShortcuts };
 }

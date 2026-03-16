@@ -1,31 +1,12 @@
 // src/ui/TrackerCheatSheet.tsx
 // Floating keyboard shortcuts cheat sheet for the tracker view.
+// Shows tracker-specific shortcuts plus key global ones.
 import { useState } from 'react';
+import { SHORTCUT_DEFS } from './useShortcuts';
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
-const mod = isMac ? '\u2318' : 'Ctrl+';
-
-const shortcuts: { key: string; label: string }[] = [
-  { key: 'Space', label: 'Play / Stop' },
-  { key: `${mod}Z`, label: 'Undo' },
-  { key: `${mod}1`, label: 'Control view' },
-  { key: `${mod}2`, label: 'Tracker view' },
-  { key: 'Arrows', label: 'Navigate grid' },
-  { key: 'Tab / Shift+Tab', label: 'Next / prev column' },
-  { key: 'PgUp / PgDn', label: 'Jump 8 rows' },
-  { key: 'Home / End', label: 'First / last row' },
-  { key: 'Enter', label: 'Edit cell at cursor' },
-  { key: 'Escape', label: 'Cancel edit / Deselect' },
-  { key: 'Shift+Arrows', label: 'Extend selection' },
-  { key: 'Shift+Click', label: 'Select range' },
-  { key: `${mod}A`, label: 'Select all' },
-  { key: `${mod}C`, label: 'Copy selection' },
-  { key: `${mod}X`, label: 'Cut selection' },
-  { key: `${mod}V`, label: 'Paste at cursor' },
-  { key: 'Delete', label: 'Remove event / selection' },
-  { key: 'Click', label: 'Edit cell / Create event' },
-  { key: `${mod}/`, label: 'Toggle chat' },
-];
+// Show tracker section + selected global shortcuts relevant while in the tracker
+const SHOWN_SECTIONS = new Set(['tracker', 'transport', 'editing']);
+const shortcuts = SHORTCUT_DEFS.filter(d => SHOWN_SECTIONS.has(d.section));
 
 export function TrackerCheatSheet() {
   const [open, setOpen] = useState(false);
