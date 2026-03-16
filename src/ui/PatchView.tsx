@@ -447,6 +447,15 @@ interface DragState {
   mouseY: number;
 }
 
+/** Drag state for repositioning nodes */
+interface NodeDragState {
+  nodeId: string;
+  startMouseX: number;
+  startMouseY: number;
+  startNodeX: number;
+  startNodeY: number;
+}
+
 // --- Components ---
 
 /** Renders input port labels and circles on the left edge of a node */
@@ -497,10 +506,11 @@ function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: numb
   );
 }
 
-function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPorts, dragState, hoveredPortKey }: {
+function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMouseDown, targetPorts, dragState, hoveredPortKey }: {
   node: NodePos;
   selected: boolean;
-  onSelect: (id: string) => void;
+  onDragStart?: (e: React.MouseEvent, nodeId: string, nodeX: number, nodeY: number) => void;
+  isDragging?: boolean;
   onModulatorPortMouseDown?: (e: React.MouseEvent, modulatorId: string, portX: number, portY: number) => void;
   targetPorts: PortInfo[];
   dragState: DragState | null;
@@ -516,7 +526,10 @@ function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPo
           width: OUTPUT_R * 2,
           height: OUTPUT_R * 2,
         }}
-        onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          onDragStart?.(e, node.id, node.x, node.y);
+        }}
       >
         {/* Input port on left side */}
         <div
@@ -533,13 +546,18 @@ function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPo
 
   return (
     <div
-      className={`absolute rounded-md border border-l-2 bg-zinc-800 select-none cursor-pointer overflow-visible ${
+      className={`absolute rounded-md border border-l-2 bg-zinc-800 select-none overflow-visible ${
+        isDragging ? 'cursor-grabbing' : 'cursor-grab'
+      } ${
         selected
           ? `${selectedBorderColor(node.kind)}`
           : `border-zinc-700 ${accentColor(node.kind)}`
       } ${node.bypassed ? 'opacity-40 border-dashed' : ''}`}
       style={{ left: node.x, top: node.y, width: NODE_W, height: node.h }}
-      onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        onDragStart?.(e, node.id, node.x, node.y);
+      }}
     >
       {/* Header area */}
       <div className="px-3 pt-2">
@@ -692,13 +710,13 @@ function ModEdgeSvg({ edge, selected, onSelect }: {
 
   return (
     <g>
-      {/* Invisible wider stroke for hit detection */}
+      {/* Invisible wider stroke for hit detection — pointer-events: auto overrides parent's none */}
       <path
         d={pathD}
         stroke="transparent"
         strokeWidth={16}
         fill="none"
-        style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+        style={{ cursor: 'pointer', pointerEvents: 'auto' }}
         onMouseDown={(e) => { e.stopPropagation(); onSelect(edge.routeId); }}
       />
       {/* Visible edge */}
@@ -710,7 +728,7 @@ function ModEdgeSvg({ edge, selected, onSelect }: {
         fill="none"
         opacity={selected ? 1 : 0.7}
         markerEnd={selected ? 'url(#mod-arrow-selected)' : 'url(#mod-arrow)'}
-        pointerEvents="none"
+        style={{ pointerEvents: 'none' }}
       />
       <text
         x={mid.x + 6}
@@ -719,7 +737,7 @@ function ModEdgeSvg({ edge, selected, onSelect }: {
         fontSize={8}
         opacity={0.6}
         dominantBaseline="middle"
-        pointerEvents="none"
+        style={{ pointerEvents: 'none' }}
       >
         {edge.targetParam}
       </text>
@@ -850,16 +868,38 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const [hoveredPortKey, setHoveredPortKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Node position offsets (local UI state, not persisted)
+  const [nodeOffsets, setNodeOffsets] = useState<Record<string, { dx: number; dy: number }>>({});
+  const [nodeDrag, setNodeDrag] = useState<NodeDragState | null>(null);
+
   // Pan/zoom state
   const [panZoom, setPanZoom] = useState<PanZoomState>({ zoom: 1, panX: 0, panY: 0 });
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const spaceHeldRef = useRef(false);
 
+  // Clear node offsets when switching tracks — PatchView is never remounted so
+  // stale offsets (especially for 'source' which always has the same id) would
+  // leak between tracks.
+  const prevTrackIdRef = useRef(session.activeTrackId);
+  useEffect(() => {
+    if (session.activeTrackId !== prevTrackIdRef.current) {
+      prevTrackIdRef.current = session.activeTrackId;
+      setNodeOffsets({});
+      setNodeDrag(null);
+    }
+  });
+
   if (session.tracks.length === 0) return <EmptyState />;
 
   const track = getActiveTrack(session);
-  const nodes = layoutNodes(track);
+  const baseNodes = useMemo(() => layoutNodes(track), [track]);
+  // Apply user-dragged position offsets
+  const nodes = baseNodes.map(n => {
+    const offset = nodeOffsets[n.id];
+    if (!offset) return n;
+    return { ...n, x: n.x + offset.dx, y: n.y + offset.dy };
+  });
   const targetPorts = computeTargetPorts(nodes, track);
   const audioEdges = buildAudioEdges(nodes);
   const modEdges = buildModEdges(nodes, track.modulations ?? [], targetPorts);
@@ -900,10 +940,28 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     setSelectedEdgeId(null);
   }, [panZoom.panX, panZoom.panY]);
 
-  const handleNodeSelect = useCallback((id: string) => {
-    setSelectedNodeId(id);
+  // Node drag start handler
+  const handleNodeDragStart = useCallback((e: React.MouseEvent, nodeId: string, nodeX: number, nodeY: number) => {
+    // Only left-click, and not when Space is held (that's for panning)
+    if (e.button !== 0 || spaceHeldRef.current) return;
+    e.stopPropagation();
+    e.preventDefault();
+    if (!containerRef.current) return;
+    // Clear any in-progress modulator drag to prevent both drag states being active
+    setDragState(null);
+    setHoveredPortKey(null);
+    const rect = containerRef.current.getBoundingClientRect();
+    const canvas = screenToCanvas(e.clientX, e.clientY, rect, panZoom.zoom, panZoom.panX, panZoom.panY);
+    setNodeDrag({
+      nodeId,
+      startMouseX: canvas.x,
+      startMouseY: canvas.y,
+      startNodeX: nodeX,
+      startNodeY: nodeY,
+    });
+    setSelectedNodeId(nodeId);
     setSelectedEdgeId(null);
-  }, []);
+  }, [panZoom]);
 
   const handleEdgeSelect = useCallback((routeId: string) => {
     setSelectedEdgeId(routeId);
@@ -935,6 +993,26 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       return;
     }
 
+    // Handle node dragging
+    if (nodeDrag && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const canvas = screenToCanvas(e.clientX, e.clientY, rect, panZoom.zoom, panZoom.panX, panZoom.panY);
+      const dx = canvas.x - nodeDrag.startMouseX;
+      const dy = canvas.y - nodeDrag.startMouseY;
+      // Find the base layout position for this node
+      const baseNode = baseNodes.find(n => n.id === nodeDrag.nodeId);
+      if (baseNode) {
+        setNodeOffsets(prev => ({
+          ...prev,
+          [nodeDrag.nodeId]: {
+            dx: (nodeDrag.startNodeX - baseNode.x) + dx,
+            dy: (nodeDrag.startNodeY - baseNode.y) + dy,
+          },
+        }));
+      }
+      return;
+    }
+
     // Handle modulator drag — convert screen coords to canvas coords
     if (!dragState || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
@@ -952,11 +1030,17 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       }
     }
     setHoveredPortKey(found);
-  }, [dragState, targetPorts, panZoom]);
+  }, [dragState, nodeDrag, baseNodes, targetPorts, panZoom]);
 
   const handleMouseUp = useCallback(() => {
     if (isPanningRef.current) {
       isPanningRef.current = false;
+      return;
+    }
+
+    // End node drag
+    if (nodeDrag) {
+      setNodeDrag(null);
       return;
     }
 
@@ -972,29 +1056,48 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
     setDragState(null);
     setHoveredPortKey(null);
-  }, [dragState, hoveredPortKey, targetPorts, onConnectModulator]);
+  }, [dragState, nodeDrag, hoveredPortKey, targetPorts, onConnectModulator]);
 
-  // Wheel zoom centered on cursor
-  const handleWheel = useCallback((e: React.WheelEvent) => {
+  // Wheel handler ref: pinch (ctrlKey) zooms centered on cursor, two-finger scroll pans.
+  // Stored as a ref so the native event listener always sees the latest closure.
+  const handleWheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  handleWheelRef.current = (e: WheelEvent) => {
     e.preventDefault();
     if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
 
-    // Cursor position relative to container
-    const cursorX = e.clientX - rect.left;
-    const cursorY = e.clientY - rect.top;
+    if (e.ctrlKey || e.metaKey) {
+      // Pinch-to-zoom (trackpad pinch sets ctrlKey=true)
+      const rect = containerRef.current.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
 
-    setPanZoom(prev => {
-      const delta = -e.deltaY * ZOOM_SENSITIVITY;
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * (1 + delta)));
-      const scale = newZoom / prev.zoom;
+      setPanZoom(prev => {
+        const delta = -e.deltaY * ZOOM_SENSITIVITY;
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * (1 + delta)));
+        const scale = newZoom / prev.zoom;
 
-      // Adjust pan so the point under the cursor stays fixed
-      const newPanX = cursorX - scale * (cursorX - prev.panX);
-      const newPanY = cursorY - scale * (cursorY - prev.panY);
+        const newPanX = cursorX - scale * (cursorX - prev.panX);
+        const newPanY = cursorY - scale * (cursorY - prev.panY);
 
-      return { zoom: newZoom, panX: newPanX, panY: newPanY };
-    });
+        return { zoom: newZoom, panX: newPanX, panY: newPanY };
+      });
+    } else {
+      // Two-finger scroll → pan
+      setPanZoom(prev => ({
+        ...prev,
+        panX: prev.panX - e.deltaX,
+        panY: prev.panY - e.deltaY,
+      }));
+    }
+  };
+
+  // Attach native wheel listener (non-passive) so preventDefault works on trackpad
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => handleWheelRef.current(e);
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
   }, []);
 
   // Fit all nodes into view with padding
@@ -1073,7 +1176,6 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
       >
         <div
           style={{
@@ -1086,12 +1188,38 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
             style={{ width: maxX, height: maxY }}
             onMouseDown={handleCanvasMouseDown}
           >
-            {/* SVG edge layer */}
+            {/* SVG audio edge layer (non-interactive, behind nodes) */}
             <svg
               className="absolute inset-0"
               width={maxX}
               height={maxY}
               style={{ pointerEvents: 'none' }}
+            >
+              {audioEdges.map((e, i) => (
+                <AudioEdgeSvg key={`audio-${i}`} edge={e} />
+              ))}
+            </svg>
+
+            {/* Node layer */}
+            {nodes.map(n => (
+              <NodeCard
+                key={n.id}
+                node={n}
+                selected={selectedNodeId === n.id}
+                onDragStart={handleNodeDragStart}
+                isDragging={nodeDrag?.nodeId === n.id}
+                onModulatorPortMouseDown={handleModulatorPortMouseDown}
+                targetPorts={targetPorts}
+                dragState={dragState}
+                hoveredPortKey={hoveredPortKey}
+              />
+            ))}
+
+            {/* SVG modulation edge layer — container allows events; non-interactive children opt out */}
+            <svg
+              className="absolute inset-0"
+              width={maxX}
+              height={maxY}
             >
               <defs>
                 <marker
@@ -1117,9 +1245,6 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
                   <polygon points="0 0, 10 3.5, 0 7" fill="#67e8f9" />
                 </marker>
               </defs>
-              {audioEdges.map((e, i) => (
-                <AudioEdgeSvg key={`audio-${i}`} edge={e} />
-              ))}
               {modEdges.map((e) => (
                 <ModEdgeSvg
                   key={`mod-${e.routeId}`}
@@ -1132,20 +1257,6 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
             {/* Drag preview edge */}
             {dragState && <DragPreviewEdge drag={dragState} />}
-
-            {/* Node layer */}
-            {nodes.map(n => (
-              <NodeCard
-                key={n.id}
-                node={n}
-                selected={selectedNodeId === n.id}
-                onSelect={handleNodeSelect}
-                onModulatorPortMouseDown={handleModulatorPortMouseDown}
-                targetPorts={targetPorts}
-                dragState={dragState}
-                hoveredPortKey={hoveredPortKey}
-              />
-            ))}
 
             {/* Selected node detail panel */}
             {selectedNode && selectedNode.kind !== 'output' && (
