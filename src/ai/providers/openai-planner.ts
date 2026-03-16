@@ -1,8 +1,9 @@
 // src/ai/providers/openai-planner.ts — PlannerProvider for OpenAI (Responses API).
 
 import OpenAI from 'openai';
-import type { Response, ResponseInput, ResponseInputItem, ResponseOutputItem, ResponseFunctionToolCall } from 'openai/resources/responses/responses';
-import type { PlannerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall } from '../types';
+import type { Response, ResponseInput, ResponseInputItem, ResponseOutputItem, ResponseFunctionToolCall, ResponseStreamEvent } from 'openai/resources/responses/responses';
+import type { Stream } from 'openai/streaming';
+import type { PlannerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall, StreamTextCallback } from '../types';
 import { ProviderError } from '../types';
 import { toOpenAITools } from './schema-converters';
 
@@ -55,6 +56,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     systemPrompt: string;
     userMessage: string;
     tools: ToolSchema[];
+    onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult> {
     this.pendingInput = [
       { role: 'user', content: opts.userMessage },
@@ -62,13 +64,14 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     this.pendingResponseId = null;
     this.pendingOutputItems = [];
 
-    return this.generate(opts.systemPrompt, opts.tools);
+    return this.generate(opts.systemPrompt, opts.tools, [], opts.onStreamText);
   }
 
   async continueTurn(opts: {
     systemPrompt: string;
     tools: ToolSchema[];
     functionResponses: FunctionResponse[];
+    onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult> {
     // Build new input items but don't mutate pendingInput until after the
     // API call succeeds. This keeps continueTurn atomic — on error, no
@@ -80,7 +83,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
       output: JSON.stringify(fr.result),
     } as ResponseInputItem.FunctionCallOutput));
 
-    return this.generate(opts.systemPrompt, opts.tools, newItems);
+    return this.generate(opts.systemPrompt, opts.tools, newItems, opts.onStreamText);
   }
 
   commitTurn(): void {
@@ -123,7 +126,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     this.backoff = { until: 0, delay: 0 };
   }
 
-  private async generate(systemPrompt: string, tools: ToolSchema[], extraInput: ResponseInput = []): Promise<GenerateResult> {
+  private async generate(systemPrompt: string, tools: ToolSchema[], extraInput: ResponseInput = [], onStreamText?: StreamTextCallback): Promise<GenerateResult> {
     if (!this.client) throw new ProviderError('API not configured.', 'auth');
 
     const now = Date.now();
@@ -136,63 +139,122 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     let previousId: string | undefined;
 
     if (this.chainBroken || this.exchanges.length === 0) {
-      // Replay stored exchanges as input items (bounded suffix).
-      // No previous_response_id — we're reconstructing context from scratch.
       const replayItems: ResponseInput = [];
       for (const ex of this.exchanges) {
         replayItems.push(...ex.inputItems);
-        // Output items (messages, function calls) are valid ResponseInputItems
-        // and must be replayed to reconstruct the conversation.
         replayItems.push(...(ex.outputItems as unknown as ResponseInput));
       }
       input = [...replayItems, ...this.pendingInput, ...extraInput];
-      // Chain from pending response if mid-turn, otherwise no chain.
       previousId = this.pendingResponseId ?? undefined;
     } else {
-      // Chain from the last committed or in-flight response.
       previousId = this.pendingResponseId ?? this.exchanges.at(-1)?.responseId ?? undefined;
       input = [...this.pendingInput, ...extraInput];
     }
 
-    let response: Response;
-    try {
-      response = await this.client.responses.create({
-        model: MODEL,
-        instructions: systemPrompt,
-        input,
-        tools: openaiTools,
-        max_output_tokens: 2048,
-        ...(previousId ? { previous_response_id: previousId } : {}),
-      });
-    } catch (error) {
-      throw this.translateError(error);
-    }
-
-    // Only commit state after a successful API call.
-    this.backoff = { until: 0, delay: 0 };
-    this.pendingResponseId = response.id;
-    // Accumulate all input and output items for this turn so commitTurn
-    // can store the full exchange.
-    this.pendingInput = [...this.pendingInput, ...extraInput];
-    this.pendingOutputItems.push(...response.output);
+    const baseParams = {
+      model: MODEL,
+      instructions: systemPrompt,
+      input,
+      tools: openaiTools,
+      max_output_tokens: 2048,
+      ...(previousId ? { previous_response_id: previousId } : {}),
+    };
 
     const textParts: string[] = [];
     const functionCalls: NeutralFunctionCall[] = [];
 
-    for (const item of response.output) {
-      if (item.type === 'message') {
-        for (const content of item.content) {
-          if (content.type === 'output_text' && content.text) {
-            textParts.push(content.text);
+    if (onStreamText) {
+      // Streaming path
+      let stream: Stream<ResponseStreamEvent>;
+      try {
+        stream = await this.client.responses.create({
+          ...baseParams,
+          stream: true,
+        });
+      } catch (error) {
+        throw this.translateError(error);
+      }
+
+      this.backoff = { until: 0, delay: 0 };
+
+      let completedResponse: Response | null = null;
+      // Track which output_index maps to which textParts index
+      const outputIndexToTextIndex = new Map<number, number>();
+
+      try {
+        for await (const event of stream) {
+          if (event.type === 'response.output_text.delta') {
+            const delta = event.delta;
+            if (delta) {
+              onStreamText(delta);
+              const outIdx = event.output_index;
+              const existing = outputIndexToTextIndex.get(outIdx);
+              if (existing !== undefined) {
+                textParts[existing] += delta;
+              } else {
+                textParts.push(delta);
+                outputIndexToTextIndex.set(outIdx, textParts.length - 1);
+              }
+            }
+          } else if (event.type === 'response.completed') {
+            completedResponse = event.response;
           }
         }
-      } else if (item.type === 'function_call') {
-        const fc = item as ResponseFunctionToolCall;
-        functionCalls.push({
-          id: fc.call_id,
-          name: fc.name,
-          args: JSON.parse(fc.arguments),
+      } catch (error) {
+        throw this.translateError(error);
+      }
+
+      if (!completedResponse) {
+        throw new ProviderError('Stream ended without response.completed event.', 'server');
+      }
+
+      this.pendingResponseId = completedResponse.id;
+      this.pendingInput = [...this.pendingInput, ...extraInput];
+      this.pendingOutputItems.push(...completedResponse.output);
+
+      // Extract function calls from the completed response
+      for (const item of completedResponse.output) {
+        if (item.type === 'function_call') {
+          const fc = item as ResponseFunctionToolCall;
+          functionCalls.push({
+            id: fc.call_id,
+            name: fc.name,
+            args: JSON.parse(fc.arguments),
+          });
+        }
+      }
+    } else {
+      // Non-streaming path — unchanged behavior
+      let response: Response;
+      try {
+        response = await this.client.responses.create({
+          ...baseParams,
+          stream: false,
         });
+      } catch (error) {
+        throw this.translateError(error);
+      }
+
+      this.backoff = { until: 0, delay: 0 };
+      this.pendingResponseId = response.id;
+      this.pendingInput = [...this.pendingInput, ...extraInput];
+      this.pendingOutputItems.push(...response.output);
+
+      for (const item of response.output) {
+        if (item.type === 'message') {
+          for (const content of item.content) {
+            if (content.type === 'output_text' && content.text) {
+              textParts.push(content.text);
+            }
+          }
+        } else if (item.type === 'function_call') {
+          const fc = item as ResponseFunctionToolCall;
+          functionCalls.push({
+            id: fc.call_id,
+            name: fc.name,
+            args: JSON.parse(fc.arguments),
+          });
+        }
       }
     }
 
