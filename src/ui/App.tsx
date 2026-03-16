@@ -326,8 +326,8 @@ export default function App() {
   // Sync metronome volume to audio engine
   useEffect(() => {
     if (!audioStarted) return;
-    audioRef.current.setMetronomeVolume(session.transport.metronome.volume);
-  }, [session.transport.metronome.volume, audioStarted]);
+    audioRef.current.setMetronomeVolume(session.transport.metronome?.volume ?? 0.5);
+  }, [session.transport.metronome?.volume, audioStarted]);
 
   // Sync processor chains to audio engine
   useEffect(() => {

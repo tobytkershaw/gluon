@@ -287,10 +287,15 @@ export function useProjectLifecycle(
 
 /** Restore transient fields and run track migration on load. */
 function restoreSession(session: Session): Session {
+  const transport = {
+    ...session.transport,
+    metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
+  };
   return {
     ...session,
     tracks: session.tracks.map(migrateTrack),
     master: session.master ?? { ...DEFAULT_MASTER },
+    transport,
     undoStack: session.undoStack ?? [],
     redoStack: session.redoStack ?? [],
     recentHumanActions: session.recentHumanActions ?? [],
