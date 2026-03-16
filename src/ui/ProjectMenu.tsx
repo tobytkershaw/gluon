@@ -210,29 +210,26 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
     }
   }, [status]);
 
-  if (status === 'error') {
-    return <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Save failed — working in memory" />;
-  }
-
-  if (status === 'saving') {
-    return (
-      <span
-        className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
-        style={{ animation: 'pulse-soft 1s ease-in-out infinite' }}
-        title="Saving..."
-      />
-    );
-  }
-
-  if (status === 'saved' && visible) {
-    return (
-      <svg viewBox="0 0 16 16" className="w-2.5 h-2.5 text-emerald-500/70 shrink-0 transition-opacity duration-500" title="Saved">
-        <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    );
-  }
-
-  return null;
+  // Fixed-size container prevents layout shift when indicator appears/disappears
+  return (
+    <span className="w-2.5 h-2.5 shrink-0 flex items-center justify-center">
+      {status === 'error' && (
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Save failed — working in memory" />
+      )}
+      {status === 'saving' && (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-amber-400"
+          style={{ animation: 'pulse-soft 1s ease-in-out infinite' }}
+          title="Saving..."
+        />
+      )}
+      {status === 'saved' && visible && (
+        <svg viewBox="0 0 16 16" className="w-2.5 h-2.5 text-emerald-500/70 transition-opacity duration-500" title="Saved">
+          <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+    </span>
+  );
 }
 
 function MenuItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {

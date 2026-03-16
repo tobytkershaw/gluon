@@ -166,15 +166,16 @@ export function TransportStrip({
         </span>
       </div>
 
-      {/* BPM */}
+      {/* BPM — drag uses integer steps; click-to-edit allows decimals */}
       <div className="flex items-baseline gap-1">
         <span className="text-[9px] uppercase tracking-wider text-zinc-600">Tempo</span>
         <DraggableNumber
           value={bpm}
           min={20}
           max={300}
-          step={0.1}
-          decimals={1}
+          step={1}
+          decimals={0}
+          editDecimals={1}
           className="text-zinc-200 hover:text-amber-400 transition-colors"
           onChange={onBpmChange}
         />
@@ -209,11 +210,6 @@ export function TransportStrip({
         onToggle={onToggleMetronome}
         onVolumeChange={onMetronomeVolumeChange}
       />
-
-      {/* Transport mode indicator */}
-      {transportMode === 'song' && (
-        <span className="text-[9px] uppercase tracking-wider text-cyan-500">Song</span>
-      )}
 
     </div>
   );
@@ -308,20 +304,39 @@ function TimeSignatureControl({ numerator, denominator, onChange }: {
         {numerator}/{denominator}
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded p-1.5 z-50 shadow-xl grid grid-cols-3 gap-0.5">
-          {TIME_SIGNATURES.map(([n, d]) => (
-            <button
-              key={`${n}/${d}`}
-              onClick={() => { onChange(n, d); setOpen(false); }}
-              className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors ${
-                n === numerator && d === denominator
-                  ? 'bg-amber-500/20 text-amber-400'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
-              }`}
-            >
-              {n}/{d}
-            </button>
-          ))}
+        <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded p-1.5 z-50 shadow-xl flex gap-2 min-w-max">
+          {/* /4 column */}
+          <div className="flex flex-col gap-0.5">
+            {TIME_SIGNATURES.filter(([, d]) => d === 4).map(([n, d]) => (
+              <button
+                key={`${n}/${d}`}
+                onClick={() => { onChange(n, d); setOpen(false); }}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors whitespace-nowrap ${
+                  n === numerator && d === denominator
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                }`}
+              >
+                {n}/{d}
+              </button>
+            ))}
+          </div>
+          {/* /8 column */}
+          <div className="flex flex-col gap-0.5">
+            {TIME_SIGNATURES.filter(([, d]) => d === 8).map(([n, d]) => (
+              <button
+                key={`${n}/${d}`}
+                onClick={() => { onChange(n, d); setOpen(false); }}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors whitespace-nowrap ${
+                  n === numerator && d === denominator
+                    ? 'bg-amber-500/20 text-amber-400'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+                }`}
+              >
+                {n}/{d}
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
