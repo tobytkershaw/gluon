@@ -13,11 +13,17 @@ export interface Pattern {
   length: number;
 }
 
+export interface MetronomeState {
+  enabled: boolean;
+  volume: number; // 0.0–1.0
+}
+
 export interface Transport {
   status: 'stopped' | 'playing' | 'paused';
   playing: boolean;
   bpm: number;
   swing: number;
+  metronome: MetronomeState;
 }
 
 export interface ScheduledNote {

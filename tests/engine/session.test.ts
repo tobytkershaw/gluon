@@ -13,7 +13,7 @@ describe('Session (Phase 2)', () => {
     const session = createSession();
     expect(session.tracks).toHaveLength(5); // 4 audio + 1 master bus
     expect(session.activeTrackId).toBe(session.tracks[0].id);
-    expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0 });
+    expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 } });
     // Master bus is last
     const masterBus = session.tracks[session.tracks.length - 1];
     expect(masterBus.id).toBe('master-bus');

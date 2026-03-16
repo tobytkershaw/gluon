@@ -103,7 +103,7 @@ export function createSession(): Session {
   return {
     tracks,
     activeTrackId: tracks[0].id,
-    transport: { status: 'stopped', playing: false, bpm: 120, swing: 0 },
+    transport: { status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 } },
     master: { ...DEFAULT_MASTER },
     undoStack: [],
     redoStack: [],
@@ -378,6 +378,21 @@ export function setTransportBpm(session: Session, bpm: number): Session {
   return {
     ...session,
     transport: { ...session.transport, bpm: Math.max(20, Math.min(300, bpm)) },
+  };
+}
+
+export function toggleMetronome(session: Session): Session {
+  const prev = session.transport.metronome;
+  return {
+    ...session,
+    transport: { ...session.transport, metronome: { ...prev, enabled: !prev.enabled } },
+  };
+}
+
+export function setMetronomeVolume(session: Session, volume: number): Session {
+  return {
+    ...session,
+    transport: { ...session.transport, metronome: { ...session.transport.metronome, volume: Math.max(0, Math.min(1, volume)) } },
   };
 }
 

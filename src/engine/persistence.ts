@@ -209,6 +209,7 @@ export function loadSession(): Session | null {
       transport: {
         ...session.transport,
         status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
+        metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
       },
       tracks: migratedTracks as Track[],
       master: session.master ?? { ...DEFAULT_MASTER },
