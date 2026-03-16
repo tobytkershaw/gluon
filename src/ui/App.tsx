@@ -1925,9 +1925,9 @@ export default function App() {
             onModulationDepthChange={handleModulationDepthChange}
             onModulationDepthCommit={handleModulationDepthCommit}
             onRemoveModulation={handleRemoveModulation}
-            onConnectModulator={handleConnectModulator}
             onAddProcessor={handleAddProcessor}
             onAddModulator={handleAddModulator}
+            onNavigateToPatch={() => setView('patch')}
           />
         )}
         {view === 'patch' && (

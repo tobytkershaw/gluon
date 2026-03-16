@@ -3,26 +3,25 @@
 // Modules fill left to right in a flex-wrap container, wrapping to the next row
 // at the container edge. Each module is a vertical panel with large knobs for
 // primary controls, small knobs for secondary, selectors/toggles for mode pickers.
-import { useState, useRef, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import type { Track, ModulationTarget } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
-import { getSourceModTargets } from '../audio/port-registry';
 import { ModulePanel } from './ModulePanel';
 import { ChainStrip } from './ChainStrip';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
 import { DraggableNumber } from './DraggableNumber';
+import type { KnobModulationInfo } from './Knob';
 
-/** Valid source params that can be modulation targets — derived from port-registry (single source of truth) */
-const VALID_SOURCE_MOD_TARGETS = getSourceModTargets();
-
-interface ModulationTargetOption {
-  moduleId: string;  // 'source' or processorId
-  moduleLabel: string;
-  paramId: string;
-  paramLabel: string;
-  target: ModulationTarget;
+/** Human-readable label for a modulation target */
+function formatRoutingTarget(target: ModulationTarget, track: Track): string {
+  if (target.kind === 'source') {
+    return `Source / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
+  }
+  const proc = (track.processors ?? []).find(p => p.id === target.processorId);
+  const procLabel = proc ? getProcessorInstrument(proc.type)?.label ?? proc.type : target.processorId;
+  return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
 }
 
 interface RackViewProps {
@@ -47,141 +46,47 @@ interface RackViewProps {
   onModulatorInteractionEnd: (modulatorId: string) => void;
   onModulatorModelChange: (modulatorId: string, model: number) => void;
   onRemoveModulator: (modulatorId: string) => void;
-  // Modulation routing editing
+  // Modulation routing editing (depth + removal only; creation is in Patch view)
   onModulationDepthChange: (routeId: string, depth: number) => void;
   onModulationDepthCommit: (routeId: string, depth: number) => void;
   onRemoveModulation: (routeId: string) => void;
-  onConnectModulator: (modulatorId: string, target: ModulationTarget, depth: number) => void;
   // Module browser
   onAddProcessor: (type: string) => void;
   onAddModulator: (type: string) => void;
+  // Navigation
+  onNavigateToPatch?: () => void;
 }
 
-/** Human-readable label for a modulation target */
-function formatRoutingTarget(target: ModulationTarget, track: Track): string {
-  if (target.kind === 'source') {
-    return `Source / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
-  }
-  const proc = (track.processors ?? []).find(p => p.id === target.processorId);
-  const procLabel = proc ? getProcessorInstrument(proc.type)?.label ?? proc.type : target.processorId;
-  return `${procLabel} / ${target.param.charAt(0).toUpperCase() + target.param.slice(1)}`;
-}
+/**
+ * Build a map of controlId -> KnobModulationInfo[] for a given moduleId.
+ * Used to show modulation indicators on Rack knobs.
+ */
+function buildModulationMap(
+  track: Track,
+  moduleId: string,
+): Map<string, KnobModulationInfo[]> {
+  const map = new Map<string, KnobModulationInfo[]>();
+  const modulations = track.modulations ?? [];
+  const modulators = track.modulators ?? [];
 
-/** Build list of valid modulation targets for a given modulator on a track */
-function buildTargetOptions(track: Track, modulatorId: string): ModulationTargetOption[] {
-  const options: ModulationTargetOption[] = [];
-  const existingRoutes = (track.modulations ?? []).filter(r => r.modulatorId === modulatorId);
-
-  // Source targets (brightness, richness, texture -- not pitch)
-  const sourceEngine = getEngineByIndex(track.model);
-  if (sourceEngine) {
-    for (const control of sourceEngine.controls) {
-      if (!VALID_SOURCE_MOD_TARGETS.includes(control.id)) continue;
-      // Skip if this modulator already routes to this source param
-      const alreadyRouted = existingRoutes.some(
-        r => r.target.kind === 'source' && r.target.param === control.id
-      );
-      if (alreadyRouted) continue;
-      options.push({
-        moduleId: 'source',
-        moduleLabel: 'Plaits',
-        paramId: control.id,
-        paramLabel: control.name,
-        target: { kind: 'source', param: control.id },
-      });
+  for (const route of modulations) {
+    let matchedParam: string | undefined;
+    if (moduleId === 'source' && route.target.kind === 'source') {
+      matchedParam = route.target.param;
+    } else if (moduleId !== 'source' && route.target.kind === 'processor' && route.target.processorId === moduleId) {
+      matchedParam = route.target.param;
     }
+    if (!matchedParam) continue;
+
+    const mod = modulators.find(m => m.id === route.modulatorId);
+    const modInst = mod ? getModulatorInstrument(mod.type) : undefined;
+    const modLabel = modInst?.label?.replace('Mutable Instruments ', '') ?? route.modulatorId.slice(0, 8);
+
+    const existing = map.get(matchedParam) ?? [];
+    existing.push({ modulatorLabel: modLabel, depth: route.depth });
+    map.set(matchedParam, existing);
   }
-
-  // Processor targets
-  const processors = track.processors ?? [];
-  for (const proc of processors) {
-    const inst = getProcessorInstrument(proc.type);
-    if (!inst) continue;
-    const engine = inst.engines[proc.model] ?? inst.engines[0];
-    if (!engine) continue;
-    for (const control of engine.controls) {
-      const alreadyRouted = existingRoutes.some(
-        r => r.target.kind === 'processor' && r.target.processorId === proc.id && r.target.param === control.id
-      );
-      if (alreadyRouted) continue;
-      options.push({
-        moduleId: proc.id,
-        moduleLabel: inst.label.replace('Mutable Instruments ', ''),
-        paramId: control.id,
-        paramLabel: control.name,
-        target: { kind: 'processor', processorId: proc.id, param: control.id },
-      });
-    }
-  }
-
-  return options;
-}
-
-function TargetPicker({ options, onSelect, onClose }: {
-  options: ModulationTargetOption[];
-  onSelect: (option: ModulationTargetOption) => void;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    const keyHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('mousedown', handler);
-    document.addEventListener('keydown', keyHandler);
-    return () => {
-      document.removeEventListener('mousedown', handler);
-      document.removeEventListener('keydown', keyHandler);
-    };
-  }, [onClose]);
-
-  // Group options by module
-  const groups = new Map<string, { label: string; isSource: boolean; options: ModulationTargetOption[] }>();
-  for (const opt of options) {
-    if (!groups.has(opt.moduleId)) {
-      groups.set(opt.moduleId, {
-        label: opt.moduleLabel,
-        isSource: opt.moduleId === 'source',
-        options: [],
-      });
-    }
-    groups.get(opt.moduleId)!.options.push(opt);
-  }
-
-  if (options.length === 0) {
-    return (
-      <div ref={ref} className="mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg p-2">
-        <span className="text-[10px] text-zinc-500 italic">No available targets</span>
-      </div>
-    );
-  }
-
-  return (
-    <div ref={ref} className="mt-1 bg-zinc-800 border border-zinc-700 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-      {Array.from(groups.entries()).map(([moduleId, group]) => (
-        <div key={moduleId} className="p-1">
-          <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-1 ${
-            group.isSource ? 'text-amber-400/70' : 'text-sky-400/70'
-          }`}>
-            {group.label}
-          </div>
-          {group.options.map((opt) => (
-            <button
-              key={`${opt.moduleId}-${opt.paramId}`}
-              onClick={() => onSelect(opt)}
-              className="block w-full text-left px-2 py-1 rounded text-[10px] text-zinc-300 hover:bg-violet-400/10 hover:text-violet-200 transition-colors"
-            >
-              {opt.paramLabel}
-            </button>
-          ))}
-        </div>
-      ))}
-    </div>
-  );
+  return map;
 }
 
 export function RackView({
@@ -193,11 +98,10 @@ export function RackView({
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
   onModulatorModelChange, onRemoveModulator,
   onModulationDepthChange, onModulationDepthCommit, onRemoveModulation,
-  onConnectModulator,
   onAddProcessor, onAddModulator,
+  onNavigateToPatch,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
-  const [routePickerModulatorId, setRoutePickerModulatorId] = useState<string | null>(null);
 
   const processors = activeTrack.processors ?? [];
   const modulators = activeTrack.modulators ?? [];
@@ -209,6 +113,16 @@ export function RackView({
     const eng = getEngineByIndex(i);
     return eng ? { index: i, label: eng.label } : null;
   }).filter((e): e is { index: number; label: string } => e !== null);
+
+  // Pre-compute modulation maps for all modules
+  const sourceModMap = useMemo(
+    () => buildModulationMap(activeTrack, 'source'),
+    [activeTrack],
+  );
+  const processorModMaps = useMemo(
+    () => new Map(processors.map(p => [p.id, buildModulationMap(activeTrack, p.id)])),
+    [activeTrack, processors],
+  );
 
   return (
     <div className="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-y-auto">
@@ -245,6 +159,8 @@ export function RackView({
           engines={sourceEngines}
           currentModel={activeTrack.model}
           onModelChange={onModelChange}
+          modulationMap={sourceModMap}
+          onModulationClick={onNavigateToPatch}
         />
 
         {/* Processor module panels */}
@@ -270,6 +186,8 @@ export function RackView({
               onRemove={() => onRemoveProcessor(proc.id)}
               enabled={proc.enabled}
               onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
+              modulationMap={processorModMaps.get(proc.id)}
+              onModulationClick={onNavigateToPatch}
             />
           );
         })}
@@ -282,7 +200,6 @@ export function RackView({
           const modLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
           const modEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
           const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
-          const isPickerOpen = routePickerModulatorId === mod.id;
 
           return (
             <ModulePanel
@@ -298,28 +215,10 @@ export function RackView({
               onModelChange={(model) => onModulatorModelChange(mod.id, model)}
               onRemove={() => onRemoveModulator(mod.id)}
             >
-              {/* Routing section inside modulator panel */}
-              <div className="border-t border-zinc-800/40 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setRoutePickerModulatorId(isPickerOpen ? null : mod.id)}
-                  className="text-[9px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-dashed border-violet-400/30 text-violet-400/60 hover:text-violet-400 hover:border-violet-400/50 transition-colors"
-                >
-                  + Route
-                </button>
-                {isPickerOpen && (
-                  <TargetPicker
-                    options={buildTargetOptions(activeTrack, mod.id)}
-                    onSelect={(opt) => {
-                      onConnectModulator(mod.id, opt.target, 0.2);
-                      setRoutePickerModulatorId(null);
-                    }}
-                    onClose={() => setRoutePickerModulatorId(null)}
-                  />
-                )}
-                {/* Routing chips */}
-                {modRoutings.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
+              {/* Routing chips (read-only display with depth editing + removal) */}
+              {modRoutings.length > 0 && (
+                <div className="border-t border-zinc-800/40 pt-2">
+                  <div className="flex flex-wrap gap-1">
                     {modRoutings.map(r => (
                       <span
                         key={r.id}
@@ -348,8 +247,17 @@ export function RackView({
                       </span>
                     ))}
                   </div>
-                )}
-              </div>
+                  {onNavigateToPatch && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToPatch}
+                      className="mt-1.5 text-[8px] font-mono uppercase tracking-wider text-violet-400/50 hover:text-violet-400 transition-colors"
+                    >
+                      Edit routes in Patch
+                    </button>
+                  )}
+                </div>
+              )}
             </ModulePanel>
           );
         })}
