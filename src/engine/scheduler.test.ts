@@ -219,6 +219,82 @@ describe('Scheduler — AudioContext suspend handling', () => {
     scheduler.stop();
   });
 
+  it('applies micro-timing offset from fractional event.at', () => {
+    // Micro-timing is encoded in the fractional part of event.at.
+    // at=2.3 means step 2 + 0.3 steps offset. The scheduler must produce
+    // a noteTime that is 0.3 * stepDuration later than the on-grid step 2.
+    const session = makeSession();
+    session.tracks[0].regions[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },   // on grid
+      { kind: 'trigger', at: 2.3, velocity: 0.8 },  // micro-timed
+    ];
+    // At 120 BPM, stepDuration = 0.125s, lookahead = 0.1s / 0.125 = 0.8 steps
+    // Start at step 0 to catch the on-grid event, then advance to catch 2.3
+    let audioTime = 0;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    const stepDuration = 0.125;
+    scheduler.start(0, 0, 0);
+    // First tick catches step 0 (within lookahead ~0.8 steps)
+    expect(onNote).toHaveBeenCalledTimes(1);
+
+    // Advance audio time so step 2.3 falls within the lookahead window
+    audioTime = 2.3 * stepDuration;
+    vi.advanceTimersByTime(30);
+    expect(onNote).toHaveBeenCalledTimes(2);
+
+    const onGridNote: ScheduledNote = onNote.mock.calls[0][0];
+    const microNote: ScheduledNote = onNote.mock.calls[1][0];
+
+    // Difference should be exactly 2.3 steps worth of time
+    expect(microNote.time - onGridNote.time).toBeCloseTo(2.3 * stepDuration, 5);
+
+    scheduler.stop();
+  });
+
+  it('applies micro-timing offset for note events', () => {
+    const session = makeSession();
+    session.tracks[0].regions[0].events = [
+      { kind: 'note', at: 1.5, pitch: 60, velocity: 0.8, duration: 1 },
+    ];
+    // Advance audio time so step 1.5 is within lookahead
+    let audioTime = 1.5 * 0.125;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    const stepDuration = 0.125; // 120 BPM
+    // Start at step 1 so 1.5 is in the first lookahead window
+    scheduler.start(0, 1, 0);
+    expect(onNote).toHaveBeenCalledTimes(1);
+
+    const note: ScheduledNote = onNote.mock.calls[0][0];
+    // Note at step 1.5: time offset from startTime should be 1.5 * stepDuration
+    // startTime = audioTime - startStep * stepDuration = 1.5*0.125 - 1*0.125 = 0.0625
+    const expectedStartTime = audioTime - 1 * stepDuration;
+    expect(note.time).toBeCloseTo(expectedStartTime + 1.5 * stepDuration, 5);
+    // Gate-off at step 1.5 + 1 = 2.5
+    expect(note.gateOffTime).toBeCloseTo(expectedStartTime + 2.5 * stepDuration, 5);
+
+    scheduler.stop();
+  });
+
   it('re-emits a future track event after that track is invalidated', () => {
     const session = makeSession();
     session.tracks[0].regions[0].events = [
