@@ -5,9 +5,17 @@
 // through the sketch tool pipeline BEFORE asking GPT-5.4 to do it via API.
 
 import { describe, it, expect } from 'vitest';
-import { createSession } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { updateTrack, getTrack } from '../../src/engine/types';
 import type { NoteEvent, TriggerEvent, MusicalEvent } from '../../src/engine/canonical-types';
+
+/** Create a session with multiple audio tracks (v0, v1, v2) for competence tests. */
+function createTestSession() {
+  let s = createSession();
+  s = addTrack(s)!;
+  s = addTrack(s)!;
+  return s;
+}
 
 // --- Helpers: build events the way the AI would via the sketch tool ---
 
@@ -88,7 +96,7 @@ function stepwiseFraction(notes: NoteEvent[]): number {
 // =========================================================================
 describe('H1: Arpeggio (C major)', () => {
   it('sketch tool can create ascending C major arpeggio', () => {
-    let s = createSession();
+    let s = createTestSession();
     // AI would sketch: C4, E4, G4, C5 on melodic track v1
     const events: MusicalEvent[] = [
       noteEvent(0, 60),  // C4
@@ -109,7 +117,7 @@ describe('H1: Arpeggio (C major)', () => {
   });
 
   it('assertion catches wrong scale', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Wrong: includes Db (pitch class 1)
     const events: MusicalEvent[] = [
       noteEvent(0, 61),  // Db — not in C major triad
@@ -133,7 +141,7 @@ describe('H2: Scale-correct melody (D minor)', () => {
   const dMinorAll = new Set([...dMinorNatural, ...dMinorHarmonic]);
 
   it('sketch tool can create D minor melody', () => {
-    let s = createSession();
+    let s = createTestSession();
     const events: MusicalEvent[] = [
       noteEvent(0, 62),  // D4
       noteEvent(2, 65),  // F4
@@ -159,7 +167,7 @@ describe('H2: Scale-correct melody (D minor)', () => {
 // =========================================================================
 describe('H3: Chord progression bass (i-iv-v-i in Cm)', () => {
   it('bass roots follow Cm-Fm-Gm-Cm', () => {
-    let s = createSession();
+    let s = createTestSession();
     // One note per beat: C2, F2, G2, C2
     const events: MusicalEvent[] = [
       noteEvent(0, 36),   // C2 — i
@@ -186,7 +194,7 @@ describe('H3: Chord progression bass (i-iv-v-i in Cm)', () => {
 // =========================================================================
 describe('H4: Counterpoint (contrary motion)', () => {
   it('can detect contrary motion between two tracks', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Melody on v1: ascending C-D-E-F
     s = applySketch(s, 'v1', [
       noteEvent(0, 60), noteEvent(4, 62), noteEvent(8, 64), noteEvent(12, 65),
@@ -215,7 +223,7 @@ describe('H4: Counterpoint (contrary motion)', () => {
   });
 
   it('assertion fails for parallel motion', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Both ascending — parallel, NOT contrary
     s = applySketch(s, 'v1', [
       noteEvent(0, 60), noteEvent(4, 62), noteEvent(8, 64), noteEvent(12, 65),
@@ -247,7 +255,7 @@ describe('H4: Counterpoint (contrary motion)', () => {
 // =========================================================================
 describe('R1: Syncopation', () => {
   it('syncopated pattern has majority off-beat events', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Syncopated hi-hat: hits on off-beats
     const events: MusicalEvent[] = [
       triggerEvent(1), triggerEvent(3), triggerEvent(5), triggerEvent(7),
@@ -261,7 +269,7 @@ describe('R1: Syncopation', () => {
   });
 
   it('assertion catches on-beat pattern', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Straight: all on beats
     const events: MusicalEvent[] = [
       triggerEvent(0), triggerEvent(4), triggerEvent(8), triggerEvent(12),
@@ -277,7 +285,7 @@ describe('R1: Syncopation', () => {
 // =========================================================================
 describe('R2: Call and response', () => {
   it('response is in second half when call is in first half', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Call on v0: first half
     s = applySketch(s, 'v0', [
       triggerEvent(0), triggerEvent(2), triggerEvent(4), triggerEvent(6),
@@ -299,7 +307,7 @@ describe('R2: Call and response', () => {
 // =========================================================================
 describe('R3: Polyrhythm (3 against 4)', () => {
   it('can represent 3-against-4 in the event model', () => {
-    let s = createSession();
+    let s = createTestSession();
     // 4 evenly spaced (every 4 steps in 16-step bar)
     s = applySketch(s, 'v0', [
       triggerEvent(0), triggerEvent(4), triggerEvent(8), triggerEvent(12),
@@ -327,7 +335,7 @@ describe('M1: Walking bass (F major)', () => {
   const fMajor = new Set([5, 7, 9, 10, 0, 2, 4]); // F G A Bb C D E
 
   it('walking bass has one note per beat, stepwise motion, in F major', () => {
-    let s = createSession();
+    let s = createTestSession();
     const events: MusicalEvent[] = [
       noteEvent(0, 41),   // F2
       noteEvent(4, 43),   // G2
@@ -352,7 +360,7 @@ describe('M1: Walking bass (F major)', () => {
 // =========================================================================
 describe('M2: Melodic sequence (motif transposition)', () => {
   it('transposed motif preserves intervals', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Original motif at positions 0-3: C4 D4 E4 F4
     // Transposed up a major third at positions 8-11: E4 F#4 G#4 A4
     const events: MusicalEvent[] = [
@@ -384,7 +392,7 @@ describe('M3: Arpeggiated Am7 in even 16th notes', () => {
   const am7PitchClasses = new Set([9, 0, 4, 7]); // A C E G
 
   it('even 16th-note arpeggio of Am7', () => {
-    let s = createSession();
+    let s = createTestSession();
     // Am7 arpeggio: A C E G A C E G across 8 16th notes
     const events: MusicalEvent[] = [
       noteEvent(0, 57),  // A3

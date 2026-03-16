@@ -269,6 +269,13 @@ export function ModulePanel({
           />
         )}
 
+        {/* Empty-engine placeholder */}
+        {controls.length === 0 && (
+          <div className="flex items-center justify-center py-6 text-zinc-500 text-[10px] font-mono uppercase tracking-wider">
+            Select an engine
+          </div>
+        )}
+
         {/* Primary knobs (large) */}
         {largeKnobs.length > 0 && (
           <div

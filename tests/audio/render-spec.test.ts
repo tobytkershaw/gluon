@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { createSession } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { buildRenderSpec } from '../../src/audio/render-spec';
 
 describe('buildRenderSpec', () => {
   it('respects solo state and includes master mix state', () => {
+    let base = createSession();
+    base = addTrack(base)!;
     const session = {
-      ...createSession(),
+      ...base,
       master: { volume: 0.42, pan: -0.25 },
-      tracks: createSession().tracks.map((track, index) => ({
+      tracks: base.tracks.map((track, index) => ({
         ...track,
         solo: index === 1,
       })),

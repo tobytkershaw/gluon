@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
-import { createSession, setAgency } from '../../src/engine/session';
+import { createSession, addTrack, setAgency } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 import type { AIAction } from '../../src/engine/types';
@@ -146,6 +146,7 @@ describe('operation-executor', () => {
 
   it('mixes accepted and rejected in same batch', () => {
     let session = createSession();
+    session = addTrack(session)!;
     session = setAgency(session, 'v1', 'OFF');
     const actions: AIAction[] = [
       { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.8 } },

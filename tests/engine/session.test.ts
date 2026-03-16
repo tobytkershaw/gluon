@@ -1,7 +1,7 @@
 // tests/engine/session.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createSession, setAgency, updateTrackParams, setModel,
+  createSession, addTrack, setAgency, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   setApproval, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
   setTimeSignature, setTransportMode,
@@ -11,9 +11,9 @@ import {
 import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
 
 describe('Session (Phase 2)', () => {
-  it('creates a session with 4 audio tracks plus a master bus', () => {
+  it('creates a session with 1 audio track plus a master bus', () => {
     const session = createSession();
-    expect(session.tracks).toHaveLength(5); // 4 audio + 1 master bus
+    expect(session.tracks).toHaveLength(2); // 1 audio + 1 master bus
     expect(session.activeTrackId).toBe(session.tracks[0].id);
     expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } });
     // Master bus is last
@@ -22,13 +22,11 @@ describe('Session (Phase 2)', () => {
     expect(masterBus.kind).toBe('bus');
   });
 
-  it('default tracks are empty (no engine) with named labels Track 1–4', () => {
+  it('default track is empty (no engine) with named label Track 1', () => {
     const session = createSession();
-    for (let i = 0; i < 4; i++) {
-      expect(session.tracks[i].model).toBe(-1);
-      expect(session.tracks[i].engine).toBe('');
-      expect(session.tracks[i].name).toBe(`Track ${i + 1}`);
-    }
+    expect(session.tracks[0].model).toBe(-1);
+    expect(session.tracks[0].engine).toBe('');
+    expect(session.tracks[0].name).toBe('Track 1');
   });
 
   it('each track has a 16-step default pattern', () => {
@@ -76,8 +74,8 @@ describe('Session (Phase 2)', () => {
 
   it('switches active track', () => {
     const s1 = createSession();
-    const s2 = setActiveTrack(s1, s1.tracks[2].id);
-    expect(s2.activeTrackId).toBe(s1.tracks[2].id);
+    const s2 = setActiveTrack(s1, s1.tracks[1].id); // master bus
+    expect(s2.activeTrackId).toBe(s1.tracks[1].id);
   });
 
   it('toggles mute', () => {
@@ -517,6 +515,9 @@ describe('A/B comparison', () => {
 
   it('restoreABSnapshot preserves activeTrackId when track exists in snapshot', () => {
     let s = createSession();
+    // Add extra tracks so we have enough to test with
+    s = addTrack(s)!;
+    s = addTrack(s)!;
     s = setActiveTrack(s, s.tracks[2].id);
     const snap = captureABSnapshot(s);
     // Restore into a session where activeTrackId is track 1

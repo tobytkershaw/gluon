@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, GLUON_SYSTEM_PROMPT } from '../../src/ai/system-prompt';
-import { createSession, setAgency } from '../../src/engine/session';
+import { createSession, addTrack, setAgency } from '../../src/engine/session';
 import { updateTrack } from '../../src/engine/types';
 import type { Session } from '../../src/engine/types';
 
@@ -11,6 +11,10 @@ function defaultPrompt(): string {
 /** Create a session with legacy engine assignments for tests that check engine-specific prompt content. */
 function createLegacySession(): Session {
   let s = createSession();
+  // Default session now starts with 1 track; add 3 more for legacy tests
+  s = addTrack(s)!;
+  s = addTrack(s)!;
+  s = addTrack(s)!;
   s = updateTrack(s, 'v0', { model: 13, engine: 'plaits:analog_bass_drum', name: undefined });
   s = updateTrack(s, 'v1', { model: 0, engine: 'plaits:virtual_analog', name: undefined });
   s = updateTrack(s, 'v2', { model: 2, engine: 'plaits:fm', name: undefined });
@@ -54,7 +58,6 @@ describe('system prompt generation', () => {
   it('contains track setup', () => {
     const prompt = defaultPrompt();
     expect(prompt).toContain('v0');
-    expect(prompt).toContain('v1');
     expect(prompt).toContain('trigger');
     expect(prompt).toContain('note events');
   });

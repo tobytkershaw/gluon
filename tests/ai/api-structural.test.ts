@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GluonAI } from '../../src/ai/api';
 import { GLUON_TOOLS } from '../../src/ai/tool-schemas';
 import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema } from '../../src/ai/types';
-import { createSession } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 
 // ---------------------------------------------------------------------------
 // Mock planner: returns a single function call for the configured tool name
@@ -368,7 +368,9 @@ describe('API Structural Integrity', () => {
     });
     planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
 
-    const actions = await ai.ask(createSession(), 'write a pattern on track 2');
+    let session = createSession();
+    session = addTrack(session)!;
+    const actions = await ai.ask(session, 'write a pattern on track 2');
     const sketchAction = actions.find(a => a.type === 'sketch');
     expect(sketchAction).toBeDefined();
     expect((sketchAction as { trackId: string }).trackId).toBe('v1');
@@ -406,7 +408,10 @@ describe('API Structural Integrity', () => {
     });
     planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
 
-    const actions = await ai.ask(createSession(), 'test');
+    let session = createSession();
+    session = addTrack(session)!;
+    session = addTrack(session)!;
+    const actions = await ai.ask(session, 'test');
     const moveAction = actions.find(a => a.type === 'move');
     expect(moveAction).toBeDefined();
     expect((moveAction as { trackId?: string }).trackId).toBe('v2');

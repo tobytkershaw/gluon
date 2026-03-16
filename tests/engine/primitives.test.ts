@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   applyMove, applyMoveGroup, applySketch, applyUndo,
 } from '../../src/engine/primitives';
-import { createSession, updateTrackParams } from '../../src/engine/session';
+import { createSession, addTrack, updateTrackParams } from '../../src/engine/session';
 import { getTrack } from '../../src/engine/types';
 import type { PatternSnapshot, ActionGroupSnapshot } from '../../src/engine/types';
 import type { PatternSketch } from '../../src/engine/sequencer-types';
@@ -109,7 +109,10 @@ describe('Protocol Primitives (Phase 2)', () => {
     });
 
     it('undoes an action group in one step', () => {
-      const s = createSession();
+      let s = createSession();
+      s = addTrack(s)!;
+      // Clear undo stack from track-add so only moves are grouped
+      s = { ...s, undoStack: [] };
       // Apply moves to two different tracks
       let next = applyMove(s, 'v0', 'timbre', { absolute: 0.8 });
       next = applyMove(next, 'v1', 'morph', { absolute: 0.3 });
