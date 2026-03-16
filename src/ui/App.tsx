@@ -5,7 +5,7 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline } from '../audio/render-offline';
 import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
-import { getActiveTrack, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
+import { getActiveTrack, getActiveRegion, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -16,6 +16,7 @@ import {
   addSend, removeSend, setSendLevel,
   toggleMetronome, setMetronomeVolume,
   addReaction,
+  addRegion, removeRegion, duplicateRegion, renameRegion, setActiveRegionOnTrack,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -24,7 +25,7 @@ import { executeOperations, prevalidateAction } from '../engine/operation-execut
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents } from '../engine/event-primitives';
-import { rotateRegion, transposeRegion, reverseRegion, duplicateRegion } from '../engine/transform-operations';
+import { rotateRegion, transposeRegion, reverseRegion, duplicateRegionEvents } from '../engine/transform-operations';
 import type { EventSelector } from '../engine/event-primitives';
 import type { MusicalEvent } from '../engine/canonical-types';
 import { addView, removeView } from '../engine/view-primitives';
@@ -621,7 +622,7 @@ export default function App() {
       trackId: s.activeTrackId,
       prevParams: { timbre: track.params.timbre, morph: track.params.morph },
       prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
-      prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
+      prevEvents: track.regions.length > 0 ? [...getActiveRegion(track).events] : undefined,
     };
   }, []);
 
@@ -656,7 +657,7 @@ export default function App() {
 
         // Check if region events changed (param lock during drag)
         if (captured.prevEvents && track.regions.length > 0) {
-          const curEvents = track.regions[0].events;
+          const curEvents = getActiveRegion(track).events;
           const eventsChanged = curEvents.length !== captured.prevEvents.length ||
             curEvents.some((e, i) => JSON.stringify(e) !== JSON.stringify(captured.prevEvents![i]));
           if (eventsChanged) {
@@ -899,11 +900,12 @@ export default function App() {
       // Snapshot the active track's region before recording starts
       const s = sessionRef.current;
       const track = getActiveTrack(s);
-      const region = track?.regions[0];
-      if (region) {
+      const region = track && track.regions.length > 0 ? getActiveRegion(track) : undefined;
+      if (region && track) {
         const snapshot: RegionSnapshot = {
           kind: 'region',
           trackId: track.id,
+          regionId: region.id,
           prevEvents: [...region.events],
           prevDuration: region.duration,
           prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
@@ -926,15 +928,15 @@ export default function App() {
   const handleRecordEvents = useCallback((trackId: string, events: NoteEvent[]) => {
     setSession(s => {
       const track = getTrack(s, trackId);
-      const region = track.regions[0];
-      if (!region) return s;
+      if (track.regions.length === 0) return s;
+      const region = getActiveRegion(track);
 
       // Overdub: merge new events with existing
       const merged = [...region.events, ...events];
       const updatedRegion = normalizeRegionEvents({ ...region, events: merged });
 
       return updateTrack(s, trackId, {
-        regions: track.regions.map((r, i) => i === 0 ? updatedRegion : r),
+        regions: track.regions.map(r => r.id === region.id ? updatedRegion : r),
       });
     });
   }, []);
@@ -1063,7 +1065,28 @@ export default function App() {
   }, []);
 
   const handleDuplicate = useCallback(() => {
-    setSession((s) => duplicateRegion(s, s.activeTrackId));
+    setSession((s) => duplicateRegionEvents(s, s.activeTrackId));
+  }, []);
+
+  // --- Region CRUD ---
+  const handleAddRegion = useCallback(() => {
+    setSession((s) => addRegion(s, s.activeTrackId) ?? s);
+  }, []);
+
+  const handleRemoveRegion = useCallback((regionId: string) => {
+    setSession((s) => removeRegion(s, s.activeTrackId, regionId) ?? s);
+  }, []);
+
+  const handleDuplicateRegion = useCallback((regionId: string) => {
+    setSession((s) => duplicateRegion(s, s.activeTrackId, regionId) ?? s);
+  }, []);
+
+  const handleRenameRegion = useCallback((regionId: string, name: string) => {
+    setSession((s) => renameRegion(s, s.activeTrackId, regionId, name));
+  }, []);
+
+  const handleSetActiveRegion = useCallback((regionId: string) => {
+    setSession((s) => setActiveRegionOnTrack(s, s.activeTrackId, regionId));
   }, []);
 
   const handleAddView = useCallback((kind: SequencerViewKind) => {
@@ -1875,6 +1898,11 @@ export default function App() {
             cancelEditRef={cancelEditRef}
             onDeleteByIndices={handleDeleteByIndices}
             onPasteEvents={handlePasteEvents}
+            onAddRegion={handleAddRegion}
+            onRemoveRegion={handleRemoveRegion}
+            onDuplicateRegion={handleDuplicateRegion}
+            onRenameRegion={handleRenameRegion}
+            onSetActiveRegion={handleSetActiveRegion}
           />
         )}
     </AppShell>

@@ -1,6 +1,6 @@
 // src/engine/pattern-primitives.ts
 import type { Session, SynthParamValues, RegionSnapshot } from './types';
-import { getTrack, updateTrack } from './types';
+import { getTrack, getActiveRegion, updateTrack } from './types';
 import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from './canonical-types';
 import { reprojectTrackPattern } from './region-projection';
 import { normalizeRegionEvents } from './region-helpers';
@@ -60,12 +60,15 @@ function applyRegionEdit(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
+  const activeReg = getActiveRegion(track);
+
   const snapshot: RegionSnapshot | undefined = description
     ? {
         kind: 'region',
         trackId,
-        prevEvents: [...track.regions[0].events],
-        prevDuration: regionUpdates?.duration !== undefined ? track.regions[0].duration : undefined,
+        regionId: activeReg.id,
+        prevEvents: [...activeReg.events],
+        prevDuration: regionUpdates?.duration !== undefined ? activeReg.duration : undefined,
         prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
         timestamp: Date.now(),
         description,
@@ -73,11 +76,11 @@ function applyRegionEdit(
     : undefined;
 
   const region = normalizeRegionEvents({
-    ...track.regions[0],
+    ...activeReg,
     events: newEvents,
     ...(regionUpdates ?? {}),
   });
-  const newRegions = [region, ...track.regions.slice(1)];
+  const newRegions = track.regions.map(r => r.id === activeReg.id ? region : r);
   const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
   const result = updateTrack(session, trackId, {
     regions: updatedTrack.regions,
@@ -103,7 +106,8 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
   if (track.regions.length === 0) return session;
 
   const pitched = !isPercussionByIndex(track.model);
-  const events = [...track.regions[0].events];
+  const activeReg = getActiveRegion(track);
+  const events = [...activeReg.events];
   const idx = findGateEventAt(events, stepIndex);
 
   if (idx >= 0) {
@@ -160,7 +164,8 @@ export function toggleStepAccent(session: Session, trackId: string, stepIndex: n
   // All tracks must have regions — return unchanged if invariant is violated
   if (track.regions.length === 0) return session;
 
-  const events = [...track.regions[0].events];
+  const activeReg = getActiveRegion(track);
+  const events = [...activeReg.events];
   const idx = findGateEventAt(events, stepIndex);
   if (idx >= 0) {
     const existing = events[idx];
@@ -203,7 +208,8 @@ export function setStepParamLock(
   // All tracks must have regions — return unchanged if invariant is violated
   if (track.regions.length === 0) return session;
 
-  const events = [...track.regions[0].events];
+  const activeReg = getActiveRegion(track);
+  const events = [...activeReg.events];
   for (const [runtimeKey, value] of Object.entries(params)) {
     const controlId = runtimeParamToControlId[runtimeKey] ?? runtimeKey;
     const idx = findParamAt(events, stepIndex, controlId);
@@ -238,7 +244,8 @@ export function clearStepParamLock(
   if (track.regions.length === 0) return session;
 
   const controlId = runtimeParamToControlId[param] ?? param;
-  const events = [...track.regions[0].events];
+  const activeReg = getActiveRegion(track);
+  const events = [...activeReg.events];
   const idx = findParamAt(events, stepIndex, controlId);
   if (idx < 0) return session;
   events.splice(idx, 1);
@@ -257,7 +264,7 @@ export function setPatternLength(session: Session, trackId: string, length: numb
   // Events beyond the new duration are stashed in track._hiddenEvents
   // so expanding later restores them. The region invariant (event.at < duration)
   // is preserved at all times.
-  const currentEvents = track.regions[0].events;
+  const currentEvents = getActiveRegion(track).events;
   const prevHidden = track._hiddenEvents ?? [];
 
   // Merge current events + previously hidden events, then split by new duration
@@ -288,11 +295,11 @@ export function insertAutomationEvent(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
-  const region = track.regions[0];
+  const activeReg = getActiveRegion(track);
   // Wrap position into region (loop-aware)
-  const wrappedAt = ((at % region.duration) + region.duration) % region.duration;
+  const wrappedAt = ((at % activeReg.duration) + activeReg.duration) % activeReg.duration;
 
-  const events = [...region.events];
+  const events = [...activeReg.events];
   const idx = findParamAt(events, wrappedAt, controlId);
 
   if (idx >= 0) {
@@ -321,7 +328,7 @@ export function clearPattern(session: Session, trackId: string): Session {
   if (track.regions.length === 0) return session;
 
   // Clear all events (including hidden stash)
-  if (track.regions[0].events.length === 0 && !track._hiddenEvents?.length) return session;
+  if (getActiveRegion(track).events.length === 0 && !track._hiddenEvents?.length) return session;
   let result = applyRegionEdit(session, trackId, [], undefined, 'Clear pattern');
   result = updateTrack(result, trackId, { _hiddenEvents: undefined });
   return result;
@@ -347,14 +354,14 @@ export function quantizeRegion(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
-  const region = track.regions[0];
-  if (region.events.length === 0) return session;
+  const activeReg = getActiveRegion(track);
+  if (activeReg.events.length === 0) return session;
 
-  const quantized = region.events.map(e => {
+  const quantized = activeReg.events.map(e => {
     let snapped = Math.round(e.at / gridSize) * gridSize;
     // Clamp to valid range [0, duration)
     if (snapped < 0) snapped = 0;
-    if (snapped >= region.duration) snapped = region.duration - gridSize;
+    if (snapped >= activeReg.duration) snapped = activeReg.duration - gridSize;
     // Round to avoid floating-point noise
     snapped = Math.round(snapped * 10000) / 10000;
     return { ...e, at: snapped };

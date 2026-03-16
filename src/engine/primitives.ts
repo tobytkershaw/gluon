@@ -3,7 +3,7 @@ import type {
   Session, ParamSnapshot, PatternSnapshot, Snapshot, UndoEntry,
   SynthParamValues, ActionGroupSnapshot,
 } from './types';
-import { getTrack, updateTrack } from './types';
+import { getTrack, getActiveRegion, updateTrack } from './types';
 import type { PatternSketch, Step } from './sequencer-types';
 import { reprojectTrackPattern } from './region-projection';
 import { stepsToEvents } from './event-conversion';
@@ -136,7 +136,7 @@ export function applySketch(
     prevSteps,
     prevLength,
     // Capture region events so undo can fully restore them (#209, #214)
-    prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
+    prevEvents: track.regions.length > 0 ? [...getActiveRegion(track).events] : undefined,
     prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
     timestamp: Date.now(),
     description,
@@ -145,19 +145,20 @@ export function applySketch(
   const newPattern = { steps: newSteps, length: newLength };
   let updated = updateTrack(session, trackId, { pattern: newPattern });
 
-  // Project pattern steps to canonical events in the region
+  // Project pattern steps to canonical events in the active region
   const updatedTrack = getTrack(updated, trackId);
   if (updatedTrack.regions.length > 0) {
+    const activeReg = getActiveRegion(updatedTrack);
     const events = stepsToEvents(newSteps.slice(0, newLength), {
       runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
     });
     const region = normalizeRegionEvents({
-      ...updatedTrack.regions[0],
+      ...activeReg,
       events,
       duration: newLength,
     });
     updated = updateTrack(updated, trackId, {
-      regions: [region, ...updatedTrack.regions.slice(1)],
+      regions: updatedTrack.regions.map(r => r.id === activeReg.id ? region : r),
       _regionDirty: true,
     });
   }
@@ -234,6 +235,31 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { sends: snapshot.prevSends });
   }
 
+  if (snapshot.kind === 'region-crud') {
+    const track = getTrack(session, snapshot.trackId);
+    if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
+      // Undo add/duplicate: remove the added region
+      const newRegions = track.regions.filter(r => r.id !== snapshot.addedRegionId);
+      return updateTrack(session, snapshot.trackId, {
+        regions: newRegions,
+        activeRegionId: snapshot.prevActiveRegionId,
+        _regionDirty: true,
+      });
+    }
+    if (snapshot.action === 'remove' && snapshot.removedRegion != null && snapshot.removedIndex != null) {
+      // Undo remove: re-insert the removed region at its original position
+      const newRegions = [...track.regions];
+      const insertAt = Math.min(snapshot.removedIndex, newRegions.length);
+      newRegions.splice(insertAt, 0, snapshot.removedRegion);
+      return updateTrack(session, snapshot.trackId, {
+        regions: newRegions,
+        activeRegionId: snapshot.prevActiveRegionId,
+        _regionDirty: true,
+      });
+    }
+    return session;
+  }
+
   if (snapshot.kind === 'track-add') {
     // Undo an add: remove the track
     const newTracks = session.tracks.filter(t => t.id !== snapshot.trackId);
@@ -261,14 +287,19 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   if (snapshot.kind === 'region') {
     const track = getTrack(session, snapshot.trackId);
     if (track.regions.length === 0) return session;
+    // Find the target region by regionId, or fall back to the active region
+    const targetRegionId = snapshot.regionId;
+    const targetRegion = targetRegionId
+      ? track.regions.find(r => r.id === targetRegionId) ?? getActiveRegion(track)
+      : getActiveRegion(track);
     const restoredRegion = {
-      ...track.regions[0],
+      ...targetRegion,
       events: snapshot.prevEvents,
       ...(snapshot.prevDuration !== undefined ? { duration: snapshot.prevDuration } : {}),
     };
     const updatedTrack = reprojectTrackPattern({
       ...track,
-      regions: [restoredRegion, ...track.regions.slice(1)],
+      regions: track.regions.map(r => r.id === targetRegion.id ? restoredRegion : r),
     });
     const updates: Partial<import('./types').Track> = {
       regions: updatedTrack.regions,
@@ -296,30 +327,31 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
     // Restore region events if they were captured (#209, #214)
     if (snapshot.prevEvents && track.regions.length > 0) {
+      const activeReg = getActiveRegion(track);
       const restoredRegion = {
-        ...track.regions[0],
+        ...activeReg,
         events: snapshot.prevEvents,
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       };
       const updatedTrack = reprojectTrackPattern({
         ...track,
-        regions: [restoredRegion, ...track.regions.slice(1)],
+        regions: track.regions.map(r => r.id === activeReg.id ? restoredRegion : r),
       });
       updates.regions = updatedTrack.regions;
       updates.pattern = updatedTrack.pattern;
       updates._regionDirty = true;
     } else if (track.regions.length > 0) {
       // Old snapshot without prevEvents: best-effort region sync from restored steps.
-      // Uses stepsToEvents (lossy for NoteEvents — same limitation as the original sketch).
+      const activeReg = getActiveRegion(track);
       const events = stepsToEvents(newSteps.slice(0, newLength), {
         runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
       });
       const region = normalizeRegionEvents({
-        ...track.regions[0],
+        ...activeReg,
         events,
         ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
       });
-      updates.regions = [region, ...track.regions.slice(1)];
+      updates.regions = track.regions.map(r => r.id === activeReg.id ? region : r);
       updates._regionDirty = true;
     }
 
@@ -388,7 +420,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
       ...snapshot,
       prevSteps,
       prevLength: snapshot.prevLength !== undefined ? track.pattern.length : undefined,
-      prevEvents: track.regions.length > 0 ? [...track.regions[0].events] : undefined,
+      prevEvents: track.regions.length > 0 ? [...getActiveRegion(track).events] : undefined,
       prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
       timestamp: now,
     };
@@ -399,8 +431,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     if (track.regions.length === 0) return { ...snapshot, timestamp: now };
     return {
       ...snapshot,
-      prevEvents: [...track.regions[0].events],
-      prevDuration: track.regions[0].duration,
+      prevEvents: [...getActiveRegion(track).events],
+      prevDuration: getActiveRegion(track).duration,
       prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
       timestamp: now,
     };
@@ -479,6 +511,37 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'send') {
     const track = getTrack(session, snapshot.trackId);
     return { ...snapshot, prevSends: [...(track.sends ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'region-crud') {
+    const track = getTrack(session, snapshot.trackId);
+    if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
+      // Reverse of add is remove
+      const addedRegion = track.regions.find(r => r.id === snapshot.addedRegionId);
+      const addedIndex = track.regions.findIndex(r => r.id === snapshot.addedRegionId);
+      return {
+        ...snapshot,
+        action: 'remove' as const,
+        removedRegion: addedRegion ? { ...addedRegion, events: addedRegion.events.map(e => ({ ...e })) } : undefined,
+        removedIndex: addedIndex >= 0 ? addedIndex : undefined,
+        addedRegionId: undefined,
+        prevActiveRegionId: track.activeRegionId,
+        timestamp: now,
+      };
+    }
+    if (snapshot.action === 'remove') {
+      // Reverse of remove is add
+      return {
+        ...snapshot,
+        action: 'add' as const,
+        addedRegionId: snapshot.removedRegion?.id,
+        removedRegion: undefined,
+        removedIndex: undefined,
+        prevActiveRegionId: track.activeRegionId,
+        timestamp: now,
+      };
+    }
+    return { ...snapshot, timestamp: now };
   }
 
   if (snapshot.kind === 'track-add') {

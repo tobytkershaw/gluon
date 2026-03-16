@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { RefObject, MutableRefObject } from 'react';
 import type { AudioEngine } from '../audio/audio-engine';
 import type { Session } from '../engine/types';
-import { getActiveTrack } from '../engine/types';
+import { getActiveTrack, getActiveRegion } from '../engine/types';
 import { midiToNote } from '../audio/synth-interface';
 import { isEditable } from './useShortcuts';
 import type { NoteEvent } from '../engine/canonical-types';
@@ -198,8 +198,9 @@ export function useKeyboardPiano(
     const track = getActiveTrack(currentSession);
     if (!track) return;
 
-    const region = track.regions[0];
-    if (!region || region.duration <= 0) return;
+    if (track.regions.length === 0) return;
+    const region = getActiveRegion(track);
+    if (region.duration <= 0) return;
 
     const currentStep = globalStepRef.current;
     let rawDuration = currentStep - pending.startStep;

@@ -3,7 +3,7 @@ import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapsho
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
-import { getTrack, updateTrack } from './types';
+import { getTrack, getActiveRegion, updateTrack } from './types';
 import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
 import { projectRegionToPattern } from './region-projection';
@@ -71,7 +71,7 @@ function checkPreservationForSketch(
     return `Preservation: track ${trackLabel} (${trackId}) is approved — legacy pattern sketches are blocked. Use canonical events instead.`;
   }
 
-  const existingEvents = track.regions[0]?.events ?? [];
+  const existingEvents = track.regions.length > 0 ? getActiveRegion(track).events : [];
   const existingRhythm = extractRhythmPositions(existingEvents);
   const newRhythm = extractRhythmPositions(newEvents);
 
@@ -782,8 +782,9 @@ export function executeOperations(
 
       case 'sketch': {
         const track = getTrack(next, action.trackId);
-        const eventsBefore = track.regions[0]?.events?.length ?? 0;
-        const oldEventsForReport = track.regions[0]?.events ?? [];
+        const activeReg = track.regions.length > 0 ? getActiveRegion(track) : undefined;
+        const eventsBefore = activeReg?.events?.length ?? 0;
+        const oldEventsForReport = activeReg?.events ?? [];
         const trackApproval = track.approval ?? 'exploratory';
         let eventsAfter = eventsBefore;
         let newEventsForReport: MusicalEvent[] | undefined;
@@ -791,12 +792,13 @@ export function executeOperations(
         if (action.events) {
           // Canonical sketch: write events to region first (source of truth),
           // then project to pattern (derived cache).
-          const prevEvents = track.regions[0]?.events ?? [];
-          const prevDuration = track.regions[0]?.duration;
+          const sketchRegion = activeReg!;
+          const prevEvents = sketchRegion.events;
+          const prevDuration = sketchRegion.duration;
 
           // Build updated region with new events
           const updatedRegion = normalizeRegionEvents({
-            ...track.regions[0],
+            ...sketchRegion,
             events: action.events,
           });
 
@@ -807,7 +809,7 @@ export function executeOperations(
             break;
           }
 
-          const newRegions = [updatedRegion, ...track.regions.slice(1)];
+          const newRegions = track.regions.map(r => r.id === sketchRegion.id ? updatedRegion : r);
 
           // Project region to pattern (derived)
           const inverseOpts = {
@@ -824,6 +826,7 @@ export function executeOperations(
           const snapshot: RegionSnapshot = {
             kind: 'region',
             trackId: action.trackId,
+            regionId: sketchRegion.id,
             prevEvents: [...prevEvents],
             prevDuration: prevDuration !== updatedRegion.duration ? prevDuration : undefined,
             timestamp: Date.now(),
@@ -996,7 +999,7 @@ export function executeOperations(
 
       case 'transform': {
         const track = getTrack(next, action.trackId);
-        const region = track.regions[0];
+        const region = track.regions.length > 0 ? getActiveRegion(track) : undefined;
         if (!region) {
           rejected.push({ op: action, reason: 'No region on track' });
           break;
@@ -1040,7 +1043,7 @@ export function executeOperations(
           break;
         }
 
-        const newRegions = [updatedRegion, ...track.regions.slice(1)];
+        const newRegions = track.regions.map(r => r.id === region.id ? updatedRegion : r);
 
         const inverseOpts = {
           midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
@@ -1055,6 +1058,7 @@ export function executeOperations(
         const snapshot: RegionSnapshot = {
           kind: 'region',
           trackId: action.trackId,
+          regionId: region.id,
           prevEvents,
           prevDuration: prevDuration !== newDuration ? prevDuration : undefined,
           timestamp: Date.now(),

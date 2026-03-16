@@ -1,7 +1,7 @@
 // src/engine/transform-operations.ts
 // Session-level transform operations with undo support.
 import type { Session, RegionSnapshot } from './types';
-import { getTrack, updateTrack } from './types';
+import { getTrack, getActiveRegion, updateTrack } from './types';
 import { normalizeRegionEvents } from './region-helpers';
 import { reprojectTrackPattern } from './region-projection';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
@@ -26,21 +26,24 @@ function applyTransform(
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
 
+  const activeReg = getActiveRegion(track);
+
   const snapshot: RegionSnapshot = {
     kind: 'region',
     trackId,
-    prevEvents: [...track.regions[0].events],
-    prevDuration: track.regions[0].duration,
+    regionId: activeReg.id,
+    prevEvents: [...activeReg.events],
+    prevDuration: activeReg.duration,
     timestamp: Date.now(),
     description,
   };
 
   const region = normalizeRegionEvents({
-    ...track.regions[0],
+    ...activeReg,
     events: newEvents,
     ...(newDuration !== undefined ? { duration: newDuration } : {}),
   });
-  const newRegions = [region, ...track.regions.slice(1)];
+  const newRegions = track.regions.map(r => r.id === activeReg.id ? region : r);
   const updatedTrack = reprojectTrackPattern({ ...track, regions: newRegions }, defaultInverseOpts);
   const result = updateTrack(session, trackId, {
     regions: updatedTrack.regions,
@@ -51,38 +54,38 @@ function applyTransform(
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
-/** Rotate all events in the active track's first region by `steps`. */
+/** Rotate all events in the active track's active region by `steps`. */
 export function rotateRegion(session: Session, trackId: string, steps: number): Session {
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
-  const region = track.regions[0];
-  const newEvents = rotate(region.events, steps, region.duration);
+  const activeReg = getActiveRegion(track);
+  const newEvents = rotate(activeReg.events, steps, activeReg.duration);
   return applyTransform(session, trackId, newEvents, undefined, `Rotate events by ${steps} steps`);
 }
 
-/** Transpose all note events in the active track's first region by `semitones`. */
+/** Transpose all note events in the active track's active region by `semitones`. */
 export function transposeRegion(session: Session, trackId: string, semitones: number): Session {
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
-  const region = track.regions[0];
-  const newEvents = transpose(region.events, semitones);
+  const activeReg = getActiveRegion(track);
+  const newEvents = transpose(activeReg.events, semitones);
   return applyTransform(session, trackId, newEvents, undefined, `Transpose events by ${semitones} semitones`);
 }
 
-/** Reverse all events in the active track's first region. */
+/** Reverse all events in the active track's active region. */
 export function reverseRegion(session: Session, trackId: string): Session {
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
-  const region = track.regions[0];
-  const newEvents = reverse(region.events, region.duration);
+  const activeReg = getActiveRegion(track);
+  const newEvents = reverse(activeReg.events, activeReg.duration);
   return applyTransform(session, trackId, newEvents, undefined, 'Reverse events');
 }
 
-/** Duplicate all events in the active track's first region, doubling the duration. */
-export function duplicateRegion(session: Session, trackId: string): Session {
+/** Duplicate all events in the active track's active region, doubling the duration. */
+export function duplicateRegionEvents(session: Session, trackId: string): Session {
   const track = getTrack(session, trackId);
   if (track.regions.length === 0) return session;
-  const region = track.regions[0];
-  const result = duplicate(region.events, region.duration);
+  const activeReg = getActiveRegion(track);
+  const result = duplicate(activeReg.events, activeReg.duration);
   return applyTransform(session, trackId, result.events, result.duration, 'Duplicate region');
 }

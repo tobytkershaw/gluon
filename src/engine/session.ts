@@ -1,7 +1,7 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind } from './types';
-import type { SourceAdapter, ControlState } from './canonical-types';
-import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, RegionCrudSnapshot } from './types';
+import type { SourceAdapter, ControlState, Region } from './canonical-types';
+import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActiveRegion } from './types';
 import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
 import { createDefaultPattern } from './sequencer-helpers';
 import { createDefaultRegion } from './region-helpers';
@@ -590,4 +590,176 @@ export function setSendLevel(session: Session, trackId: string, busId: string, l
   newSends[idx] = { ...newSends[idx], level: clamped };
   const result = updateTrack(session, trackId, { sends: newSends });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+// --- Region CRUD helpers ---
+
+/** Maximum regions per track. */
+export const MAX_REGIONS_PER_TRACK = 16;
+
+/**
+ * Derive a unique region ID within a track.
+ */
+function nextRegionId(track: Track): string {
+  const existing = new Set(track.regions.map(r => r.id));
+  for (let i = 0; i < MAX_REGIONS_PER_TRACK + 1; i++) {
+    const id = `${track.id}-region-${i}`;
+    if (!existing.has(id)) return id;
+  }
+  return `${track.id}-region-${Date.now()}`;
+}
+
+/**
+ * Add a new empty region to a track. Inserts after `afterRegionId` if given,
+ * otherwise appends at the end. Returns null if at MAX_REGIONS_PER_TRACK.
+ * Sets the new region as active and pushes an undo snapshot.
+ */
+export function addRegion(session: Session, trackId: string, afterRegionId?: string): Session | null {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return null;
+  if (track.regions.length >= MAX_REGIONS_PER_TRACK) return null;
+
+  const activeRegion = getActiveRegion(track);
+  const newId = nextRegionId(track);
+  const duration = activeRegion?.duration ?? 16;
+  const lastRegion = track.regions[track.regions.length - 1];
+  const start = lastRegion ? lastRegion.start + lastRegion.duration : 0;
+
+  const newRegion: Region = {
+    id: newId,
+    kind: 'pattern',
+    start,
+    duration,
+    loop: true,
+    events: [],
+  };
+
+  const newRegions = [...track.regions];
+  if (afterRegionId) {
+    const idx = newRegions.findIndex(r => r.id === afterRegionId);
+    newRegions.splice(idx === -1 ? newRegions.length : idx + 1, 0, newRegion);
+  } else {
+    newRegions.push(newRegion);
+  }
+
+  const snapshot: RegionCrudSnapshot = {
+    kind: 'region-crud',
+    trackId,
+    action: 'add',
+    addedRegionId: newId,
+    prevActiveRegionId: track.activeRegionId,
+    timestamp: Date.now(),
+    description: `Add region to ${trackId}`,
+  };
+
+  const result = updateTrack(session, trackId, {
+    regions: newRegions,
+    activeRegionId: newId,
+    _regionDirty: true,
+  });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/**
+ * Remove a region from a track. Returns null if only one region remains.
+ * Pushes an undo snapshot.
+ */
+export function removeRegion(session: Session, trackId: string, regionId: string): Session | null {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return null;
+  if (track.regions.length <= 1) return null;
+
+  const index = track.regions.findIndex(r => r.id === regionId);
+  if (index === -1) return null;
+
+  const removedRegion = track.regions[index];
+  const newRegions = track.regions.filter(r => r.id !== regionId);
+
+  // If the removed region was active, select an adjacent one
+  let newActiveRegionId = track.activeRegionId;
+  if (track.activeRegionId === regionId || !track.activeRegionId) {
+    const newIdx = Math.min(index, newRegions.length - 1);
+    newActiveRegionId = newRegions[newIdx].id;
+  }
+
+  const snapshot: RegionCrudSnapshot = {
+    kind: 'region-crud',
+    trackId,
+    action: 'remove',
+    removedRegion,
+    removedIndex: index,
+    prevActiveRegionId: track.activeRegionId,
+    timestamp: Date.now(),
+    description: `Remove region ${regionId} from ${trackId}`,
+  };
+
+  const result = updateTrack(session, trackId, {
+    regions: newRegions,
+    activeRegionId: newActiveRegionId,
+    _regionDirty: true,
+  });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/**
+ * Duplicate a region on a track. The copy is inserted immediately after the source.
+ * Returns null if at MAX_REGIONS_PER_TRACK.
+ */
+export function duplicateRegion(session: Session, trackId: string, regionId: string): Session | null {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return null;
+  if (track.regions.length >= MAX_REGIONS_PER_TRACK) return null;
+
+  const sourceRegion = track.regions.find(r => r.id === regionId);
+  if (!sourceRegion) return null;
+
+  const newId = nextRegionId(track);
+  const copy: Region = {
+    ...sourceRegion,
+    id: newId,
+    name: sourceRegion.name ? `${sourceRegion.name} (copy)` : undefined,
+    start: sourceRegion.start + sourceRegion.duration,
+    events: sourceRegion.events.map(e => ({ ...e })),
+  };
+
+  const newRegions = [...track.regions];
+  const sourceIdx = newRegions.findIndex(r => r.id === regionId);
+  newRegions.splice(sourceIdx + 1, 0, copy);
+
+  const snapshot: RegionCrudSnapshot = {
+    kind: 'region-crud',
+    trackId,
+    action: 'duplicate',
+    addedRegionId: newId,
+    prevActiveRegionId: track.activeRegionId,
+    timestamp: Date.now(),
+    description: `Duplicate region ${regionId} on ${trackId}`,
+  };
+
+  const result = updateTrack(session, trackId, {
+    regions: newRegions,
+    activeRegionId: newId,
+    _regionDirty: true,
+  });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/** Rename a region. */
+export function renameRegion(session: Session, trackId: string, regionId: string, name: string): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  const region = track.regions.find(r => r.id === regionId);
+  if (!region) return session;
+
+  return updateTrack(session, trackId, {
+    regions: track.regions.map(r => r.id === regionId ? { ...r, name } : r),
+  });
+}
+
+/** Set the active region on a track. */
+export function setActiveRegionOnTrack(session: Session, trackId: string, regionId: string): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  if (!track.regions.some(r => r.id === regionId)) return session;
+  return updateTrack(session, trackId, { activeRegionId: regionId });
 }

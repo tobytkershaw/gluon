@@ -2,6 +2,7 @@
 import type { Region } from './canonical-types';
 import type { Pattern } from './sequencer-types';
 import type { Track } from './types';
+import { getActiveRegion } from './types';
 import { eventsToSteps, type InverseConversionOptions } from './event-conversion';
 
 /**
@@ -26,7 +27,7 @@ export function reprojectTrackPattern(
   options?: InverseConversionOptions,
 ): Track {
   if (track.regions.length === 0) return track;
-  const region = track.regions[0];
+  const region = getActiveRegion(track);
   const pattern = projectRegionToPattern(region, region.duration, options);
   return { ...track, pattern };
 }

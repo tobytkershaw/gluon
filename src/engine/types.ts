@@ -160,6 +160,8 @@ export interface Track {
   importance?: number;
   /** Brief description of this track's musical role (e.g., "driving rhythm", "ambient pad") */
   musicalRole?: string;
+  /** ID of the currently-active region for editing. Falls back to regions[0] if unset. */
+  activeRegionId?: string;
 }
 
 // --- Master channel ---
@@ -229,6 +231,8 @@ export interface ModelSnapshot {
 export interface RegionSnapshot {
   kind: 'region';
   trackId: string;
+  /** Which region was edited. When absent, defaults to the active region. */
+  regionId?: string;
   prevEvents: CanonicalMusicalEvent[];
   prevDuration?: number;
   prevHiddenEvents?: CanonicalMusicalEvent[];
@@ -339,7 +343,22 @@ export interface SendSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot;
+export interface RegionCrudSnapshot {
+  kind: 'region-crud';
+  trackId: string;
+  action: 'add' | 'remove' | 'duplicate';
+  /** For remove: the removed region and its index for reinsertion. */
+  removedRegion?: import('./canonical-types').Region;
+  removedIndex?: number;
+  /** For add/duplicate: the ID of the added region, so undo can remove it. */
+  addedRegionId?: string;
+  /** Previous activeRegionId, so undo restores the selection. */
+  prevActiveRegionId?: string;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | RegionSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | RegionCrudSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -654,10 +673,38 @@ export function getActiveTrack(session: Session): Track {
   return getTrack(session, session.activeTrackId);
 }
 
+/** Return the active region for a track (by activeRegionId), falling back to regions[0]. */
+export function getActiveRegion(track: Track): import('./canonical-types').Region {
+  if (track.activeRegionId) {
+    const region = track.regions.find(r => r.id === track.activeRegionId);
+    if (region) return region;
+  }
+  return track.regions[0];
+}
+
 export function updateTrack(session: Session, trackId: string, update: Partial<Track>): Session {
   return {
     ...session,
     tracks: session.tracks.map(v => v.id === trackId ? { ...v, ...update } : v),
+  };
+}
+
+/** Update a specific region within a track, returning a new session with the region replaced. */
+export function updateRegion(
+  session: Session,
+  trackId: string,
+  regionId: string,
+  regionUpdate: Partial<import('./canonical-types').Region>,
+): Session {
+  return {
+    ...session,
+    tracks: session.tracks.map(t => {
+      if (t.id !== trackId) return t;
+      return {
+        ...t,
+        regions: t.regions.map(r => r.id === regionId ? { ...r, ...regionUpdate } : r),
+      };
+    }),
   };
 }
 
