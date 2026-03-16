@@ -33,6 +33,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -70,6 +71,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -103,6 +105,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -138,6 +141,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -181,6 +185,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -209,6 +214,53 @@ describe('TransportController', () => {
     controller.dispose();
   });
 
+  it('restores metronome volume on play after stop silenced it', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    session.transport = {
+      ...session.transport,
+      metronome: { enabled: true, volume: 0.7 },
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2)
+        .mockReturnValueOnce(3),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
+    });
+
+    // Play → stop (silences metronome) → play again
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    controller.sync();
+
+    expect(audio.silenceMetronome).toHaveBeenCalled();
+
+    // Play again — should restore volume
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+
+    expect(audio.setMetronomeVolume).toHaveBeenCalledWith(0.7);
+
+    controller.dispose();
+  });
+
   it('silences metronome on pause', () => {
     vi.useFakeTimers();
     const session = makeSession();
@@ -223,6 +275,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -257,6 +310,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -310,6 +364,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -376,6 +431,7 @@ describe('TransportController', () => {
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
       silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({

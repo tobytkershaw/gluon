@@ -115,6 +115,9 @@ export class TransportController {
           startStep = 0;
         }
         this.audio.restoreBaseline();
+        // Restore metronome volume after silenceMetronome() zeroed it on stop/pause.
+        const metVol = transport.metronome?.volume ?? 0.5;
+        this.audio.setMetronomeVolume(metVol);
         this.scheduler.start(START_OFFSET_SEC, startStep, generation);
         this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);
         recordQaAudioTrace({
