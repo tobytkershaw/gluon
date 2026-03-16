@@ -77,6 +77,13 @@ interface Props {
   metronomeVolume: number;
   onToggleMetronome: () => void;
   onMetronomeVolumeChange: (v: number) => void;
+  // Loop
+  loopEnabled: boolean;
+  loopStart: number;
+  loopEnd: number;
+  onToggleLoop: () => void;
+  onLoopStartChange: (step: number) => void;
+  onLoopEndChange: (step: number) => void;
   // View
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
@@ -114,6 +121,7 @@ export function AppShell({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
+  loopEnabled, loopStart, loopEnd, onToggleLoop, onLoopStartChange, onLoopEndChange,
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo,
   cancelEditRef,
@@ -180,6 +188,9 @@ export function AppShell({
             recordArmed={recordArmed}
             globalStep={globalStep}
             patternLength={patternLength}
+            loopEnabled={loopEnabled}
+            loopStart={loopStart}
+            loopEnd={loopEnd}
             onTogglePlay={onTogglePlay}
             onHardStop={onHardStop}
             onBpmChange={onBpmChange}
@@ -189,6 +200,12 @@ export function AppShell({
             metronomeVolume={metronomeVolume}
             onToggleMetronome={onToggleMetronome}
             onMetronomeVolumeChange={onMetronomeVolumeChange}
+            loopEnabled={loopEnabled}
+            loopStart={loopStart}
+            loopEnd={loopEnd}
+            onToggleLoop={onToggleLoop}
+            onLoopStartChange={onLoopStartChange}
+            onLoopEndChange={onLoopEndChange}
           />
           <div className="flex-1" />
           <UndoButton

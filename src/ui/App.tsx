@@ -17,6 +17,7 @@ import {
   toggleMetronome, setMetronomeVolume,
   addReaction,
   addRegion, removeRegion, duplicateRegion, renameRegion, setActiveRegionOnTrack,
+  toggleLoop, setLoopStart, setLoopEnd,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -1708,7 +1709,7 @@ export default function App() {
   }, [ensureAudio]);
 
   // Global keyboard shortcuts (extracted to hook)
-  useShortcuts({ onUndo: handleUndo, onRedo: handleRedo, onTogglePlay: handleTogglePlay, onHardStop: handleHardStop, setView, setChatOpen });
+  useShortcuts({ onUndo: handleUndo, onRedo: handleRedo, onTogglePlay: handleTogglePlay, onHardStop: handleHardStop, onToggleLoop: () => setSession(s => toggleLoop(s)), setView, setChatOpen });
 
   // Keyboard piano: map computer keys to musical notes for real-time audition
   useKeyboardPiano(audioRef, session, recordArmed, globalStepRef, handleRecordEvents);
@@ -1785,6 +1786,12 @@ export default function App() {
       metronomeVolume={session.transport.metronome.volume}
       onToggleMetronome={() => setSession(s => toggleMetronome(s))}
       onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
+      loopEnabled={session.transport.loopEnabled ?? false}
+      loopStart={session.transport.loopStart ?? 0}
+      loopEnd={session.transport.loopEnd ?? activeTrack.pattern.length}
+      onToggleLoop={() => setSession(s => toggleLoop(s))}
+      onLoopStartChange={(step) => setSession(s => setLoopStart(s, step))}
+      onLoopEndChange={(step) => setSession(s => setLoopEnd(s, step))}
       view={view}
       onViewChange={setView}
       undoStack={session.undoStack}

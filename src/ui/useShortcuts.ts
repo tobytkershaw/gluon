@@ -8,6 +8,7 @@ interface ShortcutActions {
   onRedo: () => void;
   onTogglePlay: () => void;
   onHardStop: () => void;
+  onToggleLoop?: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
   setChatOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
 }
@@ -19,7 +20,7 @@ export function isEditable(): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (el as HTMLElement).isContentEditable;
 }
 
-export function useShortcuts({ onUndo, onRedo, onTogglePlay, onHardStop, setView, setChatOpen }: ShortcutActions) {
+export function useShortcuts({ onUndo, onRedo, onTogglePlay, onHardStop, onToggleLoop, setView, setChatOpen }: ShortcutActions) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       // Cmd+Shift+Z = redo (must check before Cmd+Z)
@@ -71,8 +72,13 @@ export function useShortcuts({ onUndo, onRedo, onTogglePlay, onHardStop, setView
         e.preventDefault();
         onTogglePlay();
       }
+      // L toggles loop on/off
+      if ((e.key === 'l' || e.key === 'L') && !e.repeat && !isEditable() && !(e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        onToggleLoop?.();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onUndo, onRedo, onTogglePlay, onHardStop, setView, setChatOpen]);
+  }, [onUndo, onRedo, onTogglePlay, onHardStop, onToggleLoop, setView, setChatOpen]);
 }

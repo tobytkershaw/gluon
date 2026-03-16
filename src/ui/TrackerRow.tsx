@@ -40,6 +40,8 @@ interface Props {
   isSelected?: boolean;
   /** Click handler for row selection (receives shiftKey state). */
   onRowClick?: (shiftKey: boolean) => void;
+  /** Whether this row falls within the active loop region. */
+  isInLoop?: boolean;
 }
 
 // --- Formatting helpers ---
@@ -387,7 +389,7 @@ function NoteColumnCell({
 // --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({ event, noteColumns, maxNoteColumns = 1, cursorNoteColumn, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter, isSelected, onRowClick }, ref) {
+  function TrackerRow({ event, noteColumns, maxNoteColumns = 1, cursorNoteColumn, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter, isSelected, onRowClick, isInLoop }, ref) {
     const rowColor = kindRowStyle(event.kind);
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
@@ -553,9 +555,11 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           ${isSelected ? 'bg-amber-500/20' : ''}
           ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
           ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
+          ${isInLoop && !isSelected && !isCursorRow && !isAtPlayhead ? 'bg-cyan-500/5' : ''}
           ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
+        style={isInLoop ? { borderLeft: '2px solid rgba(6, 182, 212, 0.3)' } : undefined}
         onClick={(e) => onRowClick?.(e.shiftKey)}
       >
         <td className={`px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem] ${cursorCellClass(0)}`}>

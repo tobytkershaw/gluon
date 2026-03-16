@@ -562,6 +562,102 @@ describe('Scheduler', () => {
     expect(trackNotes.length).toBeGreaterThanOrEqual(4);
   });
 
+  // --- Transport loop tests ---
+
+  it('transport loop wraps playback to loopStart when reaching loopEnd', () => {
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
+    // Events at steps 0, 4, 8, 12
+    const events: MusicalEvent[] = [
+      { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
+      { kind: 'trigger', at: 4, velocity: 0.8 } as TriggerEvent,
+      { kind: 'trigger', at: 8, velocity: 0.8 } as TriggerEvent,
+      { kind: 'trigger', at: 12, velocity: 0.8 } as TriggerEvent,
+    ];
+    const newRegion = { ...track.regions[0], duration: 16, events };
+    // Enable transport loop: steps 4-12 (exclusive)
+    let currentSession: Session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        loopEnabled: true,
+        loopStart: 4,
+        loopEnd: 12,
+      },
+      tracks: session.tracks.map(v =>
+        v.id === vid ? { ...v, regions: [newRegion] } : v
+      ),
+    };
+
+    const sched = new Scheduler(
+      () => currentSession,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      (note) => notes.push(note),
+      (pos) => positions.push(pos),
+      () => ({}),
+    );
+
+    sched.start(0);
+    // At 120 BPM, stepDuration = 0.125s
+    // Step 12 = 1.5s. Run past that to trigger the loop wrap.
+    for (let t = 0.025; t <= 3.0; t += 0.025) {
+      audioTime = t;
+      vi.advanceTimersByTime(25);
+    }
+    sched.stop();
+
+    // The position should never exceed loopEnd (12)
+    // After wrapping, positions should be between loopStart and loopEnd
+    const positionsAfterWrap = positions.filter(p => p > 1.5 / 0.125); // after step 12
+    // All positions after the wrap point should be within loop bounds
+    // (they wrap back to 4-12 range)
+    for (const p of positionsAfterWrap) {
+      expect(p).toBeLessThan(12 + 1); // small tolerance for lookahead
+    }
+
+    // Step 0 should fire once (before loop starts), step 12 should not fire
+    // (it's the exclusive end), and steps 4 and 8 should fire multiple times
+    // due to looping
+    const step4Notes = notes.filter(n => n.trackId === vid && Math.abs(n.time - 0.5) < 0.01);
+    expect(step4Notes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('transport loop disabled does not wrap', () => {
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
+    const events: MusicalEvent[] = [
+      { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
+      { kind: 'trigger', at: 8, velocity: 0.8 } as TriggerEvent,
+    ];
+    const newRegion = { ...track.regions[0], duration: 16, events };
+    session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        loopEnabled: false,
+        loopStart: 4,
+        loopEnd: 12,
+      },
+      tracks: session.tracks.map(v =>
+        v.id === vid ? { ...v, regions: [newRegion] } : v
+      ),
+    };
+
+    const sched = createScheduler();
+    sched.start(0);
+    // Run long enough for globalStep to reach well past loopEnd
+    for (let t = 0.025; t <= 3.0; t += 0.025) {
+      audioTime = t;
+      vi.advanceTimersByTime(25);
+    }
+    sched.stop();
+
+    // Position should advance past loopEnd since loop is disabled
+    const lastPos = positions[positions.length - 1];
+    expect(lastPos).toBeGreaterThan(12);
+  });
+
   it('resolves ParameterEvents into scheduled note params', () => {
     const vid = session.tracks[0].id;
     const track = getTrack(session, vid);

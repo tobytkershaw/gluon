@@ -4,6 +4,7 @@ import {
   createSession, setAgency, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   setApproval, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
+  toggleLoop, setLoopStart, setLoopEnd,
   MAX_REACTION_HISTORY, MAX_OPEN_DECISIONS,
 } from '../../src/engine/session';
 import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
@@ -381,5 +382,46 @@ describe('renameTrack', () => {
     expect(track.name).toBe('Bass Line');
     // Other tracks should be unaffected
     expect(s2.tracks.find(t => t.id === s1.tracks[0].id)!.name).toBeUndefined();
+  });
+});
+
+describe('Loop region helpers', () => {
+  it('toggleLoop toggles loopEnabled', () => {
+    const s1 = createSession();
+    expect(s1.transport.loopEnabled).toBeUndefined();
+    const s2 = toggleLoop(s1);
+    expect(s2.transport.loopEnabled).toBe(true);
+    const s3 = toggleLoop(s2);
+    expect(s3.transport.loopEnabled).toBe(false);
+  });
+
+  it('setLoopStart clamps to 0 and below loopEnd', () => {
+    let s = createSession();
+    s = { ...s, transport: { ...s.transport, loopEnd: 16 } };
+    s = setLoopStart(s, 8);
+    expect(s.transport.loopStart).toBe(8);
+    // Cannot exceed loopEnd - 1
+    s = setLoopStart(s, 20);
+    expect(s.transport.loopStart).toBe(15);
+    // Cannot go below 0
+    s = setLoopStart(s, -5);
+    expect(s.transport.loopStart).toBe(0);
+  });
+
+  it('setLoopEnd must be greater than loopStart', () => {
+    let s = createSession();
+    s = { ...s, transport: { ...s.transport, loopStart: 4 } };
+    s = setLoopEnd(s, 12);
+    expect(s.transport.loopEnd).toBe(12);
+    // Cannot go below loopStart + 1
+    s = setLoopEnd(s, 2);
+    expect(s.transport.loopEnd).toBe(5);
+  });
+
+  it('loop fields default to undefined in fresh session', () => {
+    const s = createSession();
+    expect(s.transport.loopEnabled).toBeUndefined();
+    expect(s.transport.loopStart).toBeUndefined();
+    expect(s.transport.loopEnd).toBeUndefined();
   });
 });

@@ -337,6 +337,9 @@ export function TrackerView({
                 cancelEditRef={cancelEditRef}
                 onDeleteByIndices={onDeleteByIndices}
                 onPasteEvents={onPasteEvents}
+                loopEnabled={session.transport.loopEnabled}
+                loopStart={session.transport.loopStart}
+                loopEnd={session.transport.loopEnd}
               />
             ) : (
               <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">
