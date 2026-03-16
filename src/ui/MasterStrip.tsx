@@ -1,7 +1,8 @@
 // src/ui/MasterStrip.tsx
-// Compact master channel strip: volume slider, pan slider, peak meter.
+// Compact master channel strip: volume knob, pan knob, peak meter.
 // Lives in the footer bar's content-column zone.
 import { useRef, useEffect, useCallback } from 'react';
+import { Knob } from './Knob';
 
 interface Props {
   volume: number;    // 0.0–1.0
@@ -76,12 +77,11 @@ function PeakMeter({ analyser }: { analyser: AnalyserNode | null }) {
 }
 
 export function MasterStrip({ volume, pan, analyser, onVolumeChange, onPanChange }: Props) {
-  const handleVolumeInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onVolumeChange(Number(e.target.value));
-  }, [onVolumeChange]);
+  // Pan is -1..1, Knob expects 0..1. Map 0.5 = center.
+  const panKnobValue = (pan + 1) / 2;
 
-  const handlePanInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onPanChange(Number(e.target.value));
+  const handlePanKnobChange = useCallback((v: number) => {
+    onPanChange(v * 2 - 1);
   }, [onPanChange]);
 
   const handlePanDoubleClick = useCallback(() => {
@@ -94,33 +94,31 @@ export function MasterStrip({ volume, pan, analyser, onVolumeChange, onPanChange
   return (
     <div className="flex items-center gap-2 px-2 select-none">
       {/* Volume */}
-      <div className="flex items-center gap-1.5" title={`Master volume: ${volumePercent}%`}>
+      <div className="flex items-center gap-1" title={`Master volume: ${volumePercent}%`} aria-label="Master volume">
         <span className="text-[10px] text-zinc-500 w-6 text-right font-mono">{volumePercent}</span>
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
+        <Knob
           value={volume}
-          onChange={handleVolumeInput}
-          className="w-16 h-1 accent-zinc-400 cursor-pointer"
-          aria-label="Master volume"
+          label="Vol"
+          accentColor="zinc"
+          onChange={onVolumeChange}
+          size={28}
         />
       </div>
 
       {/* Pan */}
-      <div className="flex items-center gap-1" title={`Master pan: ${panLabel}`}>
+      <div
+        className="flex items-center gap-1"
+        title={`Master pan: ${panLabel}`}
+        aria-label="Master pan"
+        onDoubleClick={handlePanDoubleClick}
+      >
         <span className="text-[10px] text-zinc-500 w-5 text-right font-mono">{panLabel}</span>
-        <input
-          type="range"
-          min={-1}
-          max={1}
-          step={0.01}
-          value={pan}
-          onChange={handlePanInput}
-          onDoubleClick={handlePanDoubleClick}
-          className="w-10 h-1 accent-zinc-400 cursor-pointer"
-          aria-label="Master pan"
+        <Knob
+          value={panKnobValue}
+          label="Pan"
+          accentColor="zinc"
+          onChange={handlePanKnobChange}
+          size={28}
         />
       </div>
 
