@@ -85,12 +85,14 @@ type CreateModuleFn<T> = (options?: {
 export interface RenderWorkerRequest {
   type: 'render';
   spec: RenderSpec;
+  stereo?: boolean;
 }
 
 export interface RenderWorkerResponse {
   type: 'done';
   pcm: Float32Array;
   sampleRate: number;
+  channels: 1 | 2;
 }
 
 export interface RenderWorkerError {
@@ -445,7 +447,7 @@ function applyEvent(
 // ---------------------------------------------------------------------------
 
 self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
-  const { spec } = event.data;
+  const { spec, stereo: wantStereo } = event.data;
 
   try {
     const stepsPerBar = 16;
@@ -464,16 +466,32 @@ self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
     });
     const mixed = mixStereoBuffers(trackStereo);
     const mastered = applyStereoPan(applyStereoGain(mixed, spec.master.volume), spec.master.pan);
-    const pcm = downmixStereoToMono(mastered);
 
-    const response: RenderWorkerResponse = {
-      type: 'done',
-      pcm,
-      sampleRate: spec.sampleRate,
-    };
-
-    // Transfer the buffer to avoid copying
-    (self as unknown as Worker).postMessage(response, [pcm.buffer]);
+    if (wantStereo) {
+      // Interleave L R L R into a single Float32Array for transfer
+      const frames = mastered.left.length;
+      const interleaved = new Float32Array(frames * 2);
+      for (let i = 0; i < frames; i++) {
+        interleaved[i * 2] = mastered.left[i];
+        interleaved[i * 2 + 1] = mastered.right[i];
+      }
+      const response: RenderWorkerResponse = {
+        type: 'done',
+        pcm: interleaved,
+        sampleRate: spec.sampleRate,
+        channels: 2,
+      };
+      (self as unknown as Worker).postMessage(response, [interleaved.buffer]);
+    } else {
+      const pcm = downmixStereoToMono(mastered);
+      const response: RenderWorkerResponse = {
+        type: 'done',
+        pcm,
+        sampleRate: spec.sampleRate,
+        channels: 1,
+      };
+      (self as unknown as Worker).postMessage(response, [pcm.buffer]);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const errorResponse: RenderWorkerError = { type: 'error', message };
