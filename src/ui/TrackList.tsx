@@ -16,20 +16,41 @@ interface Props {
   onCycleApproval?: (trackId: string) => void;
   onChangeVolume?: (trackId: string, value: number) => void;
   onChangePan?: (trackId: string, value: number) => void;
+  onAddTrack?: () => void;
+  onRemoveTrack?: (trackId: string) => void;
+  maxTracks?: number;
 }
 
 export function TrackList({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
   onRenameTrack, onCycleApproval, onChangeVolume, onChangePan,
+  onAddTrack, onRemoveTrack, maxTracks = 16,
 }: Props) {
+  const canAdd = tracks.length < maxTracks;
+  const canRemove = tracks.length > 1;
+
   return (
     <div className="w-44 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
       {/* Header */}
-      <div className="px-3 py-2 border-b border-zinc-800/40">
+      <div className="px-3 py-2 border-b border-zinc-800/40 flex items-center justify-between">
         <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">
           Tracks
         </span>
+        {onAddTrack && (
+          <button
+            onClick={onAddTrack}
+            disabled={!canAdd}
+            className={`text-[10px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
+              canAdd
+                ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                : 'text-zinc-700 cursor-not-allowed'
+            }`}
+            title={canAdd ? 'Add track' : `Maximum ${maxTracks} tracks`}
+          >
+            +
+          </button>
+        )}
       </div>
 
       {/* Track rows */}
@@ -49,6 +70,7 @@ export function TrackList({
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
             onChangeVolume={onChangeVolume ? (v) => onChangeVolume(track.id, v) : undefined}
             onChangePan={onChangePan ? (v) => onChangePan(track.id, v) : undefined}
+            onRemove={onRemoveTrack && canRemove ? () => onRemoveTrack(track.id) : undefined}
           />
         ))}
       </div>

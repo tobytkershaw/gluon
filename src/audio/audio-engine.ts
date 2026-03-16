@@ -232,6 +232,107 @@ export class AudioEngine {
     this._isRunning = false;
   }
 
+  /**
+   * Dynamically add a new track slot to the running audio engine.
+   * Creates a voice pool and the per-track gain/pan chain.
+   */
+  async addTrack(trackId: string): Promise<void> {
+    if (!this.ctx || !this.mixer) return;
+    if (this.tracks.has(trackId)) return;
+
+    const sourceOut = this.ctx.createGain();
+    sourceOut.gain.value = 1.0;
+    const chainOutGain = this.ctx.createGain();
+    chainOutGain.gain.value = 1.0;
+    const trackVolume = this.ctx.createGain();
+    trackVolume.gain.value = 0.8;
+    const trackPanner = this.ctx.createStereoPanner();
+    trackPanner.pan.value = 0.0;
+    const muteGain = this.ctx.createGain();
+    muteGain.gain.value = 1.0;
+    sourceOut.connect(chainOutGain);
+    chainOutGain.connect(trackVolume);
+    trackVolume.connect(trackPanner);
+    trackPanner.connect(muteGain);
+    muteGain.connect(this.mixer);
+
+    const poolVoices = [];
+    for (let i = 0; i < VOICES_PER_TRACK; i++) {
+      const accentGain = this.ctx.createGain();
+      accentGain.gain.value = ACCENT_BASELINE;
+      const synth = await createPreferredSynth(this.ctx, accentGain);
+      accentGain.connect(sourceOut);
+      poolVoices.push({ synth, accentGain, lastNoteTime: 0, lastGateOffTime: 0 });
+    }
+
+    this.tracks.set(trackId, {
+      pool: new VoicePool(poolVoices),
+      sourceOut,
+      chainOutGain,
+      trackVolume,
+      trackPanner,
+      muteGain,
+      processors: [],
+      currentParams: { ...DEFAULT_PARAMS },
+      currentModel: 0,
+    });
+  }
+
+  /**
+   * Dynamically remove a track slot from the running audio engine.
+   * Destroys voice pool, processors, modulators, and disconnects all nodes.
+   */
+  removeTrack(trackId: string): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot) return;
+
+    // Destroy processors
+    for (const proc of slot.processors) {
+      proc.engine.destroy();
+    }
+    // Destroy modulators for this track
+    const modSlots = this.modulatorSlots.get(trackId);
+    if (modSlots) {
+      for (const modSlot of modSlots) {
+        modSlot.engine.destroy();
+        modSlot.keepAliveGain.disconnect();
+      }
+      this.modulatorSlots.delete(trackId);
+    }
+    // Remove modulation routes for this track
+    const routes = this.modulationRouteSlots.get(trackId);
+    if (routes) {
+      for (const route of routes) {
+        route.depthGain.disconnect();
+      }
+      this.modulationRouteSlots.delete(trackId);
+    }
+    // Cancel pending processors/modulators for this track
+    for (const key of [...this.pendingProcessors]) {
+      if (key.startsWith(trackId + ':')) this.pendingProcessors.delete(key);
+    }
+    for (const key of [...this.pendingModulators]) {
+      if (key.startsWith(trackId + ':')) this.pendingModulators.delete(key);
+    }
+    // Clean up active voices for this track
+    for (const [eventId, voice] of this.activeVoices) {
+      if (voice.trackId === trackId) this.activeVoices.delete(eventId);
+    }
+    // Destroy voice pool and disconnect audio nodes
+    slot.pool.destroy();
+    slot.sourceOut.disconnect();
+    slot.chainOutGain.disconnect();
+    slot.trackVolume.disconnect();
+    slot.trackPanner.disconnect();
+    slot.muteGain.disconnect();
+    this.tracks.delete(trackId);
+  }
+
+  /** Check whether a track slot exists in the audio engine. */
+  hasTrack(trackId: string): boolean {
+    return this.tracks.has(trackId);
+  }
+
   setTrackModel(trackId: string, model: number): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;

@@ -230,6 +230,24 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { approval: snapshot.prevApproval });
   }
 
+  if (snapshot.kind === 'track-add') {
+    // Undo an add: remove the track
+    const newTracks = session.tracks.filter(t => t.id !== snapshot.trackId);
+    let newActiveTrackId = session.activeTrackId;
+    if (session.activeTrackId === snapshot.trackId && newTracks.length > 0) {
+      newActiveTrackId = newTracks[Math.max(0, newTracks.length - 1)].id;
+    }
+    return { ...session, tracks: newTracks, activeTrackId: newActiveTrackId };
+  }
+
+  if (snapshot.kind === 'track-remove') {
+    // Undo a remove: re-insert the track at its original position
+    const newTracks = [...session.tracks];
+    const insertAt = Math.min(snapshot.removedIndex, newTracks.length);
+    newTracks.splice(insertAt, 0, snapshot.removedTrack);
+    return { ...session, tracks: newTracks, activeTrackId: snapshot.prevActiveTrackId };
+  }
+
   if (snapshot.kind === 'region') {
     const track = getTrack(session, snapshot.trackId);
     if (track.regions.length === 0) return session;
@@ -446,6 +464,33 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'approval') {
     const track = getTrack(session, snapshot.trackId);
     return { ...snapshot, prevApproval: track.approval ?? 'exploratory', timestamp: now };
+  }
+
+  if (snapshot.kind === 'track-add') {
+    // Reverse of add is remove — capture the added track so redo can re-add it
+    const track = session.tracks.find(t => t.id === snapshot.trackId);
+    if (track) {
+      const idx = session.tracks.findIndex(t => t.id === snapshot.trackId);
+      return {
+        kind: 'track-remove' as const,
+        removedTrack: { ...track },
+        removedIndex: idx,
+        prevActiveTrackId: session.activeTrackId,
+        timestamp: now,
+        description: snapshot.description,
+      };
+    }
+    return { ...snapshot, timestamp: now };
+  }
+
+  if (snapshot.kind === 'track-remove') {
+    // Reverse of remove is add — the trackId is enough to know what to remove on redo
+    return {
+      kind: 'track-add' as const,
+      trackId: snapshot.removedTrack.id,
+      timestamp: now,
+      description: snapshot.description,
+    };
   }
 
   return { ...snapshot, timestamp: now };

@@ -12,6 +12,7 @@ import {
   createSession, setAgency, setApproval, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster, setTrackVolume, setTrackPan,
+  addTrack, removeTrack,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -206,6 +207,25 @@ export default function App() {
       swing: session.transport.swing,
     });
   }, [session.transport.bpm, session.transport.swing]);
+
+  // Ensure all session tracks have audio engine slots (handles undo of track-remove, etc.)
+  useEffect(() => {
+    if (!audioStarted) return;
+    const audio = audioRef.current;
+    for (const track of session.tracks) {
+      if (!audio.hasTrack(track.id)) {
+        void audio.addTrack(track.id).then(() => {
+          // After the async add, sync model/params from current session
+          const s = sessionRef.current;
+          const t = s.tracks.find(v => v.id === track.id);
+          if (t) {
+            audio.setTrackModel(t.id, t.model);
+            audio.setTrackParams(t.id, t.params);
+          }
+        });
+      }
+    }
+  }, [session.tracks, audioStarted]);
 
   // Sync audio params for all tracks when session changes
   useEffect(() => {
@@ -875,6 +895,37 @@ export default function App() {
     ensureAudio();
     setSession((s) => setTrackPan(s, trackId, value));
   }, [ensureAudio]);
+
+  const handleAddTrack = useCallback(() => {
+    setSession((s) => {
+      const result = addTrack(s);
+      if (!result) return s;
+      // If audio engine is running, allocate a voice pool for the new track
+      const newTrack = result.tracks[result.tracks.length - 1];
+      if (audioRef.current.isRunning) {
+        void audioRef.current.addTrack(newTrack.id);
+      }
+      return result;
+    });
+    setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
+    setDeepViewModuleId(null);
+  }, []);
+
+  const handleRemoveTrack = useCallback((trackId: string) => {
+    setSession((s) => {
+      const result = removeTrack(s, trackId);
+      if (!result) return s;
+      // If audio engine is running, tear down the voice pool for the removed track
+      if (audioRef.current.isRunning) {
+        audioRef.current.removeTrack(trackId);
+      }
+      return result;
+    });
+    setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
+    setDeepViewModuleId(null);
+  }, []);
 
   const handleMasterVolumeChange = useCallback((v: number) => {
     ensureAudio();
@@ -1599,6 +1650,8 @@ export default function App() {
       }}
       onChangeVolume={handleChangeVolume}
       onChangePan={handleChangePan}
+      onAddTrack={handleAddTrack}
+      onRemoveTrack={handleRemoveTrack}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}

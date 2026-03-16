@@ -25,12 +25,13 @@ interface Props {
   onCycleApproval?: () => void;
   onChangeVolume?: (value: number) => void;
   onChangePan?: (value: number) => void;
+  onRemove?: () => void;
 }
 
 export function TrackRow({
   track, label, isActive, activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
-  onChangeVolume, onChangePan,
+  onChangeVolume, onChangePan, onRemove,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -87,7 +88,7 @@ export function TrackRow({
 
   return (
     <div
-      className={`relative flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+      className={`group/row relative flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
         isActive
           ? 'bg-zinc-800 border border-zinc-700'
           : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'
@@ -195,6 +196,15 @@ export function TrackRow({
             className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${approvalInfo.color}`}
           >
             {approvalInfo.label}
+          </button>
+        )}
+        {onRemove && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            title="Remove track"
+            className="text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors text-zinc-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/row:opacity-100"
+          >
+            x
           </button>
         )}
       </div>
