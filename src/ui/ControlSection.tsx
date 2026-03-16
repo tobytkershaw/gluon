@@ -1,6 +1,7 @@
 // src/ui/ControlSection.tsx
 // Grouped control section for one module (source or processor).
 import { useState, useRef, useEffect } from 'react';
+import { Knob } from './Knob';
 
 interface ControlDef {
   id: string;
@@ -27,21 +28,18 @@ interface ControlSectionProps {
 const ACCENT = {
   amber: {
     header: 'text-amber-300',
-    slider: 'accent-amber-400',
     border: 'border-amber-400/20',
     highlight: 'border-amber-400/40',
     modeBg: 'bg-amber-400/10 text-amber-300',
   },
   sky: {
     header: 'text-sky-300',
-    slider: 'accent-sky-400',
     border: 'border-sky-400/20',
     highlight: 'border-sky-400/40',
     modeBg: 'bg-sky-400/10 text-sky-300',
   },
   violet: {
     header: 'text-violet-300',
-    slider: 'accent-violet-400',
     border: 'border-violet-400/20',
     highlight: 'border-violet-400/40',
     modeBg: 'bg-violet-400/10 text-violet-300',
@@ -82,14 +80,14 @@ export function ControlSection({
         />
       )}
 
-      {/* Control sliders */}
-      <div className="space-y-2">
+      {/* Control knobs */}
+      <div className="flex flex-wrap gap-3">
         {controls.map((control) => (
-          <ControlSlider
+          <Knob
             key={control.id}
             label={control.name}
             value={control.value}
-            accentClass={accent.slider}
+            accentColor={accentColor}
             onChange={(value) => onParamChange(control.id, value)}
             onPointerDown={onInteractionStart}
             onPointerUp={onInteractionEnd}
@@ -154,29 +152,3 @@ function ModeSelector({ engines, currentModel, onChange, accentColor }: {
   );
 }
 
-function ControlSlider({ label, value, accentClass, onChange, onPointerDown, onPointerUp }: {
-  label: string;
-  value: number;
-  accentClass: string;
-  onChange: (value: number) => void;
-  onPointerDown: () => void;
-  onPointerUp: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-[9px] text-zinc-500 w-16 truncate">{label}</span>
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.01}
-        value={value}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
-        onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
-        className={`flex-1 h-1 ${accentClass} cursor-pointer`}
-      />
-      <span className="text-[9px] text-zinc-500 w-8 text-right font-mono">{value.toFixed(2)}</span>
-    </div>
-  );
-}
