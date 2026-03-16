@@ -22,7 +22,11 @@ const VALID_SEMANTIC_ROLES: SemanticRole[] = [
 ];
 
 const REQUIRED_CONTROLS = ['timbre', 'harmonics', 'morph', 'frequency'];
-const VALID_BINDINGS = ['params.timbre', 'params.harmonics', 'params.morph', 'params.note'];
+const VALID_BINDINGS = [
+  'params.timbre', 'params.harmonics', 'params.morph', 'params.note',
+  'params.fm_amount', 'params.timbre_mod_amount', 'params.morph_mod_amount',
+  'params.decay', 'params.lpg_colour',
+];
 
 describe('Plaits instrument registry', () => {
   it('has exactly 16 engines', () => {
@@ -96,7 +100,7 @@ describe('Plaits instrument registry', () => {
 
   it('getEngineControlSchemas returns controls for valid engine', () => {
     const schemas = getEngineControlSchemas('virtual-analog');
-    expect(schemas).toHaveLength(4);
+    expect(schemas).toHaveLength(9);
   });
 
   it('getControlBinding returns binding for valid engine+control', () => {

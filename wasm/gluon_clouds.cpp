@@ -42,6 +42,11 @@ struct CloudsState {
   SmoothedParam smooth_size;
   SmoothedParam smooth_density;
   SmoothedParam smooth_feedback;
+  SmoothedParam smooth_texture;
+  SmoothedParam smooth_pitch;
+  SmoothedParam smooth_dry_wet;
+  SmoothedParam smooth_stereo_spread;
+  SmoothedParam smooth_reverb;
 
   CloudsState() {
     std::memset(large_buffer, 0, sizeof(large_buffer));
@@ -91,6 +96,11 @@ void* clouds_create() {
   state->smooth_size.reset(0.5f);
   state->smooth_density.reset(0.5f);
   state->smooth_feedback.reset(0.0f);
+  state->smooth_texture.reset(0.5f);
+  state->smooth_pitch.reset(0.0f);
+  state->smooth_dry_wet.reset(0.5f);
+  state->smooth_stereo_spread.reset(0.0f);
+  state->smooth_reverb.reset(0.0f);
 
   return state;
 }
@@ -115,6 +125,18 @@ void clouds_set_parameters(void* handle, float position, float size, float densi
   state->smooth_feedback.set(clamp01(feedback));
 }
 
+void clouds_set_extended(void* handle, float texture, float pitch,
+                         float dry_wet, float stereo_spread, float reverb) {
+  auto* state = static_cast<CloudsState*>(handle);
+  if (!state) return;
+  state->smooth_texture.set(clamp01(texture));
+  // pitch is 0-1 normalized, map to -48..+48 semitones inside render
+  state->smooth_pitch.set(clamp01(pitch));
+  state->smooth_dry_wet.set(clamp01(dry_wet));
+  state->smooth_stereo_spread.set(clamp01(stereo_spread));
+  state->smooth_reverb.set(clamp01(reverb));
+}
+
 void clouds_set_freeze(void* handle, int freeze) {
   auto* state = static_cast<CloudsState*>(handle);
   if (!state) return;
@@ -136,12 +158,23 @@ int clouds_render(void* handle, const float* input, float* output, int num_frame
     state->smooth_size.step(kSmoothCoeff);
     state->smooth_density.step(kSmoothCoeff);
     state->smooth_feedback.step(kSmoothCoeff);
+    state->smooth_texture.step(kSmoothCoeff);
+    state->smooth_pitch.step(kSmoothCoeff);
+    state->smooth_dry_wet.step(kSmoothCoeff);
+    state->smooth_stereo_spread.step(kSmoothCoeff);
+    state->smooth_reverb.step(kSmoothCoeff);
 
     auto* params = state->processor.mutable_parameters();
     params->position = state->smooth_position.current;
     params->size = state->smooth_size.current;
     params->density = state->smooth_density.current;
     params->feedback = state->smooth_feedback.current;
+    params->texture = state->smooth_texture.current;
+    // Map normalized 0-1 pitch to -48..+48 semitones
+    params->pitch = (state->smooth_pitch.current - 0.5f) * 96.0f;
+    params->dry_wet = state->smooth_dry_wet.current;
+    params->stereo_spread = state->smooth_stereo_spread.current;
+    params->reverb = state->smooth_reverb.current;
 
     // Prepare must be called before each Process
     state->processor.Prepare();

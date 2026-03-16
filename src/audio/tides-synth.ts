@@ -1,4 +1,4 @@
-import type { TidesProcessorCommand, TidesProcessorStatus, TidesPatchParams } from './tides-messages';
+import type { TidesProcessorCommand, TidesProcessorStatus, TidesPatchParams, TidesExtendedParams } from './tides-messages';
 
 const WORKLET_URL = '/audio/tides-worklet.js';
 const MODULE_URL = '/audio/tides-module.js';
@@ -10,6 +10,7 @@ export interface TidesEngine {
   readonly outputNode: AudioNode;
   setMode(mode: number): void;
   setPatch(params: TidesPatchParams): void;
+  setExtended(params: TidesExtendedParams): void;
   /** Clear all scheduled events from the worklet queue. */
   silence(fence?: number): void;
   /** Pause modulation output (fill with zeros). */
@@ -131,6 +132,10 @@ export class TidesSynth implements TidesEngine {
       slope: params.slope ?? 0.5,
       smoothness: params.smoothness ?? 0.5,
     });
+  }
+
+  setExtended(params: TidesExtendedParams): void {
+    this.post({ type: 'set-extended', extended: params });
   }
 
   silence(_fence?: number): void {

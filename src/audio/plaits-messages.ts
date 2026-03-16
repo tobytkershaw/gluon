@@ -7,6 +7,21 @@ export interface PlaitsPatchMessage {
   fence?: number;
 }
 
+export interface PlaitsExtendedParams {
+  fm_amount: number;
+  timbre_mod_amount: number;
+  morph_mod_amount: number;
+  decay: number;
+  lpg_colour: number;
+}
+
+export interface PlaitsExtendedMessage {
+  type: 'set-extended';
+  extended: PlaitsExtendedParams;
+  time?: number;
+  fence?: number;
+}
+
 export interface PlaitsModelMessage {
   type: 'set-model';
   model: number;
@@ -38,6 +53,7 @@ export interface PlaitsDestroyMessage {
 
 export type PlaitsProcessorCommand =
   | PlaitsPatchMessage
+  | PlaitsExtendedMessage
   | PlaitsModelMessage
   | PlaitsTriggerMessage
   | PlaitsGateMessage

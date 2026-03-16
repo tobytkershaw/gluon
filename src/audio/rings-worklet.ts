@@ -33,6 +33,7 @@ interface RingsWasm {
   _rings_set_polyphony(handle: number, polyphony: number): void;
   _rings_set_patch(handle: number, structure: number, brightness: number, damping: number, position: number): void;
   _rings_set_note(handle: number, tonic: number, note: number): void;
+  _rings_set_fine_tune(handle: number, offset: number): void;
   _rings_set_internal_exciter(handle: number, enabled: number): void;
   _rings_strum(handle: number): void;
   _rings_render(handle: number, inputPtr: number, outputPtr: number, frames: number): number;
@@ -44,6 +45,7 @@ type ScheduledEvent =
   | { type: 'set-model'; time?: number; seq: number; fence?: number; model: number }
   | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: RingsPatch }
   | { type: 'set-note'; time?: number; seq: number; fence?: number; tonic: number; note: number }
+  | { type: 'set-fine-tune'; time?: number; seq: number; fence?: number; offset: number }
   | { type: 'set-polyphony'; time?: number; seq: number; fence?: number; polyphony: number }
   | { type: 'set-internal-exciter'; time?: number; seq: number; fence?: number; enabled: boolean }
   | { type: 'strum'; time: number; seq: number; fence?: number }
@@ -157,6 +159,9 @@ class RingsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-note':
         this.wasm._rings_set_note(this.handle, event.tonic, event.note);
+        break;
+      case 'set-fine-tune':
+        this.wasm._rings_set_fine_tune(this.handle, event.offset);
         break;
       case 'set-polyphony':
         this.wasm._rings_set_polyphony(this.handle, event.polyphony);

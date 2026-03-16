@@ -30,6 +30,7 @@ export interface TidesResumeMessage {
 
 export type TidesProcessorCommand =
   | TidesPatchMessage
+  | TidesExtendedMessage
   | TidesModeMessage
   | TidesClearScheduledMessage
   | TidesDestroyMessage
@@ -52,4 +53,15 @@ export interface TidesPatchParams {
   shape: number;
   slope: number;
   smoothness: number;
+}
+
+export interface TidesExtendedParams {
+  shift: number;
+  output_mode: number;
+  range: number;
+}
+
+export interface TidesExtendedMessage {
+  type: 'set-extended';
+  extended: TidesExtendedParams;
 }

@@ -25,6 +25,7 @@ interface PlaitsWasm {
   _plaits_destroy(handle: number): void;
   _plaits_set_model(handle: number, modelIndex: number): void;
   _plaits_set_patch(handle: number, harmonics: number, timbre: number, morph: number, note: number): void;
+  _plaits_set_extended(handle: number, fm_amount: number, timbre_mod_amount: number, morph_mod_amount: number, decay: number, lpg_colour: number): void;
   _plaits_trigger(handle: number, accentLevel: number): void;
   _plaits_set_gate(handle: number, open: number): void;
   _plaits_render(handle: number, outputPtr: number, frames: number): number;
@@ -52,6 +53,7 @@ interface CloudsWasm {
   _clouds_destroy(handle: number): void;
   _clouds_set_mode(handle: number, modeIndex: number): void;
   _clouds_set_parameters(handle: number, position: number, size: number, density: number, feedback: number): void;
+  _clouds_set_extended(handle: number, texture: number, pitch: number, dry_wet: number, stereo_spread: number, reverb: number): void;
   _clouds_render(handle: number, inputPtr: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -64,6 +66,7 @@ interface TidesWasm {
   _tides_destroy(handle: number): void;
   _tides_set_mode(handle: number, modeIndex: number): void;
   _tides_set_parameters(handle: number, frequency: number, shape: number, slope: number, smoothness: number): void;
+  _tides_set_extended(handle: number, shift: number, output_mode: number, range: number): void;
   _tides_render(handle: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -240,6 +243,7 @@ async function renderTrack(
       clouds._clouds_set_mode(cHandle, proc.model);
       const p = proc.params;
       (clouds as CloudsWasm)._clouds_set_parameters(cHandle, p.position ?? 0.5, p.size ?? 0.5, p.density ?? 0.5, p.feedback ?? 0.0);
+      (clouds as CloudsWasm)._clouds_set_extended(cHandle, p.texture ?? 0.5, p.pitch ?? 0.5, p['dry-wet'] ?? 0.5, p['stereo-spread'] ?? 0.0, p.reverb ?? 0.0);
       const inPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       procHandles.push({ type: 'clouds', wasm: clouds, handle: cHandle, inPtr, outPtr, spec: proc });
@@ -314,6 +318,14 @@ async function renderTrack(
           effectiveProcessorParams.size ?? 0.5,
           effectiveProcessorParams.density ?? 0.5,
           effectiveProcessorParams.feedback ?? 0.0,
+        );
+        clouds._clouds_set_extended(
+          ph.handle,
+          effectiveProcessorParams.texture ?? 0.5,
+          effectiveProcessorParams.pitch ?? 0.5,
+          effectiveProcessorParams['dry-wet'] ?? 0.5,
+          effectiveProcessorParams['stereo-spread'] ?? 0.0,
+          effectiveProcessorParams.reverb ?? 0.0,
         );
         let cHeap = getHeapF32(clouds);
         const cInStart = ph.inPtr / Float32Array.BYTES_PER_ELEMENT;

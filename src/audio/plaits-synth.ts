@@ -1,6 +1,6 @@
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthEngine, SynthParams } from './synth-interface';
-import type { PlaitsProcessorCommand, PlaitsProcessorStatus } from './plaits-messages';
+import type { PlaitsProcessorCommand, PlaitsProcessorStatus, PlaitsExtendedParams } from './plaits-messages';
 
 const WORKLET_URL = '/audio/plaits-worklet.js';
 const MODULE_URL = '/audio/plaits-module.js';
@@ -127,6 +127,10 @@ export class PlaitsSynth implements SynthEngine {
   setParams(params: SynthParams): void {
     this.currentParams = { ...params };
     this.post({ type: 'set-patch', patch: this.currentParams });
+  }
+
+  setExtended(params: PlaitsExtendedParams): void {
+    this.post({ type: 'set-extended', extended: params });
   }
 
   scheduleNote(note: ScheduledNote, fence?: number): void {

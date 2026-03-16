@@ -133,6 +133,14 @@ void rings_set_note(void* handle, float tonic, float note) {
   state->performance.note = note;
 }
 
+void rings_set_fine_tune(void* handle, float offset) {
+  auto* state = static_cast<RingsState*>(handle);
+  if (!state) return;
+  // Fine tune: add offset in semitones to performance.note.
+  // Normalized 0-1 maps to -1..+1 semitones.
+  state->performance.note += (offset - 0.5f) * 2.0f;
+}
+
 void rings_set_internal_exciter(void* handle, int enabled) {
   auto* state = static_cast<RingsState*>(handle);
   if (!state) return;

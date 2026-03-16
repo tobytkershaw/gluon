@@ -24,6 +24,14 @@ interface SynthPatch {
   note: number;
 }
 
+interface PlaitsExtendedParams {
+  fm_amount: number;
+  timbre_mod_amount: number;
+  morph_mod_amount: number;
+  decay: number;
+  lpg_colour: number;
+}
+
 interface PlaitsWasm {
   _malloc(size: number): number;
   _free(ptr: number): void;
@@ -31,6 +39,7 @@ interface PlaitsWasm {
   _plaits_destroy(handle: number): void;
   _plaits_set_model(handle: number, modelIndex: number): void;
   _plaits_set_patch(handle: number, harmonics: number, timbre: number, morph: number, note: number): void;
+  _plaits_set_extended(handle: number, fm_amount: number, timbre_mod_amount: number, morph_mod_amount: number, decay: number, lpg_colour: number): void;
   _plaits_trigger(handle: number, accentLevel: number): void;
   _plaits_set_gate(handle: number, open: number): void;
   _plaits_render(handle: number, outputPtr: number, frames: number): number;
@@ -41,6 +50,7 @@ interface PlaitsWasm {
 type ScheduledEvent =
   | { type: 'set-model'; time?: number; seq: number; fence?: number; model: number }
   | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: SynthPatch }
+  | { type: 'set-extended'; time?: number; seq: number; fence?: number; extended: PlaitsExtendedParams }
   | { type: 'trigger'; time: number; seq: number; fence?: number; accentLevel: number }
   | { type: 'set-gate'; time?: number; seq: number; fence?: number; open: boolean }
   | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
@@ -143,6 +153,16 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       case 'set-patch':
         this.currentPatch = event.patch;
         this.patchDirty = true;
+        break;
+      case 'set-extended':
+        this.wasm._plaits_set_extended(
+          this.handle,
+          event.extended.fm_amount,
+          event.extended.timbre_mod_amount,
+          event.extended.morph_mod_amount,
+          event.extended.decay,
+          event.extended.lpg_colour,
+        );
         break;
       case 'trigger':
         // Flush patch to WASM before triggering so the trigger fires with

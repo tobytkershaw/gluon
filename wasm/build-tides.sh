@@ -29,7 +29,7 @@ emcc \
   -s NO_EXIT_RUNTIME=1 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s INITIAL_MEMORY=2097152 \
-  -s EXPORTED_FUNCTIONS='["_tides_create","_tides_destroy","_tides_set_mode","_tides_set_parameters","_tides_render","_malloc","_free"]' \
+  -s EXPORTED_FUNCTIONS='["_tides_create","_tides_destroy","_tides_set_mode","_tides_set_parameters","_tides_set_extended","_tides_render","_malloc","_free"]' \
   -s EXPORTED_RUNTIME_METHODS='["HEAPF32"]' \
   -o "$OUT_DIR/tides-module.js"
 

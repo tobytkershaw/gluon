@@ -92,12 +92,30 @@ function toCloudsPatchParams(params: Record<string, number>): CloudsPatchParams 
   };
 }
 
+function toCloudsExtendedParams(params: Record<string, number>): import('./clouds-messages').CloudsExtendedParams {
+  return {
+    texture: params.texture ?? 0.5,
+    pitch: params.pitch ?? 0.5,
+    dry_wet: params['dry-wet'] ?? 0.5,
+    stereo_spread: params['stereo-spread'] ?? 0.0,
+    reverb: params.reverb ?? 0.0,
+  };
+}
+
 function toTidesPatchParams(params: Record<string, number>): TidesPatchParams {
   return {
     frequency: params.frequency ?? 0.5,
     shape: params.shape ?? 0.5,
     slope: params.slope ?? 0.5,
     smoothness: params.smoothness ?? 0.5,
+  };
+}
+
+function toTidesExtendedParams(params: Record<string, number>): import('./tides-messages').TidesExtendedParams {
+  return {
+    shift: params.shift ?? 0.0,
+    output_mode: Math.round(params['output-mode'] ?? 0),
+    range: Math.round(params.range ?? 0),
   };
 }
 
@@ -522,9 +540,11 @@ export class AudioEngine {
       engine.setPatch(toRingsPatchParams(params));
       if (params.polyphony !== undefined) engine.setPolyphony(Math.round(params.polyphony));
       if (params['internal-exciter'] !== undefined) engine.setInternalExciter(params['internal-exciter'] >= 0.5);
+      if (params['fine-tune'] !== undefined) engine.setFineTune(params['fine-tune']);
     } else if (proc.type === 'clouds') {
       const engine = proc.engine as import('./clouds-synth').CloudsEngine;
       engine.setPatch(toCloudsPatchParams(params));
+      engine.setExtended(toCloudsExtendedParams(params));
       if (params.freeze !== undefined) engine.setFreeze(params.freeze >= 0.5);
     }
   }
@@ -664,6 +684,7 @@ export class AudioEngine {
     const modSlot = slots.find(s => s.id === modulatorId);
     if (!modSlot) return;
     modSlot.engine.setPatch(toTidesPatchParams(params));
+    modSlot.engine.setExtended(toTidesExtendedParams(params));
   }
 
   setModulatorModel(trackId: string, modulatorId: string, model: number): void {

@@ -29,15 +29,15 @@ describe('Clouds instrument definition', () => {
     expect(ids).toEqual(['granular', 'pitch-shifter', 'looping-delay', 'spectral']);
   });
 
-  it('each engine has 5 controls (4 continuous + freeze toggle)', () => {
+  it('each engine has 10 controls (4 main + freeze + 5 extended)', () => {
     for (const engine of cloudsInstrument.engines) {
-      expect(engine.controls).toHaveLength(5);
+      expect(engine.controls).toHaveLength(10);
     }
   });
 
-  it('control IDs are position, size, density, feedback, freeze', () => {
+  it('control IDs are position, size, density, feedback, freeze, texture, pitch, dry-wet, stereo-spread, reverb', () => {
     const controlIds = cloudsInstrument.engines[0].controls.map(c => c.id);
-    expect(controlIds).toEqual(['position', 'size', 'density', 'feedback', 'freeze']);
+    expect(controlIds).toEqual(['position', 'size', 'density', 'feedback', 'freeze', 'texture', 'pitch', 'dry-wet', 'stereo-spread', 'reverb']);
   });
 
   it('all continuous controls are normalized 0-1', () => {
@@ -48,12 +48,15 @@ describe('Clouds instrument definition', () => {
     }
   });
 
-  it('feedback defaults to 0, continuous others to 0.5', () => {
+  it('feedback, stereo-spread, reverb default to 0, pitch defaults to 0.5, continuous others to 0.5', () => {
     const controls = cloudsInstrument.engines[0].controls;
-    const fb = controls.find(c => c.id === 'feedback')!;
-    expect(fb.range.default).toBe(0);
-    for (const c of controls.filter(c => c.id !== 'feedback' && c.kind === 'continuous')) {
-      expect(c.range.default).toBe(0.5);
+    const zeroDefaults = new Set(['feedback', 'stereo-spread', 'reverb']);
+    for (const c of controls.filter(c => c.kind === 'continuous')) {
+      if (zeroDefaults.has(c.id)) {
+        expect(c.range.default, `${c.id} should default to 0`).toBe(0);
+      } else {
+        expect(c.range.default, `${c.id} should default to 0.5`).toBe(0.5);
+      }
     }
   });
 
@@ -101,7 +104,7 @@ describe('Processor registry includes Clouds', () => {
 
   it('getProcessorControlIds returns Clouds controls', () => {
     const ids = getProcessorControlIds('clouds');
-    expect(ids).toEqual(['position', 'size', 'density', 'feedback', 'freeze']);
+    expect(ids).toEqual(['position', 'size', 'density', 'feedback', 'freeze', 'texture', 'pitch', 'dry-wet', 'stereo-spread', 'reverb']);
   });
 
   it('getProcessorEngineByName finds Clouds modes', () => {

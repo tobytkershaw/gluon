@@ -134,6 +134,17 @@ void plaits_set_patch(void* handle, float harmonics, float timbre, float morph, 
   state->smooth_note.set(clamp01(note) * 127.0f);
 }
 
+void plaits_set_extended(void* handle, float fm_amount, float timbre_mod_amount,
+                         float morph_mod_amount, float decay, float lpg_colour) {
+  auto* state = static_cast<PlaitsVoiceState*>(handle);
+  if (!state) return;
+  state->patch.frequency_modulation_amount = clamp01(fm_amount);
+  state->patch.timbre_modulation_amount = clamp01(timbre_mod_amount);
+  state->patch.morph_modulation_amount = clamp01(morph_mod_amount);
+  state->patch.decay = clamp01(decay);
+  state->patch.lpg_colour = clamp01(lpg_colour);
+}
+
 void plaits_trigger(void* handle, float accent_level) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state) return;

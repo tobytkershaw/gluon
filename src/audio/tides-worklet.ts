@@ -19,6 +19,12 @@ interface WorkletInitOptions {
   };
 }
 
+interface TidesExtendedParams {
+  shift: number;
+  output_mode: number;
+  range: number;
+}
+
 interface TidesWasm {
   _malloc(size: number): number;
   _free(ptr: number): void;
@@ -26,6 +32,7 @@ interface TidesWasm {
   _tides_destroy(handle: number): void;
   _tides_set_mode(handle: number, mode: number): void;
   _tides_set_parameters(handle: number, frequency: number, shape: number, slope: number, smoothness: number): void;
+  _tides_set_extended(handle: number, shift: number, output_mode: number, range: number): void;
   _tides_render(handle: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -33,6 +40,7 @@ interface TidesWasm {
 
 type ProcessorCommand =
   | { type: 'set-patch'; frequency: number; shape: number; slope: number; smoothness: number }
+  | { type: 'set-extended'; extended: TidesExtendedParams }
   | { type: 'set-mode'; mode: number }
   | { type: 'clear-scheduled' }
   | { type: 'destroy' }
@@ -67,6 +75,16 @@ class TidesProcessor extends AudioWorkletProcessor {
           this.slope = data.slope;
           this.smoothness = data.smoothness;
           this.paramsChanged = true;
+          break;
+        case 'set-extended':
+          if (this.wasm && this.handle) {
+            this.wasm._tides_set_extended(
+              this.handle,
+              data.extended.shift,
+              data.extended.output_mode,
+              data.extended.range,
+            );
+          }
           break;
         case 'set-mode':
           if (this.wasm && this.handle) {
