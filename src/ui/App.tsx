@@ -19,6 +19,7 @@ import { executeOperations, prevalidateAction } from '../engine/operation-execut
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { addEvent, updateEvent, removeEvent } from '../engine/event-primitives';
+import { rotateRegion, transposeRegion, reverseRegion, duplicateRegion } from '../engine/transform-operations';
 import type { EventSelector } from '../engine/event-primitives';
 import type { MusicalEvent } from '../engine/canonical-types';
 import { addView, removeView } from '../engine/view-primitives';
@@ -810,6 +811,22 @@ export default function App() {
     setSession((s) => quantizeRegion(s, s.activeTrackId));
   }, []);
 
+  const handleRotate = useCallback((steps: number) => {
+    setSession((s) => rotateRegion(s, s.activeTrackId, steps));
+  }, []);
+
+  const handleTranspose = useCallback((semitones: number) => {
+    setSession((s) => transposeRegion(s, s.activeTrackId, semitones));
+  }, []);
+
+  const handleReverse = useCallback(() => {
+    setSession((s) => reverseRegion(s, s.activeTrackId));
+  }, []);
+
+  const handleDuplicate = useCallback(() => {
+    setSession((s) => duplicateRegion(s, s.activeTrackId));
+  }, []);
+
   const handleAddView = useCallback((kind: SequencerViewKind) => {
     setSession((s) => addView(s, s.activeTrackId, kind));
   }, []);
@@ -1596,6 +1613,10 @@ export default function App() {
             onEventDelete={handleEventDelete}
             onEventAdd={handleEventAdd}
             onQuantize={handleQuantize}
+            onRotate={handleRotate}
+            onTranspose={handleTranspose}
+            onReverse={handleReverse}
+            onDuplicate={handleDuplicate}
             cancelEditRef={cancelEditRef}
           />
         )}

@@ -1,42 +1,29 @@
 // src/ui/TrackerRow.tsx
-// Slot-centric tracker row: one row per step position.
-// Empty steps show dashes; filled steps show event data.
 import { forwardRef, useState, useCallback, useRef, useEffect, type MutableRefObject } from 'react';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { microTimingOffset, formatMicroOffset } from '../engine/micro-timing';
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/** Which column is focused in the grid */
-export type TrackerColumn = 'note' | 'vel' | 'dur' | 'fx';
-
-export interface SlotData {
-  /** The note or trigger event at this step, if any */
-  noteOrTrigger: NoteEvent | TriggerEvent | null;
-  /** Parameter events at this step */
-  paramEvents: ParameterEvent[];
+export interface AvailableControl {
+  id: string;
+  label: string;
 }
 
 interface Props {
-  step: number;
-  slot: SlotData;
+  event: MusicalEvent;
   isAtPlayhead: boolean;
   showBeatSeparator: boolean;
-  isCursorRow: boolean;
-  cursorColumn: TrackerColumn | null;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
-  onAddEvent?: (step: number, event: MusicalEvent) => void;
-  onCursorMove?: (row: number, col: TrackerColumn) => void;
+  /** Available controls for param lock FX cells. */
+  availableControls?: AvailableControl[];
+  /** Callback to add a new parameter event (for empty FX cell picker). */
+  onAddParamEvent?: (at: number, controlId: string, value: number) => void;
+  /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
 }
 
-// ---------------------------------------------------------------------------
-// Note name helpers
-// ---------------------------------------------------------------------------
+// --- Formatting helpers ---
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
@@ -46,41 +33,44 @@ function midiToNoteName(midi: number): string {
 }
 
 /**
- * Parse a note name string to a MIDI number.
- * Handles: "C4", "C-4", "c4", "C#4", "Db4", "F#3", "B-4" (B natural),
- * and raw MIDI integers like "60".
+ * Parse a note name string (e.g. "C-4", "C#3", "F-5", "Db2") to a MIDI number.
+ * Returns NaN if the string is not a valid note name.
  */
-export function parseNoteName(s: string): number | null {
-  const trimmed = s.trim();
-  if (!trimmed) return null;
+function parseNoteName(s: string): number {
+  // Try MIDI number first
+  const n = parseInt(s, 10);
+  if (!isNaN(n) && String(n) === s.trim()) return n;
 
-  // Try raw MIDI integer first
-  if (/^\d+$/.test(trimmed)) {
-    const n = parseInt(trimmed, 10);
-    return n >= 0 && n <= 127 ? n : null;
-  }
+  // Normalize: trim, uppercase
+  const trimmed = s.trim().toUpperCase();
+  // Match patterns like C-4, C#3, Db2, D-5
+  const match = trimmed.match(/^([A-G])([-#B]?)(-?\d)$/);
+  if (!match) return NaN;
 
-  // Note name pattern: letter + optional accidental + optional separator + octave
-  const match = trimmed.match(/^([A-Ga-g])(#|b)?-?(\d)$/);
-  if (!match) return null;
-
-  const letter = match[1].toUpperCase();
-  const accidental = match[2] || '';
+  const letter = match[1];
+  const accidental = match[2];
   const octave = parseInt(match[3], 10);
 
-  const letterSemitones: Record<string, number> = {
-    C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11,
+  const letterToSemitone: Record<string, number> = {
+    'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
   };
 
-  const base = letterSemitones[letter];
-  if (base === undefined) return null;
+  let semitone = letterToSemitone[letter];
+  if (semitone === undefined) return NaN;
 
-  let semitone = base;
   if (accidental === '#') semitone += 1;
-  else if (accidental === 'b') semitone -= 1;
+  else if (accidental === 'B') semitone -= 1; // Flat (Db, Eb, etc.)
+  // '-' or empty means natural
 
   const midi = (octave + 1) * 12 + semitone;
-  return midi >= 0 && midi <= 127 ? midi : null;
+  if (midi < 0 || midi > 127) return NaN;
+  return midi;
+}
+
+function formatPosition(at: number): string {
+  const floored = Math.floor(at);
+  if (Math.abs(at - floored) < 0.001) return String(floored).padStart(3, ' ');
+  return at.toFixed(2).padStart(5, ' ');
 }
 
 function abbreviateControlId(controlId: string): string {
@@ -92,6 +82,22 @@ function abbreviateControlId(controlId: string): string {
   return abbrevs[controlId] ?? controlId.slice(0, 5);
 }
 
+function kindRowStyle(kind: MusicalEvent['kind']): string {
+  switch (kind) {
+    case 'trigger': return 'text-amber-300';
+    case 'note': return 'text-emerald-300';
+    case 'parameter': return 'text-blue-300';
+  }
+}
+
+function kindGlyph(kind: MusicalEvent['kind']): string {
+  switch (kind) {
+    case 'trigger': return 'T';
+    case 'note': return 'N';
+    case 'parameter': return 'P';
+  }
+}
+
 function selectorFromEvent(event: MusicalEvent): EventSelector {
   if (event.kind === 'parameter') {
     return { at: event.at, kind: 'parameter', controlId: (event as ParameterEvent).controlId };
@@ -99,9 +105,7 @@ function selectorFromEvent(event: MusicalEvent): EventSelector {
   return { at: event.at, kind: event.kind };
 }
 
-// ---------------------------------------------------------------------------
-// Inline editable cell
-// ---------------------------------------------------------------------------
+// --- Inline editable cell ---
 
 function EditableCell({
   value,
@@ -109,74 +113,77 @@ function EditableCell({
   className,
   parse,
   cancelEditRef,
-  editing,
-  onStartEdit,
-  onStopEdit,
+  validate,
 }: {
   value: string;
-  onCommit: (v: string) => void;
+  onCommit: (v: number) => void;
   className?: string;
   parse?: (s: string) => number;
+  /** When true on blur, discard the draft instead of committing. */
   cancelEditRef?: MutableRefObject<boolean>;
-  editing?: boolean;
-  onStartEdit?: () => void;
-  onStopEdit?: () => void;
+  /** Optional validation — returns true if valid. When false, flash red and stay in edit mode. */
+  validate?: (s: string) => boolean;
 }) {
-  const [localEditing, setLocalEditing] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const isEditing = editing !== undefined ? editing : localEditing;
-
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [isEditing]);
+  const [invalid, setInvalid] = useState(false);
+  const invalidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startEdit = useCallback(() => {
     setDraft(value);
-    if (onStartEdit) onStartEdit();
-    else setLocalEditing(true);
-  }, [value, onStartEdit]);
+    setEditing(true);
+    setInvalid(false);
+  }, [value]);
 
-  const commit = useCallback(() => {
-    if (onStopEdit) onStopEdit();
-    else setLocalEditing(false);
-    onCommit(draft);
-  }, [draft, onCommit, onStopEdit]);
+  const tryCommit = useCallback(() => {
+    if (validate && !validate(draft)) {
+      // Flash red
+      setInvalid(true);
+      if (invalidTimerRef.current) clearTimeout(invalidTimerRef.current);
+      invalidTimerRef.current = setTimeout(() => setInvalid(false), 600);
+      return; // Stay in edit mode
+    }
+    setEditing(false);
+    setInvalid(false);
+    const parsed = parse ? parse(draft) : parseFloat(draft);
+    if (!isNaN(parsed)) onCommit(parsed);
+  }, [draft, onCommit, parse, validate]);
 
   const cancel = useCallback(() => {
-    if (onStopEdit) onStopEdit();
-    else setLocalEditing(false);
-  }, [onStopEdit]);
+    setEditing(false);
+    setInvalid(false);
+  }, []);
 
   const handleBlur = useCallback(() => {
     if (cancelEditRef?.current) {
       cancelEditRef.current = false;
       cancel();
     } else {
-      commit();
+      tryCommit();
     }
-  }, [cancelEditRef, cancel, commit]);
+  }, [cancelEditRef, cancel, tryCommit]);
 
-  if (isEditing) {
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (invalidTimerRef.current) clearTimeout(invalidTimerRef.current);
+    };
+  }, []);
+
+  if (editing) {
     return (
       <input
-        ref={inputRef}
-        className="bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border border-zinc-600 rounded outline-none focus:border-amber-500/50"
+        className={`bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border rounded outline-none transition-colors ${
+          invalid ? 'border-red-500' : 'border-zinc-600 focus:border-amber-500/50'
+        }`}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); commit(); }
-          if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-          // Stop arrow keys from propagating to grid navigation
-          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-            e.stopPropagation();
-          }
+          if (e.key === 'Enter') tryCommit();
+          if (e.key === 'Escape') cancel();
         }}
+        autoFocus
       />
     );
   }
@@ -185,68 +192,39 @@ function EditableCell({
     <span
       className={`cursor-text select-text ${className ?? ''}`}
       onClick={startEdit}
+      onDoubleClick={startEdit}
     >
       {value}
     </span>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Empty cell (click to create)
-// ---------------------------------------------------------------------------
+// --- Position editable cell ---
 
-function EmptyNoteCell({
-  step,
-  onAddEvent,
+function PositionEditableCell({
+  at,
+  onCommit,
   cancelEditRef,
-  isFocused,
 }: {
-  step: number;
-  onAddEvent?: (step: number, event: MusicalEvent) => void;
+  at: number;
+  onCommit: (newAt: number) => void;
   cancelEditRef?: MutableRefObject<boolean>;
-  isFocused: boolean;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [editing]);
+  const [draft, setDraft] = useState(String(Math.floor(at)));
 
   const startEdit = useCallback(() => {
-    if (!onAddEvent) return;
-    setDraft('');
+    setDraft(String(Math.floor(at)));
     setEditing(true);
-  }, [onAddEvent]);
-
-  // Enter on a focused empty cell starts editing
-  useEffect(() => {
-    // This is handled by keyboard navigation in parent
-  }, [isFocused]);
+  }, [at]);
 
   const commit = useCallback(() => {
     setEditing(false);
-    if (!onAddEvent || !draft.trim()) return;
-
-    const input = draft.trim().toUpperCase();
-
-    if (input === 'TRG') {
-      onAddEvent(step, { kind: 'trigger', at: step, velocity: 0.8, accent: false });
-      return;
+    const parsed = parseInt(draft, 10);
+    if (!isNaN(parsed) && parsed >= 0 && parsed !== Math.floor(at)) {
+      onCommit(parsed);
     }
-    if (input === 'ACC') {
-      onAddEvent(step, { kind: 'trigger', at: step, velocity: 1.0, accent: true });
-      return;
-    }
-
-    const midi = parseNoteName(draft.trim());
-    if (midi !== null) {
-      onAddEvent(step, { kind: 'note', at: step, pitch: midi, velocity: 0.8, duration: 1.0 });
-    }
-  }, [draft, step, onAddEvent]);
+  }, [draft, at, onCommit]);
 
   const cancel = useCallback(() => {
     setEditing(false);
@@ -264,283 +242,163 @@ function EmptyNoteCell({
   if (editing) {
     return (
       <input
-        ref={inputRef}
-        className="bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border border-zinc-600 rounded outline-none focus:border-amber-500/50"
+        className="bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border border-zinc-600 rounded outline-none focus:border-amber-500/50 text-right"
         value={draft}
-        placeholder="C-4"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); commit(); }
-          if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-            e.stopPropagation();
-          }
+          if (e.key === 'Enter') commit();
+          if (e.key === 'Escape') cancel();
         }}
+        autoFocus
       />
     );
   }
 
+  const microOffset = microTimingOffset(at);
   return (
-    <span
-      className="text-zinc-600 cursor-text"
-      onClick={startEdit}
-    >
-      ---
+    <span className="cursor-text" onClick={startEdit}>
+      {formatPosition(at)}
+      {microOffset !== null && (
+        <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
+          {formatMicroOffset(microOffset)}
+        </span>
+      )}
     </span>
   );
 }
 
-function EmptyFxCell({
-  step,
-  onAddEvent,
+// --- Parameter value editable cell (shows 0-100 integer) ---
+
+function ParamValueCell({
+  value,
+  controlId,
+  onCommit,
   cancelEditRef,
 }: {
-  step: number;
-  onAddEvent?: (step: number, event: MusicalEvent) => void;
+  value: number;
+  controlId: string;
+  onCommit: (newVal: number) => void;
   cancelEditRef?: MutableRefObject<boolean>;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, [editing]);
-
-  const startEdit = useCallback(() => {
-    if (!onAddEvent) return;
-    setDraft('');
-    setEditing(true);
-  }, [onAddEvent]);
-
-  const commit = useCallback(() => {
-    setEditing(false);
-    if (!onAddEvent || !draft.trim()) return;
-
-    // Parse "controlId value" format, e.g. "brightness 50"
-    const parts = draft.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      const controlId = parts[0];
-      const value = parseFloat(parts[1]);
-      if (!isNaN(value)) {
-        onAddEvent(step, {
-          kind: 'parameter',
-          at: step,
-          controlId,
-          value: value / 100, // Convert 0-100 display to 0-1 internal
-        });
-      }
-    }
-  }, [draft, step, onAddEvent]);
-
-  const cancel = useCallback(() => {
-    setEditing(false);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    if (cancelEditRef?.current) {
-      cancelEditRef.current = false;
-      cancel();
-    } else {
-      commit();
-    }
-  }, [cancelEditRef, cancel, commit]);
-
-  if (editing) {
-    return (
-      <input
-        ref={inputRef}
-        className="bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border border-zinc-600 rounded outline-none focus:border-amber-500/50"
-        value={draft}
-        placeholder="ctrl val"
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={handleBlur}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') { e.preventDefault(); commit(); }
-          if (e.key === 'Escape') { e.preventDefault(); cancel(); }
-          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-            e.stopPropagation();
-          }
-        }}
-      />
-    );
-  }
-
+  // Display value as 0-100 integer
+  const displayVal = Math.round(value * 100);
   return (
-    <span
-      className="text-zinc-600 cursor-text"
-      onClick={startEdit}
-    >
-      ---
-    </span>
+    <EditableCell
+      value={String(displayVal)}
+      onCommit={(v) => {
+        // Convert 0-100 input back to 0-1
+        const clamped = Math.max(0, Math.min(100, Math.round(v)));
+        onCommit(clamped / 100);
+      }}
+      parse={(s) => {
+        const n = parseInt(s, 10);
+        return isNaN(n) ? NaN : n;
+      }}
+      cancelEditRef={cancelEditRef}
+    />
   );
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
+// --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({
-    step, slot, isAtPlayhead, showBeatSeparator,
-    isCursorRow, cursorColumn,
-    onUpdate, onDelete, onAddEvent, onCursorMove, cancelEditRef,
-  }, ref) {
-    const { noteOrTrigger, paramEvents } = slot;
-    const hasEvent = noteOrTrigger !== null;
+  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef }, ref) {
+    const rowColor = kindRowStyle(event.kind);
+    const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
 
-    // Determine row color based on event type
-    const rowColor = hasEvent
-      ? noteOrTrigger!.kind === 'trigger' ? 'text-amber-300' : 'text-emerald-300'
-      : '';
+    // Micro-timing badge (used in non-editable position display)
+    const microOffset = microTimingOffset(event.at);
 
-    // Micro-timing badge (only for events with fractional positions)
-    const microOffset = hasEvent ? microTimingOffset(noteOrTrigger!.at) : null;
-
-    // Cell focus helpers
-    const cellClass = (col: TrackerColumn) => {
-      const focused = isCursorRow && cursorColumn === col;
-      return focused ? 'ring-1 ring-amber-500/50 rounded-sm' : '';
-    };
-
-    const handleCellClick = (col: TrackerColumn) => {
-      onCursorMove?.(step, col);
-    };
-
-    // --- NOTE column ---
-    let noteNode: React.ReactNode;
-    if (hasEvent) {
-      const ev = noteOrTrigger!;
-      const selector = selectorFromEvent(ev);
-      if (ev.kind === 'note') {
-        const note = ev as NoteEvent;
-        noteNode = editable ? (
+    // Primary data field
+    let primaryData: React.ReactNode = '---';
+    if (event.kind === 'note') {
+      const note = event as NoteEvent;
+      if (editable) {
+        primaryData = (
           <EditableCell
             value={midiToNoteName(note.pitch)}
-            onCommit={(v) => {
-              // Try note name first, then MIDI integer
-              const midi = parseNoteName(v);
-              if (midi !== null) {
-                onUpdate(selector, { pitch: midi });
-              }
-            }}
+            onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
+            parse={parseNoteName}
+            validate={(s) => !isNaN(parseNoteName(s))}
             cancelEditRef={cancelEditRef}
           />
-        ) : midiToNoteName(note.pitch);
+        );
       } else {
-        // Trigger
-        const trigger = ev as TriggerEvent;
-        noteNode = trigger.accent ? 'ACC' : 'TRG';
+        primaryData = midiToNoteName(note.pitch);
       }
-    } else {
-      noteNode = (
-        <EmptyNoteCell
-          step={step}
-          onAddEvent={onAddEvent}
-          cancelEditRef={cancelEditRef}
-          isFocused={isCursorRow && cursorColumn === 'note'}
-        />
-      );
+    } else if (event.kind === 'trigger') {
+      const isAccent = (event as TriggerEvent).accent;
+      if (editable) {
+        primaryData = (
+          <span
+            className="cursor-pointer hover:text-amber-200 transition-colors"
+            onClick={() => onUpdate(selector, { accent: !isAccent })}
+            title={isAccent ? 'Click to remove accent' : 'Click to add accent'}
+          >
+            {isAccent ? 'ACC' : 'TRG'}
+          </span>
+        );
+      } else {
+        primaryData = isAccent ? 'ACC' : 'TRG';
+      }
+    } else if (event.kind === 'parameter') {
+      const pe = event as ParameterEvent;
+      // Show abbreviated control ID as label
+      primaryData = abbreviateControlId(pe.controlId);
     }
 
-    // --- VEL column ---
-    let velNode: React.ReactNode;
-    if (hasEvent) {
-      const ev = noteOrTrigger!;
-      const selector = selectorFromEvent(ev);
-      const vel = ev.kind === 'note'
-        ? (ev as NoteEvent).velocity
-        : (ev as TriggerEvent).velocity ?? 0.8;
-      const display = Math.round(vel * 100).toString();
-      velNode = editable ? (
+    // Value column
+    let valueNode: React.ReactNode = '--';
+    if (event.kind === 'note') {
+      const vel = (event as NoteEvent).velocity;
+      valueNode = editable ? (
+        <EditableCell
+          value={vel.toFixed(2)}
+          onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          cancelEditRef={cancelEditRef}
+        />
+      ) : vel.toFixed(2);
+    } else if (event.kind === 'trigger') {
+      const vel = (event as TriggerEvent).velocity;
+      const display = vel !== undefined ? vel.toFixed(2) : '0.80';
+      valueNode = editable ? (
         <EditableCell
           value={display}
-          onCommit={(v) => {
-            const n = parseInt(v, 10);
-            if (!isNaN(n)) {
-              onUpdate(selector, { velocity: Math.max(0, Math.min(1, n / 100)) });
-            }
-          }}
+          onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
           cancelEditRef={cancelEditRef}
         />
       ) : display;
-    } else {
-      velNode = <span className="text-zinc-600">--</span>;
+    } else if (event.kind === 'parameter') {
+      const v = (event as ParameterEvent).value;
+      if (editable && typeof v === 'number') {
+        valueNode = (
+          <ParamValueCell
+            value={v}
+            controlId={(event as ParameterEvent).controlId}
+            onCommit={(newVal) => onUpdate(selector, { value: newVal } as Partial<MusicalEvent>)}
+            cancelEditRef={cancelEditRef}
+          />
+        );
+      } else {
+        const display = typeof v === 'number' ? String(Math.round(v * 100)) : String(v);
+        valueNode = display;
+      }
     }
 
-    // --- DUR column ---
-    let durNode: React.ReactNode;
-    if (hasEvent && noteOrTrigger!.kind === 'note') {
-      const note = noteOrTrigger as NoteEvent;
-      const selector = selectorFromEvent(note);
-      const display = note.duration.toFixed(1);
+    // Duration column
+    let durNode: React.ReactNode = '--';
+    if (event.kind === 'note') {
+      const dur = (event as NoteEvent).duration;
       durNode = editable ? (
         <EditableCell
-          value={display}
-          onCommit={(v) => {
-            const n = parseFloat(v);
-            if (!isNaN(n)) {
-              onUpdate(selector, { duration: Math.max(0.01, n) });
-            }
-          }}
+          value={dur.toFixed(2)}
+          onCommit={(v) => onUpdate(selector, { duration: Math.max(0.01, v) })}
           cancelEditRef={cancelEditRef}
         />
-      ) : display;
-    } else {
-      durNode = <span className="text-zinc-600">--</span>;
+      ) : dur.toFixed(2);
     }
-
-    // --- FX column ---
-    let fxNode: React.ReactNode;
-    if (paramEvents.length > 0) {
-      const pe = paramEvents[0]; // Show first parameter event
-      const selector = selectorFromEvent(pe);
-      const valDisplay = typeof pe.value === 'number'
-        ? Math.round(pe.value * 100).toString()
-        : String(pe.value);
-      const display = `${abbreviateControlId(pe.controlId)} ${valDisplay}`;
-
-      fxNode = editable && typeof pe.value === 'number' ? (
-        <EditableCell
-          value={display}
-          onCommit={(v) => {
-            // Parse "ctrl val" format
-            const parts = v.trim().split(/\s+/);
-            if (parts.length >= 2) {
-              const newVal = parseFloat(parts[parts.length - 1]);
-              if (!isNaN(newVal)) {
-                onUpdate(selector, { value: newVal / 100 } as Partial<MusicalEvent>);
-              }
-            }
-          }}
-          cancelEditRef={cancelEditRef}
-          className="text-blue-300"
-        />
-      ) : <span className="text-blue-300">{display}</span>;
-    } else {
-      fxNode = (
-        <EmptyFxCell
-          step={step}
-          onAddEvent={onAddEvent}
-          cancelEditRef={cancelEditRef}
-        />
-      );
-    }
-
-    // --- Delete handler ---
-    const handleDelete = () => {
-      if (!onDelete) return;
-      // Delete note/trigger first if present
-      if (hasEvent) {
-        onDelete(selectorFromEvent(noteOrTrigger!));
-      } else if (paramEvents.length > 0) {
-        onDelete(selectorFromEvent(paramEvents[0]));
-      }
-    };
 
     return (
       <tr
@@ -551,63 +409,49 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
       >
-        {/* ROW number */}
-        <td className="px-1.5 py-0 text-right text-zinc-500 tabular-nums w-10">
-          {String(step).padStart(2, '0')}
-          {microOffset !== null && (
-            <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
-              {formatMicroOffset(microOffset)}
-            </span>
+        <td className="px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem]">
+          {editable ? (
+            <PositionEditableCell
+              at={event.at}
+              onCommit={(newAt) => {
+                // Move event: update the at field
+                onUpdate(selector, { at: newAt });
+              }}
+              cancelEditRef={cancelEditRef}
+            />
+          ) : (
+            <>
+              {formatPosition(event.at)}
+              {microOffset !== null && (
+                <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
+                  {formatMicroOffset(microOffset)}
+                </span>
+              )}
+            </>
           )}
         </td>
-
-        {/* NOTE */}
-        <td
-          className={`px-1.5 py-0 w-16 tabular-nums ${cellClass('note')}`}
-          onClick={() => handleCellClick('note')}
-        >
-          {noteNode}
+        <td className="px-1 py-0 text-center font-bold w-6">
+          {kindGlyph(event.kind)}
         </td>
-
-        {/* VEL */}
-        <td
-          className={`px-1.5 py-0 text-right w-10 tabular-nums text-zinc-400 ${cellClass('vel')}`}
-          onClick={() => handleCellClick('vel')}
-        >
-          {velNode}
+        <td className="px-1.5 py-0 w-[3.5rem] tabular-nums">
+          {primaryData}
         </td>
-
-        {/* DUR */}
-        <td
-          className={`px-1.5 py-0 text-right w-10 tabular-nums text-zinc-500 ${cellClass('dur')}`}
-          onClick={() => handleCellClick('dur')}
-        >
+        <td className="px-1.5 py-0 text-right w-12 tabular-nums text-zinc-400">
+          {valueNode}
+        </td>
+        <td className="px-1.5 py-0 text-right w-12 tabular-nums text-zinc-500">
           {durNode}
         </td>
-
-        {/* FX */}
-        <td
-          className={`px-1.5 py-0 w-20 tabular-nums ${cellClass('fx')}`}
-          onClick={() => handleCellClick('fx')}
-        >
-          {fxNode}
-        </td>
-
-        {/* Delete button */}
-        {onDelete && (hasEvent || paramEvents.length > 0) && (
+        {onDelete && (
           <td className="px-1 py-0 w-6 text-center">
             <button
               className="text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={handleDelete}
+              onClick={() => onDelete(selector)}
               title="Delete event"
             >
-              x
+              ×
             </button>
           </td>
-        )}
-        {/* Empty spacer cell when no delete button to keep alignment */}
-        {onDelete && !hasEvent && paramEvents.length === 0 && (
-          <td className="px-1 py-0 w-6" />
         )}
       </tr>
     );
