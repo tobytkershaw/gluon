@@ -1,9 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, GLUON_SYSTEM_PROMPT } from '../../src/ai/system-prompt';
 import { createSession, setAgency } from '../../src/engine/session';
+import { updateTrack } from '../../src/engine/types';
+import type { Session } from '../../src/engine/types';
 
 function defaultPrompt(): string {
   return buildSystemPrompt(createSession());
+}
+
+/** Create a session with legacy engine assignments for tests that check engine-specific prompt content. */
+function createLegacySession(): Session {
+  let s = createSession();
+  s = updateTrack(s, 'v0', { model: 13, engine: 'plaits:analog_bass_drum', name: undefined });
+  s = updateTrack(s, 'v1', { model: 0, engine: 'plaits:virtual_analog', name: undefined });
+  s = updateTrack(s, 'v2', { model: 2, engine: 'plaits:fm', name: undefined });
+  s = updateTrack(s, 'v3', { model: 4, engine: 'plaits:harmonic', name: undefined });
+  return s;
 }
 
 describe('system prompt generation', () => {
@@ -68,34 +80,34 @@ describe('system prompt generation', () => {
 
 describe('dynamic track setup', () => {
   it('shows percussion classification for drum engines', () => {
-    const session = createSession();
+    const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
     // v0 is model 13 (analog-bass-drum) → percussion
     expect(prompt).toContain('Analog Bass Drum (percussion)');
   });
 
   it('shows melodic classification for melodic engines', () => {
-    const session = createSession();
+    const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
     // v1 is model 0 (virtual-analog) → melodic
     expect(prompt).toContain('Virtual Analog (melodic)');
   });
 
   it('reflects agency OFF in prompt', () => {
-    let session = createSession();
+    let session = createLegacySession();
     session = setAgency(session, 'v1', 'OFF');
     const prompt = buildSystemPrompt(session);
     expect(prompt).toContain('v1 (VA): Virtual Analog (melodic) — agency OFF');
   });
 
   it('reflects agency ON in prompt', () => {
-    const session = createSession();
+    const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
     expect(prompt).toContain('v0 (Kick): Analog Bass Drum (percussion) — agency ON');
   });
 
   it('shows correct model name for each track', () => {
-    const session = createSession();
+    const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
     expect(prompt).toContain('v0 (Kick): Analog Bass Drum');
     expect(prompt).toContain('v1 (VA): Virtual Analog');

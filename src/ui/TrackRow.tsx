@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Track, ApprovalLevel } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
-import { MiniKnob } from './MiniKnob';
 
 const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
   exploratory: { label: '', color: '', title: 'Exploratory — AI may freely edit' },
@@ -27,15 +26,13 @@ interface Props {
   onToggleAgency?: () => void;
   onRename?: (name: string) => void;
   onCycleApproval?: () => void;
-  onChangeVolume?: (value: number) => void;
-  onChangePan?: (value: number) => void;
   onRemove?: () => void;
 }
 
 export function TrackRow({
   track, label, isActive, isBus, isMasterBus, activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
-  onChangeVolume, onChangePan, onRemove,
+  onRemove,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -144,67 +141,46 @@ export function TrackRow({
         </span>
       )}
 
-      {/* Agency indicator */}
-      {track.agency === 'ON' && (
-        <div className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+      {/* Agency indicator — distinct from thumbprint: clickable text badge */}
+      {onToggleAgency && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
+          title={track.agency === 'OFF' ? 'AI: Protected (click to enable)' : 'AI: Editable (click to protect)'}
+          className={`shrink-0 text-[7px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
+            track.agency === 'ON'
+              ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'
+              : 'bg-zinc-700/30 text-zinc-600 hover:bg-zinc-700/50'
+          }`}
+        >
+          AI
+        </button>
       )}
 
-      {/* Volume / Pan knobs */}
-      {onChangeVolume && onChangePan && (
-        <div className="flex gap-0.5 shrink-0 items-center">
-          <MiniKnob
-            value={track.volume}
-            accentColor="rgb(251 191 36)"
-            title={`Volume: ${Math.round(track.volume * 100)}%`}
-            onChange={onChangeVolume}
-          />
-          <MiniKnob
-            value={track.pan}
-            min={-1}
-            max={1}
-            accentColor="rgb(56 189 248)"
-            title={`Pan: ${track.pan === 0 ? 'C' : track.pan < 0 ? `L${Math.round(Math.abs(track.pan) * 100)}` : `R${Math.round(track.pan * 100)}`}`}
-            onChange={onChangePan}
-          />
-        </div>
-      )}
-
-      {/* M / S / C / Approval buttons */}
+      {/* M / S / Approval buttons */}
       <div className="flex gap-0.5 shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
-          className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
+          className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
             track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
+          title="Mute"
         >
           M
         </button>
         <button
           onClick={(e) => { e.stopPropagation(); onToggleSolo(); }}
-          className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
+          className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
             track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
           }`}
+          title="Solo"
         >
           S
         </button>
-        {onToggleAgency && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-            title={track.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
-            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
-              track.agency === 'OFF'
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'text-zinc-600 hover:text-zinc-400'
-            }`}
-          >
-            C
-          </button>
-        )}
         {onCycleApproval && approvalInfo.label && (
           <button
             onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
             title={approvalInfo.title}
-            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${approvalInfo.color}`}
+            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
           >
             {approvalInfo.label}
           </button>
@@ -213,7 +189,7 @@ export function TrackRow({
           <button
             onClick={(e) => { e.stopPropagation(); onRemove(); }}
             title="Remove track"
-            className="text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors text-zinc-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/row:opacity-100"
+            className="text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors text-zinc-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/row:opacity-100"
           >
             x
           </button>

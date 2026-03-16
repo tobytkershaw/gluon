@@ -1887,8 +1887,6 @@ export default function App() {
           return setApproval(s, trackId, cycle[nextIdx]);
         });
       }}
-      onChangeVolume={handleChangeVolume}
-      onChangePan={handleChangePan}
       onAddTrack={handleAddTrack}
       onRemoveTrack={handleRemoveTrack}
       messages={session.messages}
@@ -2000,6 +1998,8 @@ export default function App() {
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
+            onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
+            onChangePan={(v) => handleChangePan(activeTrack.id, v)}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}

@@ -15,8 +15,6 @@ interface Props {
   onToggleAgency: (trackId: string) => void;
   onRenameTrack?: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;
-  onChangeVolume?: (trackId: string, value: number) => void;
-  onChangePan?: (trackId: string, value: number) => void;
   onAddTrack?: (kind?: TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
   maxTracks?: number;
@@ -25,7 +23,7 @@ interface Props {
 export function TrackList({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
-  onRenameTrack, onCycleApproval, onChangeVolume, onChangePan,
+  onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, maxTracks = 16,
 }: Props) {
   const canAdd = tracks.length < maxTracks;
@@ -46,33 +44,33 @@ export function TrackList({
         <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">
           Tracks
         </span>
-        <div className="flex gap-0.5">
-          {onAddTrack && (
-            <button
-              onClick={() => onAddTrack('bus')}
-              disabled={!canAdd}
-              className={`text-[10px] font-mono px-1 h-4 flex items-center justify-center rounded transition-colors ${
-                canAdd
-                  ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
-                  : 'text-zinc-700 cursor-not-allowed'
-              }`}
-              title={canAdd ? 'Add bus' : `Maximum ${maxTracks} tracks`}
-            >
-              B
-            </button>
-          )}
+        <div className="flex gap-1">
           {onAddTrack && (
             <button
               onClick={() => onAddTrack('audio')}
               disabled={!canAdd}
-              className={`text-[10px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
+              className={`text-[9px] font-mono px-1.5 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
                 canAdd
                   ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
                   : 'text-zinc-700 cursor-not-allowed'
               }`}
-              title={canAdd ? 'Add track' : `Maximum ${maxTracks} tracks`}
+              title={canAdd ? 'Add audio track' : `Maximum ${maxTracks} tracks`}
             >
-              +
+              + Track
+            </button>
+          )}
+          {onAddTrack && (
+            <button
+              onClick={() => onAddTrack('bus')}
+              disabled={!canAdd}
+              className={`text-[9px] font-mono px-1.5 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+                canAdd
+                  ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                  : 'text-zinc-700 cursor-not-allowed'
+              }`}
+              title={canAdd ? 'Add bus track' : `Maximum ${maxTracks} tracks`}
+            >
+              + Bus
             </button>
           )}
         </div>
@@ -94,8 +92,6 @@ export function TrackList({
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
-            onChangeVolume={onChangeVolume ? (v) => onChangeVolume(track.id, v) : undefined}
-            onChangePan={onChangePan ? (v) => onChangePan(track.id, v) : undefined}
             onRemove={onRemoveTrack && canRemoveAudio ? () => onRemoveTrack(track.id) : undefined}
           />
         ))}
@@ -119,13 +115,11 @@ export function TrackList({
             onToggleSolo={() => onToggleSolo(track.id)}
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
-            onChangeVolume={onChangeVolume ? (v) => onChangeVolume(track.id, v) : undefined}
-            onChangePan={onChangePan ? (v) => onChangePan(track.id, v) : undefined}
             onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
           />
         ))}
 
-        {/* Master bus */}
+        {/* Master bus — always visible at bottom */}
         {masterBus && (
           <TrackRow
             key={masterBus.id}
@@ -138,8 +132,6 @@ export function TrackList({
             onClick={() => onSelectTrack(masterBus.id)}
             onToggleMute={() => onToggleMute(masterBus.id)}
             onToggleSolo={() => onToggleSolo(masterBus.id)}
-            onChangeVolume={onChangeVolume ? (v) => onChangeVolume(masterBus.id, v) : undefined}
-            onChangePan={onChangePan ? (v) => onChangePan(masterBus.id, v) : undefined}
           />
         )}
       </div>

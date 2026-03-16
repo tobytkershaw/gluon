@@ -31,9 +31,7 @@ interface Props {
   onToggleAgency: (trackId: string) => void;
   onRenameTrack: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;
-  onChangeVolume?: (trackId: string, value: number) => void;
-  onChangePan?: (trackId: string, value: number) => void;
-  onAddTrack?: () => void;
+  onAddTrack?: (kind?: import('../engine/types').TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
   // Chat sidebar
   messages: ChatMessage[];
@@ -121,7 +119,7 @@ const CHAT_COLLAPSE_WIDTH = 1280;
 
 export function AppShell({
   tracks, activeTrackId, activityMap,
-  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval, onChangeVolume, onChangePan,
+  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack,
   messages, onSend, isThinking, isListening, streamingText,
   reactions, onReaction,
@@ -259,8 +257,6 @@ export function AppShell({
             onToggleAgency={onToggleAgency}
             onRenameTrack={onRenameTrack}
             onCycleApproval={onCycleApproval}
-            onChangeVolume={onChangeVolume}
-            onChangePan={onChangePan}
             onAddTrack={onAddTrack}
             onRemoveTrack={onRemoveTrack}
           />
