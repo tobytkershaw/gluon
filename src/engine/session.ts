@@ -879,7 +879,7 @@ export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Sessi
       // Preserve playback state so A/B switching doesn't interrupt transport
       status: session.transport.status,
       playing: session.transport.playing,
-      playFromStep: session.transport.playFromStep,
+      playFromStep: session.transport.status === 'playing' ? undefined : session.transport.playFromStep,
     },
     master: { ...snapshot.master },
     context: { ...snapshot.context },

@@ -503,14 +503,15 @@ describe('A/B comparison', () => {
     expect(restored.transport.bpm).toBe(120);
   });
 
-  it('restoreABSnapshot preserves playFromStep from current session', () => {
+  it('restoreABSnapshot clears playFromStep when playing (avoids stale restart)', () => {
     let s = createSession();
     const snap = captureABSnapshot(s);
     s = playTransport(s, 8); // play from step 8
     expect(s.transport.playFromStep).toBe(8);
 
     const restored = restoreABSnapshot(s, snap);
-    expect(restored.transport.playFromStep).toBe(8);
+    // While playing, playFromStep is cleared to prevent scheduler restarting at stale position
+    expect(restored.transport.playFromStep).toBeUndefined();
   });
 
   it('restoreABSnapshot preserves activeTrackId when track exists in snapshot', () => {
@@ -535,5 +536,60 @@ describe('A/B comparison', () => {
     const restored = restoreABSnapshot(s, snap);
     // Undo stack should be preserved (non-musical state)
     expect(restored.undoStack.length).toBe(1);
+  });
+
+  it('restoreABSnapshot swaps transport mode (not preserved) (#520)', () => {
+    let s = createSession();
+    // Capture with mode='pattern'
+    s = setTransportMode(s, 'pattern');
+    const snap = captureABSnapshot(s);
+    expect(snap.transport.mode).toBe('pattern');
+
+    // Change to mode='song' after capture
+    s = setTransportMode(s, 'song');
+    expect(s.transport.mode).toBe('song');
+
+    // Restore — mode should revert to 'pattern' from the snapshot
+    const restored = restoreABSnapshot(s, snap);
+    expect(restored.transport.mode).toBe('pattern');
+  });
+
+  it('restoreABSnapshot falls back activeTrackId to snapshot tracks[0] when current track missing (#520)', () => {
+    let s = createSession();
+    const snap = captureABSnapshot(s);
+    // Simulate activeTrackId pointing to a track that doesn't exist in the snapshot
+    // (e.g. a track added after snapshot was captured)
+    s = { ...s, activeTrackId: 'v999' };
+    expect(snap.tracks.some(t => t.id === 'v999')).toBe(false);
+
+    const restored = restoreABSnapshot(s, snap);
+    // Should fall back to the first track in the snapshot
+    expect(restored.activeTrackId).toBe(snap.tracks[0].id);
+  });
+
+  it('restoreABSnapshot clears playFromStep when playing to avoid stale restart (#520)', () => {
+    let s = createSession();
+    // Play from step 8, then capture snapshot
+    s = playTransport(s, 8);
+    const snap = captureABSnapshot(s);
+
+    // Still playing — playFromStep should be cleared on restore
+    const restored = restoreABSnapshot(s, snap);
+    expect(restored.transport.status).toBe('playing');
+    expect(restored.transport.playFromStep).toBeUndefined();
+  });
+
+  it('restoreABSnapshot preserves playFromStep when paused', () => {
+    let s = createSession();
+    s = playTransport(s, 4);
+    s = pauseTransport(s);
+    // playFromStep is preserved from the playing call, status is now paused
+    expect(s.transport.playFromStep).toBe(4);
+    expect(s.transport.status).toBe('paused');
+
+    const snap = captureABSnapshot(s);
+    const restored = restoreABSnapshot(s, snap);
+    // Paused — playFromStep should be preserved
+    expect(restored.transport.playFromStep).toBe(4);
   });
 });
