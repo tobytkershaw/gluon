@@ -1131,6 +1131,17 @@ export class AudioEngine {
   }
 
   /**
+   * Immediately silence the metronome by setting gain to 0.
+   * Already-scheduled clicks become inaudible. Call on transport stop/pause
+   * to prevent stale clicks from the lookahead window ringing out.
+   */
+  silenceMetronome(): void {
+    if (this.metronomeGain) {
+      this.metronomeGain.gain.value = 0;
+    }
+  }
+
+  /**
    * Schedule a metronome click at the given audio time.
    * Uses a short oscillator burst — higher pitch for beat 1 (accent).
    */

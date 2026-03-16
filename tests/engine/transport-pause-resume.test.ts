@@ -49,6 +49,8 @@ function makeMockAudio(): AudioEngine {
     scheduleNote: vi.fn(),
     releaseGeneration: vi.fn(),
     silenceGeneration: vi.fn(),
+    silenceMetronome: vi.fn(),
+    setMetronomeVolume: vi.fn(),
     restoreBaseline: vi.fn(),
   } as unknown as AudioEngine;
 }

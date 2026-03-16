@@ -115,6 +115,9 @@ export class TransportController {
           startStep = 0;
         }
         this.audio.restoreBaseline();
+        // Restore metronome volume after silenceMetronome() zeroed it on stop/pause.
+        const metVol = transport.metronome?.volume ?? 0.5;
+        this.audio.setMetronomeVolume(metVol);
         this.scheduler.start(START_OFFSET_SEC, startStep, generation);
         this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);
         recordQaAudioTrace({
@@ -127,6 +130,7 @@ export class TransportController {
     } else if (transport.status === 'paused') {
       if (this.runtime.status === 'playing') {
         this.scheduler.stop();
+        this.audio.silenceMetronome();
         const generation = this.audio.advanceGeneration();
         this.audio.releaseGeneration(generation);
         this.runtime = pauseTransportState(
@@ -136,6 +140,7 @@ export class TransportController {
       }
     } else if (this.runtime.status !== 'stopped') {
       this.scheduler.stop();
+      this.audio.silenceMetronome();
       const generation = this.audio.advanceGeneration();
       if (this.pendingHardStop) {
         this.audio.silenceGeneration(generation);
@@ -147,6 +152,7 @@ export class TransportController {
       this.runtime = stopTransportState(this.runtime, generation);
       this.onPositionChange(0);
     } else if (this.pendingHardStop) {
+      this.audio.silenceMetronome();
       const generation = this.audio.advanceGeneration();
       this.audio.silenceGeneration(generation);
       this.pendingHardStop = false;

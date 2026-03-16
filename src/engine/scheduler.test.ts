@@ -293,6 +293,106 @@ describe('Scheduler — AudioContext suspend handling', () => {
     scheduler.stop();
   });
 
+  it('fires onSequenceEnd and stops when song mode reaches end of sequence', () => {
+    // Song mode: sequence = [pattern A (4 steps), pattern B (4 steps)]
+    // Total sequence = 8 steps. At 120 BPM, stepDuration = 0.125s, so 8 steps = 1.0s.
+    const patternA = {
+      id: 'pA',
+      kind: 'pattern' as const,
+      duration: 4,
+      events: [{ kind: 'trigger' as const, at: 0, velocity: 0.8 }],
+    };
+    const patternB = {
+      id: 'pB',
+      kind: 'pattern' as const,
+      duration: 4,
+      events: [{ kind: 'trigger' as const, at: 0, velocity: 0.8 }],
+    };
+    const session = makeSession({
+      transport: { status: 'playing', bpm: 120, swing: 0, playing: true, mode: 'song' },
+      tracks: [{
+        id: 'v1',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        agency: 'ON',
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 4 },
+        patterns: [patternA, patternB],
+        sequence: [{ patternId: 'pA' }, { patternId: 'pB' }],
+        surface: {
+          semanticControls: [],
+          pinnedControls: [],
+          xyAxes: { x: 'timbre', y: 'morph' },
+          thumbprint: { type: 'static-color' },
+        },
+      }],
+    });
+
+    let audioTime = 0;
+    const onNote = vi.fn();
+    const onPosition = vi.fn();
+    const onSequenceEnd = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      onPosition,
+      () => ({}),
+      undefined, // onParameterEvent
+      undefined, // onClick
+      onSequenceEnd,
+    );
+
+    scheduler.start(0, 0, 0);
+    expect(onSequenceEnd).not.toHaveBeenCalled();
+    expect(scheduler.isRunning()).toBe(true);
+
+    // Advance past the end of the sequence (8 steps = 1.0s at 120 BPM)
+    audioTime = 1.1;
+    vi.advanceTimersByTime(30);
+
+    expect(onSequenceEnd).toHaveBeenCalledTimes(1);
+    expect(scheduler.isRunning()).toBe(false);
+  });
+
+  it('does not fire onSequenceEnd in pattern mode', () => {
+    // Pattern mode should loop forever, never trigger onSequenceEnd.
+    const session = makeSession({
+      transport: { status: 'playing', bpm: 120, swing: 0, playing: true, mode: 'pattern' },
+    });
+    session.tracks[0].patterns[0].duration = 4; // short pattern
+
+    let audioTime = 0;
+    const onSequenceEnd = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      vi.fn(),
+      vi.fn(),
+      () => ({}),
+      undefined,
+      undefined,
+      onSequenceEnd,
+    );
+
+    scheduler.start(0, 0, 0);
+
+    // Advance well past the pattern length
+    audioTime = 2.0; // 16 steps at 120 BPM, well past the 4-step pattern
+    vi.advanceTimersByTime(30);
+
+    expect(onSequenceEnd).not.toHaveBeenCalled();
+    expect(scheduler.isRunning()).toBe(true);
+
+    scheduler.stop();
+  });
+
   it('re-emits a future track event after that track is invalidated', () => {
     const session = makeSession();
     session.tracks[0].patterns[0].events = [

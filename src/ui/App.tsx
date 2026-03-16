@@ -1852,7 +1852,7 @@ export default function App() {
     onTrackUp: handleTrackUp,
     onTrackDown: handleTrackDown,
     onBpmNudge: handleBpmNudge,
-    onToggleLoop: () => {}, // Loop replaced by transport mode
+    onToggleTransportMode: () => setSession(s => setTransportMode(s, (s.transport.mode ?? 'pattern') === 'pattern' ? 'song' : 'pattern')),
     setView,
     setChatOpen,
   });
