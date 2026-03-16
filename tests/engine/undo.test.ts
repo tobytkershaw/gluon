@@ -42,27 +42,27 @@ describe('Undo (Phase 2)', () => {
     const sketched = applySketch(s, vid, 'test', {
       steps: [{ index: 0, gate: true }],
     });
-    expect(getTrack(sketched, vid).pattern.steps[0].gate).toBe(true);
+    expect(getTrack(sketched, vid).stepGrid.steps[0].gate).toBe(true);
     const undone = applyUndo(sketched);
-    expect(getTrack(undone, vid).pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, vid).stepGrid.steps[0].gate).toBe(false);
   });
 
   it('human step-grid edits create undo entries', () => {
     const s = createSession();
     const vid = s.activeTrackId;
     const toggled = toggleStepGate(s, vid, 0);
-    expect(getTrack(toggled, vid).pattern.steps[0].gate).toBe(true);
+    expect(getTrack(toggled, vid).stepGrid.steps[0].gate).toBe(true);
     expect(toggled.undoStack.length).toBe(1);
-    expect(toggled.undoStack[0].kind).toBe('region');
+    expect(toggled.undoStack[0].kind).toBe('pattern-edit');
   });
 
   it('undoes human step-grid edit', () => {
     const s = createSession();
     const vid = s.activeTrackId;
     const toggled = toggleStepGate(s, vid, 0);
-    expect(getTrack(toggled, vid).pattern.steps[0].gate).toBe(true);
+    expect(getTrack(toggled, vid).stepGrid.steps[0].gate).toBe(true);
     const undone = applyUndo(toggled);
-    expect(getTrack(undone, vid).pattern.steps[0].gate).toBe(false);
+    expect(getTrack(undone, vid).stepGrid.steps[0].gate).toBe(false);
   });
 
   it('undoes in LIFO order across human and AI entries', () => {
@@ -73,7 +73,7 @@ describe('Undo (Phase 2)', () => {
     expect(state.undoStack.length).toBe(2); // param move + region edit
     // Undo the human step-grid edit first (LIFO)
     state = applyUndo(state);
-    expect(getTrack(state, vid).pattern.steps[0].gate).toBe(false);
+    expect(getTrack(state, vid).stepGrid.steps[0].gate).toBe(false);
     expect(getTrack(state, vid).params.timbre).toBe(0.8); // AI move still applied
     // Undo the AI param move
     state = applyUndo(state);

@@ -117,14 +117,14 @@ describe('Scheduler', () => {
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
       { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.9 } as ParameterEvent,
     ];
-    const newRegions = [{ ...track.regions[0], events: newEvents }, ...track.regions.slice(1)];
+    const newRegions = [{ ...track.patterns[0], events: newEvents }, ...track.patterns.slice(1)];
     // Also update pattern steps to stay in sync
-    const newSteps = [...track.pattern.steps];
+    const newSteps = [...track.stepGrid.steps];
     newSteps[0] = { gate: true, accent: false, micro: 0, params: { timbre: 0.9 } };
     session = {
       ...session,
       tracks: session.tracks.map(v => v.id === vid
-        ? { ...v, regions: newRegions, pattern: { ...v.pattern, steps: newSteps } }
+        ? { ...v, patterns: newRegions, stepGrid: { ...v.stepGrid, steps: newSteps } }
         : v
       ),
     };
@@ -192,17 +192,17 @@ describe('Scheduler', () => {
     // Create a track with 8-step region + pattern, gate on step 0
     const vid = session.tracks[0].id;
     const track = session.tracks.find(v => v.id === vid)!;
-    const newSteps = track.pattern.steps.slice(0, 8).map((s, i) =>
+    const newSteps = track.stepGrid.steps.slice(0, 8).map((s, i) =>
       i === 0 ? { ...s, gate: true } : s
     );
     const newEvents: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], duration: 8, events: newEvents };
+    const newRegion = { ...track.patterns[0], duration: 8, events: newEvents };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, pattern: { steps: newSteps, length: 8 }, regions: [newRegion] } : v
+        v.id === vid ? { ...v, stepGrid: { steps: newSteps, length: 8 }, patterns: [newRegion] } : v
       ),
     };
 
@@ -256,11 +256,11 @@ describe('Scheduler', () => {
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 4.3, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], events };
+    const newRegion = { ...track.patterns[0], events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -288,11 +288,11 @@ describe('Scheduler', () => {
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 1.2, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], events };
+    const newRegion = { ...track.patterns[0], events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -317,11 +317,11 @@ describe('Scheduler', () => {
     const events: MusicalEvent[] = [
       { kind: 'note', at: 2, pitch: 60, velocity: 0.8, duration: 0.5 } as NoteEvent,
     ];
-    const newRegion = { ...track.regions[0], events };
+    const newRegion = { ...track.patterns[0], events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -347,11 +347,11 @@ describe('Scheduler', () => {
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
       { kind: 'trigger', at: 12, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], events };
+    const newRegion = { ...track.patterns[0], events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -377,11 +377,11 @@ describe('Scheduler', () => {
       { kind: 'trigger', at: 4, velocity: 0.8 } as TriggerEvent,
       { kind: 'trigger', at: 6, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], duration: 8, events };
+    const newRegion = { ...track.patterns[0], duration: 8, events };
     let currentSession: Session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion], pattern: { ...v.pattern, length: 8 } } : v
+        v.id === vid ? { ...v, patterns: [newRegion], stepGrid: { ...v.stepGrid, length: 8 } } : v
       ),
     };
 
@@ -433,11 +433,11 @@ describe('Scheduler', () => {
     const events: MusicalEvent[] = Array.from({ length: 8 }, (_, i) =>
       ({ kind: 'trigger', at: i * 2, velocity: 0.8 }) as TriggerEvent
     );
-    const newRegion = { ...track.regions[0], events };
+    const newRegion = { ...track.patterns[0], events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -468,12 +468,12 @@ describe('Scheduler', () => {
   it('empty region emits zero notes', () => {
     const vid = session.tracks[0].id;
     const track = getTrack(session, vid);
-    // Region with empty events array
-    const newRegion = { ...track.regions[0], events: [] };
+    // Pattern with empty events array
+    const newRegion = { ...track.patterns[0], events: [] };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -493,7 +493,7 @@ describe('Scheduler', () => {
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [] } : v
+        v.id === vid ? { ...v, patterns: [] } : v
       ),
     };
 
@@ -523,11 +523,11 @@ describe('Scheduler', () => {
     audioTime = 2.0;
     vi.advanceTimersByTime(30);
 
-    // Position should match elapsed / stepDuration exactly
+    // In pattern mode, position wraps at pattern duration (16 steps).
+    // 2.0 / 0.125 = 16 steps exactly = wraps to 0.
     const lastPosition = positions[positions.length - 1];
-    const stepDuration = 0.125; // 120 BPM
-    const expectedPosition = 2.0 / stepDuration;
-    expect(lastPosition).toBeCloseTo(expectedPosition, 1);
+    // Position should be near 0 after wrapping
+    expect(lastPosition).toBeLessThan(2);
 
     sched.stop();
   });
@@ -539,11 +539,11 @@ describe('Scheduler', () => {
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], duration: 16, events };
+    const newRegion = { ...track.patterns[0], duration: 16, events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
@@ -562,100 +562,41 @@ describe('Scheduler', () => {
     expect(trackNotes.length).toBeGreaterThanOrEqual(4);
   });
 
-  // --- Transport loop tests ---
+  // --- Pattern mode: wraps at active pattern duration ---
 
-  it('transport loop wraps playback to loopStart when reaching loopEnd', () => {
+  it('pattern mode wraps playback at pattern duration', () => {
     const vid = session.tracks[0].id;
     const track = getTrack(session, vid);
-    // Events at steps 0, 4, 8, 12
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
       { kind: 'trigger', at: 4, velocity: 0.8 } as TriggerEvent,
-      { kind: 'trigger', at: 8, velocity: 0.8 } as TriggerEvent,
-      { kind: 'trigger', at: 12, velocity: 0.8 } as TriggerEvent,
     ];
-    const newRegion = { ...track.regions[0], duration: 16, events };
-    // Enable transport loop: steps 4-12 (exclusive)
-    let currentSession: Session = {
-      ...session,
-      transport: {
-        ...session.transport,
-        loopEnabled: true,
-        loopStart: 4,
-        loopEnd: 12,
-      },
-      tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
-      ),
-    };
-
-    const sched = new Scheduler(
-      () => currentSession,
-      () => audioTime,
-      () => 'running' as AudioContextState,
-      (note) => notes.push(note),
-      (pos) => positions.push(pos),
-      () => ({}),
-    );
-
-    sched.start(0);
-    // At 120 BPM, stepDuration = 0.125s
-    // Step 12 = 1.5s. Run past that to trigger the loop wrap.
-    for (let t = 0.025; t <= 3.0; t += 0.025) {
-      audioTime = t;
-      vi.advanceTimersByTime(25);
-    }
-    sched.stop();
-
-    // The position should never exceed loopEnd (12)
-    // After wrapping, positions should be between loopStart and loopEnd
-    const positionsAfterWrap = positions.filter(p => p > 1.5 / 0.125); // after step 12
-    // All positions after the wrap point should be within loop bounds
-    // (they wrap back to 4-12 range)
-    for (const p of positionsAfterWrap) {
-      expect(p).toBeLessThan(12 + 1); // small tolerance for lookahead
-    }
-
-    // Step 0 should fire once (before loop starts), step 12 should not fire
-    // (it's the exclusive end), and steps 4 and 8 should fire multiple times
-    // due to looping
-    const step4Notes = notes.filter(n => n.trackId === vid && Math.abs(n.time - 0.5) < 0.01);
-    expect(step4Notes.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('transport loop disabled does not wrap', () => {
-    const vid = session.tracks[0].id;
-    const track = getTrack(session, vid);
-    const events: MusicalEvent[] = [
-      { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
-      { kind: 'trigger', at: 8, velocity: 0.8 } as TriggerEvent,
-    ];
-    const newRegion = { ...track.regions[0], duration: 16, events };
+    const newRegion = { ...track.patterns[0], duration: 8, events };
     session = {
       ...session,
-      transport: {
-        ...session.transport,
-        loopEnabled: false,
-        loopStart: 4,
-        loopEnd: 12,
-      },
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 
     const sched = createScheduler();
     sched.start(0);
-    // Run long enough for globalStep to reach well past loopEnd
+    // Run long enough for multiple loops of an 8-step pattern (8 steps = 1s at 120 BPM)
     for (let t = 0.025; t <= 3.0; t += 0.025) {
       audioTime = t;
       vi.advanceTimersByTime(25);
     }
     sched.stop();
 
-    // Position should advance past loopEnd since loop is disabled
-    const lastPos = positions[positions.length - 1];
-    expect(lastPos).toBeGreaterThan(12);
+    // In pattern mode, position wraps at pattern duration (8 steps)
+    // All positions should be less than pattern duration + small tolerance
+    for (const p of positions) {
+      expect(p).toBeLessThan(8 + 1); // small tolerance for lookahead
+    }
+
+    // Step 0 should fire multiple times due to looping
+    const step0Notes = notes.filter(n => n.trackId === vid);
+    expect(step0Notes.length).toBeGreaterThan(2);
   });
 
   it('resolves ParameterEvents into scheduled note params', () => {
@@ -666,11 +607,11 @@ describe('Scheduler', () => {
       { kind: 'parameter', at: 0, controlId: 'harmonics', value: 0.3 } as ParameterEvent,
       { kind: 'parameter', at: 0, controlId: 'morph', value: 0.7 } as ParameterEvent,
     ];
-    const newRegion = { ...track.regions[0], events };
+    const newRegion = { ...track.patterns[0], events };
     session = {
       ...session,
       tracks: session.tracks.map(v =>
-        v.id === vid ? { ...v, regions: [newRegion] } : v
+        v.id === vid ? { ...v, patterns: [newRegion] } : v
       ),
     };
 

@@ -17,7 +17,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       agency: 'ON' as const,
       muted: false,
       solo: false,
-      pattern: { steps: [], length: 16 },
+      stepGrid: { steps: [], length: 16 },
       patterns: [],
       processors: [
         { id: 'fx1', type: 'delay', model: 0, params: { time: 0.5, feedback: 0.3 } },

@@ -28,13 +28,11 @@ describe('buildRenderSpec', () => {
       tracks: [
         {
           ...track,
-          regions: [{
+          patterns: [{
             id: 'r1',
             kind: 'pattern' as const,
-            start: 0,
-            duration: 16,
-            loop: true,
-            events: [
+                        duration: 16,
+                        events: [
               { kind: 'trigger' as const, at: 0, velocity: 0.8 },
               { kind: 'trigger' as const, at: 2.3, velocity: 0.8 },  // micro-timed: 0.3 steps late
               { kind: 'note' as const, at: 4.5, pitch: 60, velocity: 0.8, duration: 1 },

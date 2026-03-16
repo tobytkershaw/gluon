@@ -45,12 +45,12 @@ function sessionWithApproval(
             ...v,
             agency: 'ON' as const,
             approval,
-            regions: [
+            patterns: [
               {
-                ...v.regions[0],
+                ...v.patterns[0],
                 events,
               },
-              ...v.regions.slice(1),
+              ...v.patterns.slice(1),
             ],
           }
         : v,

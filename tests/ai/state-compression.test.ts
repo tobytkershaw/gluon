@@ -89,8 +89,8 @@ describe('State Compression (Phase 2)', () => {
     const session = createSession();
     // Clear events from the first track's region
     const track = session.tracks[0];
-    if (track.regions[0]) {
-      track.regions[0].events = [];
+    if (track.patterns[0]) {
+      track.patterns[0].events = [];
     }
     const result = compressState(session);
     const pattern = result.tracks[0].pattern;
@@ -137,8 +137,8 @@ describe('State Compression (Phase 2)', () => {
   it('NoteEvent produces entry in notes array', () => {
     const session = createSession();
     const track = session.tracks[0];
-    if (track.regions[0]) {
-      track.regions[0].events = [
+    if (track.patterns[0]) {
+      track.patterns[0].events = [
         { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 },
         { kind: 'note', at: 2.5, pitch: 72, velocity: 0.99, duration: 0.5 },
       ];
@@ -157,8 +157,8 @@ describe('State Compression (Phase 2)', () => {
   it('events with fractional positions show in triggers and notes', () => {
     const session = createSession();
     const track = session.tracks[0];
-    if (track.regions[0]) {
-      track.regions[0].events = [
+    if (track.patterns[0]) {
+      track.patterns[0].events = [
         { kind: 'trigger', at: 0.33, velocity: 0.7 },
         { kind: 'trigger', at: 1.67, velocity: 0.9 },
         { kind: 'note', at: 3.25, pitch: 48, velocity: 0.6, duration: 0.5 },

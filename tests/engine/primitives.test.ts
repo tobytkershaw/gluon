@@ -62,10 +62,10 @@ describe('Protocol Primitives (Phase 2)', () => {
       const result = applySketch(s, 'v0', 'kick', sketch);
 
       const track = getTrack(result, 'v0');
-      expect(track.pattern.steps[0].gate).toBe(true);
-      expect(track.pattern.steps[0].accent).toBe(true);
-      expect(track.pattern.steps[4].gate).toBe(true);
-      expect(track.pattern.steps[1].gate).toBe(false); // untouched
+      expect(track.stepGrid.steps[0].gate).toBe(true);
+      expect(track.stepGrid.steps[0].accent).toBe(true);
+      expect(track.stepGrid.steps[4].gate).toBe(true);
+      expect(track.stepGrid.steps[1].gate).toBe(false); // untouched
       expect(result.undoStack.length).toBe(1);
       expect(result.undoStack[0].kind).toBe('pattern');
     });
@@ -94,17 +94,17 @@ describe('Protocol Primitives (Phase 2)', () => {
       };
       // Manually toggle step 0 gate on
       const track = getTrack(s, vid);
-      const newSteps = [...track.pattern.steps];
+      const newSteps = [...track.stepGrid.steps];
       newSteps[0] = { ...newSteps[0], gate: true };
       const modified = {
         ...s,
-        tracks: s.tracks.map(v => v.id === vid ? { ...v, pattern: { ...v.pattern, steps: newSteps } } : v),
+        tracks: s.tracks.map(v => v.id === vid ? { ...v, stepGrid: { ...v.stepGrid, steps: newSteps } } : v),
         undoStack: [...s.undoStack, snapshot],
       };
-      expect(getTrack(modified, vid).pattern.steps[0].gate).toBe(true);
+      expect(getTrack(modified, vid).stepGrid.steps[0].gate).toBe(true);
 
       const undone = applyUndo(modified);
-      expect(getTrack(undone, vid).pattern.steps[0].gate).toBe(false);
+      expect(getTrack(undone, vid).stepGrid.steps[0].gate).toBe(false);
       expect(undone.undoStack.length).toBe(0);
     });
 

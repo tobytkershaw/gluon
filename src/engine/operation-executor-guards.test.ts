@@ -46,7 +46,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       agency: 'ON',
       muted: false,
       solo: false,
-      pattern: { steps: [], length: 16 },
+      stepGrid: { steps: [], length: 16 },
       patterns: [{
         id: 'r1',
         duration: 16,

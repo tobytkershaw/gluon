@@ -218,7 +218,7 @@ describe('TransportController', () => {
         agency: 'ON',
         muted: false,
         solo: false,
-        pattern: { steps: [], length: 16 },
+        stepGrid: { steps: [], length: 16 },
         patterns: [region],
         surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
       }],
@@ -254,8 +254,8 @@ describe('TransportController', () => {
     controller.sync();
     schedulerPositionChange?.(6);
 
-    session.tracks[0].regions[0] = {
-      ...session.tracks[0].regions[0],
+    session.tracks[0].patterns[0] = {
+      ...session.tracks[0].patterns[0],
       events: [{ kind: 'trigger', at: 8, velocity: 0.8 }],
     };
     session.tracks[0]._patternDirty = true;

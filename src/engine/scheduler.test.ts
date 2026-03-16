@@ -19,14 +19,12 @@ function makeSession(overrides?: Partial<Session>): Session {
       agency: 'ON',
       muted: false,
       solo: false,
-      pattern: { steps: [], length: 16 },
+      stepGrid: { steps: [], length: 16 },
       patterns: [{
         id: 'r1',
         kind: 'pattern' as const,
-        start: 0,
-        duration: 16,
-        loop: true,
-        events: [triggerEvent],
+                duration: 16,
+                events: [triggerEvent],
       }],
       surface: {
         semanticControls: [],
@@ -92,8 +90,8 @@ describe('Scheduler — AudioContext suspend handling', () => {
       ({ kind: 'trigger', at: i * 2, velocity: 0.8 }) as TriggerEvent
     );
     const session = makeSession();
-    session.tracks[0].regions[0].events = events;
-    session.tracks[0].regions[0].duration = 16;
+    session.tracks[0].patterns[0].events = events;
+    session.tracks[0].patterns[0].duration = 16;
 
     let audioTime = 0;
     let audioState: AudioContextState = 'running';
@@ -168,7 +166,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
   it('uses configurable gate length for trigger events', () => {
     const session = makeSession();
-    session.tracks[0].regions[0].events = [
+    session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 0, velocity: 0.8, gate: 2 },
     ];
     let audioTime = 0;
@@ -195,7 +193,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
   it('defaults trigger gate length to 1 step when gate is absent', () => {
     const session = makeSession();
-    session.tracks[0].regions[0].events = [
+    session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 0, velocity: 0.8 },
     ];
     let audioTime = 0;
@@ -224,7 +222,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
     // at=2.3 means step 2 + 0.3 steps offset. The scheduler must produce
     // a noteTime that is 0.3 * stepDuration later than the on-grid step 2.
     const session = makeSession();
-    session.tracks[0].regions[0].events = [
+    session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 0, velocity: 0.8 },   // on grid
       { kind: 'trigger', at: 2.3, velocity: 0.8 },  // micro-timed
     ];
@@ -263,7 +261,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
   it('applies micro-timing offset for note events', () => {
     const session = makeSession();
-    session.tracks[0].regions[0].events = [
+    session.tracks[0].patterns[0].events = [
       { kind: 'note', at: 1.5, pitch: 60, velocity: 0.8, duration: 1 },
     ];
     // Advance audio time so step 1.5 is within lookahead
@@ -297,7 +295,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
   it('re-emits a future track event after that track is invalidated', () => {
     const session = makeSession();
-    session.tracks[0].regions[0].events = [
+    session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 7.5, velocity: 0.8 },
     ];
     let audioTime = 0.9; // global step ~7.2 at 120 BPM

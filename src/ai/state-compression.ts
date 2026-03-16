@@ -354,7 +354,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       solo: track.solo,
       volume: round2(track.volume),
       pan: round2(track.pan),
-      stepGrid: compressPattern(track),
+      pattern: compressPattern(track),
       ...(track.patterns.length > 1 ? {
         patterns: track.patterns.map(r => ({
           id: r.id,
