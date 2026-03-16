@@ -87,6 +87,10 @@ interface Props {
   onToggleLoop: () => void;
   onLoopStartChange: (step: number) => void;
   onLoopEndChange: (step: number) => void;
+  // Time signature
+  timeSignatureNumerator: number;
+  timeSignatureDenominator: number;
+  onTimeSignatureChange: (numerator: number, denominator: number) => void;
   // View
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
@@ -133,6 +137,7 @@ export function AppShell({
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   loopEnabled, loopStart, loopEnd, onToggleLoop, onLoopStartChange, onLoopEndChange,
+  timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
@@ -219,6 +224,9 @@ export function AppShell({
             onToggleLoop={onToggleLoop}
             onLoopStartChange={onLoopStartChange}
             onLoopEndChange={onLoopEndChange}
+            timeSignatureNumerator={timeSignatureNumerator}
+            timeSignatureDenominator={timeSignatureDenominator}
+            onTimeSignatureChange={onTimeSignatureChange}
             abActive={abActive}
             onAbCapture={onAbCapture}
             onAbToggle={onAbToggle}

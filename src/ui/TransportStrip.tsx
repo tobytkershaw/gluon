@@ -25,6 +25,10 @@ interface Props {
   onToggleLoop: () => void;
   onLoopStartChange: (step: number) => void;
   onLoopEndChange: (step: number) => void;
+  // Time signature
+  timeSignatureNumerator: number;
+  timeSignatureDenominator: number;
+  onTimeSignatureChange: (numerator: number, denominator: number) => void;
   // A/B comparison
   abActive: 'a' | 'b' | null;
   onAbCapture: () => void;
@@ -38,6 +42,7 @@ export function TransportStrip({
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   onToggleLoop, onLoopStartChange, onLoopEndChange,
+  timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
   abActive, onAbCapture, onAbToggle, onAbClear,
 }: Props) {
   const bar = Math.floor(globalStep / patternLength) + 1;
@@ -147,6 +152,13 @@ export function TransportStrip({
           onChange={(pct) => onSwingChange(pct / 100)}
         />
       </div>
+
+      {/* Time Signature */}
+      <TimeSignatureControl
+        numerator={timeSignatureNumerator}
+        denominator={timeSignatureDenominator}
+        onChange={onTimeSignatureChange}
+      />
 
       {/* Metronome */}
       <MetronomeButton
@@ -279,6 +291,60 @@ function MetronomeButton({ enabled, volume, onToggle, onVolumeChange }: {
             className="w-20 h-1 accent-amber-400"
           />
           <span className="text-[10px] text-zinc-400 tabular-nums w-6 text-right">{Math.round(volume * 100)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Common time signatures for the dropdown. */
+const TIME_SIGNATURES: [number, number][] = [
+  [2, 4], [3, 4], [4, 4], [5, 4], [6, 4], [7, 4],
+  [3, 8], [5, 8], [6, 8], [7, 8], [9, 8], [12, 8],
+];
+
+function TimeSignatureControl({ numerator, denominator, onChange }: {
+  numerator: number;
+  denominator: number;
+  onChange: (numerator: number, denominator: number) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative flex items-baseline gap-1">
+      <span className="text-[9px] uppercase tracking-wider text-zinc-600">Sig</span>
+      <button
+        onClick={() => setOpen(!open)}
+        className="font-mono text-[11px] text-zinc-400 hover:text-amber-400 transition-colors tabular-nums"
+        title="Time signature"
+      >
+        {numerator}/{denominator}
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded p-1.5 z-50 shadow-xl grid grid-cols-3 gap-0.5">
+          {TIME_SIGNATURES.map(([n, d]) => (
+            <button
+              key={`${n}/${d}`}
+              onClick={() => { onChange(n, d); setOpen(false); }}
+              className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors ${
+                n === numerator && d === denominator
+                  ? 'bg-amber-500/20 text-amber-400'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
+              }`}
+            >
+              {n}/{d}
+            </button>
+          ))}
         </div>
       )}
     </div>

@@ -882,11 +882,26 @@ export function executeOperations(
           newTransport.playing = action.playing;
           newTransport.status = action.playing ? 'playing' : 'stopped';
         }
+        if (action.timeSignatureNumerator !== undefined || action.timeSignatureDenominator !== undefined) {
+          const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
+          const validDenominators = [2, 4, 8, 16];
+          const newNum = action.timeSignatureNumerator !== undefined
+            ? Math.max(1, Math.min(16, Math.round(action.timeSignatureNumerator)))
+            : prevTs.numerator;
+          const newDen = action.timeSignatureDenominator !== undefined
+            ? (validDenominators.includes(action.timeSignatureDenominator) ? action.timeSignatureDenominator : prevTs.denominator)
+            : prevTs.denominator;
+          newTransport.timeSignature = { numerator: newNum, denominator: newDen };
+        }
 
         const parts: string[] = [];
         if (action.bpm !== undefined && newTransport.bpm !== prev.bpm) parts.push(`bpm ${prev.bpm} → ${newTransport.bpm}`);
         if (action.swing !== undefined && newTransport.swing !== prev.swing) parts.push(`swing ${prev.swing.toFixed(2)} → ${newTransport.swing.toFixed(2)}`);
         if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'stop');
+        if (action.timeSignatureNumerator !== undefined || action.timeSignatureDenominator !== undefined) {
+          const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
+          parts.push(`time sig ${prevTs.numerator}/${prevTs.denominator} → ${newTransport.timeSignature.numerator}/${newTransport.timeSignature.denominator}`);
+        }
 
         const snapshot: TransportSnapshot = {
           kind: 'transport',

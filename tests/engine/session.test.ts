@@ -4,7 +4,7 @@ import {
   createSession, setAgency, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   setApproval, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
-  toggleLoop, setLoopStart, setLoopEnd,
+  toggleLoop, setLoopStart, setLoopEnd, setTimeSignature,
   MAX_REACTION_HISTORY, MAX_OPEN_DECISIONS,
 } from '../../src/engine/session';
 import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
@@ -14,7 +14,7 @@ describe('Session (Phase 2)', () => {
     const session = createSession();
     expect(session.tracks).toHaveLength(5); // 4 audio + 1 master bus
     expect(session.activeTrackId).toBe(session.tracks[0].id);
-    expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 } });
+    expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } });
     // Master bus is last
     const masterBus = session.tracks[session.tracks.length - 1];
     expect(masterBus.id).toBe('master-bus');
@@ -423,5 +423,42 @@ describe('Loop region helpers', () => {
     expect(s.transport.loopEnabled).toBeUndefined();
     expect(s.transport.loopStart).toBeUndefined();
     expect(s.transport.loopEnd).toBeUndefined();
+  });
+
+  // --- Time Signature ---
+
+  it('time signature defaults to 4/4', () => {
+    const s = createSession();
+    expect(s.transport.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+  });
+
+  it('setTimeSignature changes numerator and denominator', () => {
+    let s = createSession();
+    s = setTimeSignature(s, 3, 4);
+    expect(s.transport.timeSignature).toEqual({ numerator: 3, denominator: 4 });
+  });
+
+  it('setTimeSignature clamps numerator to 1-16', () => {
+    let s = createSession();
+    s = setTimeSignature(s, 0, 4);
+    expect(s.transport.timeSignature.numerator).toBe(1);
+    s = setTimeSignature(s, 20, 4);
+    expect(s.transport.timeSignature.numerator).toBe(16);
+  });
+
+  it('setTimeSignature rejects invalid denominators (falls back to 4)', () => {
+    let s = createSession();
+    s = setTimeSignature(s, 4, 3); // 3 is not a valid denominator
+    expect(s.transport.timeSignature.denominator).toBe(4);
+    s = setTimeSignature(s, 4, 8); // 8 is valid
+    expect(s.transport.timeSignature.denominator).toBe(8);
+  });
+
+  it('setTimeSignature accepts all valid denominators (2, 4, 8, 16)', () => {
+    let s = createSession();
+    for (const d of [2, 4, 8, 16]) {
+      s = setTimeSignature(s, 4, d);
+      expect(s.transport.timeSignature.denominator).toBe(d);
+    }
   });
 });

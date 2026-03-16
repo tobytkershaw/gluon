@@ -61,6 +61,8 @@ interface Props {
   loopEnd?: number;
   /** Report cursor step position changes (for play-from-cursor). */
   onCursorStepChange?: (step: number) => void;
+  /** Steps per beat for beat separators (derived from time signature). Default: 4. */
+  stepsPerBeat?: number;
 }
 
 /**
@@ -134,11 +136,12 @@ function buildStepGroups(events: MusicalEvent[]): { groups: StepGroup[]; maxNote
 }
 
 /**
- * Show a beat separator when crossing a beat boundary (every 4 steps).
+ * Show a beat separator when crossing a beat boundary.
+ * stepsPerBeat defaults to 4 (quarter notes in standard 16th-note grid).
  */
-function shouldShowBeatSeparator(currentAt: number, prevAt: number | null): boolean {
+function shouldShowBeatSeparator(currentAt: number, prevAt: number | null, stepsPerBeat = 4): boolean {
   if (prevAt === null) return false;
-  return Math.floor(currentAt / 4) > Math.floor(prevAt / 4);
+  return Math.floor(currentAt / stepsPerBeat) > Math.floor(prevAt / stepsPerBeat);
 }
 
 /**
@@ -190,7 +193,7 @@ function getColCount(noteColumns: number): number {
   return 2 + noteColumns + 2;
 }
 
-export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, loopEnabled, loopStart, loopEnd, onCursorStepChange }: Props) {
+export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, loopEnabled, loopStart, loopEnd, onCursorStepChange, stepsPerBeat = 4 }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -576,7 +579,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
                 const isCursor = gi === cursorRow;
                 const selRange = getSelectionRange();
                 const isSelected = selRange !== null && gi >= selRange[0] && gi <= selRange[1];
-                const showBeatSep = shouldShowBeatSeparator(group.at, gi > 0 ? groups[gi - 1].at : null);
+                const showBeatSep = shouldShowBeatSeparator(group.at, gi > 0 ? groups[gi - 1].at : null, stepsPerBeat);
                 const isInLoop = loopEnabled === true
                   && loopStart != null && loopEnd != null
                   && group.at >= loopStart && group.at < loopEnd;

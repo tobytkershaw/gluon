@@ -45,7 +45,7 @@ export class Scheduler {
   private previousBpm = 0;
   private generation = 0;
   private playbackPlan = new PlaybackPlan();
-  /** Next metronome step to schedule (in absolute step units, always a multiple of 4). */
+  /** Next metronome step to schedule (in absolute step units, always a multiple of stepsPerBeat). */
   private nextClickStep = 0;
 
   constructor(
@@ -80,8 +80,9 @@ export class Scheduler {
     this.previousBpm = session.transport.bpm;
     this.generation = generation;
     this.playbackPlan.reset(generation);
-    // Align metronome to the next beat boundary (steps are 16th notes, beats are groups of 4)
-    this.nextClickStep = Math.ceil(startStep / 4) * 4;
+    // Align metronome to the next beat boundary using time signature
+    const stepsPerBeat = 16 / (session.transport.timeSignature?.denominator ?? 4);
+    this.nextClickStep = Math.ceil(startStep / stepsPerBeat) * stepsPerBeat;
 
     this.tick();
     this.intervalId = setInterval(() => this.tick(), LOOKAHEAD_MS);
@@ -165,12 +166,15 @@ export class Scheduler {
 
     // Schedule metronome clicks if enabled
     if (session.transport.metronome?.enabled && this.onClick) {
+      const ts = session.transport.timeSignature ?? { numerator: 4, denominator: 4 };
+      const stepsPerBeat = 16 / ts.denominator;
+      const stepsPerBar = stepsPerBeat * ts.numerator;
       while (this.nextClickStep < lookaheadEnd) {
         const clickTime = this.startTime + this.nextClickStep * stepDuration;
-        // Beat 1 accent: step 0 mod 16 = downbeat of a 4/4 bar (16 sixteenth notes)
-        const isDownbeat = this.nextClickStep % 16 === 0;
+        // Downbeat accent: first beat of each bar
+        const isDownbeat = stepsPerBar > 0 && this.nextClickStep % stepsPerBar === 0;
         this.onClick(clickTime, isDownbeat);
-        this.nextClickStep += 4; // quarter note = 4 sixteenth-note steps
+        this.nextClickStep += stepsPerBeat;
       }
     }
 

@@ -210,6 +210,7 @@ export function loadSession(): Session | null {
         ...session.transport,
         status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
         metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
+        timeSignature: session.transport.timeSignature ?? { numerator: 4, denominator: 4 },
       },
       tracks: migratedTracks as Track[],
       master: session.master ?? { ...DEFAULT_MASTER },

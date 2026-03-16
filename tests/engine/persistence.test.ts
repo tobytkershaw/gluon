@@ -611,4 +611,40 @@ describe('persistence', () => {
     expect(stripped.tracks[0].importance).toBe(0.6);
     expect(stripped.tracks[0].musicalRole).toBe('ambient pad');
   });
+
+  it('hydrates missing timeSignature to 4/4 on load', () => {
+    // Simulate a legacy session without timeSignature
+    const session = createSession();
+    const modified = {
+      ...session,
+      tracks: session.tracks.map((v, i) =>
+        i === 0 ? { ...v, params: { ...v.params, timbre: 0.8 } } : v,
+      ),
+    };
+    // Strip timeSignature to simulate legacy save
+    const { timeSignature: _, ...transportWithoutTs } = modified.transport;
+    const legacy = { ...modified, transport: transportWithoutTs as typeof modified.transport };
+    saveSession(legacy);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.transport.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+  });
+
+  it('preserves custom timeSignature through save/load', () => {
+    const session = createSession();
+    const modified = {
+      ...session,
+      transport: {
+        ...session.transport,
+        timeSignature: { numerator: 3, denominator: 4 },
+      },
+      tracks: session.tracks.map((v, i) =>
+        i === 0 ? { ...v, params: { ...v.params, timbre: 0.8 } } : v,
+      ),
+    };
+    saveSession(modified);
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.transport.timeSignature).toEqual({ numerator: 3, denominator: 4 });
+  });
 });
