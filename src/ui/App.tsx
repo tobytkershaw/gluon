@@ -725,6 +725,30 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  const handleUndoMessage = useCallback((messageIndex: number) => {
+    ensureAudio();
+    setSession((s) => {
+      const msg = s.messages[messageIndex];
+      if (!msg || msg.undoStackIndex == null) return s;
+      // Only allow undo when the message's entry is on top of the stack
+      if (msg.undoStackIndex !== s.undoStack.length - 1) return s;
+      const topEntry = s.undoStack[s.undoStack.length - 1];
+      const description = topEntry.description ?? 'AI action';
+      const undone = applyUndo(s);
+      // Clear the undoStackIndex on the message so the button disappears
+      const updatedMessages = undone.messages.map((m, i) =>
+        i === messageIndex ? { ...m, undoStackIndex: undefined } : m,
+      );
+      return {
+        ...undone,
+        messages: [
+          ...updatedMessages,
+          { role: 'system' as const, text: `Undid: ${description}`, timestamp: Date.now() },
+        ],
+      };
+    });
+  }, [ensureAudio]);
+
   const handleRedo = useCallback(() => {
     ensureAudio();
     setSession((s) => {
@@ -1865,6 +1889,7 @@ export default function App() {
       redoStack={session.redoStack ?? []}
       onUndo={handleUndo}
       onRedo={handleRedo}
+      onUndoMessage={handleUndoMessage}
       cancelEditRef={cancelEditRef}
       masterVolume={session.master.volume}
       masterPan={session.master.pan}
