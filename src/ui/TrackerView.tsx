@@ -265,22 +265,22 @@ export function TrackerView({
             </div>
           </div>
 
-          {/* Region tabs */}
+          {/* Pattern tabs */}
           {activeTrack.patterns.length > 0 && (
             <div className="flex items-center gap-1 text-[10px]">
-              {activeTrack.patterns.map((region, idx) => {
-                const isActive = activeRegion?.id === region.id;
-                const label = region.name || `P${idx + 1}`;
+              {activeTrack.patterns.map((pat, idx) => {
+                const isActive = activeRegion?.id === pat.id;
+                const label = pat.name || `P${idx + 1}`;
                 return (
-                  <div key={region.id} className="flex items-center group">
-                    {renamingRegionId === region.id ? (
+                  <div key={pat.id} className="flex items-center group">
+                    {renamingRegionId === pat.id ? (
                       <input
                         className="w-16 text-[10px] bg-zinc-800 border border-amber-500/50 rounded px-1 py-0.5 text-zinc-200 outline-none"
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
-                            onRenameRegion?.(region.id, renameValue);
+                            onRenameRegion?.(pat.id, renameValue);
                             setRenamingRegionId(null);
                           } else if (e.key === 'Escape') {
                             setRenamingRegionId(null);
@@ -296,12 +296,12 @@ export function TrackerView({
                             ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                             : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'
                         }`}
-                        onClick={() => onSetActiveRegion?.(region.id)}
+                        onClick={() => onSetActiveRegion?.(pat.id)}
                         onDoubleClick={() => {
-                          setRenamingRegionId(region.id);
-                          setRenameValue(region.name || '');
+                          setRenamingRegionId(pat.id);
+                          setRenameValue(pat.name || '');
                         }}
-                        title={`Pattern ${idx + 1}${region.name ? `: ${region.name}` : ''} — double-click to rename`}
+                        title={`Pattern ${idx + 1}${pat.name ? `: ${pat.name}` : ''} — double-click to rename`}
                       >
                         {label}
                       </button>
@@ -309,8 +309,8 @@ export function TrackerView({
                     {isActive && activeTrack.patterns.length > 1 && (
                       <button
                         className="ml-0.5 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onRemoveRegion?.(region.id)}
-                        title="Remove region"
+                        onClick={() => onRemoveRegion?.(pat.id)}
+                        title="Remove pattern"
                       >
                         x
                       </button>
@@ -318,8 +318,8 @@ export function TrackerView({
                     {isActive && (
                       <button
                         className="ml-0.5 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onDuplicateRegion?.(region.id)}
-                        title="Duplicate region"
+                        onClick={() => onDuplicateRegion?.(pat.id)}
+                        title="Duplicate pattern"
                       >
                         d
                       </button>
@@ -331,7 +331,7 @@ export function TrackerView({
                 <button
                   className="px-1.5 py-0.5 text-zinc-600 hover:text-zinc-300 transition-colors"
                   onClick={onAddRegion}
-                  title="Add new region"
+                  title="Add new pattern"
                 >
                   +
                 </button>
@@ -351,6 +351,9 @@ export function TrackerView({
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}
                 onAddNote={onEventAdd ? handleAddNote : undefined}
+                onAddParamEvent={onEventAdd ? (at, controlId, value) => {
+                  onEventAdd(at, { kind: 'parameter', at, controlId, value });
+                } : undefined}
                 cancelEditRef={cancelEditRef}
                 onDeleteByIndices={onDeleteByIndices}
                 onPasteEvents={onPasteEvents}
@@ -359,7 +362,7 @@ export function TrackerView({
               />
             ) : (
               <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">
-                No regions
+                No patterns
               </div>
             )}
           </div>

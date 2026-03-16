@@ -1,25 +1,25 @@
 // src/ui/TrackerRow.tsx
 import { forwardRef, useState, useCallback, useRef, useEffect, type MutableRefObject } from 'react';
-import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
+import type { MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { microTimingOffset, formatMicroOffset } from '../engine/micro-timing';
+import type { SlotRow, FxColumnDef } from './Tracker';
 
 export interface AvailableControl {
   id: string;
   label: string;
 }
 
-/** Column indices for keyboard cursor navigation (within the logical layout). */
-export type TrackerColumn = 0 | 1 | 2 | 3 | 4;
-
 interface Props {
-  event: MusicalEvent;
-  /** Note columns for polyphonic rendering (sorted by pitch). Null entries = empty column. */
-  noteColumns?: (NoteEvent | null)[];
+  slot: SlotRow;
   /** Total note columns to render (auto-expanded based on max polyphony). */
-  maxNoteColumns?: number;
+  maxNoteColumns: number;
+  /** FX column definitions derived from the pattern's parameter events. */
+  fxColumns: FxColumnDef[];
   /** Which note column the cursor is on (null = not on a note column). */
   cursorNoteColumn?: number | null;
+  /** Which FX column the cursor is on (null = not on an FX column). */
+  cursorFxColumn?: number | null;
   isAtPlayhead: boolean;
   showBeatSeparator: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
@@ -28,20 +28,20 @@ interface Props {
   availableControls?: AvailableControl[];
   /** Callback to add a new parameter event (for empty FX cell picker). */
   onAddParamEvent?: (at: number, controlId: string, value: number) => void;
+  /** Callback to add a note event at a given step. */
+  onAddNote?: (step: number) => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
   /** Whether this row has the keyboard cursor. */
   isCursorRow?: boolean;
-  /** Which column the keyboard cursor is on (only meaningful when isCursorRow). */
-  cursorColumn?: TrackerColumn;
+  /** Which column type the keyboard cursor is on. */
+  cursorColumnType?: 'pos' | 'note' | 'vel' | 'dur' | 'fx';
   /** Incremented by parent to trigger editing on cursorColumn. */
   editRequestCounter?: number;
   /** Whether this row is in the selected range. */
   isSelected?: boolean;
   /** Click handler for row selection (receives shiftKey state). */
   onRowClick?: (shiftKey: boolean) => void;
-  /** Whether this row falls within the active loop region. */
-  isInLoop?: boolean;
 }
 
 // --- Formatting helpers ---
@@ -88,36 +88,6 @@ function parseNoteName(s: string): number {
   return midi;
 }
 
-function formatPosition(at: number): string {
-  const floored = Math.floor(at);
-  if (Math.abs(at - floored) < 0.001) return String(floored).padStart(3, ' ');
-  return at.toFixed(2).padStart(5, ' ');
-}
-
-function abbreviateControlId(controlId: string): string {
-  const abbrevs: Record<string, string> = {
-    timbre: 'timbr', harmonics: 'harmo', morph: 'morph',
-    frequency: 'freq', decay: 'decay', note: 'note',
-  };
-  return abbrevs[controlId] ?? controlId.slice(0, 5);
-}
-
-function kindRowStyle(kind: MusicalEvent['kind']): string {
-  switch (kind) {
-    case 'trigger': return 'text-amber-300';
-    case 'note': return 'text-emerald-300';
-    case 'parameter': return 'text-blue-300';
-  }
-}
-
-function kindGlyph(kind: MusicalEvent['kind']): string {
-  switch (kind) {
-    case 'trigger': return 'T';
-    case 'note': return 'N';
-    case 'parameter': return 'P';
-  }
-}
-
 function selectorFromEvent(event: MusicalEvent): EventSelector {
   if (event.kind === 'parameter') {
     return { at: event.at, kind: 'parameter', controlId: (event as ParameterEvent).controlId };
@@ -145,7 +115,7 @@ function EditableCell({
   parse?: (s: string) => number;
   /** When true on blur, discard the draft instead of committing. */
   cancelEditRef?: MutableRefObject<boolean>;
-  /** Optional validation — returns true if valid. When false, flash red and stay in edit mode. */
+  /** Optional validation -- returns true if valid. When false, flash red and stay in edit mode. */
   validate?: (s: string) => boolean;
   /** When this increments, start editing programmatically (from keyboard Enter). */
   editRequested?: number;
@@ -232,144 +202,40 @@ function EditableCell({
   );
 }
 
-// --- Position editable cell ---
-
-function PositionEditableCell({
-  at,
-  onCommit,
-  cancelEditRef,
-  editRequested,
-}: {
-  at: number;
-  onCommit: (newAt: number) => void;
-  cancelEditRef?: MutableRefObject<boolean>;
-  editRequested?: number;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(String(Math.floor(at)));
-
-  const startEdit = useCallback(() => {
-    setDraft(String(Math.floor(at)));
-    setEditing(true);
-  }, [at]);
-
-  // Start editing when editRequested changes (keyboard Enter)
-  useEffect(() => {
-    if (editRequested && editRequested > 0) {
-      startEdit();
-    }
-  }, [editRequested, startEdit]);
-
-  const commit = useCallback(() => {
-    setEditing(false);
-    const parsed = parseInt(draft, 10);
-    if (!isNaN(parsed) && parsed >= 0 && parsed !== Math.floor(at)) {
-      onCommit(parsed);
-    }
-  }, [draft, at, onCommit]);
-
-  const cancel = useCallback(() => {
-    setEditing(false);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    if (cancelEditRef?.current) {
-      cancelEditRef.current = false;
-      cancel();
-    } else {
-      commit();
-    }
-  }, [cancelEditRef, cancel, commit]);
-
-  if (editing) {
-    return (
-      <input
-        className="bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border border-zinc-600 rounded outline-none focus:border-amber-500/50 text-right"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={handleBlur}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-          if (e.key === 'Escape') cancel();
-        }}
-        autoFocus
-      />
-    );
-  }
-
-  const microOffset = microTimingOffset(at);
-  return (
-    <span className="cursor-text" onClick={startEdit}>
-      {formatPosition(at)}
-      {microOffset !== null && (
-        <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
-          {formatMicroOffset(microOffset)}
-        </span>
-      )}
-    </span>
-  );
-}
-
-// --- Parameter value editable cell (shows 0-100 integer) ---
-
-function ParamValueCell({
-  value,
-  controlId,
-  onCommit,
-  cancelEditRef,
-  editRequested,
-}: {
-  value: number;
-  controlId: string;
-  onCommit: (newVal: number) => void;
-  cancelEditRef?: MutableRefObject<boolean>;
-  editRequested?: number;
-}) {
-  // Display value as 0-100 integer
-  const displayVal = Math.round(value * 100);
-  return (
-    <EditableCell
-      value={String(displayVal)}
-      onCommit={(v) => {
-        // Convert 0-100 input back to 0-1
-        const clamped = Math.max(0, Math.min(100, Math.round(v)));
-        onCommit(clamped / 100);
-      }}
-      parse={(s) => {
-        const n = parseInt(s, 10);
-        return isNaN(n) ? NaN : n;
-      }}
-      cancelEditRef={cancelEditRef}
-      editRequested={editRequested}
-    />
-  );
-}
-
 // --- Note column cell (renders a single note within a polyphonic column) ---
 
 function NoteColumnCell({
   note,
+  step,
   editable,
   onUpdate,
+  onAddNote,
   cancelEditRef,
   editRequested,
   isCursor,
 }: {
   note: NoteEvent | null;
+  step: number;
   editable: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
+  onAddNote?: (step: number) => void;
   cancelEditRef?: MutableRefObject<boolean>;
   editRequested?: number;
   isCursor: boolean;
 }) {
   if (!note) {
     return (
-      <span className="text-zinc-700">---</span>
+      <span
+        className={`text-zinc-700 ${onAddNote ? 'cursor-pointer hover:text-zinc-500' : ''}`}
+        onClick={onAddNote ? () => onAddNote(step) : undefined}
+        title={onAddNote ? `Add note at step ${step}` : undefined}
+      >
+        ---
+      </span>
     );
   }
 
   const selector = selectorFromEvent(note);
-
   const noteUngated = note.velocity === 0;
 
   if (editable && onUpdate) {
@@ -390,183 +256,187 @@ function NoteColumnCell({
   return <span className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}>{midiToNoteName(note.pitch)}</span>;
 }
 
+// --- FX column cell (compact parameter value) ---
+
+function FxCell({
+  paramEvent,
+  controlId,
+  step,
+  editable,
+  onUpdate,
+  onAddParamEvent,
+  cancelEditRef,
+  editRequested,
+}: {
+  paramEvent: ParameterEvent | undefined;
+  controlId: string;
+  step: number;
+  editable: boolean;
+  onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
+  onAddParamEvent?: (at: number, controlId: string, value: number) => void;
+  cancelEditRef?: MutableRefObject<boolean>;
+  editRequested?: number;
+}) {
+  if (!paramEvent) {
+    // Empty FX cell — clickable to add
+    return (
+      <span
+        className={`text-zinc-700 ${onAddParamEvent ? 'cursor-pointer hover:text-blue-400' : ''}`}
+        onClick={onAddParamEvent ? () => onAddParamEvent(step, controlId, 0.5) : undefined}
+        title={onAddParamEvent ? `Add ${controlId} lock at step ${step}` : undefined}
+      >
+        ..
+      </span>
+    );
+  }
+
+  const value = paramEvent.value;
+  if (typeof value !== 'number') {
+    return <span className="text-blue-300">{String(value).slice(0, 3)}</span>;
+  }
+
+  // Display as 0-99 integer (2-char compact format)
+  const displayVal = Math.round(value * 99);
+  const displayStr = String(displayVal).padStart(2, '0');
+
+  if (editable && onUpdate) {
+    const selector = selectorFromEvent(paramEvent);
+    return (
+      <EditableCell
+        value={displayStr}
+        className="text-blue-300"
+        onCommit={(v) => {
+          const clamped = Math.max(0, Math.min(99, Math.round(v)));
+          onUpdate(selector, { value: clamped / 99 } as Partial<MusicalEvent>);
+        }}
+        parse={(s) => {
+          const n = parseInt(s, 10);
+          return isNaN(n) ? NaN : n;
+        }}
+        cancelEditRef={cancelEditRef}
+        editRequested={editRequested}
+      />
+    );
+  }
+
+  return <span className="text-blue-300">{displayStr}</span>;
+}
+
 // --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({ event, noteColumns, maxNoteColumns = 1, cursorNoteColumn, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter, isSelected, onRowClick, isInLoop }, ref) {
-    const rowColor = kindRowStyle(event.kind);
-    const selector = selectorFromEvent(event);
+  function TrackerRow({
+    slot, maxNoteColumns, fxColumns,
+    cursorNoteColumn, cursorFxColumn,
+    isAtPlayhead, showBeatSeparator,
+    onUpdate, onDelete, availableControls, onAddParamEvent, onAddNote,
+    cancelEditRef,
+    isCursorRow, cursorColumnType, editRequestCounter,
+    isSelected, onRowClick,
+  }, ref) {
     const editable = !!onUpdate;
+    const hasNotes = slot.notes.some(n => n !== null);
 
-    // Velocity-0 is the "ungated" sentinel from toggleStepGate — event exists
-    // to preserve pitch/accent state but does not produce sound.  Dim it.
-    const isUngated = (() => {
-      if (event.kind === 'note') return (event as NoteEvent).velocity === 0;
-      if (event.kind === 'trigger') return (event as TriggerEvent).velocity === 0;
-      return false;
-    })();
+    // First note for velocity/duration display
+    const firstNote = slot.notes.find((n): n is NoteEvent => n !== null) ?? null;
+
+    // Micro-timing indicator
+    const microEvents = slot.allEvents.filter(e => e.kind === 'note' || e.kind === 'trigger');
+    const microEvent = microEvents[0];
+    const microOffset = microEvent ? microTimingOffset(microEvent.at) : null;
 
     // Derive per-column editRequested from the parent's counter + column match.
-    const posEditReq = (isCursorRow && cursorColumn === 0) ? editRequestCounter : undefined;
-    const primaryEditReq = (isCursorRow && cursorColumn === 2) ? editRequestCounter : undefined;
-    const valueEditReq = (isCursorRow && cursorColumn === 3) ? editRequestCounter : undefined;
-    const durEditReq = (isCursorRow && cursorColumn === 4) ? editRequestCounter : undefined;
+    const noteEditReq = (isCursorRow && cursorColumnType === 'note') ? editRequestCounter : undefined;
+    const velEditReq = (isCursorRow && cursorColumnType === 'vel') ? editRequestCounter : undefined;
+    const durEditReq = (isCursorRow && cursorColumnType === 'dur') ? editRequestCounter : undefined;
+    const fxEditReq = (isCursorRow && cursorColumnType === 'fx') ? editRequestCounter : undefined;
 
-    // Micro-timing badge (used in non-editable position display)
-    const microOffset = microTimingOffset(event.at);
+    // Cursor cell highlight
+    const cursorCellClass = (colType: string) =>
+      isCursorRow && cursorColumnType === colType ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
 
-    // Determine if we should render multi-column notes
-    const hasNoteColumns = noteColumns && noteColumns.length > 0;
-    const isNoteRow = event.kind === 'note' || hasNoteColumns;
+    const cursorNoteCellClass = (colIdx: number) =>
+      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
 
-    // For non-note rows (trigger/parameter), build the primary data field
-    let primaryData: React.ReactNode = '---';
-    if (!hasNoteColumns) {
-      if (event.kind === 'note') {
-        const note = event as NoteEvent;
-        if (editable) {
-          primaryData = (
-            <EditableCell
-              value={midiToNoteName(note.pitch)}
-              onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
-              parse={parseNoteName}
-              validate={(s) => !isNaN(parseNoteName(s))}
-              cancelEditRef={cancelEditRef}
-              editRequested={primaryEditReq}
-            />
-          );
-        } else {
-          primaryData = midiToNoteName(note.pitch);
-        }
-      } else if (event.kind === 'trigger') {
-        const isAccent = (event as TriggerEvent).accent;
-        if (editable) {
-          primaryData = (
-            <span
-              className="cursor-pointer hover:text-amber-200 transition-colors"
-              onClick={() => onUpdate(selector, { accent: !isAccent })}
-              title={isAccent ? 'Click to remove accent' : 'Click to add accent'}
-            >
-              {isAccent ? 'ACC' : 'TRG'}
-            </span>
-          );
-        } else {
-          primaryData = isAccent ? 'ACC' : 'TRG';
-        }
-      } else if (event.kind === 'parameter') {
-        const pe = event as ParameterEvent;
-        primaryData = abbreviateControlId(pe.controlId);
-      }
+    const cursorFxCellClass = (fxIdx: number) =>
+      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+
+    // Row color: emerald for steps with notes, neutral for empty
+    const rowColor = hasNotes ? 'text-emerald-300' : 'text-zinc-500';
+
+    // Build note column cells
+    const noteColumnCells: React.ReactNode[] = [];
+    for (let c = 0; c < maxNoteColumns; c++) {
+      const note = c < slot.notes.length ? slot.notes[c] : null;
+      noteColumnCells.push(
+        <td
+          key={`nc-${c}`}
+          className={`px-1 py-0 w-[3rem] tabular-nums text-emerald-300 ${cursorNoteCellClass(c)}`}
+        >
+          <NoteColumnCell
+            note={note}
+            step={slot.step}
+            editable={editable}
+            onUpdate={onUpdate}
+            onAddNote={onAddNote}
+            cancelEditRef={cancelEditRef}
+            editRequested={noteEditReq}
+            isCursor={isCursorRow === true && cursorNoteColumn === c}
+          />
+        </td>
+      );
     }
 
-    // Value column — show velocity of first note, or trigger/param value
-    let valueNode: React.ReactNode = '--';
-    if (event.kind === 'note') {
-      const vel = (event as NoteEvent).velocity;
-      valueNode = editable ? (
+    // Build FX column cells
+    const fxColumnCells: React.ReactNode[] = fxColumns.map((fx, fi) => {
+      const paramEvent = slot.fxValues.get(fx.controlId);
+      return (
+        <td
+          key={`fx-${fi}`}
+          className={`px-1 py-0 w-[2.5rem] tabular-nums text-right ${cursorFxCellClass(fi)}`}
+        >
+          <FxCell
+            paramEvent={paramEvent}
+            controlId={fx.controlId}
+            step={slot.step}
+            editable={editable}
+            onUpdate={onUpdate}
+            onAddParamEvent={onAddParamEvent}
+            cancelEditRef={cancelEditRef}
+            editRequested={isCursorRow === true && cursorFxColumn === fi ? fxEditReq : undefined}
+          />
+        </td>
+      );
+    });
+
+    // Velocity column
+    let velNode: React.ReactNode = '--';
+    if (firstNote) {
+      const vel = firstNote.velocity;
+      const selector = selectorFromEvent(firstNote);
+      velNode = editable ? (
         <EditableCell
           value={vel.toFixed(2)}
-          onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          onCommit={(v) => onUpdate!(selector, { velocity: Math.max(0, Math.min(1, v)) })}
           cancelEditRef={cancelEditRef}
-          editRequested={valueEditReq}
+          editRequested={velEditReq}
         />
       ) : vel.toFixed(2);
-    } else if (event.kind === 'trigger') {
-      const vel = (event as TriggerEvent).velocity;
-      const display = vel !== undefined ? vel.toFixed(2) : '0.80';
-      valueNode = editable ? (
-        <EditableCell
-          value={display}
-          onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
-          cancelEditRef={cancelEditRef}
-          editRequested={valueEditReq}
-        />
-      ) : display;
-    } else if (event.kind === 'parameter') {
-      const v = (event as ParameterEvent).value;
-      if (editable && typeof v === 'number') {
-        valueNode = (
-          <ParamValueCell
-            value={v}
-            controlId={(event as ParameterEvent).controlId}
-            onCommit={(newVal) => onUpdate(selector, { value: newVal } as Partial<MusicalEvent>)}
-            cancelEditRef={cancelEditRef}
-            editRequested={valueEditReq}
-          />
-        );
-      } else {
-        const display = typeof v === 'number' ? String(Math.round(v * 100)) : String(v);
-        valueNode = display;
-      }
     }
 
     // Duration column
     let durNode: React.ReactNode = '--';
-    if (event.kind === 'note') {
-      const dur = (event as NoteEvent).duration;
+    if (firstNote) {
+      const dur = firstNote.duration;
+      const selector = selectorFromEvent(firstNote);
       durNode = editable ? (
         <EditableCell
           value={dur.toFixed(2)}
-          onCommit={(v) => onUpdate(selector, { duration: Math.max(0.01, v) })}
+          onCommit={(v) => onUpdate!(selector, { duration: Math.max(0.01, v) })}
           cancelEditRef={cancelEditRef}
           editRequested={durEditReq}
         />
       ) : dur.toFixed(2);
-    } else if (event.kind === 'trigger') {
-      const gate = (event as TriggerEvent).gate ?? 1;
-      durNode = editable ? (
-        <EditableCell
-          value={gate.toFixed(2)}
-          onCommit={(v) => onUpdate(selector, { gate: Math.max(0.01, v) } as Partial<MusicalEvent>)}
-          cancelEditRef={cancelEditRef}
-          editRequested={durEditReq}
-        />
-      ) : gate.toFixed(2);
-    }
-
-    // Cursor cell highlight: ring on the active cell
-    const cursorCellClass = (col: TrackerColumn) =>
-      isCursorRow && cursorColumn === col ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
-
-    // Cursor highlight for individual note columns
-    const cursorNoteCellClass = (colIdx: number) =>
-      isCursorRow && cursorColumn === 2 && cursorNoteColumn === colIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
-
-    // Build note column cells
-    const noteColumnCells: React.ReactNode[] = [];
-    if (hasNoteColumns) {
-      for (let c = 0; c < maxNoteColumns; c++) {
-        const note = c < noteColumns.length ? noteColumns[c] : null;
-        noteColumnCells.push(
-          <td
-            key={`nc-${c}`}
-            className={`px-1.5 py-0 w-[3.5rem] tabular-nums text-emerald-300 ${cursorNoteCellClass(c)}`}
-          >
-            <NoteColumnCell
-              note={note}
-              editable={editable}
-              onUpdate={onUpdate}
-              cancelEditRef={cancelEditRef}
-              editRequested={primaryEditReq}
-              isCursor={isCursorRow === true && cursorNoteColumn === c}
-            />
-          </td>
-        );
-      }
-    } else {
-      // Single column: render primary data, pad remaining columns with empty
-      noteColumnCells.push(
-        <td key="nc-0" className={`px-1.5 py-0 w-[3.5rem] tabular-nums ${cursorCellClass(2)}`}>
-          {primaryData}
-        </td>
-      );
-      for (let c = 1; c < maxNoteColumns; c++) {
-        noteColumnCells.push(
-          <td key={`nc-${c}`} className="px-1.5 py-0 w-[3.5rem] tabular-nums text-zinc-700">
-            {isNoteRow ? '---' : ''}
-          </td>
-        );
-      }
     }
 
     return (
@@ -574,57 +444,47 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         ref={ref}
         className={`
           group text-[11px] font-mono leading-5 ${rowColor}
-          ${isUngated ? 'opacity-40' : ''}
           ${isSelected ? 'bg-amber-500/20' : ''}
           ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
           ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
-          ${isInLoop && !isSelected && !isCursorRow && !isAtPlayhead ? 'bg-cyan-500/5' : ''}
           ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
-        style={isInLoop ? { borderLeft: '2px solid rgba(6, 182, 212, 0.3)' } : undefined}
         onClick={(e) => onRowClick?.(e.shiftKey)}
       >
-        <td className={`px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem] ${cursorCellClass(0)}`}>
-          {editable ? (
-            <PositionEditableCell
-              at={event.at}
-              onCommit={(newAt) => {
-                // Move event: update the at field
-                onUpdate(selector, { at: newAt });
-              }}
-              cancelEditRef={cancelEditRef}
-              editRequested={posEditReq}
-            />
-          ) : (
-            <>
-              {formatPosition(event.at)}
-              {microOffset !== null && (
-                <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
-                  {formatMicroOffset(microOffset)}
-                </span>
-              )}
-            </>
+        {/* POS column — left-aligned */}
+        <td className={`px-1 py-0 text-left text-zinc-500 tabular-nums w-[2.5rem] ${cursorCellClass('pos')}`}>
+          {String(slot.step).padStart(2, '\u2007')}
+          {microOffset !== null && (
+            <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
+              {formatMicroOffset(microOffset)}
+            </span>
           )}
         </td>
-        <td className={`px-1 py-0 text-center font-bold w-6 ${cursorCellClass(1)}`}>
-          {kindGlyph(event.kind)}
-        </td>
+        {/* Note columns */}
         {noteColumnCells}
-        <td className={`px-1.5 py-0 text-right w-12 tabular-nums text-zinc-400 ${cursorCellClass(3)}`}>
-          {valueNode}
+        {/* Vel column */}
+        <td className={`px-1 py-0 text-right w-[2.5rem] tabular-nums text-zinc-400 ${cursorCellClass('vel')}`}>
+          {velNode}
         </td>
-        <td className={`px-1.5 py-0 text-right w-12 tabular-nums text-zinc-500 ${cursorCellClass(4)}`}>
+        {/* Dur column */}
+        <td className={`px-1 py-0 text-right w-[2.5rem] tabular-nums text-zinc-500 ${cursorCellClass('dur')}`}>
           {durNode}
         </td>
-        {onDelete && (
+        {/* FX columns */}
+        {fxColumnCells}
+        {/* Delete button */}
+        {onDelete && slot.allEvents.length > 0 && (
           <td className="px-1 py-0 w-6 text-center">
             <button
               className="text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => onDelete(selector)}
+              onClick={() => {
+                const firstEvent = slot.allEvents[0];
+                onDelete(selectorFromEvent(firstEvent));
+              }}
               title="Delete event"
             >
-              ×
+              x
             </button>
           </td>
         )}
