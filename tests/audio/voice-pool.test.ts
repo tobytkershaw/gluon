@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { VoicePool } from '../../src/audio/voice-pool';
+import { VoicePool, STEAL_RAMP_TIME } from '../../src/audio/voice-pool';
 import type { PoolVoice } from '../../src/audio/voice-pool';
 
 function mockSynth() {
@@ -252,6 +252,63 @@ describe('VoicePool', () => {
     for (const voice of voices) {
       expect(voice.synth.scheduleNote).toHaveBeenCalledTimes(1);
     }
+  });
+
+  it('voice stealing ramps gain to 0 before reassigning', () => {
+    const v0 = makePoolVoice();
+    const v1 = makePoolVoice();
+    const pool = new VoicePool([v0, v1]);
+
+    const makeNote = (time: number, gateOff: number) => ({
+      trackId: 'v0',
+      time,
+      gateOffTime: gateOff,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    });
+
+    // Fill both voices with active notes (gate-off far in the future)
+    pool.scheduleNote(makeNote(1.0, 5.0), 1);
+    pool.scheduleNote(makeNote(1.1, 5.0), 1);
+
+    // 3rd note steals v0 — should ramp v0's gain to 0 first
+    pool.scheduleNote(makeNote(1.2, 5.0), 1);
+
+    const v0Gain = v0.accentGain.gain as unknown as {
+      cancelAndHoldAtTime: ReturnType<typeof vi.fn>;
+      linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+      setValueAtTime: ReturnType<typeof vi.fn>;
+    };
+
+    // Steal ramp: cancel automation at (noteTime - STEAL_RAMP_TIME), ramp to 0 at noteTime
+    expect(v0Gain.cancelAndHoldAtTime).toHaveBeenCalledWith(1.2 - STEAL_RAMP_TIME);
+    expect(v0Gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 1.2);
+    // Then new accent level set at noteTime
+    expect(v0Gain.setValueAtTime).toHaveBeenCalledWith(0.3, 1.2);
+  });
+
+  it('no steal ramp when voice is already released', () => {
+    const v0 = makePoolVoice({ lastGateOffTime: 0.5 });
+    const pool = new VoicePool([v0]);
+
+    const note = {
+      trackId: 'v0',
+      time: 1.0,
+      gateOffTime: 2.0,
+      accent: false,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+    };
+
+    pool.scheduleNote(note, 1);
+
+    const v0Gain = v0.accentGain.gain as unknown as {
+      cancelAndHoldAtTime: ReturnType<typeof vi.fn>;
+      linearRampToValueAtTime: ReturnType<typeof vi.fn>;
+    };
+
+    // Released voice — no steal ramp should be applied
+    expect(v0Gain.cancelAndHoldAtTime).not.toHaveBeenCalled();
+    expect(v0Gain.linearRampToValueAtTime).not.toHaveBeenCalled();
   });
 
   it('voice stealing kicks in at voice 5 (round-robin with 4-voice pool)', () => {
