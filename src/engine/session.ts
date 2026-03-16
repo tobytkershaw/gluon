@@ -172,7 +172,7 @@ export function renameTrack(session: Session, trackId: string, name: string): Se
 export function setTransportBpm(session: Session, bpm: number): Session {
   return {
     ...session,
-    transport: { ...session.transport, bpm: Math.max(60, Math.min(200, bpm)) },
+    transport: { ...session.transport, bpm: Math.max(20, Math.min(300, bpm)) },
   };
 }
 

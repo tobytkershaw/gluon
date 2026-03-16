@@ -89,10 +89,10 @@ export function TransportStrip({
         <span className="text-[9px] uppercase tracking-wider text-zinc-600">Tempo</span>
         <DraggableNumber
           value={bpm}
-          min={60}
-          max={200}
-          step={1}
-          decimals={0}
+          min={20}
+          max={300}
+          step={0.1}
+          decimals={1}
           className="text-zinc-200 hover:text-amber-400 transition-colors"
           onChange={onBpmChange}
         />

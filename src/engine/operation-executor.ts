@@ -860,7 +860,7 @@ export function executeOperations(
       case 'set_transport': {
         const prev = next.transport;
         const newTransport = { ...prev };
-        if (action.bpm !== undefined) newTransport.bpm = Math.max(60, Math.min(200, action.bpm));
+        if (action.bpm !== undefined) newTransport.bpm = Math.max(20, Math.min(300, action.bpm));
         if (action.swing !== undefined) newTransport.swing = Math.max(0, Math.min(1, action.swing));
         if (action.playing !== undefined) {
           newTransport.playing = action.playing;
