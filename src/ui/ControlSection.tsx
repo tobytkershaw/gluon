@@ -7,6 +7,11 @@ interface ControlDef {
   id: string;
   name: string;
   value: number;
+  // These fields come from the enriched ControlDef in module-controls.ts
+  // but ControlSection renders all knobs uniformly (same size).
+  size?: 'large' | 'small';
+  kind?: string;
+  range?: { min: number; max: number; default: number };
 }
 
 interface ControlSectionProps {

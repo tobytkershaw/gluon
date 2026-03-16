@@ -85,10 +85,14 @@ export function Knob({
   const ind = indicatorPosition(cx, cy, r, value);
   const indInner = indicatorPosition(cx, cy, r * 0.55, value);
 
+  // Container width adapts to knob size: knob + some padding for label
+  const containerWidth = Math.max(size + 12, 48);
+  const isSmall = size < 40;
+
   return (
-    <div className="flex flex-col items-center gap-0.5 select-none" style={{ width: 56 }}>
+    <div className="flex flex-col items-center gap-0.5 select-none" style={{ width: containerWidth }}>
       {/* Label */}
-      <span className="text-[9px] text-zinc-500 text-center truncate w-full leading-tight">
+      <span className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[8px]' : 'text-[9px]'}`}>
         {label}
       </span>
 
@@ -132,7 +136,7 @@ export function Knob({
       </svg>
 
       {/* Value readout */}
-      <span className="text-[8px] text-zinc-500 font-mono leading-tight">
+      <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[7px]' : 'text-[8px]'}`}>
         {Math.round(value * 100)}
       </span>
     </div>
