@@ -1582,6 +1582,8 @@ export default function App() {
             session={session}
             onModulationDepthChange={handleModulationDepthChange}
             onModulationDepthCommit={handleModulationDepthCommit}
+            onConnectModulator={handleConnectModulator}
+            onRemoveModulation={handleRemoveModulation}
           />
         )}
         {view === 'tracker' && (

@@ -1,9 +1,10 @@
 // src/ui/PatchView.tsx
 // Ground-truth node graph for signal chain and modulation routing (#158)
 
-import type { Session, Track, ModulationRouting } from '../engine/types';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import type { Session, Track, ModulationRouting, ModulationTarget } from '../engine/types';
 import { getActiveTrack } from '../engine/types';
-import { getModelName, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
+import { getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorControlIds } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 import { DraggableNumber } from './DraggableNumber';
 
@@ -18,6 +19,9 @@ const AUDIO_ROW_Y = PAD_Y;
 const MOD_ROW_Y = AUDIO_ROW_Y + NODE_H + 100;
 const OUTPUT_R = 10;
 
+// Valid source modulation targets (must match chain-validation.ts)
+const VALID_SOURCE_MOD_TARGETS = ['brightness', 'richness', 'texture'];
+
 // --- Helpers ---
 
 interface NodePos {
@@ -27,6 +31,17 @@ interface NodePos {
   label: string;
   sublabel: string;
   kind: 'source' | 'processor' | 'modulator' | 'output';
+}
+
+/** Per-node port metadata for modulation targets */
+interface PortInfo {
+  nodeId: string;
+  paramId: string;
+  paramLabel: string;
+  x: number;
+  y: number;
+  /** The ModulationTarget to pass when creating a route */
+  target: ModulationTarget;
 }
 
 function layoutNodes(track: Track): NodePos[] {
@@ -97,12 +112,59 @@ function layoutNodes(track: Track): NodePos[] {
   return nodes;
 }
 
+/** Compute modulation target ports for all audio nodes */
+function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
+  const ports: PortInfo[] = [];
+  for (const node of nodes) {
+    if (node.kind === 'source') {
+      const params = VALID_SOURCE_MOD_TARGETS;
+      const spacing = NODE_W / (params.length + 1);
+      params.forEach((p, i) => {
+        ports.push({
+          nodeId: node.id,
+          paramId: p,
+          paramLabel: p.slice(0, 4),
+          x: node.x + spacing * (i + 1),
+          y: node.y + NODE_H,
+          target: { kind: 'source', param: p },
+        });
+      });
+    } else if (node.kind === 'processor') {
+      const proc = (track.processors ?? []).find(pr => pr.id === node.id);
+      if (proc) {
+        const controlIds = getProcessorControlIds(proc.type);
+        const spacing = NODE_W / (controlIds.length + 1);
+        controlIds.forEach((c, i) => {
+          ports.push({
+            nodeId: node.id,
+            paramId: c,
+            paramLabel: c.slice(0, 4),
+            x: node.x + spacing * (i + 1),
+            y: node.y + NODE_H,
+            target: { kind: 'processor', processorId: proc.id, param: c },
+          });
+        });
+      }
+    }
+  }
+  return ports;
+}
+
 // Border color per node kind
 function accentColor(kind: NodePos['kind']): string {
   switch (kind) {
     case 'source': return 'border-l-amber-500';
     case 'processor': return 'border-l-violet-500';
     case 'modulator': return 'border-l-cyan-500';
+    default: return '';
+  }
+}
+
+function selectedBorderColor(kind: NodePos['kind']): string {
+  switch (kind) {
+    case 'source': return 'border-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]';
+    case 'processor': return 'border-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.4)]';
+    case 'modulator': return 'border-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]';
     default: return '';
   }
 }
@@ -143,7 +205,7 @@ function buildAudioEdges(nodes: NodePos[]): AudioEdge[] {
   return edges;
 }
 
-function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[]): ModEdge[] {
+function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[], targetPorts: PortInfo[]): ModEdge[] {
   const nodeMap = new Map(nodes.map(n => [n.id, n]));
   const edges: ModEdge[] = [];
 
@@ -151,24 +213,44 @@ function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[]): ModE
     const modNode = nodeMap.get(route.modulatorId);
     if (!modNode) continue;
 
-    let targetNode: NodePos | undefined;
     let targetParam: string;
+    let toX: number;
+    let toY: number;
 
-    if (route.target.kind === 'source') {
-      targetNode = nodeMap.get('source');
+    // Try to find the matching target port for precise positioning
+    const matchingPort = targetPorts.find(p => {
+      if (route.target.kind === 'source') {
+        return p.nodeId === 'source' && p.paramId === route.target.param;
+      } else {
+        return p.nodeId === route.target.processorId && p.paramId === route.target.param;
+      }
+    });
+
+    if (matchingPort) {
+      toX = matchingPort.x;
+      toY = matchingPort.y;
       targetParam = route.target.param;
     } else {
-      targetNode = nodeMap.get(route.target.processorId);
-      targetParam = route.target.param;
+      // Fallback to center of target node
+      let targetNode: NodePos | undefined;
+      if (route.target.kind === 'source') {
+        targetNode = nodeMap.get('source');
+        targetParam = route.target.param;
+      } else {
+        targetNode = nodeMap.get(route.target.processorId);
+        targetParam = route.target.param;
+      }
+      if (!targetNode) continue;
+      toX = targetNode.x + NODE_W / 2;
+      toY = targetNode.y + NODE_H;
     }
-    if (!targetNode) continue;
 
     edges.push({
       routeId: route.id,
       fromX: modNode.x + NODE_W / 2,
       fromY: modNode.y,
-      toX: targetNode.x + NODE_W / 2,
-      toY: targetNode.y + NODE_H,
+      toX,
+      toY,
       depth: route.depth,
       targetParam,
     });
@@ -176,9 +258,27 @@ function buildModEdges(nodes: NodePos[], modulations: ModulationRouting[]): ModE
   return edges;
 }
 
+// --- Drag state ---
+
+interface DragState {
+  fromModulatorId: string;
+  fromX: number;
+  fromY: number;
+  mouseX: number;
+  mouseY: number;
+}
+
 // --- Components ---
 
-function NodeCard({ node }: { node: NodePos }) {
+function NodeCard({ node, selected, onSelect, onModulatorPortMouseDown, targetPorts, dragState, hoveredPortKey }: {
+  node: NodePos;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onModulatorPortMouseDown?: (e: React.MouseEvent, modulatorId: string, portX: number, portY: number) => void;
+  targetPorts: PortInfo[];
+  dragState: DragState | null;
+  hoveredPortKey: string | null;
+}) {
   if (node.kind === 'output') {
     return (
       <div
@@ -189,16 +289,30 @@ function NodeCard({ node }: { node: NodePos }) {
           width: OUTPUT_R * 2,
           height: OUTPUT_R * 2,
         }}
+        onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
       >
-        <div className="w-5 h-5 rounded-full bg-zinc-700 border border-zinc-500" />
+        {/* Input port on left side */}
+        <div
+          className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
+          style={{ left: -6, top: OUTPUT_R - 6 }}
+        />
+        <div className={`w-5 h-5 rounded-full bg-zinc-700 border ${selected ? 'border-zinc-300 shadow-[0_0_8px_rgba(161,161,170,0.4)]' : 'border-zinc-500'}`} />
       </div>
     );
   }
 
+  const isAudioNode = node.kind === 'source' || node.kind === 'processor';
+  const nodeTargetPorts = targetPorts.filter(p => p.nodeId === node.id);
+
   return (
     <div
-      className={`absolute rounded-md border border-zinc-700 border-l-2 bg-zinc-800 px-3 py-2 select-none ${accentColor(node.kind)}`}
+      className={`absolute rounded-md border border-l-2 bg-zinc-800 px-3 py-2 select-none cursor-pointer ${
+        selected
+          ? `${selectedBorderColor(node.kind)}`
+          : `border-zinc-700 ${accentColor(node.kind)}`
+      }`}
       style={{ left: node.x, top: node.y, width: NODE_W, height: NODE_H }}
+      onMouseDown={(e) => { e.stopPropagation(); onSelect(node.id); }}
     >
       <div className="text-[11px] font-medium text-zinc-200 truncate leading-tight">
         {node.label}
@@ -208,6 +322,126 @@ function NodeCard({ node }: { node: NodePos }) {
           {node.sublabel}
         </div>
       )}
+
+      {/* Audio chain ports */}
+      {isAudioNode && (
+        <>
+          {/* Output port (right edge) */}
+          <div
+            className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
+            style={{ right: -6, top: NODE_H / 2 - 6 }}
+          />
+          {/* Input port (left edge) */}
+          <div
+            className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
+            style={{ left: -6, top: NODE_H / 2 - 6 }}
+          />
+        </>
+      )}
+
+      {/* Modulator output port (top edge) */}
+      {node.kind === 'modulator' && (
+        <div
+          className="absolute flex items-center justify-center"
+          style={{ left: NODE_W / 2 - 10, top: -10 }}
+        >
+          {/* Visual port */}
+          <div className="absolute w-3 h-3 rounded-full bg-cyan-500/50 border border-cyan-400" />
+          {/* Hit area */}
+          <div
+            className="absolute w-5 h-5 rounded-full cursor-crosshair"
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              onModulatorPortMouseDown?.(e, node.id, node.x + NODE_W / 2, node.y);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Modulation target ports (bottom edge) — only shown on audio nodes */}
+      {isAudioNode && nodeTargetPorts.length > 0 && (
+        <>
+          {nodeTargetPorts.map(port => {
+            const portKey = `${port.nodeId}:${port.paramId}`;
+            const isHovered = hoveredPortKey === portKey;
+            return (
+              <div
+                key={portKey}
+                className="absolute flex flex-col items-center"
+                style={{ left: port.x - node.x - 5, top: NODE_H - 4 }}
+              >
+                {/* Hit area for drop target */}
+                <div
+                  className="absolute w-5 h-5 rounded-full"
+                  style={{ top: -4, left: 0 }}
+                  data-port-key={portKey}
+                />
+                {/* Visual port */}
+                <div
+                  className={`rounded-full border transition-transform ${
+                    isHovered && dragState
+                      ? 'w-3 h-3 bg-cyan-400/60 border-cyan-300 scale-125'
+                      : 'w-2 h-2 bg-cyan-400/30 border-cyan-400/50'
+                  }`}
+                  style={{ pointerEvents: 'none' }}
+                />
+                {/* Param label */}
+                <span
+                  className="text-[7px] text-cyan-400/50 mt-0.5 leading-none whitespace-nowrap"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {port.paramLabel}
+                </span>
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Detail panel shown below a selected node */
+function NodeDetailPanel({ node, track }: { node: NodePos; track: Track }) {
+  let params: [string, number][] = [];
+
+  if (node.kind === 'source') {
+    params = [
+      ['brightness', track.params.timbre ?? 0],
+      ['richness', track.params.harmonics ?? 0],
+      ['texture', track.params.morph ?? 0],
+      ['pitch', track.params.note ?? 0],
+    ];
+  } else if (node.kind === 'processor') {
+    const proc = (track.processors ?? []).find(p => p.id === node.id);
+    if (proc) {
+      params = Object.entries(proc.params);
+    }
+  } else if (node.kind === 'modulator') {
+    const mod = (track.modulators ?? []).find(m => m.id === node.id);
+    if (mod) {
+      params = Object.entries(mod.params);
+    }
+  }
+
+  if (params.length === 0) return null;
+
+  return (
+    <div
+      className="absolute bg-zinc-900/95 border border-zinc-700 rounded px-2 py-1.5 pointer-events-none"
+      style={{
+        left: node.x,
+        top: node.y + NODE_H + (node.kind === 'source' || node.kind === 'processor' ? 16 : 4),
+        minWidth: NODE_W,
+      }}
+    >
+      {params.map(([name, value]) => (
+        <div key={name} className="flex justify-between gap-2 text-[9px] font-mono leading-relaxed">
+          <span className="text-zinc-500">{name}</span>
+          <span className="text-zinc-300 tabular-nums">{value.toFixed(2)}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -225,21 +459,38 @@ function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
   );
 }
 
-function ModEdgeSvg({ edge }: { edge: ModEdge }) {
+function ModEdgeSvg({ edge, selected, onSelect }: {
+  edge: ModEdge;
+  selected: boolean;
+  onSelect: (routeId: string) => void;
+}) {
   const midX = (edge.fromX + edge.toX) / 2;
   const midY = (edge.fromY + edge.toY) / 2;
 
   return (
     <g>
+      {/* Invisible wider stroke for hit detection */}
       <line
         x1={edge.fromX}
         y1={edge.fromY}
         x2={edge.toX}
         y2={edge.toY}
-        stroke="#22d3ee"
-        strokeWidth={1}
+        stroke="transparent"
+        strokeWidth={12}
+        style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+        onMouseDown={(e) => { e.stopPropagation(); onSelect(edge.routeId); }}
+      />
+      {/* Visible edge */}
+      <line
+        x1={edge.fromX}
+        y1={edge.fromY}
+        x2={edge.toX}
+        y2={edge.toY}
+        stroke={selected ? '#67e8f9' : '#22d3ee'}
+        strokeWidth={selected ? 1.5 : 1}
         strokeDasharray="4 3"
-        opacity={0.7}
+        opacity={selected ? 1 : 0.7}
+        pointerEvents="none"
       />
       <text
         x={midX + 6}
@@ -248,10 +499,33 @@ function ModEdgeSvg({ edge }: { edge: ModEdge }) {
         fontSize={8}
         opacity={0.6}
         dominantBaseline="middle"
+        pointerEvents="none"
       >
         {edge.targetParam}
       </text>
     </g>
+  );
+}
+
+/** Delete button shown on a selected modulation edge */
+function EdgeDeleteButton({ edge, onRemove }: {
+  edge: ModEdge;
+  onRemove: (routeId: string) => void;
+}) {
+  const midX = (edge.fromX + edge.toX) / 2;
+  const midY = (edge.fromY + edge.toY) / 2;
+
+  return (
+    <div
+      className="absolute flex items-center justify-center w-4 h-4 rounded-full bg-zinc-800 border border-red-500/60 text-red-400 text-[10px] leading-none cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors"
+      style={{ left: midX - 16, top: midY - 8 }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        onRemove(edge.routeId);
+      }}
+    >
+      &times;
+    </div>
   );
 }
 
@@ -283,6 +557,29 @@ function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
   );
 }
 
+/** SVG preview edge while dragging from modulator port */
+function DragPreviewEdge({ drag }: { drag: DragState }) {
+  return (
+    <svg
+      className="absolute inset-0"
+      style={{ pointerEvents: 'none', zIndex: 50 }}
+      width="100%"
+      height="100%"
+    >
+      <line
+        x1={drag.fromX}
+        y1={drag.fromY}
+        x2={drag.mouseX}
+        y2={drag.mouseY}
+        stroke="#22d3ee"
+        strokeWidth={1}
+        strokeDasharray="4 3"
+        opacity={0.5}
+      />
+    </svg>
+  );
+}
+
 // --- Empty state ---
 
 function EmptyState() {
@@ -302,19 +599,109 @@ interface Props {
   session: Session;
   onModulationDepthChange?: (modulationId: string, depth: number) => void;
   onModulationDepthCommit?: (modulationId: string, depth: number) => void;
+  onConnectModulator?: (modulatorId: string, target: ModulationTarget, depth: number) => void;
+  onRemoveModulation?: (routeId: string) => void;
 }
 
-export function PatchView({ session, onModulationDepthChange, onModulationDepthCommit }: Props) {
+export function PatchView({ session, onModulationDepthChange, onModulationDepthCommit, onConnectModulator, onRemoveModulation }: Props) {
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [hoveredPortKey, setHoveredPortKey] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   if (session.tracks.length === 0) return <EmptyState />;
 
   const track = getActiveTrack(session);
   const nodes = layoutNodes(track);
+  const targetPorts = computeTargetPorts(nodes, track);
   const audioEdges = buildAudioEdges(nodes);
-  const modEdges = buildModEdges(nodes, track.modulations ?? []);
+  const modEdges = buildModEdges(nodes, track.modulations ?? [], targetPorts);
 
-  // Compute SVG canvas size from node positions
+  // Compute SVG canvas size from node positions — extend for detail panels and port labels
   const maxX = Math.max(...nodes.map(n => n.x + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_W))) + PAD_X;
-  const maxY = Math.max(...nodes.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_H))) + PAD_Y;
+  const maxY = Math.max(...nodes.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_H))) + PAD_Y + 60;
+
+  const handleCanvasMouseDown = useCallback(() => {
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  }, []);
+
+  const handleNodeSelect = useCallback((id: string) => {
+    setSelectedNodeId(id);
+    setSelectedEdgeId(null);
+  }, []);
+
+  const handleEdgeSelect = useCallback((routeId: string) => {
+    setSelectedEdgeId(routeId);
+    setSelectedNodeId(null);
+  }, []);
+
+  const handleModulatorPortMouseDown = useCallback((e: React.MouseEvent, modulatorId: string, portX: number, portY: number) => {
+    setDragState({
+      fromModulatorId: modulatorId,
+      fromX: portX,
+      fromY: portY,
+      mouseX: portX,
+      mouseY: portY,
+    });
+    setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+  }, []);
+
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!dragState || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const scrollLeft = containerRef.current.scrollLeft;
+    const scrollTop = containerRef.current.scrollTop;
+    const mouseX = e.clientX - rect.left + scrollLeft;
+    const mouseY = e.clientY - rect.top + scrollTop;
+    setDragState(prev => prev ? { ...prev, mouseX, mouseY } : null);
+
+    // Check if hovering over a target port
+    let found: string | null = null;
+    for (const port of targetPorts) {
+      const dx = mouseX - port.x;
+      const dy = mouseY - port.y;
+      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
+        found = `${port.nodeId}:${port.paramId}`;
+        break;
+      }
+    }
+    setHoveredPortKey(found);
+  }, [dragState, targetPorts]);
+
+  const handleMouseUp = useCallback(() => {
+    if (!dragState) return;
+
+    if (hoveredPortKey && onConnectModulator) {
+      // Find the matching target port
+      const port = targetPorts.find(p => `${p.nodeId}:${p.paramId}` === hoveredPortKey);
+      if (port) {
+        onConnectModulator(dragState.fromModulatorId, port.target, 0.2);
+      }
+    }
+
+    setDragState(null);
+    setHoveredPortKey(null);
+  }, [dragState, hoveredPortKey, targetPorts, onConnectModulator]);
+
+  // Keyboard handler for Delete key on selected edge
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEdgeId && onRemoveModulation) {
+        e.preventDefault();
+        onRemoveModulation(selectedEdgeId);
+        setSelectedEdgeId(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedEdgeId, onRemoveModulation]);
+
+  // Find selected node for detail panel
+  const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
+  const selectedEdge = selectedEdgeId ? modEdges.find(e => e.routeId === selectedEdgeId) : null;
 
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -327,26 +714,64 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       </div>
 
       {/* Graph area */}
-      <div className="flex-1 min-h-0 overflow-auto p-4">
-        <div className="relative" style={{ width: maxX, height: maxY }}>
+      <div
+        ref={containerRef}
+        className="flex-1 min-h-0 overflow-auto p-4"
+        onMouseMove={dragState ? handleMouseMove : undefined}
+        onMouseUp={dragState ? handleMouseUp : undefined}
+        onMouseLeave={dragState ? handleMouseUp : undefined}
+      >
+        <div
+          className="relative"
+          style={{ width: maxX, height: maxY }}
+          onMouseDown={handleCanvasMouseDown}
+        >
           {/* SVG edge layer */}
           <svg
-            className="absolute inset-0 pointer-events-none"
+            className="absolute inset-0"
             width={maxX}
             height={maxY}
+            style={{ pointerEvents: 'none' }}
           >
             {audioEdges.map((e, i) => (
               <AudioEdgeSvg key={`audio-${i}`} edge={e} />
             ))}
-            {modEdges.map((e, i) => (
-              <ModEdgeSvg key={`mod-${i}`} edge={e} />
+            {modEdges.map((e) => (
+              <ModEdgeSvg
+                key={`mod-${e.routeId}`}
+                edge={e}
+                selected={selectedEdgeId === e.routeId}
+                onSelect={handleEdgeSelect}
+              />
             ))}
           </svg>
 
+          {/* Drag preview edge */}
+          {dragState && <DragPreviewEdge drag={dragState} />}
+
           {/* Node layer */}
           {nodes.map(n => (
-            <NodeCard key={n.id} node={n} />
+            <NodeCard
+              key={n.id}
+              node={n}
+              selected={selectedNodeId === n.id}
+              onSelect={handleNodeSelect}
+              onModulatorPortMouseDown={handleModulatorPortMouseDown}
+              targetPorts={targetPorts}
+              dragState={dragState}
+              hoveredPortKey={hoveredPortKey}
+            />
           ))}
+
+          {/* Selected node detail panel */}
+          {selectedNode && selectedNode.kind !== 'output' && (
+            <NodeDetailPanel node={selectedNode} track={track} />
+          )}
+
+          {/* Edge delete button */}
+          {selectedEdge && onRemoveModulation && (
+            <EdgeDeleteButton edge={selectedEdge} onRemove={onRemoveModulation} />
+          )}
 
           {/* Modulation depth overlays (interactive HTML on top of SVG edges) */}
           {onModulationDepthChange && modEdges.map(e => (
