@@ -345,7 +345,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     const aiTargetValues: Partial<SynthParamValues> = {};
     for (const param of Object.keys(snapshot.prevValues)) {
       prevValues[param] = track.params[param] ?? 0;
-      aiTargetValues[param] = snapshot.prevValues[param] as number;
+      aiTargetValues[param] = track.params[param] ?? 0;  // current value = what the AI set
     }
     return { ...snapshot, prevValues, aiTargetValues, timestamp: now };
   }

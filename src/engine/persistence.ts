@@ -29,7 +29,7 @@ export function stripForPersistence(session: Session): Session {
   return {
     ...session,
     undoStack: session.undoStack.slice(-MAX_PERSISTED_UNDO),
-    redoStack: session.redoStack.slice(-MAX_PERSISTED_UNDO),
+    redoStack: [],
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
     transport: { ...session.transport, status: 'stopped', playing: false },
