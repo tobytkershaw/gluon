@@ -1,7 +1,7 @@
 # Gluon — Build Status
 
 **As of:** 2026-03-16
-**Build:** 1028 tests, 69 test files, zero type errors
+**Build:** 1035 tests, 69 test files, zero type errors
 
 ---
 
@@ -15,7 +15,7 @@ Browser-based AI-assisted music instrument. Human directs AI via natural languag
 
 **AI:** 17 tools, dual-provider stack (GPT-5.4 planner + Gemini 3 Flash listener), streaming responses with progressive text rendering, dual-posture system prompt (collaborator for discussion, precise for actions), preservation contracts, reaction history, structured listening.
 
-**UX:** Undo + redo, audio export (mono + stereo WAV), multi-line chat, per-track volume/pan knobs, BPM 20-300 with fractional support (keyboard nudge +/-1/10), voice stealing gain ramp, metronome click track, A/B loop points, module bypass toggle, configurable gate length, parameter interpolation (step/linear/curve), micro-timing offsets, expanded keyboard shortcuts with reference panel (Cmd+?).
+**UX:** Undo + redo, audio export (mono + stereo WAV), multi-line chat, per-track volume/pan knobs, BPM 20-300 with fractional support (keyboard nudge +/-1/10), voice stealing gain ramp, metronome click track, pattern/song transport mode, module bypass toggle, configurable gate length, parameter interpolation (step/linear/curve), micro-timing offsets, expanded keyboard shortcuts with reference panel (Cmd+?).
 
 ---
 
@@ -43,6 +43,10 @@ Bus tracks with send/return routing, explicit master bus.
 
 **Design decisions:** #395 (port-level graph) deferred to post-finalization (#466). #429 (arrangement) split into layers — regions + loop = finalization, scenes (#469) + timeline = later.
 
+### Stabilisation — In progress
+
+Pattern/sequence model refactor (#516, PR #517) merged. Adopted standard tracker model, simplified scheduler, added song mode. Remaining stabilisation issues: #506-#515 (from QA walkthrough).
+
 ### Wave 4: "Make it polished" — Not started
 
 Remaining QoL: A/B comparison, pan/zoom, play-from-cursor, per-message undo, CPU indicator, scenes (#469), etc.
@@ -65,8 +69,8 @@ M0 (Stabilization) → M1 (Sequencer) → M2 (Expressivity) → M3 (Views) → M
 - **Tracks:** 1-16 dynamic, typed (`audio` | `bus`), empty by default (no auto-Plaits)
 - **Polyphony:** Free-form simultaneous events, max 4 notes per step, column ≠ voice
 - **Bus routing:** Post-fader sends, explicit master bus, send state on sending track
-- **Regions:** Multiple per track, active region tracking, region CRUD with undo, scheduler plays all at start offsets
+- **Patterns:** Standard tracker model (Renoise/ProTracker). Patterns are content containers (no position). Per-track sequence for arrangement. Pattern mode loops active pattern, song mode walks sequence. Step-grid is a read-only derived cache.
 - **Port graph:** Deferred (#466) — chain model is shallow and not blocking. Module bypass standalone.
-- **Arrangement:** Layered approach — regions + loop now, scenes later (#469), timeline much later
+- **Arrangement:** Per-track `sequence: PatternRef[]`. Song mode plays through sequence and stops at end. Scenes (#469) and timeline deferred.
 - **Views:** Tracker = canonical event view, Rack = parameter ground truth (read-only modulation indicators), Patch = topology ground truth (route creation), Surface = AI-curated
 - **Automation:** Dual model — inline ParameterEvents in tracker + visual breakpoint envelope editor. Linear/curve interpolation with per-point tension.
