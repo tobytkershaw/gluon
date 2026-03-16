@@ -3,6 +3,8 @@
 
 import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
+import { getActivePattern } from '../engine/types';
+import type { TransportMode } from '../engine/sequencer-types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { getAudibleTracks } from '../engine/sequencer-helpers';
@@ -127,6 +129,7 @@ export function buildRenderSpec(
   bars = 2,
 ): RenderSpec {
   const selectedTracks = selectTracks(session, trackIds);
+  const mode: TransportMode = session.transport.mode ?? 'pattern';
 
   return {
     sampleRate: 48000,
@@ -136,7 +139,7 @@ export function buildRenderSpec(
       volume: session.master.volume,
       pan: session.master.pan,
     },
-    tracks: selectedTracks.map(v => buildTrackSpec(v, bars)),
+    tracks: selectedTracks.map(v => buildTrackSpec(v, bars, mode)),
   };
 }
 
@@ -153,7 +156,7 @@ function selectTracks(session: Session, trackIds?: string[]): Track[] {
   return getAudibleTracks(session);
 }
 
-function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
+function buildTrackSpec(track: Track, bars: number, mode: TransportMode): RenderTrackSpec {
   const params: RenderSynthPatch = {
     harmonics: track.params.harmonics,
     timbre: track.params.timbre,
@@ -169,7 +172,7 @@ function buildTrackSpec(track: Track, bars: number): RenderTrackSpec {
     lpg_colour: track.params.lpg_colour ?? 0.5,
   };
 
-  const events = collectEvents(track, bars);
+  const events = collectEvents(track, bars, mode);
   const processors = (track.processors ?? []).filter(p => p.enabled !== false).map(buildProcessorSpec);
   const modulators = (track.modulators ?? []).map(buildModulatorSpec);
   const modulations = buildModulationSpecs(track, modulators);
@@ -266,51 +269,66 @@ function isRenderSourceParam(param: string): param is keyof RenderSynthPatch {
 }
 
 /**
- * Collect render events from a track's regions, unrolled across the requested
- * number of bars. Looping regions repeat; non-looping regions play once.
+ * Collect render events from a track's patterns, unrolled across the requested
+ * number of bars.
+ *
+ * - **Pattern mode**: Loop only the active pattern for N bars.
+ * - **Song mode**: Walk `track.sequence`, resolving each PatternRef to its
+ *   pattern and playing them back-to-back.
  */
-function collectEvents(track: Track, bars: number): RenderEvent[] {
+function collectEvents(track: Track, bars: number, mode: TransportMode): RenderEvent[] {
   const totalSteps = bars * STEPS_PER_BAR;
   const events: RenderEvent[] = [];
 
-  for (const region of track.patterns) {
-    if (region.events.length === 0) continue;
-
-    // How many times does this region repeat within the render window?
-    if (true) {
-      const regionDuration = region.duration; // in steps
-      if (regionDuration <= 0) continue;
-
+  if (mode === 'song') {
+    // Song mode: walk the sequence back-to-back
+    let offset = 0;
+    for (const ref of track.sequence) {
+      if (offset >= totalSteps) break;
+      const pat = track.patterns.find(p => p.id === ref.patternId);
+      if (!pat || pat.events.length === 0 || pat.duration <= 0) {
+        if (pat) offset += pat.duration;
+        continue;
+      }
+      emitPatternEvents(events, pat, offset, totalSteps, track.params);
+      offset += pat.duration;
+    }
+  } else {
+    // Pattern mode: loop the active pattern
+    const active = getActivePattern(track);
+    if (active && active.events.length > 0 && active.duration > 0) {
       let offset = 0;
       while (offset < totalSteps) {
-        for (const ev of region.events) {
-          const beatTime = offset + ev.at;
-          if (beatTime >= totalSteps) break; // events are sorted ascending
-          if (beatTime >= 0) {
-            pushMusicalEvent(events, ev, beatTime, track.params);
-          }
-        }
-        // Emit interpolated parameter values at each integer step
-        pushInterpolatedEvents(events, region.events, offset, regionDuration, totalSteps);
-        offset += regionDuration;
+        emitPatternEvents(events, active, offset, totalSteps, track.params);
+        offset += active.duration;
       }
-    } else {
-      // Non-looping: play once
-      for (const ev of region.events) {
-        const beatTime = 0 + ev.at;
-        if (beatTime >= totalSteps) break;
-        if (beatTime >= 0) {
-          pushMusicalEvent(events, ev, beatTime, track.params);
-        }
-      }
-      // Emit interpolated parameter values
-      pushInterpolatedEvents(events, region.events, 0, region.duration, totalSteps);
     }
   }
 
   // Sort by beat time for the Worker's event scheduling
   events.sort((a, b) => a.beatTime - b.beatTime);
   return events;
+}
+
+/**
+ * Emit render events for a single pattern instance at a given offset.
+ */
+function emitPatternEvents(
+  out: RenderEvent[],
+  pattern: import('../engine/canonical-types').Pattern,
+  offset: number,
+  totalSteps: number,
+  baseParams: SynthParamValues,
+): void {
+  for (const ev of pattern.events) {
+    const beatTime = offset + ev.at;
+    if (beatTime >= totalSteps) break; // events are sorted ascending
+    if (beatTime >= 0) {
+      pushMusicalEvent(out, ev, beatTime, baseParams);
+    }
+  }
+  // Emit interpolated parameter values at each integer step
+  pushInterpolatedEvents(out, pattern.events, offset, pattern.duration, totalSteps);
 }
 
 /**

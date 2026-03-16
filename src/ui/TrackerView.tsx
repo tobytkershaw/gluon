@@ -5,6 +5,7 @@ import type { Session, Track } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
+import { resolveSequencePosition } from '../engine/sequence-helpers';
 import { getModelName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 import { Tracker } from './Tracker';
@@ -101,7 +102,19 @@ export function TrackerView({
   onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
   onCursorStepChange,
 }: Props) {
-  const currentStep = Math.floor(globalStep % getActivePattern(activeTrack).duration);
+  const activePatternId = getActivePattern(activeTrack).id;
+  // In song mode, only highlight the playhead when the currently-playing pattern
+  // matches the pattern being edited; otherwise pass null (no highlight).
+  const currentStep = (() => {
+    if (session.transport.mode === 'song') {
+      const pos = resolveSequencePosition(globalStep, activeTrack.sequence, activeTrack.patterns);
+      if (pos && pos.patternId === activePatternId) {
+        return Math.floor(pos.localStep);
+      }
+      return null; // playing a different pattern
+    }
+    return Math.floor(globalStep % getActivePattern(activeTrack).duration);
+  })();
   const activeRegion = activeTrack.patterns.length > 0 ? getActivePattern(activeTrack) : undefined;
   const hasEvents = activeRegion ? activeRegion.events.length > 0 : false;
 
@@ -257,7 +270,7 @@ export function TrackerView({
             <div className="flex items-center gap-1 text-[10px]">
               {activeTrack.patterns.map((region, idx) => {
                 const isActive = activeRegion?.id === region.id;
-                const label = region.name || `R${idx + 1}`;
+                const label = region.name || `P${idx + 1}`;
                 return (
                   <div key={region.id} className="flex items-center group">
                     {renamingRegionId === region.id ? (
@@ -288,7 +301,7 @@ export function TrackerView({
                           setRenamingRegionId(region.id);
                           setRenameValue(region.name || '');
                         }}
-                        title={`Region ${idx + 1}${region.name ? `: ${region.name}` : ''} — double-click to rename`}
+                        title={`Pattern ${idx + 1}${region.name ? `: ${region.name}` : ''} — double-click to rename`}
                       >
                         {label}
                       </button>
@@ -331,7 +344,7 @@ export function TrackerView({
             {activeRegion ? (
               <Tracker
                 region={activeRegion}
-                currentStep={currentStep}
+                playheadStep={currentStep}
                 playing={playing}
                 engineModel={activeTrack.model}
                 processors={activeTrack.processors}
@@ -356,7 +369,7 @@ export function TrackerView({
             <AutomationPanel
               track={activeTrack}
               region={activeRegion}
-              currentStep={currentStep}
+              currentStep={currentStep ?? 0}
               playing={playing}
               onEventAdd={onEventAdd}
               onEventUpdate={onEventUpdate}

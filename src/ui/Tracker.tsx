@@ -37,7 +37,8 @@ interface StepGroup {
 
 interface Props {
   region: Pattern;
-  currentStep: number;
+  /** Current playhead step, or null when the playhead is in a different pattern (song mode). */
+  playheadStep: number | null;
   playing: boolean;
   /** Engine model index for the track (used to derive available controls). */
   engineModel?: number;
@@ -55,10 +56,6 @@ interface Props {
   onDeleteByIndices?: (indices: number[]) => void;
   /** Paste events at a given step position. */
   onPasteEvents?: (events: MusicalEvent[]) => void;
-  /** Transport-level loop region (step range). */
-  loopEnabled?: boolean;
-  loopStart?: number;
-  loopEnd?: number;
   /** Report cursor step position changes (for play-from-cursor). */
   onCursorStepChange?: (step: number) => void;
   /** Steps per beat for beat separators (derived from time signature). Default: 4. */
@@ -193,7 +190,7 @@ function getColCount(noteColumns: number): number {
   return 2 + noteColumns + 2;
 }
 
-export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, loopEnabled, loopStart, loopEnd, onCursorStepChange, stepsPerBeat = 4 }: Props) {
+export function Tracker({ region, playheadStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4 }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -211,10 +208,10 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
   const [clipboard, setClipboard] = useState<ClipboardEntry[]>([]);
 
   useEffect(() => {
-    if (playing && playheadRef.current) {
+    if (playing && playheadStep !== null && playheadRef.current) {
       playheadRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
-  }, [currentStep, playing]);
+  }, [playheadStep, playing]);
 
   // Scroll cursor row into view when it changes
   useEffect(() => {
@@ -224,7 +221,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
   }, [cursorRow]);
 
   const events = region.events;
-  const playheadAt = currentStep % region.duration;
+  const playheadAt = playheadStep !== null ? playheadStep % region.duration : null;
 
   // Build step groups and determine column count
   const { groups, maxNoteColumns } = useMemo(() => buildStepGroups(events), [events]);
@@ -575,15 +572,11 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
             <>
               {groups.map((group, gi) => {
                 const nextAt = gi < groups.length - 1 ? groups[gi + 1].at : region.duration;
-                const isAtPlayhead = playing && playheadAt >= group.at && playheadAt < nextAt;
+                const isAtPlayhead = playing && playheadAt !== null && playheadAt >= group.at && playheadAt < nextAt;
                 const isCursor = gi === cursorRow;
                 const selRange = getSelectionRange();
                 const isSelected = selRange !== null && gi >= selRange[0] && gi <= selRange[1];
                 const showBeatSep = shouldShowBeatSeparator(group.at, gi > 0 ? groups[gi - 1].at : null, stepsPerBeat);
-                const isInLoop = loopEnabled === true
-                  && loopStart != null && loopEnd != null
-                  && group.at >= loopStart && group.at < loopEnd;
-
                 // The "primary" event for the row is the first note (if any) or the first other event
                 const primaryEvent = group.notes.find(n => n !== null) ?? group.otherEvents[0] ?? group.allEvents[0];
                 if (!primaryEvent) return null;
@@ -609,7 +602,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
                     cursorColumn={trackerCol}
                     editRequestCounter={isCursor ? editRequestCounter : undefined}
                     isSelected={isSelected}
-                    isInLoop={isInLoop}
+                    isInLoop={false}
                     onRowClick={(shiftKey) => handleRowClick(gi, shiftKey)}
                     ref={isCursor ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
                   />

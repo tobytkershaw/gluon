@@ -75,6 +75,12 @@ export type PatternKind = 'pattern' | 'clip' | 'automation_lane';
  * 9. No duplicate ParameterEvents for the same `controlId` at the same `at` (tolerance 0.001)
  * 10. Multiple NoteEvents allowed at the same `at` (polyphonic, max 4 columns)
  *     — no duplicate (same pitch at same `at`)
+ *
+ * ## Deferred
+ * - Cross-pattern overlap detection
+ * - Pattern splitting / merging
+ * - Non-looping clip playback
+ * - Automation lane semantics
  */
 export interface Pattern {
   id: string;
@@ -91,7 +97,7 @@ export type EventKind = 'note' | 'trigger' | 'parameter';
  * Base for all musical events.
  *
  * ## Invariant
- * 3. `0 <= at < region.duration` (validated in region context)
+ * 2. `0 <= at < duration` (validated in pattern context)
  */
 export interface BaseEvent {
   at: number;
