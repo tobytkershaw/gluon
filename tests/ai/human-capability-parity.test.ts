@@ -116,9 +116,9 @@ describe('Human Capability Parity', () => {
     expect(mod.ControlSection).toBeDefined();
   });
 
-  it('TransportBar component is exported (BPM/swing/play)', async () => {
-    const mod = await import('../../src/ui/TransportBar');
-    expect(mod.TransportBar).toBeDefined();
+  it('TransportStrip component is exported (BPM/swing/play)', async () => {
+    const mod = await import('../../src/ui/TransportStrip');
+    expect(mod.TransportStrip).toBeDefined();
   });
 
   it('StepGrid component is exported (trigger creation)', async () => {
