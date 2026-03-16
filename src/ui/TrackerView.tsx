@@ -2,7 +2,7 @@
 // Thin shell: full-height Tracker (top bar moved to AppShell)
 import { useState, useCallback, useRef, type MutableRefObject } from 'react';
 import type { Session, Track } from '../engine/types';
-import { getActiveRegion } from '../engine/types';
+import { getActivePattern } from '../engine/types';
 import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { getModelName } from '../audio/instrument-registry';
@@ -39,10 +39,10 @@ interface Props {
   onPasteEvents?: (events: MusicalEvent[]) => void;
   // Region CRUD
   onAddRegion?: () => void;
-  onRemoveRegion?: (regionId: string) => void;
-  onDuplicateRegion?: (regionId: string) => void;
-  onRenameRegion?: (regionId: string, name: string) => void;
-  onSetActiveRegion?: (regionId: string) => void;
+  onRemoveRegion?: (patternId: string) => void;
+  onDuplicateRegion?: (patternId: string) => void;
+  onRenameRegion?: (patternId: string, name: string) => void;
+  onSetActiveRegion?: (patternId: string) => void;
   /** Report cursor step position changes (for play-from-cursor). */
   onCursorStepChange?: (step: number) => void;
 }
@@ -101,8 +101,8 @@ export function TrackerView({
   onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
   onCursorStepChange,
 }: Props) {
-  const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
-  const activeRegion = activeTrack.regions.length > 0 ? getActiveRegion(activeTrack) : undefined;
+  const currentStep = Math.floor(globalStep % getActivePattern(activeTrack).duration);
+  const activeRegion = activeTrack.patterns.length > 0 ? getActivePattern(activeTrack) : undefined;
   const hasEvents = activeRegion ? activeRegion.events.length > 0 : false;
 
   // Region rename state
@@ -143,7 +143,7 @@ export function TrackerView({
                       key={len}
                       onClick={() => onPatternLengthChange(len)}
                       className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                        activeTrack.pattern.length === len
+                        getActivePattern(activeTrack).duration === len
                           ? 'bg-amber-500/20 text-amber-400'
                           : 'text-zinc-500 hover:text-zinc-300'
                       }`}
@@ -253,9 +253,9 @@ export function TrackerView({
           </div>
 
           {/* Region tabs */}
-          {activeTrack.regions.length > 0 && (
+          {activeTrack.patterns.length > 0 && (
             <div className="flex items-center gap-1 text-[10px]">
-              {activeTrack.regions.map((region, idx) => {
+              {activeTrack.patterns.map((region, idx) => {
                 const isActive = activeRegion?.id === region.id;
                 const label = region.name || `R${idx + 1}`;
                 return (
@@ -293,7 +293,7 @@ export function TrackerView({
                         {label}
                       </button>
                     )}
-                    {isActive && activeTrack.regions.length > 1 && (
+                    {isActive && activeTrack.patterns.length > 1 && (
                       <button
                         className="ml-0.5 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={() => onRemoveRegion?.(region.id)}
@@ -341,9 +341,6 @@ export function TrackerView({
                 cancelEditRef={cancelEditRef}
                 onDeleteByIndices={onDeleteByIndices}
                 onPasteEvents={onPasteEvents}
-                loopEnabled={session.transport.loopEnabled}
-                loopStart={session.transport.loopStart}
-                loopEnd={session.transport.loopEnd}
                 onCursorStepChange={onCursorStepChange}
                 stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
               />

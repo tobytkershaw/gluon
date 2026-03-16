@@ -1,6 +1,6 @@
 // src/ai/state-compression.ts
 import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport } from '../engine/types';
-import { getActiveRegion } from '../engine/types';
+import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 
@@ -56,9 +56,9 @@ interface CompressedTrack {
   solo: boolean;
   volume: number;
   pan: number;
-  pattern: CompressedPattern;
-  regions?: CompressedRegion[];
-  activeRegionId?: string;
+  stepGrid: CompressedPattern;
+  regions?: CompressedPattern[];
+  activePatternId?: string;
   views: string[];
   processors: CompressedProcessor[];
   modulators: CompressedModulator[];
@@ -125,9 +125,9 @@ function modelName(model: number): string {
 }
 
 function compressPattern(track: Track): CompressedPattern {
-  const region = track.regions.length > 0 ? getActiveRegion(track) : undefined;
+  const region = track.patterns.length > 0 ? getActivePattern(track) : undefined;
   if (!region) {
-    return { length: track.pattern.length, event_count: 0, triggers: [], notes: [], accents: [], param_locks: [], density: 0 };
+    return { length: track.stepGrid.length, event_count: 0, triggers: [], notes: [], accents: [], param_locks: [], density: 0 };
   }
 
   const events = region.events;
@@ -354,17 +354,15 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       solo: track.solo,
       volume: round2(track.volume),
       pan: round2(track.pan),
-      pattern: compressPattern(track),
-      ...(track.regions.length > 1 ? {
-        regions: track.regions.map(r => ({
+      stepGrid: compressPattern(track),
+      ...(track.patterns.length > 1 ? {
+        patterns: track.patterns.map(r => ({
           id: r.id,
           ...(r.name ? { name: r.name } : {}),
-          start: r.start,
           duration: r.duration,
-          loop: r.loop,
           event_count: r.events.length,
         })),
-        activeRegionId: getActiveRegion(track).id,
+        activePatternId: getActivePattern(track).id,
       } : {}),
       views: (track.views ?? []).map(v => `${v.kind}:${v.id}`),
       processors: (track.processors ?? []).map(p => ({

@@ -2,12 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { quantizeRegion } from './pattern-primitives';
 import { microTimingOffset } from './micro-timing';
 import type { Session } from './types';
-import type { TriggerEvent, NoteEvent, ParameterEvent, Region } from './canonical-types';
+import type { TriggerEvent, NoteEvent, ParameterEvent, Pattern } from './canonical-types';
 
 // --- Minimal session factory ---
 
 function makeSession(events: (TriggerEvent | NoteEvent | ParameterEvent)[], duration = 16): Session {
-  const region: Region = {
+  const region: Pattern = {
     id: 'track-1-region-0',
     kind: 'pattern',
     start: 0,
@@ -23,7 +23,7 @@ function makeSession(events: (TriggerEvent | NoteEvent | ParameterEvent)[], dura
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
       agency: 'OFF',
       pattern: { steps: [], length: duration },
-      regions: [region],
+      patterns: [region],
       muted: false,
       solo: false,
       surface: {
@@ -86,7 +86,7 @@ describe('quantizeRegion', () => {
     expect(resultEvents[0].at).toBeCloseTo(15.75);
   });
 
-  it('pushes an undo snapshot (RegionSnapshot)', () => {
+  it('pushes an undo snapshot (PatternEditSnapshot)', () => {
     const events: TriggerEvent[] = [
       { kind: 'trigger', at: 0.12, velocity: 0.8 },
     ];

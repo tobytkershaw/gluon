@@ -15,7 +15,7 @@ function formatStep(value: number): string {
 export function buildRuntimeEventId(
   generation: number,
   trackId: string,
-  regionId: string,
+  patternId: string,
   event: MusicalEvent,
   occurrence: number,
 ): RuntimeEventId {
@@ -24,7 +24,7 @@ export function buildRuntimeEventId(
     : event.kind === 'parameter'
     ? `${event.controlId}@${formatStep(event.at)}`
     : `${event.kind}@${formatStep(event.at)}`;
-  return `${generation}:${trackId}:${regionId}:${occurrence}:${suffix}`;
+  return `${generation}:${trackId}:${patternId}:${occurrence}:${suffix}`;
 }
 
 export class PlaybackPlan {

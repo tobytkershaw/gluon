@@ -1,13 +1,13 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, RegionSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
-import { getTrack, getActiveRegion, updateTrack } from './types';
+import { getTrack, getActivePattern, updateTrack } from './types';
 import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
-import { projectRegionToPattern } from './region-projection';
-import { normalizeRegionEvents, validateRegion } from './region-helpers';
+import { projectPatternToStepGrid } from './region-projection';
+import { normalizePatternEvents, validatePattern } from './region-helpers';
 import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
@@ -71,7 +71,7 @@ function checkPreservationForSketch(
     return `Preservation: track ${trackLabel} (${trackId}) is approved — legacy pattern sketches are blocked. Use canonical events instead.`;
   }
 
-  const existingEvents = track.regions.length > 0 ? getActiveRegion(track).events : [];
+  const existingEvents = track.patterns.length > 0 ? getActivePattern(track).events : [];
   const existingRhythm = extractRhythmPositions(existingEvents);
   const newRhythm = extractRhythmPositions(newEvents);
 
@@ -794,7 +794,7 @@ export function executeOperations(
 
       case 'sketch': {
         const track = getTrack(next, action.trackId);
-        const activeReg = track.regions.length > 0 ? getActiveRegion(track) : undefined;
+        const activeReg = track.patterns.length > 0 ? getActivePattern(track) : undefined;
         const eventsBefore = activeReg?.events?.length ?? 0;
         const oldEventsForReport = activeReg?.events ?? [];
         const trackApproval = track.approval ?? 'exploratory';
@@ -809,19 +809,19 @@ export function executeOperations(
           const prevDuration = sketchRegion.duration;
 
           // Build updated region with new events
-          const updatedRegion = normalizeRegionEvents({
+          const updatedRegion = normalizePatternEvents({
             ...sketchRegion,
             events: action.events,
           });
 
           // Enforce region invariants on the canonical write path
-          const validation = validateRegion(updatedRegion);
+          const validation = validatePattern(updatedRegion);
           if (!validation.valid) {
             rejected.push({ op: action, reason: `Invalid region: ${validation.errors.join('; ')}` });
             break;
           }
 
-          const newRegions = track.regions.map(r => r.id === sketchRegion.id ? updatedRegion : r);
+          const newRegions = track.patterns.map(r => r.id === sketchRegion.id ? updatedRegion : r);
 
           // Project region to pattern (derived)
           const inverseOpts = {
@@ -832,13 +832,13 @@ export function executeOperations(
               return parts[parts.length - 1];
             },
           };
-          const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
+          const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
 
-          // Create RegionSnapshot for undo
-          const snapshot: RegionSnapshot = {
-            kind: 'region',
+          // Create PatternEditSnapshot for undo
+          const snapshot: PatternEditSnapshot = {
+            kind: 'pattern-edit',
             trackId: action.trackId,
-            regionId: sketchRegion.id,
+            patternId: sketchRegion.id,
             prevEvents: [...prevEvents],
             prevDuration: prevDuration !== updatedRegion.duration ? prevDuration : undefined,
             timestamp: Date.now(),
@@ -846,7 +846,7 @@ export function executeOperations(
           };
 
           next = {
-            ...updateTrack(next, action.trackId, { regions: newRegions, pattern, _regionDirty: true }),
+            ...updateTrack(next, action.trackId, { patterns: newRegions, stepGrid: pattern, _patternDirty: true }),
             undoStack: [...next.undoStack, snapshot],
           };
           eventsAfter = updatedRegion.events.length;
@@ -854,7 +854,7 @@ export function executeOperations(
         } else if (action.pattern) {
           // Legacy sketch: pass through directly (writes only to pattern, not regions)
           next = applySketch(next, action.trackId, action.description, action.pattern);
-          eventsAfter = action.pattern.steps?.filter(s => s.on).length ?? eventsBefore;
+          eventsAfter = action.pattern.steps?.filter(s => s.gate).length ?? eventsBefore;
         } else {
           rejected.push({ op: action, reason: 'Sketch has neither events nor pattern' });
           break;
@@ -1026,7 +1026,7 @@ export function executeOperations(
 
       case 'transform': {
         const track = getTrack(next, action.trackId);
-        const region = track.regions.length > 0 ? getActiveRegion(track) : undefined;
+        const region = track.patterns.length > 0 ? getActivePattern(track) : undefined;
         if (!region) {
           rejected.push({ op: action, reason: 'No region on track' });
           break;
@@ -1058,19 +1058,19 @@ export function executeOperations(
             continue;
         }
 
-        const updatedRegion = normalizeRegionEvents({
+        const updatedRegion = normalizePatternEvents({
           ...region,
           events: newEvents,
           duration: newDuration,
         });
 
-        const validation = validateRegion(updatedRegion);
+        const validation = validatePattern(updatedRegion);
         if (!validation.valid) {
           rejected.push({ op: action, reason: `Invalid region after transform: ${validation.errors.join('; ')}` });
           break;
         }
 
-        const newRegions = track.regions.map(r => r.id === region.id ? updatedRegion : r);
+        const newRegions = track.patterns.map(r => r.id === region.id ? updatedRegion : r);
 
         const inverseOpts = {
           midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
@@ -1080,12 +1080,12 @@ export function executeOperations(
             return parts[parts.length - 1];
           },
         };
-        const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
+        const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
 
-        const snapshot: RegionSnapshot = {
-          kind: 'region',
+        const snapshot: PatternEditSnapshot = {
+          kind: 'pattern-edit',
           trackId: action.trackId,
-          regionId: region.id,
+          patternId: region.id,
           prevEvents,
           prevDuration: prevDuration !== newDuration ? prevDuration : undefined,
           timestamp: Date.now(),
@@ -1093,7 +1093,7 @@ export function executeOperations(
         };
 
         next = {
-          ...updateTrack(next, action.trackId, { regions: newRegions, pattern, _regionDirty: true }),
+          ...updateTrack(next, action.trackId, { patterns: newRegions, stepGrid: pattern, _patternDirty: true }),
           undoStack: [...next.undoStack, snapshot],
         };
 

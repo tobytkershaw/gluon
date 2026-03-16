@@ -20,7 +20,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       muted: false,
       solo: false,
       pattern: { steps: [], length: 16 },
-      regions: [{
+      patterns: [{
         id: 'r1',
         kind: 'pattern' as const,
         start: 0,

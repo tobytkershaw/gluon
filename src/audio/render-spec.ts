@@ -273,15 +273,15 @@ function collectEvents(track: Track, bars: number): RenderEvent[] {
   const totalSteps = bars * STEPS_PER_BAR;
   const events: RenderEvent[] = [];
 
-  for (const region of track.regions) {
+  for (const region of track.patterns) {
     if (region.events.length === 0) continue;
 
     // How many times does this region repeat within the render window?
-    if (region.loop) {
+    if (true) {
       const regionDuration = region.duration; // in steps
       if (regionDuration <= 0) continue;
 
-      let offset = region.start;
+      let offset = 0;
       while (offset < totalSteps) {
         for (const ev of region.events) {
           const beatTime = offset + ev.at;
@@ -297,14 +297,14 @@ function collectEvents(track: Track, bars: number): RenderEvent[] {
     } else {
       // Non-looping: play once
       for (const ev of region.events) {
-        const beatTime = region.start + ev.at;
+        const beatTime = 0 + ev.at;
         if (beatTime >= totalSteps) break;
         if (beatTime >= 0) {
           pushMusicalEvent(events, ev, beatTime, track.params);
         }
       }
       // Emit interpolated parameter values
-      pushInterpolatedEvents(events, region.events, region.start, region.duration, totalSteps);
+      pushInterpolatedEvents(events, region.events, 0, region.duration, totalSteps);
     }
   }
 

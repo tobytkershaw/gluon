@@ -1,6 +1,7 @@
 // src/ui/ExpandedTrack.tsx
 // Layer 2: expanded track layout with module-grouped controls.
-import type { Session, Track, Agency, SequencerViewKind, SemanticControlDef } from '../engine/types';
+import type { Session, Track, Agency, SequencerViewKind, SemanticControlDef } from "../engine/types";
+import { getActivePattern } from "../engine/types";
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
@@ -87,7 +88,7 @@ export function ExpandedTrack({
   deepViewModuleId, onOpenDeepView,
   analyser,
 }: ExpandedTrackProps) {
-  const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
+  const currentStep = Math.floor(globalStep % getActivePattern(activeTrack).duration);
   const processors = activeTrack.processors ?? [];
   const modulators = activeTrack.modulators ?? [];
   const modulations = activeTrack.modulations ?? [];
@@ -257,7 +258,7 @@ export function ExpandedTrack({
           key={viewConfig.id}
           config={viewConfig}
           onRemove={onRemoveView ?? (() => {})}
-          pattern={activeTrack.pattern}
+          stepGrid={activeTrack.stepGrid}
           currentStep={currentStep}
           playing={playing}
           stepPage={stepPage}

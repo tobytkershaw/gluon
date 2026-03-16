@@ -1,12 +1,12 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
-import { getTrack, getActiveRegion, updateTrack } from '../engine/types';
+import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { getTrackLabel } from '../engine/track-labels';
-import { normalizeRegionEvents } from '../engine/region-helpers';
-import { projectRegionToPattern } from '../engine/region-projection';
+import { normalizePatternEvents } from '../engine/region-helpers';
+import { projectPatternToStepGrid } from '../engine/region-projection';
 import { generatePreservationReport } from '../engine/operation-executor';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { compressState } from './state-compression';
@@ -88,9 +88,9 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'sketch': {
       const track = getTrack(session, action.trackId);
-      if (!action.events || track.regions.length === 0) return session;
-      const activeReg = getActiveRegion(track);
-      const updatedRegion = normalizeRegionEvents({
+      if (!action.events || track.patterns.length === 0) return session;
+      const activeReg = getActivePattern(track);
+      const updatedRegion = normalizePatternEvents({
         ...activeReg,
         events: action.events,
       });
@@ -98,14 +98,14 @@ function projectAction(session: Session, action: AIAction): Session {
         midiToPitch: (midi: number) => midi / 127,
         canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
       };
-      const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
-      const newRegions = track.regions.map(r => r.id === activeReg.id ? updatedRegion : r);
-      return updateTrack(session, action.trackId, { regions: newRegions, pattern });
+      const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
+      const newRegions = track.patterns.map(r => r.id === activeReg.id ? updatedRegion : r);
+      return updateTrack(session, action.trackId, { patterns: newRegions, stepGrid: pattern });
     }
     case 'transform': {
       const track = getTrack(session, action.trackId);
-      if (track.regions.length === 0) return session;
-      const region = getActiveRegion(track);
+      if (track.patterns.length === 0) return session;
+      const region = getActivePattern(track);
       let newEvents = region.events;
       let newDuration = region.duration;
       switch (action.operation) {
@@ -119,14 +119,14 @@ function projectAction(session: Session, action: AIAction): Session {
           break;
         }
       }
-      const updatedRegion = normalizeRegionEvents({ ...region, events: newEvents, duration: newDuration });
+      const updatedRegion = normalizePatternEvents({ ...region, events: newEvents, duration: newDuration });
       const inverseOpts = {
         midiToPitch: (midi: number) => midi / 127,
         canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
       };
-      const pattern = projectRegionToPattern(updatedRegion, updatedRegion.duration, inverseOpts);
-      const newRegions = track.regions.map(r => r.id === region.id ? updatedRegion : r);
-      return updateTrack(session, action.trackId, { regions: newRegions, pattern });
+      const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
+      const newRegions = track.patterns.map(r => r.id === region.id ? updatedRegion : r);
+      return updateTrack(session, action.trackId, { patterns: newRegions, stepGrid: pattern });
     }
     case 'set_model': {
       // Modulator path: update modulator model
@@ -521,7 +521,7 @@ export class GluonAI {
 
         // Compute consequence details from the before/after state
         const sketchTrack = session.tracks.find(v => v.id === action.trackId);
-        const prevEvents = sketchTrack && sketchTrack.regions.length > 0 ? getActiveRegion(sketchTrack).events : [];
+        const prevEvents = sketchTrack && sketchTrack.patterns.length > 0 ? getActivePattern(sketchTrack).events : [];
         const newEvents = action.events ?? [];
         const eventsAdded = Math.max(0, newEvents.length - prevEvents.length);
         const eventsRemoved = Math.max(0, prevEvents.length - newEvents.length);
@@ -542,11 +542,11 @@ export class GluonAI {
         // Generate preservation report for tracks with approval >= 'liked'
         const preservationLevels = new Set(['liked', 'approved', 'anchor']);
         let preservationReport: PreservationReport | undefined;
-        if (preservationLevels.has(approval) && action.events && sketchTrack && sketchTrack.regions.length > 0) {
+        if (preservationLevels.has(approval) && action.events && sketchTrack && sketchTrack.patterns.length > 0) {
           preservationReport = generatePreservationReport(
             action.trackId,
             approval,
-            getActiveRegion(sketchTrack).events,
+            getActivePattern(sketchTrack).events,
             action.events,
           );
         }

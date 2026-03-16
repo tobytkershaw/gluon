@@ -1,11 +1,13 @@
 // src/engine/scheduler.ts
 import type { Session, SynthParamValues, Track } from './types';
+import { getActivePattern } from './types';
 import type { ScheduledNote } from './sequencer-types';
-import type { MusicalEvent, Region, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
+import type { MusicalEvent, Pattern, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 import { buildRuntimeEventId, PlaybackPlan } from './playback-plan';
+import { getInterpolatedParams } from './interpolation';
 
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
@@ -38,6 +40,7 @@ export class Scheduler {
   private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
   private onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
   private onClick?: (time: number, accent: boolean) => void;
+  private onSequenceEnd?: () => void;
 
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private cursor = 0; // absolute step units (fractional)
@@ -57,6 +60,7 @@ export class Scheduler {
     getHeldParams: (trackId: string) => Partial<SynthParamValues>,
     onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void,
     onClick?: (time: number, accent: boolean) => void,
+    onSequenceEnd?: () => void,
   ) {
     this.getSession = getSession;
     this.getAudioTime = getAudioTime;
@@ -66,13 +70,11 @@ export class Scheduler {
     this.getHeldParams = getHeldParams;
     this.onParameterEvent = onParameterEvent;
     this.onClick = onClick;
+    this.onSequenceEnd = onSequenceEnd;
   }
 
   start(startOffset = START_OFFSET_SEC, startStep = 0, generation = 0): void {
     if (this.intervalId !== null) return;
-    // Offset start so first-beat events have future timestamps in the
-    // worklet. Without this, messages race the render thread and may
-    // be stale-drained or miss gain automation. Tests pass 0.
     const session = this.getSession();
     const stepDuration = 60 / (session.transport.bpm * 4);
     this.startTime = this.getAudioTime() + startOffset - startStep * stepDuration;
@@ -110,6 +112,7 @@ export class Scheduler {
 
     const session = this.getSession();
     const { bpm, swing } = session.transport;
+    const transportMode = session.transport.mode ?? 'pattern';
 
     // Handle BPM change mid-play
     if (bpm !== this.previousBpm) {
@@ -124,44 +127,59 @@ export class Scheduler {
     const elapsed = currentAudioTime - this.startTime;
     let globalStep = elapsed / stepDuration;
 
-    // Transport-level loop: wrap globalStep back to loopStart when it reaches loopEnd
-    const { loopEnabled, loopStart: ls, loopEnd: le } = session.transport;
-    if (loopEnabled && le != null && ls != null && le > ls) {
-      if (globalStep >= le) {
-        const loopLen = le - ls;
-        // Reanchor startTime so playback continues seamlessly from loopStart
-        const overshoot = globalStep - le;
-        const wrappedOffset = overshoot % loopLen;
-        globalStep = ls + wrappedOffset;
-        this.startTime = currentAudioTime - globalStep * stepDuration;
-        this.cursor = globalStep;
-        this.playbackPlan.reset(this.generation);
+    // Pattern mode: wrap globalStep at the active pattern's duration
+    if (transportMode === 'pattern') {
+      const audibleTracks = getAudibleTracks(session);
+      if (audibleTracks.length > 0) {
+        // Use the first audible track's active pattern duration for wrapping
+        const firstTrack = audibleTracks[0];
+        if (firstTrack.patterns.length > 0) {
+          const activePattern = getActivePattern(firstTrack);
+          const patternLen = activePattern.duration;
+          if (patternLen > 0 && globalStep >= patternLen) {
+            // Reanchor so playback loops seamlessly
+            const overshoot = globalStep - patternLen;
+            const wrappedOffset = overshoot % patternLen;
+            globalStep = wrappedOffset;
+            this.startTime = currentAudioTime - globalStep * stepDuration;
+            this.cursor = globalStep;
+            this.playbackPlan.reset(this.generation);
+          }
+        }
+      }
+    }
+
+    // Song mode: check for end of sequence
+    if (transportMode === 'song') {
+      let maxSequenceLen = 0;
+      for (const track of getAudibleTracks(session)) {
+        let trackLen = 0;
+        for (const ref of track.sequence) {
+          const pat = track.patterns.find(p => p.id === ref.patternId);
+          if (pat) trackLen += pat.duration;
+        }
+        if (trackLen > maxSequenceLen) maxSequenceLen = trackLen;
+      }
+      if (maxSequenceLen > 0 && globalStep >= maxSequenceLen) {
+        // End of sequence — stop playback
+        this.stop();
+        this.onSequenceEnd?.();
+        return;
       }
     }
 
     this.onPositionChange(globalStep);
 
-    // Cap catch-up window after resume: if the cursor fell too far behind,
-    // advance it so we only schedule the most recent MAX_CATCHUP_STEPS.
+    // Cap catch-up window after resume
     if (globalStep - this.cursor > MAX_CATCHUP_STEPS) {
       this.cursor = globalStep - MAX_CATCHUP_STEPS;
     }
 
-    // Calculate lookahead window in step units. The window extends from the
-    // cursor to at least currentAudioTime + LOOKAHEAD_SEC. If the tab was
-    // backgrounded and the cursor fell behind the current audio position,
-    // the window naturally covers the gap — all missed events are scheduled
-    // in one batch without duplicates (cursor advances past them).
     const lookaheadSteps = LOOKAHEAD_SEC / stepDuration;
     const lookaheadEnd = Math.max(
       this.cursor + lookaheadSteps,
       globalStep + lookaheadSteps,
     );
-    // Prune at the playhead (globalStep), not the cursor (scheduling frontier).
-    // The cursor is always ahead of globalStep by the lookahead window. Pruning
-    // at cursor would remove plan entries for events between globalStep and
-    // cursor — events that haven't actually played yet — making them vulnerable
-    // to double-scheduling if invalidateTrack re-admits them.
     this.playbackPlan.pruneBeforeStep(Math.floor(globalStep));
 
     // Schedule metronome clicks if enabled
@@ -171,7 +189,6 @@ export class Scheduler {
       const stepsPerBar = stepsPerBeat * ts.numerator;
       while (this.nextClickStep < lookaheadEnd) {
         const clickTime = this.startTime + this.nextClickStep * stepDuration;
-        // Downbeat accent: first beat of each bar
         const isDownbeat = stepsPerBar > 0 && this.nextClickStep % stepsPerBar === 0;
         this.onClick(clickTime, isDownbeat);
         this.nextClickStep += stepsPerBeat;
@@ -181,36 +198,46 @@ export class Scheduler {
     const audibleTracks = getAudibleTracks(session);
 
     for (const track of audibleTracks) {
-      if (track.regions.length === 0) continue;
+      if (track.patterns.length === 0) continue;
 
-      for (const region of track.regions) {
-        const events = region.events;
-        const regionLen = region.duration;
-        if (regionLen <= 0 || events.length === 0) continue;
+      if (transportMode === 'pattern') {
+        // Pattern mode: loop the active pattern
+        const activePattern = getActivePattern(track);
+        const events = activePattern.events;
+        const patternLen = activePattern.duration;
+        if (patternLen <= 0 || events.length === 0) continue;
 
-        const regionStart = region.start;
+        const segments = this.getLocalSegments(
+          Math.max(0, this.cursor),
+          lookaheadEnd,
+          patternLen,
+        );
+        for (const seg of segments) {
+          this.scheduleSegmentEvents(track, activePattern, events, patternLen, 0, seg, stepDuration, swing);
+        }
+      } else {
+        // Song mode: walk the sequence
+        let sequenceOffset = 0;
+        for (const ref of track.sequence) {
+          const pat = track.patterns.find(p => p.id === ref.patternId);
+          if (!pat) continue;
+          const patternLen = pat.duration;
+          if (patternLen <= 0) continue;
 
-        if (region.loop) {
-          // Looping region: compute segments relative to region start
-          const relStart = this.cursor - regionStart;
-          const relEnd = lookaheadEnd - regionStart;
-          if (relEnd <= 0) continue;
-          const segments = this.getLocalSegments(
-            Math.max(0, relStart),
-            relEnd,
-            regionLen,
-          );
-          for (const seg of segments) {
-            this.scheduleSegmentEvents(track, region, events, regionLen, regionStart, seg, stepDuration, swing);
+          const patternEnd = sequenceOffset + patternLen;
+          // Only schedule if this pattern overlaps the scheduling window
+          if (patternEnd > this.cursor && sequenceOffset < lookaheadEnd) {
+            const localCursorStart = Math.max(0, this.cursor - sequenceOffset);
+            const localLookaheadEnd = Math.min(patternLen, lookaheadEnd - sequenceOffset);
+            if (localLookaheadEnd > localCursorStart && pat.events.length > 0) {
+              this.scheduleSegmentEvents(
+                track, pat, pat.events, patternLen, sequenceOffset,
+                { localStart: localCursorStart, localEnd: localLookaheadEnd, loopCycle: 0 },
+                stepDuration, swing,
+              );
+            }
           }
-        } else {
-          // Non-looping region: play once at region.start
-          const regionEnd = regionStart + regionLen;
-          if (regionEnd <= this.cursor || regionStart >= lookaheadEnd) continue;
-          const localStart = Math.max(0, this.cursor - regionStart);
-          const localEnd = Math.min(regionLen, lookaheadEnd - regionStart);
-          if (localEnd <= localStart) continue;
-          this.scheduleSegmentEvents(track, region, events, regionLen, regionStart, { localStart, localEnd, loopCycle: 0 }, stepDuration, swing);
+          sequenceOffset = patternEnd;
         }
       }
     }
@@ -220,15 +247,14 @@ export class Scheduler {
   }
 
   /**
-   * Schedule events from a single region segment. Extracted from the main loop
-   * to support multi-region iteration (both looping and non-looping regions).
+   * Schedule events from a single pattern segment.
    */
   private scheduleSegmentEvents(
     track: Track,
-    region: Region,
+    pattern: Pattern,
     events: MusicalEvent[],
-    regionLen: number,
-    regionStart: number,
+    patternLen: number,
+    sequenceOffset: number,
     seg: { localStart: number; localEnd: number; loopCycle: number },
     stepDuration: number,
     swing: number,
@@ -240,15 +266,14 @@ export class Scheduler {
       if (event.at >= seg.localEnd) break;
       if (event.at < seg.localStart) continue;
 
-      // Absolute step includes the region's start offset
-      const absoluteStep = regionStart + seg.loopCycle * regionLen + event.at;
+      const absoluteStep = sequenceOffset + seg.loopCycle * patternLen + event.at;
 
       // Standalone parameter events: fire callback to apply automation values.
       if (event.kind === 'parameter') {
         const parameterEventId = buildRuntimeEventId(
           this.generation,
           track.id,
-          region.id,
+          pattern.id,
           event,
           seg.loopCycle,
         );
@@ -267,7 +292,7 @@ export class Scheduler {
       const runtimeEventId = buildRuntimeEventId(
         this.generation,
         track.id,
-        region.id,
+        pattern.id,
         event,
         seg.loopCycle,
       );
@@ -340,10 +365,10 @@ export class Scheduler {
       const iStart = Math.ceil(seg.localStart);
       const iEnd = Math.floor(seg.localEnd);
       for (let step = iStart; step < iEnd; step++) {
-        const interpolated = getInterpolatedParams(events, step, regionLen);
+        const interpolated = getInterpolatedParams(events, step, patternLen);
         for (const { controlId, value } of interpolated) {
-          const interpId = `${this.generation}:${track.id}:${region.id}:${seg.loopCycle}:interp:${controlId}@${step}`;
-          const absStep = regionStart + seg.loopCycle * regionLen + step;
+          const interpId = `${this.generation}:${track.id}:${pattern.id}:${seg.loopCycle}:interp:${controlId}@${step}`;
+          const absStep = sequenceOffset + seg.loopCycle * patternLen + step;
           if (!this.playbackPlan.admit(interpId, absStep, this.generation, track.id)) {
             continue;
           }
@@ -354,30 +379,25 @@ export class Scheduler {
   }
 
   /**
-   * Convert an absolute step window [start, end) into region-local segments,
+   * Convert an absolute step window [start, end) into pattern-local segments,
    * handling loop wrapping. Each segment has a localStart, localEnd, and loopCycle.
    */
   private getLocalSegments(
     absStart: number,
     absEnd: number,
-    regionLen: number,
+    patternLen: number,
   ): { localStart: number; localEnd: number; loopCycle: number }[] {
     const segments: { localStart: number; localEnd: number; loopCycle: number }[] = [];
 
-    const startCycle = Math.floor(absStart / regionLen);
-    const endCycle = Math.floor((absEnd - 0.0001) / regionLen); // -epsilon to avoid including next cycle at exact boundary
+    const startCycle = Math.floor(absStart / patternLen);
+    const endCycle = Math.floor((absEnd - 0.0001) / patternLen);
 
     for (let cycle = startCycle; cycle <= endCycle; cycle++) {
-      const cycleStart = cycle * regionLen;
+      const cycleStart = cycle * patternLen;
       let localStart = Math.max(0, absStart - cycleStart);
-      const localEnd = Math.min(regionLen, absEnd - cycleStart);
+      const localEnd = Math.min(patternLen, absEnd - cycleStart);
 
-      // Guard against floating-point dust at loop boundaries: the cursor
-      // accumulates lookaheadSteps each tick via addition, and 0.1/stepDuration
-      // is not exactly representable in float64.  After many ticks the cursor
-      // overshoots exact multiples of regionLen by ~1e-15, producing a
-      // localStart just above 0.  lowerBound then skips events at position 0,
-      // silencing the first step on subsequent loops.
+      // Guard against floating-point dust at loop boundaries
       if (localStart > 0 && localStart < 1e-9) localStart = 0;
 
       if (localEnd > localStart) {

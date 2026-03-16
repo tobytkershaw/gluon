@@ -166,7 +166,7 @@ export class TransportController {
   syncArrangement(): void {
     const session = this.getSession();
     for (const track of session.tracks) {
-      if (track._regionDirty && this.trackSeen.has(track.id) && this.runtime.status === 'playing') {
+      if (track._patternDirty && this.trackSeen.has(track.id) && this.runtime.status === 'playing') {
         this.scheduler.invalidateTrack(track.id, this.lastStep);
         recordQaAudioTrace({
           type: 'transport.arrangement-invalidated',
@@ -176,8 +176,8 @@ export class TransportController {
         });
       }
       // Clear dirty flag after invalidation (order matters: check → invalidate → clear)
-      if (track._regionDirty) {
-        track._regionDirty = false;
+      if (track._patternDirty) {
+        track._patternDirty = false;
       }
       this.trackSeen.add(track.id);
     }

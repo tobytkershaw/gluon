@@ -18,7 +18,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       muted: false,
       solo: false,
       pattern: { steps: [], length: 16 },
-      regions: [],
+      patterns: [],
       processors: [
         { id: 'fx1', type: 'delay', model: 0, params: { time: 0.5, feedback: 0.3 } },
       ],

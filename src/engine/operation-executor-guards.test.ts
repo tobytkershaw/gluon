@@ -29,7 +29,7 @@ vi.mock('../audio/instrument-registry', () => ({
 import { executeOperations } from './operation-executor';
 import { Arbitrator } from './arbitration';
 import type { Session, AIMoveAction } from './types';
-import type { SourceAdapter, MusicalEvent, ControlState, Region, ControlSchema, ControlBinding } from './canonical-types';
+import type { SourceAdapter, MusicalEvent, ControlState, Pattern, ControlSchema, ControlBinding } from './canonical-types';
 
 function makeSession(overrides?: Partial<Session>): Session {
   const triggerEvent: MusicalEvent = {
@@ -47,7 +47,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       muted: false,
       solo: false,
       pattern: { steps: [], length: 16 },
-      regions: [{
+      patterns: [{
         id: 'r1',
         duration: 16,
         events: [triggerEvent],
@@ -78,7 +78,7 @@ function makeNullAdapter(): SourceAdapter {
     applyControlChanges: () => {},
     mapEvents: () => [],
     readControlState: () => ({} as ControlState),
-    readRegions: () => [] as Region[],
+    readRegions: () => [] as Pattern[],
     mapRuntimeParamKey: () => null,
     getControlSchemas: () => [] as ControlSchema[],
     validateOperation: () => ({ valid: true }),

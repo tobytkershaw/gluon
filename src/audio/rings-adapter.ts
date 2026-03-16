@@ -1,7 +1,7 @@
 // src/audio/rings-adapter.ts
 import type {
   SourceAdapter, ControlBinding, ControlState, ControlSchema,
-  Region, MusicalEvent, AIOperation,
+  Pattern, MusicalEvent, AIOperation,
 } from '../engine/canonical-types';
 import {
   getRingsEngineById,
@@ -44,7 +44,7 @@ export function createRingsAdapter(): SourceAdapter {
       return {};
     },
 
-    readRegions(): Region[] {
+    readPatterns(): Pattern[] {
       return [];
     },
 

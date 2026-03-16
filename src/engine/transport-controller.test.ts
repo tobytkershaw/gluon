@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from './types';
 import { TransportController } from './transport-controller';
-import { createDefaultRegion } from './region-helpers';
+import { createDefaultPattern } from './region-helpers';
 
 function makeSession(): Session {
   return {
@@ -206,7 +206,7 @@ describe('TransportController', () => {
 
   it('invalidates a playing track when its region changes', () => {
     vi.useFakeTimers();
-    const region = createDefaultRegion('v0', 16);
+    const region = createDefaultPattern('v0', 16);
     region.events = [{ kind: 'trigger', at: 0, velocity: 0.8 }];
     const session: Session = {
       ...makeSession(),
@@ -219,7 +219,7 @@ describe('TransportController', () => {
         muted: false,
         solo: false,
         pattern: { steps: [], length: 16 },
-        regions: [region],
+        patterns: [region],
         surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
       }],
     };
@@ -258,7 +258,7 @@ describe('TransportController', () => {
       ...session.tracks[0].regions[0],
       events: [{ kind: 'trigger', at: 8, velocity: 0.8 }],
     };
-    session.tracks[0]._regionDirty = true;
+    session.tracks[0]._patternDirty = true;
     controller.syncArrangement();
 
     expect(scheduler.invalidateTrack).toHaveBeenCalledWith('v0', 6);

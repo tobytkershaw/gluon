@@ -3,7 +3,7 @@
 // Provides a parameter selector dropdown and an AutomationLane for drawing breakpoints.
 
 import { useState, useCallback, useMemo } from 'react';
-import type { Region, MusicalEvent, ParameterEvent, ControlSchema } from '../engine/canonical-types';
+import type { Pattern, MusicalEvent, ParameterEvent, ControlSchema } from '../engine/canonical-types';
 import type { Track, ProcessorConfig } from '../engine/types';
 import type { EventSelector } from '../engine/event-primitives';
 import { getEngineByIndex, getProcessorInstrument } from '../audio/instrument-registry';
@@ -11,7 +11,7 @@ import { AutomationLane } from './AutomationLane';
 
 interface Props {
   track: Track;
-  region: Region;
+  region: Pattern;
   currentStep: number;
   playing: boolean;
   onEventAdd: (step: number, event: MusicalEvent) => void;

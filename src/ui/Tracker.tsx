@@ -1,6 +1,6 @@
 // src/ui/Tracker.tsx
 import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObject } from 'react';
-import type { Region, MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
+import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { TrackerRow, type AvailableControl, type TrackerColumn } from './TrackerRow';
 import { getEngineByIndex, getProcessorInstrument } from '../audio/instrument-registry';
@@ -36,7 +36,7 @@ interface StepGroup {
 }
 
 interface Props {
-  region: Region;
+  region: Pattern;
   currentStep: number;
   playing: boolean;
   /** Engine model index for the track (used to derive available controls). */

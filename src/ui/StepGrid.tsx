@@ -1,8 +1,8 @@
 // src/ui/StepGrid.tsx
-import type { Pattern } from '../engine/sequencer-types';
+import type { StepGrid as StepGridType } from '../engine/sequencer-types';
 
 interface Props {
-  pattern: Pattern;
+  pattern: StepGridType;
   currentStep: number;
   playing: boolean;
   page: number;
