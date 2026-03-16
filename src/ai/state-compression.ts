@@ -327,6 +327,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
     tracks: session.tracks.map(track => ({
       id: track.id,
       label: getTrackLabel(track),
+      ...(track.kind === 'bus' ? { kind: 'bus' as const } : {}),
       model: modelName(track.model),
       params: {
         timbre: round2(track.params.timbre),
@@ -371,6 +372,9 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       } : {}),
       ...(track.importance != null ? { importance: round2(track.importance) } : {}),
       ...(track.musicalRole ? { musicalRole: track.musicalRole } : {}),
+      ...(track.sends && track.sends.length > 0 ? {
+        sends: track.sends.map(s => ({ busId: s.busId, level: round2(s.level) })),
+      } : {}),
     })),
     activeTrackId: session.activeTrackId,
     transport: {

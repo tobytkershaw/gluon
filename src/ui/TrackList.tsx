@@ -1,6 +1,7 @@
 // src/ui/TrackList.tsx
 // Vertical track sidebar — replaces horizontal TrackStage in the top bar.
-import type { Track } from '../engine/types';
+import type { Track, TrackKind } from '../engine/types';
+import { getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { getTrackLabel } from '../engine/track-labels';
 import { TrackRow } from './TrackRow';
 
@@ -16,7 +17,7 @@ interface Props {
   onCycleApproval?: (trackId: string) => void;
   onChangeVolume?: (trackId: string, value: number) => void;
   onChangePan?: (trackId: string, value: number) => void;
-  onAddTrack?: () => void;
+  onAddTrack?: (kind?: TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
   maxTracks?: number;
 }
@@ -28,7 +29,15 @@ export function TrackList({
   onAddTrack, onRemoveTrack, maxTracks = 16,
 }: Props) {
   const canAdd = tracks.length < maxTracks;
-  const canRemove = tracks.length > 1;
+
+  // Order tracks: audio → buses → master bus
+  const ordered = getOrderedTracks({ tracks } as { tracks: Track[] });
+  const audioTracks = ordered.filter(t => getTrackKind(t) === 'audio');
+  const busTracks = ordered.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
+  const masterBus = ordered.find(t => t.id === MASTER_BUS_ID);
+
+  // Can only remove if more than 1 audio track remains (bus removal is separate)
+  const canRemoveAudio = audioTracks.length > 1;
 
   return (
     <div className="w-44 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
@@ -37,25 +46,42 @@ export function TrackList({
         <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">
           Tracks
         </span>
-        {onAddTrack && (
-          <button
-            onClick={onAddTrack}
-            disabled={!canAdd}
-            className={`text-[10px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
-              canAdd
-                ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
-                : 'text-zinc-700 cursor-not-allowed'
-            }`}
-            title={canAdd ? 'Add track' : `Maximum ${maxTracks} tracks`}
-          >
-            +
-          </button>
-        )}
+        <div className="flex gap-0.5">
+          {onAddTrack && (
+            <button
+              onClick={() => onAddTrack('bus')}
+              disabled={!canAdd}
+              className={`text-[10px] font-mono px-1 h-4 flex items-center justify-center rounded transition-colors ${
+                canAdd
+                  ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                  : 'text-zinc-700 cursor-not-allowed'
+              }`}
+              title={canAdd ? 'Add bus' : `Maximum ${maxTracks} tracks`}
+            >
+              B
+            </button>
+          )}
+          {onAddTrack && (
+            <button
+              onClick={() => onAddTrack('audio')}
+              disabled={!canAdd}
+              className={`text-[10px] font-mono w-4 h-4 flex items-center justify-center rounded transition-colors ${
+                canAdd
+                  ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                  : 'text-zinc-700 cursor-not-allowed'
+              }`}
+              title={canAdd ? 'Add track' : `Maximum ${maxTracks} tracks`}
+            >
+              +
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Track rows */}
       <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-        {tracks.map((track) => (
+        {/* Audio tracks */}
+        {audioTracks.map((track) => (
           <TrackRow
             key={track.id}
             track={track}
@@ -70,9 +96,52 @@ export function TrackList({
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
             onChangeVolume={onChangeVolume ? (v) => onChangeVolume(track.id, v) : undefined}
             onChangePan={onChangePan ? (v) => onChangePan(track.id, v) : undefined}
-            onRemove={onRemoveTrack && canRemove ? () => onRemoveTrack(track.id) : undefined}
+            onRemove={onRemoveTrack && canRemoveAudio ? () => onRemoveTrack(track.id) : undefined}
           />
         ))}
+
+        {/* Separator between audio and bus tracks */}
+        {(busTracks.length > 0 || masterBus) && audioTracks.length > 0 && (
+          <div className="border-t border-zinc-800/40 my-1" />
+        )}
+
+        {/* Bus tracks (non-master) */}
+        {busTracks.map((track) => (
+          <TrackRow
+            key={track.id}
+            track={track}
+            label={getTrackLabel(track)}
+            isActive={track.id === activeTrackId}
+            isBus
+            activityTimestamp={activityMap[track.id] ?? null}
+            onClick={() => onSelectTrack(track.id)}
+            onToggleMute={() => onToggleMute(track.id)}
+            onToggleSolo={() => onToggleSolo(track.id)}
+            onToggleAgency={() => onToggleAgency(track.id)}
+            onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
+            onChangeVolume={onChangeVolume ? (v) => onChangeVolume(track.id, v) : undefined}
+            onChangePan={onChangePan ? (v) => onChangePan(track.id, v) : undefined}
+            onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
+          />
+        ))}
+
+        {/* Master bus */}
+        {masterBus && (
+          <TrackRow
+            key={masterBus.id}
+            track={masterBus}
+            label={getTrackLabel(masterBus)}
+            isActive={masterBus.id === activeTrackId}
+            isBus
+            isMasterBus
+            activityTimestamp={activityMap[masterBus.id] ?? null}
+            onClick={() => onSelectTrack(masterBus.id)}
+            onToggleMute={() => onToggleMute(masterBus.id)}
+            onToggleSolo={() => onToggleSolo(masterBus.id)}
+            onChangeVolume={onChangeVolume ? (v) => onChangeVolume(masterBus.id, v) : undefined}
+            onChangePan={onChangePan ? (v) => onChangePan(masterBus.id, v) : undefined}
+          />
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 // src/engine/sequencer-helpers.ts
 import type { Step, Pattern } from './sequencer-types';
 import type { Session, Track, SynthParamValues } from './types';
+import { getTrackKind } from './types';
 import type { MusicalEvent, ParameterEvent } from './canonical-types';
 
 export function createDefaultStep(): Step {
@@ -15,12 +16,17 @@ export function createDefaultPattern(length = 16): Pattern {
   };
 }
 
+/**
+ * Return tracks eligible for note scheduling.
+ * Bus tracks are excluded (they receive audio via sends, not note events).
+ */
 export function getAudibleTracks(session: Session): Track[] {
-  const anySoloed = session.tracks.some(v => v.solo);
+  const audioTracks = session.tracks.filter(v => getTrackKind(v) === 'audio');
+  const anySoloed = audioTracks.some(v => v.solo);
   if (anySoloed) {
-    return session.tracks.filter(v => v.solo);
+    return audioTracks.filter(v => v.solo);
   }
-  return session.tracks.filter(v => !v.muted);
+  return audioTracks.filter(v => !v.muted);
 }
 
 const AT_TOLERANCE = 0.001;

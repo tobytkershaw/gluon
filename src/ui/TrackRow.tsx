@@ -16,6 +16,10 @@ interface Props {
   track: Track;
   label: string;
   isActive: boolean;
+  /** Whether this track is a bus (send/return mixing). */
+  isBus?: boolean;
+  /** Whether this is the master bus track. */
+  isMasterBus?: boolean;
   activityTimestamp: number | null;
   onClick: () => void;
   onToggleMute: () => void;
@@ -29,7 +33,7 @@ interface Props {
 }
 
 export function TrackRow({
-  track, label, isActive, activityTimestamp,
+  track, label, isActive, isBus, isMasterBus, activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
   onChangeVolume, onChangePan, onRemove,
 }: Props) {
@@ -104,11 +108,18 @@ export function TrackRow({
         }}
       />
 
-      {/* Thumbprint dot */}
-      <div
-        className="w-2 h-2 rounded-full shrink-0"
-        style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
-      />
+      {/* Thumbprint dot — bus tracks show a different shape */}
+      {isBus ? (
+        <div
+          className={`w-2 h-2 shrink-0 ${isMasterBus ? 'rounded-sm bg-zinc-500' : 'rounded-sm bg-zinc-600'}`}
+          style={{ transition: 'background-color 1s ease' }}
+        />
+      ) : (
+        <div
+          className="w-2 h-2 rounded-full shrink-0"
+          style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
+        />
+      )}
 
       {/* Track label */}
       {editing ? (
@@ -125,7 +136,7 @@ export function TrackRow({
       ) : (
         <span
           className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
-            track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-500'
+            track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : isBus ? 'text-zinc-500 italic' : 'text-zinc-500'
           }`}
           onDoubleClick={handleDoubleClick}
         >

@@ -230,6 +230,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { approval: snapshot.prevApproval });
   }
 
+  if (snapshot.kind === 'send') {
+    return updateTrack(session, snapshot.trackId, { sends: snapshot.prevSends });
+  }
+
   if (snapshot.kind === 'track-add') {
     // Undo an add: remove the track
     const newTracks = session.tracks.filter(t => t.id !== snapshot.trackId);
@@ -464,6 +468,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'approval') {
     const track = getTrack(session, snapshot.trackId);
     return { ...snapshot, prevApproval: track.approval ?? 'exploratory', timestamp: now };
+  }
+
+  if (snapshot.kind === 'send') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevSends: [...(track.sends ?? [])], timestamp: now };
   }
 
   if (snapshot.kind === 'track-add') {

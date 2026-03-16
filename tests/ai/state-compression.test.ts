@@ -9,10 +9,14 @@ describe('State Compression (Phase 2)', () => {
   it('compresses multi-track session', () => {
     const session = createSession();
     const result = compressState(session);
-    expect(result.tracks).toHaveLength(4);
+    expect(result.tracks).toHaveLength(5); // 4 audio + 1 master bus
     expect(result.tracks[0].model).toBe('analog_bass_drum');
     expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false });
     expect(result.activeTrackId).toBe(session.activeTrackId);
+    // Master bus should be compressed with kind: 'bus'
+    const masterTrack = result.tracks.find((t: Record<string, unknown>) => t.id === 'master-bus');
+    expect(masterTrack).toBeDefined();
+    expect(masterTrack!.kind).toBe('bus');
   });
 
   it('compresses pattern with trigger events', () => {
