@@ -81,9 +81,13 @@ export function Knob({
 
   const accentRgb = ACCENT_COLORS[accentColor] ?? ACCENT_COLORS.amber;
 
+  const svgRef = useRef<SVGSVGElement>(null);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    // Capture on the SVG element itself so drag works even when pointer-down
+    // hits a thin stroke or transparent area inside a small knob.
+    svgRef.current?.setPointerCapture(e.pointerId);
     dragging.current = true;
     startY.current = e.clientY;
     startValue.current = value;
@@ -101,7 +105,7 @@ export function Knob({
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
     dragging.current = false;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    svgRef.current?.releasePointerCapture(e.pointerId);
     onPointerUp?.();
   }, [onPointerUp]);
 
@@ -122,6 +126,7 @@ export function Knob({
 
       {/* SVG knob */}
       <svg
+        ref={svgRef}
         width={size}
         height={size}
         className="touch-none cursor-pointer"
@@ -129,6 +134,9 @@ export function Knob({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
       >
+        {/* Invisible hit target — ensures pointer events register on the full knob area,
+            not just the thin arc strokes. Critical for small (32px) knobs. */}
+        <circle cx={cx} cy={cy} r={r} fill="transparent" />
         {/* Background track arc */}
         <path
           d={describeArc(cx, cy, r, 1)}

@@ -15,7 +15,7 @@ interface ShortcutActions {
   onTrackUp: () => void;
   onTrackDown: () => void;
   onBpmNudge: (delta: number) => void;
-  onToggleLoop?: () => void;
+  onToggleTransportMode?: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
   setChatOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
 }
@@ -54,7 +54,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: '[', label: 'BPM -1', section: 'transport' },
   { key: 'Shift+]', label: 'BPM +10', section: 'transport' },
   { key: 'Shift+[', label: 'BPM -10', section: 'transport' },
-  { key: 'L', label: 'Toggle loop', section: 'transport' },
+  { key: 'L', label: 'Pattern / Song mode', section: 'transport' },
   // View
   { key: `${mod}1`, label: 'Surface view', section: 'view' },
   { key: `${mod}2`, label: 'Rack view', section: 'view' },
@@ -85,7 +85,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 export function useShortcuts({
   onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
   onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
-  onToggleLoop, setView, setChatOpen,
+  onToggleTransportMode, setView, setChatOpen,
 }: ShortcutActions) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const toggleShortcuts = useCallback(() => setShowShortcuts(o => !o), []);
@@ -192,10 +192,10 @@ export function useShortcuts({
         return;
       }
 
-      // L = toggle loop
+      // L = toggle transport mode (pattern ↔ song)
       if ((e.key === 'l' || e.key === 'L') && !e.repeat) {
         e.preventDefault();
-        onToggleLoop?.();
+        onToggleTransportMode?.();
         return;
       }
 
@@ -227,7 +227,7 @@ export function useShortcuts({
     return () => window.removeEventListener('keydown', handler);
   }, [onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
       onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
-      onToggleLoop, setView, setChatOpen]);
+      onToggleTransportMode, setView, setChatOpen]);
 
   return { showShortcuts, toggleShortcuts };
 }

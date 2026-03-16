@@ -32,6 +32,7 @@ describe('TransportController', () => {
       advanceGeneration: vi.fn(() => 1),
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -68,6 +69,7 @@ describe('TransportController', () => {
       advanceGeneration: vi.fn(() => 1),
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -100,6 +102,7 @@ describe('TransportController', () => {
         .mockReturnValueOnce(2),
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -134,6 +137,7 @@ describe('TransportController', () => {
         .mockReturnValueOnce(2),
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -176,6 +180,7 @@ describe('TransportController', () => {
         .mockReturnValueOnce(3),
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
@@ -200,6 +205,139 @@ describe('TransportController', () => {
     expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
     expect(scheduler.start).toHaveBeenNthCalledWith(1, expect.any(Number), 0, 1);
     expect(scheduler.start).toHaveBeenNthCalledWith(2, expect.any(Number), 8, 3);
+
+    controller.dispose();
+  });
+
+  it('silences metronome on pause', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    session.transport = { ...session.transport, status: 'paused', playing: false };
+    controller.sync();
+
+    expect(audio.silenceMetronome).toHaveBeenCalledTimes(1);
+
+    controller.dispose();
+  });
+
+  it('silences metronome on stop', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    controller.sync();
+
+    expect(audio.silenceMetronome).toHaveBeenCalledTimes(1);
+
+    controller.dispose();
+  });
+
+  it('clears _patternDirty after syncArrangement reads it', () => {
+    vi.useFakeTimers();
+    const region = createDefaultPattern('v0', 16);
+    region.events = [{ kind: 'trigger', at: 0, velocity: 0.8 }];
+    const session: Session = {
+      ...makeSession(),
+      tracks: [{
+        id: 'v0',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        agency: 'ON',
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 16 },
+        patterns: [region],
+        surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+      }],
+    };
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => scheduler,
+    });
+
+    // First syncArrangement seeds trackSeen
+    controller.syncArrangement();
+
+    // Simulate recording: set _patternDirty
+    session.tracks[0]._patternDirty = true;
+
+    // Start playback so invalidation path fires
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    controller.syncArrangement();
+
+    // The flag should be cleared after syncArrangement
+    expect(session.tracks[0]._patternDirty).toBe(false);
+
+    // A second syncArrangement should NOT re-invalidate (flag was cleared)
+    scheduler.invalidateTrack.mockClear();
+    controller.syncArrangement();
+    expect(scheduler.invalidateTrack).not.toHaveBeenCalled();
 
     controller.dispose();
   });
@@ -237,6 +375,7 @@ describe('TransportController', () => {
       advanceGeneration: vi.fn(() => 1),
       releaseGeneration: vi.fn(),
       silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
     } as unknown as import('../audio/audio-engine').AudioEngine;
 
     const controller = new TransportController({
