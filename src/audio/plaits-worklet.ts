@@ -62,6 +62,7 @@ class PlaitsProcessor extends AudioWorkletProcessor {
       { name: 'mod-timbre', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mod-harmonics', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
       { name: 'mod-morph', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'min-fence', defaultValue: 0, minValue: 0, maxValue: 1e9, automationRate: 'k-rate' },
     ];
   }
 
@@ -257,6 +258,15 @@ class PlaitsProcessor extends AudioWorkletProcessor {
     const modTimbre = this.modTimbre = parameters['mod-timbre'][0];
     const modHarmonics = this.modHarmonics = parameters['mod-harmonics'][0];
     const modMorph = this.modMorph = parameters['mod-morph'][0];
+
+    // Synchronous fence via AudioParam — read before draining the queue so
+    // stale events are filtered in the same process() block as the fence update.
+    // This eliminates the race condition where postMessage('clear-scheduled')
+    // arrives between process() calls while pre-scheduled notes still fire.
+    const newMinFence = Math.floor(parameters['min-fence'][0]);
+    if (newMinFence > this.minFence) {
+      this.minFence = newMinFence;
+    }
 
     const blockStart = currentTime;
     const frameCount = left.length;

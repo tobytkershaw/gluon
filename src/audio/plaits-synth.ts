@@ -157,7 +157,15 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   silence(fence?: number): void {
-    this.post({ type: 'clear-scheduled', fence: fence ?? 0 });
+    const f = fence ?? 0;
+    // Synchronous: AudioParam is read in the same process() block,
+    // eliminating the race where postMessage arrives between blocks.
+    const minFenceParam = this.node.parameters.get('min-fence');
+    if (minFenceParam) {
+      minFenceParam.setValueAtTime(f, 0);
+    }
+    // Fallback: message-based clear (kept for compatibility)
+    this.post({ type: 'clear-scheduled', fence: f });
     this.post({ type: 'set-gate', open: false });
   }
 

@@ -169,6 +169,7 @@ export class Scheduler {
       }
     }
 
+    globalStep = Math.max(0, globalStep);
     this.onPositionChange(globalStep);
 
     // Cap catch-up window after resume: if the cursor fell too far behind,
