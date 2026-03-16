@@ -9,6 +9,7 @@ import { getModelName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 import { Tracker } from './Tracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
+import { AutomationPanel } from './AutomationPanel';
 
 interface Props {
   session: Session;
@@ -347,6 +348,19 @@ export function TrackerView({
               </div>
             )}
           </div>
+
+          {/* Automation lane (collapsible, below tracker) */}
+          {activeRegion && onEventAdd && (
+            <AutomationPanel
+              track={activeTrack}
+              region={activeRegion}
+              currentStep={currentStep}
+              playing={playing}
+              onEventAdd={onEventAdd}
+              onEventUpdate={onEventUpdate}
+              onEventDelete={onEventDelete}
+            />
+          )}
         </div>
       </div>
     </div>
