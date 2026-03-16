@@ -47,6 +47,8 @@ npm run build        # Production build
 npm run wasm:build   # Compile Plaits to WASM
 ```
 
+**CRITICAL: Never chain `cd` with git commands using `&&`** (e.g. `cd /path && git checkout -b branch`). This triggers bare-repository attack prevention and causes excessive permission prompts. In worktree isolation mode, just run git directly — your cwd is already the worktree. Otherwise use `git -C /path` or separate sequential commands.
+
 ## Key Design Principles
 
 1. The human's hands always win (arbitration rule)
