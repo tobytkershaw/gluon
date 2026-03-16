@@ -866,12 +866,21 @@ export function captureABSnapshot(session: Session): ABSnapshot {
   };
 }
 
-/** Restore an A/B snapshot into a session, preserving non-musical state. */
+/** Restore an A/B snapshot into a session, preserving non-musical state.
+ *  Playback state (playing, status, playFromStep) is preserved from the
+ *  current session so that switching A/B does not interrupt the transport. */
 export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Session {
   return {
     ...session,
     tracks: snapshot.tracks.map(deepCopyTrack),
-    transport: { ...snapshot.transport, metronome: { ...snapshot.transport.metronome } },
+    transport: {
+      ...snapshot.transport,
+      metronome: { ...snapshot.transport.metronome },
+      // Preserve playback state so A/B switching doesn't interrupt transport
+      status: session.transport.status,
+      playing: session.transport.playing,
+      playFromStep: session.transport.playFromStep,
+    },
     master: { ...snapshot.master },
     context: { ...snapshot.context },
     activeTrackId: snapshot.tracks.some(t => t.id === session.activeTrackId)
