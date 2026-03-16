@@ -1,10 +1,16 @@
 // src/ui/Tracker.tsx
-import { useRef, useEffect, useMemo, type MutableRefObject } from 'react';
+import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObject } from 'react';
 import type { Region, MusicalEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
-import { TrackerRow, type AvailableControl } from './TrackerRow';
+import { TrackerRow, type AvailableControl, type TrackerColumn } from './TrackerRow';
 import { getEngineByIndex, getProcessorInstrument } from '../audio/instrument-registry';
 import type { ProcessorConfig } from '../engine/types';
+
+/** Number of rows to jump for Page Up / Page Down. */
+const PAGE_JUMP = 8;
+
+/** Number of navigable columns (Pos, Kind, Note/Primary, Val, Dur). */
+const COL_COUNT = 5;
 
 interface Props {
   region: Region;
@@ -86,6 +92,13 @@ function computeAvailableControls(
 
 export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
+  const cursorRowRef = useRef<HTMLTableRowElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // --- Cursor state ---
+  const [cursorRow, setCursorRow] = useState(0);
+  const [cursorCol, setCursorCol] = useState<TrackerColumn>(2); // Start on Note column
+  const [editRequestCounter, setEditRequestCounter] = useState(0);
 
   useEffect(() => {
     if (playing && playheadRef.current) {
@@ -93,8 +106,23 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
     }
   }, [currentStep, playing]);
 
+  // Scroll cursor row into view when it changes
+  useEffect(() => {
+    if (cursorRowRef.current) {
+      cursorRowRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [cursorRow]);
+
   const events = region.events;
   const playheadAt = currentStep % region.duration;
+  const eventCount = events.length;
+
+  // Clamp cursor row when events change (e.g. deletion)
+  useEffect(() => {
+    if (eventCount > 0 && cursorRow >= eventCount) {
+      setCursorRow(eventCount - 1);
+    }
+  }, [eventCount, cursorRow]);
 
   // Compute next available step for the add button
   const nextStep = useMemo(() => {
@@ -108,7 +136,97 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
     [engineModel, processors],
   );
 
+  // --- Keyboard handler ---
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (eventCount === 0) return;
+
+    // Don't intercept when an input element is focused (inline editing)
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    switch (e.key) {
+      case 'ArrowUp': {
+        e.preventDefault();
+        setCursorRow(r => Math.max(0, r - 1));
+        break;
+      }
+      case 'ArrowDown': {
+        e.preventDefault();
+        setCursorRow(r => Math.min(eventCount - 1, r + 1));
+        break;
+      }
+      case 'ArrowLeft': {
+        e.preventDefault();
+        setCursorCol(c => Math.max(0, c - 1) as TrackerColumn);
+        break;
+      }
+      case 'ArrowRight': {
+        e.preventDefault();
+        setCursorCol(c => Math.min(COL_COUNT - 1, c + 1) as TrackerColumn);
+        break;
+      }
+      case 'PageUp': {
+        e.preventDefault();
+        setCursorRow(r => Math.max(0, r - PAGE_JUMP));
+        break;
+      }
+      case 'PageDown': {
+        e.preventDefault();
+        setCursorRow(r => Math.min(eventCount - 1, r + PAGE_JUMP));
+        break;
+      }
+      case 'Home': {
+        e.preventDefault();
+        setCursorRow(0);
+        break;
+      }
+      case 'End': {
+        e.preventDefault();
+        setCursorRow(eventCount - 1);
+        break;
+      }
+      case 'Tab': {
+        // Tab cycles columns forward, Shift+Tab cycles backward
+        e.preventDefault();
+        if (e.shiftKey) {
+          setCursorCol(c => (c === 0 ? (COL_COUNT - 1) as TrackerColumn : (c - 1) as TrackerColumn));
+        } else {
+          setCursorCol(c => (c === COL_COUNT - 1 ? 0 as TrackerColumn : (c + 1) as TrackerColumn));
+        }
+        break;
+      }
+      case 'Enter': {
+        e.preventDefault();
+        // Trigger editing on the current cursor cell
+        setEditRequestCounter(c => c + 1);
+        break;
+      }
+      case 'Delete':
+      case 'Backspace': {
+        // Delete the event at cursor row
+        if (onDelete && eventCount > 0 && cursorRow < eventCount) {
+          e.preventDefault();
+          const event = events[cursorRow];
+          const selector = event.kind === 'parameter'
+            ? { at: event.at, kind: 'parameter' as const, controlId: (event as ParameterEvent).controlId }
+            : { at: event.at, kind: event.kind as 'note' | 'trigger' };
+          onDelete(selector);
+        }
+        break;
+      }
+      default:
+        // Don't prevent default for keys we don't handle
+        return;
+    }
+  }, [eventCount, cursorRow, events, onDelete]);
+
   return (
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      className="outline-none h-full"
+    >
       <table className="w-full border-collapse select-none">
         <thead>
           <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
@@ -145,6 +263,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
               {events.map((event, i) => {
                 const nextAt = i < events.length - 1 ? events[i + 1].at : region.duration;
                 const isAtPlayhead = playing && playheadAt >= event.at && playheadAt < nextAt;
+                const isCursorRow = i === cursorRow;
 
                 return (
                   <TrackerRow
@@ -157,7 +276,10 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
                     availableControls={availableControls}
                     onAddParamEvent={onAddParamEvent}
                     cancelEditRef={cancelEditRef}
-                    ref={isAtPlayhead ? playheadRef : undefined}
+                    isCursorRow={isCursorRow}
+                    cursorColumn={cursorCol}
+                    editRequestCounter={isCursorRow ? editRequestCounter : undefined}
+                    ref={isCursorRow ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
                   />
                 );
               })}
@@ -178,5 +300,6 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
           )}
         </tbody>
       </table>
+    </div>
   );
 }

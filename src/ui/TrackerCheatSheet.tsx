@@ -10,13 +10,15 @@ const shortcuts: { key: string; label: string }[] = [
   { key: `${mod}Z`, label: 'Undo' },
   { key: `${mod}1`, label: 'Control view' },
   { key: `${mod}2`, label: 'Tracker view' },
-  { key: 'Tab', label: 'Cycle views' },
-  { key: `${mod}/`, label: 'Toggle chat' },
   { key: 'Arrows', label: 'Navigate grid' },
-  { key: 'Click', label: 'Edit cell / Create event' },
-  { key: 'Enter', label: 'Commit edit' },
+  { key: 'Tab / Shift+Tab', label: 'Next / prev column' },
+  { key: 'PgUp / PgDn', label: 'Jump 8 rows' },
+  { key: 'Home / End', label: 'First / last row' },
+  { key: 'Enter', label: 'Edit cell at cursor' },
   { key: 'Escape', label: 'Cancel edit' },
   { key: 'Delete', label: 'Remove event' },
+  { key: 'Click', label: 'Edit cell / Create event' },
+  { key: `${mod}/`, label: 'Toggle chat' },
 ];
 
 export function TrackerCheatSheet() {

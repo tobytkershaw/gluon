@@ -9,6 +9,9 @@ export interface AvailableControl {
   label: string;
 }
 
+/** Column indices for keyboard cursor navigation. */
+export type TrackerColumn = 0 | 1 | 2 | 3 | 4;
+
 interface Props {
   event: MusicalEvent;
   isAtPlayhead: boolean;
@@ -21,6 +24,12 @@ interface Props {
   onAddParamEvent?: (at: number, controlId: string, value: number) => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
+  /** Whether this row has the keyboard cursor. */
+  isCursorRow?: boolean;
+  /** Which column the keyboard cursor is on (only meaningful when isCursorRow). */
+  cursorColumn?: TrackerColumn;
+  /** Incremented by parent to trigger editing on cursorColumn. */
+  editRequestCounter?: number;
 }
 
 // --- Formatting helpers ---
@@ -113,6 +122,7 @@ function EditableCell({
   parse,
   cancelEditRef,
   validate,
+  editRequested,
 }: {
   value: string;
   onCommit: (v: number) => void;
@@ -122,6 +132,8 @@ function EditableCell({
   cancelEditRef?: MutableRefObject<boolean>;
   /** Optional validation — returns true if valid. When false, flash red and stay in edit mode. */
   validate?: (s: string) => boolean;
+  /** When this increments, start editing programmatically (from keyboard Enter). */
+  editRequested?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -133,6 +145,13 @@ function EditableCell({
     setEditing(true);
     setInvalid(false);
   }, [value]);
+
+  // Start editing when editRequested changes (keyboard Enter)
+  useEffect(() => {
+    if (editRequested && editRequested > 0) {
+      startEdit();
+    }
+  }, [editRequested, startEdit]);
 
   const tryCommit = useCallback(() => {
     if (validate && !validate(draft)) {
@@ -204,10 +223,12 @@ function PositionEditableCell({
   at,
   onCommit,
   cancelEditRef,
+  editRequested,
 }: {
   at: number;
   onCommit: (newAt: number) => void;
   cancelEditRef?: MutableRefObject<boolean>;
+  editRequested?: number;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(String(Math.floor(at)));
@@ -216,6 +237,13 @@ function PositionEditableCell({
     setDraft(String(Math.floor(at)));
     setEditing(true);
   }, [at]);
+
+  // Start editing when editRequested changes (keyboard Enter)
+  useEffect(() => {
+    if (editRequested && editRequested > 0) {
+      startEdit();
+    }
+  }, [editRequested, startEdit]);
 
   const commit = useCallback(() => {
     setEditing(false);
@@ -274,11 +302,13 @@ function ParamValueCell({
   controlId,
   onCommit,
   cancelEditRef,
+  editRequested,
 }: {
   value: number;
   controlId: string;
   onCommit: (newVal: number) => void;
   cancelEditRef?: MutableRefObject<boolean>;
+  editRequested?: number;
 }) {
   // Display value as 0-100 integer
   const displayVal = Math.round(value * 100);
@@ -295,6 +325,7 @@ function ParamValueCell({
         return isNaN(n) ? NaN : n;
       }}
       cancelEditRef={cancelEditRef}
+      editRequested={editRequested}
     />
   );
 }
@@ -302,10 +333,17 @@ function ParamValueCell({
 // --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef }, ref) {
+  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter }, ref) {
     const rowColor = kindRowStyle(event.kind);
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
+
+    // Derive per-column editRequested from the parent's counter + column match.
+    // Only passes to the column that currently has the cursor.
+    const posEditReq = (isCursorRow && cursorColumn === 0) ? editRequestCounter : undefined;
+    const primaryEditReq = (isCursorRow && cursorColumn === 2) ? editRequestCounter : undefined;
+    const valueEditReq = (isCursorRow && cursorColumn === 3) ? editRequestCounter : undefined;
+    const durEditReq = (isCursorRow && cursorColumn === 4) ? editRequestCounter : undefined;
 
     // Micro-timing badge (used in non-editable position display)
     const microOffset = microTimingOffset(event.at);
@@ -322,6 +360,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             parse={parseNoteName}
             validate={(s) => !isNaN(parseNoteName(s))}
             cancelEditRef={cancelEditRef}
+            editRequested={primaryEditReq}
           />
         );
       } else {
@@ -357,6 +396,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           value={vel.toFixed(2)}
           onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
           cancelEditRef={cancelEditRef}
+          editRequested={valueEditReq}
         />
       ) : vel.toFixed(2);
     } else if (event.kind === 'trigger') {
@@ -367,6 +407,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           value={display}
           onCommit={(v) => onUpdate(selector, { velocity: Math.max(0, Math.min(1, v)) })}
           cancelEditRef={cancelEditRef}
+          editRequested={valueEditReq}
         />
       ) : display;
     } else if (event.kind === 'parameter') {
@@ -378,6 +419,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             controlId={(event as ParameterEvent).controlId}
             onCommit={(newVal) => onUpdate(selector, { value: newVal } as Partial<MusicalEvent>)}
             cancelEditRef={cancelEditRef}
+            editRequested={valueEditReq}
           />
         );
       } else {
@@ -395,20 +437,27 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           value={dur.toFixed(2)}
           onCommit={(v) => onUpdate(selector, { duration: Math.max(0.01, v) })}
           cancelEditRef={cancelEditRef}
+          editRequested={durEditReq}
         />
       ) : dur.toFixed(2);
     }
+
+    // Cursor cell highlight: ring on the active cell
+    const cursorCellClass = (col: TrackerColumn) =>
+      isCursorRow && cursorColumn === col ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
 
     return (
       <tr
         ref={ref}
         className={`
           group text-[11px] font-mono leading-5 ${rowColor}
-          ${isAtPlayhead ? 'bg-amber-500/15' : 'hover:bg-zinc-800/30'}
+          ${isAtPlayhead && !isCursorRow ? 'bg-amber-500/15' : ''}
+          ${isCursorRow ? 'bg-amber-500/8' : ''}
+          ${!isAtPlayhead && !isCursorRow ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
       >
-        <td className="px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem]">
+        <td className={`px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem] ${cursorCellClass(0)}`}>
           {editable ? (
             <PositionEditableCell
               at={event.at}
@@ -417,6 +466,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
                 onUpdate(selector, { at: newAt });
               }}
               cancelEditRef={cancelEditRef}
+              editRequested={posEditReq}
             />
           ) : (
             <>
@@ -429,16 +479,16 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             </>
           )}
         </td>
-        <td className="px-1 py-0 text-center font-bold w-6">
+        <td className={`px-1 py-0 text-center font-bold w-6 ${cursorCellClass(1)}`}>
           {kindGlyph(event.kind)}
         </td>
-        <td className="px-1.5 py-0 w-[3.5rem] tabular-nums">
+        <td className={`px-1.5 py-0 w-[3.5rem] tabular-nums ${cursorCellClass(2)}`}>
           {primaryData}
         </td>
-        <td className="px-1.5 py-0 text-right w-12 tabular-nums text-zinc-400">
+        <td className={`px-1.5 py-0 text-right w-12 tabular-nums text-zinc-400 ${cursorCellClass(3)}`}>
           {valueNode}
         </td>
-        <td className="px-1.5 py-0 text-right w-12 tabular-nums text-zinc-500">
+        <td className={`px-1.5 py-0 text-right w-12 tabular-nums text-zinc-500 ${cursorCellClass(4)}`}>
           {durNode}
         </td>
         {onDelete && (
