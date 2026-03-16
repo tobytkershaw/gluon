@@ -7,7 +7,7 @@ interface Props {
   activeTrackId: string;
   onSelectTrack: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
-  onToggleSolo: (trackId: string) => void;
+  onToggleSolo: (trackId: string, additive?: boolean) => void;
   onToggleAgency?: (trackId: string) => void;
   compact?: boolean;
 }
@@ -48,7 +48,7 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
                 M
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id); }}
+                onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id, e.shiftKey); }}
                 className={`text-[10px] px-0.5 rounded ${
                   track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
@@ -98,7 +98,7 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
                 M
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id); }}
+                onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id, e.shiftKey); }}
                 className={`text-[10px] px-1 rounded ${
                   track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}

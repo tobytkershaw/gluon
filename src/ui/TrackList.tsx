@@ -11,7 +11,7 @@ interface Props {
   activityMap: Record<string, number>;
   onSelectTrack: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
-  onToggleSolo: (trackId: string) => void;
+  onToggleSolo: (trackId: string, additive?: boolean) => void;
   onToggleAgency: (trackId: string) => void;
   onRenameTrack?: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;
@@ -88,7 +88,7 @@ export function TrackList({
             activityTimestamp={activityMap[track.id] ?? null}
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
-            onToggleSolo={() => onToggleSolo(track.id)}
+            onToggleSolo={(additive) => onToggleSolo(track.id, additive)}
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
@@ -112,7 +112,7 @@ export function TrackList({
             activityTimestamp={activityMap[track.id] ?? null}
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
-            onToggleSolo={() => onToggleSolo(track.id)}
+            onToggleSolo={(additive) => onToggleSolo(track.id, additive)}
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
@@ -131,7 +131,7 @@ export function TrackList({
             activityTimestamp={activityMap[masterBus.id] ?? null}
             onClick={() => onSelectTrack(masterBus.id)}
             onToggleMute={() => onToggleMute(masterBus.id)}
-            onToggleSolo={() => onToggleSolo(masterBus.id)}
+            onToggleSolo={(additive) => onToggleSolo(masterBus.id, additive)}
           />
         )}
       </div>
