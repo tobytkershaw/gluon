@@ -6,6 +6,7 @@ import type { SynthParamValues } from '../engine/types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { getAudibleTracks } from '../engine/sequencer-helpers';
+import { getInterpolatedParams } from '../engine/interpolation';
 
 // ---------------------------------------------------------------------------
 // Types — all plain data, safe to postMessage to a Worker
@@ -289,6 +290,8 @@ function collectEvents(track: Track, bars: number): RenderEvent[] {
             pushMusicalEvent(events, ev, beatTime, track.params);
           }
         }
+        // Emit interpolated parameter values at each integer step
+        pushInterpolatedEvents(events, region.events, offset, regionDuration, totalSteps);
         offset += regionDuration;
       }
     } else {
@@ -300,6 +303,8 @@ function collectEvents(track: Track, bars: number): RenderEvent[] {
           pushMusicalEvent(events, ev, beatTime, track.params);
         }
       }
+      // Emit interpolated parameter values
+      pushInterpolatedEvents(events, region.events, region.start, region.duration, totalSteps);
     }
   }
 
@@ -364,6 +369,34 @@ function pushMusicalEvent(
         });
       }
       break;
+    }
+  }
+}
+
+/**
+ * Generate interpolated set-patch events at each integer step between
+ * parameter events that have linear or curve interpolation.
+ */
+function pushInterpolatedEvents(
+  out: RenderEvent[],
+  regionEvents: MusicalEvent[],
+  regionOffset: number,
+  regionDuration: number,
+  totalSteps: number,
+): void {
+  for (let step = 0; step < regionDuration; step++) {
+    const beatTime = regionOffset + step;
+    if (beatTime >= totalSteps) break;
+    if (beatTime < 0) continue;
+
+    const interpolated = getInterpolatedParams(regionEvents, step, regionDuration);
+    for (const { controlId, value } of interpolated) {
+      const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
+      out.push({
+        beatTime,
+        type: 'set-patch',
+        patch: { [runtimeParam]: value } as Partial<RenderSynthPatch>,
+      });
     }
   }
 }

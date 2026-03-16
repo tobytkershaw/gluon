@@ -330,6 +330,23 @@ export class Scheduler {
         accent,
       });
     }
+
+    // Emit interpolated parameter values at each integer step in the window.
+    if (this.onParameterEvent) {
+      const iStart = Math.ceil(seg.localStart);
+      const iEnd = Math.floor(seg.localEnd);
+      for (let step = iStart; step < iEnd; step++) {
+        const interpolated = getInterpolatedParams(events, step, regionLen);
+        for (const { controlId, value } of interpolated) {
+          const interpId = `${this.generation}:${track.id}:${region.id}:${seg.loopCycle}:interp:${controlId}@${step}`;
+          const absStep = regionStart + seg.loopCycle * regionLen + step;
+          if (!this.playbackPlan.admit(interpId, absStep, this.generation, track.id)) {
+            continue;
+          }
+          this.onParameterEvent(track.id, controlId, value);
+        }
+      }
+    }
   }
 
   /**
