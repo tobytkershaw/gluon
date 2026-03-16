@@ -29,6 +29,7 @@ interface TransportControllerDeps {
     onPositionChange: (step: number) => void;
     getHeldParams: (trackId: string) => Partial<SynthParamValues>;
     onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+    onClick?: (time: number, accent: boolean) => void;
   }) => SchedulerLike;
 }
 
@@ -59,6 +60,7 @@ export class TransportController {
       this.runtime = { ...this.runtime, playheadBeats: step / 4 };
       this.onPositionChange(step);
     };
+    const handleClick = (time: number, accent: boolean) => this.audio.scheduleClick(time, accent);
     this.scheduler = createScheduler
       ? createScheduler({
           getSession,
@@ -66,6 +68,7 @@ export class TransportController {
           onPositionChange: handlePositionChange,
           getHeldParams,
           onParameterEvent,
+          onClick: handleClick,
         })
       : new Scheduler(
           getSession,
@@ -75,6 +78,7 @@ export class TransportController {
           handlePositionChange,
           getHeldParams,
           onParameterEvent,
+          handleClick,
         );
     this.syncArrangement();
   }

@@ -147,6 +147,8 @@ export class AudioEngine {
   private sendSlots: Map<string, SendGainSlot[]> = new Map();
   /** The master bus track ID, used for routing all track outputs. */
   private masterBusId: string | null = null;
+  /** Metronome gain node — connected directly to destination, bypassing tracks/mixer. */
+  private metronomeGain: GainNode | null = null;
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -175,6 +177,11 @@ export class AudioEngine {
     this.masterPanner.connect(this.analyser);
     this.analyser.connect(this.ctx.destination);
     this.masterPanner.connect(this.mediaStreamDest);
+
+    // Metronome: direct to destination, not through mixer/master chain
+    this.metronomeGain = this.ctx.createGain();
+    this.metronomeGain.gain.value = 0.5;
+    this.metronomeGain.connect(this.ctx.destination);
 
     const allBusIds = new Set(busTrackIds);
     this.masterBusId = masterBusId ?? null;
@@ -335,6 +342,7 @@ export class AudioEngine {
     this.masterGain?.disconnect();
     this.masterPanner?.disconnect();
     this.analyser?.disconnect();
+    this.metronomeGain?.disconnect();
     this.mediaStreamDest?.disconnect();
     this.ctx?.close();
     this.ctx = null;
@@ -343,6 +351,7 @@ export class AudioEngine {
     this.masterPanner = null;
     this.analyser = null;
     this.mediaStreamDest = null;
+    this.metronomeGain = null;
     this._isRunning = false;
   }
 
@@ -1075,6 +1084,39 @@ export class AudioEngine {
     } else {
       this.sendSlots.delete(trackId);
     }
+  }
+
+  // --- Metronome ---
+
+  setMetronomeVolume(volume: number): void {
+    if (this.metronomeGain) {
+      this.metronomeGain.gain.value = Math.max(0, Math.min(1, volume));
+    }
+  }
+
+  /**
+   * Schedule a metronome click at the given audio time.
+   * Uses a short oscillator burst — higher pitch for beat 1 (accent).
+   */
+  scheduleClick(time: number, accent: boolean): void {
+    if (!this.ctx || !this.metronomeGain) return;
+    const freq = accent ? 1000 : 800;
+    const duration = accent ? 0.03 : 0.02;
+    const gain = accent ? 0.8 : 0.5;
+
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+
+    const env = this.ctx.createGain();
+    env.gain.setValueAtTime(gain, time);
+    env.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+    osc.connect(env);
+    env.connect(this.metronomeGain);
+
+    osc.start(time);
+    osc.stop(time + duration + 0.01);
   }
 
   // Legacy single-track API (for Phase 1 compatibility during migration)

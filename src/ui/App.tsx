@@ -14,6 +14,7 @@ import {
   renameTrack, setMaster, setTrackVolume, setTrackPan,
   addTrack, removeTrack,
   addSend, removeSend, setSendLevel,
+  toggleMetronome, setMetronomeVolume,
 } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
@@ -317,6 +318,12 @@ export default function App() {
     audioRef.current.setMasterVolume(session.master.volume);
     audioRef.current.setMasterPan(session.master.pan);
   }, [session.master.volume, session.master.pan, audioStarted]);
+
+  // Sync metronome volume to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    audioRef.current.setMetronomeVolume(session.transport.metronome.volume);
+  }, [session.transport.metronome.volume, audioStarted]);
 
   // Sync processor chains to audio engine
   useEffect(() => {
@@ -1727,6 +1734,10 @@ export default function App() {
       onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
       onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
       onToggleRecord={handleToggleRecord}
+      metronomeEnabled={session.transport.metronome.enabled}
+      metronomeVolume={session.transport.metronome.volume}
+      onToggleMetronome={() => setSession(s => toggleMetronome(s))}
+      onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
       view={view}
       onViewChange={setView}
       undoStack={session.undoStack}

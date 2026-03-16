@@ -70,6 +70,11 @@ interface Props {
   onBpmChange: (bpm: number) => void;
   onSwingChange: (swing: number) => void;
   onToggleRecord: () => void;
+  // Metronome
+  metronomeEnabled: boolean;
+  metronomeVolume: number;
+  onToggleMetronome: () => void;
+  onMetronomeVolumeChange: (v: number) => void;
   // View
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
@@ -105,6 +110,7 @@ export function AppShell({
   onExportWav, exportingWav,
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
+  metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo,
   cancelEditRef,
@@ -176,6 +182,10 @@ export function AppShell({
             onBpmChange={onBpmChange}
             onSwingChange={onSwingChange}
             onToggleRecord={onToggleRecord}
+            metronomeEnabled={metronomeEnabled}
+            metronomeVolume={metronomeVolume}
+            onToggleMetronome={onToggleMetronome}
+            onMetronomeVolumeChange={onMetronomeVolumeChange}
           />
           <div className="flex-1" />
           <UndoButton

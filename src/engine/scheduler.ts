@@ -37,6 +37,7 @@ export class Scheduler {
   private onPositionChange: (globalStep: number) => void;
   private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
   private onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  private onClick?: (time: number, accent: boolean) => void;
 
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private cursor = 0; // absolute step units (fractional)
@@ -44,6 +45,8 @@ export class Scheduler {
   private previousBpm = 0;
   private generation = 0;
   private playbackPlan = new PlaybackPlan();
+  /** Next metronome step to schedule (in absolute step units, always a multiple of 4). */
+  private nextClickStep = 0;
 
   constructor(
     getSession: () => Session,
@@ -53,6 +56,7 @@ export class Scheduler {
     onPositionChange: (globalStep: number) => void,
     getHeldParams: (trackId: string) => Partial<SynthParamValues>,
     onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void,
+    onClick?: (time: number, accent: boolean) => void,
   ) {
     this.getSession = getSession;
     this.getAudioTime = getAudioTime;
@@ -61,6 +65,7 @@ export class Scheduler {
     this.onPositionChange = onPositionChange;
     this.getHeldParams = getHeldParams;
     this.onParameterEvent = onParameterEvent;
+    this.onClick = onClick;
   }
 
   start(startOffset = START_OFFSET_SEC, startStep = 0, generation = 0): void {
@@ -75,6 +80,8 @@ export class Scheduler {
     this.previousBpm = session.transport.bpm;
     this.generation = generation;
     this.playbackPlan.reset(generation);
+    // Align metronome to the next beat boundary (steps are 16th notes, beats are groups of 4)
+    this.nextClickStep = Math.ceil(startStep / 4) * 4;
 
     this.tick();
     this.intervalId = setInterval(() => this.tick(), LOOKAHEAD_MS);
@@ -139,6 +146,17 @@ export class Scheduler {
     // cursor — events that haven't actually played yet — making them vulnerable
     // to double-scheduling if invalidateTrack re-admits them.
     this.playbackPlan.pruneBeforeStep(Math.floor(globalStep));
+
+    // Schedule metronome clicks if enabled
+    if (session.transport.metronome?.enabled && this.onClick) {
+      while (this.nextClickStep < lookaheadEnd) {
+        const clickTime = this.startTime + this.nextClickStep * stepDuration;
+        // Beat 1 accent: step 0 mod 16 = downbeat of a 4/4 bar (16 sixteenth notes)
+        const isDownbeat = this.nextClickStep % 16 === 0;
+        this.onClick(clickTime, isDownbeat);
+        this.nextClickStep += 4; // quarter note = 4 sixteenth-note steps
+      }
+    }
 
     const audibleTracks = getAudibleTracks(session);
 
