@@ -424,6 +424,36 @@ export function stopTransport(session: Session): Session {
   };
 }
 
+// --- Loop region helpers ---
+
+export function toggleLoop(session: Session): Session {
+  return {
+    ...session,
+    transport: { ...session.transport, loopEnabled: !session.transport.loopEnabled },
+  };
+}
+
+export function setLoopStart(session: Session, step: number): Session {
+  const clamped = Math.max(0, Math.floor(step));
+  const loopEnd = session.transport.loopEnd ?? 16;
+  return {
+    ...session,
+    transport: {
+      ...session.transport,
+      loopStart: Math.min(clamped, loopEnd - 1),
+    },
+  };
+}
+
+export function setLoopEnd(session: Session, step: number): Session {
+  const loopStart = session.transport.loopStart ?? 0;
+  const clamped = Math.max(loopStart + 1, Math.floor(step));
+  return {
+    ...session,
+    transport: { ...session.transport, loopEnd: clamped },
+  };
+}
+
 // --- Master channel helpers ---
 
 export function setMasterVolume(session: Session, volume: number): Session {

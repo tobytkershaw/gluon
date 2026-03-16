@@ -24,6 +24,12 @@ export interface Transport {
   bpm: number;
   swing: number;
   metronome: MetronomeState;
+  /** When true, playback wraps between loopStart and loopEnd instead of the full pattern. */
+  loopEnabled?: boolean;
+  /** Loop start position in steps (inclusive). Default: 0. */
+  loopStart?: number;
+  /** Loop end position in steps (exclusive). Default: patternLength. */
+  loopEnd?: number;
 }
 
 export interface ScheduledNote {

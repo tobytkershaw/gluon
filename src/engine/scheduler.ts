@@ -121,7 +121,23 @@ export class Scheduler {
 
     // Publish position based on actual audio time (absolute offset, never accumulated)
     const elapsed = currentAudioTime - this.startTime;
-    const globalStep = elapsed / stepDuration;
+    let globalStep = elapsed / stepDuration;
+
+    // Transport-level loop: wrap globalStep back to loopStart when it reaches loopEnd
+    const { loopEnabled, loopStart: ls, loopEnd: le } = session.transport;
+    if (loopEnabled && le != null && ls != null && le > ls) {
+      if (globalStep >= le) {
+        const loopLen = le - ls;
+        // Reanchor startTime so playback continues seamlessly from loopStart
+        const overshoot = globalStep - le;
+        const wrappedOffset = overshoot % loopLen;
+        globalStep = ls + wrappedOffset;
+        this.startTime = currentAudioTime - globalStep * stepDuration;
+        this.cursor = globalStep;
+        this.playbackPlan.reset(this.generation);
+      }
+    }
+
     this.onPositionChange(globalStep);
 
     // Cap catch-up window after resume: if the cursor fell too far behind,

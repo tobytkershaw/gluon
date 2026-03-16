@@ -55,6 +55,10 @@ interface Props {
   onDeleteByIndices?: (indices: number[]) => void;
   /** Paste events at a given step position. */
   onPasteEvents?: (events: MusicalEvent[]) => void;
+  /** Transport-level loop region (step range). */
+  loopEnabled?: boolean;
+  loopStart?: number;
+  loopEnd?: number;
 }
 
 const AT_TOLERANCE = 0.001;
@@ -168,7 +172,7 @@ function getColCount(noteColumns: number): number {
   return 2 + noteColumns + 2;
 }
 
-export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents }: Props) {
+export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, loopEnabled, loopStart, loopEnd }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -547,6 +551,9 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
                 const selRange = getSelectionRange();
                 const isSelected = selRange !== null && gi >= selRange[0] && gi <= selRange[1];
                 const showBeatSep = shouldShowBeatSeparator(group.at, gi > 0 ? groups[gi - 1].at : null);
+                const isInLoop = loopEnabled === true
+                  && loopStart != null && loopEnd != null
+                  && group.at >= loopStart && group.at < loopEnd;
 
                 // The "primary" event for the row is the first note (if any) or the first other event
                 const primaryEvent = group.notes.find(n => n !== null) ?? group.otherEvents[0] ?? group.allEvents[0];
@@ -573,6 +580,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
                     cursorColumn={trackerCol}
                     editRequestCounter={isCursor ? editRequestCounter : undefined}
                     isSelected={isSelected}
+                    isInLoop={isInLoop}
                     onRowClick={(shiftKey) => handleRowClick(gi, shiftKey)}
                     ref={isCursor ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
                   />
