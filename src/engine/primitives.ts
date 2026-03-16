@@ -257,6 +257,14 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
         _regionDirty: true,
       });
     }
+    if (snapshot.action === 'rename' && snapshot.regionId != null) {
+      // Undo rename: restore the previous name
+      return updateTrack(session, snapshot.trackId, {
+        regions: track.regions.map(r =>
+          r.id === snapshot.regionId ? { ...r, name: snapshot.previousName } : r,
+        ),
+      });
+    }
     return session;
   }
 
@@ -429,10 +437,14 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'region') {
     const track = getTrack(session, snapshot.trackId);
     if (track.regions.length === 0) return { ...snapshot, timestamp: now };
+    // Use the region targeted by the snapshot, not the active region
+    const targetRegion = snapshot.regionId
+      ? track.regions.find(r => r.id === snapshot.regionId) ?? getActiveRegion(track)
+      : getActiveRegion(track);
     return {
       ...snapshot,
-      prevEvents: [...getActiveRegion(track).events],
-      prevDuration: getActiveRegion(track).duration,
+      prevEvents: [...targetRegion.events],
+      prevDuration: targetRegion.duration,
       prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
       timestamp: now,
     };
@@ -538,6 +550,15 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
         removedRegion: undefined,
         removedIndex: undefined,
         prevActiveRegionId: track.activeRegionId,
+        timestamp: now,
+      };
+    }
+    if (snapshot.action === 'rename' && snapshot.regionId) {
+      // Reverse of rename: capture current name so redo can restore it
+      const region = track.regions.find(r => r.id === snapshot.regionId);
+      return {
+        ...snapshot,
+        previousName: region?.name,
         timestamp: now,
       };
     }

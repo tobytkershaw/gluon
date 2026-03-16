@@ -652,8 +652,15 @@ export function addRegion(session: Session, trackId: string, afterRegionId?: str
   const activeRegion = getActiveRegion(track);
   const newId = nextRegionId(track);
   const duration = activeRegion?.duration ?? 16;
-  const lastRegion = track.regions[track.regions.length - 1];
-  const start = lastRegion ? lastRegion.start + lastRegion.duration : 0;
+
+  let start: number;
+  if (afterRegionId) {
+    const afterRegion = track.regions.find(r => r.id === afterRegionId);
+    start = afterRegion ? afterRegion.start + afterRegion.duration : 0;
+  } else {
+    const lastRegion = track.regions[track.regions.length - 1];
+    start = lastRegion ? lastRegion.start + lastRegion.duration : 0;
+  }
 
   const newRegion: Region = {
     id: newId,
@@ -744,11 +751,13 @@ export function duplicateRegion(session: Session, trackId: string, regionId: str
   if (!sourceRegion) return null;
 
   const newId = nextRegionId(track);
+  const lastRegion = track.regions[track.regions.length - 1];
+  const copyStart = lastRegion ? lastRegion.start + lastRegion.duration : 0;
   const copy: Region = {
     ...sourceRegion,
     id: newId,
     name: sourceRegion.name ? `${sourceRegion.name} (copy)` : undefined,
-    start: sourceRegion.start + sourceRegion.duration,
+    start: copyStart,
     events: sourceRegion.events.map(e => ({ ...e })),
   };
 
@@ -781,9 +790,20 @@ export function renameRegion(session: Session, trackId: string, regionId: string
   const region = track.regions.find(r => r.id === regionId);
   if (!region) return session;
 
-  return updateTrack(session, trackId, {
+  const snapshot: RegionCrudSnapshot = {
+    kind: 'region-crud',
+    trackId,
+    action: 'rename',
+    regionId,
+    previousName: region.name,
+    timestamp: Date.now(),
+    description: `Rename region ${regionId} on ${trackId}`,
+  };
+
+  const result = updateTrack(session, trackId, {
     regions: track.regions.map(r => r.id === regionId ? { ...r, name } : r),
   });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
 /** Set the active region on a track. */

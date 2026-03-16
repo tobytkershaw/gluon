@@ -62,7 +62,7 @@ function isNonDefault(session: Session): boolean {
     if (v.params.timbre !== d.params.timbre || v.params.morph !== d.params.morph) return true;
     if (v.params.harmonics !== d.params.harmonics || v.params.note !== d.params.note) return true;
     // Check regions for content
-    if (v.regions.length > 0 && v.regions[0].events.length > 0) return true;
+    if (v.regions.some(r => r.events.length > 0)) return true;
     // Fallback: check pattern for content (covers legacy or direct pattern edits)
     if (v.pattern.length !== d.pattern.length) return true;
     for (const step of v.pattern.steps) {
