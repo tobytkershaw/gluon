@@ -61,7 +61,8 @@ const sketchTool: ToolSchema = {
         type: 'array',
         description:
           'Sparse list of musical events. Only include steps you want to set. ' +
-          'For drums/percussion, use "trigger" events. For melodic tracks, use "note" events with MIDI pitches.',
+          'For drums/percussion, use "trigger" events. For melodic tracks, use "note" events with MIDI pitches. ' +
+          'For chords, place multiple "note" events at the same step with different pitches (up to 4 simultaneous notes).',
         items: {
           type: 'object',
           properties: {

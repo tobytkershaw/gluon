@@ -125,10 +125,28 @@ export function validateRegion(region: Region): { valid: boolean; errors: string
         );
       }
 
-      // Invariant 10: no simultaneous notes (monophonic)
-      if (a.kind === 'note' && b.kind === 'note') {
-        errors.push(`Simultaneous NoteEvents at at≈${a.at} (monophonic in M1)`);
+      // Invariant 10: no duplicate notes at same pitch (polyphonic, max 4)
+      if (
+        a.kind === 'note' &&
+        b.kind === 'note' &&
+        (a as NoteEvent).pitch === (b as NoteEvent).pitch
+      ) {
+        errors.push(
+          `Duplicate NoteEvents at pitch=${(a as NoteEvent).pitch} at at≈${a.at}`,
+        );
       }
+    }
+  }
+
+  // Invariant 10b: max 4 notes at the same position (polyphonic column limit)
+  const noteCountByBucket = new Map<number, number>();
+  for (const event of region.events) {
+    if (event.kind !== 'note') continue;
+    const bucket = Math.floor(event.at / AT_TOLERANCE);
+    const count = (noteCountByBucket.get(bucket) ?? 0) + 1;
+    noteCountByBucket.set(bucket, count);
+    if (count > 4) {
+      errors.push(`More than 4 NoteEvents at at≈${event.at} (found ${count})`);
     }
   }
 
@@ -163,7 +181,20 @@ export function normalizeRegionEvents(region: Region): Region {
   // Reverse to restore ascending order
   deduped.reverse();
 
-  return { ...region, events: deduped };
+  // Enforce max 4 notes per step (polyphonic column limit).
+  // Notes are already sorted by `at`; within the same bucket keep the first 4
+  // (lowest pitches after dedup, since sort is stable and pitch order is preserved).
+  const MAX_NOTES_PER_STEP = 4;
+  const noteCountByBucket = new Map<number, number>();
+  const capped = deduped.filter(e => {
+    if (e.kind !== 'note') return true;
+    const bucket = Math.floor(e.at / AT_TOLERANCE);
+    const count = (noteCountByBucket.get(bucket) ?? 0) + 1;
+    noteCountByBucket.set(bucket, count);
+    return count <= MAX_NOTES_PER_STEP;
+  });
+
+  return { ...region, events: capped };
 }
 
 /**
@@ -177,7 +208,8 @@ function deduplicationKey(event: MusicalEvent): string {
     case 'trigger':
       return `trigger@${bucket}`;
     case 'note':
-      return `note@${bucket}`;
+      // Polyphonic: dedup by (position, pitch) — different pitches coexist
+      return `note:${(event as NoteEvent).pitch}@${bucket}`;
     case 'parameter':
       return `parameter:${(event as ParameterEvent).controlId}@${bucket}`;
   }

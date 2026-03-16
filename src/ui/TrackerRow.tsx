@@ -9,11 +9,17 @@ export interface AvailableControl {
   label: string;
 }
 
-/** Column indices for keyboard cursor navigation. */
+/** Column indices for keyboard cursor navigation (within the logical layout). */
 export type TrackerColumn = 0 | 1 | 2 | 3 | 4;
 
 interface Props {
   event: MusicalEvent;
+  /** Note columns for polyphonic rendering (sorted by pitch). Null entries = empty column. */
+  noteColumns?: (NoteEvent | null)[];
+  /** Total note columns to render (auto-expanded based on max polyphony). */
+  maxNoteColumns?: number;
+  /** Which note column the cursor is on (null = not on a note column). */
+  cursorNoteColumn?: number | null;
   isAtPlayhead: boolean;
   showBeatSeparator: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
@@ -113,6 +119,9 @@ function kindGlyph(kind: MusicalEvent['kind']): string {
 function selectorFromEvent(event: MusicalEvent): EventSelector {
   if (event.kind === 'parameter') {
     return { at: event.at, kind: 'parameter', controlId: (event as ParameterEvent).controlId };
+  }
+  if (event.kind === 'note') {
+    return { at: event.at, kind: 'note', pitch: (event as NoteEvent).pitch };
   }
   return { at: event.at, kind: event.kind };
 }
@@ -334,16 +343,56 @@ function ParamValueCell({
   );
 }
 
+// --- Note column cell (renders a single note within a polyphonic column) ---
+
+function NoteColumnCell({
+  note,
+  editable,
+  onUpdate,
+  cancelEditRef,
+  editRequested,
+  isCursor,
+}: {
+  note: NoteEvent | null;
+  editable: boolean;
+  onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
+  cancelEditRef?: MutableRefObject<boolean>;
+  editRequested?: number;
+  isCursor: boolean;
+}) {
+  if (!note) {
+    return (
+      <span className="text-zinc-700">---</span>
+    );
+  }
+
+  const selector = selectorFromEvent(note);
+
+  if (editable && onUpdate) {
+    return (
+      <EditableCell
+        value={midiToNoteName(note.pitch)}
+        onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
+        parse={parseNoteName}
+        validate={(s) => !isNaN(parseNoteName(s))}
+        cancelEditRef={cancelEditRef}
+        editRequested={isCursor ? editRequested : undefined}
+      />
+    );
+  }
+
+  return <span>{midiToNoteName(note.pitch)}</span>;
+}
+
 // --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter, isSelected, onRowClick }, ref) {
+  function TrackerRow({ event, noteColumns, maxNoteColumns = 1, cursorNoteColumn, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter, isSelected, onRowClick }, ref) {
     const rowColor = kindRowStyle(event.kind);
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
 
     // Derive per-column editRequested from the parent's counter + column match.
-    // Only passes to the column that currently has the cursor.
     const posEditReq = (isCursorRow && cursorColumn === 0) ? editRequestCounter : undefined;
     const primaryEditReq = (isCursorRow && cursorColumn === 2) ? editRequestCounter : undefined;
     const valueEditReq = (isCursorRow && cursorColumn === 3) ? editRequestCounter : undefined;
@@ -352,46 +401,51 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     // Micro-timing badge (used in non-editable position display)
     const microOffset = microTimingOffset(event.at);
 
-    // Primary data field
+    // Determine if we should render multi-column notes
+    const hasNoteColumns = noteColumns && noteColumns.length > 0;
+    const isNoteRow = event.kind === 'note' || hasNoteColumns;
+
+    // For non-note rows (trigger/parameter), build the primary data field
     let primaryData: React.ReactNode = '---';
-    if (event.kind === 'note') {
-      const note = event as NoteEvent;
-      if (editable) {
-        primaryData = (
-          <EditableCell
-            value={midiToNoteName(note.pitch)}
-            onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
-            parse={parseNoteName}
-            validate={(s) => !isNaN(parseNoteName(s))}
-            cancelEditRef={cancelEditRef}
-            editRequested={primaryEditReq}
-          />
-        );
-      } else {
-        primaryData = midiToNoteName(note.pitch);
+    if (!hasNoteColumns) {
+      if (event.kind === 'note') {
+        const note = event as NoteEvent;
+        if (editable) {
+          primaryData = (
+            <EditableCell
+              value={midiToNoteName(note.pitch)}
+              onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
+              parse={parseNoteName}
+              validate={(s) => !isNaN(parseNoteName(s))}
+              cancelEditRef={cancelEditRef}
+              editRequested={primaryEditReq}
+            />
+          );
+        } else {
+          primaryData = midiToNoteName(note.pitch);
+        }
+      } else if (event.kind === 'trigger') {
+        const isAccent = (event as TriggerEvent).accent;
+        if (editable) {
+          primaryData = (
+            <span
+              className="cursor-pointer hover:text-amber-200 transition-colors"
+              onClick={() => onUpdate(selector, { accent: !isAccent })}
+              title={isAccent ? 'Click to remove accent' : 'Click to add accent'}
+            >
+              {isAccent ? 'ACC' : 'TRG'}
+            </span>
+          );
+        } else {
+          primaryData = isAccent ? 'ACC' : 'TRG';
+        }
+      } else if (event.kind === 'parameter') {
+        const pe = event as ParameterEvent;
+        primaryData = abbreviateControlId(pe.controlId);
       }
-    } else if (event.kind === 'trigger') {
-      const isAccent = (event as TriggerEvent).accent;
-      if (editable) {
-        primaryData = (
-          <span
-            className="cursor-pointer hover:text-amber-200 transition-colors"
-            onClick={() => onUpdate(selector, { accent: !isAccent })}
-            title={isAccent ? 'Click to remove accent' : 'Click to add accent'}
-          >
-            {isAccent ? 'ACC' : 'TRG'}
-          </span>
-        );
-      } else {
-        primaryData = isAccent ? 'ACC' : 'TRG';
-      }
-    } else if (event.kind === 'parameter') {
-      const pe = event as ParameterEvent;
-      // Show abbreviated control ID as label
-      primaryData = abbreviateControlId(pe.controlId);
     }
 
-    // Value column
+    // Value column — show velocity of first note, or trigger/param value
     let valueNode: React.ReactNode = '--';
     if (event.kind === 'note') {
       const vel = (event as NoteEvent).velocity;
@@ -450,6 +504,47 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const cursorCellClass = (col: TrackerColumn) =>
       isCursorRow && cursorColumn === col ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
 
+    // Cursor highlight for individual note columns
+    const cursorNoteCellClass = (colIdx: number) =>
+      isCursorRow && cursorColumn === 2 && cursorNoteColumn === colIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+
+    // Build note column cells
+    const noteColumnCells: React.ReactNode[] = [];
+    if (hasNoteColumns) {
+      for (let c = 0; c < maxNoteColumns; c++) {
+        const note = c < noteColumns.length ? noteColumns[c] : null;
+        noteColumnCells.push(
+          <td
+            key={`nc-${c}`}
+            className={`px-1.5 py-0 w-[3.5rem] tabular-nums text-emerald-300 ${cursorNoteCellClass(c)}`}
+          >
+            <NoteColumnCell
+              note={note}
+              editable={editable}
+              onUpdate={onUpdate}
+              cancelEditRef={cancelEditRef}
+              editRequested={primaryEditReq}
+              isCursor={isCursorRow === true && cursorNoteColumn === c}
+            />
+          </td>
+        );
+      }
+    } else {
+      // Single column: render primary data, pad remaining columns with empty
+      noteColumnCells.push(
+        <td key="nc-0" className={`px-1.5 py-0 w-[3.5rem] tabular-nums ${cursorCellClass(2)}`}>
+          {primaryData}
+        </td>
+      );
+      for (let c = 1; c < maxNoteColumns; c++) {
+        noteColumnCells.push(
+          <td key={`nc-${c}`} className="px-1.5 py-0 w-[3.5rem] tabular-nums text-zinc-700">
+            {isNoteRow ? '---' : ''}
+          </td>
+        );
+      }
+    }
+
     return (
       <tr
         ref={ref}
@@ -488,9 +583,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <td className={`px-1 py-0 text-center font-bold w-6 ${cursorCellClass(1)}`}>
           {kindGlyph(event.kind)}
         </td>
-        <td className={`px-1.5 py-0 w-[3.5rem] tabular-nums ${cursorCellClass(2)}`}>
-          {primaryData}
-        </td>
+        {noteColumnCells}
         <td className={`px-1.5 py-0 text-right w-12 tabular-nums text-zinc-400 ${cursorCellClass(3)}`}>
           {valueNode}
         </td>

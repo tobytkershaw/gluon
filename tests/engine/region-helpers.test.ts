@@ -189,12 +189,47 @@ describe('validateRegion', () => {
     expect(valid).toBe(true);
   });
 
-  // Invariant 10: no simultaneous notes (monophonic)
-  it('rejects simultaneous notes', () => {
+  // Invariant 10: polyphonic — different pitches at same position are valid
+  it('accepts simultaneous notes with different pitches', () => {
     const region = makeRegion({ events: [note(4), note(4, { pitch: 72 })] });
+    const { valid } = validateRegion(region);
+    expect(valid).toBe(true);
+  });
+
+  it('rejects duplicate notes at same pitch and position', () => {
+    const region = makeRegion({ events: [note(4, { pitch: 60 }), note(4, { pitch: 60, velocity: 0.5 })] });
     const { valid, errors } = validateRegion(region);
     expect(valid).toBe(false);
-    expect(errors.some(e => e.includes('monophonic'))).toBe(true);
+    expect(errors.some(e => e.includes('Duplicate NoteEvents'))).toBe(true);
+  });
+
+  // Invariant 10b: max 4 notes per step
+  it('accepts 4 notes at the same position', () => {
+    const region = makeRegion({
+      events: [
+        note(4, { pitch: 60 }),
+        note(4, { pitch: 64 }),
+        note(4, { pitch: 67 }),
+        note(4, { pitch: 72 }),
+      ],
+    });
+    const { valid } = validateRegion(region);
+    expect(valid).toBe(true);
+  });
+
+  it('rejects more than 4 notes at the same position', () => {
+    const region = makeRegion({
+      events: [
+        note(4, { pitch: 60 }),
+        note(4, { pitch: 64 }),
+        note(4, { pitch: 67 }),
+        note(4, { pitch: 72 }),
+        note(4, { pitch: 76 }),
+      ],
+    });
+    const { valid, errors } = validateRegion(region);
+    expect(valid).toBe(false);
+    expect(errors.some(e => e.includes('More than 4 NoteEvents'))).toBe(true);
   });
 });
 
@@ -266,13 +301,21 @@ describe('normalizeRegionEvents', () => {
     expect(result.events).toHaveLength(2);
   });
 
-  it('deduplicates simultaneous notes (last wins)', () => {
+  it('keeps simultaneous notes with different pitches (polyphonic)', () => {
     const region = makeRegion({
       events: [note(4, { pitch: 60 }), note(4, { pitch: 72 })],
     });
     const result = normalizeRegionEvents(region);
+    expect(result.events).toHaveLength(2);
+  });
+
+  it('deduplicates notes at same pitch and position (last wins)', () => {
+    const region = makeRegion({
+      events: [note(4, { pitch: 60, velocity: 0.5 }), note(4, { pitch: 60, velocity: 1.0 })],
+    });
+    const result = normalizeRegionEvents(region);
     expect(result.events).toHaveLength(1);
-    expect((result.events[0] as NoteEvent).pitch).toBe(72);
+    expect((result.events[0] as NoteEvent).velocity).toBe(1.0);
   });
 
   it('does not mutate the original region', () => {
@@ -286,6 +329,24 @@ describe('normalizeRegionEvents', () => {
     const region = makeRegion({ events: [] });
     const result = normalizeRegionEvents(region);
     expect(result.events).toHaveLength(0);
+  });
+
+  it('truncates notes per step to max 4 (keeps first 4)', () => {
+    const region = makeRegion({
+      events: [
+        note(4, { pitch: 60 }),
+        note(4, { pitch: 64 }),
+        note(4, { pitch: 67 }),
+        note(4, { pitch: 72 }),
+        note(4, { pitch: 76 }),
+        note(4, { pitch: 79 }),
+      ],
+    });
+    const result = normalizeRegionEvents(region);
+    const notesAtStep4 = result.events.filter(
+      e => e.kind === 'note' && Math.abs(e.at - 4) < 0.001,
+    );
+    expect(notesAtStep4).toHaveLength(4);
   });
 });
 
