@@ -92,11 +92,23 @@ export class TransportController {
     };
 
     if (transport.status === 'playing') {
-      if (this.runtime.status !== 'playing') {
+      const needsRestart = this.runtime.status !== 'playing'
+        || transport.playFromStep != null;
+      if (needsRestart) {
+        // Stop the current scheduler if already playing (play-from-cursor restart)
+        if (this.runtime.status === 'playing') {
+          this.scheduler.stop();
+          this.audio.releaseGeneration(this.audio.advanceGeneration());
+        }
         const generation = this.audio.advanceGeneration();
-        const startStep = transport.status === 'playing' && this.runtime.status === 'paused'
-          ? this.runtime.playheadBeats * 4
-          : 0;
+        let startStep: number;
+        if (transport.playFromStep != null) {
+          startStep = transport.playFromStep;
+        } else if (this.runtime.status === 'paused') {
+          startStep = this.runtime.playheadBeats * 4;
+        } else {
+          startStep = 0;
+        }
         this.audio.restoreBaseline();
         this.scheduler.start(START_OFFSET_SEC, startStep, generation);
         this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);

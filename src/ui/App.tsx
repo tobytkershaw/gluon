@@ -104,6 +104,8 @@ export default function App() {
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
   const globalStepRef = useRef(0);
+  /** Cursor step position in the tracker (region-local). */
+  const trackerCursorStepRef = useRef<number | null>(null);
   const [recordArmed, setRecordArmed] = useState(false);
   const recordArmedRef = useRef(false);
   recordArmedRef.current = recordArmed;
@@ -830,6 +832,18 @@ export default function App() {
     await audioRef.current.resume();
     setSession((s) => s.transport.playing ? pauseTransport(s) : playTransport(s));
   }, [ensureAudio]);
+
+  const handlePlayFromCursor = useCallback(async () => {
+    await ensureAudio();
+    await audioRef.current.resume();
+    const cursorStep = trackerCursorStepRef.current;
+    // Always start playing from cursor (TransportController handles restart if already playing)
+    setSession((s) => playTransport(s, cursorStep ?? 0));
+  }, [ensureAudio]);
+
+  const handleCursorStepChange = useCallback((step: number) => {
+    trackerCursorStepRef.current = step;
+  }, []);
 
   /** Hard stop: stop sequencing AND immediately silence all voices/tails. */
   const handleHardStop = useCallback(async () => {
@@ -1749,6 +1763,7 @@ export default function App() {
     onUndo: handleUndo,
     onRedo: handleRedo,
     onTogglePlay: handleTogglePlay,
+    onPlayFromCursor: handlePlayFromCursor,
     onHardStop: handleHardStop,
     onToggleRecord: handleToggleRecord,
     onToggleMute: () => handleToggleMute(session.activeTrackId),
@@ -1966,6 +1981,7 @@ export default function App() {
             onDuplicateRegion={handleDuplicateRegion}
             onRenameRegion={handleRenameRegion}
             onSetActiveRegion={handleSetActiveRegion}
+            onCursorStepChange={handleCursorStepChange}
           />
         )}
     </AppShell>

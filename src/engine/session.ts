@@ -403,10 +403,10 @@ export function setTransportSwing(session: Session, swing: number): Session {
   };
 }
 
-export function playTransport(session: Session): Session {
+export function playTransport(session: Session, fromStep?: number): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'playing', playing: true },
+    transport: { ...session.transport, status: 'playing', playing: true, playFromStep: fromStep },
   };
 }
 

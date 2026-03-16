@@ -43,6 +43,8 @@ interface Props {
   onDuplicateRegion?: (regionId: string) => void;
   onRenameRegion?: (regionId: string, name: string) => void;
   onSetActiveRegion?: (regionId: string) => void;
+  /** Report cursor step position changes (for play-from-cursor). */
+  onCursorStepChange?: (step: number) => void;
 }
 
 // --- Inline number input for Rotate/Transpose ---
@@ -97,6 +99,7 @@ export function TrackerView({
   cancelEditRef,
   onDeleteByIndices, onPasteEvents,
   onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
+  onCursorStepChange,
 }: Props) {
   const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
   const activeRegion = activeTrack.regions.length > 0 ? getActiveRegion(activeTrack) : undefined;
@@ -341,6 +344,7 @@ export function TrackerView({
                 loopEnabled={session.transport.loopEnabled}
                 loopStart={session.transport.loopStart}
                 loopEnd={session.transport.loopEnd}
+                onCursorStepChange={onCursorStepChange}
               />
             ) : (
               <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">
