@@ -63,6 +63,22 @@ interface Props {
   onCursorStepChange?: (step: number) => void;
 }
 
+/**
+ * Build a stable React key for a step group from its event properties.
+ * Uses the rounded position plus a fingerprint of note pitches and event kinds
+ * so that inserting/removing events at other positions does not cause remounts.
+ */
+function stepGroupKey(group: StepGroup): string {
+  // Round position to avoid floating-point string instability
+  const pos = Math.round(group.at * 1000);
+  const notePitches = group.notes
+    .filter((n): n is NoteEvent => n !== null)
+    .map(n => n.pitch)
+    .join(',');
+  const otherKinds = group.otherEvents.map(e => e.kind[0]).join('');
+  return `${pos}:${notePitches}:${otherKinds}`;
+}
+
 const AT_TOLERANCE = 0.001;
 
 function sameAt(a: number, b: number): boolean {
@@ -574,7 +590,7 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
 
                 return (
                   <TrackerRow
-                    key={`step-${group.at}`}
+                    key={stepGroupKey(group)}
                     event={primaryEvent}
                     noteColumns={group.notes}
                     maxNoteColumns={maxNoteColumns}

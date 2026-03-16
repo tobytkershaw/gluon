@@ -370,20 +370,24 @@ function NoteColumnCell({
 
   const selector = selectorFromEvent(note);
 
+  const noteUngated = note.velocity === 0;
+
   if (editable && onUpdate) {
     return (
-      <EditableCell
-        value={midiToNoteName(note.pitch)}
-        onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
-        parse={parseNoteName}
-        validate={(s) => !isNaN(parseNoteName(s))}
-        cancelEditRef={cancelEditRef}
-        editRequested={isCursor ? editRequested : undefined}
-      />
+      <span className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}>
+        <EditableCell
+          value={midiToNoteName(note.pitch)}
+          onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
+          parse={parseNoteName}
+          validate={(s) => !isNaN(parseNoteName(s))}
+          cancelEditRef={cancelEditRef}
+          editRequested={isCursor ? editRequested : undefined}
+        />
+      </span>
     );
   }
 
-  return <span>{midiToNoteName(note.pitch)}</span>;
+  return <span className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}>{midiToNoteName(note.pitch)}</span>;
 }
 
 // --- Main component ---
@@ -393,6 +397,14 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const rowColor = kindRowStyle(event.kind);
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
+
+    // Velocity-0 is the "ungated" sentinel from toggleStepGate — event exists
+    // to preserve pitch/accent state but does not produce sound.  Dim it.
+    const isUngated = (() => {
+      if (event.kind === 'note') return (event as NoteEvent).velocity === 0;
+      if (event.kind === 'trigger') return (event as TriggerEvent).velocity === 0;
+      return false;
+    })();
 
     // Derive per-column editRequested from the parent's counter + column match.
     const posEditReq = (isCursorRow && cursorColumn === 0) ? editRequestCounter : undefined;
@@ -562,6 +574,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         ref={ref}
         className={`
           group text-[11px] font-mono leading-5 ${rowColor}
+          ${isUngated ? 'opacity-40' : ''}
           ${isSelected ? 'bg-amber-500/20' : ''}
           ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
           ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
