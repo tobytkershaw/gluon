@@ -42,7 +42,7 @@ describe('event-conversion', () => {
       expect(events).toHaveLength(2); // trigger + parameter
       const paramEvent = events.find(e => e.kind === 'parameter') as ParameterEvent;
       expect(paramEvent).toBeDefined();
-      expect(paramEvent.controlId).toBe('brightness'); // timbre → brightness
+      expect(paramEvent.controlId).toBe('timbre'); // identity-mapped after #392
       expect(paramEvent.value).toBe(0.8);
     });
 
@@ -88,7 +88,7 @@ describe('event-conversion', () => {
       const paramEvent = events.find(e => e.kind === 'parameter') as ParameterEvent;
       expect(paramEvent).toBeDefined();
       expect(paramEvent.at).toBe(0);
-      expect(paramEvent.controlId).toBe('brightness');
+      expect(paramEvent.controlId).toBe('timbre');
       expect(paramEvent.value).toBe(0.9);
     });
   });
@@ -129,7 +129,7 @@ describe('event-conversion', () => {
 
     it('converts parameter events to param locks with injected mapping', () => {
       const events: MusicalEvent[] = [
-        { kind: 'parameter', at: 2, controlId: 'brightness', value: 0.9 },
+        { kind: 'parameter', at: 2, controlId: 'timbre', value: 0.9 },
       ];
       const steps = eventsToSteps(events, 4, plaitsInverseOptions);
       expect(steps[2].params).toBeDefined();
@@ -138,10 +138,10 @@ describe('event-conversion', () => {
 
     it('uses raw controlId when no mapping injected', () => {
       const events: MusicalEvent[] = [
-        { kind: 'parameter', at: 0, controlId: 'brightness', value: 0.5 },
+        { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.5 },
       ];
       const steps = eventsToSteps(events, 2);
-      expect((steps[0].params as Record<string, unknown>)['brightness']).toBe(0.5);
+      expect((steps[0].params as Record<string, unknown>)['timbre']).toBe(0.5);
     });
 
     it('ignores out-of-range events', () => {
@@ -228,7 +228,7 @@ describe('event-conversion', () => {
       const events = stepsToEvents(original, plaitsOptions);
       // Events should use canonical controlId
       const paramEvent = events.find(e => e.kind === 'parameter') as ParameterEvent;
-      expect(paramEvent.controlId).toBe('brightness');
+      expect(paramEvent.controlId).toBe('timbre');
       // Convert back with inverse mapping
       const result = eventsToSteps(events, 2, plaitsInverseOptions);
       expect((result[0].params as Record<string, unknown>)['timbre']).toBe(0.3);

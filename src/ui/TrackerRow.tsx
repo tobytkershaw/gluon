@@ -75,9 +75,8 @@ function formatPosition(at: number): string {
 
 function abbreviateControlId(controlId: string): string {
   const abbrevs: Record<string, string> = {
-    brightness: 'brite', richness: 'rich', texture: 'textr',
-    pitch: 'pitch', decay: 'decay', harmonics: 'harmo',
-    timbre: 'timbr', morph: 'morph', note: 'note',
+    timbre: 'timbr', harmonics: 'harmo', morph: 'morph',
+    frequency: 'freq', decay: 'decay', note: 'note',
   };
   return abbrevs[controlId] ?? controlId.slice(0, 5);
 }

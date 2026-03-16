@@ -29,31 +29,39 @@ describe('Clouds instrument definition', () => {
     expect(ids).toEqual(['granular', 'pitch-shifter', 'looping-delay', 'spectral']);
   });
 
-  it('each engine has 4 controls', () => {
+  it('each engine has 5 controls (4 continuous + freeze toggle)', () => {
     for (const engine of cloudsInstrument.engines) {
-      expect(engine.controls).toHaveLength(4);
+      expect(engine.controls).toHaveLength(5);
     }
   });
 
-  it('control IDs are position, size, density, feedback', () => {
+  it('control IDs are position, size, density, feedback, freeze', () => {
     const controlIds = cloudsInstrument.engines[0].controls.map(c => c.id);
-    expect(controlIds).toEqual(['position', 'size', 'density', 'feedback']);
+    expect(controlIds).toEqual(['position', 'size', 'density', 'feedback', 'freeze']);
   });
 
-  it('all controls are normalized 0-1', () => {
+  it('all continuous controls are normalized 0-1', () => {
     for (const control of cloudsInstrument.engines[0].controls) {
-      expect(control.range.min).toBe(0);
-      expect(control.range.max).toBe(1);
+      if (control.kind === 'boolean') continue;
+      expect(control.range!.min).toBe(0);
+      expect(control.range!.max).toBe(1);
     }
   });
 
-  it('feedback defaults to 0, others to 0.5', () => {
+  it('feedback defaults to 0, continuous others to 0.5', () => {
     const controls = cloudsInstrument.engines[0].controls;
     const fb = controls.find(c => c.id === 'feedback')!;
     expect(fb.range.default).toBe(0);
-    for (const c of controls.filter(c => c.id !== 'feedback')) {
+    for (const c of controls.filter(c => c.id !== 'feedback' && c.kind === 'continuous')) {
       expect(c.range.default).toBe(0.5);
     }
+  });
+
+  it('freeze is boolean with small size', () => {
+    const controls = cloudsInstrument.engines[0].controls;
+    const freeze = controls.find(c => c.id === 'freeze');
+    expect(freeze?.kind).toBe('boolean');
+    expect(freeze?.size).toBe('small');
   });
 });
 
@@ -93,7 +101,7 @@ describe('Processor registry includes Clouds', () => {
 
   it('getProcessorControlIds returns Clouds controls', () => {
     const ids = getProcessorControlIds('clouds');
-    expect(ids).toEqual(['position', 'size', 'density', 'feedback']);
+    expect(ids).toEqual(['position', 'size', 'density', 'feedback', 'freeze']);
   });
 
   it('getProcessorEngineByName finds Clouds modes', () => {

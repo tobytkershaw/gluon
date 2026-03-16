@@ -54,7 +54,7 @@ describe('validateRegion', () => {
 
   it('accepts a valid region with events', () => {
     const region = makeRegion({
-      events: [trigger(0), trigger(4), param(8, 'brightness', 0.5)],
+      events: [trigger(0), trigger(4), param(8, 'timbre', 0.5)],
     });
     const { valid } = validateRegion(region);
     expect(valid).toBe(true);
@@ -174,7 +174,7 @@ describe('validateRegion', () => {
   // Invariant 9: no duplicate parameter events for same controlId
   it('rejects duplicate parameter events for same controlId at same position', () => {
     const region = makeRegion({
-      events: [param(2, 'brightness', 0.3), param(2, 'brightness', 0.7)],
+      events: [param(2, 'timbre', 0.3), param(2, 'timbre', 0.7)],
     });
     const { valid, errors } = validateRegion(region);
     expect(valid).toBe(false);
@@ -183,7 +183,7 @@ describe('validateRegion', () => {
 
   it('accepts different controlIds at same position', () => {
     const region = makeRegion({
-      events: [param(2, 'brightness', 0.3), param(2, 'decay', 0.7)],
+      events: [param(2, 'timbre', 0.3), param(2, 'decay', 0.7)],
     });
     const { valid } = validateRegion(region);
     expect(valid).toBe(true);
@@ -251,7 +251,7 @@ describe('normalizeRegionEvents', () => {
 
   it('deduplicates parameter events for same controlId at same position', () => {
     const region = makeRegion({
-      events: [param(2, 'brightness', 0.3), param(2, 'brightness', 0.9)],
+      events: [param(2, 'timbre', 0.3), param(2, 'timbre', 0.9)],
     });
     const result = normalizeRegionEvents(region);
     expect(result.events).toHaveLength(1);
@@ -260,7 +260,7 @@ describe('normalizeRegionEvents', () => {
 
   it('keeps parameter events with different controlIds at same position', () => {
     const region = makeRegion({
-      events: [param(2, 'brightness', 0.3), param(2, 'decay', 0.7)],
+      events: [param(2, 'timbre', 0.3), param(2, 'decay', 0.7)],
     });
     const result = normalizeRegionEvents(region);
     expect(result.events).toHaveLength(2);

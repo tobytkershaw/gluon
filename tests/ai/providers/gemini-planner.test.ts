@@ -78,7 +78,7 @@ describe('GeminiPlannerProvider', () => {
 
   it('extracts function calls from response', async () => {
     mockGenerateContent.mockResolvedValueOnce(mockFunctionCallResponse([
-      { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
+      { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
     ]));
     const result = await planner.startTurn({
       systemPrompt: 'system',
@@ -89,7 +89,7 @@ describe('GeminiPlannerProvider', () => {
     expect(result.functionCalls[0]).toEqual({
       id: 'c1',
       name: 'move',
-      args: { param: 'brightness', target: { absolute: 0.5 } },
+      args: { param: 'timbre', target: { absolute: 0.5 } },
     });
   });
 
@@ -138,7 +138,7 @@ describe('GeminiPlannerProvider', () => {
   it('function response round-tripping via continueTurn', async () => {
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
+        { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
       ]))
       .mockResolvedValueOnce(mockTextResponse('Done.'));
 
@@ -169,7 +169,7 @@ describe('GeminiPlannerProvider', () => {
     // 3rd exchange with tool call (more Contents)
     mockGenerateContent
       .mockResolvedValueOnce(mockFunctionCallResponse([
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
+        { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
       ]))
       .mockResolvedValueOnce(mockTextResponse('Applied.'));
     await planner.startTurn({ systemPrompt: 's', userMessage: 'do it', tools: GLUON_TOOLS });

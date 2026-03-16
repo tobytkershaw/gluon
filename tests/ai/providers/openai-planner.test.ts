@@ -80,7 +80,7 @@ describe('OpenAIPlannerProvider', () => {
 
   it('extracts function calls from response', async () => {
     mockCreate.mockResolvedValueOnce(mockFunctionCallResponse([
-      { call_id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
+      { call_id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
     ]));
     const result = await planner.startTurn({
       systemPrompt: 'system',
@@ -91,14 +91,14 @@ describe('OpenAIPlannerProvider', () => {
     expect(result.functionCalls[0]).toEqual({
       id: 'c1',
       name: 'move',
-      args: { param: 'brightness', target: { absolute: 0.5 } },
+      args: { param: 'timbre', target: { absolute: 0.5 } },
     });
   });
 
   it('extracts parallel function calls from response', async () => {
     mockCreate.mockResolvedValueOnce(mockFunctionCallResponse([
-      { call_id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
-      { call_id: 'c2', name: 'move', args: { param: 'texture', target: { absolute: 0.8 } } },
+      { call_id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
+      { call_id: 'c2', name: 'move', args: { param: 'morph', target: { absolute: 0.8 } } },
     ]));
     const result = await planner.startTurn({
       systemPrompt: 'system',
@@ -113,7 +113,7 @@ describe('OpenAIPlannerProvider', () => {
   it('function response round-tripping via continueTurn', async () => {
     mockCreate
       .mockResolvedValueOnce(mockFunctionCallResponse([
-        { call_id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
+        { call_id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
       ], 'resp_turn1'))
       .mockResolvedValueOnce(mockTextResponse('Done.', 'resp_turn1b'));
 
@@ -159,7 +159,7 @@ describe('OpenAIPlannerProvider', () => {
 
     // Start a new turn — chains from committed
     mockCreate.mockResolvedValueOnce(mockFunctionCallResponse([
-      { call_id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } },
+      { call_id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } },
     ], 'resp_pending'));
     await planner.startTurn({ systemPrompt: 's', userMessage: 'second', tools: GLUON_TOOLS });
 

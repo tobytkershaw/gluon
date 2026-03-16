@@ -10,7 +10,10 @@ import {
 import { midiToNote } from './synth-interface';
 import { eventsToSteps } from '../engine/event-conversion';
 
-const KNOWN_CONTROL_IDS = new Set(Object.keys(controlIdToRuntimeParam));
+// All valid Plaits control IDs (hardware names after #392 rename).
+// Most are identity-mapped (timbre→timbre, harmonics→harmonics, morph→morph).
+// Only frequency→note requires a mapping lookup.
+const KNOWN_CONTROL_IDS = new Set(['timbre', 'harmonics', 'morph', 'frequency']);
 
 export function createPlaitsAdapter(): SourceAdapter {
   return {
@@ -18,15 +21,21 @@ export function createPlaitsAdapter(): SourceAdapter {
     name: 'Plaits WASM',
 
     mapControl(controlId: string): ControlBinding {
-      const param = controlIdToRuntimeParam[controlId];
+      const param = controlIdToRuntimeParam[controlId] ?? controlId;
       return {
         adapterId: 'plaits-wasm',
-        path: param ? `params.${param}` : controlId,
+        path: `params.${param}`,
       };
     },
 
     mapRuntimeParamKey(paramKey: string): string | null {
-      return runtimeParamToControlId[paramKey] ?? null;
+      // Check explicit mapping first (note→frequency), then identity
+      if (runtimeParamToControlId[paramKey] !== undefined) {
+        return runtimeParamToControlId[paramKey];
+      }
+      // Identity-mapped params: timbre, harmonics, morph
+      if (KNOWN_CONTROL_IDS.has(paramKey)) return paramKey;
+      return null;
     },
 
     applyControlChanges(changes) {

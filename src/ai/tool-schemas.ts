@@ -11,7 +11,7 @@ const moveTool: ToolSchema = {
     properties: {
       param: {
         type: 'string',
-        description: 'The control ID to change. For track: "brightness", "richness", "texture", "pitch". For processors: depends on type (Rings: "structure", "brightness", "damping", "position"; Clouds: "position", "size", "density", "feedback"). For Tides modulator: "frequency", "shape", "slope", "smoothness".',
+        description: 'The control ID to change. For track: "timbre", "harmonics", "morph", "frequency". For processors: depends on type (Rings: "structure", "brightness", "damping", "position", "polyphony", "internal-exciter"; Clouds: "position", "size", "density", "feedback", "freeze"). For Tides modulator: "frequency", "shape", "slope", "smoothness".',
       },
       target: {
         type: 'object',
@@ -288,7 +288,7 @@ const manageModulatorTool: ToolSchema = {
       },
       description: {
         type: 'string',
-        description: 'Short description (e.g. "add Tides LFO for slow brightness sweep").',
+        description: 'Short description (e.g. "add Tides LFO for slow timbre sweep").',
       },
     },
     required: ['action', 'trackId', 'description'],
@@ -329,7 +329,7 @@ const modulationRouteTool: ToolSchema = {
       },
       targetParam: {
         type: 'string',
-        description: 'Required for connect. The parameter to modulate. Source: "brightness", "richness", "texture". Processor: depends on type.',
+        description: 'Required for connect. The parameter to modulate. Source: "timbre", "harmonics", "morph". Processor: depends on type.',
       },
       depth: {
         type: 'number',
@@ -337,7 +337,7 @@ const modulationRouteTool: ToolSchema = {
       },
       description: {
         type: 'string',
-        description: 'Short description (e.g. "route Tides to brightness for slow sweep").',
+        description: 'Short description (e.g. "route Tides to timbre for slow sweep").',
       },
     },
     required: ['action', 'trackId', 'description'],
@@ -405,7 +405,7 @@ const setSurfaceTool: ToolSchema = {
                 type: 'object',
                 properties: {
                   moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
-                  controlId: { type: 'string', description: 'The parameter to blend (e.g. "brightness", "structure").' },
+                  controlId: { type: 'string', description: 'The parameter to blend (e.g. "timbre", "structure").' },
                   weight: { type: 'number', description: 'Blend weight (0.0-1.0). All weights in one control must sum to 1.0.' },
                   transform: { type: 'string', description: 'Transform: "linear" (default), "inverse", or "bipolar".' },
                 },
@@ -457,7 +457,7 @@ const pinControlTool: ToolSchema = {
       },
       trackId: { type: 'string', description: 'Target track ID (e.g. "v0").' },
       moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
-      controlId: { type: 'string', description: 'The control to pin or unpin (e.g. "brightness", "structure").' },
+      controlId: { type: 'string', description: 'The control to pin or unpin (e.g. "timbre", "structure").' },
     },
     required: ['action', 'trackId', 'moduleId', 'controlId'],
   },

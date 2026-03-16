@@ -9,29 +9,29 @@ import type {
 } from '../engine/canonical-types';
 
 // --- Canonical-to-runtime mappings ---
+// After the hardware-name rename (#392), most Plaits control IDs match their
+// runtime param names directly (timbre→timbre, harmonics→harmonics, morph→morph).
+// The only remaining mapping is frequency→note.
+// Processors (Rings, Clouds) and modulators (Tides) use identity mappings.
 
 export const controlIdToRuntimeParam: Record<string, string> = {
-  brightness: 'timbre',
-  richness: 'harmonics',
-  texture: 'morph',
-  pitch: 'note',
+  frequency: 'note',
 };
 
 export const runtimeParamToControlId: Record<string, string> = {
-  timbre: 'brightness',
-  harmonics: 'richness',
-  morph: 'texture',
-  note: 'pitch',
+  note: 'frequency',
 };
 
 // --- Control factory ---
 
-function makeControl(
+function makePlaitsControl(
   id: string,
   name: string,
   semanticRole: SemanticRole,
   description: string,
   runtimeParam: string,
+  defaultVal = 0.5,
+  size: 'large' | 'small' = 'large',
 ): ControlSchema {
   return {
     id,
@@ -41,7 +41,8 @@ function makeControl(
     description,
     readable: true,
     writable: true,
-    range: { min: 0, max: 1, default: 0.5 },
+    range: { min: 0, max: 1, default: defaultVal },
+    size,
     binding: {
       adapterId: 'plaits',
       path: `params.${runtimeParam}`,
@@ -51,36 +52,46 @@ function makeControl(
 
 function defaultControls(): ControlSchema[] {
   return [
-    makeControl(
-      'brightness',
-      'Brightness',
+    makePlaitsControl(
+      'timbre',
+      'Timbre',
       'brightness',
       'Spectral content of the sound. Low values are dark and warm, high values are bright and cutting.',
       'timbre',
     ),
-    makeControl(
-      'richness',
-      'Richness',
+    makePlaitsControl(
+      'harmonics',
+      'Harmonics',
       'richness',
       'Harmonic richness and complexity. Low values are simple and pure, high values are dense and complex.',
       'harmonics',
     ),
-    makeControl(
-      'texture',
-      'Texture',
+    makePlaitsControl(
+      'morph',
+      'Morph',
       'texture',
       'Surface character and modulation depth. Shapes the evolving quality of the sound.',
       'morph',
     ),
-    makeControl(
-      'pitch',
-      'Pitch',
+    makePlaitsControl(
+      'frequency',
+      'Frequency',
       'pitch',
       'Fundamental pitch of the sound. 0.0 is the lowest, 1.0 is the highest.',
       'note',
     ),
   ];
 }
+
+// --- Missing Plaits parameters (need C++ WASM bridge work) ---
+// The Plaits Patch struct has these additional fields that are initialized in
+// gluon_plaits.cpp but not exposed via _plaits_set_patch():
+//   - frequency_modulation_amount (FM amount)
+//   - timbre_modulation_amount (timbre envelope amount)
+//   - morph_modulation_amount (morph envelope amount)
+//   - decay (LPG decay)
+//   - lpg_colour (LPG colour / response)
+// Follow-on: add new C++ setter(s), worklet messages, and ControlSchema entries.
 
 // --- Engine definitions ---
 
@@ -138,17 +149,21 @@ function makeRingsControl(
   name: string,
   semanticRole: SemanticRole,
   description: string,
+  kind: ControlKind = 'continuous',
   defaultVal = 0.5,
+  size: 'large' | 'small' = 'large',
+  range?: { min: number; max: number; default: number },
 ): ControlSchema {
   return {
     id,
     name,
-    kind: 'continuous' as ControlKind,
+    kind,
     semanticRole,
     description,
     readable: true,
     writable: true,
-    range: { min: 0, max: 1, default: defaultVal },
+    range: range ?? { min: 0, max: 1, default: defaultVal },
+    size,
     binding: {
       adapterId: 'rings',
       path: `params.${id}`,
@@ -175,6 +190,7 @@ function ringsControls(): ControlSchema[] {
       'Damping',
       'texture',
       'Decay time of the resonance. Low values ring long, high values decay quickly.',
+      'continuous',
       0.7,
     ),
     makeRingsControl(
@@ -183,8 +199,37 @@ function ringsControls(): ControlSchema[] {
       'texture',
       'Excitation position along the resonator. Changes the harmonic content by exciting different modes.',
     ),
+    // --- Secondary controls (WASM bridge exists) ---
+    makeRingsControl(
+      'polyphony',
+      'Polyphony',
+      'density',
+      'Number of simultaneous resonating voices (1–4).',
+      'discrete',
+      1,
+      'small',
+      { min: 1, max: 4, default: 1 },
+    ),
+    {
+      id: 'internal-exciter',
+      name: 'Internal Exciter',
+      kind: 'boolean' as ControlKind,
+      semanticRole: 'body',
+      description: 'When enabled, Rings uses its own built-in exciter instead of processing external audio input.',
+      readable: true,
+      writable: true,
+      size: 'small',
+      binding: {
+        adapterId: 'rings',
+        path: 'params.internal-exciter',
+      },
+    },
   ];
 }
+
+// --- Missing Rings parameters (need C++ WASM bridge work) ---
+// - fine tune (would modify performance.note with fine offset)
+// Follow-on: add C++ setter, worklet message, and ControlSchema entry.
 
 // --- Rings engine definitions ---
 
@@ -270,17 +315,20 @@ function makeCloudsControl(
   name: string,
   semanticRole: SemanticRole,
   description: string,
+  kind: ControlKind = 'continuous',
   defaultVal = 0.5,
+  size: 'large' | 'small' = 'large',
 ): ControlSchema {
   return {
     id,
     name,
-    kind: 'continuous' as ControlKind,
+    kind,
     semanticRole,
     description,
     readable: true,
     writable: true,
     range: { min: 0, max: 1, default: defaultVal },
+    size,
     binding: {
       adapterId: 'clouds',
       path: `params.${id}`,
@@ -313,10 +361,37 @@ function cloudsControls(): ControlSchema[] {
       'Feedback',
       'decay',
       'Wet signal recirculation. High values create evolving, self-reinforcing textures.',
+      'continuous',
       0.0,
     ),
+    // --- Secondary control (WASM bridge exists) ---
+    {
+      id: 'freeze',
+      name: 'Freeze',
+      kind: 'boolean' as ControlKind,
+      semanticRole: 'stability',
+      description: 'When enabled, freezes the recording buffer so no new audio is captured. Grains read from the frozen buffer.',
+      readable: true,
+      writable: true,
+      size: 'small',
+      binding: {
+        adapterId: 'clouds',
+        path: 'params.freeze',
+      },
+    },
   ];
 }
+
+// --- Missing Clouds parameters (need C++ WASM bridge work) ---
+// The Clouds GranularProcessor params struct has these fields that are set in
+// clouds_create() but not exposed via _clouds_set_parameters():
+//   - texture (grain envelope / window shape)
+//   - pitch (pitch shift in semitones)
+//   - dry_wet (dry/wet mix)
+//   - stereo_spread (stereo image width)
+//   - reverb (built-in reverb amount)
+// Follow-on: extend _clouds_set_parameters() or add new setter(s),
+// update CloudsPatchParams, worklet messages, and ControlSchema entries.
 
 // --- Clouds engine definitions ---
 
@@ -367,6 +442,7 @@ function makeTidesControl(
   semanticRole: SemanticRole,
   description: string,
   defaultVal = 0.5,
+  size: 'large' | 'small' = 'large',
 ): ControlSchema {
   return {
     id,
@@ -377,6 +453,7 @@ function makeTidesControl(
     readable: true,
     writable: true,
     range: { min: 0, max: 1, default: defaultVal },
+    size,
     binding: {
       adapterId: 'tides',
       path: `params.${id}`,
@@ -414,6 +491,14 @@ function tidesControls(): ControlSchema[] {
     ),
   ];
 }
+
+// --- Missing Tides parameters (need C++ WASM bridge work) ---
+// The Tides PolySlopeGenerator::Render() call accepts these parameters that
+// are currently hardcoded in gluon_tides.cpp:
+//   - shift (multi-channel phase spread, hardcoded to 0.0)
+//   - output_mode (OUTPUT_MODE_AMPLITUDE hardcoded — could expose frequency, phase, etc.)
+//   - range (RANGE_CONTROL hardcoded — could allow audio-rate oscillation)
+// Follow-on: add new C++ setter(s), worklet messages, and ControlSchema entries.
 
 // --- Tides engine definitions ---
 

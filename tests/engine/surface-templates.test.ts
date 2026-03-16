@@ -16,7 +16,7 @@ function makeTrack(overrides: Partial<Track> = {}): Track {
     surface: {
       semanticControls: [],
       pinnedControls: [],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     },
     ...overrides,
@@ -127,8 +127,8 @@ describe('applySurfaceTemplate', () => {
       processors: [{ id: 'rings-0', type: 'rings', model: 0, params: {} }],
       surface: {
         semanticControls: [],
-        pinnedControls: [{ moduleId: 'source', controlId: 'brightness' }],
-        xyAxes: { x: 'brightness', y: 'texture' },
+        pinnedControls: [{ moduleId: 'source', controlId: 'timbre' }],
+        xyAxes: { x: 'timbre', y: 'morph' },
         thumbprint: { type: 'static-color' },
       },
     });
@@ -160,7 +160,7 @@ describe('validateSurface', () => {
     const surface: TrackSurface = {
       semanticControls: [],
       pinnedControls: [],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     };
     expect(validateSurface(surface, track)).toBeNull();
@@ -175,13 +175,13 @@ describe('validateSurface', () => {
         semanticRole: null,
         description: 'test',
         weights: [
-          { moduleId: 'source', controlId: 'brightness', weight: 0.3, transform: 'linear' },
-          { moduleId: 'source', controlId: 'texture', weight: 0.3, transform: 'linear' },
+          { moduleId: 'source', controlId: 'timbre', weight: 0.3, transform: 'linear' },
+          { moduleId: 'source', controlId: 'morph', weight: 0.3, transform: 'linear' },
         ],
         range: { min: 0, max: 1, default: 0.5 },
       }],
       pinnedControls: [],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     };
     const err = validateSurface(surface, track);
@@ -197,12 +197,12 @@ describe('validateSurface', () => {
         semanticRole: null,
         description: 'test',
         weights: [
-          { moduleId: 'nonexistent', controlId: 'brightness', weight: 1.0, transform: 'linear' },
+          { moduleId: 'nonexistent', controlId: 'timbre', weight: 1.0, transform: 'linear' },
         ],
         range: { min: 0, max: 1, default: 0.5 },
       }],
       pinnedControls: [],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     };
     const err = validateSurface(surface, track);
@@ -221,7 +221,7 @@ describe('validateSurface', () => {
         range: { min: 0, max: 1, default: 0.5 },
       }],
       pinnedControls: [],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     };
     const err = validateSurface(surface, track);
@@ -232,8 +232,8 @@ describe('validateSurface', () => {
     const track = makeTrack();
     const surface: TrackSurface = {
       semanticControls: [],
-      pinnedControls: [{ moduleId: 'nonexistent', controlId: 'brightness' }],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      pinnedControls: [{ moduleId: 'nonexistent', controlId: 'timbre' }],
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     };
     const err = validateSurface(surface, track);

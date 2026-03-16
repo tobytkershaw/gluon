@@ -47,7 +47,7 @@ describe('State Compression (Phase 2)', () => {
 
     const result = compressState(s);
     expect(result.tracks[0].pattern.param_locks).toEqual([
-      { at: 5, params: { brightness: 0.8 } },
+      { at: 5, params: { timbre: 0.8 } },
     ]);
   });
 
@@ -55,7 +55,7 @@ describe('State Compression (Phase 2)', () => {
     const session = createSession();
     const result = compressState(session);
     const paramKeys = Object.keys(result.tracks[0].params);
-    expect(paramKeys).toEqual(['brightness', 'richness', 'texture', 'pitch']);
+    expect(paramKeys).toEqual(['timbre', 'harmonics', 'morph', 'frequency']);
   });
 
   it('preserves structured recent human actions', () => {
@@ -68,11 +68,11 @@ describe('State Compression (Phase 2)', () => {
     const result = compressState(session);
     expect(result.recent_human_actions).toHaveLength(2);
     expect(result.recent_human_actions[0].trackId).toBe('v0');
-    expect(result.recent_human_actions[0].param).toBe('brightness');
+    expect(result.recent_human_actions[0].param).toBe('timbre');
     expect(result.recent_human_actions[0].from).toBe(0.3);
     expect(result.recent_human_actions[0].to).toBe(0.7);
     expect(result.recent_human_actions[0].age_ms).toBeGreaterThan(1500);
-    expect(result.recent_human_actions[1].param).toBe('richness');
+    expect(result.recent_human_actions[1].param).toBe('harmonics');
   });
 
   it('does not include human_message field', () => {

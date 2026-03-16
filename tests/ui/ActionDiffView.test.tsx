@@ -34,19 +34,19 @@ describe('ActionDiffView', () => {
         trackId: 'v0',
         trackLabel: 'KICK',
         description: 'fallback pin',
-        diff: { kind: 'surface-pin', moduleId: 'osc', controlId: 'brightness' },
+        diff: { kind: 'surface-pin', moduleId: 'osc', controlId: 'timbre' },
       },
       {
         trackId: 'v0',
         trackLabel: 'KICK',
         description: 'fallback unpin',
-        diff: { kind: 'surface-unpin', moduleId: 'osc', controlId: 'brightness' },
+        diff: { kind: 'surface-unpin', moduleId: 'osc', controlId: 'timbre' },
       },
       {
         trackId: 'v0',
         trackLabel: 'KICK',
         description: 'fallback axes',
-        diff: { kind: 'surface-label-axes', x: 'brightness', y: 'texture' },
+        diff: { kind: 'surface-label-axes', x: 'timbre', y: 'morph' },
       },
     ];
 

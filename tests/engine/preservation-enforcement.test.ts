@@ -66,7 +66,7 @@ describe('extractRhythmPositions', () => {
   it('extracts note and trigger positions, ignoring parameter events', () => {
     const events: MusicalEvent[] = [
       { kind: 'trigger', at: 0, velocity: 1 },
-      { kind: 'parameter', at: 2, controlId: 'brightness', value: 0.5 },
+      { kind: 'parameter', at: 2, controlId: 'timbre', value: 0.5 },
       { kind: 'note', at: 4, pitch: 60, velocity: 0.8, duration: 1 },
       { kind: 'trigger', at: 8, velocity: 0.7 },
     ];
@@ -84,7 +84,7 @@ describe('extractRhythmPositions', () => {
 
   it('returns empty array for parameter-only events', () => {
     const events: MusicalEvent[] = [
-      { kind: 'parameter', at: 0, controlId: 'brightness', value: 0.5 },
+      { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.5 },
     ];
     expect(extractRhythmPositions(events)).toEqual([]);
   });
@@ -200,7 +200,7 @@ describe('preservation enforcement — sketch', () => {
       description: 'add automation',
       events: [
         { kind: 'trigger', at: 0, velocity: 1 },
-        { kind: 'parameter', at: 2, controlId: 'brightness', value: 0.7 },
+        { kind: 'parameter', at: 2, controlId: 'timbre', value: 0.7 },
         { kind: 'trigger', at: 4, velocity: 0.8 },
         { kind: 'trigger', at: 8, velocity: 1 },
         { kind: 'trigger', at: 12, velocity: 0.8 },

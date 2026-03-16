@@ -20,7 +20,7 @@ const MOD_ROW_Y = AUDIO_ROW_Y + NODE_H + 100;
 const OUTPUT_R = 10;
 
 // Valid source modulation targets (must match chain-validation.ts)
-const VALID_SOURCE_MOD_TARGETS = ['brightness', 'richness', 'texture'];
+const VALID_SOURCE_MOD_TARGETS = ['timbre', 'harmonics', 'morph'];
 
 // --- Helpers ---
 
@@ -465,10 +465,10 @@ function NodeDetailPanel({ node, track }: { node: NodePos; track: Track }) {
 
   if (node.kind === 'source') {
     params = [
-      ['brightness', track.params.timbre ?? 0],
-      ['richness', track.params.harmonics ?? 0],
-      ['texture', track.params.morph ?? 0],
-      ['pitch', track.params.note ?? 0],
+      ['timbre', track.params.timbre ?? 0],
+      ['harmonics', track.params.harmonics ?? 0],
+      ['morph', track.params.morph ?? 0],
+      ['frequency', track.params.note ?? 0],
     ];
   } else if (node.kind === 'processor') {
     const proc = (track.processors ?? []).find(p => p.id === node.id);

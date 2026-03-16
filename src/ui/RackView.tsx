@@ -11,7 +11,7 @@ import { ModuleBrowser } from './ModuleBrowser';
 import { DraggableNumber } from './DraggableNumber';
 
 /** Valid source params that can be modulation targets (matches chain-validation.ts) */
-const VALID_SOURCE_MOD_TARGETS = ['brightness', 'richness', 'texture'];
+const VALID_SOURCE_MOD_TARGETS = ['timbre', 'harmonics', 'morph'];
 
 interface ModulationTargetOption {
   moduleId: string;  // 'source' or processorId

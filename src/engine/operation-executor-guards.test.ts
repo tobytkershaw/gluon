@@ -93,9 +93,10 @@ function makeResolvingAdapter(): SourceAdapter {
     ...makeNullAdapter(),
     mapRuntimeParamKey: (key: string) => {
       const known: Record<string, string> = {
-        timbre: 'brightness',
-        morph: 'texture',
-        harmonics: 'richness',
+        timbre: 'timbre',
+        morph: 'morph',
+        harmonics: 'harmonics',
+        note: 'frequency',
       };
       return known[key] ?? null;
     },
@@ -119,7 +120,7 @@ describe('executeOperations — defense-in-depth guards (#206)', () => {
         resolveCount++;
         // First call (prevalidation's resolveMoveParam): resolve OK
         if (resolveCount === 1) {
-          return key === 'flaky' ? 'brightness' : null;
+          return key === 'flaky' ? 'timbre' : null;
         }
         // Second call (execution's resolveMoveParam): return null to trigger guard
         return null;

@@ -13,12 +13,12 @@ function createTestAdapter(): SourceAdapter {
     id: 'test',
     name: 'Test Adapter',
     mapControl(controlId: string) {
-      const map: Record<string, string> = { brightness: 'timbre', richness: 'harmonics', texture: 'morph', pitch: 'note' };
+      const map: Record<string, string> = { frequency: 'note' };
       return { adapterId: 'test', path: `params.${map[controlId] ?? controlId}` };
     },
     mapRuntimeParamKey(paramKey: string) {
-      const map: Record<string, string> = { timbre: 'brightness', harmonics: 'richness', morph: 'texture', note: 'pitch' };
-      return map[paramKey] ?? null;
+      const map: Record<string, string> = { note: 'frequency' };
+      return map[paramKey] ?? paramKey;
     },
     applyControlChanges() {},
     mapEvents() { return []; },
