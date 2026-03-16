@@ -20,6 +20,9 @@ interface Props {
   onEventDelete: (selector: EventSelector) => void;
   /** Quantize all events in the active region to the nearest grid position. */
   onQuantize?: () => void;
+  // Pattern length
+  onPatternLengthChange?: (length: number) => void;
+  onClearPattern?: () => void;
   // Transform callbacks
   onRotate?: (steps: number) => void;
   onTranspose?: (semitones: number) => void;
@@ -76,6 +79,7 @@ export function TrackerView({
   playing, globalStep,
   onEventUpdate, onEventDelete,
   onQuantize,
+  onPatternLengthChange, onClearPattern,
   onRotate, onTranspose, onReverse, onDuplicate,
   cancelEditRef,
 }: Props) {
@@ -101,6 +105,35 @@ export function TrackerView({
             <span className="text-[10px] text-zinc-500">
               {getModelName(activeTrack.model)}
             </span>
+            {onPatternLengthChange && (
+              <div className="flex items-center gap-1 ml-4">
+                <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Len</span>
+                <div className="flex gap-0.5">
+                  {[4, 8, 16, 32, 64].map(len => (
+                    <button
+                      key={len}
+                      onClick={() => onPatternLengthChange(len)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                        activeTrack.pattern.length === len
+                          ? 'bg-amber-500/20 text-amber-400'
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      {len}
+                    </button>
+                  ))}
+                </div>
+                {onClearPattern && (
+                  <button
+                    onClick={onClearPattern}
+                    className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-500/10"
+                    title="Clear all events in pattern"
+                  >
+                    CLR
+                  </button>
+                )}
+              </div>
+            )}
             <div className="ml-auto flex items-center gap-2">
               {hasEvents && (
                 <>

@@ -1612,6 +1612,8 @@ export default function App() {
             onEventDelete={handleEventDelete}
             onEventAdd={handleEventAdd}
             onQuantize={handleQuantize}
+            onPatternLengthChange={handlePatternLength}
+            onClearPattern={handleClearPattern}
             onRotate={handleRotate}
             onTranspose={handleTranspose}
             onReverse={handleReverse}
