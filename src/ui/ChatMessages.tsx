@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import type { ChatMessage } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
+import { ToolCallsView } from './ToolCallsView';
 
 interface Props {
   messages: ChatMessage[];
@@ -63,6 +64,9 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                   <ActionDiffView key={j} entry={a} />
                 ))}
               </div>
+            )}
+            {msg.toolCalls && msg.toolCalls.length > 0 && (
+              <ToolCallsView toolCalls={msg.toolCalls} />
             )}
           </div>
         </div>

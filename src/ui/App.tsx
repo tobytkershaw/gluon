@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, RegionSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizeRegionEvents } from '../engine/region-helpers';
@@ -448,9 +448,9 @@ export default function App() {
 
   const activeTrack = getActiveTrack(session);
 
-  const dispatchAIActions = useCallback((actions: AIAction[]) => {
+  const dispatchAIActions = useCallback((actions: AIAction[], toolCalls?: ToolCallEntry[]) => {
     setSession((s) => {
-      const report = executeOperations(s, actions, plaitsAdapter, arbRef.current);
+      const report = executeOperations(s, actions, plaitsAdapter, arbRef.current, toolCalls);
 
       // Start drift animations for accepted moves with `over`
       for (let i = 0; i < report.accepted.length; i++) {
@@ -742,6 +742,7 @@ export default function App() {
     // Accumulate streaming text in a ref so the callback closure always
     // has the latest value (React state updates are async).
     let accumulated = '';
+    const collectedToolCalls: ToolCallEntry[] = [];
 
     try {
       const actions = await aiRef.current.ask(sessionRef.current, message, {
@@ -758,10 +759,14 @@ export default function App() {
           accumulated += chunk;
           setStreamingText(accumulated);
         },
+        onToolCall: (name, args) => {
+          if (thisRequest !== requestIdRef.current) return;
+          collectedToolCalls.push({ name, args });
+        },
       });
       if (thisRequest !== requestIdRef.current) return;
       setStreamingText('');
-      dispatchAIActions(actions);
+      dispatchAIActions(actions, collectedToolCalls);
     } catch {
       // Error already handled by GluonAI.handleError — no additional action needed
     } finally {
