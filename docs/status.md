@@ -1,7 +1,7 @@
 # Gluon — Build Status
 
 **As of:** 2026-03-16
-**Build:** 992 tests, 67 test files, zero type errors
+**Build:** 1028 tests, 69 test files, zero type errors
 
 ---
 
@@ -11,11 +11,11 @@ Browser-based AI-assisted music instrument. Human directs AI via natural languag
 
 **Core:** 1-16 dynamic tracks (audio + bus), Plaits/Rings/Clouds/Tides WASM synthesis with all parameters exposed and smoothed, processor chains, Tides modulation, send/return bus routing with explicit master bus, polyphonic sequencing (up to 4 simultaneous notes per step).
 
-**Views:** Surface (AI-curated semantic controls), Rack (Eurorack-style module grid with knob hierarchy), Patch (node graph with named MI hardware ports + signal-typed edges), Tracker (Renoise-style with keyboard nav, copy/paste, note columns).
+**Views:** Surface (AI-curated semantic controls), Rack (Eurorack-style module grid with Bitwig-style modulation indicators), Patch (node graph with named MI hardware ports + signal-typed edges + route creation), Tracker (Renoise-style with keyboard nav, copy/paste, note columns, automation lane).
 
 **AI:** 17 tools, dual-provider stack (GPT-5.4 planner + Gemini 3 Flash listener), streaming responses with progressive text rendering, dual-posture system prompt (collaborator for discussion, precise for actions), preservation contracts, reaction history, structured listening.
 
-**UX:** Undo + redo, audio export (WAV), multi-line chat, per-track volume/pan knobs, BPM 20-300 with fractional support, voice stealing gain ramp, metronome click track, A/B loop points, module bypass toggle.
+**UX:** Undo + redo, audio export (mono + stereo WAV), multi-line chat, per-track volume/pan knobs, BPM 20-300 with fractional support (keyboard nudge +/-1/10), voice stealing gain ramp, metronome click track, A/B loop points, module bypass toggle, configurable gate length, parameter interpolation (step/linear/curve), micro-timing offsets, expanded keyboard shortcuts with reference panel (Cmd+?).
 
 ---
 
@@ -35,17 +35,17 @@ Tracker keyboard nav + copy/paste, Eurorack rack grid, Patch view real ports, WA
 
 Bus tracks with send/return routing, explicit master bus.
 
-### Wave 3: "Make it complete" — In progress (7/7 first batch merged)
+### Wave 3: "Make it complete" — Complete (15/15 PRs merged)
 
-**Merged:** multiple regions (#399), loop selection (#404), metronome (#403), module bypass (#436), tool-call visibility (#414), reaction UI (#431), multi-region review fixes (#473)
+**First batch (7):** multiple regions (#399), loop selection (#404), metronome (#403), module bypass (#436), tool-call visibility (#414), reaction UI (#431), multi-region review fixes (#473)
+
+**Second batch (8):** stereo render (#411), configurable gate length (#410), render tool fix (#379), micro-timing tests (#409), keyboard shortcuts + reference panel (#433), parameter interpolation (#408), modulation Rack→Patch refactor (#391), automation drawing UI (#432)
 
 **Design decisions:** #395 (port-level graph) deferred to post-finalization (#466). #429 (arrangement) split into layers — regions + loop = finalization, scenes (#469) + timeline = later.
 
-**Remaining (priority:next):** #379 (render fix), #391 (modulation to Patch), #408 (interpolation), #409 (microtiming), #410 (gate length), #411 (stereo render), #432 (automation UI), #433 (keyboard shortcuts), #469 (scenes — post-finalization)
-
 ### Wave 4: "Make it polished" — Not started
 
-~20 QoL issues: keyboard shortcuts, A/B comparison, automation drawing, micro-timing, stereo render, pan/zoom, play-from-cursor, per-message undo, CPU indicator, etc.
+Remaining QoL: A/B comparison, pan/zoom, play-from-cursor, per-message undo, CPU indicator, scenes (#469), etc.
 
 ---
 
@@ -54,11 +54,11 @@ Bus tracks with send/return routing, explicit master bus.
 - TypeScript, React, Vite, Tailwind CSS
 - Emscripten (C++ to WASM) — Mutable Instruments Plaits, Rings, Clouds, Tides
 - Web Audio API + AudioWorklet
-- Google GenAI SDK + OpenAI SDK (dual-provider)
+- Google GenAI SDK + OpenAI SDK + Anthropic SDK (multi-provider)
 
 ## Milestones Complete
 
-M0 (Stabilization) → M1 (Sequencer) → M2 (Expressivity) → M3 (Views) → M4 (Chains) → Phase 4B (Modulation) → M5 (UI Layers) → M6 (AI Collaboration) → Finalization Waves 1-2 → Wave 3 (in progress)
+M0 (Stabilization) → M1 (Sequencer) → M2 (Expressivity) → M3 (Views) → M4 (Chains) → Phase 4B (Modulation) → M5 (UI Layers) → M6 (AI Collaboration) → Finalization Waves 1-3
 
 ## Key Design Decisions
 
@@ -68,4 +68,5 @@ M0 (Stabilization) → M1 (Sequencer) → M2 (Expressivity) → M3 (Views) → M
 - **Regions:** Multiple per track, active region tracking, region CRUD with undo, scheduler plays all at start offsets
 - **Port graph:** Deferred (#466) — chain model is shallow and not blocking. Module bypass standalone.
 - **Arrangement:** Layered approach — regions + loop now, scenes later (#469), timeline much later
-- **Views:** Tracker = canonical event view, Rack = parameter ground truth, Patch = topology ground truth, Surface = AI-curated
+- **Views:** Tracker = canonical event view, Rack = parameter ground truth (read-only modulation indicators), Patch = topology ground truth (route creation), Surface = AI-curated
+- **Automation:** Dual model — inline ParameterEvents in tracker + visual breakpoint envelope editor. Linear/curve interpolation with per-point tension.
