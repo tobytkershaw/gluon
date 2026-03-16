@@ -343,4 +343,72 @@ describe('API Structural Integrity', () => {
     // Should get "Snapshot not found" error, not "Unknown tool"
     expect((response!.result as Record<string, unknown>).error).toContain('Snapshot not found');
   });
+
+  // -----------------------------------------------------------------------
+  // Ordinal track identity resolution (#515)
+  // -----------------------------------------------------------------------
+
+  it('move: resolves "Track 1" to v0', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 }, trackId: 'Track 1' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    const actions = await ai.ask(createSession(), 'make track 1 darker');
+    const moveAction = actions.find(a => a.type === 'move');
+    expect(moveAction).toBeDefined();
+    expect((moveAction as { trackId?: string }).trackId).toBe('v0');
+  });
+
+  it('sketch: resolves "Track 2" to v1', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'sketch', args: { trackId: 'Track 2', description: 'test', events: [{ kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 0.25 }] } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    const actions = await ai.ask(createSession(), 'write a pattern on track 2');
+    const sketchAction = actions.find(a => a.type === 'sketch');
+    expect(sketchAction).toBeDefined();
+    expect((sketchAction as { trackId: string }).trackId).toBe('v1');
+  });
+
+  it('rejects unknown track reference', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 }, trackId: 'Track 99' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'test');
+    const response = planner.lastFunctionResponses.find(r => r.name === 'move');
+    expect((response!.result as Record<string, unknown>).error).toContain('Unknown track');
+  });
+
+  it('resolves bare ordinal "1" as trackId', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 }, trackId: '1' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    const actions = await ai.ask(createSession(), 'test');
+    const moveAction = actions.find(a => a.type === 'move');
+    expect(moveAction).toBeDefined();
+    expect((moveAction as { trackId?: string }).trackId).toBe('v0');
+  });
+
+  it('internal IDs still work after ordinal resolution', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'test', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 }, trackId: 'v2' } }],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    const actions = await ai.ask(createSession(), 'test');
+    const moveAction = actions.find(a => a.type === 'move');
+    expect(moveAction).toBeDefined();
+    expect((moveAction as { trackId?: string }).trackId).toBe('v2');
+  });
 });

@@ -97,22 +97,22 @@ describe('dynamic track setup', () => {
     let session = createLegacySession();
     session = setAgency(session, 'v1', 'OFF');
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('v1 (VA): Virtual Analog (melodic) — agency OFF');
+    expect(prompt).toContain('Track 2 (VA) [id: v1]: Virtual Analog (melodic) — agency OFF');
   });
 
   it('reflects agency ON in prompt', () => {
     const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('v0 (Kick): Analog Bass Drum (percussion) — agency ON');
+    expect(prompt).toContain('Track 1 (Kick) [id: v0]: Analog Bass Drum (percussion) — agency ON');
   });
 
-  it('shows correct model name for each track', () => {
+  it('shows correct model name for each track with ordinal labels', () => {
     const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('v0 (Kick): Analog Bass Drum');
-    expect(prompt).toContain('v1 (VA): Virtual Analog');
-    expect(prompt).toContain('v2 (FM): FM');
-    expect(prompt).toContain('v3 (Harmonic): Harmonic');
+    expect(prompt).toContain('Track 1 (Kick) [id: v0]: Analog Bass Drum');
+    expect(prompt).toContain('Track 2 (VA) [id: v1]: Virtual Analog');
+    expect(prompt).toContain('Track 3 (FM) [id: v2]: FM');
+    expect(prompt).toContain('Track 4 (Harmonic) [id: v3]: Harmonic');
   });
 
   it('mentions transform tool', () => {

@@ -3,7 +3,8 @@
 import type { Session } from '../engine/types';
 import type { RestraintLevel } from './state-compression';
 import { deriveRestraintLevel } from './state-compression';
-import { getTrackLabel } from '../engine/track-labels';
+import { getTrackOrdinalLabel } from '../engine/track-labels';
+import { getTrackKind } from '../engine/types';
 import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
 function generateModelReference(): string {
@@ -21,8 +22,9 @@ function generateParameterSection(): string {
 }
 
 function generateTrackSetup(session: Session): string {
+  const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const trackLines = session.tracks.map(v => {
-    const label = getTrackLabel(v);
+    const ordinalLabel = getTrackOrdinalLabel(v, audioTracks);
     const engine = getEngineByIndex(v.model);
     const engineLabel = engine?.label ?? `Model ${v.model}`;
     const engineId = engine?.id ?? '';
@@ -42,10 +44,10 @@ function generateTrackSetup(session: Session): string {
       return routings ? `${m.type}(${modeName}) → ${routings}` : `${m.type}(${modeName})`;
     }).join(', ');
     const modSuffix = mods ? ` | mod: [${mods}]` : '';
-    return `- ${v.id} (${label}): ${engineLabel} (${classification}) — ${agency}${chainSuffix}${modSuffix}`;
+    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification}) — ${agency}${chainSuffix}${modSuffix}`;
   }).join('\n');
 
-  return `${session.tracks.length} tracks:
+  return `${session.tracks.length} tracks (use "Track N" or internal ID in tool calls):
 ${trackLines}
 For percussion tracks, use trigger events in sketch.
 For melodic tracks, use note events with MIDI pitches. Duration is always 0.25.`;

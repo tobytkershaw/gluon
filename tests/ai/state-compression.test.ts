@@ -4,6 +4,8 @@ import { compressState } from '../../src/ai/state-compression';
 import { createSession, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
 import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel } from '../../src/engine/types';
+import { resolveTrackId, getTrackOrdinalLabel } from '../../src/engine/track-labels';
+import { getTrackKind } from '../../src/engine/types';
 
 describe('State Compression (Phase 2)', () => {
   it('compresses multi-track session', () => {
@@ -372,5 +374,97 @@ describe('Time signature in compressed state', () => {
     session.transport.timeSignature = { numerator: 6, denominator: 8 };
     const result = compressState(session);
     expect(result.transport.time_signature).toBe('6/8');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ordinal track labels (#515)
+// ---------------------------------------------------------------------------
+
+describe('Ordinal track labels in compressed state', () => {
+  it('audio tracks get 1-indexed ordinal labels', () => {
+    const session = createSession();
+    const result = compressState(session);
+    const audioTracks = result.tracks.filter(t => !('kind' in t && t.kind === 'bus'));
+    expect(audioTracks[0].label).toBe('Track 1 (Kick)');
+    expect(audioTracks[1].label).toBe('Track 2 (VA)');
+    expect(audioTracks[2].label).toBe('Track 3 (FM)');
+    expect(audioTracks[3].label).toBe('Track 4 (Harmonic)');
+  });
+
+  it('master bus gets "Master Bus" label', () => {
+    const session = createSession();
+    const result = compressState(session);
+    const masterTrack = result.tracks.find(t => t.id === 'master-bus');
+    expect(masterTrack!.label).toBe('Master Bus');
+  });
+
+  it('user-assigned name appears in ordinal label', () => {
+    const session = createSession();
+    session.tracks[0].name = 'My Kick';
+    const result = compressState(session);
+    expect(result.tracks[0].label).toBe('Track 1 (My Kick)');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTrackId (#515)
+// ---------------------------------------------------------------------------
+
+describe('resolveTrackId', () => {
+  it('resolves internal IDs directly', () => {
+    const session = createSession();
+    expect(resolveTrackId('v0', session)).toBe('v0');
+    expect(resolveTrackId('v1', session)).toBe('v1');
+    expect(resolveTrackId('master-bus', session)).toBe('master-bus');
+  });
+
+  it('resolves "Track 1" to first audio track', () => {
+    const session = createSession();
+    expect(resolveTrackId('Track 1', session)).toBe('v0');
+    expect(resolveTrackId('Track 2', session)).toBe('v1');
+    expect(resolveTrackId('Track 3', session)).toBe('v2');
+    expect(resolveTrackId('Track 4', session)).toBe('v3');
+  });
+
+  it('resolves case-insensitive "track 1"', () => {
+    const session = createSession();
+    expect(resolveTrackId('track 1', session)).toBe('v0');
+    expect(resolveTrackId('TRACK 2', session)).toBe('v1');
+  });
+
+  it('resolves bare ordinal "1"', () => {
+    const session = createSession();
+    expect(resolveTrackId('1', session)).toBe('v0');
+    expect(resolveTrackId('4', session)).toBe('v3');
+  });
+
+  it('returns null for out-of-range ordinal', () => {
+    const session = createSession();
+    expect(resolveTrackId('Track 0', session)).toBeNull();
+    expect(resolveTrackId('Track 99', session)).toBeNull();
+    expect(resolveTrackId('0', session)).toBeNull();
+  });
+
+  it('returns null for unknown string', () => {
+    const session = createSession();
+    expect(resolveTrackId('nonexistent', session)).toBeNull();
+  });
+
+  it('resolves "Master Bus"', () => {
+    const session = createSession();
+    expect(resolveTrackId('Master Bus', session)).toBe('master-bus');
+    expect(resolveTrackId('master bus', session)).toBe('master-bus');
+    expect(resolveTrackId('master-bus', session)).toBe('master-bus');
+  });
+
+  it('ordinal numbering skips bus tracks', () => {
+    const session = createSession();
+    // Audio tracks are v0-v3, master-bus is not counted in ordinals
+    const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+    expect(audioTracks).toHaveLength(4);
+    // Track 1 should be the first audio track regardless of bus position
+    expect(resolveTrackId('Track 1', session)).toBe(audioTracks[0].id);
+    expect(resolveTrackId('Track 4', session)).toBe(audioTracks[3].id);
   });
 });
