@@ -8,14 +8,14 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 
 - **Browser-based**: React + TypeScript + Vite
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
-- **AI (reasoning)**: Google Gemini API (`@google/genai`) for project state reasoning and structured edits
+- **AI (reasoning)**: Multi-provider — OpenAI (`openai`), Google Gemini (`@google/genai`), Anthropic (`@anthropic-ai/sdk`). Planner provider is configurable.
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
 - **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v05.md`)
 
 ## Key Concepts
 
-- **Voices**: Things that make sound, with parameters normalised 0.0-1.0
-- **Agency**: Per-voice AI permission (OFF / ON) — AI only modifies voices with agency ON, and only when asked
+- **Tracks**: Things that make sound (`audio`) or route signal (`bus`), with parameters normalised 0.0-1.0
+- **Agency**: Per-track AI permission (OFF / ON) — AI only modifies tracks with agency ON, and only when asked
 - **Arbitration**: Human's hands always win when both touch the same parameter
 - **Undo**: Reverses all actions (human and AI) in LIFO order, grouped by action groups
 - **Audio snapshots**: Rendered clips sent to multimodal model for AI self-evaluation
@@ -24,12 +24,16 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 
 ```
 src/
-  audio/       # WASM bridge, AudioWorklet, Web Audio setup
-  engine/      # Protocol types, session state, undo stack
-  ai/          # Gemini API, state compression, response parsing
-  ui/          # React components (parameter space, chat, controls)
+  audio/       # WASM bridge, AudioWorklet, Web Audio, offline render
+  engine/      # Protocol types, session state, undo stack, scheduler
+  ai/          # Multi-provider AI, state compression, tool schemas
+    providers/ # Gemini, OpenAI, Anthropic adapters
+  ui/          # React components (views, chat, controls)
+  qa/          # QA test helpers
+scripts/       # Build scripts (WASM, worklets, QA)
 wasm/          # Plaits C++ source and Emscripten build
-docs/          # Architecture docs and protocol spec
+docs/          # Architecture docs, RFCs, briefs, principles
+tests/         # Test files (mirrors src/ structure)
 ```
 
 ## Tech Stack
@@ -37,13 +41,19 @@ docs/          # Architecture docs and protocol spec
 - TypeScript, React, Vite, Tailwind CSS
 - Emscripten (C++ to WASM)
 - Web Audio API + AudioWorklet
-- Google GenAI SDK (`@google/genai`)
+- Google GenAI SDK (`@google/genai`), OpenAI SDK (`openai`), Anthropic SDK (`@anthropic-ai/sdk`)
 
 ## Development Commands
 
 ```bash
 npm run dev          # Start dev server
-npm run build        # Production build
+npm run build        # Production build (tsc + vite)
+npm run lint         # ESLint
+npx tsc --noEmit     # Type check only
+npx vitest run       # Run all tests
+npx vitest run path  # Run single test file
+npm run qa:preflight # Pre-commit QA checks
+npm run qa:smoke     # Playwright smoke tests
 npm run wasm:build   # Compile Plaits to WASM
 ```
 
@@ -90,8 +100,6 @@ Work flows continuously — no wave branches, no batch-and-review cycles.
 
 **Why this matters:** We have had incidents where Codex review work switched the branch in the main checkout mid-session, causing commits to land on wrong branches and modified files to contaminate unrelated work. Worktrees prevent this entirely.
 
-**Never chain `cd` with git commands using `&&`** (e.g. `cd /path && git checkout -b branch`). This triggers bare-repository attack prevention and causes excessive permission prompts. Use separate commands, pass `-C /path` to git, or (in worktree isolation mode) just run git directly — your cwd is already set.
-
 ### Branching
 - `main` is the integration branch — never commit directly during parallel work
 - One task per branch, one agent per branch
@@ -130,11 +138,9 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
-  - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
-  - `M0: Stabilization` (current) — pre-M5 QA bug fixes
-  - `M5: UI Layers` — project foundation, parameter/patch navigation, AI-curated surfaces, listen tool
-  - `M6: Collaboration` — preservation contracts, aesthetic direction, structured listening
-  - `M7: External Integration` — MIDI output, hardware profiles, DAW integration
+  - `M0–M6` — complete (stabilization, sequencer, chains, modulation, UI layers, AI collaboration)
+  - `Finalization` (current) — complete all implemented elements to full song composition capability
+  - `M7: External Integration` — MIDI output, hardware profiles, DAW integration (deprioritized)
   - See `docs/roadmap.md` for the full implementation roadmap
 - Do not create GitHub Projects or expand the label taxonomy unless explicitly asked.
 
@@ -173,4 +179,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
 - `docs/briefs/sequencer.md` - Sequencing strategy and product boundaries.
 - `docs/briefs/offline-listen.md` - Offline audio rendering for the listen tool.
-- `docs/briefs/visual-language.md` - Surface Score: AI-generated visual identity for the Surface view. Six domains (palette, track identity, material, motion, atmosphere, relationships) composed by the AI from the music's character. Soft machinery with bioelectric accents.
+- `docs/briefs/visual-language.md` - Surface Score: AI-generated visual identity for the Surface view.
+- `docs/briefs/cross-model-consultation.md` - Cross-model consultation patterns.
+- `docs/briefs/sampling.md` - Sampling strategy and implementation.
+- `docs/briefs/modular-roadmap.md` - Modular architecture roadmap.
