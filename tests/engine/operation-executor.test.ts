@@ -11,12 +11,15 @@ function createTestAdapter(): SourceAdapter {
     id: 'test',
     name: 'Test Adapter',
     mapControl(controlId: string) {
-      const map: Record<string, string> = { brightness: 'timbre', richness: 'harmonics', texture: 'morph', pitch: 'note' };
+      const map: Record<string, string> = { frequency: 'note' };
       return { adapterId: 'test', path: `params.${map[controlId] ?? controlId}` };
     },
     mapRuntimeParamKey(paramKey: string) {
-      const map: Record<string, string> = { timbre: 'brightness', harmonics: 'richness', morph: 'texture', note: 'pitch' };
-      return map[paramKey] ?? null;
+      const map: Record<string, string> = { note: 'frequency' };
+      const known = new Set(['timbre', 'harmonics', 'morph']);
+      if (map[paramKey]) return map[paramKey];
+      if (known.has(paramKey)) return paramKey;
+      return null;
     },
     applyControlChanges() {},
     mapEvents() { return []; },
@@ -73,7 +76,7 @@ describe('operation-executor', () => {
     const actions: AIAction[] = [{ type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.8 } }];
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     const track = report.session.tracks.find(v => v.id === 'v0')!;
-    expect(track.controlProvenance?.brightness?.source).toBe('ai');
+    expect(track.controlProvenance?.timbre?.source).toBe('ai');
   });
 
   it('rejects unknown track', () => {
@@ -104,12 +107,12 @@ describe('operation-executor', () => {
     const afterMove = report.session;
     const trackAfter = afterMove.tracks.find(v => v.id === 'v0')!;
     expect(trackAfter.params.timbre).toBeCloseTo(0.8);
-    expect(trackAfter.controlProvenance?.brightness?.source).toBe('ai');
+    expect(trackAfter.controlProvenance?.timbre?.source).toBe('ai');
 
     const afterUndo = applyUndo(afterMove);
     const trackUndo = afterUndo.tracks.find(v => v.id === 'v0')!;
     expect(trackUndo.params.timbre).toBeCloseTo(0.5);
-    expect(trackUndo.controlProvenance?.brightness?.source).toBe('default');
+    expect(trackUndo.controlProvenance?.timbre?.source).toBe('default');
   });
 
   it('produces execution report with log entries', () => {
@@ -182,14 +185,14 @@ describe('operation-executor', () => {
     expect(track.params.timbre).toBe(1);
   });
 
-  it('resolves controlId to runtime param', () => {
+  it('resolves controlId to runtime param (frequency → note)', () => {
     const session = setupSession();
-    const actions: AIAction[] = [{ type: 'move', trackId: 'v0', param: 'brightness', target: { absolute: 0.8 } }];
+    const actions: AIAction[] = [{ type: 'move', trackId: 'v0', param: 'frequency', target: { absolute: 0.8 } }];
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.accepted).toHaveLength(1);
     const track = report.session.tracks.find(v => v.id === 'v0')!;
-    expect(track.params.timbre).toBeCloseTo(0.8);
-    expect(track.controlProvenance?.brightness?.source).toBe('ai');
+    expect(track.params.note).toBeCloseTo(0.8);
+    expect(track.controlProvenance?.frequency?.source).toBe('ai');
   });
 
   it('handles drift move (records snapshot without applying param)', () => {
@@ -200,7 +203,7 @@ describe('operation-executor', () => {
     expect(report.session.undoStack.length).toBe(1);
     expect(report.session.undoStack[0].kind).toBe('param');
     const track = report.session.tracks.find(v => v.id === 'v0')!;
-    expect(track.controlProvenance?.brightness?.source).toBe('ai');
+    expect(track.controlProvenance?.timbre?.source).toBe('ai');
   });
 
   it('rejects unknown control IDs that are not declared by the adapter', () => {
@@ -242,7 +245,7 @@ describe('operation-executor', () => {
       description: 'automation on silent step',
       events: [
         { kind: 'trigger', at: 0, velocity: 1.0, accent: false },
-        { kind: 'parameter', at: 2, controlId: 'brightness', value: 0.9 },
+        { kind: 'parameter', at: 2, controlId: 'timbre', value: 0.9 },
       ],
     }];
     const report = executeOperations(session, actions, adapter, new Arbitrator());

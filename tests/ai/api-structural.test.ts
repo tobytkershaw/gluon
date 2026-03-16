@@ -60,7 +60,7 @@ function createMockListener(): ListenerProvider {
 function minimalArgsForTool(toolName: string): Record<string, unknown> {
   switch (toolName) {
     case 'move':
-      return { param: 'brightness', target: { absolute: 0.5 }, trackId: 'v0' };
+      return { param: 'timbre', target: { absolute: 0.5 }, trackId: 'v0' };
     case 'sketch':
       return { trackId: 'v0', description: 'test', events: [{ kind: 'trigger', at: 0, velocity: 1.0 }] };
     case 'listen':
@@ -78,11 +78,11 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
     case 'manage_modulator':
       return { action: 'add', trackId: 'v0', moduleType: 'tides', description: 'test' };
     case 'modulation_route':
-      return { action: 'connect', trackId: 'v0', modulatorId: 'tides-123', targetKind: 'source', targetParam: 'brightness', depth: 0.2, description: 'test' };
+      return { action: 'connect', trackId: 'v0', modulatorId: 'tides-123', targetKind: 'source', targetParam: 'timbre', depth: 0.2, description: 'test' };
     case 'set_surface':
       return { trackId: 'v0', semanticControls: [], description: 'test' };
     case 'pin_control':
-      return { action: 'pin', trackId: 'v0', moduleId: 'source', controlId: 'brightness' };
+      return { action: 'pin', trackId: 'v0', moduleId: 'source', controlId: 'timbre' };
     case 'label_axes':
       return { trackId: 'v0', x: 'Brightness', y: 'Texture' };
     case 'set_track_meta':

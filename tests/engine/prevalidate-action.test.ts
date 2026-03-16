@@ -113,13 +113,13 @@ describe('prevalidateAction', () => {
       expect(result).toContain('timbre');
     });
 
-    it('accepts canonical controlId (brightness → timbre)', () => {
+    it('accepts canonical controlId (timbre)', () => {
       const session = createSession();
       const s = {
         ...session,
         tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
       };
-      const action: AIAction = { type: 'move', param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' };
+      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
       expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBeNull();
     });
   });
@@ -215,7 +215,7 @@ describe('prevalidateAction', () => {
 
     it('rejects connect_modulator when human is interacting with track', () => {
       const s = sessionWithModulator();
-      const action: AIAction = { type: 'connect_modulator', trackId: 'v0', modulatorId: 'tides-1', target: { kind: 'source', param: 'richness' }, depth: 0.5, description: 'connect' };
+      const action: AIAction = { type: 'connect_modulator', trackId: 'v0', modulatorId: 'tides-1', target: { kind: 'source', param: 'harmonics' }, depth: 0.5, description: 'connect' };
       expect(prevalidateAction(s, action, adapter, makeTrackArbitrator(false))).toContain('Arbitration');
     });
 

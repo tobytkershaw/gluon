@@ -21,7 +21,7 @@ const VALID_SEMANTIC_ROLES: SemanticRole[] = [
   'drive', 'stability', 'density', 'level', 'pan',
 ];
 
-const REQUIRED_CONTROLS = ['brightness', 'richness', 'texture', 'pitch'];
+const REQUIRED_CONTROLS = ['timbre', 'harmonics', 'morph', 'frequency'];
 const VALID_BINDINGS = ['params.timbre', 'params.harmonics', 'params.morph', 'params.note'];
 
 describe('Plaits instrument registry', () => {
@@ -100,11 +100,11 @@ describe('Plaits instrument registry', () => {
   });
 
   it('getControlBinding returns binding for valid engine+control', () => {
-    const binding = getControlBinding('fm', 'brightness');
+    const binding = getControlBinding('fm', 'timbre');
     expect(binding).toBeDefined();
     expect(binding!.path).toBe('params.timbre');
     expect(getControlBinding('fm', 'nonexistent')).toBeUndefined();
-    expect(getControlBinding('nonexistent', 'brightness')).toBeUndefined();
+    expect(getControlBinding('nonexistent', 'timbre')).toBeUndefined();
   });
 
   it('getModelList returns 16 entries matching engine order', () => {

@@ -1244,12 +1244,11 @@ export default function App() {
   }, []);
 
   // --- Semantic control handlers ---
-  // Maps canonical controlId → runtime param for source controls
+  // Maps canonical controlId → runtime param for source controls.
+  // After #392, most are identity (timbre→timbre, harmonics→harmonics, morph→morph).
+  // Only frequency→note still needs explicit mapping.
   const semanticCanonicalToRuntime: Record<string, string> = {
-    brightness: 'timbre',
-    richness: 'harmonics',
-    texture: 'morph',
-    pitch: 'note',
+    frequency: 'note',
   };
 
   const semanticUndoRef = useRef<{

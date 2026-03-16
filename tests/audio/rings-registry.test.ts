@@ -26,8 +26,8 @@ describe('Rings instrument registry', () => {
     expect(ringsInstrument.adapterId).toBe('rings');
   });
 
-  it('every engine has 4 controls: structure, brightness, damping, position', () => {
-    const expected = ['structure', 'brightness', 'damping', 'position'];
+  it('every engine has 6 controls: structure, brightness, damping, position, polyphony, internal-exciter', () => {
+    const expected = ['structure', 'brightness', 'damping', 'position', 'polyphony', 'internal-exciter'];
     for (const engine of ringsInstrument.engines) {
       const controlIds = engine.controls.map(c => c.id);
       expect(controlIds, `engine ${engine.id}`).toEqual(expected);
@@ -38,9 +38,26 @@ describe('Rings instrument registry', () => {
     for (const engine of ringsInstrument.engines) {
       for (const control of engine.controls) {
         expect(control.binding.adapterId).toBe('rings');
+        // All bindings use params.{id} pattern
         expect(control.binding.path).toBe(`params.${control.id}`);
       }
     }
+  });
+
+  it('polyphony is discrete with range 1-4', () => {
+    const engine = ringsInstrument.engines[0];
+    const poly = engine.controls.find(c => c.id === 'polyphony');
+    expect(poly?.kind).toBe('discrete');
+    expect(poly?.range?.min).toBe(1);
+    expect(poly?.range?.max).toBe(4);
+    expect(poly?.size).toBe('small');
+  });
+
+  it('internal-exciter is boolean', () => {
+    const engine = ringsInstrument.engines[0];
+    const exciter = engine.controls.find(c => c.id === 'internal-exciter');
+    expect(exciter?.kind).toBe('boolean');
+    expect(exciter?.size).toBe('small');
   });
 
   it('all semantic roles are from the SemanticRole union', () => {

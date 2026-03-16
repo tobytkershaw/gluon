@@ -14,7 +14,7 @@ const GENERIC_GUIDELINES = `
 ## Guidelines
 - Describe what you hear: timbre, rhythm, dynamics, groove, frequency balance
 - Be specific: "the kick is muddy below 100Hz" not "it sounds okay"
-- Reference the synthesis parameters when relevant (brightness, richness, texture, pitch)
+- Reference the synthesis parameters when relevant (timbre, harmonics, morph, frequency)
 - If asked to compare, note specific differences
 - Keep responses concise — 2-4 sentences unless asked for detail
 - Be honest about quality issues: timing problems, harsh frequencies, thin sounds, etc.`;
@@ -28,7 +28,7 @@ You have been asked a specific question. Structure your response around it:
 
 ## Guidelines
 - Answer the question directly and first — then add brief supporting observations if relevant
-- Be specific: reference frequencies, timing, synthesis parameters (brightness, richness, texture, pitch) where they help answer the question
+- Be specific: reference frequencies, timing, synthesis parameters (timbre, harmonics, morph, frequency) where they help answer the question
 - Keep responses concise — 2-4 sentences unless the question demands more
 - Be honest about quality issues: timing problems, harsh frequencies, thin sounds, etc.`;
 }
@@ -139,7 +139,7 @@ export function buildComparePrompt(question?: string, lens?: ListenLens): string
   const guidelines = `
 ## Guidelines
 - Describe what changed between the BEFORE and AFTER clips
-- Be specific: reference frequencies, timing, synthesis parameters (brightness, richness, texture, pitch) where relevant
+- Be specific: reference frequencies, timing, synthesis parameters (timbre, harmonics, morph, frequency) where relevant
 - State whether the change is an improvement, a regression, or neutral — and why
 - If you cannot hear a meaningful difference, say so
 - Keep responses concise — 2-4 sentences unless the question demands more

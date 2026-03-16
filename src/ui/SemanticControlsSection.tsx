@@ -17,13 +17,10 @@ interface SemanticControlsSectionProps {
 /** Resolve a raw param's current value given moduleId + controlId. */
 function resolveRawValue(track: Track, moduleId: string, controlId: string): number {
   if (moduleId === 'source') {
-    // Source params are stored in track.params via runtime param names
-    // controlId here is the canonical name (e.g. 'brightness') — need to map
+    // Source params are stored in track.params via runtime param names.
+    // After #392, control IDs match runtime names except frequency→note.
     const runtimeMap: Record<string, string> = {
-      brightness: 'timbre',
-      richness: 'harmonics',
-      texture: 'morph',
-      pitch: 'note',
+      frequency: 'note',
     };
     const runtimeKey = runtimeMap[controlId] ?? controlId;
     return track.params[runtimeKey] ?? 0.5;

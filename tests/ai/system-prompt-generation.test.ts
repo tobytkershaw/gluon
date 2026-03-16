@@ -20,12 +20,12 @@ describe('system prompt generation', () => {
     }
   });
 
-  it('includes semantic parameter names', () => {
+  it('includes hardware parameter names', () => {
     const prompt = defaultPrompt();
-    expect(prompt).toContain('brightness');
-    expect(prompt).toContain('richness');
-    expect(prompt).toContain('texture');
-    expect(prompt).toContain('pitch');
+    expect(prompt).toContain('timbre');
+    expect(prompt).toContain('harmonics');
+    expect(prompt).toContain('morph');
+    expect(prompt).toContain('frequency');
   });
 
   it('includes parameter ranges', () => {

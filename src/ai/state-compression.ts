@@ -30,7 +30,7 @@ interface CompressedModulator {
 interface CompressedModulation {
   id: string;
   modulatorId: string;
-  target: string;  // "source:brightness" or "processor:rings-xxx:position"
+  target: string;  // "source:timbre" or "processor:rings-xxx:position"
   depth: number;
 }
 
@@ -328,10 +328,10 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       label: getTrackLabel(track),
       model: modelName(track.model),
       params: {
-        brightness: round2(track.params.timbre),
-        richness: round2(track.params.harmonics),
-        texture: round2(track.params.morph),
-        pitch: round2(track.params.note),
+        timbre: round2(track.params.timbre),
+        harmonics: round2(track.params.harmonics),
+        morph: round2(track.params.morph),
+        frequency: round2(track.params.note),
       },
       agency: track.agency,
       approval: track.approval ?? 'exploratory',

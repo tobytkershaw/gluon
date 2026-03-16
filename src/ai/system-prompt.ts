@@ -144,7 +144,7 @@ ${getRegisteredProcessorTypes().map(type => {
 }).filter(Boolean).join('\n')}
 
 Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types.
-To adjust processor controls, use **move** with the processorId parameter (e.g. move param="brightness" target={absolute: 0.7} processorId="rings-xxx").
+To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx").
 To switch processor modes, use **set_model** with the processorId parameter (e.g. set_model model="string" processorId="rings-xxx").
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.
 
@@ -161,10 +161,10 @@ ${getRegisteredModulatorTypes().map(type => {
 ## Modulation Guide
 - **manage_modulator**(action: 'add') creates an LFO/envelope; **modulation_route**(action: 'connect') wires it to a target.
 - Human sets center point; modulation adds/subtracts around it. Start shallow (0.1-0.3).
-- Valid source targets: brightness, richness, texture. No pitch modulation.
+- Valid source targets: timbre, harmonics, morph. No frequency modulation.
 - Use **move** with modulatorId to adjust controls; **set_model** with modulatorId to switch modes.
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
-- Common routings: Tides → brightness (filter sweeps), → texture (evolving character), → Clouds position (granular scrubbing).
+- Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → Clouds position (granular scrubbing).
 
 ## Surface Tools
 Surface tools configure the track's UI surface. These are **view-layer operations** — no agency required.

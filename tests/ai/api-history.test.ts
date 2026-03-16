@@ -117,7 +117,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
   it('converts move function call to AIMoveAction', async () => {
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
     });
     planner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
 
@@ -128,7 +128,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(moveActions).toHaveLength(1);
     expect(moveActions[0]).toMatchObject({
       type: 'move',
-      param: 'brightness',
+      param: 'timbre',
       target: { absolute: 0.7 },
       trackId: 'v0',
     });
@@ -183,7 +183,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     planner.startTurnResults.push({
       textParts: [],
       functionCalls: [
-        { id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.3 } } },
+        { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.3 } } },
         { id: 'c2', name: 'set_transport', args: { bpm: 90 } },
       ],
     });
@@ -201,12 +201,12 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     // Always return function calls — should stop after 5 invocations
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c0', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } }],
+      functionCalls: [{ id: 'c0', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
     });
     for (let i = 1; i < 5; i++) {
       planner.continueTurnResults.push({
         textParts: [],
-        functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } }],
+        functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
       });
     }
 
@@ -223,7 +223,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     let stale = false;
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.5 } } }],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
     });
 
     const session = createSession();
@@ -265,7 +265,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
   it('returns error response for move with missing target', async () => {
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness' } }],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre' } }],
     });
     planner.continueTurnResults.push({ textParts: ['I need a target value.'], functionCalls: [] });
 
@@ -317,7 +317,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
   it('validateAction rejection prevents action collection and returns error to model', async () => {
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
     });
     planner.continueTurnResults.push({ textParts: ['That track has agency off, sorry.'], functionCalls: [] });
 
@@ -333,7 +333,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
   it('validateAction null allows action to be collected', async () => {
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
     });
     planner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
 
@@ -353,7 +353,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
   it('continueTurn receives function responses with correct structure', async () => {
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'brightness', target: { absolute: 0.7 }, trackId: 'v0' } }],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
     });
     planner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
 

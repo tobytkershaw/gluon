@@ -12,8 +12,8 @@ import {
 const MAX_PROCESSORS = 2;
 const MAX_MODULATORS = 2;
 
-/** Source params that can be modulation targets (pitch excluded — needs different depth semantics) */
-const VALID_SOURCE_MOD_TARGETS = new Set(['brightness', 'richness', 'texture']);
+/** Source params that can be modulation targets (frequency excluded — needs different depth semantics) */
+const VALID_SOURCE_MOD_TARGETS = new Set(['timbre', 'harmonics', 'morph']);
 
 export interface ChainValidationResult {
   valid: boolean;
@@ -160,7 +160,7 @@ export function validateModulationTarget(
   const target = routing.target;
   if (target.kind === 'source') {
     if (!VALID_SOURCE_MOD_TARGETS.has(target.param)) {
-      errors.push(`Cannot modulate source param "${target.param}". Valid targets: ${Array.from(VALID_SOURCE_MOD_TARGETS).join(', ')}. Pitch modulation is excluded in Phase 4B.`);
+      errors.push(`Cannot modulate source param "${target.param}". Valid targets: ${Array.from(VALID_SOURCE_MOD_TARGETS).join(', ')}. Frequency modulation is excluded in Phase 4B.`);
     }
   } else if (target.kind === 'processor') {
     const processors = track.processors ?? [];

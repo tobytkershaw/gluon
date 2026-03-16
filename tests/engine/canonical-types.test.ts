@@ -23,8 +23,8 @@ describe('canonical-types', () => {
   describe('ControlSchema', () => {
     it('accepts a valid continuous control', () => {
       const schema: ControlSchema = {
-        id: 'brightness',
-        name: 'Brightness',
+        id: 'timbre',
+        name: 'Timbre',
         kind: 'continuous',
         semanticRole: 'brightness',
         description: 'Spectral content',
@@ -33,7 +33,7 @@ describe('canonical-types', () => {
         range: { min: 0, max: 1, default: 0.5 },
         binding: { adapterId: 'plaits-wasm', path: 'params.timbre' },
       };
-      expect(schema.id).toBe('brightness');
+      expect(schema.id).toBe('timbre');
       expect(schema.semanticRole).toBe('brightness');
     });
 
@@ -55,12 +55,12 @@ describe('canonical-types', () => {
   describe('ControlValue and ControlState', () => {
     it('tracks provenance', () => {
       const state: ControlState = {
-        brightness: { value: 0.7, source: 'ai', updatedAt: 1234567890 },
-        texture: { value: 0.3, source: 'human' },
-        richness: { value: 0.5, source: 'default' },
+        timbre: { value: 0.7, source: 'ai', updatedAt: 1234567890 },
+        morph: { value: 0.3, source: 'human' },
+        harmonics: { value: 0.5, source: 'default' },
       };
-      expect(state.brightness.source).toBe('ai');
-      expect(state.texture.source).toBe('human');
+      expect(state.timbre.source).toBe('ai');
+      expect(state.morph.source).toBe('human');
     });
   });
 
@@ -71,7 +71,7 @@ describe('canonical-types', () => {
       const param: ParameterEvent = {
         kind: 'parameter',
         at: 1,
-        controlId: 'brightness',
+        controlId: 'timbre',
         value: 0.5,
       };
 
@@ -100,7 +100,7 @@ describe('canonical-types', () => {
       const move: MoveOp = {
         type: 'move',
         trackId: 'v0',
-        controlId: 'brightness',
+        controlId: 'timbre',
         target: { absolute: 0.7 },
       };
       const sketch: SketchOp = {
@@ -147,8 +147,8 @@ describe('canonical-types', () => {
             description: 'VA oscillator',
             controls: [
               {
-                id: 'brightness',
-                name: 'Brightness',
+                id: 'timbre',
+                name: 'Timbre',
                 kind: 'continuous',
                 semanticRole: 'brightness',
                 description: 'Spectral content',

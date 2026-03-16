@@ -139,7 +139,7 @@ describe('revertSnapshot (via applyUndo)', () => {
       { id: 'env-0', type: 'envelope', model: 0, params: { attack: 0.1 } },
     ];
     const prevModulations = [
-      { id: 'route-0', modulatorId: 'env-0', target: { kind: 'source' as const, param: 'brightness' }, depth: 0.5 },
+      { id: 'route-0', modulatorId: 'env-0', target: { kind: 'source' as const, param: 'timbre' }, depth: 0.5 },
     ];
     // Simulate removing the modulator
     let modified = {
@@ -192,7 +192,7 @@ describe('revertSnapshot (via applyUndo)', () => {
     const s = createSession();
     const trackId = s.activeTrackId;
     const prevModulations = [
-      { id: 'route-0', modulatorId: 'env-0', target: { kind: 'source' as const, param: 'brightness' }, depth: 0.5 },
+      { id: 'route-0', modulatorId: 'env-0', target: { kind: 'source' as const, param: 'timbre' }, depth: 0.5 },
     ];
     // Simulate adding a second route
     let modified = {
@@ -202,7 +202,7 @@ describe('revertSnapshot (via applyUndo)', () => {
             ...v,
             modulations: [
               ...prevModulations,
-              { id: 'route-1', modulatorId: 'env-0', target: { kind: 'source' as const, param: 'texture' }, depth: 0.3 },
+              { id: 'route-1', modulatorId: 'env-0', target: { kind: 'source' as const, param: 'morph' }, depth: 0.3 },
             ],
           }
         : v),

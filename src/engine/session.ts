@@ -46,7 +46,7 @@ function createTrack(index: number): Track {
     surface: {
       semanticControls: [],
       pinnedControls: [],
-      xyAxes: { x: 'brightness', y: 'texture' },
+      xyAxes: { x: 'timbre', y: 'morph' },
       thumbprint: { type: 'static-color' },
     },
     approval: 'exploratory',

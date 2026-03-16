@@ -42,7 +42,7 @@ const templates: ChainSurfaceTemplate[] = [
   {
     chainSignature: 'plaits',
     semanticControls: [],
-    xyAxes: { x: 'brightness', y: 'texture' },
+    xyAxes: { x: 'timbre', y: 'morph' },
   },
 
   // Plaits + Rings — 2 semantic controls
@@ -55,7 +55,7 @@ const templates: ChainSurfaceTemplate[] = [
         semanticRole: 'brightness',
         description: 'Combined timbral brightness across source and resonator',
         weights: [
-          { moduleId: 'source', controlId: 'brightness', weight: 0.5, transform: 'linear' },
+          { moduleId: 'source', controlId: 'timbre', weight: 0.5, transform: 'linear' },
           { moduleId: 'processor-0', controlId: 'brightness', weight: 0.5, transform: 'linear' },
         ],
         range: { min: 0, max: 1, default: 0.5 },
@@ -85,7 +85,7 @@ const templates: ChainSurfaceTemplate[] = [
         semanticRole: 'brightness',
         description: 'Timbral brightness balanced against granular feedback',
         weights: [
-          { moduleId: 'source', controlId: 'brightness', weight: 0.6, transform: 'linear' },
+          { moduleId: 'source', controlId: 'timbre', weight: 0.6, transform: 'linear' },
           { moduleId: 'processor-0', controlId: 'feedback', weight: 0.4, transform: 'inverse' },
         ],
         range: { min: 0, max: 1, default: 0.5 },
@@ -115,7 +115,7 @@ const templates: ChainSurfaceTemplate[] = [
         semanticRole: 'brightness',
         description: 'Combined brightness across source, resonator, and granular processor',
         weights: [
-          { moduleId: 'source', controlId: 'brightness', weight: 0.4, transform: 'linear' },
+          { moduleId: 'source', controlId: 'timbre', weight: 0.4, transform: 'linear' },
           { moduleId: 'processor-0', controlId: 'brightness', weight: 0.3, transform: 'linear' },
           { moduleId: 'processor-1', controlId: 'feedback', weight: 0.3, transform: 'inverse' },
         ],

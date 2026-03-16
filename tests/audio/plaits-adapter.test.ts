@@ -4,28 +4,34 @@ import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
 describe('plaits-adapter', () => {
   const adapter = createPlaitsAdapter();
 
-  it('maps brightness controlId to params.timbre', () => {
-    const binding = adapter.mapControl('brightness');
+  it('maps timbre controlId to params.timbre', () => {
+    const binding = adapter.mapControl('timbre');
     expect(binding.path).toBe('params.timbre');
   });
 
-  it('maps richness controlId to params.harmonics', () => {
-    const binding = adapter.mapControl('richness');
+  it('maps harmonics controlId to params.harmonics', () => {
+    const binding = adapter.mapControl('harmonics');
     expect(binding.path).toBe('params.harmonics');
   });
 
-  it('maps texture controlId to params.morph', () => {
-    const binding = adapter.mapControl('texture');
+  it('maps morph controlId to params.morph', () => {
+    const binding = adapter.mapControl('morph');
     expect(binding.path).toBe('params.morph');
   });
 
-  it('maps pitch controlId to params.note', () => {
-    const binding = adapter.mapControl('pitch');
+  it('maps frequency controlId to params.note', () => {
+    const binding = adapter.mapControl('frequency');
     expect(binding.path).toBe('params.note');
   });
 
-  it('maps runtime param timbre back to brightness', () => {
-    expect(adapter.mapRuntimeParamKey('timbre')).toBe('brightness');
+  it('maps runtime param note back to frequency', () => {
+    expect(adapter.mapRuntimeParamKey('note')).toBe('frequency');
+  });
+
+  it('maps identity runtime params back to themselves', () => {
+    expect(adapter.mapRuntimeParamKey('timbre')).toBe('timbre');
+    expect(adapter.mapRuntimeParamKey('harmonics')).toBe('harmonics');
+    expect(adapter.mapRuntimeParamKey('morph')).toBe('morph');
   });
 
   it('returns null for unknown runtime param', () => {
@@ -51,7 +57,7 @@ describe('plaits-adapter', () => {
 
   it('validates known canonical controlId', () => {
     const result = adapter.validateOperation({
-      type: 'move', trackId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'timbre',
       target: { absolute: 0.5 },
     });
     expect(result.valid).toBe(true);
@@ -59,7 +65,7 @@ describe('plaits-adapter', () => {
 
   it('validates move with param field (legacy shape)', () => {
     const result = adapter.validateOperation({
-      type: 'move', trackId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'timbre',
       target: { absolute: 0.5 },
       // Simulate what executor passes: raw AIAction with param instead of controlId
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- testing legacy AIAction shape
@@ -86,7 +92,7 @@ describe('plaits-adapter', () => {
 
   it('rejects out-of-range absolute values', () => {
     const result = adapter.validateOperation({
-      type: 'move', trackId: 'v0', controlId: 'brightness',
+      type: 'move', trackId: 'v0', controlId: 'timbre',
       target: { absolute: 1.5 },
     });
     expect(result.valid).toBe(false);

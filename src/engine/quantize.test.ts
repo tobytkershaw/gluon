@@ -127,7 +127,7 @@ describe('quantizeRegion', () => {
   it('quantizes note and parameter events too', () => {
     const events: (NoteEvent | ParameterEvent)[] = [
       { kind: 'note', at: 1.13, pitch: 60, velocity: 0.8, duration: 0.5 },
-      { kind: 'parameter', at: 3.87, controlId: 'brightness', value: 0.7 },
+      { kind: 'parameter', at: 3.87, controlId: 'timbre', value: 0.7 },
     ];
     const session = makeSession(events);
     const result = quantizeRegion(session, 'track-1');

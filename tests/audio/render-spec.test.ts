@@ -48,7 +48,7 @@ describe('buildRenderSpec', () => {
             {
               id: 'route-1',
               modulatorId: 'mod-1',
-              target: { kind: 'source', param: 'brightness' },
+              target: { kind: 'source', param: 'timbre' },
               depth: 0.35,
             },
             {

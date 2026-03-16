@@ -10,12 +10,12 @@ function createTestAdapter(): SourceAdapter {
     id: 'test',
     name: 'Test Adapter',
     mapControl(controlId: string) {
-      const map: Record<string, string> = { brightness: 'timbre', richness: 'harmonics', texture: 'morph', pitch: 'note' };
+      const map: Record<string, string> = { frequency: 'note' };
       return { adapterId: 'test', path: `params.${map[controlId] ?? controlId}` };
     },
     mapRuntimeParamKey(paramKey: string) {
-      const map: Record<string, string> = { timbre: 'brightness', harmonics: 'richness', morph: 'texture', note: 'pitch' };
-      return map[paramKey] ?? null;
+      const map: Record<string, string> = { note: 'frequency' };
+      return map[paramKey] ?? paramKey;
     },
     applyControlChanges() {},
     mapEvents() { return []; },
@@ -141,12 +141,12 @@ describe('PreservationReport generation', () => {
     it('handles parameter event changes', () => {
       const oldEvents: MusicalEvent[] = [
         { kind: 'trigger', at: 0, velocity: 1.0 },
-        { kind: 'parameter', at: 0, controlId: 'brightness', value: 0.5 },
+        { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.5 },
       ];
       const newEvents: MusicalEvent[] = [
         { kind: 'trigger', at: 0, velocity: 1.0 },
-        { kind: 'parameter', at: 0, controlId: 'brightness', value: 0.5 },
-        { kind: 'parameter', at: 4, controlId: 'brightness', value: 0.8 },
+        { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.5 },
+        { kind: 'parameter', at: 4, controlId: 'timbre', value: 0.8 },
       ];
 
       const report = generatePreservationReport('v0', 'liked', oldEvents, newEvents);
