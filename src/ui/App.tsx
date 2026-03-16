@@ -7,6 +7,7 @@ import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapsh
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
+import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, setApproval, updateTrackParams, setModel,
@@ -214,6 +215,10 @@ export default function App() {
 
   const getCurrentSession = useCallback(() => sessionRef.current, []);
 
+  const handleSequenceEnd = useCallback(() => {
+    setSession((s) => stopTransport(s));
+  }, []);
+
   const transportControllerRef = useTransportController({
     audioStarted,
     audio: audioRef.current,
@@ -222,6 +227,7 @@ export default function App() {
     onPositionChange: handleTransportPositionChange,
     getHeldParams: getHeldTransportParams,
     onParameterEvent: handleTransportParameterEvent,
+    onSequenceEnd: handleSequenceEnd,
   });
 
   useEffect(() => {
@@ -984,9 +990,14 @@ export default function App() {
       // Overdub: merge new events with existing
       const merged = [...region.events, ...events];
       const updatedRegion = normalizePatternEvents({ ...region, events: merged });
+      const newPatterns = track.patterns.map(r => r.id === region.id ? updatedRegion : r);
 
+      // Reproject stepGrid (derived cache) and mark dirty for transport invalidation
+      const reprojected = reprojectTrackStepGrid({ ...track, patterns: newPatterns });
       return updateTrack(session, trackId, {
-        patterns: track.patterns.map(r => r.id === region.id ? updatedRegion : r),
+        patterns: reprojected.patterns,
+        stepGrid: reprojected.stepGrid,
+        _patternDirty: true,
       });
     });
   }, []);
