@@ -12,9 +12,11 @@ const shortcuts: { key: string; label: string }[] = [
   { key: `${mod}2`, label: 'Tracker view' },
   { key: 'Tab', label: 'Cycle views' },
   { key: `${mod}/`, label: 'Toggle chat' },
-  { key: 'Double-click', label: 'Edit cell' },
+  { key: 'Arrows', label: 'Navigate grid' },
+  { key: 'Click', label: 'Edit cell / Create event' },
   { key: 'Enter', label: 'Commit edit' },
   { key: 'Escape', label: 'Cancel edit' },
+  { key: 'Delete', label: 'Remove event' },
 ];
 
 export function TrackerCheatSheet() {

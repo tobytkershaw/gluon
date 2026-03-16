@@ -18,6 +18,7 @@ interface Props {
   // Tracker editing
   onEventUpdate: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onEventDelete: (selector: EventSelector) => void;
+  onEventAdd: (step: number, event: MusicalEvent) => void;
   /** Quantize all events in the active region to the nearest grid position. */
   onQuantize?: () => void;
   /** When true, in-progress inline edits should be discarded on blur. */
@@ -27,7 +28,7 @@ interface Props {
 export function TrackerView({
   session, activeTrack,
   playing, globalStep,
-  onEventUpdate, onEventDelete,
+  onEventUpdate, onEventDelete, onEventAdd,
   onQuantize,
   cancelEditRef,
 }: Props) {
@@ -70,6 +71,7 @@ export function TrackerView({
                 playing={playing}
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}
+                onAddEvent={onEventAdd}
                 cancelEditRef={cancelEditRef}
               />
             ) : (

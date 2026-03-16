@@ -1,8 +1,10 @@
 // src/ui/Tracker.tsx
-import { useRef, useEffect, type MutableRefObject } from 'react';
-import type { Region, MusicalEvent, ParameterEvent } from '../engine/canonical-types';
+// Slot-centric tracker grid: one row per step position (Renoise/M8 model).
+// The canonical data model (Region.events) is unchanged — this is a projection.
+import { useRef, useEffect, useState, useCallback, type MutableRefObject } from 'react';
+import type { Region, MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
-import { TrackerRow } from './TrackerRow';
+import { TrackerRow, type SlotData, type TrackerColumn } from './TrackerRow';
 
 interface Props {
   region: Region;
@@ -10,81 +12,160 @@ interface Props {
   playing: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
+  onAddEvent?: (step: number, event: MusicalEvent) => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
 }
 
-/**
- * Show a beat separator when crossing a beat boundary (every 4 steps).
- */
-function shouldShowBeatSeparator(event: MusicalEvent, prevEvent: MusicalEvent | null): boolean {
-  if (!prevEvent) return false;
-  return Math.floor(event.at / 4) > Math.floor(prevEvent.at / 4);
-}
+// ---------------------------------------------------------------------------
+// Slot projection: map events to step positions
+// ---------------------------------------------------------------------------
 
-/**
- * Stable key for an event row. Uses the canonical dedup invariants:
- * - triggers: unique per position
- * - notes: unique per position (monophonic)
- * - parameters: unique per (position, controlId)
- */
-function eventKey(event: MusicalEvent, index: number): string {
-  if (event.kind === 'parameter') {
-    return `P-${event.at}-${(event as ParameterEvent).controlId}`;
+function buildSlots(region: Region): SlotData[] {
+  const patternLength = Math.max(1, Math.floor(region.duration));
+  const slots: SlotData[] = Array.from({ length: patternLength }, () => ({
+    noteOrTrigger: null,
+    paramEvents: [],
+  }));
+
+  for (const event of region.events) {
+    const step = Math.floor(event.at);
+    if (step < 0 || step >= patternLength) continue;
+
+    if (event.kind === 'note' || event.kind === 'trigger') {
+      // First note/trigger at this step wins (events are sorted by `at`)
+      if (!slots[step].noteOrTrigger) {
+        slots[step].noteOrTrigger = event as NoteEvent | TriggerEvent;
+      }
+    } else if (event.kind === 'parameter') {
+      slots[step].paramEvents.push(event as ParameterEvent);
+    }
   }
-  return `${event.kind[0].toUpperCase()}-${event.at}-${index}`;
+
+  return slots;
 }
 
-export function Tracker({ region, currentStep, playing, onUpdate, onDelete, cancelEditRef }: Props) {
-  const playheadRef = useRef<HTMLTableRowElement>(null);
+// ---------------------------------------------------------------------------
+// Column order for keyboard navigation
+// ---------------------------------------------------------------------------
 
+const COLUMNS: TrackerColumn[] = ['note', 'vel', 'dur', 'fx'];
+
+export function Tracker({ region, currentStep, playing, onUpdate, onDelete, onAddEvent, cancelEditRef }: Props) {
+  const playheadRef = useRef<HTMLTableRowElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Cursor state
+  const [cursorRow, setCursorRow] = useState(0);
+  const [cursorCol, setCursorCol] = useState<TrackerColumn>('note');
+
+  // Build slot data from events
+  const slots = buildSlots(region);
+  const patternLength = slots.length;
+
+  // Auto-scroll playhead into view
   useEffect(() => {
     if (playing && playheadRef.current) {
       playheadRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [currentStep, playing]);
 
-  const events = region.events;
-  const playheadAt = currentStep % region.duration;
+  // Cursor movement handler from row clicks
+  const handleCursorMove = useCallback((row: number, col: TrackerColumn) => {
+    setCursorRow(row);
+    setCursorCol(col);
+  }, []);
+
+  // Keyboard navigation
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const colIdx = COLUMNS.indexOf(cursorCol);
+
+    switch (e.key) {
+      case 'ArrowUp':
+        e.preventDefault();
+        setCursorRow(r => Math.max(0, r - 1));
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        setCursorRow(r => Math.min(patternLength - 1, r + 1));
+        break;
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (colIdx > 0) setCursorCol(COLUMNS[colIdx - 1]);
+        break;
+      case 'ArrowRight':
+        e.preventDefault();
+        if (colIdx < COLUMNS.length - 1) setCursorCol(COLUMNS[colIdx + 1]);
+        break;
+      case 'Delete':
+      case 'Backspace': {
+        e.preventDefault();
+        if (!onDelete) break;
+        const slot = slots[cursorRow];
+        if (slot.noteOrTrigger && (cursorCol === 'note' || cursorCol === 'vel' || cursorCol === 'dur')) {
+          const selector: EventSelector = slot.noteOrTrigger.kind === 'parameter'
+            ? { at: slot.noteOrTrigger.at, kind: 'parameter', controlId: (slot.noteOrTrigger as unknown as ParameterEvent).controlId }
+            : { at: slot.noteOrTrigger.at, kind: slot.noteOrTrigger.kind };
+          onDelete(selector);
+        } else if (cursorCol === 'fx' && slot.paramEvents.length > 0) {
+          const pe = slot.paramEvents[0];
+          onDelete({ at: pe.at, kind: 'parameter', controlId: pe.controlId });
+        }
+        break;
+      }
+    }
+  }, [cursorRow, cursorCol, patternLength, onDelete, slots]);
+
+  // Focus the container to receive keyboard events
+  useEffect(() => {
+    containerRef.current?.focus();
+  }, []);
+
+  const playheadAt = currentStep % Math.floor(region.duration);
 
   return (
-      <table className="w-full border-collapse select-none">
+    <div
+      ref={containerRef}
+      className="outline-none"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+    >
+      <table className="w-full border-collapse select-none font-mono">
         <thead>
-          <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
-            <th className="px-1.5 py-1 text-right w-[3.5rem]">Pos</th>
-            <th className="px-1 py-1 text-center w-6"></th>
-            <th className="px-1.5 py-1 text-left w-[3.5rem]">Note</th>
-            <th className="px-1.5 py-1 text-right w-12">Val</th>
-            <th className="px-1.5 py-1 text-right w-12">Dur</th>
+          <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50 z-10">
+            <th className="px-1.5 py-1 text-right w-10">Row</th>
+            <th className="px-1.5 py-1 text-left w-16">Note</th>
+            <th className="px-1.5 py-1 text-right w-10">Vel</th>
+            <th className="px-1.5 py-1 text-right w-10">Dur</th>
+            <th className="px-1.5 py-1 text-left w-20">FX</th>
+            {onDelete && <th className="w-6" />}
           </tr>
         </thead>
         <tbody>
-          {events.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-4 py-3 text-center text-[10px] text-zinc-600 italic">
-                ---
-              </td>
-            </tr>
-          ) : (
-            events.map((event, i) => {
-              const nextAt = i < events.length - 1 ? events[i + 1].at : region.duration;
-              const isAtPlayhead = playing && playheadAt >= event.at && playheadAt < nextAt;
+          {slots.map((slot, step) => {
+            const isAtPlayhead = playing && playheadAt === step;
+            const showBeatSeparator = step > 0 && step % 4 === 0;
 
-              return (
-                <TrackerRow
-                  key={eventKey(event, i)}
-                  event={event}
-                  isAtPlayhead={isAtPlayhead}
-                  showBeatSeparator={shouldShowBeatSeparator(event, i > 0 ? events[i - 1] : null)}
-                  onUpdate={onUpdate}
-                  onDelete={onDelete}
-                  cancelEditRef={cancelEditRef}
-                  ref={isAtPlayhead ? playheadRef : undefined}
-                />
-              );
-            })
-          )}
+            return (
+              <TrackerRow
+                key={step}
+                step={step}
+                slot={slot}
+                isAtPlayhead={isAtPlayhead}
+                showBeatSeparator={showBeatSeparator}
+                isCursorRow={cursorRow === step}
+                cursorColumn={cursorRow === step ? cursorCol : null}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onAddEvent={onAddEvent}
+                onCursorMove={handleCursorMove}
+                cancelEditRef={cancelEditRef}
+                ref={isAtPlayhead ? playheadRef : undefined}
+              />
+            );
+          })}
         </tbody>
       </table>
+    </div>
   );
 }
