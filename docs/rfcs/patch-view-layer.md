@@ -51,3 +51,14 @@ Other views are projections over the same data, optimised for specific tasks:
 - The AI builds chains and modulation routes via structured operations. The ground-truth view must be able to display what the AI built without any information loss.
 - Per the human capability parity principle, every AI wiring action must have a corresponding human action in the ground-truth view.
 - Projections can be added incrementally as the product needs them. The ground-truth view and the data model come first.
+
+## Implementation Status
+
+The Patch view now supports:
+- **Node selection** — click to select, highlighted border, detail panel showing current param values
+- **Port geometry** — visible input/output ports on nodes for modulation connections
+- **Drag-to-connect** — drag from a modulator's output port to a target node's input port to create a modulation route
+- **Edge selection and deletion** — click a modulation edge to select it, delete to remove
+- **Modulation depth editing** — interactive depth labels on modulation edges (DraggableNumber)
+
+Future work: bezier curve edges (#385), pan/zoom (#387), processor reordering, module add/remove from this view.

@@ -1528,7 +1528,13 @@ export default function App() {
             onAddModulator={handleAddModulator}
           />
         )}
-        {view === 'patch' && <PatchView session={session} />}
+        {view === 'patch' && (
+          <PatchView
+            session={session}
+            onModulationDepthChange={handleModulationDepthChange}
+            onModulationDepthCommit={handleModulationDepthCommit}
+          />
+        )}
         {view === 'tracker' && (
           <TrackerView
             session={session}

@@ -401,16 +401,16 @@ Edit model:
 
 ## Tracker Semantics
 
-The tracker should be event-centric, not slot-centric.
+The tracker is **slot-centric** — one row per step position, with empty rows visible as fillable placeholders. This follows the established tracker convention (Renoise, M8, ProTracker) where time flows downward through a grid and the user types into empty cells to create events.
 
 That means:
 
-- one row per event
-- sorted by canonical event order
-- exact displayed event positions
-- no artificial empty grid rows as the primary representation
+- one row per integer step position (0 to patternLength - 1)
+- empty rows displayed with `---` placeholders, fillable by typing
+- events with sub-step timing shown via a micro-timing offset (delay column) on their containing row
+- fractional `at` values preserved in the canonical model — the grid display does not collapse timing precision
 
-This is important because M2 made fractional timing a real part of the model. A row-per-slot tracker would immediately collapse that precision back into a step-grid mindset.
+**Why slot-centric over event-centric:** The original RFC argued for event-centric display to preserve fractional timing precision. In practice, this produced a tracker that couldn't create events (no empty rows to type into) and that broke 30 years of tracker muscle memory. The slot-centric model solves both problems: empty rows enable event creation by typing, and the delay column preserves sub-step precision exactly as Renoise does (dividing each row into 256 slices). The canonical data model (`Region.events`) remains event-centric — the slot grid is a projection, not a second model.
 
 ### Event identity
 
