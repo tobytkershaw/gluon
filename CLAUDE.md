@@ -163,6 +163,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
 - `docs/rfcs/patch-view-layer.md` - Patch views as projections over chain/modulation data. Node graph is the ground-truth view (like tracker for sequencing); inline modulation, chain strips are projections.
 - `docs/rfcs/audio-analysis-tools.md` - Audio analysis tools: render, listen, spectral, dynamics, rhythm, diff. Composable primitives for AI self-evaluation with confidence signals and lazy before-snapshot reconstruction.
+- `docs/rfcs/parameter-automation-research.md` - Parameter automation research: absolute vs relative, inline vs lanes, interpolation, modulation vs automation, AI legibility. Informs #408, #432, #307, #463.
 
 ### Briefs (`docs/briefs/`)
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
