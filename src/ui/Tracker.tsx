@@ -18,6 +18,8 @@ interface Props {
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
   onAddParamEvent?: (at: number, controlId: string, value: number) => void;
+  /** Callback to add a note event at a given step. */
+  onAddNote?: (step: number) => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
 }
@@ -82,7 +84,7 @@ function computeAvailableControls(
   return controls;
 }
 
-export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, cancelEditRef }: Props) {
+export function Tracker({ region, currentStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
 
   useEffect(() => {
@@ -93,6 +95,13 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
 
   const events = region.events;
   const playheadAt = currentStep % region.duration;
+
+  // Compute next available step for the add button
+  const nextStep = useMemo(() => {
+    if (events.length === 0) return 0;
+    const lastAt = events[events.length - 1].at;
+    return Math.floor(lastAt) + 1;
+  }, [events]);
 
   const availableControls = useMemo(
     () => computeAvailableControls(engineModel, processors),
@@ -112,31 +121,60 @@ export function Tracker({ region, currentStep, playing, engineModel, processors,
         </thead>
         <tbody>
           {events.length === 0 ? (
-            <tr>
-              <td colSpan={5} className="px-4 py-3 text-center text-[10px] text-zinc-600 italic">
-                ---
-              </td>
-            </tr>
+            onAddNote ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-center">
+                  <button
+                    className="text-[10px] text-zinc-500 hover:text-amber-400 transition-colors"
+                    onClick={() => onAddNote(0)}
+                    title="Add note at step 0"
+                  >
+                    + add note
+                  </button>
+                </td>
+              </tr>
+            ) : (
+              <tr>
+                <td colSpan={5} className="px-4 py-3 text-center text-[10px] text-zinc-600 italic">
+                  ---
+                </td>
+              </tr>
+            )
           ) : (
-            events.map((event, i) => {
-              const nextAt = i < events.length - 1 ? events[i + 1].at : region.duration;
-              const isAtPlayhead = playing && playheadAt >= event.at && playheadAt < nextAt;
+            <>
+              {events.map((event, i) => {
+                const nextAt = i < events.length - 1 ? events[i + 1].at : region.duration;
+                const isAtPlayhead = playing && playheadAt >= event.at && playheadAt < nextAt;
 
-              return (
-                <TrackerRow
-                  key={eventKey(event, i)}
-                  event={event}
-                  isAtPlayhead={isAtPlayhead}
-                  showBeatSeparator={shouldShowBeatSeparator(event, i > 0 ? events[i - 1] : null)}
-                  onUpdate={onUpdate}
-                  onDelete={onDelete}
-                  availableControls={availableControls}
-                  onAddParamEvent={onAddParamEvent}
-                  cancelEditRef={cancelEditRef}
-                  ref={isAtPlayhead ? playheadRef : undefined}
-                />
-              );
-            })
+                return (
+                  <TrackerRow
+                    key={eventKey(event, i)}
+                    event={event}
+                    isAtPlayhead={isAtPlayhead}
+                    showBeatSeparator={shouldShowBeatSeparator(event, i > 0 ? events[i - 1] : null)}
+                    onUpdate={onUpdate}
+                    onDelete={onDelete}
+                    availableControls={availableControls}
+                    onAddParamEvent={onAddParamEvent}
+                    cancelEditRef={cancelEditRef}
+                    ref={isAtPlayhead ? playheadRef : undefined}
+                  />
+                );
+              })}
+              {onAddNote && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-1.5 text-center">
+                    <button
+                      className="text-[10px] text-zinc-600 hover:text-amber-400 transition-colors"
+                      onClick={() => onAddNote(nextStep)}
+                      title={`Add note at step ${nextStep}`}
+                    >
+                      + add note
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </>
           )}
         </tbody>
       </table>

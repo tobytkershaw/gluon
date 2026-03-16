@@ -2,7 +2,7 @@
 // Thin shell: full-height Tracker (top bar moved to AppShell)
 import { useState, useCallback, useRef, type MutableRefObject } from 'react';
 import type { Session, Track } from '../engine/types';
-import type { MusicalEvent } from '../engine/canonical-types';
+import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { getModelName } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
@@ -18,6 +18,7 @@ interface Props {
   // Tracker editing
   onEventUpdate: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onEventDelete: (selector: EventSelector) => void;
+  onEventAdd?: (step: number, event: MusicalEvent) => void;
   /** Quantize all events in the active region to the nearest grid position. */
   onQuantize?: () => void;
   // Pattern length
@@ -77,7 +78,7 @@ function InlineNumberInput({
 export function TrackerView({
   session, activeTrack,
   playing, globalStep,
-  onEventUpdate, onEventDelete,
+  onEventUpdate, onEventDelete, onEventAdd,
   onQuantize,
   onPatternLengthChange, onClearPattern,
   onRotate, onTranspose, onReverse, onDuplicate,
@@ -85,6 +86,12 @@ export function TrackerView({
 }: Props) {
   const currentStep = Math.floor(globalStep % activeTrack.pattern.length);
   const hasEvents = activeTrack.regions.length > 0 && activeTrack.regions[0].events.length > 0;
+
+  const handleAddNote = useCallback((step: number) => {
+    if (!onEventAdd) return;
+    const event: NoteEvent = { kind: 'note', at: step, pitch: 60, velocity: 0.8, duration: 1 };
+    onEventAdd(step, event);
+  }, [onEventAdd]);
 
   // Inline input state for Rotate and Transpose
   const [showRotateInput, setShowRotateInput] = useState(false);
@@ -234,6 +241,7 @@ export function TrackerView({
                 processors={activeTrack.processors}
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}
+                onAddNote={onEventAdd ? handleAddNote : undefined}
                 cancelEditRef={cancelEditRef}
               />
             ) : (
