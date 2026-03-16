@@ -333,6 +333,11 @@ export class AudioEngine {
     return this.tracks.has(trackId);
   }
 
+  /** Return all track IDs currently in the audio engine. */
+  getTrackIds(): string[] {
+    return [...this.tracks.keys()];
+  }
+
   setTrackModel(trackId: string, model: number): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;

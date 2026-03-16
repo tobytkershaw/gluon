@@ -22,7 +22,7 @@ Change a control parameter value on a voice source, processor, or modulator.
 |-----------|------|----------|-------------|
 | `param` | string | yes | Control ID. Voice: `brightness`, `richness`, `texture`, `pitch`. Processor (Rings): `structure`, `brightness`, `damping`, `position`. Processor (Clouds): `position`, `size`, `density`, `feedback`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`. |
 | `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
-| `trackId` | string | no | Target voice (`v0`–`v3`). Defaults to active voice. |
+| `trackId` | string | no | Target voice (`v0`–`v15`). Defaults to active voice. |
 | `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the voice source. |
 | `modulatorId` | string | no | Modulator ID to target. When provided, moves a control on the modulator (e.g. LFO rate). |
 | `over` | number | no | Smooth transition duration in milliseconds |
@@ -285,7 +285,7 @@ Each turn, the AI receives compressed session state as JSON:
 ```
 
 Fields:
-- **voices[]** — each voice's current state, parameters (semantic names), agency, pattern, views, processor chain, modulators, and modulation routings
+- **voices[]** — each voice's current state (1–16 tracks, variable), parameters (semantic names), agency, pattern, views, processor chain, modulators, and modulation routings
 - **activeTrackId** — the voice the human currently has selected
 - **pattern** — canonical event summary with trigger positions, notes, accents, param locks, and density
 - **views** — list of active sequencer views (`kind:id` format)
@@ -357,7 +357,7 @@ For note events in sketches, pitch is specified as MIDI (0–127), not normalise
 Hard rules. The runtime enforces these; violating them means the action is rejected with an error in the tool response.
 
 1. All param values are **0.0–1.0**.
-2. `trackId` must reference an existing voice (`v0`–`v3`).
+2. `trackId` must reference an existing voice (`v0`–`v15`, up to 16 tracks).
 3. Agency must be **ON** for the target voice (programming, structure, and modulation tools). UI curation tools (`add_view`, `remove_view`) do not require agency.
 4. `at` in events is a **0-based step index** (fractional values allowed for microtiming).
 5. MIDI pitch in note events is **0–127**.

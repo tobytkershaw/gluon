@@ -162,8 +162,10 @@ export default function App() {
     const s = sessionRef.current;
     await audioRef.current.start(s.tracks.map(v => v.id));
     for (const track of s.tracks) {
-      audioRef.current.setTrackModel(track.id, track.model);
-      audioRef.current.setTrackParams(track.id, track.params);
+      if (track.model !== -1) {
+        audioRef.current.setTrackModel(track.id, track.model);
+        audioRef.current.setTrackParams(track.id, track.params);
+      }
     }
     setAudioStarted(true);
   }, [audioStarted]);
@@ -208,21 +210,28 @@ export default function App() {
     });
   }, [session.transport.bpm, session.transport.swing]);
 
-  // Ensure all session tracks have audio engine slots (handles undo of track-remove, etc.)
+  // Ensure audio engine slots match session tracks (handles add, remove, undo)
   useEffect(() => {
     if (!audioStarted) return;
     const audio = audioRef.current;
+    // Add engine slots for tracks not yet in the audio engine
     for (const track of session.tracks) {
       if (!audio.hasTrack(track.id)) {
         void audio.addTrack(track.id).then(() => {
           // After the async add, sync model/params from current session
           const s = sessionRef.current;
           const t = s.tracks.find(v => v.id === track.id);
-          if (t) {
+          if (t && t.model !== -1) {
             audio.setTrackModel(t.id, t.model);
             audio.setTrackParams(t.id, t.params);
           }
         });
+      }
+    }
+    // Remove engine slots for tracks no longer in session (undo of track-add)
+    for (const engineTrackId of audio.getTrackIds()) {
+      if (!session.tracks.some(t => t.id === engineTrackId)) {
+        audio.removeTrack(engineTrackId);
       }
     }
   }, [session.tracks, audioStarted]);
@@ -233,6 +242,15 @@ export default function App() {
     for (const track of session.tracks) {
       const key = track.id;
       const prev = prevTrackStateRef.current.get(key);
+
+      // Skip model/param sync for empty tracks (model -1 = no source module)
+      if (track.model === -1) {
+        prevTrackStateRef.current.set(key, {
+          model: track.model,
+          params: { ...track.params },
+        });
+        continue;
+      }
 
       // Model always syncs — hold only suppresses params (#141)
       if (!prev || prev.model !== track.model) {
@@ -900,11 +918,7 @@ export default function App() {
     setSession((s) => {
       const result = addTrack(s);
       if (!result) return s;
-      // If audio engine is running, allocate a voice pool for the new track
-      const newTrack = result.tracks[result.tracks.length - 1];
-      if (audioRef.current.isRunning) {
-        void audioRef.current.addTrack(newTrack.id);
-      }
+      // Audio engine slot is provisioned by the sync effect watching session.tracks
       return result;
     });
     setSelectedProcessorId(null);
@@ -916,10 +930,7 @@ export default function App() {
     setSession((s) => {
       const result = removeTrack(s, trackId);
       if (!result) return s;
-      // If audio engine is running, tear down the voice pool for the removed track
-      if (audioRef.current.isRunning) {
-        audioRef.current.removeTrack(trackId);
-      }
+      // Audio engine slot is torn down by the sync effect watching session.tracks
       return result;
     });
     setSelectedProcessorId(null);
