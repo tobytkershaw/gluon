@@ -60,6 +60,9 @@ export interface FunctionResponse {
   result: Record<string, unknown>;
 }
 
+/** Called with each text chunk as it arrives from the model during streaming. */
+export type StreamTextCallback = (chunk: string) => void;
+
 export interface PlannerProvider {
   readonly name: string;
   isConfigured(): boolean;
@@ -68,12 +71,14 @@ export interface PlannerProvider {
     systemPrompt: string;
     userMessage: string;
     tools: ToolSchema[];
+    onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult>;
 
   continueTurn(opts: {
     systemPrompt: string;
     tools: ToolSchema[];
     functionResponses: FunctionResponse[];
+    onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult>;
 
   commitTurn(): void;

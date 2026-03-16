@@ -34,6 +34,7 @@ interface Props {
   onSend: (message: string) => void;
   isThinking: boolean;
   isListening: boolean;
+  streamingText?: string;
   apiConfigured: boolean;
   onApiKey: (openaiKey: string, geminiKey: string) => void;
   currentOpenaiKey?: string;
@@ -92,7 +93,7 @@ const CHAT_COLLAPSE_WIDTH = 1280;
 export function AppShell({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval, onChangeVolume, onChangePan,
-  messages, onSend, isThinking, isListening,
+  messages, onSend, isThinking, isListening, streamingText,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
   chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError,
@@ -195,6 +196,7 @@ export function AppShell({
           onSend={onSend}
           isThinking={isThinking}
           isListening={isListening}
+          streamingText={streamingText}
           apiConfigured={apiConfigured}
           onApiKey={onApiKey}
           currentOpenaiKey={currentOpenaiKey}

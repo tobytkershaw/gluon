@@ -13,6 +13,7 @@ interface Props {
   onSend: (message: string) => void;
   isThinking?: boolean;
   isListening?: boolean;
+  streamingText?: string;
   apiConfigured: boolean;
   onApiKey: (openaiKey: string, geminiKey: string) => void;
   currentOpenaiKey?: string;
@@ -23,7 +24,7 @@ interface Props {
 }
 
 export function ChatSidebar({
-  messages, onSend, isThinking = false, isListening = false,
+  messages, onSend, isThinking = false, isListening = false, streamingText = '',
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
   open, width, onResize,
 }: Props) {
@@ -63,7 +64,7 @@ export function ChatSidebar({
       </div>
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} />
+        <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} />
       </div>
 
       {/* Composer at bottom of sidebar */}

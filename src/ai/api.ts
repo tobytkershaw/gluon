@@ -14,7 +14,7 @@ import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
 import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
-import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse } from './types';
+import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback } from './types';
 import { ProviderError } from './types';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm } from '../audio/audio-analysis';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
@@ -324,6 +324,8 @@ export interface AskContext {
   listen?: ListenContext;
   isStale?: () => boolean;
   validateAction?: ActionValidator;
+  /** Called with each text chunk as it arrives during streaming generation. */
+  onStreamText?: StreamTextCallback;
 }
 
 export class GluonAI {
@@ -356,11 +358,17 @@ export class GluonAI {
         return [];
       }
 
+      // Only stream on the first planner invocation — subsequent continueTurn
+      // calls are tool-call loops where streaming text is less useful and the
+      // callback reference would emit interleaved fragments.
+      const onStreamText = ctx?.onStreamText;
+
       let invocationCount = 1;
       let result = await this.planner.startTurn({
         systemPrompt,
         userMessage,
         tools: GLUON_TOOLS,
+        onStreamText,
       });
 
       while (invocationCount <= GluonAI.MAX_PLANNER_INVOCATIONS) {
@@ -391,6 +399,7 @@ export class GluonAI {
           systemPrompt,
           tools: GLUON_TOOLS,
           functionResponses: responses,
+          onStreamText,
         });
       }
     } catch (error) {

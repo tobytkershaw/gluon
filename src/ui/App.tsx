@@ -666,15 +666,21 @@ export default function App() {
   const requestIdRef = useRef(0);
   const [isThinking, setIsThinking] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
 
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
+    setStreamingText('');
     await ensureAudio();
     setSession((s) => ({
       ...s,
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
+
+    // Accumulate streaming text in a ref so the callback closure always
+    // has the latest value (React state updates are async).
+    let accumulated = '';
 
     try {
       const actions = await aiRef.current.ask(sessionRef.current, message, {
@@ -686,8 +692,14 @@ export default function App() {
         validateAction: (action) => prevalidateAction(
           sessionRef.current, action, plaitsAdapter, arbRef.current,
         ),
+        onStreamText: (chunk) => {
+          if (thisRequest !== requestIdRef.current) return;
+          accumulated += chunk;
+          setStreamingText(accumulated);
+        },
       });
       if (thisRequest !== requestIdRef.current) return;
+      setStreamingText('');
       dispatchAIActions(actions);
     } catch {
       // Error already handled by GluonAI.handleError — no additional action needed
@@ -695,6 +707,7 @@ export default function App() {
       if (thisRequest === requestIdRef.current) {
         setIsThinking(false);
         setIsListening(false);
+        setStreamingText('');
       }
     }
   }, [ensureAudio, dispatchAIActions]);
@@ -1582,6 +1595,7 @@ export default function App() {
       onSend={handleSend}
       isThinking={isThinking}
       isListening={isListening}
+      streamingText={streamingText}
       apiConfigured={apiConfigured}
       onApiKey={handleApiKey}
       currentOpenaiKey={openaiKey}
