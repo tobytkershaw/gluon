@@ -2,9 +2,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObject } from 'react';
 import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
-import { TrackerRow, type AvailableControl, type TrackerColumn } from './TrackerRow';
-import { getEngineByIndex, getProcessorInstrument } from '../audio/instrument-registry';
-import type { ProcessorConfig } from '../engine/types';
+import { TrackerRow } from './TrackerRow';
 
 /** Number of rows to jump for Page Up / Page Down. */
 const PAGE_JUMP = 8;
@@ -18,21 +16,29 @@ interface ClipboardEntry {
   event: MusicalEvent;
 }
 
+/** FX column definition: one per unique controlId found in the pattern's parameter events. */
+export interface FxColumnDef {
+  controlId: string;
+  label: string;
+}
+
 /**
- * A step group: all events at the same step position, with notes split into columns.
- * This is the unit of rendering — one step group = one visual row in the tracker.
+ * A slot: one row per integer step position (0 to pattern.length - 1).
+ * Empty steps have no events but are still rendered as rows with placeholders.
  */
-interface StepGroup {
-  /** The step position (event.at). */
-  at: number;
-  /** Note events sorted by pitch, assigned to columns 0..N-1. */
+export interface SlotRow {
+  /** The integer step position (row index). */
+  step: number;
+  /** Note events sorted by pitch, assigned to columns 0..N-1. Null for empty. */
   notes: (NoteEvent | null)[];
-  /** Non-note events (triggers, parameters) at this step. */
-  otherEvents: MusicalEvent[];
-  /** All events at this step, in their original order from the region. */
+  /** Parameter events at this step, keyed by controlId. */
+  fxValues: Map<string, ParameterEvent>;
+  /** All events at this step (notes + params + triggers), original order. */
   allEvents: MusicalEvent[];
-  /** Indices into the flat region.events array for all events in this group. */
+  /** Indices into the flat pattern.events array for all events at this step. */
   eventIndices: number[];
+  /** Whether this step has any note/trigger (gate-bearing) events. */
+  hasGate: boolean;
 }
 
 interface Props {
@@ -40,10 +46,6 @@ interface Props {
   /** Current playhead step, or null when the playhead is in a different pattern (song mode). */
   playheadStep: number | null;
   playing: boolean;
-  /** Engine model index for the track (used to derive available controls). */
-  engineModel?: number;
-  /** Processor chain for the track (used to derive processor controls). */
-  processors?: ProcessorConfig[];
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
@@ -63,142 +65,126 @@ interface Props {
 }
 
 /**
- * Build a stable React key for a step group from its event properties.
- * Uses the rounded position plus a fingerprint of note pitches and event kinds
- * so that inserting/removing events at other positions does not cause remounts.
+ * Build a slot-based grid: one SlotRow per integer step (0..duration-1).
+ * Events are grouped into their nearest integer step.
+ * Notes are separated from parameter events; triggers are treated as notes.
+ * Returns { slots, maxNoteColumns, fxColumns }.
+ *
+ * Note: the slot model does not support inline position editing — event
+ * repositioning is handled via delete + add-at-new-step. This is a deliberate
+ * trade-off for the simpler, more robust grid-based display.
  */
-function stepGroupKey(group: StepGroup): string {
-  // Round position to avoid floating-point string instability
-  const pos = Math.round(group.at * 1000);
-  const notePitches = group.notes
-    .filter((n): n is NoteEvent => n !== null)
-    .map(n => n.pitch)
-    .join(',');
-  const otherKinds = group.otherEvents.map(e => e.kind[0]).join('');
-  return `${pos}:${notePitches}:${otherKinds}`;
-}
+function buildSlotGrid(events: MusicalEvent[], duration: number): {
+  slots: SlotRow[];
+  maxNoteColumns: number;
+  fxColumns: FxColumnDef[];
+} {
+  const stepCount = Math.max(1, Math.ceil(duration));
 
-const AT_TOLERANCE = 0.001;
+  // Initialize empty slots
+  const slots: SlotRow[] = Array.from({ length: stepCount }, (_, i) => ({
+    step: i,
+    notes: [],
+    fxValues: new Map(),
+    allEvents: [],
+    eventIndices: [],
+    hasGate: false,
+  }));
 
-function sameAt(a: number, b: number): boolean {
-  return Math.abs(a - b) < AT_TOLERANCE;
-}
-
-/**
- * Group region events by step position into StepGroups.
- * Notes at the same step are split into columns (sorted by pitch).
- * Returns { groups, maxNoteColumns }.
- */
-function buildStepGroups(events: MusicalEvent[]): { groups: StepGroup[]; maxNoteColumns: number } {
-  if (events.length === 0) return { groups: [], maxNoteColumns: 1 };
-
-  const groups: StepGroup[] = [];
   let maxNoteColumns = 1;
+  const fxControlIds = new Set<string>();
 
-  let i = 0;
-  while (i < events.length) {
-    const at = events[i].at;
-    const allEvents: MusicalEvent[] = [];
-    const eventIndices: number[] = [];
-    const notes: NoteEvent[] = [];
-    const otherEvents: MusicalEvent[] = [];
+  // Assign events to their nearest integer step
+  for (let ei = 0; ei < events.length; ei++) {
+    const event = events[ei];
+    const step = Math.floor(event.at);
+    if (step < 0 || step >= stepCount) continue;
 
-    // Collect all events at this position
-    while (i < events.length && sameAt(events[i].at, at)) {
-      allEvents.push(events[i]);
-      eventIndices.push(i);
-      if (events[i].kind === 'note') {
-        notes.push(events[i] as NoteEvent);
-      } else {
-        otherEvents.push(events[i]);
-      }
-      i++;
+    const slot = slots[step];
+    slot.allEvents.push(event);
+    slot.eventIndices.push(ei);
+
+    if (event.kind === 'note') {
+      slot.notes.push(event as NoteEvent);
+      slot.hasGate = true;
+    } else if (event.kind === 'trigger') {
+      // Treat triggers as gate-bearing but don't add them to note columns.
+      // velocity=0 sentinels (note-off) should not count as active gates.
+      if ((event as any).velocity !== 0) slot.hasGate = true;
+    } else if (event.kind === 'parameter') {
+      const pe = event as ParameterEvent;
+      slot.fxValues.set(pe.controlId, pe);
+      fxControlIds.add(pe.controlId);
     }
-
-    // Sort notes by pitch for stable column assignment
-    notes.sort((a, b) => a.pitch - b.pitch);
-    const columnCount = Math.min(notes.length, MAX_NOTE_COLUMNS);
-    if (columnCount > maxNoteColumns) maxNoteColumns = columnCount;
-
-    // Pad notes array to column count (null for empty columns)
-    const paddedNotes: (NoteEvent | null)[] = [];
-    for (let c = 0; c < columnCount; c++) {
-      paddedNotes.push(c < notes.length ? notes[c] : null);
-    }
-
-    groups.push({ at, notes: paddedNotes, otherEvents, allEvents, eventIndices });
   }
 
-  return { groups, maxNoteColumns };
+  // Sort notes by pitch within each slot and compute maxNoteColumns
+  for (const slot of slots) {
+    slot.notes.sort((a, b) => (a?.pitch ?? 0) - (b?.pitch ?? 0));
+    const noteCount = Math.min(slot.notes.length, MAX_NOTE_COLUMNS);
+    if (noteCount > maxNoteColumns) maxNoteColumns = noteCount;
+  }
+
+  // Pad notes to the max column count
+  for (const slot of slots) {
+    const padded: (NoteEvent | null)[] = [];
+    for (let c = 0; c < maxNoteColumns; c++) {
+      padded.push(c < slot.notes.length ? slot.notes[c] : null);
+    }
+    slot.notes = padded;
+  }
+
+  // Build FX column definitions from all unique controlIds
+  const fxColumns: FxColumnDef[] = Array.from(fxControlIds).sort().map(controlId => ({
+    controlId,
+    label: abbreviateControlId(controlId),
+  }));
+
+  return { slots, maxNoteColumns, fxColumns };
+}
+
+/** Abbreviate a controlId for FX column headers (max 5 chars). */
+function abbreviateControlId(controlId: string): string {
+  const abbrevs: Record<string, string> = {
+    timbre: 'TBR', harmonics: 'HRM', morph: 'MRP',
+    frequency: 'FRQ', decay: 'DEC', note: 'NTE',
+    brightness: 'BRT', position: 'POS', damping: 'DMP',
+    structure: 'STR', texture: 'TXT',
+  };
+  // Handle dotted paths like "rings.position"
+  const parts = controlId.split('.');
+  const lastPart = parts[parts.length - 1];
+  return abbrevs[lastPart] ?? lastPart.slice(0, 3).toUpperCase();
 }
 
 /**
  * Show a beat separator when crossing a beat boundary.
  * stepsPerBeat defaults to 4 (quarter notes in standard 16th-note grid).
  */
-function shouldShowBeatSeparator(currentAt: number, prevAt: number | null, stepsPerBeat = 4): boolean {
-  if (prevAt === null) return false;
-  return Math.floor(currentAt / stepsPerBeat) > Math.floor(prevAt / stepsPerBeat);
+function shouldShowBeatSeparator(step: number, stepsPerBeat = 4): boolean {
+  if (step === 0) return false;
+  return step % stepsPerBeat === 0;
 }
+
 
 /**
- * Compute available controls from the engine model and processor chain.
+ * Compute total navigable columns.
+ * Layout: Pos | [Ch1 | Ch2 | ...] | Vel | Dur | [FX1 | FX2 | ...]
  */
-function computeAvailableControls(
-  engineModel?: number,
-  processors?: ProcessorConfig[],
-): AvailableControl[] {
-  const controls: AvailableControl[] = [];
-
-  // Source engine controls (Plaits default: brightness, richness, texture, pitch)
-  if (engineModel !== undefined) {
-    const engine = getEngineByIndex(engineModel);
-    if (engine) {
-      for (const ctrl of engine.controls) {
-        controls.push({ id: ctrl.id, label: ctrl.name });
-      }
-    }
-  }
-
-  // Processor controls
-  if (processors) {
-    for (const proc of processors) {
-      const inst = getProcessorInstrument(proc.type);
-      if (inst && inst.engines.length > 0) {
-        // Use the processor's current engine mode
-        const engine = inst.engines[proc.model] ?? inst.engines[0];
-        for (const ctrl of engine.controls) {
-          controls.push({
-            id: `${proc.type}.${ctrl.id}`,
-            label: `${proc.type}:${ctrl.name}`,
-          });
-        }
-      }
-    }
-  }
-
-  return controls;
+function getColCount(noteColumns: number, fxColumns: number): number {
+  // Pos(0) + noteColumns + Vel + Dur + fxColumns
+  return 1 + noteColumns + 2 + fxColumns;
 }
 
-/**
- * Compute the number of navigable columns based on note column count.
- * Layout: Pos | Kind | [NoteCol1 | NoteCol2 | ...] | Val | Dur
- * For TrackerRow compatibility, we pass the "primary" event (first note or trigger/param).
- */
-function getColCount(noteColumns: number): number {
-  // Pos(0) + Kind(1) + noteColumns + Val + Dur
-  return 2 + noteColumns + 2;
-}
-
-export function Tracker({ region, playheadStep, playing, engineModel, processors, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4 }: Props) {
+export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4 }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // --- Cursor state ---
-  // cursorRow indexes into stepGroups (not flat events)
+  // cursorRow indexes into slots (step index)
   const [cursorRow, setCursorRow] = useState(0);
-  const [cursorCol, setCursorCol] = useState<number>(2); // Start on first Note column
+  const [cursorCol, setCursorCol] = useState<number>(1); // Start on first note column (Ch1)
   const [editRequestCounter, setEditRequestCounter] = useState(0);
 
   // --- Selection state ---
@@ -223,19 +209,22 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
   const events = region.events;
   const playheadAt = playheadStep !== null ? playheadStep % region.duration : null;
 
-  // Build step groups and determine column count
-  const { groups, maxNoteColumns } = useMemo(() => buildStepGroups(events), [events]);
-  const groupCount = groups.length;
-  const colCount = getColCount(maxNoteColumns);
+  // Build slot-based grid
+  const { slots, maxNoteColumns, fxColumns } = useMemo(
+    () => buildSlotGrid(events, region.duration),
+    [events, region.duration],
+  );
+  const rowCount = slots.length;
+  const colCount = getColCount(maxNoteColumns, fxColumns.length);
 
-  // Clamp cursor row when groups change (e.g. deletion)
+  // Clamp cursor row when slots change
   useEffect(() => {
-    if (groupCount > 0 && cursorRow >= groupCount) {
-      setCursorRow(groupCount - 1);
+    if (rowCount > 0 && cursorRow >= rowCount) {
+      setCursorRow(rowCount - 1);
     }
-  }, [groupCount, cursorRow]);
+  }, [rowCount, cursorRow]);
 
-  // Clamp cursor column when note columns change
+  // Clamp cursor column when columns change
   useEffect(() => {
     if (cursorCol >= colCount) {
       setCursorCol(colCount - 1);
@@ -244,22 +233,10 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
 
   // Report cursor step to parent for play-from-cursor
   useEffect(() => {
-    if (onCursorStepChange && cursorRow < groups.length) {
-      onCursorStepChange(groups[cursorRow].at);
+    if (onCursorStepChange && cursorRow < slots.length) {
+      onCursorStepChange(slots[cursorRow].step);
     }
-  }, [cursorRow, groups, onCursorStepChange]);
-
-  // Compute next available step for the add button
-  const nextStep = useMemo(() => {
-    if (events.length === 0) return 0;
-    const lastAt = events[events.length - 1].at;
-    return Math.floor(lastAt) + 1;
-  }, [events]);
-
-  const availableControls = useMemo(
-    () => computeAvailableControls(engineModel, processors),
-    [engineModel, processors],
-  );
+  }, [cursorRow, slots, onCursorStepChange]);
 
   // --- Selection helpers ---
 
@@ -270,26 +247,26 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
     return [lo, hi];
   }, [anchorRow, cursorRow]);
 
-  /** Get all flat event indices for the selected step groups. */
+  /** Get all flat event indices for the selected slots. */
   const getSelectedEventIndices = useCallback((): number[] => {
     const range = getSelectionRange();
     if (range) {
       const [lo, hi] = range;
       const indices: number[] = [];
       for (let i = lo; i <= hi; i++) {
-        if (i < groups.length) {
-          indices.push(...groups[i].eventIndices);
+        if (i < slots.length) {
+          indices.push(...slots[i].eventIndices);
         }
       }
       return indices;
     }
-    if (cursorRow < groups.length) {
-      return [...groups[cursorRow].eventIndices];
+    if (cursorRow < slots.length) {
+      return [...slots[cursorRow].eventIndices];
     }
     return [];
-  }, [getSelectionRange, cursorRow, groups]);
+  }, [getSelectionRange, cursorRow, slots]);
 
-  /** Copy events from selected step groups to internal clipboard. */
+  /** Copy events from selected slots to internal clipboard. */
   const copyToClipboard = useCallback((indices: number[]) => {
     if (indices.length === 0 || events.length === 0) return;
     const baseAt = events[indices[0]].at;
@@ -304,34 +281,39 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
 
   /** Build paste events from clipboard, offset to the cursor's step position. */
   const buildPasteEvents = useCallback((): MusicalEvent[] => {
-    if (clipboard.length === 0 || groups.length === 0) return [];
-    const targetAt = cursorRow < groups.length ? groups[cursorRow].at : 0;
+    if (clipboard.length === 0 || slots.length === 0) return [];
+    const targetAt = cursorRow < slots.length ? slots[cursorRow].step : 0;
     return clipboard.map(entry => ({
       ...entry.event,
       at: Math.max(0, targetAt + entry.offset),
     }));
-  }, [clipboard, cursorRow, groups]);
+  }, [clipboard, cursorRow, slots]);
 
-  // --- Determine which note column the cursor is on (if any) ---
-  // Columns: 0=Pos, 1=Kind, 2..2+maxNoteColumns-1=NoteColumns, 2+maxNoteColumns=Val, 2+maxNoteColumns+1=Dur
+  // --- Column index mapping ---
+  // Layout: Pos(0) | Ch1(1) .. ChN(maxNoteColumns) | Vel(1+maxNoteColumns) | Dur(2+maxNoteColumns) | FX1(3+maxNoteColumns) .. FXN
   const getNoteColumnIndex = useCallback((col: number): number | null => {
-    if (col >= 2 && col < 2 + maxNoteColumns) return col - 2;
+    if (col >= 1 && col < 1 + maxNoteColumns) return col - 1;
     return null;
   }, [maxNoteColumns]);
 
-  // Map cursorCol to TrackerRow column type for the primary event rendering
-  const getTrackerColumn = useCallback((col: number): TrackerColumn => {
-    if (col === 0) return 0; // Pos
-    if (col === 1) return 1; // Kind
-    if (col >= 2 && col < 2 + maxNoteColumns) return 2; // Note (any note column)
-    if (col === 2 + maxNoteColumns) return 3; // Val
-    if (col === 2 + maxNoteColumns + 1) return 4; // Dur
-    return 2;
+  const getFxColumnIndex = useCallback((col: number): number | null => {
+    const fxStart = 1 + maxNoteColumns + 2; // after Pos + notes + Vel + Dur
+    if (col >= fxStart && col < fxStart + fxColumns.length) return col - fxStart;
+    return null;
+  }, [maxNoteColumns, fxColumns.length]);
+
+  /** Map a cursor column index to a column type for TrackerRow. */
+  const getColumnType = useCallback((col: number): 'pos' | 'note' | 'vel' | 'dur' | 'fx' => {
+    if (col === 0) return 'pos';
+    if (col >= 1 && col < 1 + maxNoteColumns) return 'note';
+    if (col === 1 + maxNoteColumns) return 'vel';
+    if (col === 2 + maxNoteColumns) return 'dur';
+    return 'fx';
   }, [maxNoteColumns]);
 
   // --- Keyboard handler ---
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (groupCount === 0) return;
+    if (rowCount === 0) return;
 
     // Don't intercept when an input element is focused (inline editing)
     const tag = (e.target as HTMLElement).tagName;
@@ -369,7 +351,7 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
     if (isMod && e.key === 'a') {
       e.preventDefault();
       setAnchorRow(0);
-      setCursorRow(groupCount - 1);
+      setCursorRow(rowCount - 1);
       return;
     }
 
@@ -389,10 +371,10 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
         e.preventDefault();
         if (e.shiftKey) {
           if (anchorRow === null) setAnchorRow(cursorRow);
-          setCursorRow(r => Math.min(groupCount - 1, r + 1));
+          setCursorRow(r => Math.min(rowCount - 1, r + 1));
         } else {
           setAnchorRow(null);
-          setCursorRow(r => Math.min(groupCount - 1, r + 1));
+          setCursorRow(r => Math.min(rowCount - 1, r + 1));
         }
         break;
       }
@@ -423,7 +405,7 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
         } else {
           setAnchorRow(null);
         }
-        setCursorRow(r => Math.min(groupCount - 1, r + PAGE_JUMP));
+        setCursorRow(r => Math.min(rowCount - 1, r + PAGE_JUMP));
         break;
       }
       case 'Home': {
@@ -443,7 +425,7 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
         } else {
           setAnchorRow(null);
         }
-        setCursorRow(groupCount - 1);
+        setCursorRow(rowCount - 1);
         break;
       }
       case 'Tab': {
@@ -475,26 +457,37 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
         if (anchorRow !== null && onDeleteByIndices && eventIndices.length > 0) {
           onDeleteByIndices(eventIndices);
           setAnchorRow(null);
-        } else if (onDelete && groupCount > 0 && cursorRow < groupCount) {
-          const group = groups[cursorRow];
+        } else if (onDelete && rowCount > 0 && cursorRow < slots.length) {
+          const slot = slots[cursorRow];
           // If cursor is on a specific note column, delete just that note
           const noteColIdx = getNoteColumnIndex(cursorCol);
-          if (noteColIdx !== null && noteColIdx < group.notes.length && group.notes[noteColIdx]) {
-            const note = group.notes[noteColIdx]!;
+          if (noteColIdx !== null && noteColIdx < slot.notes.length && slot.notes[noteColIdx]) {
+            const note = slot.notes[noteColIdx]!;
             const selector: EventSelector = { at: note.at, kind: 'note' as const, pitch: note.pitch };
             onDelete(selector);
-          } else if (group.allEvents.length > 0) {
-            // Delete the primary event of the group
-            const event = group.allEvents[0];
-            let selector: EventSelector;
-            if (event.kind === 'parameter') {
-              selector = { at: event.at, kind: 'parameter' as const, controlId: (event as ParameterEvent).controlId };
-            } else if (event.kind === 'note') {
-              selector = { at: event.at, kind: 'note' as const, pitch: (event as NoteEvent).pitch };
+          } else {
+            // If cursor is on an FX column, delete that specific parameter event
+            const fxColIdx = getFxColumnIndex(cursorCol);
+            if (fxColIdx !== null && fxColIdx < fxColumns.length) {
+              const controlId = fxColumns[fxColIdx].controlId;
+              const paramEvent = slot.fxValues.get(controlId);
+              if (paramEvent) {
+                const selector: EventSelector = { at: paramEvent.at, kind: 'parameter' as const, controlId };
+                onDelete(selector);
+              }
             } else {
-              selector = { at: event.at, kind: 'trigger' as const };
+              // Default: delete the first note/trigger event in this slot
+              const gateEvent = slot.allEvents.find(e => e.kind === 'note' || e.kind === 'trigger');
+              if (gateEvent) {
+                let selector: EventSelector;
+                if (gateEvent.kind === 'note') {
+                  selector = { at: gateEvent.at, kind: 'note' as const, pitch: (gateEvent as NoteEvent).pitch };
+                } else {
+                  selector = { at: gateEvent.at, kind: 'trigger' as const };
+                }
+                onDelete(selector);
+              }
             }
-            onDelete(selector);
           }
         }
         break;
@@ -502,7 +495,7 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
       default:
         return;
     }
-  }, [groupCount, cursorRow, cursorCol, anchorRow, groups, onDelete, onDeleteByIndices, onPasteEvents, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex]);
+  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns]);
 
   /** Handle row click — set cursor, optionally extend selection with Shift. */
   const handleRowClick = useCallback((rowIndex: number, shiftKey: boolean) => {
@@ -516,18 +509,27 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
     containerRef.current?.focus();
   }, [anchorRow, cursorRow]);
 
-  // Build note column headers
+  // Build note column headers (Ch1, Ch2, Ch3, Ch4)
   const noteColumnHeaders = useMemo(() => {
     const headers: React.ReactNode[] = [];
     for (let c = 0; c < maxNoteColumns; c++) {
       headers.push(
-        <th key={`note-${c}`} className="px-1.5 py-1 text-left w-[3.5rem]">
-          {maxNoteColumns > 1 ? `N${c + 1}` : 'Note'}
+        <th key={`note-${c}`} className="px-1 py-1 text-left w-[3rem] font-mono">
+          Ch{c + 1}
         </th>
       );
     }
     return headers;
   }, [maxNoteColumns]);
+
+  // Build FX column headers
+  const fxColumnHeaders = useMemo(() => {
+    return fxColumns.map((fx, i) => (
+      <th key={`fx-${i}`} className="px-1 py-1 text-right w-[2.5rem] font-mono" title={fx.controlId}>
+        {fx.label}
+      </th>
+    ));
+  }, [fxColumns]);
 
   return (
     <div
@@ -537,92 +539,53 @@ export function Tracker({ region, playheadStep, playing, engineModel, processors
       data-shortcut-scope="tracker"
       className="outline-none h-full"
     >
-      <table className="w-full border-collapse select-none">
+      <table className="w-full border-collapse select-none font-mono">
         <thead>
           <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
-            <th className="px-1.5 py-1 text-right w-[3.5rem]">Pos</th>
-            <th className="px-1 py-1 text-center w-6"></th>
+            <th className="px-1 py-1 text-left w-[2.5rem]">Pos</th>
             {noteColumnHeaders}
-            <th className="px-1.5 py-1 text-right w-12">Val</th>
-            <th className="px-1.5 py-1 text-right w-12">Dur</th>
+            <th className="px-1 py-1 text-right w-[2.5rem]">Vel</th>
+            <th className="px-1 py-1 text-right w-[2.5rem]">Dur</th>
+            {fxColumnHeaders}
           </tr>
         </thead>
         <tbody>
-          {groups.length === 0 ? (
-            onAddNote ? (
-              <tr>
-                <td colSpan={colCount} className="px-4 py-3 text-center">
-                  <button
-                    className="text-[10px] text-zinc-500 hover:text-amber-400 transition-colors"
-                    onClick={() => onAddNote(0)}
-                    title="Add note at step 0"
-                  >
-                    + add note
-                  </button>
-                </td>
-              </tr>
-            ) : (
-              <tr>
-                <td colSpan={colCount} className="px-4 py-3 text-center text-[10px] text-zinc-600 italic">
-                  ---
-                </td>
-              </tr>
-            )
-          ) : (
-            <>
-              {groups.map((group, gi) => {
-                const nextAt = gi < groups.length - 1 ? groups[gi + 1].at : region.duration;
-                const isAtPlayhead = playing && playheadAt !== null && playheadAt >= group.at && playheadAt < nextAt;
-                const isCursor = gi === cursorRow;
-                const selRange = getSelectionRange();
-                const isSelected = selRange !== null && gi >= selRange[0] && gi <= selRange[1];
-                const showBeatSep = shouldShowBeatSeparator(group.at, gi > 0 ? groups[gi - 1].at : null, stepsPerBeat);
-                // The "primary" event for the row is the first note (if any) or the first other event
-                const primaryEvent = group.notes.find(n => n !== null) ?? group.otherEvents[0] ?? group.allEvents[0];
-                if (!primaryEvent) return null;
+          {slots.map((slot, si) => {
+            const isAtPlayhead = playing && playheadAt !== null
+              && Math.floor(playheadAt) === slot.step;
+            const isCursor = si === cursorRow;
+            const selRange = getSelectionRange();
+            const isSelected = selRange !== null && si >= selRange[0] && si <= selRange[1];
+            const showBeatSep = shouldShowBeatSeparator(slot.step, stepsPerBeat);
 
-                // Map cursor column to TrackerRow column for the primary event
-                const trackerCol = getTrackerColumn(cursorCol);
+            const cursorNoteCol = isCursor ? getNoteColumnIndex(cursorCol) : null;
+            const cursorFxCol = isCursor ? getFxColumnIndex(cursorCol) : null;
+            const colType = isCursor ? getColumnType(cursorCol) : 'pos';
 
-                return (
-                  <TrackerRow
-                    key={stepGroupKey(group)}
-                    event={primaryEvent}
-                    noteColumns={group.notes}
-                    maxNoteColumns={maxNoteColumns}
-                    cursorNoteColumn={isCursor ? getNoteColumnIndex(cursorCol) : null}
-                    isAtPlayhead={isAtPlayhead}
-                    showBeatSeparator={showBeatSep}
-                    onUpdate={onUpdate}
-                    onDelete={onDelete}
-                    availableControls={availableControls}
-                    onAddParamEvent={onAddParamEvent}
-                    cancelEditRef={cancelEditRef}
-                    isCursorRow={isCursor}
-                    cursorColumn={trackerCol}
-                    editRequestCounter={isCursor ? editRequestCounter : undefined}
-                    isSelected={isSelected}
-                    isInLoop={false}
-                    onRowClick={(shiftKey) => handleRowClick(gi, shiftKey)}
-                    ref={isCursor ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
-                  />
-                );
-              })}
-              {onAddNote && (
-                <tr>
-                  <td colSpan={colCount} className="px-4 py-1.5 text-center">
-                    <button
-                      className="text-[10px] text-zinc-600 hover:text-amber-400 transition-colors"
-                      onClick={() => onAddNote(nextStep)}
-                      title={`Add note at step ${nextStep}`}
-                    >
-                      + add note
-                    </button>
-                  </td>
-                </tr>
-              )}
-            </>
-          )}
+            return (
+              <TrackerRow
+                key={slot.step}
+                slot={slot}
+                maxNoteColumns={maxNoteColumns}
+                fxColumns={fxColumns}
+                cursorNoteColumn={cursorNoteCol}
+                cursorFxColumn={cursorFxCol}
+                isAtPlayhead={isAtPlayhead}
+                showBeatSeparator={showBeatSep}
+                onUpdate={onUpdate}
+                onDelete={onDelete}
+                onAddParamEvent={onAddParamEvent}
+                onAddNote={onAddNote}
+                cancelEditRef={cancelEditRef}
+                isCursorRow={isCursor}
+                cursorColumnType={colType}
+                editRequestCounter={isCursor ? editRequestCounter : undefined}
+                isSelected={isSelected}
+                onRowClick={(shiftKey) => handleRowClick(si, shiftKey)}
+                ref={isCursor ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
+              />
+            );
+          })}
         </tbody>
       </table>
     </div>
