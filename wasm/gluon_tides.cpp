@@ -144,6 +144,7 @@ int tides_render(void* handle, float* output, int num_frames) {
   OutputMode out_mode;
   switch (state->output_mode) {
     case 0: out_mode = tides::OUTPUT_MODE_GATES; break;
+    case 1: out_mode = OUTPUT_MODE_AMPLITUDE; break;
     case 2: out_mode = tides::OUTPUT_MODE_SLOPE_PHASE; break;
     case 3: out_mode = tides::OUTPUT_MODE_FREQUENCY; break;
     default: out_mode = OUTPUT_MODE_AMPLITUDE; break;

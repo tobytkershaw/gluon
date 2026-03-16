@@ -97,7 +97,7 @@ void* clouds_create() {
   state->smooth_density.reset(0.5f);
   state->smooth_feedback.reset(0.0f);
   state->smooth_texture.reset(0.5f);
-  state->smooth_pitch.reset(0.0f);
+  state->smooth_pitch.reset(0.5f);
   state->smooth_dry_wet.reset(0.5f);
   state->smooth_stereo_spread.reset(0.0f);
   state->smooth_reverb.reset(0.0f);

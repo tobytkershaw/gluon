@@ -53,6 +53,13 @@ struct PlaitsVoiceState {
   SmoothedParam smooth_morph;
   SmoothedParam smooth_note;
 
+  // Smoothed extended parameters
+  SmoothedParam smooth_fm_amount;
+  SmoothedParam smooth_timbre_mod_amount;
+  SmoothedParam smooth_morph_mod_amount;
+  SmoothedParam smooth_decay;
+  SmoothedParam smooth_lpg_colour;
+
   PlaitsVoiceState() : trigger_blocks_remaining(0), accent_level(0.8f), gate_open(false), sample_rate(48000.0f) {
     std::memset(&patch, 0, sizeof(patch));
     std::memset(&modulations, 0, sizeof(modulations));
@@ -78,6 +85,12 @@ void init_state(PlaitsVoiceState* state, float sample_rate) {
   state->smooth_timbre.reset(0.5f);
   state->smooth_morph.reset(0.5f);
   state->smooth_note.reset(60.0f);
+
+  state->smooth_fm_amount.reset(0.0f);
+  state->smooth_timbre_mod_amount.reset(0.0f);
+  state->smooth_morph_mod_amount.reset(0.0f);
+  state->smooth_decay.reset(0.5f);
+  state->smooth_lpg_colour.reset(0.5f);
 
   state->patch.note = 60.0f;
   state->patch.harmonics = 0.5f;
@@ -138,11 +151,11 @@ void plaits_set_extended(void* handle, float fm_amount, float timbre_mod_amount,
                          float morph_mod_amount, float decay, float lpg_colour) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state) return;
-  state->patch.frequency_modulation_amount = clamp01(fm_amount);
-  state->patch.timbre_modulation_amount = clamp01(timbre_mod_amount);
-  state->patch.morph_modulation_amount = clamp01(morph_mod_amount);
-  state->patch.decay = clamp01(decay);
-  state->patch.lpg_colour = clamp01(lpg_colour);
+  state->smooth_fm_amount.set(clamp01(fm_amount));
+  state->smooth_timbre_mod_amount.set(clamp01(timbre_mod_amount));
+  state->smooth_morph_mod_amount.set(clamp01(morph_mod_amount));
+  state->smooth_decay.set(clamp01(decay));
+  state->smooth_lpg_colour.set(clamp01(lpg_colour));
 }
 
 void plaits_trigger(void* handle, float accent_level) {
@@ -176,11 +189,21 @@ int plaits_render(void* handle, float* output, int num_frames) {
     state->smooth_timbre.step(kSmoothCoeff);
     state->smooth_morph.step(kSmoothCoeff);
     state->smooth_note.step(kSmoothCoeff);
+    state->smooth_fm_amount.step(kSmoothCoeff);
+    state->smooth_timbre_mod_amount.step(kSmoothCoeff);
+    state->smooth_morph_mod_amount.step(kSmoothCoeff);
+    state->smooth_decay.step(kSmoothCoeff);
+    state->smooth_lpg_colour.step(kSmoothCoeff);
 
     state->patch.harmonics = state->smooth_harmonics.current;
     state->patch.timbre = state->smooth_timbre.current;
     state->patch.morph = state->smooth_morph.current;
     state->patch.note = state->smooth_note.current;
+    state->patch.frequency_modulation_amount = state->smooth_fm_amount.current;
+    state->patch.timbre_modulation_amount = state->smooth_timbre_mod_amount.current;
+    state->patch.morph_modulation_amount = state->smooth_morph_mod_amount.current;
+    state->patch.decay = state->smooth_decay.current;
+    state->patch.lpg_colour = state->smooth_lpg_colour.current;
 
     // Trigger is a one-shot pulse (1 block); level follows the gate for sustain.
     state->modulations.trigger = (state->trigger_blocks_remaining > 0) ? 1.0f : 0.0f;

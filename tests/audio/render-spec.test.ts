@@ -69,6 +69,7 @@ describe('buildRenderSpec', () => {
         type: 'tides',
         model: 1,
         params: { frequency: 0.6, shape: 0.2, slope: 0.8, smoothness: 0.4 },
+        extendedParams: { shift: 0.0, output_mode: 1, range: 0 },
       },
     ]);
     expect(spec.tracks[0].modulations).toEqual([

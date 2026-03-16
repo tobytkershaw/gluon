@@ -41,6 +41,7 @@ interface RingsWasm {
   _rings_set_model(handle: number, modelIndex: number): void;
   _rings_set_patch(handle: number, structure: number, brightness: number, damping: number, position: number): void;
   _rings_set_note(handle: number, tonic: number, note: number): void;
+  _rings_set_fine_tune(handle: number, offset: number): void;
   _rings_render(handle: number, inputPtr: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -215,6 +216,8 @@ async function renderTrack(
   plaits._plaits_set_model(pHandle, track.model);
   const currentPatch: RenderSynthPatch = { ...track.params };
   plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
+  const ext = track.extendedParams;
+  plaits._plaits_set_extended(pHandle, ext.fm_amount, ext.timbre_mod_amount, ext.morph_mod_amount, ext.decay, ext.lpg_colour);
 
   // --- Load and init processors ---
   interface ProcessorHandle {
@@ -234,6 +237,9 @@ async function renderTrack(
       rings._rings_set_model(rHandle, proc.model);
       const p = proc.params;
       rings._rings_set_patch(rHandle, p.structure ?? 0.5, p.brightness ?? 0.5, p.damping ?? 0.7, p.position ?? 0.5);
+      if (p['fine-tune'] !== undefined) {
+        rings._rings_set_fine_tune(rHandle, p['fine-tune']);
+      }
       const inPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       procHandles.push({ type: 'rings', wasm: rings, handle: rHandle, inPtr, outPtr, spec: proc });
@@ -376,6 +382,8 @@ async function createTidesHandle(mod: RenderModulatorSpec): Promise<ModulatorHan
     mod.params.slope,
     mod.params.smoothness,
   );
+  const ext = mod.extendedParams;
+  tides._tides_set_extended(handle, ext.shift, ext.output_mode, ext.range);
   const outPtr = tides._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
   return {
     id: mod.id,
