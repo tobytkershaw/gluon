@@ -162,7 +162,7 @@ const setTransportTool: ToolSchema = {
     properties: {
       bpm: {
         type: 'number',
-        description: 'Tempo in beats per minute (60-200).',
+        description: 'Tempo in beats per minute (20-300).',
       },
       swing: {
         type: 'number',

@@ -26,7 +26,7 @@ export function TransportBar({
   const currentBar = Math.floor(globalStep / patternLength) + 1;
 
   const handleBpmSubmit = useCallback(() => {
-    const parsed = parseInt(bpmInput, 10);
+    const parsed = parseFloat(bpmInput);
     if (!isNaN(parsed)) onBpmChange(parsed);
     setEditingBpm(false);
   }, [bpmInput, onBpmChange]);
@@ -74,8 +74,9 @@ export function TransportBar({
             onKeyDown={(e) => e.key === 'Enter' && handleBpmSubmit()}
             className="w-14 bg-zinc-800 text-zinc-100 text-sm px-2 py-1 rounded border border-zinc-600 outline-none"
             autoFocus
-            min={60}
-            max={200}
+            min={20}
+            max={300}
+            step={0.1}
           />
         ) : (
           <button

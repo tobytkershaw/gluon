@@ -85,14 +85,16 @@ describe('Session (Phase 2)', () => {
     expect(s2.tracks.find(v => v.id === vid)!.solo).toBe(true);
   });
 
-  it('sets transport BPM clamped to 60-200', () => {
+  it('sets transport BPM clamped to 20-300', () => {
     let s = createSession();
     s = setTransportBpm(s, 140);
     expect(s.transport.bpm).toBe(140);
-    s = setTransportBpm(s, 30);
-    expect(s.transport.bpm).toBe(60);
-    s = setTransportBpm(s, 300);
-    expect(s.transport.bpm).toBe(200);
+    s = setTransportBpm(s, 10);
+    expect(s.transport.bpm).toBe(20);
+    s = setTransportBpm(s, 400);
+    expect(s.transport.bpm).toBe(300);
+    s = setTransportBpm(s, 120.5);
+    expect(s.transport.bpm).toBe(120.5);
   });
 
   it('sets transport swing clamped to 0-1', () => {

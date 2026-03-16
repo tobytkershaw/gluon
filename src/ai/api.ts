@@ -78,7 +78,7 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'set_transport': {
       const t = { ...session.transport };
-      if (action.bpm !== undefined) t.bpm = Math.max(60, Math.min(200, action.bpm));
+      if (action.bpm !== undefined) t.bpm = Math.max(20, Math.min(300, action.bpm));
       if (action.swing !== undefined) t.swing = Math.max(0, Math.min(1, action.swing));
       if (action.playing !== undefined) {
         t.playing = action.playing;
@@ -569,7 +569,7 @@ export class GluonAI {
         const rejection = ctx?.validateAction?.(action);
         if (rejection) return { actions: [], response: errorPayload(rejection) };
 
-        const resultBpm = action.bpm !== undefined ? Math.max(60, Math.min(200, action.bpm)) : undefined;
+        const resultBpm = action.bpm !== undefined ? Math.max(20, Math.min(300, action.bpm)) : undefined;
         const resultSwing = action.swing !== undefined ? Math.max(0, Math.min(1, action.swing)) : undefined;
 
         return {

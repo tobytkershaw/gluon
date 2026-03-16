@@ -45,16 +45,16 @@ describe('Transport Undo', () => {
     expect(undone.transport.bpm).toBe(originalBpm);
   });
 
-  it('clamps BPM to 60-200 range', () => {
+  it('clamps BPM to 20-300 range', () => {
     const session = createSession();
 
-    const tooLow: AIAction[] = [{ type: 'set_transport', bpm: 30 }];
+    const tooLow: AIAction[] = [{ type: 'set_transport', bpm: 10 }];
     const reportLow = executeOperations(session, tooLow, adapter, makeArbitrator());
-    expect(reportLow.session.transport.bpm).toBe(60);
+    expect(reportLow.session.transport.bpm).toBe(20);
 
-    const tooHigh: AIAction[] = [{ type: 'set_transport', bpm: 300 }];
+    const tooHigh: AIAction[] = [{ type: 'set_transport', bpm: 400 }];
     const reportHigh = executeOperations(session, tooHigh, adapter, makeArbitrator());
-    expect(reportHigh.session.transport.bpm).toBe(200);
+    expect(reportHigh.session.transport.bpm).toBe(300);
   });
 
   it('clamps swing to 0-1 range', () => {
