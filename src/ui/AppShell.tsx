@@ -50,6 +50,8 @@ interface Props {
   onProjectDelete: () => void;
   onProjectExport: () => void;
   onProjectImport: (file: File) => void;
+  onExportWav?: (bars: number) => void;
+  exportingWav?: boolean;
   // Transport (global top bar)
   playing: boolean;
   bpm: number;
@@ -91,6 +93,7 @@ export function AppShell({
   projectName, projects, saveError,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
+  onExportWav, exportingWav,
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   view, onViewChange,
@@ -144,6 +147,8 @@ export function AppShell({
             onDelete={onProjectDelete}
             onExport={onProjectExport}
             onImport={onProjectImport}
+            onExportWav={onExportWav}
+            exportingWav={exportingWav}
           />
         </div>
         {/* Content-column zone: view toggle, transport, undo */}

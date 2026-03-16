@@ -442,6 +442,10 @@ export class AudioEngine {
     return this.mediaStreamDest;
   }
 
+  getAudioContext(): AudioContext | null {
+    return this.ctx;
+  }
+
   // --- Master channel ---
 
   setMasterVolume(value: number): void {
