@@ -878,10 +878,22 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const spaceHeldRef = useRef(false);
 
+  // Clear node offsets when switching tracks — PatchView is never remounted so
+  // stale offsets (especially for 'source' which always has the same id) would
+  // leak between tracks.
+  const prevTrackIdRef = useRef(session.activeTrackId);
+  useEffect(() => {
+    if (session.activeTrackId !== prevTrackIdRef.current) {
+      prevTrackIdRef.current = session.activeTrackId;
+      setNodeOffsets({});
+      setNodeDrag(null);
+    }
+  });
+
   if (session.tracks.length === 0) return <EmptyState />;
 
   const track = getActiveTrack(session);
-  const baseNodes = layoutNodes(track);
+  const baseNodes = useMemo(() => layoutNodes(track), [track]);
   // Apply user-dragged position offsets
   const nodes = baseNodes.map(n => {
     const offset = nodeOffsets[n.id];
@@ -935,6 +947,9 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     e.stopPropagation();
     e.preventDefault();
     if (!containerRef.current) return;
+    // Clear any in-progress modulator drag to prevent both drag states being active
+    setDragState(null);
+    setHoveredPortKey(null);
     const rect = containerRef.current.getBoundingClientRect();
     const canvas = screenToCanvas(e.clientX, e.clientY, rect, panZoom.zoom, panZoom.panX, panZoom.panY);
     setNodeDrag({
@@ -1200,12 +1215,11 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
               />
             ))}
 
-            {/* SVG modulation edge layer (interactive, above nodes) */}
+            {/* SVG modulation edge layer — container allows events; non-interactive children opt out */}
             <svg
               className="absolute inset-0"
               width={maxX}
               height={maxY}
-              style={{ pointerEvents: 'none' }}
             >
               <defs>
                 <marker
