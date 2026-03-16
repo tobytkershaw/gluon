@@ -2,11 +2,13 @@
 // Dropdown menu for project management — lives in the top bar.
 import { useState, useRef, useEffect } from 'react';
 import type { ProjectMeta } from '../engine/project-store';
+import type { SaveStatus } from './useProjectLifecycle';
 
 interface Props {
   projectName: string;
   projects: ProjectMeta[];
   saveError: boolean;
+  saveStatus: SaveStatus;
   onRename: (name: string) => void;
   onNew: () => void;
   onOpen: (id: string) => void;
@@ -19,7 +21,7 @@ interface Props {
 }
 
 export function ProjectMenu({
-  projectName, projects, saveError,
+  projectName, projects, saveError, saveStatus,
   onRename, onNew, onOpen, onDuplicate, onDelete, onExport, onImport,
   onExportWav, exportingWav,
 }: Props) {
@@ -85,9 +87,7 @@ export function ProjectMenu({
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-800/50 transition-colors group"
       >
-        {saveError && (
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Save failed — working in memory" />
-        )}
+        <SaveIndicator status={saveStatus} />
         <span className="text-[11px] font-mono text-zinc-300 group-hover:text-zinc-100 truncate max-w-[160px]">
           {projectName}
         </span>
@@ -191,6 +191,48 @@ export function ProjectMenu({
       )}
     </div>
   );
+}
+
+function SaveIndicator({ status }: { status: SaveStatus }) {
+  const [visible, setVisible] = useState(false);
+
+  // Show checkmark briefly on save, then fade out
+  useEffect(() => {
+    if (status === 'saved') {
+      setVisible(true);
+      const timer = setTimeout(() => setVisible(false), 2000);
+      return () => clearTimeout(timer);
+    }
+    if (status === 'saving' || status === 'error') {
+      setVisible(true);
+    } else {
+      setVisible(false);
+    }
+  }, [status]);
+
+  if (status === 'error') {
+    return <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" title="Save failed — working in memory" />;
+  }
+
+  if (status === 'saving') {
+    return (
+      <span
+        className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
+        style={{ animation: 'pulse-soft 1s ease-in-out infinite' }}
+        title="Saving..."
+      />
+    );
+  }
+
+  if (status === 'saved' && visible) {
+    return (
+      <svg viewBox="0 0 16 16" className="w-2.5 h-2.5 text-emerald-500/70 shrink-0 transition-opacity duration-500" title="Saved">
+        <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  return null;
 }
 
 function MenuItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {

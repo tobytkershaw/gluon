@@ -26,6 +26,8 @@ interface ProjectLifecycle {
   projects: ProjectMeta[];
   /** Whether persistence is degraded (IndexedDB failures) */
   saveError: boolean;
+  /** Granular save status */
+  saveStatus: SaveStatus;
   /** Create a new project and switch to it */
   createProject: (name?: string) => Promise<void>;
   /** Switch to a different project */
@@ -42,6 +44,8 @@ interface ProjectLifecycle {
   importProject: (file: File) => Promise<void>;
 }
 
+export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
 export function useProjectLifecycle(
   session: Session,
   setSession: (s: Session | ((prev: Session) => Session)) => void,
@@ -49,7 +53,7 @@ export function useProjectLifecycle(
   const [projectId, setProjectId] = useState<string | null>(null);
   const [projectName, setProjectName] = useState('Untitled');
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
-  const [saveError, setSaveError] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
 
   // Guard: suppress auto-save during load/switch
   const loadingRef = useRef(true);
@@ -144,7 +148,7 @@ export function useProjectLifecycle(
       } catch {
         // IndexedDB unavailable — work in memory
         if (!cancelled) {
-          setSaveError(true);
+          setSaveStatus('error');
           setSession(createSession());
           loadingRef.current = false;
         }
@@ -160,14 +164,18 @@ export function useProjectLifecycle(
     if (loadingRef.current || !projectId) return;
 
     const timer = setTimeout(async () => {
+      setSaveStatus('saving');
       try {
         await saveProject(projectId, projectNameRef.current, session);
         failureCountRef.current = 0;
-        setSaveError(false);
+        setSaveStatus('saved');
       } catch {
         failureCountRef.current++;
         if (failureCountRef.current >= MAX_SAVE_FAILURES) {
-          setSaveError(true);
+          setSaveStatus('error');
+        } else {
+          // Revert to previous non-error state on transient failure
+          setSaveStatus('saved');
         }
       }
     }, AUTOSAVE_DELAY);
@@ -265,7 +273,8 @@ export function useProjectLifecycle(
     projectId,
     projectName,
     projects,
-    saveError,
+    saveError: saveStatus === 'error',
+    saveStatus,
     createProject: createProjectAction,
     switchProject: switchProjectAction,
     renameActiveProject: renameActiveProjectAction,

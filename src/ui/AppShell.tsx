@@ -6,6 +6,7 @@ import { useRef, useEffect, useCallback, type ReactNode, type MutableRefObject }
 import type { Track, ChatMessage, UndoEntry, Reaction } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
+import type { SaveStatus } from './useProjectLifecycle';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
 import { ChatComposer } from './ChatComposer';
@@ -51,6 +52,7 @@ interface Props {
   projectName: string;
   projects: ProjectMeta[];
   saveError: boolean;
+  saveStatus: SaveStatus;
   onProjectRename: (name: string) => void;
   onProjectNew: () => void;
   onProjectOpen: (id: string) => void;
@@ -114,7 +116,7 @@ export function AppShell({
   reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
   chatOpen, onChatToggle, chatWidth, onChatResize,
-  projectName, projects, saveError,
+  projectName, projects, saveError, saveStatus,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
   onExportWav, exportingWav,
@@ -166,6 +168,7 @@ export function AppShell({
             projectName={projectName}
             projects={projects}
             saveError={saveError}
+            saveStatus={saveStatus}
             onRename={onProjectRename}
             onNew={onProjectNew}
             onOpen={onProjectOpen}
