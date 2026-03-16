@@ -2,7 +2,7 @@
 // Ground-truth node graph for signal chain and modulation routing (#158)
 // Port rendering from hardware I/O registry (#394)
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Session, Track, ModulationRouting, ModulationTarget } from '../engine/types';
 import { getActiveTrack } from '../engine/types';
 import { getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorControlIds } from '../audio/instrument-registry';
@@ -23,6 +23,12 @@ const PAD_Y = 32;
 const AUDIO_ROW_Y = PAD_Y;
 const OUTPUT_R = 10;
 const PORT_CIRCLE_R = 4;   // radius of port circles
+
+// --- Pan/Zoom constants ---
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 2;
+const ZOOM_SENSITIVITY = 0.002;
+const FIT_PADDING = 40;
 
 /** Compute the node height based on its port count */
 function nodeHeight(inputCount: number, outputCount: number): number {
@@ -815,12 +821,40 @@ interface Props {
   onRemoveModulation?: (routeId: string) => void;
 }
 
+/** Convert screen (client) coordinates to canvas coordinates given pan/zoom state */
+function screenToCanvas(
+  clientX: number,
+  clientY: number,
+  containerRect: DOMRect,
+  zoom: number,
+  panX: number,
+  panY: number,
+): { x: number; y: number } {
+  return {
+    x: (clientX - containerRect.left - panX) / zoom,
+    y: (clientY - containerRect.top - panY) / zoom,
+  };
+}
+
+/** Pan/zoom state for the canvas */
+interface PanZoomState {
+  zoom: number;
+  panX: number;
+  panY: number;
+}
+
 export function PatchView({ session, onModulationDepthChange, onModulationDepthCommit, onConnectModulator, onRemoveModulation }: Props) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredPortKey, setHoveredPortKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Pan/zoom state
+  const [panZoom, setPanZoom] = useState<PanZoomState>({ zoom: 1, panX: 0, panY: 0 });
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
+  const spaceHeldRef = useRef(false);
 
   if (session.tracks.length === 0) return <EmptyState />;
 
@@ -834,10 +868,37 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const maxX = Math.max(...nodes.map(n => n.x + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_W))) + PAD_X;
   const maxY = Math.max(...nodes.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : n.h))) + PAD_Y + 60;
 
-  const handleCanvasMouseDown = useCallback(() => {
+  // Bounding box for fit-to-view
+  const contentBounds = useMemo(() => {
+    if (nodes.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    let minX = Infinity, minY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
+    for (const n of nodes) {
+      const w = n.kind === 'output' ? OUTPUT_R * 2 : NODE_W;
+      const h = n.kind === 'output' ? OUTPUT_R * 2 : n.h;
+      minX = Math.min(minX, n.x);
+      minY = Math.min(minY, n.y);
+      bMaxX = Math.max(bMaxX, n.x + w);
+      bMaxY = Math.max(bMaxY, n.y + h);
+    }
+    return { minX, minY, maxX: bMaxX, maxY: bMaxY };
+  }, [nodes]);
+
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    // Middle-click or Space+click starts panning
+    if (e.button === 1 || (e.button === 0 && spaceHeldRef.current)) {
+      e.preventDefault();
+      isPanningRef.current = true;
+      panStartRef.current = {
+        x: e.clientX,
+        y: e.clientY,
+        panX: panZoom.panX,
+        panY: panZoom.panY,
+      };
+      return;
+    }
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-  }, []);
+  }, [panZoom.panX, panZoom.panY]);
 
   const handleNodeSelect = useCallback((id: string) => {
     setSelectedNodeId(id);
@@ -862,28 +923,43 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    // Handle panning
+    if (isPanningRef.current) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setPanZoom(prev => ({
+        ...prev,
+        panX: panStartRef.current.panX + dx,
+        panY: panStartRef.current.panY + dy,
+      }));
+      return;
+    }
+
+    // Handle modulator drag — convert screen coords to canvas coords
     if (!dragState || !containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const scrollLeft = containerRef.current.scrollLeft;
-    const scrollTop = containerRef.current.scrollTop;
-    const mouseX = e.clientX - rect.left + scrollLeft;
-    const mouseY = e.clientY - rect.top + scrollTop;
-    setDragState(prev => prev ? { ...prev, mouseX, mouseY } : null);
+    const canvas = screenToCanvas(e.clientX, e.clientY, rect, panZoom.zoom, panZoom.panX, panZoom.panY);
+    setDragState(prev => prev ? { ...prev, mouseX: canvas.x, mouseY: canvas.y } : null);
 
     // Check if hovering over a target port
     let found: string | null = null;
     for (const port of targetPorts) {
-      const dx = mouseX - port.x;
-      const dy = mouseY - port.y;
+      const dx = canvas.x - port.x;
+      const dy = canvas.y - port.y;
       if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
         found = `${port.nodeId}:${port.paramId}`;
         break;
       }
     }
     setHoveredPortKey(found);
-  }, [dragState, targetPorts]);
+  }, [dragState, targetPorts, panZoom]);
 
   const handleMouseUp = useCallback(() => {
+    if (isPanningRef.current) {
+      isPanningRef.current = false;
+      return;
+    }
+
     if (!dragState) return;
 
     if (hoveredPortKey && onConnectModulator) {
@@ -897,6 +973,69 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     setDragState(null);
     setHoveredPortKey(null);
   }, [dragState, hoveredPortKey, targetPorts, onConnectModulator]);
+
+  // Wheel zoom centered on cursor
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+
+    // Cursor position relative to container
+    const cursorX = e.clientX - rect.left;
+    const cursorY = e.clientY - rect.top;
+
+    setPanZoom(prev => {
+      const delta = -e.deltaY * ZOOM_SENSITIVITY;
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * (1 + delta)));
+      const scale = newZoom / prev.zoom;
+
+      // Adjust pan so the point under the cursor stays fixed
+      const newPanX = cursorX - scale * (cursorX - prev.panX);
+      const newPanY = cursorY - scale * (cursorY - prev.panY);
+
+      return { zoom: newZoom, panX: newPanX, panY: newPanY };
+    });
+  }, []);
+
+  // Fit all nodes into view with padding
+  const handleFitToView = useCallback(() => {
+    if (!containerRef.current || nodes.length === 0) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const cw = rect.width - FIT_PADDING * 2;
+    const ch = rect.height - FIT_PADDING * 2;
+    const bw = contentBounds.maxX - contentBounds.minX;
+    const bh = contentBounds.maxY - contentBounds.minY;
+
+    if (bw <= 0 || bh <= 0) return;
+
+    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(cw / bw, ch / bh)));
+    const panX = FIT_PADDING + (cw - bw * zoom) / 2 - contentBounds.minX * zoom;
+    const panY = FIT_PADDING + (ch - bh * zoom) / 2 - contentBounds.minY * zoom;
+
+    setPanZoom({ zoom, panX, panY });
+  }, [nodes.length, contentBounds]);
+
+  // Space key tracking for Space+drag panning
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && !e.repeat) {
+        const tag = (e.target as HTMLElement).tagName;
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          e.preventDefault();
+          spaceHeldRef.current = true;
+        }
+      }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Space') spaceHeldRef.current = false;
+    };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, []);
 
   // Keyboard handler for Delete key on selected edge
   useEffect(() => {
@@ -915,6 +1054,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
   const selectedEdge = selectedEdgeId ? modEdges.find(e => e.routeId === selectedEdgeId) : null;
 
+  const zoomPercent = Math.round(panZoom.zoom * 100);
+
   return (
     <div className="flex-1 flex flex-col h-full">
       {/* Track header */}
@@ -928,96 +1069,121 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       {/* Graph area */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-auto p-4"
-        onMouseMove={dragState ? handleMouseMove : undefined}
-        onMouseUp={dragState ? handleMouseUp : undefined}
-        onMouseLeave={dragState ? handleMouseUp : undefined}
+        className="flex-1 min-h-0 overflow-hidden relative"
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
       >
         <div
-          className="relative"
-          style={{ width: maxX, height: maxY }}
-          onMouseDown={handleCanvasMouseDown}
+          style={{
+            transformOrigin: '0 0',
+            transform: `translate(${panZoom.panX}px, ${panZoom.panY}px) scale(${panZoom.zoom})`,
+          }}
         >
-          {/* SVG edge layer */}
-          <svg
-            className="absolute inset-0"
-            width={maxX}
-            height={maxY}
-            style={{ pointerEvents: 'none' }}
+          <div
+            className="relative"
+            style={{ width: maxX, height: maxY }}
+            onMouseDown={handleCanvasMouseDown}
           >
-            <defs>
-              <marker
-                id="mod-arrow"
-                viewBox="0 0 10 7"
-                refX="10"
-                refY="3.5"
-                markerWidth="8"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" opacity="0.7" />
-              </marker>
-              <marker
-                id="mod-arrow-selected"
-                viewBox="0 0 10 7"
-                refX="10"
-                refY="3.5"
-                markerWidth="8"
-                markerHeight="6"
-                orient="auto-start-reverse"
-              >
-                <polygon points="0 0, 10 3.5, 0 7" fill="#67e8f9" />
-              </marker>
-            </defs>
-            {audioEdges.map((e, i) => (
-              <AudioEdgeSvg key={`audio-${i}`} edge={e} />
-            ))}
-            {modEdges.map((e) => (
-              <ModEdgeSvg
-                key={`mod-${e.routeId}`}
-                edge={e}
-                selected={selectedEdgeId === e.routeId}
-                onSelect={handleEdgeSelect}
+            {/* SVG edge layer */}
+            <svg
+              className="absolute inset-0"
+              width={maxX}
+              height={maxY}
+              style={{ pointerEvents: 'none' }}
+            >
+              <defs>
+                <marker
+                  id="mod-arrow"
+                  viewBox="0 0 10 7"
+                  refX="10"
+                  refY="3.5"
+                  markerWidth="8"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" opacity="0.7" />
+                </marker>
+                <marker
+                  id="mod-arrow-selected"
+                  viewBox="0 0 10 7"
+                  refX="10"
+                  refY="3.5"
+                  markerWidth="8"
+                  markerHeight="6"
+                  orient="auto-start-reverse"
+                >
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#67e8f9" />
+                </marker>
+              </defs>
+              {audioEdges.map((e, i) => (
+                <AudioEdgeSvg key={`audio-${i}`} edge={e} />
+              ))}
+              {modEdges.map((e) => (
+                <ModEdgeSvg
+                  key={`mod-${e.routeId}`}
+                  edge={e}
+                  selected={selectedEdgeId === e.routeId}
+                  onSelect={handleEdgeSelect}
+                />
+              ))}
+            </svg>
+
+            {/* Drag preview edge */}
+            {dragState && <DragPreviewEdge drag={dragState} />}
+
+            {/* Node layer */}
+            {nodes.map(n => (
+              <NodeCard
+                key={n.id}
+                node={n}
+                selected={selectedNodeId === n.id}
+                onSelect={handleNodeSelect}
+                onModulatorPortMouseDown={handleModulatorPortMouseDown}
+                targetPorts={targetPorts}
+                dragState={dragState}
+                hoveredPortKey={hoveredPortKey}
               />
             ))}
-          </svg>
 
-          {/* Drag preview edge */}
-          {dragState && <DragPreviewEdge drag={dragState} />}
+            {/* Selected node detail panel */}
+            {selectedNode && selectedNode.kind !== 'output' && (
+              <NodeDetailPanel node={selectedNode} track={track} />
+            )}
 
-          {/* Node layer */}
-          {nodes.map(n => (
-            <NodeCard
-              key={n.id}
-              node={n}
-              selected={selectedNodeId === n.id}
-              onSelect={handleNodeSelect}
-              onModulatorPortMouseDown={handleModulatorPortMouseDown}
-              targetPorts={targetPorts}
-              dragState={dragState}
-              hoveredPortKey={hoveredPortKey}
-            />
-          ))}
+            {/* Edge delete button */}
+            {selectedEdge && onRemoveModulation && (
+              <EdgeDeleteButton edge={selectedEdge} onRemove={onRemoveModulation} />
+            )}
 
-          {/* Selected node detail panel */}
-          {selectedNode && selectedNode.kind !== 'output' && (
-            <NodeDetailPanel node={selectedNode} track={track} />
-          )}
+            {/* Modulation depth overlays (interactive HTML on top of SVG edges) */}
+            {onModulationDepthChange && modEdges.map(e => (
+              <ModDepthOverlay
+                key={`depth-${e.routeId}`}
+                edge={e}
+                onDepthChange={onModulationDepthChange}
+                onDepthCommit={onModulationDepthCommit}
+              />
+            ))}
+          </div>
+        </div>
 
-          {/* Edge delete button */}
-          {selectedEdge && onRemoveModulation && (
-            <EdgeDeleteButton edge={selectedEdge} onRemove={onRemoveModulation} />
-          )}
-
-          {/* Modulation depth overlays (interactive HTML on top of SVG edges) */}
-          {onModulationDepthChange && modEdges.map(e => (
-            <ModDepthOverlay
-              key={`depth-${e.routeId}`}
-              edge={e}
-              onDepthChange={onModulationDepthChange}
-              onDepthCommit={onModulationDepthCommit}
-            />
-          ))}
+        {/* Fit-to-view button and zoom indicator (outside transform) */}
+        <div className="absolute bottom-3 right-3 flex items-center gap-2">
+          <span className="text-[9px] text-zinc-500 font-mono tabular-nums select-none">
+            {zoomPercent}%
+          </span>
+          <button
+            className="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
+            title="Fit to view"
+            onClick={handleFitToView}
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="2" y="2" width="10" height="10" rx="1" />
+              <path d="M2 5H5V2M9 2V5H12M12 9H9V12M5 12V9H2" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
