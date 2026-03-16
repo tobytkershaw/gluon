@@ -134,3 +134,32 @@ export function updateEvent(
   });
   return applyEventEdit(session, trackId, events, `Update ${selector.kind} event at ${selector.at}`);
 }
+
+/** Remove events by their indices in the region's event array. */
+export function removeEventsByIndices(
+  session: Session,
+  trackId: string,
+  indices: number[],
+): Session {
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
+
+  const indexSet = new Set(indices);
+  const events = track.regions[0].events.filter((_, i) => !indexSet.has(i));
+  if (events.length === track.regions[0].events.length) return session;
+  return applyEventEdit(session, trackId, events, `Delete ${indices.length} event(s)`);
+}
+
+/** Insert multiple events into a track's region. */
+export function addEvents(
+  session: Session,
+  trackId: string,
+  newEvents: MusicalEvent[],
+): Session {
+  const track = getTrack(session, trackId);
+  if (track.regions.length === 0) return session;
+  if (newEvents.length === 0) return session;
+
+  const events = [...track.regions[0].events, ...newEvents];
+  return applyEventEdit(session, trackId, events, `Paste ${newEvents.length} event(s)`);
+}

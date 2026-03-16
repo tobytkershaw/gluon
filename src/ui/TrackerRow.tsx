@@ -30,6 +30,10 @@ interface Props {
   cursorColumn?: TrackerColumn;
   /** Incremented by parent to trigger editing on cursorColumn. */
   editRequestCounter?: number;
+  /** Whether this row is in the selected range. */
+  isSelected?: boolean;
+  /** Click handler for row selection (receives shiftKey state). */
+  onRowClick?: (shiftKey: boolean) => void;
 }
 
 // --- Formatting helpers ---
@@ -333,7 +337,7 @@ function ParamValueCell({
 // --- Main component ---
 
 export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
-  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter }, ref) {
+  function TrackerRow({ event, isAtPlayhead, showBeatSeparator, onUpdate, onDelete, availableControls, onAddParamEvent, cancelEditRef, isCursorRow, cursorColumn, editRequestCounter, isSelected, onRowClick }, ref) {
     const rowColor = kindRowStyle(event.kind);
     const selector = selectorFromEvent(event);
     const editable = !!onUpdate;
@@ -451,11 +455,13 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         ref={ref}
         className={`
           group text-[11px] font-mono leading-5 ${rowColor}
-          ${isAtPlayhead && !isCursorRow ? 'bg-amber-500/15' : ''}
-          ${isCursorRow ? 'bg-amber-500/10' : ''}
-          ${!isAtPlayhead && !isCursorRow ? 'hover:bg-zinc-800/30' : ''}
+          ${isSelected ? 'bg-amber-500/20' : ''}
+          ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
+          ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
+          ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
+        onClick={(e) => onRowClick?.(e.shiftKey)}
       >
         <td className={`px-1.5 py-0 text-right text-zinc-500 tabular-nums w-[3.5rem] ${cursorCellClass(0)}`}>
           {editable ? (
