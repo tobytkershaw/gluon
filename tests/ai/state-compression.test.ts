@@ -10,7 +10,8 @@ describe('State Compression (Phase 2)', () => {
     const session = createSession();
     const result = compressState(session);
     expect(result.tracks).toHaveLength(5); // 4 audio + 1 master bus
-    expect(result.tracks[0].model).toBe('analog_bass_drum');
+    // Default tracks are empty (no engine)
+    expect(result.tracks[0].model).toBe('unknown_-1');
     expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false, time_signature: '4/4' });
     expect(result.activeTrackId).toBe(session.activeTrackId);
     // Master bus should be compressed with kind: 'bus'
@@ -19,7 +20,7 @@ describe('State Compression (Phase 2)', () => {
     expect(masterTrack!.kind).toBe('bus');
   });
 
-  it('compresses pattern with trigger events', () => {
+  it('compresses pattern with note events (empty tracks are pitched by default)', () => {
     let s = createSession();
     const vid = s.tracks[0].id;
     s = toggleStepGate(s, vid, 0);
@@ -28,9 +29,10 @@ describe('State Compression (Phase 2)', () => {
     s = toggleStepGate(s, vid, 12);
 
     const result = compressState(s);
-    expect(result.tracks[0].pattern.triggers).toEqual([0, 4, 8, 12]);
+    // Empty tracks (model -1) are treated as pitched, producing NoteEvents
+    expect(result.tracks[0].pattern.notes).toHaveLength(4);
     expect(result.tracks[0].pattern.event_count).toBe(4);
-    expect(result.tracks[0].pattern.notes).toEqual([]);
+    expect(result.tracks[0].pattern.triggers).toEqual([]);
     expect(result.tracks[0].pattern.density).toBeGreaterThan(0);
   });
 

@@ -43,6 +43,7 @@ import { InstrumentView } from './InstrumentView';
 import { TrackerView } from './TrackerView';
 import { RackView } from './RackView';
 import { PatchView } from './PatchView';
+import { TrackMixStrip } from './TrackMixStrip';
 import { AppShell } from './AppShell';
 import { useShortcuts } from './useShortcuts';
 import { ShortcutsPanel } from './ShortcutsPanel';
@@ -1887,8 +1888,6 @@ export default function App() {
           return setApproval(s, trackId, cycle[nextIdx]);
         });
       }}
-      onChangeVolume={handleChangeVolume}
-      onChangePan={handleChangePan}
       onAddTrack={handleAddTrack}
       onRemoveTrack={handleRemoveTrack}
       messages={session.messages}
@@ -1959,6 +1958,11 @@ export default function App() {
       onAbToggle={handleAbToggle}
       onAbClear={handleAbClear}
     >
+        <TrackMixStrip
+          activeTrack={activeTrack}
+          onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
+          onChangePan={(v) => handleChangePan(activeTrack.id, v)}
+        />
         {view === 'surface' && (
           <InstrumentView
             session={session}
@@ -2000,6 +2004,8 @@ export default function App() {
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
+            onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
+            onChangePan={(v) => handleChangePan(activeTrack.id, v)}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}

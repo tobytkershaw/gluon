@@ -1,59 +1,16 @@
 // src/engine/session.ts
 import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot } from './types';
-import type { SourceAdapter, ControlState, Pattern } from './canonical-types';
+import type { SourceAdapter, Pattern } from './canonical-types';
 import type { TransportMode } from './sequencer-types';
 import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
-import { getModelName, getEngineByIndex } from '../audio/instrument-registry';
+import { getModelName } from '../audio/instrument-registry';
 import { createDefaultStepGrid } from './sequencer-helpers';
 import { createDefaultPattern } from './region-helpers';
 
-const TRACK_DEFAULTS: { model: number; engine: string }[] = [
-  { model: 13, engine: 'plaits:analog_bass_drum' },
-  { model: 0, engine: 'plaits:virtual_analog' },
-  { model: 2, engine: 'plaits:fm' },
-  { model: 4, engine: 'plaits:harmonic' },
-];
-
-function buildDefaultProvenance(modelIndex: number): ControlState {
-  const engine = getEngineByIndex(modelIndex);
-  if (!engine) return {};
-  const provenance: ControlState = {};
-  for (const control of engine.controls) {
-    provenance[control.id] = {
-      value: control.range?.default ?? 0.5,
-      source: 'default',
-    };
-  }
-  return provenance;
-}
-
-function createTrack(index: number): Track {
-  const defaults = TRACK_DEFAULTS[index] ?? TRACK_DEFAULTS[0];
+function createDefaultTrack(index: number): Track {
   const trackId = `v${index}`;
-  const defaultPattern = createDefaultPattern(trackId, 16);
-  return {
-    id: trackId,
-    engine: defaults.engine,
-    model: defaults.model,
-    params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-    agency: 'ON',
-    stepGrid: createDefaultStepGrid(16),
-    patterns: [defaultPattern],
-    sequence: [{ patternId: defaultPattern.id }],
-    views: [{ kind: 'step-grid', id: `step-grid-${trackId}` }],
-    muted: false,
-    solo: false,
-    volume: 0.8,
-    pan: 0.0,
-    controlProvenance: buildDefaultProvenance(defaults.model),
-    surface: {
-      semanticControls: [],
-      pinnedControls: [],
-      xyAxes: { x: 'timbre', y: 'morph' },
-      thumbprint: { type: 'static-color' },
-    },
-    approval: 'exploratory',
-  };
+  const track = createEmptyTrack(trackId);
+  return { ...track, name: `Track ${index + 1}` };
 }
 
 /**
@@ -95,7 +52,7 @@ function createMasterBus(): Track {
 }
 
 export function createSession(): Session {
-  const audioTracks = Array.from({ length: 4 }, (_, i) => createTrack(i));
+  const audioTracks = Array.from({ length: 4 }, (_, i) => createDefaultTrack(i));
   const tracks = [...audioTracks, createMasterBus()];
   const context: MusicalContext = {
     key: null,
@@ -152,6 +109,7 @@ export function createEmptyTrack(trackId: string): Track {
     solo: false,
     volume: 0.8,
     pan: 0.0,
+    controlProvenance: {},
     surface: {
       semanticControls: [],
       pinnedControls: [],

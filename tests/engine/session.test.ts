@@ -22,12 +22,13 @@ describe('Session (Phase 2)', () => {
     expect(masterBus.kind).toBe('bus');
   });
 
-  it('track 0 is model 13 (kick), track 1 is model 0 (bass), track 2 is model 2 (lead), track 3 is model 4 (pad)', () => {
+  it('default tracks are empty (no engine) with named labels Track 1–4', () => {
     const session = createSession();
-    expect(session.tracks[0].model).toBe(13);
-    expect(session.tracks[1].model).toBe(0);
-    expect(session.tracks[2].model).toBe(2);
-    expect(session.tracks[3].model).toBe(4);
+    for (let i = 0; i < 4; i++) {
+      expect(session.tracks[i].model).toBe(-1);
+      expect(session.tracks[i].engine).toBe('');
+      expect(session.tracks[i].name).toBe(`Track ${i + 1}`);
+    }
   });
 
   it('each track has a 16-step default pattern', () => {
@@ -381,8 +382,8 @@ describe('renameTrack', () => {
     const s2 = renameTrack(s1, trackId, 'Bass Line');
     const track = s2.tracks.find(t => t.id === trackId)!;
     expect(track.name).toBe('Bass Line');
-    // Other tracks should be unaffected
-    expect(s2.tracks.find(t => t.id === s1.tracks[0].id)!.name).toBeUndefined();
+    // Other tracks retain their default name
+    expect(s2.tracks.find(t => t.id === s1.tracks[0].id)!.name).toBe('Track 1');
   });
 });
 

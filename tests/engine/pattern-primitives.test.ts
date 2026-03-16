@@ -5,9 +5,24 @@ import {
   setPatternLength, clearPattern,
 } from '../../src/engine/pattern-primitives';
 import { createSession } from '../../src/engine/session';
+import type { Session } from '../../src/engine/types';
 import type { TriggerEvent, NoteEvent } from '../../src/engine/canonical-types';
 import { getTrack, updateTrack } from '../../src/engine/types';
 import { validatePattern } from '../../src/engine/region-helpers';
+
+/** Create a session with legacy engine assignments for tests that depend on percussion/pitched behavior. */
+function createLegacySession(): Session {
+  let s = createSession();
+  // v0: model 13 (percussion — analog bass drum)
+  s = updateTrack(s, 'v0', { model: 13, engine: 'plaits:analog_bass_drum' });
+  // v1: model 0 (pitched — virtual analog)
+  s = updateTrack(s, 'v1', { model: 0, engine: 'plaits:virtual_analog' });
+  // v2: model 2 (pitched — FM)
+  s = updateTrack(s, 'v2', { model: 2, engine: 'plaits:fm' });
+  // v3: model 4 (pitched — harmonic)
+  s = updateTrack(s, 'v3', { model: 4, engine: 'plaits:harmonic' });
+  return s;
+}
 
 describe('Pattern Primitives', () => {
   describe('toggleStepGate', () => {
@@ -29,7 +44,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('preserves accent when toggling gate off and back on', () => {
-      let s = createSession();
+      let s = createLegacySession();
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);       // gate on
       s = toggleStepAccent(s, vid, 0);      // accent on
@@ -50,7 +65,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('updates canonical region events', () => {
-      const s = createSession();
+      const s = createLegacySession();
       const vid = s.tracks[0].id;
       const result = toggleStepGate(s, vid, 0);
       const region = getTrack(result, vid).patterns[0];
@@ -58,7 +73,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('creates NoteEvent for pitched instrument', () => {
-      const s = createSession();
+      const s = createLegacySession();
       // Track 1 (v1) is model 0 (virtual-analog) — pitched
       const vid = s.tracks[1].id;
       const result = toggleStepGate(s, vid, 0);
@@ -75,7 +90,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('creates TriggerEvent for percussion instrument', () => {
-      const s = createSession();
+      const s = createLegacySession();
       // Track 0 (v0) is model 13 (analog-bass-drum) — percussion
       const vid = s.tracks[0].id;
       const result = toggleStepGate(s, vid, 0);
@@ -85,7 +100,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('derives MIDI pitch from track note param', () => {
-      let s = createSession();
+      let s = createLegacySession();
       // Use a pitched track and set a specific note param
       const vid = s.tracks[1].id;
       s = updateTrack(s, vid, {
@@ -100,7 +115,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('toggles NoteEvent off and back on for pitched instrument', () => {
-      let s = createSession();
+      let s = createLegacySession();
       const vid = s.tracks[1].id;
       s = toggleStepGate(s, vid, 0);       // gate on (NoteEvent)
       expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(true);
@@ -114,7 +129,7 @@ describe('Pattern Primitives', () => {
 
     it('handles legacy TriggerEvent on pitched track (toggle off)', () => {
       // Simulate a session with a TriggerEvent on a pitched track (from old saved data)
-      let s = createSession();
+      let s = createLegacySession();
       const vid = s.tracks[1].id;
       const track = getTrack(s, vid);
       // Manually inject a TriggerEvent into the region
@@ -141,7 +156,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('updates canonical region events', () => {
-      let s = createSession();
+      let s = createLegacySession();
       const vid = s.tracks[0].id;
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepAccent(s, vid, 0);
@@ -164,7 +179,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('toggles accent on a pitched NoteEvent', () => {
-      let s = createSession();
+      let s = createLegacySession();
       const vid = s.tracks[1].id;  // pitched track
       s = toggleStepGate(s, vid, 0);
       const result = toggleStepAccent(s, vid, 0);
@@ -177,7 +192,7 @@ describe('Pattern Primitives', () => {
     });
 
     it('does not re-enable a disabled NoteEvent step', () => {
-      let s = createSession();
+      let s = createLegacySession();
       const vid = s.tracks[1].id;  // pitched track
       s = toggleStepGate(s, vid, 0);        // gate on (NoteEvent)
       s = toggleStepGate(s, vid, 0);        // gate off (velocity=0)
