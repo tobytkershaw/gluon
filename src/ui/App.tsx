@@ -1853,6 +1853,7 @@ export default function App() {
       masterVolume={session.master.volume}
       masterPan={session.master.pan}
       analyser={audioStarted ? audioRef.current.getAnalyser() : null}
+      audioContext={audioStarted ? audioRef.current.getAudioContext() : null}
       onMasterVolumeChange={handleMasterVolumeChange}
       onMasterPanChange={handleMasterPanChange}
     >
