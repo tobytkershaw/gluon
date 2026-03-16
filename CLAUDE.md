@@ -154,6 +154,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/status.md` - Current build status and milestone tracking
 
 ### Principles (`docs/principles/`)
+- `docs/principles/product-identity.md` - **Read before proposing new features.** Gluon is a self-configuring intelligent instrument, not an easier DAW. Features should make the instrument more expressive and responsive, not make a studio more efficient.
 - `docs/principles/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.
 - `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.
 - `docs/principles/ai-collaboration-model.md` - What good human-AI collaboration looks like: phases, posture, roles, model evaluation criteria.
