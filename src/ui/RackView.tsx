@@ -223,7 +223,7 @@ export function RackView({
           type="button"
           onClick={() => setBrowserOpen(true)}
           className="flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50 transition-colors"
-          style={{ width: 168, height: 572 }}
+          style={{ width: 168, height: 280 }}
         >
           <span className="text-xl leading-none">+</span>
           <span className="text-[9px] font-mono uppercase tracking-wider">Add Module</span>
