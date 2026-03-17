@@ -379,6 +379,15 @@ export interface TrackPropertySnapshot {
   description: string;
 }
 
+/** Snapshot for sequence (arrangement) edits — add, remove, reorder refs. */
+export interface SequenceEditSnapshot {
+  kind: 'sequence-edit';
+  trackId: string;
+  prevSequence: import('./sequencer-types').PatternRef[];
+  timestamp: number;
+  description: string;
+}
+
 /** Snapshot for A/B restore — captures the full musical state before the swap. */
 export interface ABRestoreSnapshot {
   kind: 'ab-restore';
@@ -391,7 +400,7 @@ export interface ABRestoreSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | ABRestoreSnapshot;
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
