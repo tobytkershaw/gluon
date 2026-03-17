@@ -11,6 +11,7 @@ import { getTrackLabel } from '../engine/track-labels';
 import { Tracker } from './Tracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
 import { AutomationPanel } from './AutomationPanel';
+import { SequenceEditor } from './SequenceEditor';
 
 interface Props {
   session: Session;
@@ -46,6 +47,10 @@ interface Props {
   onSetActiveRegion?: (patternId: string) => void;
   /** Report cursor step position changes (for play-from-cursor). */
   onCursorStepChange?: (step: number) => void;
+  // Sequence editor callbacks
+  onAddPatternRef?: (patternId: string) => void;
+  onRemovePatternRef?: (sequenceIndex: number) => void;
+  onReorderPatternRef?: (fromIndex: number, toIndex: number) => void;
 }
 
 // --- Inline number input for Rotate/Transpose ---
@@ -101,6 +106,7 @@ export function TrackerView({
   onDeleteByIndices, onPasteEvents,
   onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
   onCursorStepChange,
+  onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
 }: Props) {
   const activePatternId = getActivePattern(activeTrack).id;
   // In song mode, only highlight the playhead when the currently-playing pattern
@@ -337,6 +343,21 @@ export function TrackerView({
                 </button>
               )}
             </div>
+          )}
+
+          {/* Sequence editor (shown in song mode, or always when multiple patterns exist) */}
+          {onAddPatternRef && onRemovePatternRef && onReorderPatternRef && (
+            session.transport.mode === 'song' || activeTrack.sequence.length > 1 || activeTrack.patterns.length > 1
+          ) && (
+            <SequenceEditor
+              track={activeTrack}
+              globalStep={globalStep}
+              playing={playing}
+              isSongMode={session.transport.mode === 'song'}
+              onAddPatternRef={onAddPatternRef}
+              onRemovePatternRef={onRemovePatternRef}
+              onReorderPatternRef={onReorderPatternRef}
+            />
           )}
 
           {/* Full-height tracker scroll container */}

@@ -19,6 +19,7 @@ import {
   addReaction,
   addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack,
   setTimeSignature, setTransportMode,
+  addPatternRef, removePatternRef, reorderPatternRef,
   captureABSnapshot, restoreABSnapshot,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
@@ -1151,6 +1152,19 @@ export default function App() {
     setSession((s) => setActivePatternOnTrack(s, s.activeTrackId, patternId));
   }, []);
 
+  // --- Sequence (arrangement) editing ---
+  const handleAddPatternRef = useCallback((patternId: string) => {
+    setSession((s) => addPatternRef(s, s.activeTrackId, patternId));
+  }, []);
+
+  const handleRemovePatternRef = useCallback((sequenceIndex: number) => {
+    setSession((s) => removePatternRef(s, s.activeTrackId, sequenceIndex));
+  }, []);
+
+  const handleReorderPatternRef = useCallback((fromIndex: number, toIndex: number) => {
+    setSession((s) => reorderPatternRef(s, s.activeTrackId, fromIndex, toIndex));
+  }, []);
+
   const handleAddView = useCallback((kind: SequencerViewKind) => {
     setSession((s) => addView(s, s.activeTrackId, kind));
   }, []);
@@ -2073,6 +2087,9 @@ export default function App() {
             onRenameRegion={handleRenameRegion}
             onSetActiveRegion={handleSetActiveRegion}
             onCursorStepChange={handleCursorStepChange}
+            onAddPatternRef={handleAddPatternRef}
+            onRemovePatternRef={handleRemovePatternRef}
+            onReorderPatternRef={handleReorderPatternRef}
           />
         )}
     </AppShell>

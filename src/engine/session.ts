@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, ABRestoreSnapshot, ActionGroupSnapshot, Snapshot } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, SequenceEditSnapshot, ABRestoreSnapshot, ActionGroupSnapshot, Snapshot } from './types';
 import type { SourceAdapter, Pattern } from './canonical-types';
 import type { TransportMode } from './sequencer-types';
 import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
@@ -852,6 +852,80 @@ export function setActivePatternOnTrack(session: Session, trackId: string, patte
 
 /** @deprecated Use setActivePatternOnTrack instead. */
 export const setActiveRegionOnTrack = setActivePatternOnTrack;
+
+
+// --- Sequence (arrangement) editing helpers ---
+
+/**
+ * Append a PatternRef to the track's sequence.
+ * Returns the session unchanged if the track or pattern doesn't exist.
+ */
+export function addPatternRef(session: Session, trackId: string, patternId: string): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  if (!track.patterns.some(p => p.id === patternId)) return session;
+
+  const snapshot: SequenceEditSnapshot = {
+    kind: 'sequence-edit',
+    trackId,
+    prevSequence: [...track.sequence],
+    timestamp: Date.now(),
+    description: `Add pattern ref ${patternId} to sequence on ${trackId}`,
+  };
+
+  const newSequence = [...track.sequence, { patternId }];
+  const result = updateTrack(session, trackId, { sequence: newSequence });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/**
+ * Remove a PatternRef from the track's sequence by index.
+ * Prevents empty sequence — if only one ref remains, returns session unchanged.
+ */
+export function removePatternRef(session: Session, trackId: string, sequenceIndex: number): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  if (track.sequence.length <= 1) return session; // prevent empty sequence
+  if (sequenceIndex < 0 || sequenceIndex >= track.sequence.length) return session;
+
+  const snapshot: SequenceEditSnapshot = {
+    kind: 'sequence-edit',
+    trackId,
+    prevSequence: [...track.sequence],
+    timestamp: Date.now(),
+    description: `Remove sequence ref at index ${sequenceIndex} on ${trackId}`,
+  };
+
+  const newSequence = track.sequence.filter((_, i) => i !== sequenceIndex);
+  const result = updateTrack(session, trackId, { sequence: newSequence });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+/**
+ * Reorder a PatternRef within the track's sequence.
+ * Moves the ref at fromIndex to toIndex.
+ */
+export function reorderPatternRef(session: Session, trackId: string, fromIndex: number, toIndex: number): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  if (fromIndex === toIndex) return session;
+  if (fromIndex < 0 || fromIndex >= track.sequence.length) return session;
+  if (toIndex < 0 || toIndex >= track.sequence.length) return session;
+
+  const snapshot: SequenceEditSnapshot = {
+    kind: 'sequence-edit',
+    trackId,
+    prevSequence: [...track.sequence],
+    timestamp: Date.now(),
+    description: `Reorder sequence ref ${fromIndex} → ${toIndex} on ${trackId}`,
+  };
+
+  const newSequence = [...track.sequence];
+  const [moved] = newSequence.splice(fromIndex, 1);
+  newSequence.splice(toIndex, 0, moved);
+  const result = updateTrack(session, trackId, { sequence: newSequence });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
 
 
 // --- A/B comparison helpers ---

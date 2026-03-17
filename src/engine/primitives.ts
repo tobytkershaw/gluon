@@ -239,6 +239,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, snapshot.prevProps);
   }
 
+  if (snapshot.kind === 'sequence-edit') {
+    return updateTrack(session, snapshot.trackId, { sequence: snapshot.prevSequence });
+  }
+
   if (snapshot.kind === 'ab-restore') {
     return {
       ...session,
@@ -549,6 +553,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
       (prevProps as Record<string, unknown>)[key] = (track as Record<string, unknown>)[key];
     }
     return { ...snapshot, prevProps, timestamp: now };
+  }
+
+  if (snapshot.kind === 'sequence-edit') {
+    const track = getTrack(session, snapshot.trackId);
+    return { ...snapshot, prevSequence: [...track.sequence], timestamp: now };
   }
 
   if (snapshot.kind === 'ab-restore') {
