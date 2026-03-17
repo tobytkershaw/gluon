@@ -5,6 +5,7 @@ import type { Response, ResponseInput, ResponseInputItem, ResponseOutputItem, Re
 import type { Stream } from 'openai/streaming';
 import type { PlannerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall, StreamTextCallback } from '../types';
 import { ProviderError } from '../types';
+import type { ChatMessage } from '../../engine/types';
 import { toOpenAITools } from './schema-converters';
 
 const MODEL = 'gpt-5.4';
@@ -124,6 +125,47 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     this.pendingInput = [];
     this.pendingOutputItems = [];
     this.backoff = { until: 0, delay: 0 };
+  }
+
+  restoreHistory(messages: ChatMessage[]): void {
+    this.clearHistory();
+
+    // Pair up human/ai messages into exchanges.
+    // We can't recover response IDs from persisted messages, so the chain
+    // starts broken and the first real request will replay all exchanges.
+    const MAX_RESTORED = 20;
+    const pairs: Array<{ human: string; ai: string }> = [];
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === 'human') {
+        // Find the next AI message as the response
+        const aiMsg = messages.slice(i + 1).find(m => m.role === 'ai');
+        if (aiMsg) {
+          pairs.push({ human: msg.text, ai: aiMsg.text });
+        }
+      }
+    }
+
+    // Take only the most recent exchanges to avoid context bloat
+    const recent = pairs.slice(-MAX_RESTORED);
+    for (const pair of recent) {
+      this.exchanges.push({
+        inputItems: [{ role: 'user' as const, content: pair.human }],
+        outputItems: [{
+          type: 'message' as const,
+          id: '',
+          role: 'assistant' as const,
+          status: 'completed' as const,
+          content: [{ type: 'output_text' as const, text: pair.ai, annotations: [] }],
+        }],
+        responseId: '', // Not recoverable from persisted messages
+      });
+    }
+
+    // Mark chain as broken since we don't have valid response IDs
+    if (this.exchanges.length > 0) {
+      this.chainBroken = true;
+    }
   }
 
   private async generate(systemPrompt: string, tools: ToolSchema[], extraInput: ResponseInput = [], onStreamText?: StreamTextCallback): Promise<GenerateResult> {

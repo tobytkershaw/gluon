@@ -4,6 +4,7 @@ import { GoogleGenAI, createPartFromFunctionResponse, FunctionCallingConfigMode 
 import type { Content, Part } from '@google/genai';
 import type { PlannerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall, StreamTextCallback } from '../types';
 import { ProviderError } from '../types';
+import type { ChatMessage } from '../../engine/types';
 import { toGeminiDeclarations } from './schema-converters';
 
 const MODEL = 'gemini-2.5-flash';
@@ -89,6 +90,30 @@ export class GeminiPlannerProvider implements PlannerProvider {
     this.pendingContents = [];
     this.exchangeBoundaries = [];
     this.backoff = { until: 0, delay: 0 };
+  }
+
+  restoreHistory(messages: ChatMessage[]): void {
+    this.clearHistory();
+
+    const MAX_RESTORED = 20;
+    const pairs: Array<{ human: string; ai: string }> = [];
+    for (let i = 0; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.role === 'human') {
+        const aiMsg = messages.slice(i + 1).find(m => m.role === 'ai');
+        if (aiMsg) {
+          pairs.push({ human: msg.text, ai: aiMsg.text });
+        }
+      }
+    }
+
+    const recent = pairs.slice(-MAX_RESTORED);
+    for (const pair of recent) {
+      const userContent: Content = { role: 'user', parts: [{ text: pair.human }] };
+      const modelContent: Content = { role: 'model', parts: [{ text: pair.ai }] };
+      this.permanentContents.push(userContent, modelContent);
+      this.exchangeBoundaries.push({ contentCount: 2 });
+    }
   }
 
   private async generate(systemPrompt: string, tools: ToolSchema[], onStreamText?: StreamTextCallback): Promise<GenerateResult> {

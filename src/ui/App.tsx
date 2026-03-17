@@ -108,6 +108,24 @@ export default function App() {
   }, []);
 
   const project = useProjectLifecycle(session, setSession);
+
+  // Restore AI conversation context when a project loads or switches.
+  // Watches project.projectId — on change, clears provider history and
+  // reconstructs from the persisted ChatMessage array in the session.
+  const prevProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!project.projectId) return;
+    // Skip the very first render where projectId hasn't settled yet
+    if (prevProjectIdRef.current === project.projectId) return;
+    prevProjectIdRef.current = project.projectId;
+
+    // Clear stale history from any previous project, then restore
+    aiRef.current.clearHistory();
+    if (session.messages.length > 0) {
+      aiRef.current.restoreHistory(session.messages);
+    }
+  }, [project.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [audioStarted, setAudioStarted] = useState(false);
   const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
   const [globalStep, setGlobalStep] = useState(0);
@@ -862,6 +880,10 @@ export default function App() {
     setOpenaiKey(newOpenaiKey);
     setGeminiKey(newGeminiKey);
     aiRef.current = createAI(newOpenaiKey, newGeminiKey);
+    // Restore conversation context from the current session into the new provider
+    if (sessionRef.current.messages.length > 0) {
+      aiRef.current.restoreHistory(sessionRef.current.messages);
+    }
     setApiConfigured(aiRef.current.isConfigured());
   }, []);
 
