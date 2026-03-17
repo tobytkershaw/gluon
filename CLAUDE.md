@@ -142,6 +142,9 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - When an issue is actively in implementation, add one provisional owner label:
   - `provisional:codex`
   - `provisional:claude`
+- Switch the provisional owner label before implementation starts if ownership changes.
+- If the issue is already in progress, leave a short issue comment when reassigning it.
+- Never leave both provisional owner labels on one issue.
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
   - `M0–M6` — complete (stabilization, sequencer, chains, modulation, UI layers, AI collaboration)

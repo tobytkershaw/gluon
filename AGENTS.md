@@ -100,6 +100,9 @@ Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor ar
 - When an issue is actively in implementation, add one provisional owner label:
   - `provisional:codex`
   - `provisional:claude`
+- Switch the provisional owner label before implementation starts if ownership changes.
+- If the issue is already in progress, leave a short issue comment when reassigning it.
+- Never leave both provisional owner labels on one issue.
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
   - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
