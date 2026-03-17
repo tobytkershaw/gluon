@@ -223,16 +223,15 @@ export function ModulePanel({
   const booleanControls = controls.filter(c => c.kind === 'boolean' || c.kind === 'trigger');
   const discreteControls = controls.filter(c => c.kind === 'discrete' || c.kind === 'enum');
 
-  // Count how many primary knobs to determine panel width
-  // Base: 2 columns of large knobs. If > 4 primary, use 3 columns.
+  // Large knob grid columns: 2 base, 3 if many primary controls.
   const largeCols = largeKnobs.length > 4 ? 3 : 2;
 
   return (
     <div
-      className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden shrink-0 ${
+      className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden ${
         isHighlighted ? accent.highlight : 'border-zinc-800/60'
       } ${isBypassed ? 'opacity-50' : ''}`}
-      style={{ width: largeCols === 3 ? 220 : 168, height: MODULE_HEIGHT }}
+      style={{ minWidth: 148, height: MODULE_HEIGHT }}
     >
       {/* Header bar */}
       <div className={`flex items-center justify-between gap-1 px-3 py-1.5 ${accent.headerBg} border-b border-zinc-800/40`}>
@@ -261,8 +260,8 @@ export function ModulePanel({
         )}
       </div>
 
-      {/* Body — scrollable when content overflows fixed height */}
-      <div className="flex flex-col gap-2.5 p-2.5 flex-1 min-h-0 overflow-y-auto">
+      {/* Body */}
+      <div className="flex flex-col gap-2.5 p-2.5 flex-1 min-h-0">
         {/* Mode selector */}
         {engines && engines.length > 1 && onModelChange && currentModel !== undefined && (
           <ModeSelector
