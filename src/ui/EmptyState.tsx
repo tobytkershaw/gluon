@@ -8,6 +8,7 @@ interface Props {
   onSendPrompt: (prompt: string) => void;
   chatOpen: boolean;
   onOpenChat: () => void;
+  onDismiss?: () => void;
 }
 
 const QUICK_STARTS = [
@@ -16,7 +17,7 @@ const QUICK_STARTS = [
   'Set up a pad with slow modulation',
 ];
 
-export function EmptyState({ onAddTrack, onSendPrompt, chatOpen, onOpenChat }: Props) {
+export function EmptyState({ onAddTrack, onSendPrompt, chatOpen, onOpenChat, onDismiss }: Props) {
   const handleQuickStart = (prompt: string) => {
     if (!chatOpen) onOpenChat();
     onSendPrompt(prompt);
@@ -62,6 +63,15 @@ export function EmptyState({ onAddTrack, onSendPrompt, chatOpen, onOpenChat }: P
             ))}
           </div>
         </div>
+
+        {onDismiss && (
+          <button
+            onClick={onDismiss}
+            className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+          >
+            Skip — I know what I'm doing
+          </button>
+        )}
       </div>
     </div>
   );
