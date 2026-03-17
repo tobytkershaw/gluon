@@ -58,7 +58,7 @@ export interface ControlValue {
 export type ControlState = Record<string, ControlValue>;
 
 // --- Pattern (content container) ---
-export type PatternKind = 'pattern' | 'clip' | 'automation_lane';
+export type PatternKind = 'pattern';
 
 /**
  * A Pattern is a content container for musical events.
@@ -79,8 +79,6 @@ export type PatternKind = 'pattern' | 'clip' | 'automation_lane';
  * ## Deferred
  * - Cross-pattern overlap detection
  * - Pattern splitting / merging
- * - Non-looping clip playback
- * - Automation lane semantics
  */
 export interface Pattern {
   id: string;
