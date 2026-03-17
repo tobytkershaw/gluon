@@ -88,6 +88,19 @@ export function createSession(): Session {
 }
 
 /**
+ * Derive the next unique track name by scanning existing names.
+ * Names follow the pattern "T1", "T2", etc. Skips any number already in use.
+ */
+export function nextTrackName(session: Session): string {
+  const existingNames = new Set(session.tracks.map(t => t.name).filter(Boolean));
+  for (let i = 1; i <= MAX_TRACKS + 1; i++) {
+    const name = `T${i}`;
+    if (!existingNames.has(name)) return name;
+  }
+  return `T${Date.now()}`; // fallback
+}
+
+/**
  * Derive the next unique track ID by scanning existing IDs.
  * Track IDs follow the pattern "v0", "v1", etc.
  */
@@ -145,7 +158,7 @@ export function addTrack(session: Session, kind: TrackKind = 'audio'): Session |
   const trackId = nextTrackId(session);
   const newTrack = kind === 'bus'
     ? createBusTrack(trackId)
-    : createEmptyTrack(trackId);
+    : { ...createEmptyTrack(trackId), name: nextTrackName(session) };
 
   const snapshot: TrackAddSnapshot = {
     kind: 'track-add',
