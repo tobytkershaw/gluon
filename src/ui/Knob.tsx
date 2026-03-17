@@ -4,9 +4,11 @@
 import { useRef, useState, useCallback } from 'react';
 import type { DisplayMapping } from '../engine/canonical-types';
 import { formatDisplayValue } from './format-display-value';
+import { DraggableNumber } from './DraggableNumber';
 
 /** Modulation info for a single routing targeting this knob */
 export interface KnobModulationInfo {
+  routeId: string;
   modulatorLabel: string;
   depth: number;  // -1.0 to 1.0
   /** RGB color string for the modulation arc (e.g. "rgb(167 139 250)") */
@@ -27,6 +29,10 @@ interface KnobProps {
   onModulationClick?: () => void;
   /** Optional display mapping for showing human-readable values with units */
   displayMapping?: DisplayMapping;
+  /** Called while dragging a modulation depth value */
+  onModulationDepthChange?: (routeId: string, depth: number) => void;
+  /** Called when a modulation depth drag completes */
+  onModulationDepthCommit?: (routeId: string, depth: number) => void;
 }
 
 const DEFAULT_SIZE = 40;
@@ -76,6 +82,7 @@ export function Knob({
   value, label, accentColor, onChange,
   onPointerDown, onPointerUp, size = DEFAULT_SIZE,
   modulations, onModulationClick, displayMapping,
+  onModulationDepthChange, onModulationDepthCommit,
 }: KnobProps) {
   const [hovered, setHovered] = useState(false);
   const dragging = useRef(false);
@@ -203,16 +210,41 @@ export function Knob({
         })}
       </svg>
 
-      {/* Modulation badge (clickable to navigate to Patch view) */}
+      {/* Modulation depth controls or plain value readout */}
       {modulations && modulations.length > 0 ? (
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); onModulationClick?.(); }}
-          className={`font-mono leading-tight truncate max-w-full text-cyan-400/70 hover:text-cyan-300 transition-colors ${isSmall ? 'text-[6px]' : 'text-[7px]'}`}
-          title={modulations.map(m => `${m.modulatorLabel} (${m.depth > 0 ? '+' : ''}${m.depth.toFixed(2)})`).join(', ')}
-        >
-          {modulations.map(m => m.modulatorLabel).join(', ')}
-        </button>
+        <div className="flex flex-col items-center gap-0 max-w-full">
+          {modulations.map((mod) => (
+            <div
+              key={mod.routeId}
+              className={`flex items-center gap-0.5 max-w-full ${isSmall ? 'text-[6px]' : 'text-[7px]'}`}
+              title={`${mod.modulatorLabel} depth: ${mod.depth > 0 ? '+' : ''}${mod.depth.toFixed(2)}`}
+            >
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onModulationClick?.(); }}
+                className="font-mono leading-tight truncate text-cyan-400/70 hover:text-cyan-300 transition-colors"
+              >
+                {mod.modulatorLabel}
+              </button>
+              {onModulationDepthChange ? (
+                <DraggableNumber
+                  value={mod.depth}
+                  min={-1}
+                  max={1}
+                  step={0.01}
+                  decimals={2}
+                  className={`text-cyan-300/80 hover:text-cyan-200 ${isSmall ? '!text-[6px]' : '!text-[7px]'}`}
+                  onChange={(depth) => onModulationDepthChange(mod.routeId, depth)}
+                  onCommit={onModulationDepthCommit ? (depth) => onModulationDepthCommit(mod.routeId, depth) : undefined}
+                />
+              ) : (
+                <span className="font-mono text-cyan-400/50">
+                  {mod.depth > 0 ? '+' : ''}{mod.depth.toFixed(2)}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
       ) : (
         <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[7px]' : 'text-[8px]'}`}>
           {(hovered || dragging.current) && displayMapping

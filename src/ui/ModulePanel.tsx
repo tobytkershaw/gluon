@@ -199,9 +199,12 @@ interface ModulePanelProps {
   // Bypass toggle (processors only)
   enabled?: boolean;
   onToggleEnabled?: () => void;
-  // Modulation indicators per control ID (read-only display)
+  // Modulation indicators per control ID
   modulationMap?: Map<string, KnobModulationInfo[]>;
   onModulationClick?: () => void;
+  // Modulation depth editing (inline on knobs)
+  onModulationDepthChange?: (routeId: string, depth: number) => void;
+  onModulationDepthCommit?: (routeId: string, depth: number) => void;
   // Extra bottom content (e.g. routing UI for modulators)
   children?: React.ReactNode;
 }
@@ -212,6 +215,7 @@ export function ModulePanel({
   isHighlighted, engines, currentModel, onModelChange, onRemove,
   enabled, onToggleEnabled,
   modulationMap, onModulationClick,
+  onModulationDepthChange, onModulationDepthCommit,
   children,
 }: ModulePanelProps) {
   const accent = ACCENT[accentColor];
@@ -342,6 +346,8 @@ export function ModulePanel({
                 modulations={modulationMap?.get(control.id)}
                 onModulationClick={onModulationClick}
                 displayMapping={control.displayMapping}
+                onModulationDepthChange={onModulationDepthChange}
+                onModulationDepthCommit={onModulationDepthCommit}
               />
             ))}
           </div>
