@@ -1,3 +1,14 @@
+// --- Display Mapping ---
+/** Maps a normalized 0-1 parameter to a human-readable display value with units.
+ *  Purely cosmetic — does NOT change the underlying normalized parameter system. */
+export interface DisplayMapping {
+  type: 'linear' | 'log' | 'dB' | 'percent';
+  min: number;
+  max: number;
+  unit: string;
+  decimals?: number;
+}
+
 // --- Control Schema ---
 export type ControlKind = 'continuous' | 'discrete' | 'enum' | 'boolean' | 'trigger';
 
@@ -46,6 +57,9 @@ export interface ControlSchema {
    *  'large' = primary knob, 'medium' = tone/character, 'small' = attenuverter. Defaults to 'large'. */
   size?: 'large' | 'medium' | 'small';
   binding: ControlBinding;
+  /** Optional display mapping for showing human-readable values with units (e.g. "440 Hz", "-6 dB").
+   *  Controls without a mapping show raw 0-100% values. */
+  displayMapping?: DisplayMapping;
 }
 
 // --- Control State (with Provenance) ---

@@ -1,7 +1,7 @@
 // src/ui/module-controls.ts
 // Shared helpers to build control definitions from the instrument registry.
 import type { Track } from '../engine/types';
-import type { ControlKind } from '../engine/canonical-types';
+import type { ControlKind, DisplayMapping } from '../engine/canonical-types';
 import { getEngineByIndex, getProcessorInstrument, getModulatorInstrument, controlIdToRuntimeParam } from '../audio/instrument-registry';
 
 export interface ControlDef {
@@ -14,6 +14,8 @@ export interface ControlDef {
   kind: ControlKind;
   /** For discrete controls: the valid range */
   range?: { min: number; max: number; default: number };
+  /** Optional display mapping for showing human-readable values with units */
+  displayMapping?: DisplayMapping;
 }
 
 /** Build source controls from instrument registry */
@@ -27,6 +29,7 @@ export function getSourceControls(track: Track): ControlDef[] {
     size: c.size ?? 'large',
     kind: c.kind,
     range: c.range,
+    displayMapping: c.displayMapping,
   }));
 }
 
@@ -43,6 +46,7 @@ export function getProcessorControls(proc: { type: string; model: number; params
     size: c.size ?? 'large',
     kind: c.kind,
     range: c.range,
+    displayMapping: c.displayMapping,
   }));
 }
 
@@ -59,5 +63,6 @@ export function getModulatorControls(mod: { type: string; model: number; params:
     size: c.size ?? 'large',
     kind: c.kind,
     range: c.range,
+    displayMapping: c.displayMapping,
   }));
 }
