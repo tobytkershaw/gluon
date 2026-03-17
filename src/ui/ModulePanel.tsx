@@ -230,7 +230,7 @@ export function ModulePanel({
 
   return (
     <div
-      className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden ${
+      className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden shrink-0 ${
         isHighlighted ? accent.highlight : 'border-zinc-800/60'
       } ${isBypassed ? 'opacity-50' : ''}`}
       style={{ width: largeCols === 3 ? 220 : 168, height: MODULE_HEIGHT }}
