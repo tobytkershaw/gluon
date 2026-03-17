@@ -91,15 +91,20 @@ export function TransportStrip({
   onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
 }: Props) {
-  const bar = Math.floor(globalStep / patternLength) + 1;
-  const beat = Math.floor(globalStep % patternLength) + 1;
+  const beatsPerBar = timeSignatureNumerator || 4;
+  const currentBeat = globalStep + 1;
+  const bar = Math.floor((currentBeat - 1) / beatsPerBar) + 1;
+  const beat = ((currentBeat - 1) % beatsPerBar) + 1;
+
+  // Loop toggle — local UI state. In pattern mode, loop is inherently on.
+  const [loopEnabled, setLoopEnabled] = useState(true);
 
   // Three visual states: inactive, armed (waiting for play), actively recording
   const activelyRecording = recordArmed && playing;
 
   return (
     <div className="flex items-center gap-3">
-      {/* Transport controls: play/pause, hard stop, record, loop — grouped tight */}
+      {/* Transport controls: play/pause, hard stop, record */}
       <div className="flex items-center gap-1">
         <button
           onClick={onTogglePlay}
@@ -145,6 +150,25 @@ export function TransportStrip({
             activelyRecording ? 'bg-red-500' : recordArmed ? 'bg-red-400' : 'bg-current'
           }`} />
         </button>
+        {/* Loop / Cycle toggle */}
+        <button
+          onClick={() => setLoopEnabled(!loopEnabled)}
+          className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
+            loopEnabled
+              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
+          }`}
+          title={loopEnabled ? 'Loop ON — click to disable' : 'Loop OFF — click to enable'}
+        >
+          {/* Loop icon: circular arrows */}
+          <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M11 3H5a3 3 0 0 0-3 3v1" />
+            <path d="M5 13h6a3 3 0 0 0 3-3V9" />
+            <polyline points="9,1 11,3 9,5" />
+            <polyline points="7,11 5,13 7,15" />
+          </svg>
+        </button>
+        {/* Pattern / Song mode */}
         <button
           onClick={() => onTransportModeChange(transportMode === 'pattern' ? 'song' : 'pattern')}
           className={`h-6 px-1.5 rounded-full flex items-center justify-center transition-colors text-[9px] font-bold tracking-wider ${
@@ -158,26 +182,36 @@ export function TransportStrip({
         </button>
       </div>
 
-      {/* Position */}
-      <div className="flex items-baseline gap-1">
-        <span className="text-[9px] uppercase tracking-wider text-zinc-600">Pos</span>
-        <span className="font-mono text-[11px] text-zinc-500 tabular-nums">
-          {bar}:{String(beat).padStart(2, '0')}
+      {/* Playhead position — prominent bar:beat display */}
+      <div className="flex items-center gap-0.5 font-mono tabular-nums">
+        <span className="text-lg font-semibold text-zinc-200 leading-none">
+          {String(bar).padStart(3, '\u2007')}
+        </span>
+        <span className="text-lg font-semibold text-zinc-500 leading-none">:</span>
+        <span className="text-lg font-semibold text-zinc-300 leading-none">
+          {String(beat).padStart(2, '0')}
         </span>
       </div>
 
-      {/* BPM — drag uses integer steps; click-to-edit allows decimals */}
-      <div className="flex items-baseline gap-1">
-        <span className="text-[9px] uppercase tracking-wider text-zinc-600">Tempo</span>
-        <DraggableNumber
-          value={bpm}
-          min={20}
-          max={300}
-          step={1}
-          decimals={0}
-          editDecimals={1}
-          className="text-zinc-200 hover:text-amber-400 transition-colors"
-          onChange={onBpmChange}
+      {/* BPM — large readout with co-located time signature */}
+      <div className="flex items-baseline gap-1.5">
+        <div className="flex items-baseline gap-0.5 [&>span]:!text-lg [&>input]:!text-lg">
+          <DraggableNumber
+            value={bpm}
+            min={20}
+            max={300}
+            step={1}
+            decimals={0}
+            editDecimals={1}
+            className="!text-lg text-zinc-100 hover:text-amber-400 transition-colors font-semibold"
+            onChange={onBpmChange}
+          />
+          <span className="!text-[9px] uppercase tracking-wider text-zinc-600 ml-0.5 font-normal">bpm</span>
+        </div>
+        <TimeSignatureControl
+          numerator={timeSignatureNumerator}
+          denominator={timeSignatureDenominator}
+          onChange={onTimeSignatureChange}
         />
       </div>
 
@@ -195,13 +229,6 @@ export function TransportStrip({
           onChange={(pct) => onSwingChange(pct / 100)}
         />
       </div>
-
-      {/* Time Signature */}
-      <TimeSignatureControl
-        numerator={timeSignatureNumerator}
-        denominator={timeSignatureDenominator}
-        onChange={onTimeSignatureChange}
-      />
 
       {/* Metronome */}
       <MetronomeButton
@@ -295,10 +322,9 @@ function TimeSignatureControl({ numerator, denominator, onChange }: {
 
   return (
     <div ref={ref} className="relative flex items-baseline gap-1">
-      <span className="text-[9px] uppercase tracking-wider text-zinc-600">Sig</span>
       <button
         onClick={() => setOpen(!open)}
-        className="font-mono text-[11px] text-zinc-400 hover:text-amber-400 transition-colors tabular-nums"
+        className="font-mono text-xs text-zinc-400 hover:text-amber-400 transition-colors tabular-nums"
         title="Time signature"
       >
         {numerator}/{denominator}
