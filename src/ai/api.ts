@@ -1667,9 +1667,10 @@ export class GluonAI {
             return {
               actions: [addTrackAction],
               response: {
-                applied: true,
+                queued: true,
                 kind: addTrackAction.kind,
                 ...(addTrackAction.label ? { label: addTrackAction.label } : {}),
+                note: 'The new track ID will appear in the state at the start of your next turn.',
               },
             };
           }
@@ -2007,7 +2008,14 @@ export class GluonAI {
 
         return {
           actions: [managePatternAction],
-          response: { queued: true, action: patternSubAction, trackId: patternTrackId },
+          response: {
+            queued: true,
+            action: patternSubAction,
+            trackId: patternTrackId,
+            ...(patternSubAction === 'add' || patternSubAction === 'duplicate'
+              ? { note: 'The new pattern ID will appear in the state at the start of your next turn.' }
+              : {}),
+          },
         };
       }
 

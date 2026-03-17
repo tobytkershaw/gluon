@@ -8,7 +8,7 @@ import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 interface CompressedPattern {
   length: number;
   event_count: number;
-  triggers: number[];
+  triggers: { at: number; vel: number }[];
   notes: { at: number; pitch: number; vel: number }[];
   accents: number[];
   param_locks: { at: number; params: Record<string, number> }[];
@@ -132,7 +132,7 @@ function compressPattern(track: Track): CompressedPattern {
   }
 
   const events = region.events;
-  const triggers: number[] = [];
+  const triggers: { at: number; vel: number }[] = [];
   const notes: { at: number; pitch: number; vel: number }[] = [];
   const accents: number[] = [];
   const paramMap = new Map<string, Record<string, number>>();
@@ -141,7 +141,7 @@ function compressPattern(track: Track): CompressedPattern {
     switch (e.kind) {
       case 'trigger':
         if (e.velocity !== 0) {
-          triggers.push(round2(e.at));
+          triggers.push({ at: round2(e.at), vel: round2(e.velocity) });
           if (e.accent || (e.velocity !== undefined && e.velocity >= 0.95)) {
             accents.push(round2(e.at));
           }

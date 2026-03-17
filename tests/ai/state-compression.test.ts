@@ -184,7 +184,7 @@ describe('State Compression (Phase 2)', () => {
     }
     const result = compressState(session);
     const pattern = result.tracks[0].pattern;
-    expect(pattern.triggers).toEqual([0.33, 1.67]);
+    expect(pattern.triggers).toEqual([{ at: 0.33, vel: 0.7 }, { at: 1.67, vel: 0.9 }]);
     expect(pattern.notes).toEqual([{ at: 3.25, pitch: 48, vel: 0.6 }]);
   });
 });
