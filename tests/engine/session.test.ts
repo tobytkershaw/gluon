@@ -26,7 +26,7 @@ describe('Session (Phase 2)', () => {
     const session = createSession();
     expect(session.tracks[0].model).toBe(-1);
     expect(session.tracks[0].engine).toBe('');
-    expect(session.tracks[0].name).toBe('Track 1');
+    expect(session.tracks[0].name).toBe('T1');
   });
 
   it('each track has a 16-step default pattern', () => {
@@ -381,7 +381,7 @@ describe('renameTrack', () => {
     const track = s2.tracks.find(t => t.id === trackId)!;
     expect(track.name).toBe('Bass Line');
     // Other tracks retain their default name
-    expect(s2.tracks.find(t => t.id === s1.tracks[0].id)!.name).toBe('Track 1');
+    expect(s2.tracks.find(t => t.id === s1.tracks[0].id)!.name).toBe('T1');
   });
 });
 
