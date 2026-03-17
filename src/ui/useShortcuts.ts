@@ -47,8 +47,8 @@ const mod = isMac ? '\u2318' : 'Ctrl+';
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // Transport
   { key: 'Space', label: 'Play / Pause', section: 'transport' },
-  { key: 'Shift+Space', label: 'Play from cursor', section: 'transport' },
-  { key: `${mod}Shift+Space`, label: 'Hard stop (silence all)', section: 'transport' },
+  { key: 'Shift+Space', label: 'Hard stop (silence all)', section: 'transport' },
+  { key: `${mod}Shift+Space`, label: 'Play from cursor', section: 'transport' },
   { key: 'R', label: 'Toggle record arm', section: 'transport' },
   { key: ']', label: 'BPM +1', section: 'transport' },
   { key: '[', label: 'BPM -1', section: 'transport' },
@@ -149,16 +149,16 @@ export function useShortcuts({
         setView((v: ViewMode) => order[(order.indexOf(v) + 1) % order.length]);
         return;
       }
-      // Cmd/Ctrl+Shift+Space for hard stop (silence all voices immediately)
+      // Cmd/Ctrl+Shift+Space for play from cursor position
       if (e.key === ' ' && isMod && e.shiftKey && !e.repeat && !isEditable()) {
         e.preventDefault();
-        onHardStop();
+        onPlayFromCursor();
         return;
       }
-      // Shift+Space for play from cursor position
+      // Shift+Space for hard stop (silence all voices immediately)
       if (e.key === ' ' && e.shiftKey && !e.repeat && !isEditable()) {
         e.preventDefault();
-        onPlayFromCursor();
+        onHardStop();
         return;
       }
       // Space for play/pause (tails ring out on stop)
