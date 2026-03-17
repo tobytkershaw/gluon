@@ -134,7 +134,7 @@ export function AutomationPanel({
         onClick={() => setExpanded(true)}
         className="w-full px-3 py-1 text-[10px] font-medium tracking-wider uppercase text-zinc-500 hover:text-zinc-300 border-t border-zinc-800/50 transition-colors text-left flex items-center gap-2"
       >
-        <span className="text-zinc-600">&#9654;</span>
+        <svg className="text-zinc-500" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l5 4-5 4V1z" /></svg>
         Automation
         {eventCounts.size > 0 && (
           <span className="text-[9px] text-amber-500/70 ml-1">
@@ -154,7 +154,7 @@ export function AutomationPanel({
           className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
           title="Collapse automation panel"
         >
-          <span className="text-zinc-400">&#9660;</span>
+          <svg className="text-zinc-400" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 5 4-5H1z" /></svg>
         </button>
         <span className="text-[10px] font-medium tracking-wider uppercase text-zinc-400">
           Automation
