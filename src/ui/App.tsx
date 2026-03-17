@@ -2046,6 +2046,10 @@ export default function App() {
             onModulationDepthCommit={handleModulationDepthCommit}
             onConnectModulator={handleConnectModulator}
             onRemoveModulation={handleRemoveModulation}
+            onAddProcessor={handleAddProcessor}
+            onAddModulator={handleAddModulator}
+            onRemoveProcessor={handleRemoveProcessor}
+            onRemoveModulator={handleRemoveModulator}
           />
         )}
         {view === 'tracker' && (
