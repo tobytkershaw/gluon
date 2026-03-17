@@ -594,6 +594,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
             const selRange = getSelectionRange();
             const isSelected = selRange !== null && si >= selRange[0] && si <= selRange[1];
             const showBeatSep = shouldShowBeatSeparator(slot.step, stepsPerBeat);
+            const beatIndex = Math.floor(slot.step / stepsPerBeat);
 
             const cursorNoteCol = isCursor ? getNoteColumnIndex(cursorCol) : null;
             const cursorFxCol = isCursor ? getFxColumnIndex(cursorCol) : null;
@@ -609,6 +610,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
                 cursorFxColumn={cursorFxCol}
                 isAtPlayhead={isAtPlayhead}
                 showBeatSeparator={showBeatSep}
+                beatIndex={beatIndex}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onAddParamEvent={onAddParamEvent}
