@@ -127,26 +127,17 @@ export class Scheduler {
     const elapsed = currentAudioTime - this.startTime;
     let globalStep = elapsed / stepDuration;
 
-    // Pattern mode: wrap globalStep at the max active pattern duration across
-    // all audible tracks. Using only one track's duration would silently truncate
-    // longer patterns on other tracks in a multi-track session.
+    // Pattern mode: compute max pattern length for position wrapping.
+    // globalStep grows monotonically — getLocalSegments handles loop
+    // wrapping via its cycle mechanism. We only wrap for the UI position.
+    let maxPatternLen = 0;
     if (transportMode === 'pattern') {
       const audibleTracks = getAudibleTracks(session);
-      let maxPatternLen = 0;
       for (const t of audibleTracks) {
         if (t.patterns.length > 0) {
           const len = getActivePattern(t).duration;
           if (len > maxPatternLen) maxPatternLen = len;
         }
-      }
-      if (maxPatternLen > 0 && globalStep >= maxPatternLen) {
-        // Reanchor so playback loops seamlessly
-        const overshoot = globalStep - maxPatternLen;
-        const wrappedOffset = overshoot % maxPatternLen;
-        globalStep = wrappedOffset;
-        this.startTime = currentAudioTime - globalStep * stepDuration;
-        this.cursor = globalStep;
-        this.playbackPlan.reset(this.generation);
       }
     }
 
@@ -170,7 +161,9 @@ export class Scheduler {
     }
 
     globalStep = Math.max(0, globalStep);
-    this.onPositionChange(globalStep);
+    // Publish wrapped position for UI (tracker playhead, bar:beat display)
+    const displayStep = maxPatternLen > 0 ? globalStep % maxPatternLen : globalStep;
+    this.onPositionChange(displayStep);
 
     // Cap catch-up window after resume: if the cursor fell too far behind,
     // advance it so we only schedule the most recent MAX_CATCHUP_STEPS.

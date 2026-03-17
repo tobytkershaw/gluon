@@ -421,4 +421,202 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
     scheduler.stop();
   });
+
+  // ---------------------------------------------------------------------------
+  // Stop → Start duplicate detection (#529)
+  // ---------------------------------------------------------------------------
+
+  it('stop → start with new generation does not duplicate notes', () => {
+    // Pattern: triggers at steps 0, 4, 8, 12 (4-on-the-floor in a 16-step pattern)
+    const session = makeSession();
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },
+      { kind: 'trigger', at: 4, velocity: 0.8 },
+      { kind: 'trigger', at: 8, velocity: 0.8 },
+      { kind: 'trigger', at: 12, velocity: 0.8 },
+    ];
+
+    let audioTime = 0;
+    const notes: ScheduledNote[] = [];
+    const onNote = vi.fn((note: ScheduledNote) => notes.push(note));
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    // --- First play: generation 1, advance through first few steps ---
+    scheduler.start(0, 0, 1);
+    audioTime = 0.5; // ~4 steps at 120 BPM
+    vi.advanceTimersByTime(100); // several ticks
+
+    const notesBeforeStop = notes.length;
+    expect(notesBeforeStop).toBeGreaterThan(0);
+
+    // --- Stop ---
+    scheduler.stop();
+
+    // --- Second play: generation 2, from step 0 ---
+    notes.length = 0;
+    onNote.mockClear();
+    audioTime = 1.0; // time has advanced while stopped
+
+    scheduler.start(0, 0, 2);
+    audioTime = 1.5;
+    vi.advanceTimersByTime(100);
+
+    // Check: every note from the second play should have generation 2
+    for (const note of notes) {
+      expect(note.generation).toBe(2);
+    }
+
+    // Check: no duplicate eventIds within the second play
+    const eventIds = notes.map(n => n.eventId);
+    const unique = new Set(eventIds);
+    expect(unique.size).toBe(eventIds.length);
+
+    scheduler.stop();
+  });
+
+  it('stop → start: all pattern events are scheduled in new generation (no drops)', () => {
+    // 4 triggers at steps 0, 4, 8, 12 in a 16-step pattern.
+    // Play through the full pattern and verify all 4 fire.
+    const session = makeSession();
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },
+      { kind: 'trigger', at: 4, velocity: 0.8 },
+      { kind: 'trigger', at: 8, velocity: 0.8 },
+      { kind: 'trigger', at: 12, velocity: 0.8 },
+    ];
+
+    let audioTime = 0;
+    const notes: ScheduledNote[] = [];
+    const onNote = vi.fn((note: ScheduledNote) => notes.push(note));
+    const stepDuration = 0.125; // 120 BPM
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    // First play + stop (prime the scheduler with a previous generation)
+    scheduler.start(0, 0, 1);
+    audioTime = 0.3;
+    vi.advanceTimersByTime(50);
+    scheduler.stop();
+
+    // Second play: advance through the full pattern
+    notes.length = 0;
+    onNote.mockClear();
+    audioTime = 1.0;
+    scheduler.start(0, 0, 2);
+
+    // Step through the entire 16-step pattern
+    for (let step = 0; step <= 16; step++) {
+      audioTime = 1.0 + step * stepDuration;
+      vi.advanceTimersByTime(30);
+    }
+
+    // All 4 events should have been scheduled exactly once each
+    const stepsScheduled = notes.map(n => {
+      // Extract the step from the eventId (format: gen:trackId:patternId:cycle:kind@step)
+      const match = n.eventId?.match(/@(\d+(?:\.\d+)?)/);
+      return match ? parseFloat(match[1]) : -1;
+    });
+
+    expect(stepsScheduled).toContain(0);
+    expect(stepsScheduled).toContain(4);
+    expect(stepsScheduled).toContain(8);
+    expect(stepsScheduled).toContain(12);
+
+    // Strict: no duplicate eventIds at all. Each note in the pattern should
+    // be scheduled exactly once per loop cycle, with unique cycle-qualified IDs.
+    const eventIds = notes.map(n => n.eventId);
+    const unique = new Set(eventIds);
+    expect(unique.size).toBe(notes.length);
+
+    scheduler.stop();
+  });
+
+  it('note added mid-playback is picked up on the next loop pass', () => {
+    // Start with an empty pattern, add a note at step 2 while playing,
+    // then advance through a full loop — the note should be scheduled.
+    const session = makeSession();
+    session.tracks[0].patterns[0].events = []; // start empty
+    session.tracks[0].patterns[0].duration = 8;
+
+    let audioTime = 0;
+    const notes: ScheduledNote[] = [];
+    const onNote = vi.fn((note: ScheduledNote) => notes.push(note));
+    const stepDuration = 0.125; // 120 BPM
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    scheduler.start(0, 0, 1);
+
+    // Advance past step 2 — nothing should be scheduled (empty pattern)
+    audioTime = 4 * stepDuration;
+    vi.advanceTimersByTime(50);
+    expect(notes.length).toBe(0);
+
+    // Add a note at step 2 (simulating user adding a note while playing)
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 2, velocity: 0.8 },
+    ];
+    // Invalidate the track so the scheduler re-scans
+    scheduler.invalidateTrack('v1');
+
+    // Advance through the loop wrap and full next cycle
+    // Pattern length is 8, so we need to get past step 8 and then past step 2 again
+    for (let i = 0; i < 16; i++) {
+      audioTime += stepDuration;
+      vi.advanceTimersByTime(30);
+    }
+
+    // The note at step 2 should have been scheduled at least once
+    const step2Notes = notes.filter(n => n.eventId?.includes('@2'));
+    expect(step2Notes.length).toBeGreaterThanOrEqual(1);
+
+    scheduler.stop();
+  });
+
+  it('globalStep is never negative (no position flicker)', () => {
+    const session = makeSession();
+    let audioTime = 0;
+    const positions: number[] = [];
+    const onPosition = vi.fn((step: number) => positions.push(step));
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      vi.fn(),
+      onPosition,
+      () => ({}),
+    );
+
+    // Start with default START_OFFSET — first tick should not report negative
+    scheduler.start();
+    expect(positions.length).toBeGreaterThan(0);
+    for (const pos of positions) {
+      expect(pos).toBeGreaterThanOrEqual(0);
+    }
+
+    scheduler.stop();
+  });
 });
