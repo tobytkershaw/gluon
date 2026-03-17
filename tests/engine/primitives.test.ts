@@ -84,26 +84,14 @@ describe('Protocol Primitives (Phase 2)', () => {
     it('undoes a pattern snapshot', () => {
       const s = createSession();
       const vid = s.activeTrackId;
-      // Simulate a pattern edit by pushing a PatternSnapshot
-      const snapshot: PatternSnapshot = {
-        kind: 'pattern',
-        trackId: vid,
-        prevSteps: [{ index: 0, step: { gate: false, accent: false, micro: 0 } }],
-        timestamp: Date.now(),
-        description: 'toggle step 0',
-      };
-      // Manually toggle step 0 gate on
-      const track = getTrack(s, vid);
-      const newSteps = [...track.stepGrid.steps];
-      newSteps[0] = { ...newSteps[0], gate: true };
-      const modified = {
-        ...s,
-        tracks: s.tracks.map(v => v.id === vid ? { ...v, stepGrid: { ...v.stepGrid, steps: newSteps } } : v),
-        undoStack: [...s.undoStack, snapshot],
-      };
-      expect(getTrack(modified, vid).stepGrid.steps[0].gate).toBe(true);
+      // Apply a sketch that toggles step 0 gate on
+      const sketched = applySketch(s, vid, 'toggle step 0', {
+        steps: [{ index: 0, gate: true }],
+      });
+      expect(getTrack(sketched, vid).stepGrid.steps[0].gate).toBe(true);
+      expect(sketched.undoStack.length).toBe(1);
 
-      const undone = applyUndo(modified);
+      const undone = applyUndo(sketched);
       expect(getTrack(undone, vid).stepGrid.steps[0].gate).toBe(false);
       expect(undone.undoStack.length).toBe(0);
     });

@@ -4,7 +4,7 @@ import type {
   SynthParamValues, ActionGroupSnapshot,
 } from './types';
 import { getTrack, getActivePattern, updateTrack } from './types';
-import type { StepGridSketch, Step } from './sequencer-types';
+import type { StepGridSketch } from './sequencer-types';
 import { reprojectTrackStepGrid } from './region-projection';
 import { stepsToEvents } from './event-conversion';
 import { normalizePatternEvents } from './region-helpers';
@@ -101,7 +101,6 @@ export function applySketch(
   sketch: StepGridSketch,
 ): Session {
   const track = getTrack(session, trackId);
-  const prevSteps: { index: number; step: Step }[] = [];
   const newSteps = [...track.stepGrid.steps];
   let newLength = track.stepGrid.length;
   const prevLength = sketch.length !== undefined && sketch.length !== track.stepGrid.length
@@ -118,7 +117,6 @@ export function applySketch(
 
   for (const stepSketch of sketch.steps) {
     if (stepSketch.index < 0 || stepSketch.index >= newSteps.length) continue;
-    prevSteps.push({ index: stepSketch.index, step: { ...newSteps[stepSketch.index] } });
     const existing = newSteps[stepSketch.index];
     newSteps[stepSketch.index] = {
       gate: stepSketch.gate ?? existing.gate,
@@ -133,11 +131,9 @@ export function applySketch(
   const snapshot: PatternSnapshot = {
     kind: 'pattern',
     trackId,
-    prevSteps,
-    prevLength,
-    // Capture region events so undo can fully restore them (#209, #214)
-    prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : undefined,
+    prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : [],
     prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+    prevLength,
     timestamp: Date.now(),
     description,
   };
@@ -343,19 +339,11 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   if (snapshot.kind === 'pattern') {
     const track = getTrack(session, snapshot.trackId);
-    const newSteps = [...track.stepGrid.steps];
-    for (const { index, step } of snapshot.prevSteps) {
-      if (index < newSteps.length) {
-        newSteps[index] = step;
-      }
-    }
     const newLength = snapshot.prevLength ?? track.stepGrid.length;
-    const updates: Partial<import('./types').Track> = {
-      stepGrid: { steps: newSteps, length: newLength },
-    };
+    const updates: Partial<import('./types').Track> = {};
 
-    // Restore region events if they were captured (#209, #214)
-    if (snapshot.prevEvents && track.patterns.length > 0) {
+    // Restore canonical events and re-project step-grid
+    if (track.patterns.length > 0) {
       const activeReg = getActivePattern(track);
       const restoredRegion = {
         ...activeReg,
@@ -368,19 +356,6 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
       });
       updates.patterns = updatedTrack.patterns;
       updates.stepGrid = updatedTrack.stepGrid;
-      updates._patternDirty = true;
-    } else if (track.patterns.length > 0) {
-      // Old snapshot without prevEvents: best-effort region sync from restored steps.
-      const activeReg = getActivePattern(track);
-      const events = stepsToEvents(newSteps.slice(0, newLength), {
-        runtimeToCanonical: (k) => runtimeParamToControlId[k] ?? k,
-      });
-      const region = normalizePatternEvents({
-        ...activeReg,
-        events,
-        ...(snapshot.prevLength !== undefined ? { duration: newLength } : {}),
-      });
-      updates.patterns = track.patterns.map(r => r.id === activeReg.id ? region : r);
       updates._patternDirty = true;
     }
 
@@ -441,15 +416,10 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
 
   if (snapshot.kind === 'pattern') {
     const track = getTrack(session, snapshot.trackId);
-    const prevSteps = snapshot.prevSteps.map(({ index }) => ({
-      index,
-      step: { ...track.stepGrid.steps[index] },
-    }));
     return {
       ...snapshot,
-      prevSteps,
+      prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : [],
       prevLength: snapshot.prevLength !== undefined ? track.stepGrid.length : undefined,
-      prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : undefined,
       prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
       timestamp: now,
     };

@@ -46,16 +46,16 @@ describe('Phase 2 type shapes', () => {
     expect(snapshot.trackId).toBe('v0');
   });
 
-  it('PatternSnapshot stores changed steps', () => {
+  it('PatternSnapshot stores canonical events', () => {
     const snapshot: PatternSnapshot = {
       kind: 'pattern',
       trackId: 'v0',
-      prevSteps: [{ index: 0, step: { gate: false, accent: false, micro: 0 } }],
+      prevEvents: [],
       timestamp: Date.now(),
       description: 'test',
     };
     expect(snapshot.kind).toBe('pattern');
-    expect(snapshot.prevSteps).toHaveLength(1);
+    expect(snapshot.prevEvents).toHaveLength(0);
   });
 
   it('AISketchAction has trackId and StepGridSketch', () => {
