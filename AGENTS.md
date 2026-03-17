@@ -59,6 +59,8 @@ npm run wasm:build   # Compile Plaits to WASM
 
 This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. Rules:
 
+Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor are defined in `CONTRIBUTING.md`. This file keeps the mandatory baseline rules that apply to all agents.
+
 ### Worktrees Are Mandatory
 
 **Every agent MUST work in a worktree, never in the main checkout.** The main checkout is shared — if one agent switches branches or leaves modified files, it breaks every other agent.
@@ -95,6 +97,9 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 - For active implementation work, add:
   - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
+- When an issue is actively in implementation, add one provisional owner label:
+  - `provisional:codex`
+  - `provisional:claude`
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
   - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
@@ -107,6 +112,7 @@ This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in paral
 
 ## Reference Docs
 
+- `CONTRIBUTING.md` - Shared contribution workflow, provisional ownership labels, and Codex/Claude parallel execution model
 - `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)

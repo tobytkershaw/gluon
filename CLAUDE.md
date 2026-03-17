@@ -71,6 +71,8 @@ npm run wasm:build   # Compile Plaits to WASM
 
 This repo is worked on by multiple AI agents (Claude Code, Codex, etc.) in parallel. The lead agent acts as team lead: triaging the backlog, dispatching work to parallel agents, reviewing plans, and merging PRs.
 
+Repository-wide workflow, backlog hygiene, provisional ownership labels, and the Codex/Claude work split live in `CONTRIBUTING.md`. This file adds Claude-specific operating guidance on top.
+
 ### Continuous Pipeline (not batch waves)
 
 Work flows continuously — no wave branches, no batch-and-review cycles.
@@ -137,6 +139,9 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - For active implementation work, add:
   - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
+- When an issue is actively in implementation, add one provisional owner label:
+  - `provisional:codex`
+  - `provisional:claude`
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
   - `M0–M6` — complete (stabilization, sequencer, chains, modulation, UI layers, AI collaboration)
@@ -147,6 +152,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 
 ## Reference Docs
 
+- `CONTRIBUTING.md` - Shared contribution workflow, issue ownership labels, and Codex/Claude execution model
 - `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/design-references.md` - Design references from synths, DAWs, and related tools: Guitar Rig (rack + inline params), Bitwig (modulation, remote controls), Reason, VCV Rack, Ableton, Max, and others. Includes parameter ground truth analysis and modulation display comparison.
