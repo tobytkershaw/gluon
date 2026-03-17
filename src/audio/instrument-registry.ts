@@ -39,7 +39,7 @@ function makePlaitsControl(
   description: string,
   runtimeParam: string,
   defaultVal = 0.5,
-  size: 'large' | 'small' = 'large',
+  size: 'large' | 'medium' | 'small' = 'large',
 ): ControlSchema {
   return {
     id,
@@ -66,6 +66,8 @@ function defaultControls(): ControlSchema[] {
       'brightness',
       'Spectral content of the sound. Low values are dark and warm, high values are bright and cutting.',
       'timbre',
+      0.5,
+      'medium',
     ),
     makePlaitsControl(
       'harmonics',
@@ -73,6 +75,8 @@ function defaultControls(): ControlSchema[] {
       'richness',
       'Harmonic richness and complexity. Low values are simple and pure, high values are dense and complex.',
       'harmonics',
+      0.5,
+      'medium',
     ),
     makePlaitsControl(
       'morph',
@@ -80,6 +84,8 @@ function defaultControls(): ControlSchema[] {
       'texture',
       'Surface character and modulation depth. Shapes the evolving quality of the sound.',
       'morph',
+      0.5,
+      'medium',
     ),
     makePlaitsControl(
       'frequency',
@@ -197,7 +203,7 @@ function makeRingsControl(
   description: string,
   kind: ControlKind = 'continuous',
   defaultVal = 0.5,
-  size: 'large' | 'small' = 'large',
+  size: 'large' | 'medium' | 'small' = 'large',
   range?: { min: number; max: number; default: number },
 ): ControlSchema {
   return {
@@ -372,7 +378,7 @@ function makeCloudsControl(
   description: string,
   kind: ControlKind = 'continuous',
   defaultVal = 0.5,
-  size: 'large' | 'small' = 'large',
+  size: 'large' | 'medium' | 'small' = 'large',
 ): ControlSchema {
   return {
     id,
@@ -528,7 +534,7 @@ function makeTidesControl(
   semanticRole: SemanticRole,
   description: string,
   defaultVal = 0.5,
-  size: 'large' | 'small' = 'large',
+  size: 'large' | 'medium' | 'small' = 'large',
 ): ControlSchema {
   return {
     id,

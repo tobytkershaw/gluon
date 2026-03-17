@@ -8,8 +8,8 @@ export interface ControlDef {
   id: string;
   name: string;
   value: number;
-  /** 'large' for primary knobs, 'small' for secondary. Defaults to 'large'. */
-  size: 'large' | 'small';
+  /** 'large' for primary knobs, 'medium' for tone/character, 'small' for attenuverters. Defaults to 'large'. */
+  size: 'large' | 'medium' | 'small';
   /** Control kind: continuous, discrete, or boolean. Defaults to 'continuous'. */
   kind: ControlKind;
   /** For discrete controls: the valid range */

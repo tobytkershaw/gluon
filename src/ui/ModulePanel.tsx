@@ -54,9 +54,9 @@ type AccentColor = keyof typeof ACCENT;
 // All modules use the same 2U height for a consistent row baseline.
 const MODULE_HEIGHT = 572;
 
-// --- Large knob size for primary controls ---
+// --- Knob sizes by tier ---
 const LARGE_KNOB_SIZE = 52;
-// Small knob size for secondary controls
+const MEDIUM_KNOB_SIZE = 42;
 const SMALL_KNOB_SIZE = 32;
 
 // --- Sub-components ---
@@ -219,12 +219,15 @@ export function ModulePanel({
 
   // Partition controls by size and kind
   const largeKnobs = controls.filter(c => c.size === 'large' && c.kind === 'continuous');
+  const mediumKnobs = controls.filter(c => c.size === 'medium' && c.kind === 'continuous');
   const smallKnobs = controls.filter(c => c.size === 'small' && c.kind === 'continuous');
   const booleanControls = controls.filter(c => c.kind === 'boolean' || c.kind === 'trigger');
   const discreteControls = controls.filter(c => c.kind === 'discrete' || c.kind === 'enum');
 
-  // Large knob grid columns: 2 base, 3 if many primary controls.
+  // Grid columns per tier: adapt to count
   const largeCols = largeKnobs.length > 4 ? 3 : 2;
+  const mediumCols = mediumKnobs.length > 4 ? 4 : mediumKnobs.length > 2 ? 3 : 2;
+  const smallCols = smallKnobs.length > 4 ? 4 : smallKnobs.length > 2 ? 3 : 2;
 
   return (
     <div
@@ -302,13 +305,39 @@ export function ModulePanel({
           </div>
         )}
 
-        {/* Secondary knobs (small) — same column grid as large knobs */}
+        {/* Medium knobs (tone/character) */}
+        {mediumKnobs.length > 0 && (
+          <>
+            <div className="border-t border-zinc-800/40" />
+            <div
+              className="grid justify-items-center gap-y-2 gap-x-1"
+              style={{ gridTemplateColumns: `repeat(${mediumCols}, 1fr)` }}
+            >
+              {mediumKnobs.map((control) => (
+                <Knob
+                  key={control.id}
+                  label={control.name}
+                  value={control.value}
+                  accentColor={accentColor}
+                  onChange={(value) => onParamChange(control.id, value)}
+                  onPointerDown={onInteractionStart}
+                  onPointerUp={onInteractionEnd}
+                  size={MEDIUM_KNOB_SIZE}
+                  modulations={modulationMap?.get(control.id)}
+                  onModulationClick={onModulationClick}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Small knobs (attenuverters / extended params) */}
         {smallKnobs.length > 0 && (
           <>
             <div className="border-t border-zinc-800/40" />
             <div
               className="grid justify-items-center gap-y-2 gap-x-1"
-              style={{ gridTemplateColumns: `repeat(${largeCols}, 1fr)` }}
+              style={{ gridTemplateColumns: `repeat(${smallCols}, 1fr)` }}
             >
               {smallKnobs.map((control) => (
                 <Knob

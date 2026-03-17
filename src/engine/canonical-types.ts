@@ -43,8 +43,8 @@ export interface ControlSchema {
   enumValues?: string[];
   group?: string;
   /** Physical control size hint for Rack view layout.
-   *  'large' = primary knob, 'small' = secondary/attenuverter. Defaults to 'large'. */
-  size?: 'large' | 'small';
+   *  'large' = primary knob, 'medium' = tone/character, 'small' = attenuverter. Defaults to 'large'. */
+  size?: 'large' | 'medium' | 'small';
   binding: ControlBinding;
 }
 
