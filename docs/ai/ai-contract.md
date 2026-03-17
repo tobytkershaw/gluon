@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has eighteen tools, declared as neutral JSON Schema and adapted per provider.
+The AI has twenty tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -250,6 +250,26 @@ Report a bug or issue encountered during operation. Use sparingly, only for thin
 | `context` | string | no | Relevant state at the time (e.g. track config, parameter values, tool args). |
 
 Duplicate detection: reports with identical summaries within the same session are rejected.
+
+#### `explain_chain`
+
+Generate a musical-language description of a track's signal chain. Read-only — does not modify state.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
+
+Returns a text description of the track's source engine, processors (type, mode, params, bypass state), modulators, and modulation routings.
+
+#### `simplify_chain`
+
+Analyze a track's signal chain for redundant or no-op processors and suggest removals. Read-only — does not modify state.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
+
+Checks for: bypassed processors, default-valued processors (no knobs moved), duplicate processor types, unrouted modulators. Returns suggestions without modifying session state.
 
 ---
 

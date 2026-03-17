@@ -604,6 +604,38 @@ const analyzeTool: ToolSchema = {
   },
 };
 
+const explainChainTool: ToolSchema = {
+  name: 'explain_chain',
+  description:
+    'Generate a musical-language description of a track\'s signal chain. Read-only — does not modify state.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+      },
+    },
+    required: ['trackId'],
+  },
+};
+
+const simplifyChainTool: ToolSchema = {
+  name: 'simplify_chain',
+  description:
+    'Analyze a track\'s signal chain for redundant or no-op processors and suggest removals. Read-only — does not modify state.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+      },
+    },
+    required: ['trackId'],
+  },
+};
+
 const raiseDecisionTool: ToolSchema = {
   name: 'raise_decision',
   description:
@@ -685,6 +717,8 @@ export const GLUON_TOOLS: ToolSchema[] = [
   renderTool,
   analyzeTool,
   setTrackMetaTool,
+  explainChainTool,
+  simplifyChainTool,
   raiseDecisionTool,
   reportBugTool,
 ];
