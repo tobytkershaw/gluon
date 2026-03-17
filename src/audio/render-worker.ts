@@ -14,6 +14,7 @@ import type {
 } from './render-spec';
 import { applyProcessorModulations, applySourceModulations, averageSignal } from './render-modulation';
 import { applyStereoGain, applyStereoPan, downmixStereoToMono, mixStereoBuffers, monoToStereo } from './render-mix';
+import { splitBlockAtEvents } from './render-timing';
 
 // ---------------------------------------------------------------------------
 // WASM interfaces (subset of what the worklet processors declare)
@@ -43,6 +44,8 @@ interface RingsWasm {
   _rings_set_patch(handle: number, structure: number, brightness: number, damping: number, position: number): void;
   _rings_set_note(handle: number, tonic: number, note: number): void;
   _rings_set_fine_tune(handle: number, offset: number): void;
+  _rings_set_polyphony(handle: number, polyphony: number): void;
+  _rings_set_internal_exciter(handle: number, enabled: number): void;
   _rings_render(handle: number, inputPtr: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -56,6 +59,7 @@ interface CloudsWasm {
   _clouds_set_mode(handle: number, modeIndex: number): void;
   _clouds_set_parameters(handle: number, position: number, size: number, density: number, feedback: number): void;
   _clouds_set_extended(handle: number, texture: number, pitch: number, dry_wet: number, stereo_spread: number, reverb: number): void;
+  _clouds_set_freeze(handle: number, freeze: number): void;
   _clouds_render(handle: number, inputPtr: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -244,6 +248,12 @@ async function renderTrack(
       if (p['fine-tune'] !== undefined) {
         rings._rings_set_fine_tune(rHandle, p['fine-tune']);
       }
+      if (p.polyphony !== undefined) {
+        rings._rings_set_polyphony(rHandle, Math.max(1, Math.min(4, Math.round(p.polyphony))));
+      }
+      if (p['internal-exciter'] !== undefined) {
+        rings._rings_set_internal_exciter(rHandle, p['internal-exciter'] >= 0.5 ? 1 : 0);
+      }
       const inPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       procHandles.push({ type: 'rings', wasm: rings, handle: rHandle, inPtr, outPtr, spec: proc });
@@ -254,6 +264,9 @@ async function renderTrack(
       const p = proc.params;
       (clouds as CloudsWasm)._clouds_set_parameters(cHandle, p.position ?? 0.5, p.size ?? 0.5, p.density ?? 0.5, p.feedback ?? 0.0);
       (clouds as CloudsWasm)._clouds_set_extended(cHandle, p.texture ?? 0.5, p.pitch ?? 0.5, p['dry-wet'] ?? 0.5, p['stereo-spread'] ?? 0.0, p.reverb ?? 0.0);
+      if (p.freeze !== undefined) {
+        clouds._clouds_set_freeze(cHandle, p.freeze >= 0.5 ? 1 : 0);
+      }
       const inPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       procHandles.push({ type: 'clouds', wasm: clouds, handle: cHandle, inPtr, outPtr, spec: proc });
@@ -272,44 +285,60 @@ async function renderTrack(
   const output = new Float32Array(totalFrames);
   const blockBuf = new Float32Array(BLOCK_SIZE);
 
-  // --- Render loop ---
+  // --- Render loop (sub-block precision) ---
   for (let frame = 0; frame < totalFrames; frame += BLOCK_SIZE) {
     const framesToRender = Math.min(BLOCK_SIZE, totalFrames - frame);
-    const blockBeatStart = frame / framesPerStep;
     const blockBeatEnd = (frame + framesToRender) / framesPerStep;
 
-    // Apply events that fall within this block
+    // Collect events that fall within this block
+    const blockEvents: { beatTime: number; index: number }[] = [];
     while (eventIndex < sortedEvents.length && sortedEvents[eventIndex].beatTime < blockBeatEnd) {
-      const ev = sortedEvents[eventIndex];
-      if (ev.type === 'set-extended' && ev.extended) {
-        Object.assign(currentExtended, ev.extended);
-        extendedDirty = true;
-      } else {
-        applyEvent(ev, plaits, pHandle, currentPatch);
-      }
+      blockEvents.push({ beatTime: sortedEvents[eventIndex].beatTime, index: eventIndex });
       eventIndex++;
     }
 
-    if (extendedDirty) {
-      plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
-      extendedDirty = false;
-    }
+    // Split the block into sub-segments at event boundaries
+    const segments = splitBlockAtEvents(blockEvents, frame, framesToRender, framesPerStep);
 
+    // Render modulation once per block (control-rate, matching live engine)
     const modulatorValues = renderModulationBlock(modHandles, framesToRender);
-    const effectivePatch = applySourceModulations(currentPatch, track.modulations, modulatorValues);
-    plaits._plaits_set_patch(
-      pHandle,
-      effectivePatch.harmonics,
-      effectivePatch.timbre,
-      effectivePatch.morph,
-      effectivePatch.note,
-    );
 
-    // Render Plaits
-    const rendered = plaits._plaits_render(pHandle, pOutPtr, framesToRender);
-    let heap = getHeapF32(plaits);
-    const pOutStart = pOutPtr / Float32Array.BYTES_PER_ELEMENT;
-    blockBuf.set(heap.subarray(pOutStart, pOutStart + rendered));
+    // Process each sub-segment: apply events, then render
+    let blockOffset = 0;
+    for (const segment of segments) {
+      // Apply events at this segment boundary
+      for (const evIdx of segment.eventsToApply) {
+        const ev = sortedEvents[evIdx];
+        if (ev.type === 'set-extended' && ev.extended) {
+          Object.assign(currentExtended, ev.extended);
+          extendedDirty = true;
+        } else {
+          applyEvent(ev, plaits, pHandle, currentPatch);
+        }
+      }
+
+      if (extendedDirty) {
+        plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
+        extendedDirty = false;
+      }
+
+      // Apply modulated patch before rendering this segment
+      const effectivePatch = applySourceModulations(currentPatch, track.modulations, modulatorValues);
+      plaits._plaits_set_patch(
+        pHandle,
+        effectivePatch.harmonics,
+        effectivePatch.timbre,
+        effectivePatch.morph,
+        effectivePatch.note,
+      );
+
+      // Render this segment through Plaits
+      const segRendered = plaits._plaits_render(pHandle, pOutPtr, segment.length);
+      let heap = getHeapF32(plaits);
+      const pOutStart = pOutPtr / Float32Array.BYTES_PER_ELEMENT;
+      blockBuf.set(heap.subarray(pOutStart, pOutStart + segRendered), blockOffset);
+      blockOffset += segRendered;
+    }
 
     // Chain through processors
     for (const ph of procHandles) {
