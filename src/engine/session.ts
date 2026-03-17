@@ -83,6 +83,7 @@ export function createSession(): Session {
     context,
     messages: [],
     recentHumanActions: [],
+    expandedTrackIds: [],
   };
 }
 
@@ -168,10 +169,14 @@ export function addTrack(session: Session, kind: TrackKind = 'audio'): Session |
   }
   newTracks.splice(insertIndex, 0, newTrack);
 
+  // Auto-expand the newly added track
+  const expandedTrackIds = session.expandedTrackIds ?? [];
+
   return {
     ...session,
     tracks: newTracks,
     activeTrackId: trackId,
+    expandedTrackIds: [...expandedTrackIds, trackId],
     undoStack: [...session.undoStack, snapshot],
   };
 }
@@ -327,6 +332,18 @@ export function setModel(session: Session, trackId: string, model: number): Sess
 export function setActiveTrack(session: Session, trackId: string): Session {
   if (!session.tracks.find(v => v.id === trackId)) return session;
   return { ...session, activeTrackId: trackId };
+}
+
+/** Toggle a track's expanded/collapsed state in the sidebar (accordion-style). */
+export function toggleTrackExpanded(session: Session, trackId: string): Session {
+  const expanded = session.expandedTrackIds ?? [];
+  const isExpanded = expanded.includes(trackId);
+  return {
+    ...session,
+    expandedTrackIds: isExpanded
+      ? expanded.filter(id => id !== trackId)
+      : [...expanded, trackId],
+  };
 }
 
 export function toggleMute(session: Session, trackId: string): Session {

@@ -17,6 +17,10 @@ interface Props {
   track: Track;
   label: string;
   isActive: boolean;
+  /** Whether this track row is expanded (shows sends, metadata). Independent of selection. */
+  isExpanded: boolean;
+  /** Toggle expand/collapse for this track row. */
+  onToggleExpand?: () => void;
   /** Whether this track is a bus (send/return mixing). */
   isBus?: boolean;
   /** Whether this is the master bus track. */
@@ -41,7 +45,7 @@ interface Props {
 }
 
 export function TrackRow({
-  track, label, isActive, isBus, isMasterBus, analyser,
+  track, label, isActive, isExpanded, onToggleExpand, isBus, isMasterBus, analyser,
   activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
   onRemove, onSetImportance, onSetMusicalRole,
@@ -169,8 +173,20 @@ export function TrackRow({
         }}
       />
 
-      {/* Main row: dot + label + controls */}
+      {/* Main row: chevron + dot + label + controls */}
       <div className="flex items-center gap-2">
+        {/* Expand/collapse chevron */}
+        {onToggleExpand && !isMasterBus && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+            className="text-[8px] text-zinc-600 hover:text-zinc-400 w-3 h-3 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            title={isExpanded ? 'Collapse' : 'Expand'}
+            aria-label={isExpanded ? 'Collapse track details' : 'Expand track details'}
+          >
+            {isExpanded ? '\u25BC' : '\u25B6'}
+          </button>
+        )}
+
         {/* Thumbprint dot — bus tracks show a different shape + bus badge */}
         {isBus ? (
           <>
@@ -266,8 +282,8 @@ export function TrackRow({
       {/* Per-track level meter */}
       {analyser && <TrackLevelMeter analyser={analyser} />}
 
-      {/* Expanded sends section (active non-master tracks only) */}
-      {isActive && !isMasterBus && onAddSend && busTracks && (
+      {/* Expanded sends section (expanded non-master tracks only) */}
+      {isExpanded && !isMasterBus && onAddSend && busTracks && (
         <SendSection
           sends={track.sends ?? []}
           busTracks={busTracks}
@@ -278,8 +294,8 @@ export function TrackRow({
         />
       )}
 
-      {/* Expanded metadata: importance + musical role (active non-bus tracks only) */}
-      {isActive && !isBus && !isMasterBus && (onSetImportance || onSetMusicalRole) && (
+      {/* Expanded metadata: importance + musical role (expanded non-bus tracks only) */}
+      {isExpanded && !isBus && !isMasterBus && (onSetImportance || onSetMusicalRole) && (
         <div className="mt-1.5 space-y-1 px-0.5">
           {/* Importance slider */}
           {onSetImportance && (

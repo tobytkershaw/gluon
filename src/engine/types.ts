@@ -694,6 +694,8 @@ export interface Session {
   openDecisions?: OpenDecision[];
   /** Bug reports filed by the AI during this session */
   bugReports?: BugReport[];
+  /** IDs of tracks whose sidebar rows are expanded (accordion-style, independent of selection). */
+  expandedTrackIds?: string[];
 }
 
 export type ActionDiff =

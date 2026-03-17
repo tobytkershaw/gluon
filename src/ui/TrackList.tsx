@@ -11,8 +11,11 @@ import type { AudioEngine } from '../audio/audio-engine';
 interface Props {
   tracks: Track[];
   activeTrackId: string;
+  /** IDs of tracks whose sidebar rows are expanded (accordion-style). */
+  expandedTrackIds?: string[];
   activityMap: Record<string, number>;
   onSelectTrack: (trackId: string) => void;
+  onToggleTrackExpanded?: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
   onToggleSolo: (trackId: string, additive?: boolean) => void;
   onToggleAgency: (trackId: string) => void;
@@ -36,8 +39,8 @@ interface Props {
 }
 
 export function TrackList({
-  tracks, activeTrackId, activityMap,
-  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
+  tracks, activeTrackId, expandedTrackIds, activityMap,
+  onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency,
   onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole,
   onAddSend, onRemoveSend, onSetSendLevel,
@@ -110,6 +113,8 @@ export function TrackList({
             track={track}
             label={getTrackLabel(track)}
             isActive={track.id === activeTrackId}
+            isExpanded={(expandedTrackIds ?? []).includes(track.id)}
+            onToggleExpand={onToggleTrackExpanded ? () => onToggleTrackExpanded(track.id) : undefined}
             analyser={audioEngine?.getTrackAnalyser(track.id) ?? null}
             activityTimestamp={activityMap[track.id] ?? null}
             onClick={() => onSelectTrack(track.id)}
@@ -140,6 +145,8 @@ export function TrackList({
             track={track}
             label={getTrackLabel(track)}
             isActive={track.id === activeTrackId}
+            isExpanded={(expandedTrackIds ?? []).includes(track.id)}
+            onToggleExpand={onToggleTrackExpanded ? () => onToggleTrackExpanded(track.id) : undefined}
             isBus
             analyser={audioEngine?.getTrackAnalyser(track.id) ?? null}
             activityTimestamp={activityMap[track.id] ?? null}
@@ -164,6 +171,7 @@ export function TrackList({
             track={masterBus}
             label={getTrackLabel(masterBus)}
             isActive={masterBus.id === activeTrackId}
+            isExpanded={false}
             isBus
             isMasterBus
             analyser={audioEngine?.getTrackAnalyser(masterBus.id) ?? null}

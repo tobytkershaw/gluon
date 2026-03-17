@@ -11,7 +11,7 @@ import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setAgency, setApproval, updateTrackParams, setModel,
-  setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
+  setActiveTrack, toggleTrackExpanded, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster, setTrackVolume, setTrackPan,
   addTrack, removeTrack,
   addSend, removeSend, setSendLevel,
@@ -1024,11 +1024,23 @@ export default function App() {
   }, []);
 
   const handleSelectTrack = useCallback((trackId: string) => {
-    setSession((s) => setActiveTrack(s, trackId));
+    setSession((s) => {
+      let next = setActiveTrack(s, trackId);
+      // Auto-expand the selected track if it isn't already expanded
+      const expanded = next.expandedTrackIds ?? [];
+      if (!expanded.includes(trackId)) {
+        next = { ...next, expandedTrackIds: [...expanded, trackId] };
+      }
+      return next;
+    });
     setStepPage(0);
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
+  }, []);
+
+  const handleToggleTrackExpanded = useCallback((trackId: string) => {
+    setSession((s) => toggleTrackExpanded(s, trackId));
   }, []);
 
   const handleToggleMute = useCallback((trackId: string) => {
@@ -1948,8 +1960,10 @@ export default function App() {
     <AppShell
       tracks={session.tracks}
       activeTrackId={session.activeTrackId}
+      expandedTrackIds={session.expandedTrackIds}
       activityMap={activityMap}
       onSelectTrack={handleSelectTrack}
+      onToggleTrackExpanded={handleToggleTrackExpanded}
       onToggleMute={handleToggleMute}
       onToggleSolo={handleToggleSolo}
       onRenameTrack={handleRenameTrack}
