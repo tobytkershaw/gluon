@@ -55,7 +55,7 @@ export function TrackList({
   }, [onMasterVolumeChange]);
 
   return (
-    <div className="w-44 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
+    <div className="w-48 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
       {/* Header */}
       <div className="px-3 py-2 border-b border-zinc-800/40 flex items-center justify-between">
         <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">
@@ -158,9 +158,7 @@ export function TrackList({
           />
           {/* Master volume slider + stereo meter */}
           <div className="flex items-center gap-1.5 mt-1 px-1">
-            <span className="text-[8px] font-mono text-zinc-600 w-5 text-right shrink-0">
-              {Math.round((masterVolume ?? 0.8) * 100)}
-            </span>
+            <span className="text-[7px] font-mono uppercase text-zinc-600 shrink-0">Vol</span>
             <input
               type="range"
               min={0}
@@ -169,10 +167,13 @@ export function TrackList({
               value={masterVolume ?? 0.8}
               onChange={handleVolumeInput}
               onClick={(e) => e.stopPropagation()}
-              className="flex-1 h-1 accent-zinc-500 cursor-pointer"
+              className="master-volume-slider flex-1 h-1 cursor-pointer"
               title={`Master volume: ${Math.round((masterVolume ?? 0.8) * 100)}%`}
               aria-label="Master volume"
             />
+            <span className="text-[8px] font-mono text-zinc-600 w-5 text-right shrink-0 tabular-nums">
+              {Math.round((masterVolume ?? 0.8) * 100)}
+            </span>
           </div>
           {/* Stereo level meter for master bus */}
           {masterStereoAnalysers && (
