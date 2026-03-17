@@ -2,6 +2,7 @@ import { useRef, useEffect } from 'react';
 import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
+import { renderInlineMarkdown } from './inlineMarkdown';
 
 interface Props {
   messages: ChatMessage[];
@@ -74,7 +75,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                 <div className={`text-[11px] leading-[1.6] break-words ${
                   msg.role === 'ai' ? 'text-zinc-300' : msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
                 }`}>
-                  {msg.text}
+                  {msg.role === 'ai' ? renderInlineMarkdown(msg.text) : msg.text}
                 </div>
               )}
               {msg.actions && msg.actions.length > 0 && (
@@ -126,7 +127,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
             <div className="text-[8px] font-mono uppercase tracking-[0.2em] mb-1 text-teal-600/80">AI</div>
             {streamingText ? (
               <div className="text-[11px] leading-[1.6] break-words text-zinc-300">
-                {streamingText}
+                {renderInlineMarkdown(streamingText)}
                 <span
                   className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
                   style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
