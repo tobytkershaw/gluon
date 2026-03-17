@@ -112,6 +112,34 @@ describe('gluon_plaits.cpp contracts', () => {
   });
 });
 
+describe('PlaitsSynth.scheduleNote — independent base/extended override detection', () => {
+  const SYNTH_SRC = readFileSync(
+    resolve(__dirname, '../../src/audio/plaits-synth.ts'),
+    'utf-8',
+  );
+
+  it('detects base and extended overrides independently', () => {
+    // Extended-only step locks must NOT trigger a timed set-patch (which
+    // would clobber live human edits to harmonics/timbre/morph/note).
+    // The override detection must be split: BASE_KEYS for set-patch,
+    // EXTENDED_KEYS for set-extended.
+    expect(SYNTH_SRC).toContain('BASE_KEYS');
+    expect(SYNTH_SRC).toContain('hasBaseOverrides');
+    expect(SYNTH_SRC).toContain('hasExtendedOverrides');
+
+    // hasBaseOverrides must only check base keys, not all keys
+    const scheduleMethod = SYNTH_SRC.match(
+      /scheduleNote\(.*?\{([\s\S]*?)\n  \}/,
+    );
+    expect(scheduleMethod).not.toBeNull();
+    const body = scheduleMethod![1];
+    // set-patch should be gated on hasBaseOverrides, not a combined hasOverrides
+    expect(body).not.toContain('hasOverrides');
+    expect(body).toMatch(/hasBaseOverrides[\s\S]*?set-patch/);
+    expect(body).toMatch(/hasExtendedOverrides[\s\S]*?set-extended/);
+  });
+});
+
 describe('gluon_plaits.cpp — worklet dirty-check', () => {
   const WORKLET_SRC = readFileSync(
     resolve(__dirname, '../../src/audio/plaits-worklet.ts'),
