@@ -1,5 +1,7 @@
 // src/ui/PatchView.tsx
-// Ground-truth node graph for signal chain and modulation routing (#158)
+// Per-track node graph for signal chain and modulation routing (#158)
+// Scope: source -> processors -> output, plus modulation connections.
+// Does NOT show cross-track topology (bus sends, master bus routing) — see #561.
 // Port rendering from hardware I/O registry (#394)
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
