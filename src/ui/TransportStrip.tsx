@@ -92,7 +92,7 @@ export function TransportStrip({
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
 }: Props) {
   const beatsPerBar = timeSignatureNumerator || 4;
-  const currentBeat = globalStep + 1;
+  const currentBeat = Math.floor(globalStep) + 1;
   const bar = Math.floor((currentBeat - 1) / beatsPerBar) + 1;
   const beat = ((currentBeat - 1) % beatsPerBar) + 1;
 

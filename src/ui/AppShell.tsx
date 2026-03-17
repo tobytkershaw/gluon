@@ -305,7 +305,7 @@ export function AppShell({
           <span className="text-[10px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
             {(() => {
               const beatsPerBar = timeSignatureNumerator || 4;
-              const currentBeat = globalStep + 1;
+              const currentBeat = Math.floor(globalStep) + 1;
               const bar = Math.floor((currentBeat - 1) / beatsPerBar) + 1;
               const beat = ((currentBeat - 1) % beatsPerBar) + 1;
               return `${String(bar).padStart(3, '\u2007')}:${beat}`;
