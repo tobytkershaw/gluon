@@ -217,6 +217,7 @@ export function AppShell({
             onClick={onUndo}
             disabled={undoStack.length === 0}
             description={undoStack.length > 0 ? undoStack[undoStack.length - 1].description : undefined}
+            undoStack={undoStack}
           />
           <RedoButton
             onClick={onRedo}
