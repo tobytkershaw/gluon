@@ -50,14 +50,9 @@ const ACCENT = {
 
 type AccentColor = keyof typeof ACCENT;
 
-// --- Quantized module heights (Eurorack-inspired) ---
-// 1U: compact modules (few controls, processors, modulators)
-// 2U: full-size modules (source with many knobs, or dense processors)
-const MODULE_1U_HEIGHT = 280;
-const MODULE_2U_HEIGHT = 572;
-
-// Threshold: modules with more than 6 total controls get 2U
-const HEIGHT_2U_THRESHOLD = 6;
+// --- Uniform module height ---
+// All modules use the same height for consistent row alignment.
+const MODULE_HEIGHT = 572;
 
 // --- Large knob size for primary controls ---
 const LARGE_KNOB_SIZE = 52;
@@ -232,15 +227,12 @@ export function ModulePanel({
   // Base: 2 columns of large knobs. If > 4 primary, use 3 columns.
   const largeCols = largeKnobs.length > 4 ? 3 : 2;
 
-  // Quantized height: 2U for dense modules, 1U for compact ones
-  const moduleHeight = controls.length > HEIGHT_2U_THRESHOLD ? MODULE_2U_HEIGHT : MODULE_1U_HEIGHT;
-
   return (
     <div
       className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden ${
         isHighlighted ? accent.highlight : 'border-zinc-800/60'
       } ${isBypassed ? 'opacity-50' : ''}`}
-      style={{ width: largeCols === 3 ? 220 : 168, height: moduleHeight }}
+      style={{ width: largeCols === 3 ? 220 : 168, height: MODULE_HEIGHT }}
     >
       {/* Header bar */}
       <div className={`flex items-center justify-between gap-1 px-3 py-1.5 ${accent.headerBg} border-b border-zinc-800/40`}>
