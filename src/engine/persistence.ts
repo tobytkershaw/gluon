@@ -32,7 +32,7 @@ export function stripForPersistence(session: Session): Session {
     redoStack: [],
     recentHumanActions: [],
     // Always persist transport as stopped to avoid auto-playing on reload
-    transport: { ...session.transport, status: 'stopped', playing: false },
+    transport: { ...session.transport, status: 'stopped' },
     tracks: session.tracks.map(v => ({ ...v })),
   };
 }

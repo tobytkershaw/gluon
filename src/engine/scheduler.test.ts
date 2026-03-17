@@ -34,7 +34,7 @@ function makeSession(overrides?: Partial<Session>): Session {
       },
     }],
     activeTrackId: 'v1',
-    transport: { status: 'playing', bpm: 120, swing: 0, playing: true },
+    transport: { status: 'playing', bpm: 120, swing: 0 },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.5, density: 0.5 },
     messages: [],
@@ -309,7 +309,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
       events: [{ kind: 'trigger' as const, at: 0, velocity: 0.8 }],
     };
     const session = makeSession({
-      transport: { status: 'playing', bpm: 120, swing: 0, playing: true, mode: 'song' },
+      transport: { status: 'playing', bpm: 120, swing: 0, mode: 'song' },
       tracks: [{
         id: 'v1',
         engine: 'plaits',
@@ -362,7 +362,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
   it('does not fire onSequenceEnd in pattern mode', () => {
     // Pattern mode should loop forever, never trigger onSequenceEnd.
     const session = makeSession({
-      transport: { status: 'playing', bpm: 120, swing: 0, playing: true, mode: 'pattern' },
+      transport: { status: 'playing', bpm: 120, swing: 0, mode: 'pattern' },
     });
     session.tracks[0].patterns[0].duration = 4; // short pattern
 

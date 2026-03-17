@@ -197,7 +197,7 @@ export class TransportController {
 
     recordQaAudioTrace({
       type: 'transport.state',
-      playing: transport.playing,
+      playing: transport.status === 'playing',
       status: transport.status,
       bpm: transport.bpm,
       swing: transport.swing,

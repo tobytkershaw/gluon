@@ -169,10 +169,6 @@ const setTransportTool: ToolSchema = {
         type: 'number',
         description: 'Swing amount (0.0-1.0, where 0 is straight).',
       },
-      playing: {
-        type: 'boolean',
-        description: 'True to start playback, false to stop.',
-      },
       timeSignatureNumerator: {
         type: 'number',
         description: 'Beats per bar (1-16). E.g. 3 for 3/4 time.',

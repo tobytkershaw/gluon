@@ -542,7 +542,7 @@ export default function App() {
   /** Record a parameter automation event if recording is active (armed + playing). */
   const maybeRecordAutomation = useCallback((trackId: string, runtimeParam: string, value: number) => {
     const s = sessionRef.current;
-    if (!recordArmedRef.current || !s.transport.playing) return;
+    if (!recordArmedRef.current || !s.transport.status === 'playing') return;
     const controlId = runtimeParamToControlId[runtimeParam] ?? runtimeParam;
     const at = globalStepRef.current;
     setSession(prev => insertAutomationEvent(prev, trackId, at, controlId, value));
@@ -867,7 +867,7 @@ export default function App() {
     // Resume AudioContext if browser auto-suspended it after idle.
     // Must happen during user gesture to satisfy autoplay policy.
     await audioRef.current.resume();
-    setSession((s) => s.transport.playing ? pauseTransport(s) : playTransport(s));
+    setSession((s) => s.transport.status === 'playing' ? pauseTransport(s) : playTransport(s));
   }, [ensureAudio]);
 
   const handlePlayFromCursor = useCallback(async () => {
@@ -930,7 +930,7 @@ export default function App() {
 
   // Push a single undo snapshot when a recording session starts (armed + playing).
   // The snapshot covers the entire session: from arm to disarm/stop.
-  const isRecordingActive = recordArmed && session.transport.playing;
+  const isRecordingActive = recordArmed && session.transport.status === 'playing';
   useEffect(() => {
     if (isRecordingActive && !recordingSnapshotPushed.current) {
       // Snapshot the active track's region before recording starts
@@ -1932,7 +1932,7 @@ export default function App() {
       onProjectImport={project.importProject}
       onExportWav={handleExportWav}
       exportingWav={exportingWav}
-      playing={session.transport.playing}
+      playing={session.transport.status === 'playing'}
       bpm={session.transport.bpm}
       swing={session.transport.swing}
       recordArmed={recordArmed}
@@ -1981,7 +1981,7 @@ export default function App() {
           <InstrumentView
             session={session}
             activeTrack={activeTrack}
-            playing={session.transport.playing}
+            playing={session.transport.status === 'playing'}
             globalStep={globalStep}
             onParamChange={handleParamChange}
             onInteractionStart={handleSourceInteractionStart}
@@ -2070,7 +2070,7 @@ export default function App() {
           <TrackerView
             session={session}
             activeTrack={activeTrack}
-            playing={session.transport.playing}
+            playing={session.transport.status === 'playing'}
             globalStep={globalStep}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}

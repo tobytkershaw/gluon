@@ -17,7 +17,7 @@ describe('Session (Phase 2)', () => {
     const session = createSession();
     expect(session.tracks).toHaveLength(2); // 1 audio + 1 master bus
     expect(session.activeTrackId).toBe(session.tracks[0].id);
-    expect(session.transport).toEqual({ status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } });
+    expect(session.transport).toEqual({ status: 'stopped', bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } });
     // Master bus is last
     const masterBus = session.tracks[session.tracks.length - 1];
     expect(masterBus.id).toBe('master-bus');
@@ -158,13 +158,10 @@ describe('Session (Phase 2)', () => {
   it('sets explicit transport states', () => {
     let s = createSession();
     s = playTransport(s);
-    expect(s.transport.playing).toBe(true);
     expect(s.transport.status).toBe('playing');
     s = pauseTransport(s);
-    expect(s.transport.playing).toBe(false);
     expect(s.transport.status).toBe('paused');
     s = stopTransport(s);
-    expect(s.transport.playing).toBe(false);
     expect(s.transport.status).toBe('stopped');
   });
 
@@ -512,18 +509,15 @@ describe('A/B comparison', () => {
     let s = createSession();
     // Capture snapshot while stopped
     const snap = captureABSnapshot(s);
-    expect(snap.transport.playing).toBe(false);
     expect(snap.transport.status).toBe('stopped');
 
     // Start playing, change BPM
     s = playTransport(s);
     s = setTransportBpm(s, 200);
-    expect(s.transport.playing).toBe(true);
     expect(s.transport.status).toBe('playing');
 
     // Restore the snapshot — playing state must be preserved
     const restored = restoreABSnapshot(s, snap);
-    expect(restored.transport.playing).toBe(true);
     expect(restored.transport.status).toBe('playing');
     // Musical config should be restored from snapshot
     expect(restored.transport.bpm).toBe(120);
@@ -537,7 +531,6 @@ describe('A/B comparison', () => {
     s = setTransportBpm(s, 180);
 
     const restored = restoreABSnapshot(s, snap);
-    expect(restored.transport.playing).toBe(false);
     expect(restored.transport.status).toBe('paused');
     // BPM comes from snapshot (which was captured at 120)
     expect(restored.transport.bpm).toBe(120);

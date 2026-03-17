@@ -100,7 +100,7 @@ When reviewing `src/engine/persistence.ts`:
 - Pattern must never be persisted as authoritative — always re-project from regions on load.
 - v1 sessions (no regions) must migrate via region hydration from legacy steps.
 - `undoStack` and `recentHumanActions` are stripped before save. Everything else on Voice persists as-is (including `_hiddenEvents`, `views`, `processors`, `modulators`, `modulations`).
-- Transport must be persisted as stopped (`playing: false`).
+- Transport must be persisted as stopped (`status: 'stopped'`).
 
 ## Review Output Format
 

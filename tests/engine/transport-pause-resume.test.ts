@@ -91,7 +91,7 @@ describe('TransportController pause/resume', () => {
     });
 
     // Transition stopped → playing (generation 1)
-    session = { ...session, transport: { ...session.transport, status: 'playing', playing: true } };
+    session = { ...session, transport: { ...session.transport, status: 'playing' } };
     controller.sync();
     expect(audio.restoreBaseline).toHaveBeenCalledTimes(1);
     expect(schedulerStartCalls).toHaveLength(1);
@@ -101,13 +101,13 @@ describe('TransportController pause/resume', () => {
     internalOnPositionChange(8);
 
     // Pause
-    session = { ...session, transport: { ...session.transport, status: 'paused', playing: false } };
+    session = { ...session, transport: { ...session.transport, status: 'paused' } };
     controller.sync();
     expect(audio.releaseGeneration).toHaveBeenCalledTimes(1);
 
     // Resume from pause
     schedulerStartCalls = [];
-    session = { ...session, transport: { ...session.transport, status: 'playing', playing: true } };
+    session = { ...session, transport: { ...session.transport, status: 'playing' } };
     controller.sync();
 
     // Should have advanced generation and resumed from step 8
@@ -147,18 +147,18 @@ describe('TransportController pause/resume', () => {
     });
 
     // Start playing
-    session = { ...session, transport: { ...session.transport, status: 'playing', playing: true } };
+    session = { ...session, transport: { ...session.transport, status: 'playing' } };
     controller.sync();
     onPositionChange(12);
 
     // Stop
-    session = { ...session, transport: { ...session.transport, status: 'stopped', playing: false } };
+    session = { ...session, transport: { ...session.transport, status: 'stopped' } };
     controller.sync();
     expect(onPositionChange).toHaveBeenLastCalledWith(0);
 
     // Play again
     schedulerStartCalls = [];
-    session = { ...session, transport: { ...session.transport, status: 'playing', playing: true } };
+    session = { ...session, transport: { ...session.transport, status: 'playing' } };
     controller.sync();
 
     expect(schedulerStartCalls).toHaveLength(1);
@@ -182,12 +182,12 @@ describe('TransportController pause/resume', () => {
     });
 
     // Start playing first
-    session = { ...session, transport: { ...session.transport, status: 'playing', playing: true } };
+    session = { ...session, transport: { ...session.transport, status: 'playing' } };
     controller.sync();
 
     // Request hard stop then stop
     controller.requestHardStop();
-    session = { ...session, transport: { ...session.transport, status: 'stopped', playing: false } };
+    session = { ...session, transport: { ...session.transport, status: 'stopped' } };
     controller.sync();
 
     expect(audio.silenceGeneration).toHaveBeenCalled();
