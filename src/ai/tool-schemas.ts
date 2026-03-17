@@ -58,7 +58,7 @@ const moveTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). Defaults to active track if omitted.',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID. Defaults to active track if omitted.',
       },
       processorId: {
         type: 'string',
@@ -86,7 +86,7 @@ const sketchTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       description: {
         type: 'string',
@@ -163,7 +163,7 @@ const listenTool: ToolSchema = {
       trackIds: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Optional tracks to render in isolation (e.g. ["Track 1", "Track 2"] or ["v0", "v1"]). Omit to hear all unmuted tracks.',
+        description: 'Optional tracks to render in isolation (e.g. ["Track 1", "Track 2"]). Omit to hear all unmuted tracks.',
       },
       lens: {
         type: 'string',
@@ -225,7 +225,7 @@ const setModelTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       model: {
         type: 'string',
@@ -257,7 +257,7 @@ const transformTool: ToolSchema = {
   parameters: {
     type: 'object',
     properties: {
-      trackId: { type: 'string', description: 'Target track ID (e.g. "v0").' },
+      trackId: { type: 'string', description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.' },
       operation: { type: 'string', description: 'Transform operation: "rotate" (shift events in time), "transpose" (shift pitch), "reverse" (mirror positions), "duplicate" (repeat pattern).' },
       steps: { type: 'integer', description: 'For rotate: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations.' },
       semitones: { type: 'integer', description: 'For transpose: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations.' },
@@ -283,7 +283,7 @@ const manageProcessorTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       moduleType: {
         type: 'string',
@@ -320,7 +320,7 @@ const manageModulatorTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       moduleType: {
         type: 'string',
@@ -353,7 +353,7 @@ const modulationRouteTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       modulatorId: {
         type: 'string',
@@ -405,7 +405,7 @@ const manageViewTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       viewKind: {
         type: 'string',
@@ -433,7 +433,7 @@ const setSurfaceTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       semanticControls: {
         type: 'array',
@@ -502,7 +502,7 @@ const pinControlTool: ToolSchema = {
         enum: ['pin', 'unpin'],
         description: 'Operation to perform.',
       },
-      trackId: { type: 'string', description: 'Target track ID (e.g. "v0").' },
+      trackId: { type: 'string', description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.' },
       moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
       controlId: { type: 'string', description: 'The control to pin or unpin (e.g. "timbre", "structure").' },
     },
@@ -517,7 +517,7 @@ const labelAxesTool: ToolSchema = {
   parameters: {
     type: 'object',
     properties: {
-      trackId: { type: 'string', description: 'Target track ID (e.g. "v0").' },
+      trackId: { type: 'string', description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.' },
       x: { type: 'string', description: 'X-axis semantic label (e.g. "Brightness").' },
       y: { type: 'string', description: 'Y-axis semantic label (e.g. "Texture").' },
     },
@@ -534,7 +534,7 @@ const setTrackMetaTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
       approval: {
         type: 'string',
@@ -568,7 +568,7 @@ const renderTool: ToolSchema = {
     type: 'object',
     properties: {
       scope: {
-        description: 'Track reference ("Track 1" or "v0"), array of references (["Track 1", "Track 2"]), or omit for full mix. Use the narrowest scope that answers your question.',
+        description: 'Track reference (e.g. "Track 1"), array of references (["Track 1", "Track 2"]), or omit for full mix. Use the narrowest scope that answers your question.',
       },
       bars: {
         type: 'integer',
@@ -613,7 +613,7 @@ const explainChainTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
     },
     required: ['trackId'],
@@ -629,7 +629,7 @@ const simplifyChainTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0").',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
     },
     required: ['trackId'],
