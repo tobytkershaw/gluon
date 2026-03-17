@@ -720,6 +720,25 @@ describe('Undo contract: track mix helpers', () => {
     expect(s3.tracks.find(t => t.id === trackId)!.solo).toBe(false);
   });
 
+  it('exclusive toggleSolo undo restores solo on previously-soloed tracks', () => {
+    let s = createSession();
+    // Need at least 2 audio tracks
+    s = addTrack(s)!;
+    const trackA = s.tracks[0].id;
+    const trackB = s.tracks[1].id;
+    // Solo track A
+    s = toggleSolo(s, trackA);
+    expect(s.tracks.find(t => t.id === trackA)!.solo).toBe(true);
+    // Solo track B exclusively — should clear A
+    s = toggleSolo(s, trackB);
+    expect(s.tracks.find(t => t.id === trackB)!.solo).toBe(true);
+    expect(s.tracks.find(t => t.id === trackA)!.solo).toBe(false);
+    // Undo — should restore A's solo and clear B's
+    const undone = applyUndo(s);
+    expect(undone.tracks.find(t => t.id === trackA)!.solo).toBe(true);
+    expect(undone.tracks.find(t => t.id === trackB)!.solo).toBe(false);
+  });
+
   it('setTrackVolume pushes a snapshot', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;

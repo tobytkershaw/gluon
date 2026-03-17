@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, ABRestoreSnapshot } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, ABRestoreSnapshot, ActionGroupSnapshot, Snapshot } from './types';
 import type { SourceAdapter, Pattern } from './canonical-types';
 import type { TransportMode } from './sequencer-types';
 import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
@@ -329,19 +329,45 @@ export function toggleSolo(session: Session, trackId: string, exclusive = true):
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return session;
 
-  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { solo: track.solo }, `Toggle solo on ${trackId}`);
   const newSolo = !track.solo;
 
   // When turning solo ON exclusively, clear solo on all other tracks first
   if (newSolo && exclusive) {
-    const tracks = withSnapshot.tracks.map(t =>
+    // Capture snapshots for every track that will change
+    const snapshots: Snapshot[] = [];
+    snapshots.push({
+      kind: 'track-property',
+      trackId,
+      prevProps: { solo: track.solo },
+      timestamp: Date.now(),
+      description: `Toggle solo on ${trackId}`,
+    });
+    for (const t of session.tracks) {
+      if (t.id !== trackId && t.solo) {
+        snapshots.push({
+          kind: 'track-property',
+          trackId: t.id,
+          prevProps: { solo: true },
+          timestamp: Date.now(),
+          description: `Clear solo on ${t.id}`,
+        });
+      }
+    }
+    const group: ActionGroupSnapshot = {
+      kind: 'group',
+      snapshots,
+      timestamp: Date.now(),
+      description: `Exclusive solo on ${trackId}`,
+    };
+    const tracks = session.tracks.map(t =>
       t.id === trackId
         ? { ...t, solo: true }
         : t.solo ? { ...t, solo: false } : t,
     );
-    return { ...withSnapshot, tracks };
+    return { ...session, tracks, undoStack: [...session.undoStack, group] };
   }
 
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { solo: track.solo }, `Toggle solo on ${trackId}`);
   return updateTrack(withSnapshot, trackId, { solo: newSolo });
 }
 
