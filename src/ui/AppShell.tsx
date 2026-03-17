@@ -151,18 +151,44 @@ export function AppShell({
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const prevNarrowRef = useRef(false);
+  /** True when the chat was auto-collapsed by the responsive breakpoint (not by the user). */
+  const autoCollapsedRef = useRef(false);
+  /** Guard flag so the manual-toggle detection can ignore resize-triggered changes. */
+  const resizeTogglingRef = useRef(false);
 
-  // Responsive: auto-collapse chat when crossing below threshold.
-  // Only triggers the collapse on the transition from wide -> narrow,
-  // not continuously — so the user can manually reopen below 1280px.
+  // Clear autoCollapsed flag when the user manually toggles chat.
+  // We detect "manual" by checking that the toggle didn't come from our ResizeObserver.
+  const prevChatOpenRef = useRef(chatOpen);
+  useEffect(() => {
+    if (chatOpen !== prevChatOpenRef.current) {
+      if (!resizeTogglingRef.current) {
+        autoCollapsedRef.current = false;
+      }
+      prevChatOpenRef.current = chatOpen;
+    }
+  }, [chatOpen]);
+
+  // Responsive: auto-collapse chat when crossing below threshold,
+  // and auto-restore when crossing back above if the collapse was automatic.
   useEffect(() => {
     const el = shellRef.current;
     if (!el) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const isNarrow = entry.contentRect.width < CHAT_COLLAPSE_WIDTH;
+        // Wide -> narrow: auto-collapse if chat is open
         if (isNarrow && !prevNarrowRef.current && chatOpen) {
-          onChatToggle(); // auto-collapse once on transition
+          autoCollapsedRef.current = true;
+          resizeTogglingRef.current = true;
+          onChatToggle();
+          resizeTogglingRef.current = false;
+        }
+        // Narrow -> wide: auto-restore if we auto-collapsed it
+        if (!isNarrow && prevNarrowRef.current && !chatOpen && autoCollapsedRef.current) {
+          autoCollapsedRef.current = false;
+          resizeTogglingRef.current = true;
+          onChatToggle();
+          resizeTogglingRef.current = false;
         }
         prevNarrowRef.current = isNarrow;
       }
