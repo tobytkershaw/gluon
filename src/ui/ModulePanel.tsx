@@ -302,11 +302,14 @@ export function ModulePanel({
           </div>
         )}
 
-        {/* Secondary knobs (small) */}
+        {/* Secondary knobs (small) — same column grid as large knobs */}
         {smallKnobs.length > 0 && (
           <>
             <div className="border-t border-zinc-800/40" />
-            <div className="flex flex-wrap justify-center gap-2">
+            <div
+              className="grid justify-items-center gap-y-2 gap-x-1"
+              style={{ gridTemplateColumns: `repeat(${largeCols}, 1fr)` }}
+            >
               {smallKnobs.map((control) => (
                 <Knob
                   key={control.id}
