@@ -103,6 +103,8 @@ interface CompressedPreservationReport {
 
 export interface CompressedState {
   tracks: CompressedTrack[];
+  track_count: number;
+  soft_track_cap: number;
   activeTrackId: string;
   transport: { bpm: number; swing: number; playing: boolean; time_signature: string };
   context: { energy: number; density: number };
@@ -402,6 +404,8 @@ export function compressState(session: Session, recentPreservationReports?: Pres
         sends: track.sends.map(s => ({ busId: s.busId, level: round2(s.level) })),
       } : {}),
     })),
+    track_count: session.tracks.length,
+    soft_track_cap: 16,
     activeTrackId: session.activeTrackId,
     transport: {
       bpm: session.transport.bpm,
