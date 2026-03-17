@@ -1,6 +1,6 @@
 // tests/ai/tool-schemas.test.ts — Tool schema declarations
 import { describe, it, expect } from 'vitest';
-import { GLUON_TOOLS } from '../../src/ai/tool-schemas';
+import { GLUON_TOOLS, REGISTRY_CONTROL_IDS } from '../../src/ai/tool-schemas';
 
 describe('Tool Schemas', () => {
   it('exports eighteen tool schemas', () => {
@@ -80,6 +80,30 @@ describe('Tool Schemas', () => {
   it('set_transport tool has no required params', () => {
     const transport = GLUON_TOOLS.find(t => t.name === 'set_transport')!;
     expect(transport.parameters.required).toBeUndefined();
+  });
+
+  it('move param description includes all registry control IDs', () => {
+    const move = GLUON_TOOLS.find(t => t.name === 'move')!;
+    const desc = move.parameters.properties?.param?.description ?? '';
+    for (const [instrument, ids] of Object.entries(REGISTRY_CONTROL_IDS)) {
+      for (const id of ids) {
+        expect(desc, `move param description missing ${instrument} control "${id}"`).toContain(`"${id}"`);
+      }
+    }
+  });
+
+  it('modulation_route targetParam description includes all registry control IDs for source and processors', () => {
+    const route = GLUON_TOOLS.find(t => t.name === 'modulation_route')!;
+    const desc = route.parameters.properties?.targetParam?.description ?? '';
+    for (const id of REGISTRY_CONTROL_IDS.plaits) {
+      expect(desc, `targetParam description missing Plaits control "${id}"`).toContain(`"${id}"`);
+    }
+    for (const id of REGISTRY_CONTROL_IDS.rings) {
+      expect(desc, `targetParam description missing Rings control "${id}"`).toContain(`"${id}"`);
+    }
+    for (const id of REGISTRY_CONTROL_IDS.clouds) {
+      expect(desc, `targetParam description missing Clouds control "${id}"`).toContain(`"${id}"`);
+    }
   });
 
   it('merged tools have action parameter with enum', () => {

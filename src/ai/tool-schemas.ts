@@ -1,6 +1,37 @@
 // src/ai/tool-schemas.ts — Tool declarations in neutral JSON Schema format.
 
 import type { ToolSchema } from './types';
+import {
+  plaitsInstrument,
+  ringsInstrument,
+  cloudsInstrument,
+  tidesInstrument,
+} from '../audio/instrument-registry';
+
+// ---------------------------------------------------------------------------
+// Derive param lists from the instrument registry so descriptions stay in sync
+// ---------------------------------------------------------------------------
+
+function controlIds(inst: { engines: { controls: { id: string }[] }[] }): string[] {
+  return inst.engines[0]?.controls.map(c => c.id) ?? [];
+}
+
+function quoted(ids: string[]): string {
+  return ids.map(id => `"${id}"`).join(', ');
+}
+
+const plaitsParamIds = controlIds(plaitsInstrument);
+const ringsParamIds = controlIds(ringsInstrument);
+const cloudsParamIds = controlIds(cloudsInstrument);
+const tidesParamIds = controlIds(tidesInstrument);
+
+/** Exported for test use — the canonical control ID lists used in tool descriptions. */
+export const REGISTRY_CONTROL_IDS = {
+  plaits: plaitsParamIds,
+  rings: ringsParamIds,
+  clouds: cloudsParamIds,
+  tides: tidesParamIds,
+} as const;
 
 const moveTool: ToolSchema = {
   name: 'move',
@@ -11,7 +42,11 @@ const moveTool: ToolSchema = {
     properties: {
       param: {
         type: 'string',
-        description: 'The control ID to change. For track: "timbre", "harmonics", "morph", "frequency". For processors: depends on type (Rings: "structure", "brightness", "damping", "position", "polyphony", "internal-exciter"; Clouds: "position", "size", "density", "feedback", "freeze"). For Tides modulator: "frequency", "shape", "slope", "smoothness".',
+        description:
+          `The control ID to change. ` +
+          `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
+          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}). ` +
+          `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
       target: {
         type: 'object',
@@ -338,7 +373,10 @@ const modulationRouteTool: ToolSchema = {
       },
       targetParam: {
         type: 'string',
-        description: 'Required for connect. The parameter to modulate. Source: "timbre", "harmonics", "morph". Processor: depends on type.',
+        description:
+          `Required for connect. The parameter to modulate. ` +
+          `Source (Plaits): ${quoted(plaitsParamIds)}. ` +
+          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}).`,
       },
       depth: {
         type: 'number',
