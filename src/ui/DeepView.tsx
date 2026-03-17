@@ -37,7 +37,7 @@ export function DeepView({ track, focusedModuleId, onClose }: DeepViewProps) {
           {focusedModuleId === null
             ? 'DEEP VIEW'
             : focusedModuleId === 'source'
-            ? `Plaits — ${getModelName(track.model)}`
+            ? (track.model < 0 ? 'No Source' : `Plaits — ${getModelName(track.model)}`)
             : (() => {
                 const proc = processors.find(p => p.id === focusedModuleId);
                 if (!proc) return 'DEEP VIEW';
@@ -60,7 +60,7 @@ export function DeepView({ track, focusedModuleId, onClose }: DeepViewProps) {
       {/* Source module */}
       {showSource && sourceEngine && (
         <ModuleBlock
-          label={`Plaits — ${getModelName(track.model)}`}
+          label={track.model < 0 ? 'No Source' : `Plaits — ${getModelName(track.model)}`}
           accentColor="amber"
         >
           {sourceEngine.controls.map(control => {

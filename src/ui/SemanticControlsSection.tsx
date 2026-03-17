@@ -51,7 +51,7 @@ function computeSemanticValue(track: Track, def: SemanticControlDef): number {
 /** Resolve moduleId to a human-readable label for the inspector. */
 function resolveModuleLabel(track: Track, moduleId: string): string {
   if (moduleId === 'source') {
-    return `Plaits (${getModelName(track.model)})`;
+    return track.model < 0 ? 'No Source' : `Plaits (${getModelName(track.model)})`;
   }
   const proc = (track.processors ?? []).find(p => p.id === moduleId);
   if (proc) {

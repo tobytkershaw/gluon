@@ -343,6 +343,7 @@ export function getEngineByIndex(index: number): EngineDef | undefined {
 }
 
 export function getModelName(index: number): string {
+  if (index < 0) return 'No Source';
   return engines[index]?.label ?? `Unknown ${index}`;
 }
 

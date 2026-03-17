@@ -21,6 +21,7 @@ const ENGINE_ABBREV: Record<string, string> = {
   'Analog Bass Drum': 'Kick',
   'Analog Snare': 'Snare',
   'Analog Hi-Hat': 'HiHat',
+  'No Source': 'Empty',
 };
 
 /**
