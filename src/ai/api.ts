@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -317,6 +317,36 @@ function projectAction(session: Session, action: AIAction): Session {
       const result = removeTrack(session, action.trackId);
       return result ?? session;
     }
+    case 'set_mute_solo': {
+      const update: Partial<Track> = {};
+      if (action.muted !== undefined) update.muted = action.muted;
+      if (action.solo !== undefined) update.solo = action.solo;
+      return updateTrack(session, action.trackId, update);
+    }
+    case 'manage_send': {
+      const track = session.tracks.find(t => t.id === action.trackId);
+      if (!track) return session;
+      const sends = [...(track.sends ?? [])];
+      switch (action.action) {
+        case 'add':
+          sends.push({ busId: action.busId, level: action.level ?? 1.0 });
+          return updateTrack(session, action.trackId, { sends });
+        case 'remove':
+          return updateTrack(session, action.trackId, { sends: sends.filter(s => s.busId !== action.busId) });
+        case 'set_level': {
+          const idx = sends.findIndex(s => s.busId === action.busId);
+          if (idx >= 0 && action.level !== undefined) sends[idx] = { ...sends[idx], level: action.level };
+          return updateTrack(session, action.trackId, { sends });
+        }
+      }
+      return session;
+    }
+    case 'manage_pattern':
+    case 'manage_sequence':
+      // These are complex operations executed by session.ts helpers at execution time.
+      // For projection purposes, return session unchanged — the state will be fully
+      // updated during executeOperations.
+      return session;
     case 'say':
     default:
       return session;
@@ -1357,13 +1387,28 @@ export class GluonAI {
         const hasApproval = args.approval !== undefined;
         const hasImportance = args.importance !== undefined;
         const hasRole = args.musicalRole !== undefined;
-        if (!hasApproval && !hasImportance && !hasRole) {
-          return { actions: [], response: errorPayload('At least one of approval, importance, musicalRole required') };
+        const hasMuted = args.muted !== undefined;
+        const hasSolo = args.solo !== undefined;
+        if (!hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
+          return { actions: [], response: errorPayload('At least one of approval, importance, musicalRole, muted, solo required') };
         }
 
         const metaActions: AIAction[] = [];
         const applied: string[] = [];
         const errors: string[] = [];
+
+        // Handle muted/solo
+        if (hasMuted || hasSolo) {
+          const muteSoloAction: AISetMuteSoloAction = {
+            type: 'set_mute_solo',
+            trackId: args.trackId as string,
+            ...(hasMuted ? { muted: !!args.muted } : {}),
+            ...(hasSolo ? { solo: !!args.solo } : {}),
+          };
+          metaActions.push(muteSoloAction);
+          if (hasMuted) applied.push('muted');
+          if (hasSolo) applied.push('solo');
+        }
 
         if (hasApproval) {
           const level = args.approval as string;
@@ -1856,6 +1901,167 @@ export class GluonAI {
             results,
             ...(analysisErrors.length > 0 ? { errors: analysisErrors } : {}),
           },
+        };
+      }
+
+      case 'manage_send': {
+        const sendSubAction = args.action as string;
+        if (!sendSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.busId !== 'string' || !args.busId) {
+          return { actions: [], response: errorPayload('Missing required parameter: busId') };
+        }
+
+        const sendTrackId = resolveTrackId(args.trackId as string, session);
+        if (!sendTrackId) {
+          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+        }
+
+        const sendBusId = resolveTrackId(args.busId as string, session) ?? (args.busId as string);
+
+        if (sendSubAction === 'add' || sendSubAction === 'set_level') {
+          if (typeof args.level !== 'number' || !Number.isFinite(args.level)) {
+            return { actions: [], response: errorPayload(`action=${sendSubAction} requires level (0.0-1.0)`) };
+          }
+        }
+
+        const manageSendAction: AIManageSendAction = {
+          type: 'manage_send',
+          action: sendSubAction as 'add' | 'remove' | 'set_level',
+          trackId: sendTrackId,
+          busId: sendBusId,
+          ...(args.level !== undefined ? { level: args.level as number } : {}),
+        };
+
+        const sendRejection = ctx?.validateAction?.(manageSendAction);
+        if (sendRejection) return { actions: [], response: errorPayload(sendRejection) };
+
+        return {
+          actions: [manageSendAction],
+          response: { queued: true, action: sendSubAction, trackId: sendTrackId, busId: sendBusId },
+        };
+      }
+
+      case 'set_master': {
+        const hasMasterVolume = args.volume !== undefined;
+        const hasMasterPan = args.pan !== undefined;
+        if (!hasMasterVolume && !hasMasterPan) {
+          return { actions: [], response: errorPayload('At least one of volume, pan required') };
+        }
+        const setMasterAction: AISetMasterAction = {
+          type: 'set_master',
+          ...(hasMasterVolume ? { volume: args.volume as number } : {}),
+          ...(hasMasterPan ? { pan: args.pan as number } : {}),
+        };
+        return {
+          actions: [setMasterAction],
+          response: { queued: true, ...(hasMasterVolume ? { volume: args.volume } : {}), ...(hasMasterPan ? { pan: args.pan } : {}) },
+        };
+      }
+
+      case 'manage_pattern': {
+        const patternSubAction = args.action as string;
+        if (!patternSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.description !== 'string') {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+
+        const patternTrackId = resolveTrackId(args.trackId as string, session);
+        if (!patternTrackId) {
+          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+        }
+
+        const validPatternActions = ['add', 'remove', 'duplicate', 'rename', 'set_active', 'set_length', 'clear'];
+        if (!validPatternActions.includes(patternSubAction)) {
+          return { actions: [], response: errorPayload(`Invalid action: ${patternSubAction}`) };
+        }
+
+        // Validate required sub-params
+        if ((patternSubAction === 'remove' || patternSubAction === 'duplicate' || patternSubAction === 'rename' || patternSubAction === 'set_active') && !args.patternId) {
+          return { actions: [], response: errorPayload(`action=${patternSubAction} requires patternId`) };
+        }
+        if (patternSubAction === 'rename' && typeof args.name !== 'string') {
+          return { actions: [], response: errorPayload('action=rename requires name') };
+        }
+        if (patternSubAction === 'set_length' && (typeof args.length !== 'number' || !Number.isFinite(args.length as number))) {
+          return { actions: [], response: errorPayload('action=set_length requires length (1-64)') };
+        }
+
+        const managePatternAction: AIManagePatternAction = {
+          type: 'manage_pattern',
+          action: patternSubAction as AIManagePatternAction['action'],
+          trackId: patternTrackId,
+          ...(args.patternId ? { patternId: args.patternId as string } : {}),
+          ...(args.name !== undefined ? { name: args.name as string } : {}),
+          ...(args.length !== undefined ? { length: args.length as number } : {}),
+          description: args.description as string,
+        };
+
+        const patternRejection = ctx?.validateAction?.(managePatternAction);
+        if (patternRejection) return { actions: [], response: errorPayload(patternRejection) };
+
+        return {
+          actions: [managePatternAction],
+          response: { queued: true, action: patternSubAction, trackId: patternTrackId },
+        };
+      }
+
+      case 'manage_sequence': {
+        const seqSubAction = args.action as string;
+        if (!seqSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.description !== 'string') {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+
+        const seqTrackId = resolveTrackId(args.trackId as string, session);
+        if (!seqTrackId) {
+          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+        }
+
+        const validSeqActions = ['append', 'remove', 'reorder'];
+        if (!validSeqActions.includes(seqSubAction)) {
+          return { actions: [], response: errorPayload(`Invalid action: ${seqSubAction}`) };
+        }
+
+        if (seqSubAction === 'append' && typeof args.patternId !== 'string') {
+          return { actions: [], response: errorPayload('action=append requires patternId') };
+        }
+        if (seqSubAction === 'remove' && (typeof args.sequenceIndex !== 'number' || !Number.isFinite(args.sequenceIndex as number))) {
+          return { actions: [], response: errorPayload('action=remove requires sequenceIndex') };
+        }
+        if (seqSubAction === 'reorder') {
+          if (typeof args.sequenceIndex !== 'number' || !Number.isFinite(args.sequenceIndex as number)) {
+            return { actions: [], response: errorPayload('action=reorder requires sequenceIndex (fromIndex)') };
+          }
+          if (typeof args.toIndex !== 'number' || !Number.isFinite(args.toIndex as number)) {
+            return { actions: [], response: errorPayload('action=reorder requires toIndex') };
+          }
+        }
+
+        const manageSequenceAction: AIManageSequenceAction = {
+          type: 'manage_sequence',
+          action: seqSubAction as AIManageSequenceAction['action'],
+          trackId: seqTrackId,
+          ...(args.patternId ? { patternId: args.patternId as string } : {}),
+          ...(args.sequenceIndex !== undefined ? { sequenceIndex: args.sequenceIndex as number } : {}),
+          ...(args.toIndex !== undefined ? { toIndex: args.toIndex as number } : {}),
+          description: args.description as string,
+        };
+
+        const seqRejection = ctx?.validateAction?.(manageSequenceAction);
+        if (seqRejection) return { actions: [], response: errorPayload(seqRejection) };
+
+        return {
+          actions: [manageSequenceAction],
+          response: { queued: true, action: seqSubAction, trackId: seqTrackId },
         };
       }
 

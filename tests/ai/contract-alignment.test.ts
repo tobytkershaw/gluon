@@ -21,6 +21,7 @@ describe('AI Contract alignment with live implementation', () => {
       fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
       nineteen: 19, twenty: 20, 'twenty-one': 21, 'twenty-two': 22,
       'twenty-three': 23, 'twenty-four': 24, 'twenty-five': 25,
+      'twenty-six': 26, 'twenty-seven': 27, 'twenty-eight': 28,
     };
     const declared = wordToNum[match![1].toLowerCase()] ?? parseInt(match![1], 10);
     expect(declared).toBe(GLUON_TOOLS.length);

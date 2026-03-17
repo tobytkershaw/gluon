@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest';
 import { GLUON_TOOLS, REGISTRY_CONTROL_IDS } from '../../src/ai/tool-schemas';
 
 describe('Tool Schemas', () => {
-  it('exports twenty-two tool schemas', () => {
-    expect(GLUON_TOOLS).toHaveLength(22);
+  it('exports twenty-six tool schemas', () => {
+    expect(GLUON_TOOLS).toHaveLength(26);
   });
 
   it('declares all expected tools', () => {
@@ -22,6 +22,10 @@ describe('Tool Schemas', () => {
     expect(names).toContain('set_surface');
     expect(names).toContain('pin_control');
     expect(names).toContain('label_axes');
+    expect(names).toContain('manage_send');
+    expect(names).toContain('set_master');
+    expect(names).toContain('manage_pattern');
+    expect(names).toContain('manage_sequence');
     expect(names).toContain('set_track_meta');
     expect(names).toContain('render');
     expect(names).toContain('analyze');
@@ -110,7 +114,7 @@ describe('Tool Schemas', () => {
   });
 
   it('merged tools have action parameter with enum', () => {
-    const mergedTools = ['manage_processor', 'manage_modulator', 'modulation_route', 'manage_view', 'pin_control', 'manage_track'];
+    const mergedTools = ['manage_processor', 'manage_modulator', 'modulation_route', 'manage_view', 'pin_control', 'manage_send', 'manage_pattern', 'manage_sequence', 'manage_track'];
     for (const name of mergedTools) {
       const tool = GLUON_TOOLS.find(t => t.name === name)!;
       const actionProp = tool.parameters.properties?.action;

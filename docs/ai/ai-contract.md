@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has twenty-two tools, declared as neutral JSON Schema and adapted per provider.
+The AI has twenty-six tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -197,6 +197,58 @@ Connect or disconnect a modulation routing. Connect routes a modulator's output 
 
 **Modulation semantics:** Human sets center (knob position), modulation adds/subtracts around it. Multiple routings to the same parameter sum additively. Effective value is clamped to 0–1.
 
+### Mixing
+
+#### `manage_send`
+
+Add, remove, or set the level of a post-fader send from a track to a bus track.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | yes | `add`, `remove`, or `set_level`. |
+| `trackId` | string | yes | Source track — ordinal ("Track 1") or internal ID ("v0"). |
+| `busId` | string | yes | Target bus track ID (e.g. "bus-v3" or "master-bus"). |
+| `level` | number | no | Send level (0.0-1.0). Required for `add` and `set_level`. |
+
+#### `set_master`
+
+Set master channel volume and/or pan.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `volume` | number | no | Master volume (0.0-1.0, linear gain). |
+| `pan` | number | no | Master pan (-1.0 left to 1.0 right). |
+
+At least one of `volume` or `pan` must be provided.
+
+### Arrangement
+
+#### `manage_pattern`
+
+Add, remove, duplicate, rename, set active, set length, or clear a pattern on a track. **Requires track agency ON.**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | yes | `add`, `remove`, `duplicate`, `rename`, `set_active`, `set_length`, or `clear`. |
+| `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
+| `patternId` | string | no | Required for `remove`, `duplicate`, `rename`, `set_active`. The pattern ID to target. |
+| `name` | string | no | Required for `rename`. New pattern name. |
+| `length` | integer | no | Required for `set_length`. Pattern length in steps (1-64). |
+| `description` | string | yes | Short description of the operation. |
+
+#### `manage_sequence`
+
+Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, or reorder references. **Requires track agency ON.**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | yes | `append`, `remove`, or `reorder`. |
+| `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
+| `patternId` | string | no | Required for `append`. The pattern ID to add to the sequence. |
+| `sequenceIndex` | integer | no | Required for `remove` and `reorder` (as fromIndex). Index into the sequence array. |
+| `toIndex` | integer | no | Required for `reorder`. Destination index. |
+| `description` | string | yes | Short description of the operation. |
+
 ### UI Curation
 
 Changes to what the human sees, not what the instrument plays. **No agency gate** — the AI should be able to help the human inspect any track regardless of agency.
@@ -249,11 +301,13 @@ Set semantic labels for the track's XY pad axes. Does not require agency.
 
 #### `set_track_meta`
 
-Set track metadata: approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.
+Set track metadata: muted, solo, approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
+| `muted` | boolean | no | Set the track muted state. true = muted (silent), false = unmuted. |
+| `solo` | boolean | no | Set the track solo state. true = solo (only this track audible), false = unsolo. |
 | `approval` | string | no | Approval level: `exploratory`, `liked`, `approved`, `anchor`. |
 | `importance` | number | no | How important this track is to the mix (0.0-1.0). |
 | `musicalRole` | string | no | Brief description of the track's musical role (e.g. "driving rhythm"). |

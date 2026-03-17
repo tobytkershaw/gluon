@@ -33,6 +33,10 @@ const PARITY_OK_TOOLS = new Set([
   'modulation_route',  // Patch: port drag to connect, edge select + Delete to disconnect, DraggableNumber for depth
   'manage_view',       // Surface: + Step Grid (add), remove button (remove)
   'manage_track',      // Sidebar: + Track button (add), remove button (remove)
+  'manage_send',       // Sidebar/Patch: send routing UI
+  'set_master',        // Footer: master volume/pan controls
+  'manage_pattern',    // Tracker: pattern CRUD buttons (add, remove, duplicate, rename, select, length, clear)
+  'manage_sequence',   // Tracker: sequence arrangement UI (append, remove, reorder pattern refs)
 ]);
 
 // Tools with identified parity gaps (no or partial UI path).
