@@ -2110,7 +2110,7 @@ export default function App() {
           <InstrumentView
             session={session}
             activeTrack={activeTrack}
-            playing={session.transport.status === 'playing'}
+            playing={session.transport.status !== 'stopped'}
             globalStep={globalStep}
             onParamChange={handleParamChange}
             onInteractionStart={handleSourceInteractionStart}
@@ -2197,7 +2197,7 @@ export default function App() {
           <TrackerView
             session={session}
             activeTrack={activeTrack}
-            playing={session.transport.status === 'playing'}
+            playing={session.transport.status !== 'stopped'}
             globalStep={globalStep}
             onEventUpdate={handleEventUpdate}
             onEventDelete={handleEventDelete}
