@@ -102,6 +102,8 @@ function EditableCell({
   cancelEditRef,
   validate,
   editRequested,
+  placeholder,
+  autoCapitalize: autoCapProp,
 }: {
   value: string;
   onCommit: (v: number) => void;
@@ -115,17 +117,30 @@ function EditableCell({
   validate?: (s: string) => boolean;
   /** When this increments, start editing programmatically (from keyboard Enter). */
   editRequested?: number;
+  /** Default value to show when editing a placeholder cell (e.g. "C-4" for empty note slots). Text is auto-selected. */
+  placeholder?: string;
+  /** When true, auto-capitalize typed text (for note names). */
+  autoCapitalize?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const [invalid, setInvalid] = useState(false);
   const invalidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const selectAllOnFocus = useRef(false);
 
   const startEdit = useCallback(() => {
-    setDraft(value);
+    // If the cell is a placeholder (e.g. "---"), pre-fill with the placeholder
+    // default (e.g. "C-4") and flag for select-all so typing replaces it.
+    if (placeholder && (value === '---' || value === '..')) {
+      setDraft(placeholder);
+      selectAllOnFocus.current = true;
+    } else {
+      setDraft(value);
+      selectAllOnFocus.current = false;
+    }
     setEditing(true);
     setInvalid(false);
-  }, [value]);
+  }, [value, placeholder]);
 
   // Start editing when editRequested changes (keyboard Enter)
   useEffect(() => {
@@ -180,11 +195,18 @@ function EditableCell({
   if (editing) {
     return (
       <input
-        className={`bg-zinc-800 text-zinc-100 text-[11px] font-mono w-full px-1 py-0 border rounded outline-none transition-colors ${
-          invalid ? 'border-red-500' : 'border-zinc-600 focus:border-amber-500/50'
+        className={`bg-transparent text-inherit text-[11px] font-mono w-full px-0 py-0 border-0 outline-none caret-amber-400 transition-colors ${
+          invalid ? 'ring-1 ring-red-500 rounded-sm' : ''
         }`}
+        style={autoCapProp ? { textTransform: 'uppercase' } : undefined}
         value={draft}
-        onChange={(e) => setDraft(e.target.value)}
+        onChange={(e) => setDraft(autoCapProp ? e.target.value.toUpperCase() : e.target.value)}
+        onFocus={(e) => {
+          if (selectAllOnFocus.current) {
+            e.currentTarget.select();
+            selectAllOnFocus.current = false;
+          }
+        }}
         onBlur={handleBlur}
         onKeyDown={(e) => {
           if (e.key === 'Enter') tryCommit();
@@ -267,6 +289,8 @@ function NoteColumnCell({
           }}
           cancelEditRef={cancelEditRef}
           editRequested={isCursor ? editRequested : undefined}
+          placeholder="C-4"
+          autoCapitalize
         />
       );
     }
@@ -292,6 +316,7 @@ function NoteColumnCell({
           }}
           cancelEditRef={cancelEditRef}
           editRequested={isCursor ? editRequested : undefined}
+          autoCapitalize
         />
       </span>
     );

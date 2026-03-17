@@ -177,8 +177,8 @@ describe('TrackerRow', () => {
     // Click the empty --- cell to enter edit mode
     fireEvent.click(screen.getByText('---'));
 
-    // Should now be in edit mode with an input
-    const input = screen.getByDisplayValue('---');
+    // Should now be in edit mode with an input pre-filled with C-4 placeholder
+    const input = screen.getByDisplayValue('C-4');
     expect(input).toBeTruthy();
 
     // Type a note name
@@ -208,9 +208,9 @@ describe('TrackerRow', () => {
       </table>,
     );
 
-    // Click the empty cell, clear the text, and commit
+    // Click the empty cell, clear the pre-filled placeholder, and commit
     fireEvent.click(screen.getByText('---'));
-    const input = screen.getByDisplayValue('---');
+    const input = screen.getByDisplayValue('C-4');
     fireEvent.change(input, { target: { value: '' } });
     fireEvent.keyDown(input, { key: 'Enter' });
 
