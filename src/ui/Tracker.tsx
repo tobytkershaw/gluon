@@ -59,6 +59,8 @@ interface Props {
   onDeleteByIndices?: (indices: number[]) => void;
   /** Paste events at a given step position. */
   onPasteEvents?: (events: MusicalEvent[]) => void;
+  /** Transpose events at the given indices by semitones (for selection transpose). */
+  onTransposeByIndices?: (indices: number[], semitones: number) => void;
   /** Report cursor step position changes (for play-from-cursor). */
   onCursorStepChange?: (step: number) => void;
   /** Steps per beat for beat separators (derived from time signature). Default: 4. */
@@ -189,7 +191,7 @@ function getColCount(noteColumns: number, fxColumns: number): number {
   return 1 + noteColumns + 2 + fxColumns;
 }
 
-export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow }: Props) {
+export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -371,6 +373,17 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       }
       return;
     }
+    // --- Batch transpose (Cmd/Ctrl + Shift + Up/Down on selection) ---
+    if (isMod && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && onTransposeByIndices) {
+      const indices = getSelectedEventIndices();
+      if (indices.length > 0) {
+        e.preventDefault();
+        const semitones = e.key === 'ArrowUp' ? 1 : -1;
+        onTransposeByIndices(indices, semitones);
+        return;
+      }
+    }
+
     // Select all (Cmd/Ctrl + A)
     if (isMod && e.key === 'a') {
       e.preventDefault();
@@ -519,7 +532,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       default:
         return;
     }
-  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns]);
+  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, onTransposeByIndices, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns]);
 
   /** Handle row click — set cursor, optionally extend selection with Shift. */
   const handleRowClick = useCallback((rowIndex: number, shiftKey: boolean) => {

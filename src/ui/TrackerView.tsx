@@ -39,6 +39,8 @@ interface Props {
   onDeleteByIndices?: (indices: number[]) => void;
   /** Paste events into the region (for clipboard paste). */
   onPasteEvents?: (events: MusicalEvent[]) => void;
+  /** Transpose events at the given indices by semitones (for selection transpose). */
+  onTransposeByIndices?: (indices: number[], semitones: number) => void;
   // Region CRUD
   onAddRegion?: () => void;
   onRemoveRegion?: (patternId: string) => void;
@@ -107,7 +109,7 @@ export function TrackerView({
   onPatternLengthChange, onClearPattern,
   onRotate, onTranspose, onReverse, onDuplicate,
   cancelEditRef,
-  onDeleteByIndices, onPasteEvents,
+  onDeleteByIndices, onPasteEvents, onTransposeByIndices,
   onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
   onCursorStepChange,
   onNotePreview,
@@ -384,6 +386,7 @@ export function TrackerView({
                 cancelEditRef={cancelEditRef}
                 onDeleteByIndices={onDeleteByIndices}
                 onPasteEvents={onPasteEvents}
+                onTransposeByIndices={onTransposeByIndices}
                 onCursorStepChange={onCursorStepChange}
                 onNotePreview={onNotePreview}
                 onPlayFromRow={onPlayFromRow}

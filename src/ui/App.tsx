@@ -29,7 +29,7 @@ import { applyParamDirect, applyUndo, applyRedo } from '../engine/primitives';
 import { executeOperations, prevalidateAction } from '../engine/operation-executor';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
-import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents } from '../engine/event-primitives';
+import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents, transposeEventsByIndices } from '../engine/event-primitives';
 import { rotateRegion, transposeRegion, reverseRegion, duplicateRegionEvents } from '../engine/transform-operations';
 import type { EventSelector } from '../engine/event-primitives';
 import type { MusicalEvent } from '../engine/canonical-types';
@@ -1175,6 +1175,10 @@ export default function App() {
     setSession((s) => addEvents(s, s.activeTrackId, events));
   }, []);
 
+  const handleTransposeByIndices = useCallback((indices: number[], semitones: number) => {
+    setSession((s) => transposeEventsByIndices(s, s.activeTrackId, indices, semitones));
+  }, []);
+
   const handleQuantize = useCallback(() => {
     setSession((s) => quantizeRegion(s, s.activeTrackId));
   }, []);
@@ -2155,6 +2159,7 @@ export default function App() {
             cancelEditRef={cancelEditRef}
             onDeleteByIndices={handleDeleteByIndices}
             onPasteEvents={handlePasteEvents}
+            onTransposeByIndices={handleTransposeByIndices}
             onAddRegion={handleAddRegion}
             onRemoveRegion={handleRemoveRegion}
             onDuplicateRegion={handleDuplicateRegion}
