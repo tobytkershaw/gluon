@@ -1,7 +1,7 @@
 // src/ui/TrackerCheatSheet.tsx
 // Floating keyboard shortcuts cheat sheet for the tracker view.
 // Shows tracker-specific shortcuts plus key global ones.
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { SHORTCUT_DEFS } from './useShortcuts';
 
 // Show tracker section + selected global shortcuts relevant while in the tracker
@@ -10,6 +10,20 @@ const shortcuts = SHORTCUT_DEFS.filter(d => SHOWN_SECTIONS.has(d.section));
 
 export function TrackerCheatSheet() {
   const [open, setOpen] = useState(false);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [open]);
 
   return (
     <div className="relative">

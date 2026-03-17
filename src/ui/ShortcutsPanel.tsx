@@ -1,5 +1,6 @@
 // src/ui/ShortcutsPanel.tsx
 // Global keyboard shortcuts reference overlay, toggled via Cmd+?.
+import { useEffect } from 'react';
 import { SHORTCUT_DEFS, type ShortcutDef } from './useShortcuts';
 
 const SECTION_LABELS: Record<ShortcutDef['section'], string> = {
@@ -17,6 +18,19 @@ interface Props {
 }
 
 export function ShortcutsPanel({ onClose }: Props) {
+  // Close on Escape key
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   const grouped = new Map<ShortcutDef['section'], ShortcutDef[]>();
   for (const def of SHORTCUT_DEFS) {
     const list = grouped.get(def.section) ?? [];
