@@ -596,6 +596,40 @@ const raiseDecisionTool: ToolSchema = {
   },
 };
 
+const reportBugTool: ToolSchema = {
+  name: 'report_bug',
+  description:
+    'Report a bug or issue encountered during operation. Use sparingly — only for things that seem genuinely broken (silent tool failures, unexpected audio output, state inconsistencies). Not for subjective preferences or feature requests.',
+  parameters: {
+    type: 'object',
+    properties: {
+      summary: {
+        type: 'string',
+        description: 'One-line description of the issue.',
+      },
+      category: {
+        type: 'string',
+        enum: ['audio', 'state', 'tool', 'ui', 'other'],
+        description: 'Issue category: audio (unexpected sound/silence), state (data inconsistency), tool (tool failure/wrong result), ui (display issue), other.',
+      },
+      details: {
+        type: 'string',
+        description: 'What happened and what was expected.',
+      },
+      severity: {
+        type: 'string',
+        enum: ['low', 'medium', 'high'],
+        description: 'low = cosmetic/minor, medium = functional issue with workaround, high = blocks workflow.',
+      },
+      context: {
+        type: 'string',
+        description: 'Optional: relevant state at the time (e.g. track config, parameter values, tool args).',
+      },
+    },
+    required: ['summary', 'category', 'details', 'severity'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -614,4 +648,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   analyzeTool,
   setTrackMetaTool,
   raiseDecisionTool,
+  reportBugTool,
 ];

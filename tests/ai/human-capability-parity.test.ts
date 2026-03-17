@@ -16,6 +16,7 @@ const AI_ONLY_TOOLS = new Set([
   'listen',         // multimodal audio evaluation
   'analyze',        // audio analysis (spectral/dynamics/rhythm)
   'raise_decision', // human types in chat
+  'report_bug',     // human reports bugs through other channels
 ]);
 
 // Tools that have full UI parity (exposed and editable in at least one canonical view).
@@ -69,7 +70,7 @@ describe('Human Capability Parity', () => {
   });
 
   it('documents the expected number of AI-only tools', () => {
-    expect(AI_ONLY_TOOLS.size).toBe(4);
+    expect(AI_ONLY_TOOLS.size).toBe(5);
   });
 
   it('most musical tools have UI parity', () => {

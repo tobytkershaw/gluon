@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -289,6 +289,19 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'mark_approved': {
       return updateTrack(session, action.trackId, { approval: action.level });
+    }
+    case 'report_bug': {
+      const existing = session.bugReports ?? [];
+      const report: BugReport = {
+        id: action.bugId,
+        summary: action.summary,
+        category: action.category,
+        details: action.details,
+        severity: action.severity,
+        ...(action.context ? { context: action.context } : {}),
+        timestamp: Date.now(),
+      };
+      return { ...session, bugReports: [...existing, report].slice(-50) };
     }
     case 'say':
     default:
@@ -1374,6 +1387,59 @@ export class GluonAI {
             applied: true,
             decisionId,
             question: raiseAction.question,
+          },
+        };
+      }
+
+      case 'report_bug': {
+        if (typeof args.summary !== 'string' || !args.summary) {
+          return { actions: [], response: errorPayload('Missing required parameter: summary') };
+        }
+        if (typeof args.category !== 'string' || !args.category) {
+          return { actions: [], response: errorPayload('Missing required parameter: category') };
+        }
+        const validCategories: BugCategory[] = ['audio', 'state', 'tool', 'ui', 'other'];
+        if (!validCategories.includes(args.category as BugCategory)) {
+          return { actions: [], response: errorPayload(`Invalid category: ${args.category}. Must be one of: ${validCategories.join(', ')}`) };
+        }
+        if (typeof args.details !== 'string' || !args.details) {
+          return { actions: [], response: errorPayload('Missing required parameter: details') };
+        }
+        if (typeof args.severity !== 'string' || !args.severity) {
+          return { actions: [], response: errorPayload('Missing required parameter: severity') };
+        }
+        const validSeverities: BugSeverity[] = ['low', 'medium', 'high'];
+        if (!validSeverities.includes(args.severity as BugSeverity)) {
+          return { actions: [], response: errorPayload(`Invalid severity: ${args.severity}. Must be one of: ${validSeverities.join(', ')}`) };
+        }
+
+        // Deduplication: reject reports with identical summaries within the same session
+        const existingReports = session.bugReports ?? [];
+        const isDuplicate = existingReports.some(r => r.summary === args.summary);
+        if (isDuplicate) {
+          return { actions: [], response: { duplicate: true, message: 'A bug report with this summary already exists in this session.' } };
+        }
+
+        const bugId = `bug-${Date.now()}`;
+
+        const reportAction: AIReportBugAction = {
+          type: 'report_bug',
+          bugId,
+          summary: args.summary as string,
+          category: args.category as BugCategory,
+          details: args.details as string,
+          severity: args.severity as BugSeverity,
+          ...(typeof args.context === 'string' ? { context: args.context } : {}),
+        };
+
+        return {
+          actions: [reportAction],
+          response: {
+            filed: true,
+            bugId,
+            summary: reportAction.summary,
+            category: reportAction.category,
+            severity: reportAction.severity,
           },
         };
       }

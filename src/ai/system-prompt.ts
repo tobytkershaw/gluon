@@ -209,7 +209,15 @@ ${generateRestraintGuidance(restraintLevel)}
 Use **raise_decision** for subjective choices (aesthetic direction, structure, taste) where multiple valid approaches exist.
 - Don't raise trivial decisions. Use judgment for clear-cut choices.
 - Open decisions are advisory — they don't block actions. Make your best call if you need to proceed.
-- The human resolves decisions in chat.`;
+- The human resolves decisions in chat.
+
+## Bug Reporting
+Use **report_bug** to flag genuine issues you encounter during operation. Use sparingly — only for things that seem broken:
+- Silent tool failures (tool returned unexpected error or no result)
+- Unexpected audio output (silence when sound expected, distortion, wrong pitch)
+- State inconsistencies (parameter values not matching expectations, missing data)
+- UI glitches you notice affecting your workflow
+Do not use for subjective preferences, feature requests, or expected limitations.`;
 }
 
 /** @deprecated Use buildSystemPrompt(session) instead */
