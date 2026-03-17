@@ -1195,19 +1195,4 @@ export class AudioEngine {
     osc.start(time);
     osc.stop(time + duration + 0.01);
   }
-
-  // Legacy single-track API (for Phase 1 compatibility during migration)
-  setModel(model: number): void {
-    const firstTrack = this.tracks.keys().next().value;
-    if (firstTrack) this.setTrackModel(firstTrack, model);
-  }
-
-  setParams(params: Partial<SynthParams>): void {
-    const firstTrack = this.tracks.entries().next().value;
-    if (firstTrack) {
-      const [id, slot] = firstTrack;
-      const merged = { ...slot.currentParams, ...params };
-      this.setTrackParams(id, merged);
-    }
-  }
 }
