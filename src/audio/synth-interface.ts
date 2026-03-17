@@ -1,10 +1,14 @@
 // src/audio/synth-interface.ts
 import type { ScheduledNote } from '../engine/sequencer-types';
+import type { PlaitsExtendedParams } from './plaits-messages';
 import { getModelList } from './instrument-registry';
 
 export interface SynthEngine {
   setModel(model: number): void;
   setParams(params: SynthParams): void;
+  /** Set Plaits-specific extended parameters (FM, LPG, etc.).
+   *  Optional — only implemented by PlaitsSynth. */
+  setExtended?(params: PlaitsExtendedParams): void;
   scheduleNote(note: ScheduledNote, fence?: number): void;
   /** Immediately close gate and clear all scheduled events.
    *  @param fence  Monotonic sequence fence — worklet only clears events with fence < this value.

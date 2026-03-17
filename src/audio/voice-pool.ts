@@ -1,5 +1,6 @@
 // src/audio/voice-pool.ts
 import type { SynthEngine, SynthParams } from './synth-interface';
+import type { PlaitsExtendedParams } from './plaits-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 
 export const ACCENT_BASELINE = 0.3;
@@ -117,6 +118,12 @@ export class VoicePool {
   setParams(params: SynthParams): void {
     for (const voice of this.voices) {
       voice.synth.setParams(params);
+    }
+  }
+
+  setExtended(params: PlaitsExtendedParams): void {
+    for (const voice of this.voices) {
+      voice.synth.setExtended?.(params);
     }
   }
 

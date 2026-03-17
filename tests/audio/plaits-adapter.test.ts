@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
+import { controlIdToRuntimeParam, runtimeParamToControlId } from '../../src/audio/instrument-registry';
 
 describe('plaits-adapter', () => {
   const adapter = createPlaitsAdapter();
@@ -104,5 +105,48 @@ describe('plaits-adapter', () => {
       type: 'say', text: 'hello',
     });
     expect(result.valid).toBe(true);
+  });
+
+  // --- Extended control IDs ---
+
+  it('validates extended control IDs', () => {
+    for (const id of ['fm-amount', 'timbre-mod-amount', 'morph-mod-amount', 'decay', 'lpg-colour']) {
+      const result = adapter.validateOperation({
+        type: 'move', trackId: 'v0', controlId: id,
+        target: { absolute: 0.5 },
+      });
+      expect(result.valid, `${id} should be valid`).toBe(true);
+    }
+  });
+
+  it('maps extended control IDs to runtime params', () => {
+    expect(adapter.mapControl('fm-amount').path).toBe('params.fm_amount');
+    expect(adapter.mapControl('lpg-colour').path).toBe('params.lpg_colour');
+    expect(adapter.mapControl('decay').path).toBe('params.decay');
+  });
+
+  it('maps extended runtime params back to control IDs', () => {
+    expect(adapter.mapRuntimeParamKey('fm_amount')).toBe('fm-amount');
+    expect(adapter.mapRuntimeParamKey('timbre_mod_amount')).toBe('timbre-mod-amount');
+    expect(adapter.mapRuntimeParamKey('morph_mod_amount')).toBe('morph-mod-amount');
+    expect(adapter.mapRuntimeParamKey('lpg_colour')).toBe('lpg-colour');
+    // decay is identity-mapped (known control ID)
+    expect(adapter.mapRuntimeParamKey('decay')).toBe('decay');
+  });
+});
+
+describe('control ID roundtrip mapping', () => {
+  it('all non-identity mappings roundtrip correctly', () => {
+    for (const [controlId, runtimeParam] of Object.entries(controlIdToRuntimeParam)) {
+      const backToControlId = runtimeParamToControlId[runtimeParam];
+      expect(backToControlId, `${controlId} → ${runtimeParam} should map back`).toBe(controlId);
+    }
+  });
+
+  it('all reverse mappings roundtrip correctly', () => {
+    for (const [runtimeParam, controlId] of Object.entries(runtimeParamToControlId)) {
+      const backToRuntime = controlIdToRuntimeParam[controlId];
+      expect(backToRuntime, `${runtimeParam} → ${controlId} should map back`).toBe(runtimeParam);
+    }
   });
 });

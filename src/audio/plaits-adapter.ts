@@ -12,8 +12,11 @@ import { eventsToSteps } from '../engine/event-conversion';
 
 // All valid Plaits control IDs (hardware names after #392 rename).
 // Most are identity-mapped (timbre→timbre, harmonics→harmonics, morph→morph).
-// Only frequency→note requires a mapping lookup.
-const KNOWN_CONTROL_IDS = new Set(['timbre', 'harmonics', 'morph', 'frequency']);
+// Extended params use hyphenated control IDs that map to underscored runtime keys.
+const KNOWN_CONTROL_IDS = new Set([
+  'timbre', 'harmonics', 'morph', 'frequency',
+  'fm-amount', 'timbre-mod-amount', 'morph-mod-amount', 'decay', 'lpg-colour',
+]);
 
 export function createPlaitsAdapter(): SourceAdapter {
   return {

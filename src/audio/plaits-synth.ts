@@ -8,6 +8,21 @@ const WASM_URL = '/audio/plaits.wasm';
 const INIT_TIMEOUT_MS = 5000;
 const GLUON_TO_PLAITS_ENGINE_OFFSET = 8;
 
+/** The 4 base patch keys sent via _plaits_set_patch. */
+const BASE_KEYS = new Set(['harmonics', 'timbre', 'morph', 'note']);
+
+/** Runtime keys for extended params (set via _plaits_set_extended). */
+const EXTENDED_KEYS: (keyof PlaitsExtendedParams)[] = [
+  'fm_amount', 'timbre_mod_amount', 'morph_mod_amount', 'decay', 'lpg_colour',
+];
+const EXTENDED_DEFAULTS: PlaitsExtendedParams = {
+  fm_amount: 0.0,
+  timbre_mod_amount: 0.0,
+  morph_mod_amount: 0.0,
+  decay: 0.5,
+  lpg_colour: 0.5,
+};
+
 function clampModel(model: number): number {
   return Math.max(0, Math.min(15, model));
 }
@@ -134,22 +149,54 @@ export class PlaitsSynth implements SynthEngine {
   }
 
   scheduleNote(note: ScheduledNote, fence?: number): void {
-    // Only send a timed set-patch when this note has per-step overrides
-    // (param locks or NoteEvent pitch). A timed set-patch would overwrite
-    // live human knob changes made between scheduling and note-on because
-    // the scheduler runs 100ms ahead. Notes without overrides rely on the
-    // real-time sync effect to keep the worklet current; the worklet's
-    // patchDirty/flushPatch mechanism ensures WASM is flushed before trigger.
+    // Only send timed set-patch / set-extended when this note has per-step
+    // overrides for the corresponding param group. A timed set-patch with
+    // no base-param overrides would overwrite live human knob changes made
+    // between scheduling and note-on (scheduler runs 100ms ahead). Base and
+    // extended overrides are detected independently so a step lock on decay
+    // alone doesn't clobber live harmonics/timbre/morph/note edits.
     if (note.baseParams) {
-      const allKeys = new Set([...Object.keys(note.params), ...Object.keys(note.baseParams)]);
-      const hasOverrides = [...allKeys].some(
-        k => Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001,
-      );
-      if (hasOverrides) {
+      const differs = (k: string) =>
+        Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001;
+
+      // Base 4: only send timed set-patch if a base key actually differs
+      const hasBaseOverrides = [...BASE_KEYS].some(differs);
+      if (hasBaseOverrides) {
         this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
+      }
+
+      // Extended 5: only send timed set-extended if an extended key differs
+      const hasExtendedOverrides = EXTENDED_KEYS.some(
+        k => Math.abs((note.params[k] ?? EXTENDED_DEFAULTS[k]) - (note.baseParams![k] ?? EXTENDED_DEFAULTS[k])) > 0.001,
+      );
+      if (hasExtendedOverrides) {
+        this.post({
+          type: 'set-extended',
+          extended: {
+            fm_amount: note.params.fm_amount ?? EXTENDED_DEFAULTS.fm_amount,
+            timbre_mod_amount: note.params.timbre_mod_amount ?? EXTENDED_DEFAULTS.timbre_mod_amount,
+            morph_mod_amount: note.params.morph_mod_amount ?? EXTENDED_DEFAULTS.morph_mod_amount,
+            decay: note.params.decay ?? EXTENDED_DEFAULTS.decay,
+            lpg_colour: note.params.lpg_colour ?? EXTENDED_DEFAULTS.lpg_colour,
+          },
+          time: note.time,
+          fence,
+        });
       }
     } else {
       this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
+      this.post({
+        type: 'set-extended',
+        extended: {
+          fm_amount: note.params.fm_amount ?? EXTENDED_DEFAULTS.fm_amount,
+          timbre_mod_amount: note.params.timbre_mod_amount ?? EXTENDED_DEFAULTS.timbre_mod_amount,
+          morph_mod_amount: note.params.morph_mod_amount ?? EXTENDED_DEFAULTS.morph_mod_amount,
+          decay: note.params.decay ?? EXTENDED_DEFAULTS.decay,
+          lpg_colour: note.params.lpg_colour ?? EXTENDED_DEFAULTS.lpg_colour,
+        },
+        time: note.time,
+        fence,
+      });
     }
     this.post({ type: 'trigger', time: note.time, accentLevel: note.accent ? 1.0 : 0.8, fence });
     this.post({ type: 'set-gate', time: note.time, open: true, fence });
