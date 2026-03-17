@@ -7,6 +7,8 @@ import { useRef, useCallback } from 'react';
 export interface KnobModulationInfo {
   modulatorLabel: string;
   depth: number;  // -1.0 to 1.0
+  /** RGB color string for the modulation arc (e.g. "rgb(167 139 250)") */
+  color?: string;
 }
 
 interface KnobProps {
@@ -165,26 +167,30 @@ export function Knob({
           strokeWidth={1.5}
           strokeLinecap="round"
         />
-        {/* Modulation range arcs (cyan ring showing depth extent) */}
-        {modulations && modulations.length > 0 && (() => {
-          // Aggregate total absolute depth for the ring display
-          const totalDepth = modulations.reduce((sum, m) => sum + m.depth, 0);
+        {/* Per-modulation depth ring arcs (Bitwig-style) */}
+        {modulations && modulations.length > 0 && modulations.map((mod, i) => {
           const modStart = Math.max(0, Math.min(1, value));
-          const modEnd = Math.max(0, Math.min(1, value + totalDepth));
+          const modEnd = Math.max(0, Math.min(1, value + mod.depth));
           const arcFrom = Math.min(modStart, modEnd);
           const arcTo = Math.max(modStart, modEnd);
           if (Math.abs(arcTo - arcFrom) < 0.005) return null;
+          // Stack arcs inward: first modulation on the main arc radius,
+          // additional ones offset slightly inward
+          const arcRadius = r - (i * 2.5);
+          if (arcRadius < 4) return null;  // don't draw if too small
+          const arcColor = mod.color ?? 'rgb(34 211 238)'; /* fallback: cyan-400 */
           return (
             <path
-              d={describeArcRange(cx, cy, r - 0.5, arcFrom, arcTo)}
+              key={`mod-${i}`}
+              d={describeArcRange(cx, cy, arcRadius, arcFrom, arcTo)}
               fill="none"
-              stroke="rgb(34 211 238)" /* cyan-400 */
+              stroke={arcColor}
               strokeWidth={2}
               strokeLinecap="round"
-              opacity={0.6}
+              opacity={0.45}
             />
           );
-        })()}
+        })}
       </svg>
 
       {/* Modulation badge (clickable to navigate to Patch view) */}
