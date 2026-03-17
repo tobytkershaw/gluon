@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Track, ApprovalLevel } from '../engine/types';
 import { computeThumbprintColor } from './thumbprint';
+import { TrackLevelMeter } from './TrackLevelMeter';
 
 const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
   exploratory: { label: '', color: '', title: 'Exploratory — AI may freely edit' },
@@ -19,6 +20,8 @@ interface Props {
   isBus?: boolean;
   /** Whether this is the master bus track. */
   isMasterBus?: boolean;
+  /** Per-track analyser node for level metering. */
+  analyser?: AnalyserNode | null;
   activityTimestamp: number | null;
   onClick: () => void;
   onToggleMute: () => void;
@@ -30,7 +33,8 @@ interface Props {
 }
 
 export function TrackRow({
-  track, label, isActive, isBus, isMasterBus, activityTimestamp,
+  track, label, isActive, isBus, isMasterBus, analyser,
+  activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
   onRemove,
 }: Props) {
@@ -89,7 +93,7 @@ export function TrackRow({
 
   return (
     <div
-      className={`group/row relative flex items-center gap-2 px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+      className={`group/row relative px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
         isActive
           ? 'bg-zinc-800 border border-zinc-700'
           : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'
@@ -105,96 +109,102 @@ export function TrackRow({
         }}
       />
 
-      {/* Thumbprint dot — bus tracks show a different shape */}
-      {isBus ? (
-        <div
-          className={`w-2 h-2 shrink-0 ${isMasterBus ? 'rounded-sm bg-zinc-500' : 'rounded-sm bg-zinc-600'}`}
-          style={{ transition: 'background-color 1s ease' }}
-        />
-      ) : (
-        <div
-          className="w-2 h-2 rounded-full shrink-0"
-          style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
-        />
-      )}
+      {/* Main row: dot + label + controls */}
+      <div className="flex items-center gap-2">
+        {/* Thumbprint dot — bus tracks show a different shape */}
+        {isBus ? (
+          <div
+            className={`w-2 h-2 shrink-0 ${isMasterBus ? 'rounded-sm bg-zinc-500' : 'rounded-sm bg-zinc-600'}`}
+            style={{ transition: 'background-color 1s ease' }}
+          />
+        ) : (
+          <div
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
+          />
+        )}
 
-      {/* Track label */}
-      {editing ? (
-        <input
-          ref={inputRef}
-          className="text-[10px] font-mono uppercase tracking-wider flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={handleKeyDown}
-          onClick={(e) => e.stopPropagation()}
-          maxLength={20}
-        />
-      ) : (
-        <span
-          className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
-            track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : isBus ? 'text-zinc-500 italic' : 'text-zinc-500'
-          }`}
-          onDoubleClick={handleDoubleClick}
-        >
-          {label}
-        </span>
-      )}
-
-      {/* Agency indicator — distinct from thumbprint: clickable text badge */}
-      {onToggleAgency && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-          title={track.agency === 'OFF' ? 'AI: Protected (click to enable)' : 'AI: Editable (click to protect)'}
-          className={`shrink-0 text-[7px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
-            track.agency === 'ON'
-              ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'
-              : 'bg-zinc-700/30 text-zinc-600 hover:bg-zinc-700/50'
-          }`}
-        >
-          AI
-        </button>
-      )}
-
-      {/* M / S / Approval buttons */}
-      <div className="flex gap-0.5 shrink-0">
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
-          className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
-            track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
-          }`}
-          title="Mute"
-        >
-          M
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleSolo(e.shiftKey); }}
-          className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
-            track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
-          }`}
-          title="Solo"
-        >
-          S
-        </button>
-        {onCycleApproval && approvalInfo.label && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
-            title={approvalInfo.title}
-            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
+        {/* Track label */}
+        {editing ? (
+          <input
+            ref={inputRef}
+            className="text-[10px] font-mono uppercase tracking-wider flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            maxLength={20}
+          />
+        ) : (
+          <span
+            className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
+              track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : isBus ? 'text-zinc-500 italic' : 'text-zinc-500'
+            }`}
+            onDoubleClick={handleDoubleClick}
           >
-            {approvalInfo.label}
+            {label}
+          </span>
+        )}
+
+        {/* Agency indicator — distinct from thumbprint: clickable text badge */}
+        {onToggleAgency && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
+            title={track.agency === 'OFF' ? 'AI: Protected (click to enable)' : 'AI: Editable (click to protect)'}
+            className={`shrink-0 text-[7px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
+              track.agency === 'ON'
+                ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'
+                : 'bg-zinc-700/30 text-zinc-600 hover:bg-zinc-700/50'
+            }`}
+          >
+            AI
           </button>
         )}
-        {onRemove && (
+
+        {/* M / S / Approval buttons */}
+        <div className="flex gap-0.5 shrink-0">
           <button
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            title="Remove track"
-            className="text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors text-zinc-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/row:opacity-100"
+            onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
+            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+              track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
+            }`}
+            title="Mute"
           >
-            x
+            M
           </button>
-        )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleSolo(e.shiftKey); }}
+            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+              track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
+            }`}
+            title="Solo"
+          >
+            S
+          </button>
+          {onCycleApproval && approvalInfo.label && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
+              title={approvalInfo.title}
+              className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
+            >
+              {approvalInfo.label}
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              title="Remove track"
+              className="text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors text-zinc-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/row:opacity-100"
+            >
+              x
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Per-track level meter */}
+      {analyser && <TrackLevelMeter analyser={analyser} />}
     </div>
   );
 }

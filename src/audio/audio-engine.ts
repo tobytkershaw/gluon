@@ -56,6 +56,8 @@ interface TrackSlot {
   muteGain: GainNode;    // controlled by mute/solo -- never touched by scheduleNote
   /** Bus input node: audio sent from other tracks is summed here, then into chainOutGain. */
   busInput: GainNode | null; // non-null only for bus tracks
+  /** Per-track analyser for level metering in the sidebar. */
+  analyser: AnalyserNode;
   processors: ProcessorSlot[];
   currentParams: SynthParamValues;
   currentModel: number;
@@ -240,11 +242,15 @@ export class AudioEngine {
     trackPanner.pan.value = 0.0;
     const muteGain = this.ctx.createGain();
     muteGain.gain.value = 1.0;
+    const analyser = this.ctx.createAnalyser();
+    analyser.fftSize = 256;
     sourceOut.connect(chainOutGain);
     chainOutGain.connect(trackVolume);
     trackVolume.connect(trackPanner);
     trackPanner.connect(muteGain);
     muteGain.connect(this.mixer);
+    // Tap post-mute for level metering (reflects mute/solo state)
+    muteGain.connect(analyser);
 
     const poolVoices = [];
     for (let i = 0; i < VOICES_PER_TRACK; i++) {
@@ -263,6 +269,7 @@ export class AudioEngine {
       trackPanner,
       muteGain,
       busInput: null,
+      analyser,
       processors: [],
       currentParams: { ...DEFAULT_PARAMS },
       currentModel: 0,
@@ -289,12 +296,16 @@ export class AudioEngine {
     const muteGain = this.ctx.createGain();
     muteGain.gain.value = 1.0;
 
+    const analyser = this.ctx.createAnalyser();
+    analyser.fftSize = 256;
     // Bus signal chain: busInput → [processors] → chainOutGain → trackVolume → trackPanner → muteGain → mixer
     busInput.connect(chainOutGain);
     chainOutGain.connect(trackVolume);
     trackVolume.connect(trackPanner);
     trackPanner.connect(muteGain);
     muteGain.connect(this.mixer);
+    // Tap post-mute for level metering (reflects mute/solo state)
+    muteGain.connect(analyser);
 
     this.tracks.set(busId, {
       pool: null,
@@ -304,6 +315,7 @@ export class AudioEngine {
       trackPanner,
       muteGain,
       busInput,
+      analyser,
       processors: [],
       currentParams: { ...DEFAULT_PARAMS },
       currentModel: 0,
@@ -469,6 +481,7 @@ export class AudioEngine {
     slot.trackVolume.disconnect();
     slot.trackPanner.disconnect();
     slot.muteGain.disconnect();
+    slot.analyser.disconnect();
     if (slot.busInput) slot.busInput.disconnect();
     this.tracks.delete(trackId);
 
@@ -697,6 +710,11 @@ export class AudioEngine {
 
   getStereoAnalysers(): [AnalyserNode, AnalyserNode] | null {
     return this.analyserL && this.analyserR ? [this.analyserL, this.analyserR] : null;
+  }
+
+  /** Get the per-track analyser node for level metering. */
+  getTrackAnalyser(trackId: string): AnalyserNode | null {
+    return this.tracks.get(trackId)?.analyser ?? null;
   }
 
   getMediaStreamDestination(): MediaStreamAudioDestinationNode | null {
