@@ -10,6 +10,7 @@ import { getModulePortDef, getSourceModTargets } from '../audio/port-registry';
 import type { PortDef, PortSignalType } from '../audio/port-registry';
 import { getTrackLabel } from '../engine/track-labels';
 import { DraggableNumber } from './DraggableNumber';
+import { ModuleBrowser } from './ModuleBrowser';
 
 // --- Layout constants ---
 
@@ -837,6 +838,10 @@ interface Props {
   onModulationDepthCommit?: (modulationId: string, depth: number) => void;
   onConnectModulator?: (modulatorId: string, target: ModulationTarget, depth: number) => void;
   onRemoveModulation?: (routeId: string) => void;
+  onAddProcessor?: (type: string) => void;
+  onAddModulator?: (type: string) => void;
+  onRemoveProcessor?: (processorId: string) => void;
+  onRemoveModulator?: (modulatorId: string) => void;
 }
 
 /** Convert screen (client) coordinates to canvas coordinates given pan/zoom state */
@@ -861,9 +866,10 @@ interface PanZoomState {
   panY: number;
 }
 
-export function PatchView({ session, onModulationDepthChange, onModulationDepthCommit, onConnectModulator, onRemoveModulation }: Props) {
+export function PatchView({ session, onModulationDepthChange, onModulationDepthCommit, onConnectModulator, onRemoveModulation, onAddProcessor, onAddModulator, onRemoveProcessor, onRemoveModulator }: Props) {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredPortKey, setHoveredPortKey] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -924,8 +930,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   }, [nodes]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    // Middle-click or Space+click starts panning
-    if (e.button === 1 || (e.button === 0 && spaceHeldRef.current)) {
+    // Middle-click, Space+click, or left-click on empty canvas starts panning
+    if (e.button === 1 || e.button === 0) {
       e.preventDefault();
       isPanningRef.current = true;
       panStartRef.current = {
@@ -934,6 +940,11 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
         panX: panZoom.panX,
         panY: panZoom.panY,
       };
+      // Left-click on empty canvas also deselects
+      if (e.button === 0 && !spaceHeldRef.current) {
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+      }
       return;
     }
     setSelectedNodeId(null);
@@ -1140,18 +1151,35 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     };
   }, []);
 
-  // Keyboard handler for Delete key on selected edge
+  // Keyboard handler for Delete key on selected edge or node
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedEdgeId && onRemoveModulation) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      // Delete selected edge
+      if (selectedEdgeId && onRemoveModulation) {
         e.preventDefault();
         onRemoveModulation(selectedEdgeId);
         setSelectedEdgeId(null);
+        return;
+      }
+      // Delete selected node (processor or modulator only)
+      if (selectedNodeId) {
+        const node = nodes.find(n => n.id === selectedNodeId);
+        if (!node) return;
+        if (node.kind === 'processor' && onRemoveProcessor) {
+          e.preventDefault();
+          onRemoveProcessor(node.id);
+          setSelectedNodeId(null);
+        } else if (node.kind === 'modulator' && onRemoveModulator) {
+          e.preventDefault();
+          onRemoveModulator(node.id);
+          setSelectedNodeId(null);
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedEdgeId, onRemoveModulation]);
+  }, [selectedEdgeId, selectedNodeId, nodes, onRemoveModulation, onRemoveProcessor, onRemoveModulator]);
 
   // Find selected node for detail panel
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
@@ -1280,8 +1308,18 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </div>
         </div>
 
-        {/* Fit-to-view button and zoom indicator (outside transform) */}
+        {/* Toolbar buttons (outside transform) */}
         <div className="absolute bottom-3 right-3 flex items-center gap-2">
+          {(onAddProcessor || onAddModulator) && (
+            <button
+              className="h-6 px-2 flex items-center gap-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors text-[10px] font-mono uppercase tracking-wider"
+              title="Add module"
+              onClick={() => setBrowserOpen(true)}
+            >
+              <span className="text-sm leading-none">+</span>
+              <span>Module</span>
+            </button>
+          )}
           <span className="text-[9px] text-zinc-500 font-mono tabular-nums select-none">
             {zoomPercent}%
           </span>
@@ -1297,6 +1335,16 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </button>
         </div>
       </div>
+
+      {/* Module browser slide-out */}
+      {browserOpen && onAddProcessor && onAddModulator && (
+        <ModuleBrowser
+          activeTrack={track}
+          onAddProcessor={onAddProcessor}
+          onAddModulator={onAddModulator}
+          onClose={() => setBrowserOpen(false)}
+        />
+      )}
     </div>
   );
 }
