@@ -1,6 +1,6 @@
 // src/ui/TrackerRow.tsx
 import { forwardRef, useState, useCallback, useRef, useEffect, type MutableRefObject } from 'react';
-import type { MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
+import type { MusicalEvent, NoteEvent, ParameterEvent, TriggerEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { microTimingOffset, formatMicroOffset } from '../engine/micro-timing';
 import type { SlotRow, FxColumnDef } from './Tracker';
@@ -210,6 +210,7 @@ function EditableCell({
 
 function NoteColumnCell({
   note,
+  trigger,
   step,
   editable,
   onUpdate,
@@ -220,6 +221,8 @@ function NoteColumnCell({
   isCursor,
 }: {
   note: NoteEvent | null;
+  /** Trigger event to display when no note is present (column 0 only). */
+  trigger?: TriggerEvent | null;
   step: number;
   editable: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
@@ -229,6 +232,25 @@ function NoteColumnCell({
   editRequested?: number;
   isCursor: boolean;
 }) {
+  // --- Trigger event (no note, but a trigger exists): show TRG ---
+  if (!note && trigger) {
+    const selector = selectorFromEvent(trigger);
+    return (
+      <span className="text-amber-400 font-bold">
+        TRG
+        {editable && onDelete && (
+          <button
+            className="ml-1 text-zinc-700 hover:text-red-400 text-[9px]"
+            onClick={() => onDelete(selector)}
+            title="Delete trigger"
+          >
+            x
+          </button>
+        )}
+      </span>
+    );
+  }
+
   // --- Empty cell: type to add a note ---
   if (!note) {
     if (editable && onAddNote) {
@@ -359,7 +381,12 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const editable = !!onUpdate;
     const hasNotes = slot.notes.some(n => n !== null);
 
-    // First note for velocity/duration display
+    // First trigger event (not in slot.notes, but in allEvents)
+    const firstTrigger = slot.allEvents.find(
+      (e): e is TriggerEvent => e.kind === 'trigger' && (e as TriggerEvent).velocity !== 0,
+    ) ?? null;
+
+    // First note for velocity/duration display (fall back to trigger)
     const firstNote = slot.notes.find((n): n is NoteEvent => n !== null) ?? null;
 
     // Micro-timing indicator
@@ -397,6 +424,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         >
           <NoteColumnCell
             note={note}
+            trigger={c === 0 ? firstTrigger : null}
             step={slot.step}
             editable={editable}
             onUpdate={onUpdate}
@@ -432,7 +460,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       );
     });
 
-    // Velocity column
+    // Velocity column — show note velocity, or trigger velocity if no note
     let velNode: React.ReactNode = '--';
     if (firstNote) {
       const vel = firstNote.velocity;
@@ -445,9 +473,20 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           editRequested={velEditReq}
         />
       ) : vel.toFixed(2);
+    } else if (firstTrigger && firstTrigger.velocity != null) {
+      const vel = firstTrigger.velocity;
+      const selector = selectorFromEvent(firstTrigger);
+      velNode = editable ? (
+        <EditableCell
+          value={vel.toFixed(2)}
+          onCommit={(v) => onUpdate!(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          cancelEditRef={cancelEditRef}
+          editRequested={velEditReq}
+        />
+      ) : vel.toFixed(2);
     }
 
-    // Duration column
+    // Duration column — show note duration, or trigger gate if no note
     let durNode: React.ReactNode = '--';
     if (firstNote) {
       const dur = firstNote.duration;
@@ -460,6 +499,17 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           editRequested={durEditReq}
         />
       ) : dur.toFixed(2);
+    } else if (firstTrigger && firstTrigger.gate != null) {
+      const gate = firstTrigger.gate;
+      const selector = selectorFromEvent(firstTrigger);
+      durNode = editable ? (
+        <EditableCell
+          value={gate.toFixed(2)}
+          onCommit={(v) => onUpdate!(selector, { gate: Math.max(0.01, v) } as Partial<MusicalEvent>)}
+          cancelEditRef={cancelEditRef}
+          editRequested={durEditReq}
+        />
+      ) : gate.toFixed(2);
     }
 
     return (
