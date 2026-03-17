@@ -47,6 +47,10 @@ interface Props {
   onSetActiveRegion?: (patternId: string) => void;
   /** Report cursor step position changes (for play-from-cursor). */
   onCursorStepChange?: (step: number) => void;
+  /** Called when a note cell is hovered or cursor-selected (pitch) or unhovered (null). */
+  onNotePreview?: (pitch: number | null) => void;
+  /** Called when a row is double-clicked to play from that position. */
+  onPlayFromRow?: (step: number) => void;
   // Sequence editor callbacks
   onAddPatternRef?: (patternId: string) => void;
   onRemovePatternRef?: (sequenceIndex: number) => void;
@@ -106,6 +110,8 @@ export function TrackerView({
   onDeleteByIndices, onPasteEvents,
   onAddRegion, onRemoveRegion, onDuplicateRegion, onRenameRegion, onSetActiveRegion,
   onCursorStepChange,
+  onNotePreview,
+  onPlayFromRow,
   onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
 }: Props) {
   const activePatternId = getActivePattern(activeTrack).id;
@@ -380,6 +386,8 @@ export function TrackerView({
                 onDeleteByIndices={onDeleteByIndices}
                 onPasteEvents={onPasteEvents}
                 onCursorStepChange={onCursorStepChange}
+                onNotePreview={onNotePreview}
+                onPlayFromRow={onPlayFromRow}
                 stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
               />
             ) : (

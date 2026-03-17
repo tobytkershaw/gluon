@@ -50,6 +50,7 @@ import { AppShell } from './AppShell';
 import { useShortcuts } from './useShortcuts';
 import { ShortcutsPanel } from './ShortcutsPanel';
 import { useKeyboardPiano } from './useKeyboardPiano';
+import { useNotePreview } from './useNotePreview';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 import { computeSemanticRawUpdates } from './SemanticControlsSection';
@@ -882,6 +883,23 @@ export default function App() {
   const handleCursorStepChange = useCallback((step: number) => {
     trackerCursorStepRef.current = step;
   }, []);
+
+  // Note preview: short audition when hovering or cursor-selecting tracker note cells
+  const { previewNote, cancelPreview } = useNotePreview(audioRef, activeTrack);
+  const handleNotePreview = useCallback((pitch: number | null) => {
+    if (pitch !== null) {
+      previewNote(pitch);
+    } else {
+      cancelPreview();
+    }
+  }, [previewNote, cancelPreview]);
+
+  /** Play from a specific row step (e.g. double-click in tracker). */
+  const handlePlayFromRow = useCallback(async (step: number) => {
+    await ensureAudio();
+    await audioRef.current.resume();
+    setSession((s) => playTransport(s, step));
+  }, [ensureAudio]);
 
   /** Hard stop: stop sequencing AND immediately silence all voices/tails. */
   const handleHardStop = useCallback(async () => {
@@ -2128,6 +2146,8 @@ export default function App() {
             onRenameRegion={handleRenameRegion}
             onSetActiveRegion={handleSetActiveRegion}
             onCursorStepChange={handleCursorStepChange}
+            onNotePreview={handleNotePreview}
+            onPlayFromRow={handlePlayFromRow}
             onAddPatternRef={handleAddPatternRef}
             onRemovePatternRef={handleRemovePatternRef}
             onReorderPatternRef={handleReorderPatternRef}
