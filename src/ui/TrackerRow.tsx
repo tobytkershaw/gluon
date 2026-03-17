@@ -439,15 +439,15 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const durEditReq = (isCursorRow && cursorColumnType === 'dur') ? editRequestCounter : undefined;
     const fxEditReq = (isCursorRow && cursorColumnType === 'fx') ? editRequestCounter : undefined;
 
-    // Cursor cell highlight
+    // Cursor cell highlight — bright white border, distinct from amber playhead
     const cursorCellClass = (colType: string) =>
-      isCursorRow && cursorColumnType === colType ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+      isCursorRow && cursorColumnType === colType ? 'ring-1 ring-white/80 rounded-sm bg-white/5' : '';
 
     const cursorNoteCellClass = (colIdx: number) =>
-      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'ring-1 ring-white/80 rounded-sm bg-white/5' : '';
 
     const cursorFxCellClass = (fxIdx: number) =>
-      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-white/80 rounded-sm bg-white/5' : '';
 
     // Row color: emerald for steps with notes or active triggers, neutral for empty
     const rowColor = (hasNotes || slot.hasGate) ? 'text-emerald-300' : 'text-zinc-500';
@@ -559,7 +559,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           group text-[11px] font-mono leading-5 ${rowColor}
           ${isSelected ? 'bg-amber-500/20' : ''}
           ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
-          ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
+          ${isCursorRow && !isSelected ? 'bg-white/[0.06]' : ''}
           ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
