@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { Scheduler, MAX_CATCHUP_STEPS } from './scheduler';
+import { Scheduler, MAX_CATCHUP_STEPS, START_OFFSET_SEC } from './scheduler';
 import type { Session } from './types';
 import type { ScheduledNote } from './sequencer-types';
 import type { TriggerEvent } from './canonical-types';
@@ -591,6 +591,194 @@ describe('Scheduler — AudioContext suspend handling', () => {
     // The note at step 2 should have been scheduled at least once
     const step2Notes = notes.filter(n => n.eventId?.includes('@2'));
     expect(step2Notes.length).toBeGreaterThanOrEqual(1);
+
+    scheduler.stop();
+  });
+
+  it('pause → resume does not produce duplicate notes across loop cycles', () => {
+    // 4-on-the-floor kick in a 16-step pattern.
+    // Play → pause mid-pattern → resume from paused step → run 3 full loops.
+    // Every note in the resumed session must have a unique eventId.
+    const session = makeSession();
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },
+      { kind: 'trigger', at: 4, velocity: 0.8 },
+      { kind: 'trigger', at: 8, velocity: 0.8 },
+      { kind: 'trigger', at: 12, velocity: 0.8 },
+    ];
+
+    const stepDuration = 0.125; // 120 BPM
+    let audioTime = 0;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    // --- Play: generation 1, advance to step ~6 ---
+    scheduler.start(0, 0, 1);
+    for (let i = 0; i < 6; i++) {
+      audioTime += stepDuration;
+      vi.advanceTimersByTime(30);
+    }
+
+    // --- Pause ---
+    scheduler.stop();
+
+    // Audio time keeps ticking while paused (AudioContext still running)
+    audioTime += 0.5;
+
+    // --- Resume: generation 2, from the paused position (step 6) ---
+    const resumeNotes: ScheduledNote[] = [];
+    onNote.mockClear();
+    onNote.mockImplementation((note: ScheduledNote) => resumeNotes.push(note));
+
+    const pauseStep = 6;
+    const resumeAudioTime = audioTime;
+    scheduler.start(START_OFFSET_SEC, pauseStep, 2);
+
+    // Tick through 3 full loop cycles at realistic 25ms intervals
+    const totalSteps = 48; // 3 × 16-step pattern
+    const totalDuration = totalSteps * stepDuration;
+    for (let t = 0; t < totalDuration; t += 0.025) {
+      audioTime = resumeAudioTime + t;
+      vi.advanceTimersByTime(25);
+    }
+
+    // --- Assertions ---
+
+    // 1. All notes from the resumed session must have generation 2
+    for (const note of resumeNotes) {
+      expect(note.generation).toBe(2);
+    }
+
+    // 2. No duplicate eventIds — the core invariant
+    const eventIds = resumeNotes.map(n => n.eventId);
+    const uniqueIds = new Set(eventIds);
+    expect(uniqueIds.size).toBe(eventIds.length);
+
+    // 3. Verify correct count: first partial cycle (steps 8,12) = 2 notes,
+    //    then full cycles have 4 notes each. Over ~48 steps from step 6
+    //    we expect at least 10 notes (2 + 4 + 4 + partial).
+    expect(resumeNotes.length).toBeGreaterThanOrEqual(10);
+
+    scheduler.stop();
+  });
+
+  it('pause at loop boundary → resume does not double-fire step 0', () => {
+    // Pause exactly at the loop boundary (step 16 = start of cycle 1),
+    // resume, and verify step 0 events don't fire twice.
+    const session = makeSession();
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },
+      { kind: 'trigger', at: 8, velocity: 0.8 },
+    ];
+
+    const stepDuration = 0.125;
+    let audioTime = 0;
+    const onNote = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    // Play through one full loop (16 steps)
+    scheduler.start(0, 0, 1);
+    for (let i = 0; i <= 16; i++) {
+      audioTime = i * stepDuration;
+      vi.advanceTimersByTime(25);
+    }
+
+    // Pause exactly at step 16 (loop boundary)
+    scheduler.stop();
+    audioTime += 0.3;
+
+    // Resume from step 0 (wrapped position) with new generation
+    const resumeNotes: ScheduledNote[] = [];
+    onNote.mockClear();
+    onNote.mockImplementation((note: ScheduledNote) => resumeNotes.push(note));
+
+    const resumeAudioTime = audioTime;
+    scheduler.start(START_OFFSET_SEC, 0, 2);
+
+    // Play through 2 full loops
+    for (let t = 0; t < 32 * stepDuration; t += 0.025) {
+      audioTime = resumeAudioTime + t;
+      vi.advanceTimersByTime(25);
+    }
+
+    // Count how many times step 0 fires in cycle 0
+    const step0Cycle0 = resumeNotes.filter(n =>
+      n.eventId?.includes(':0:trigger@0')
+    );
+    expect(step0Cycle0.length).toBe(1);
+
+    // No duplicate eventIds overall
+    const eventIds = resumeNotes.map(n => n.eventId);
+    expect(new Set(eventIds).size).toBe(eventIds.length);
+
+    scheduler.stop();
+  });
+
+  it('multiple rapid pause/resume cycles produce no duplicates', () => {
+    // Simulate the user hitting pause/play repeatedly.
+    const session = makeSession();
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.8 },
+      { kind: 'trigger', at: 4, velocity: 0.8 },
+      { kind: 'trigger', at: 8, velocity: 0.8 },
+      { kind: 'trigger', at: 12, velocity: 0.8 },
+    ];
+
+    const stepDuration = 0.125;
+    let audioTime = 0;
+    const allNotes: ScheduledNote[] = [];
+    const onNote = vi.fn((note: ScheduledNote) => allNotes.push(note));
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      () => {},
+      () => ({}),
+    );
+
+    let generation = 0;
+
+    for (let cycle = 0; cycle < 4; cycle++) {
+      generation++;
+      const startStep = cycle * 4; // resume from different positions
+      const startAudioTime = audioTime;
+      scheduler.start(START_OFFSET_SEC, startStep % 16, generation);
+
+      // Play for 8 steps then pause
+      for (let t = 0; t < 8 * stepDuration; t += 0.025) {
+        audioTime = startAudioTime + t;
+        vi.advanceTimersByTime(25);
+      }
+
+      scheduler.stop();
+      audioTime += 0.1; // brief pause
+    }
+
+    // Each generation's notes should have unique eventIds
+    for (let gen = 1; gen <= 4; gen++) {
+      const genNotes = allNotes.filter(n => n.generation === gen);
+      const genIds = genNotes.map(n => n.eventId);
+      const uniqueGenIds = new Set(genIds);
+      expect(uniqueGenIds.size).toBe(genIds.length);
+    }
 
     scheduler.stop();
   });

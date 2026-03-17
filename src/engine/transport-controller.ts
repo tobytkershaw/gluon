@@ -118,8 +118,10 @@ export class TransportController {
         // Restore metronome volume after silenceMetronome() zeroed it on stop/pause.
         const metVol = transport.metronome?.volume ?? 0.5;
         this.audio.setMetronomeVolume(metVol);
-        this.scheduler.start(START_OFFSET_SEC, startStep, generation);
+        // Update runtime BEFORE starting the scheduler so that the synchronous
+        // first tick sees the new generation (fixes #543 — stale generation on resume).
         this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);
+        this.scheduler.start(START_OFFSET_SEC, startStep, generation);
         recordQaAudioTrace({
           type: 'transport.play-start',
           audioTime: this.audio.getCurrentTime(),

@@ -296,6 +296,96 @@ describe('TransportController', () => {
     controller.dispose();
   });
 
+  it('pause → resume: notes from first tick use the new generation', () => {
+    // When the scheduler starts, it fires tick() synchronously. The onNote
+    // callback in TransportController passes this.runtime.generation to
+    // audio.scheduleNote(). If runtime.generation hasn't been updated yet
+    // (still the pause generation), notes get the wrong generation — causing
+    // the audio engine to misroute them and produce duplicate triggers.
+    vi.useFakeTimers();
+    const session = makeSession();
+    const noteGenerations: number[] = [];
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    let capturedOnNote: ((note: import('./sequencer-types').ScheduledNote) => void) | null = null;
+    let schedulerPositionChange: ((step: number) => void) | null = null;
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn((_note: unknown, generation: number) => {
+        noteGenerations.push(generation);
+      }),
+      scheduleClick: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)   // play
+        .mockReturnValueOnce(2)   // pause
+        .mockReturnValueOnce(3),  // resume
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onNote, onPositionChange }) => {
+        capturedOnNote = onNote;
+        schedulerPositionChange = onPositionChange;
+        // When start() is called, simulate the synchronous first tick by
+        // firing a note immediately (this is what the real Scheduler does).
+        return {
+          ...scheduler,
+          start: vi.fn((_offset?: number, _step?: number, _gen?: number) => {
+            if (capturedOnNote) {
+              capturedOnNote({
+                trackId: 'v0',
+                time: 1.1,
+                gateOffTime: 1.2,
+                accent: false,
+                params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+                generation: _gen,
+                eventId: `${_gen}:v0:r1:0:trigger@0`,
+              });
+            }
+          }),
+          stop: scheduler.stop,
+          invalidateTrack: scheduler.invalidateTrack,
+        };
+      },
+    });
+
+    // Play (generation 1) — note the bug also affects first play:
+    // runtime.generation is 0 (initial) when the first tick fires.
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+    // Fixed: first-play notes now use the correct generation
+    expect(noteGenerations[0]).toBe(1);
+
+    // Advance playhead, then pause
+    schedulerPositionChange?.(8);
+    session.transport = { ...session.transport, status: 'paused', playing: false };
+    controller.sync();
+
+    // Resume (should use generation 3)
+    noteGenerations.length = 0;
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+
+    // The note fired during scheduler.start()'s synchronous first tick
+    // must be passed to scheduleNote with the NEW generation (3), not
+    // the stale pause generation (2).
+    expect(noteGenerations).toEqual([3]);
+
+    controller.dispose();
+  });
+
   it('silences metronome on stop', () => {
     vi.useFakeTimers();
     const session = makeSession();
