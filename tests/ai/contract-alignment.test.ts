@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { GLUON_TOOLS } from '../../src/ai/tool-schemas';
+import { GLUON_TOOLS, REGISTRY_CONTROL_IDS } from '../../src/ai/tool-schemas';
 
 const CONTRACT_PATH = resolve(__dirname, '../../docs/ai/ai-contract.md');
 const contractText = readFileSync(CONTRACT_PATH, 'utf-8');
@@ -63,14 +63,17 @@ describe('AI Contract alignment with live implementation', () => {
     const moveTool = GLUON_TOOLS.find(t => t.name === 'move')!;
     const paramDesc = moveTool.parameters.properties?.param?.description ?? '';
 
-    // Extract track source param names from the tool schema description
-    // "For track: "timbre", "harmonics", "morph", "frequency""
-    const trackParamMatch = paramDesc.match(/For track:\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)"/);
-    expect(trackParamMatch, 'move tool should list track source params').toBeTruthy();
-    const liveTrackParams = [trackParamMatch![1], trackParamMatch![2], trackParamMatch![3], trackParamMatch![4]];
+    // Every registry Plaits control must appear in the move param description
+    for (const id of REGISTRY_CONTROL_IDS.plaits) {
+      expect(
+        paramDesc.includes(`"${id}"`),
+        `move param description should include Plaits control "${id}"`
+      ).toBe(true);
+    }
 
-    // Contract must mention each live param name in the Controls section
-    for (const param of liveTrackParams) {
+    // Contract must mention key live param names in the Controls section
+    const keyTrackParams = ['timbre', 'harmonics', 'morph', 'frequency'];
+    for (const param of keyTrackParams) {
       expect(
         contractText.includes(`**${param}**`),
         `Contract should document track source control "${param}"`
