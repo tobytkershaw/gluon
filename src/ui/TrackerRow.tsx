@@ -234,7 +234,6 @@ function NoteColumnCell({
 }) {
   // --- Trigger event (no note, but a trigger exists): show TRG ---
   if (!note && trigger) {
-    const selector = selectorFromEvent(trigger);
     return (
       <span className="text-amber-400 font-bold">
         TRG
@@ -507,7 +506,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       <tr
         ref={ref}
         className={`
-          group text-[11px] font-mono leading-5 ${rowColor}
+          text-[11px] font-mono leading-5 ${rowColor}
           ${isSelected ? 'bg-amber-500/20' : ''}
           ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
           ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
@@ -537,23 +536,6 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         </td>
         {/* FX columns */}
         {fxColumnCells}
-        {/* Delete button */}
-        {onDelete && slot.allEvents.length > 0 && (
-          <td className="px-1 py-0 w-6 text-center">
-            <button
-              className="text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => {
-                // Prefer note/trigger events over parameter events
-                const gateEvent = slot.allEvents.find(e => e.kind === 'note' || e.kind === 'trigger');
-                const target = gateEvent ?? slot.allEvents[0];
-                onDelete(selectorFromEvent(target));
-              }}
-              title="Delete event"
-            >
-              x
-            </button>
-          </td>
-        )}
       </tr>
     );
   },
