@@ -91,7 +91,7 @@ function buildModulationMap(
     const modColor = modulatorColorMap.get(route.modulatorId) ?? MODULATION_ARC_COLORS[0];
 
     const existing = map.get(matchedParam) ?? [];
-    existing.push({ modulatorLabel: modLabel, depth: route.depth, color: modColor });
+    existing.push({ routeId: route.id, modulatorLabel: modLabel, depth: route.depth, color: modColor });
     map.set(matchedParam, existing);
   }
   return map;
@@ -169,6 +169,8 @@ export function RackView({
           onModelChange={onModelChange}
           modulationMap={sourceModMap}
           onModulationClick={onNavigateToPatch}
+          onModulationDepthChange={onModulationDepthChange}
+          onModulationDepthCommit={onModulationDepthCommit}
         />
 
         {/* Processor module panels */}
@@ -196,6 +198,8 @@ export function RackView({
               onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
               modulationMap={processorModMaps.get(proc.id)}
               onModulationClick={onNavigateToPatch}
+              onModulationDepthChange={onModulationDepthChange}
+              onModulationDepthCommit={onModulationDepthCommit}
             />
           );
         })}
