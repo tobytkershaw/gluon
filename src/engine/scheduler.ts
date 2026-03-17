@@ -38,7 +38,7 @@ export class Scheduler {
   private onNote: (note: ScheduledNote) => void;
   private onPositionChange: (globalStep: number) => void;
   private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
-  private onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  private onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean, time: number) => void;
   private onClick?: (time: number, accent: boolean) => void;
   private onSequenceEnd?: () => void;
 
@@ -58,7 +58,7 @@ export class Scheduler {
     onNote: (note: ScheduledNote) => void,
     onPositionChange: (globalStep: number) => void,
     getHeldParams: (trackId: string) => Partial<SynthParamValues>,
-    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void,
+    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean, time: number) => void,
     onClick?: (time: number, accent: boolean) => void,
     onSequenceEnd?: () => void,
   ) {
@@ -276,6 +276,10 @@ export class Scheduler {
       if (event.at < seg.localStart) continue;
 
       const absoluteStep = sequenceOffset + seg.loopCycle * patternLen + event.at;
+      const baseTime = this.startTime + absoluteStep * stepDuration;
+      const isOddInPair = Math.floor(absoluteStep) % 2 === 1;
+      const swingDelay = isOddInPair ? swing * (stepDuration * 0.75) : 0;
+      const eventTime = baseTime + swingDelay;
 
       // Standalone parameter events: fire callback to apply automation values.
       if (event.kind === 'parameter') {
@@ -291,7 +295,7 @@ export class Scheduler {
         }
         if (this.onParameterEvent) {
           const pe = event as ParameterEvent;
-          this.onParameterEvent(track.id, pe.controlId, pe.value);
+          this.onParameterEvent(track.id, pe.controlId, pe.value, eventTime);
         }
         continue;
       }
@@ -309,10 +313,6 @@ export class Scheduler {
         continue;
       }
 
-      // Base time
-      const baseTime = this.startTime + absoluteStep * stepDuration;
-      const isOddInPair = Math.floor(absoluteStep) % 2 === 1;
-      const swingDelay = isOddInPair ? swing * (stepDuration * 0.75) : 0;
       const noteTime = baseTime + swingDelay;
 
       // Gate-off time
@@ -381,7 +381,10 @@ export class Scheduler {
           if (!this.playbackPlan.admit(interpId, absStep, this.generation, track.id)) {
             continue;
           }
-          this.onParameterEvent(track.id, controlId, value);
+          const interpBaseTime = this.startTime + absStep * stepDuration;
+          const interpOddInPair = Math.floor(absStep) % 2 === 1;
+          const interpSwingDelay = interpOddInPair ? swing * (stepDuration * 0.75) : 0;
+          this.onParameterEvent(track.id, controlId, value, interpBaseTime + interpSwingDelay);
         }
       }
     }

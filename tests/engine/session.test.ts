@@ -626,14 +626,13 @@ describe('A/B comparison', () => {
     let s = createSession();
     s = playTransport(s, 4);
     s = pauseTransport(s);
-    // playFromStep is preserved from the playing call, status is now paused
-    expect(s.transport.playFromStep).toBe(4);
+    // Pausing clears the one-shot cursor-play request.
+    expect(s.transport.playFromStep).toBeUndefined();
     expect(s.transport.status).toBe('paused');
 
     const snap = captureABSnapshot(s);
     const restored = restoreABSnapshot(s, snap);
-    // Paused — playFromStep should be preserved
-    expect(restored.transport.playFromStep).toBe(4);
+    expect(restored.transport.playFromStep).toBeUndefined();
   });
 });
 
@@ -684,6 +683,26 @@ describe('Undo contract: transport helpers', () => {
     const s2 = setMetronomeVolume(s1, 0.8);
     expect(s2.undoStack.length).toBe(1);
     expect(s2.undoStack[0].kind).toBe('transport');
+  });
+
+  it('pauseTransport clears playFromStep', () => {
+    let s = createSession();
+    s = playTransport(s, 8);
+    expect(s.transport.playFromStep).toBe(8);
+
+    s = pauseTransport(s);
+    expect(s.transport.status).toBe('paused');
+    expect(s.transport.playFromStep).toBeUndefined();
+  });
+
+  it('stopTransport clears playFromStep', () => {
+    let s = createSession();
+    s = playTransport(s, 8);
+    expect(s.transport.playFromStep).toBe(8);
+
+    s = stopTransport(s);
+    expect(s.transport.status).toBe('stopped');
+    expect(s.transport.playFromStep).toBeUndefined();
   });
 });
 
