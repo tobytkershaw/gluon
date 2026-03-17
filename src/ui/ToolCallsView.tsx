@@ -86,7 +86,7 @@ export function ToolCallsView({ toolCalls }: Props) {
     <div className="mt-1.5">
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-[9px] font-mono text-zinc-600 hover:text-zinc-500 transition-colors"
+        className="flex items-center gap-1 text-[11px] font-mono text-zinc-600 hover:text-zinc-500 transition-colors"
       >
         <span
           className="inline-block transition-transform duration-150"
@@ -104,7 +104,7 @@ export function ToolCallsView({ toolCalls }: Props) {
           {grouped.map((g, i) => {
             const summary = argsSummary(g.name, g.args);
             return (
-              <div key={i} className="flex items-baseline gap-1.5 text-[9px] font-mono">
+              <div key={i} className="flex items-baseline gap-1.5 text-[11px] font-mono">
                 <span className="text-zinc-500">{friendlyName(g.name)}</span>
                 {g.count > 1 && (
                   <span className="text-zinc-600">&times;{g.count}</span>

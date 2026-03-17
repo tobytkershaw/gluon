@@ -36,12 +36,12 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               }`}
               onClick={() => onSelectTrack(track.id)}
             >
-              <span className={`text-[10px] font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
+              <span className={`text-[11px] font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
                 {label}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMute(track.id); }}
-                className={`text-[10px] px-0.5 rounded ${
+                className={`text-[11px] px-0.5 rounded ${
                   track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
@@ -49,7 +49,7 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id, e.shiftKey); }}
-                className={`text-[10px] px-0.5 rounded ${
+                className={`text-[11px] px-0.5 rounded ${
                   track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
@@ -59,7 +59,7 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleAgency(track.id); }}
                   title={track.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
-                  className={`text-[10px] px-0.5 rounded ${
+                  className={`text-[11px] px-0.5 rounded ${
                     track.agency === 'OFF'
                       ? 'bg-amber-500/20 text-amber-400'
                       : 'text-zinc-600 hover:text-zinc-400'
@@ -86,12 +86,12 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               <span className={`text-xs font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
                 {label}
               </span>
-              <span className={`text-[10px] ${badge.color}`}>{badge.label}</span>
+              <span className={`text-[11px] ${badge.color}`}>{badge.label}</span>
             </div>
             <div className="flex gap-1">
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleMute(track.id); }}
-                className={`text-[10px] px-1 rounded ${
+                className={`text-[11px] px-1 rounded ${
                   track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >
@@ -99,7 +99,7 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleSolo(track.id, e.shiftKey); }}
-                className={`text-[10px] px-1 rounded ${
+                className={`text-[11px] px-1 rounded ${
                   track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
                 }`}
               >

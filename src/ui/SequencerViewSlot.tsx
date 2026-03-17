@@ -38,11 +38,11 @@ export function SequencerViewSlot({
   return (
     <div className="relative group/view">
       <div className="flex items-center justify-between mb-1">
-        <span className="text-[9px] text-zinc-600 uppercase tracking-widest">
+        <span className="text-[11px] text-zinc-600 uppercase tracking-widest">
           {VIEW_LABELS[config.kind] ?? config.kind}
         </span>
         <button
-          className="text-zinc-700 hover:text-red-400 text-[10px] opacity-0 group-hover/view:opacity-100 transition-opacity"
+          className="text-zinc-700 hover:text-red-400 text-[11px] opacity-0 group-hover/view:opacity-100 transition-opacity"
           onClick={() => onRemove(config.id)}
           title="Remove view"
         >
@@ -74,7 +74,7 @@ export function SequencerViewSlot({
       )}
 
       {config.kind === 'piano-roll' && (
-        <div className="px-4 py-3 text-center text-[10px] text-zinc-600 italic border border-zinc-800/50 rounded">
+        <div className="px-4 py-3 text-center text-[11px] text-zinc-600 italic border border-zinc-800/50 rounded">
           Piano roll — coming soon
         </div>
       )}

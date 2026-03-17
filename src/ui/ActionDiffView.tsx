@@ -10,7 +10,7 @@ export function ActionDiffView({ entry }: Props) {
   // Bug reports get a distinctive amber visual treatment
   if (entry.kind === 'bug-report') {
     return (
-      <div className="flex items-baseline gap-1.5 text-[10px] font-mono rounded px-1.5 py-0.5 bg-amber-900/20 border border-amber-800/30">
+      <div className="flex items-baseline gap-1.5 text-[11px] font-mono rounded px-1.5 py-0.5 bg-amber-900/20 border border-amber-800/30">
         <span className="text-amber-500/80">BUG</span>
         <span className="text-amber-300/70">{entry.description}</span>
       </div>
@@ -20,7 +20,7 @@ export function ActionDiffView({ entry }: Props) {
   if (!diff) {
     // Fallback: plain description text (pre-diff entries or say actions)
     return (
-      <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+      <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
         <span className="text-teal-500/50">{entry.trackLabel}</span>
         <span className="text-zinc-600">{entry.description}</span>
       </div>
@@ -30,7 +30,7 @@ export function ActionDiffView({ entry }: Props) {
   switch (diff.kind) {
     case 'param-change':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-500">{diff.controlId}</span>
           <span className="text-zinc-600">{diff.from.toFixed(2)}</span>
@@ -41,7 +41,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'model-change':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-400">{diff.from}</span>
           <span className="text-zinc-600">&rarr;</span>
@@ -51,7 +51,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'processor-add':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-emerald-500/70">+</span>
           <span className="text-zinc-400">{diff.processorType}</span>
@@ -60,7 +60,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'processor-remove':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-red-500/70">&minus;</span>
           <span className="text-zinc-500">{diff.processorType}</span>
@@ -69,7 +69,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'processor-replace':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-500">{diff.fromType}</span>
           <span className="text-zinc-600">&rarr;</span>
@@ -79,7 +79,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'pattern-change':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-500">pattern</span>
           <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-400">
@@ -94,7 +94,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'transport-change':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-500">{diff.field}</span>
           <span className="text-zinc-600">{diff.from}</span>
@@ -105,7 +105,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'master-change':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">MASTER</span>
           <span className="text-zinc-500">{diff.field}</span>
           <span className="text-zinc-600">{diff.from.toFixed(2)}</span>
@@ -116,7 +116,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'modulator-add':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-emerald-500/70">+</span>
           <span className="text-zinc-400">{diff.modulatorType}</span>
@@ -126,7 +126,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'modulator-remove':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-red-500/70">&minus;</span>
           <span className="text-zinc-500">{diff.modulatorType}</span>
@@ -136,7 +136,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'modulation-connect':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-500">{diff.modulatorId}</span>
           <span className="text-teal-600/70">&rarr;</span>
@@ -147,7 +147,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'modulation-disconnect':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-red-500/70">&times;</span>
           <span className="text-zinc-500">{diff.target}</span>
@@ -156,7 +156,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'transform':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-400">{diff.operation}</span>
           <span className="text-zinc-500">{diff.description}</span>
@@ -165,7 +165,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'surface-set':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-500">surface</span>
           <span className="inline-flex items-center px-1 rounded bg-zinc-700/50 text-zinc-400">
@@ -177,7 +177,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'surface-pin':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-emerald-500/70">pin</span>
           <span className="text-zinc-400">{diff.moduleId}:{diff.controlId}</span>
@@ -186,7 +186,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'surface-unpin':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-red-500/70">unpin</span>
           <span className="text-zinc-500">{diff.moduleId}:{diff.controlId}</span>
@@ -195,7 +195,7 @@ export function ActionDiffView({ entry }: Props) {
 
     case 'surface-label-axes':
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-500">axes</span>
           <span className="text-zinc-400">{diff.x}</span>
@@ -207,7 +207,7 @@ export function ActionDiffView({ entry }: Props) {
     default:
       // Exhaustive fallback
       return (
-        <div className="flex items-baseline gap-1.5 text-[10px] font-mono">
+        <div className="flex items-baseline gap-1.5 text-[11px] font-mono">
           <span className="text-teal-500/50">{entry.trackLabel}</span>
           <span className="text-zinc-600">{entry.description}</span>
         </div>

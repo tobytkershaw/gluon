@@ -34,7 +34,7 @@ export function ViewToggle({ view, onViewChange, cancelEditRef }: Props) {
           key={key}
           onMouseDown={handleMouseDown}
           onClick={() => handleClick(key)}
-          className={`text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
+          className={`text-[11px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${
             view === key
               ? 'bg-amber-400/15 text-amber-400'
               : 'text-zinc-500 hover:text-zinc-300'

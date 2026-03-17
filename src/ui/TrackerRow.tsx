@@ -586,7 +586,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <td className={`px-1 py-0 text-left text-zinc-500 tabular-nums w-8 ${cursorCellClass('pos')}`}>
           {String(slot.step).padStart(2, '\u2007')}
           {microOffset !== null && (
-            <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
+            <span className="ml-0.5 text-[11px] text-zinc-600" title="Micro-timing offset from grid">
               {formatMicroOffset(microOffset)}
             </span>
           )}

@@ -198,7 +198,7 @@ export function TrackRow({
               style={{ transition: 'background-color 1s ease' }}
             />
             {!isMasterBus && (
-              <span className="text-[6px] font-mono uppercase text-zinc-600 tracking-wider shrink-0 leading-none">
+              <span className="text-[8px] font-mono uppercase text-zinc-600 tracking-wider shrink-0 leading-none">
                 bus
               </span>
             )}
@@ -214,7 +214,7 @@ export function TrackRow({
         {editing ? (
           <input
             ref={inputRef}
-            className="text-[10px] font-mono uppercase tracking-wider flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none"
+            className="text-[12px] font-mono uppercase tracking-wider flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             onBlur={commitRename}
@@ -224,7 +224,7 @@ export function TrackRow({
           />
         ) : (
           <span
-            className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
+            className={`text-[12px] font-mono uppercase tracking-wider flex-1 truncate ${
               track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : isBus ? 'text-zinc-500 italic' : 'text-zinc-500'
             }`}
             title={label}
@@ -239,7 +239,7 @@ export function TrackRow({
           <button
             onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
             title={track.agency === 'OFF' ? 'AI Agency — protected from AI edits (click to allow)' : 'AI Agency — AI may modify this track (click to protect)'}
-            className={`shrink-0 text-[7px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
+            className={`shrink-0 text-[9px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
               track.agency === 'ON'
                 ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'
                 : 'bg-zinc-700/30 text-zinc-600 hover:bg-zinc-700/50'
@@ -253,7 +253,7 @@ export function TrackRow({
         <div className="flex gap-0.5 shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
-            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+            className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
               track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
             }`}
             title="Mute"
@@ -262,7 +262,7 @@ export function TrackRow({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSolo(e.shiftKey); }}
-            className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+            className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
               track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
             }`}
             title="Solo"
@@ -273,7 +273,7 @@ export function TrackRow({
             <button
               onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
               title={approvalInfo.title}
-              className={`text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
+              className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
             >
               {approvalInfo.label}
             </button>
@@ -300,7 +300,7 @@ export function TrackRow({
           {/* Importance slider */}
           {onSetImportance && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Importance — how prominent this track should be in the mix">Imp</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Importance — how prominent this track should be in the mix">Imp</span>
               <input
                 type="range"
                 min={0}
@@ -313,7 +313,7 @@ export function TrackRow({
                 title={`Importance: ${Math.round((track.importance ?? 0.5) * 100)}%`}
                 aria-label="Track importance"
               />
-              <span className="text-[7px] font-mono text-zinc-600 w-5 text-right shrink-0">
+              <span className="text-[9px] font-mono text-zinc-600 w-5 text-right shrink-0">
                 {Math.round((track.importance ?? 0.5) * 100)}
               </span>
             </div>
@@ -321,11 +321,11 @@ export function TrackRow({
           {/* Musical role */}
           {onSetMusicalRole && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Musical Role — what this track contributes (e.g. driving rhythm, bass, lead)">Role</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Musical Role — what this track contributes (e.g. driving rhythm, bass, lead)">Role</span>
               {editingRole ? (
                 <input
                   ref={roleInputRef}
-                  className="text-[8px] font-mono flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-300 outline-none"
+                  className="text-[10px] font-mono flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-300 outline-none"
                   value={roleEditValue}
                   onChange={(e) => setRoleEditValue(e.target.value)}
                   onBlur={commitRole}
@@ -336,7 +336,7 @@ export function TrackRow({
                 />
               ) : (
                 <span
-                  className="text-[8px] font-mono text-zinc-500 flex-1 truncate cursor-pointer hover:text-zinc-400"
+                  className="text-[10px] font-mono text-zinc-500 flex-1 truncate cursor-pointer hover:text-zinc-400"
                   onClick={(e) => {
                     e.stopPropagation();
                     setRoleEditValue(track.musicalRole ?? '');
@@ -377,11 +377,11 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
   return (
     <div className="mt-1.5 px-0.5 space-y-0.5">
       <div className="flex items-center justify-between">
-        <span className="text-[7px] font-mono uppercase text-zinc-600 tracking-wider">Sends</span>
+        <span className="text-[9px] font-mono uppercase text-zinc-600 tracking-wider">Sends</span>
         {availableBuses.length > 0 && onAddSend && (
           <button
             onClick={(e) => { e.stopPropagation(); setAddOpen(!addOpen); }}
-            className="text-[8px] font-mono text-zinc-600 hover:text-zinc-400 cursor-pointer transition-colors"
+            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 cursor-pointer transition-colors"
             title="Add send"
           >
             +
@@ -395,7 +395,7 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
         const busLabel = bus ? getTrackLabel(bus) : send.busId;
         return (
           <div key={send.busId} className="flex items-center gap-1">
-            <span className="text-[8px] font-mono text-zinc-500 w-10 truncate shrink-0" title={busLabel}>
+            <span className="text-[10px] font-mono text-zinc-500 w-10 truncate shrink-0" title={busLabel}>
               {busLabel}
             </span>
             {onSetSendLevel && (
@@ -412,13 +412,13 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
                 aria-label={`Send level to ${busLabel}`}
               />
             )}
-            <span className="text-[7px] font-mono text-zinc-600 w-4 text-right shrink-0 tabular-nums">
+            <span className="text-[9px] font-mono text-zinc-600 w-4 text-right shrink-0 tabular-nums">
               {Math.round(send.level * 100)}
             </span>
             {onRemoveSend && (
               <button
                 onClick={(e) => { e.stopPropagation(); onRemoveSend(send.busId); }}
-                className="text-[8px] font-mono text-zinc-700 hover:text-red-400 cursor-pointer transition-colors shrink-0"
+                className="text-[10px] font-mono text-zinc-700 hover:text-red-400 cursor-pointer transition-colors shrink-0"
                 title={`Remove send to ${busLabel}`}
               >
                 x
@@ -439,7 +439,7 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
                 onAddSend?.(bus.id);
                 setAddOpen(false);
               }}
-              className="w-full text-left text-[8px] font-mono text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded px-1 py-0.5 cursor-pointer transition-colors"
+              className="w-full text-left text-[10px] font-mono text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded px-1 py-0.5 cursor-pointer transition-colors"
             >
               {getTrackLabel(bus)}
             </button>
@@ -449,7 +449,7 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
 
       {/* Empty state */}
       {sends.length === 0 && !addOpen && (
-        <span className="text-[7px] font-mono text-zinc-700 italic">No sends</span>
+        <span className="text-[9px] font-mono text-zinc-700 italic">No sends</span>
       )}
     </div>
   );

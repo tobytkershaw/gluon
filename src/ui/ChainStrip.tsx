@@ -48,7 +48,7 @@ export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, on
   const sourceLabel = getModelName(track.model);
 
   return (
-    <div className="flex items-center gap-1.5 text-[10px]">
+    <div className="flex items-center gap-1.5 text-[11px]">
       {/* Source badge */}
       <span className="flex items-center px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300 font-medium truncate max-w-[140px]">
         {sourceLabel}

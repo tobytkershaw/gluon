@@ -29,7 +29,7 @@ export function TrackerCheatSheet() {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-5 h-5 flex items-center justify-center rounded text-[10px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
+        className="w-5 h-5 flex items-center justify-center rounded text-[11px] font-medium text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors"
         title="Keyboard shortcuts"
         aria-label="Keyboard shortcuts"
       >
@@ -43,14 +43,14 @@ export function TrackerCheatSheet() {
 
           {/* Popover */}
           <div className="absolute right-0 top-6 z-50 w-56 rounded-lg border border-zinc-700/60 bg-zinc-900 shadow-xl p-3">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
               Keyboard Shortcuts
             </h3>
             <ul className="space-y-1">
               {shortcuts.map(s => (
                 <li key={s.key} className="flex items-center justify-between text-[11px]">
                   <span className="text-zinc-400">{s.label}</span>
-                  <kbd className="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-mono">
+                  <kbd className="ml-2 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[11px] font-mono">
                     {s.key}
                   </kbd>
                 </li>

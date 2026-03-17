@@ -65,7 +65,7 @@ export function ModuleBrowser({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
-          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+          <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
             Add Module
           </span>
           <button
@@ -81,10 +81,10 @@ export function ModuleBrowser({
           {/* Processors section */}
           <section>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-sky-400">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-sky-400">
                 Processors
               </span>
-              <span className="text-[9px] font-mono text-zinc-500">
+              <span className="text-[11px] font-mono text-zinc-500">
                 {processorCount}/{MAX_PROCESSORS} used
               </span>
             </div>
@@ -114,10 +114,10 @@ export function ModuleBrowser({
           {/* Modulators section */}
           <section>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] font-mono uppercase tracking-wider text-violet-400">
+              <span className="text-[11px] font-mono uppercase tracking-wider text-violet-400">
                 Modulators
               </span>
-              <span className="text-[9px] font-mono text-zinc-500">
+              <span className="text-[11px] font-mono text-zinc-500">
                 {modulatorCount}/{MAX_MODULATORS} used
               </span>
             </div>
@@ -200,14 +200,14 @@ function ModuleCard({ name, description, engines, accentColor, disabled, onClick
       <div className={`text-xs font-mono font-medium ${disabled ? 'text-zinc-500' : styles.name}`}>
         {name}
       </div>
-      <div className="text-[10px] text-zinc-500 mt-0.5">
+      <div className="text-[11px] text-zinc-500 mt-0.5">
         {description}
       </div>
       <div className="flex flex-wrap gap-1 mt-2">
         {engines.map((engine) => (
           <span
             key={engine}
-            className={`text-[8px] px-1.5 py-0.5 rounded border ${
+            className={`text-[10px] px-1.5 py-0.5 rounded border ${
               disabled ? 'bg-zinc-800 text-zinc-600 border-zinc-700/30' : styles.chip
             }`}
           >

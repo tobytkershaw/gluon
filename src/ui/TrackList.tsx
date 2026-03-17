@@ -66,10 +66,10 @@ export function TrackList({
   }, [onMasterVolumeChange]);
 
   return (
-    <div className="w-48 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
+    <div className="w-48 border-l border-zinc-800/60 bg-zinc-900/60 flex flex-col min-h-0">
       {/* Header */}
       <div className="px-3 py-2 border-b border-zinc-800/40 flex items-center justify-between">
-        <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">
+        <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-600">
           Tracks
         </span>
         <div className="flex gap-1">
@@ -77,7 +77,7 @@ export function TrackList({
             <button
               onClick={() => onAddTrack('audio')}
               disabled={!canAdd}
-              className={`text-[9px] font-mono px-1.5 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+              className={`text-[11px] font-mono px-1.5 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
                 canAdd
                   ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
                   : 'text-zinc-700 cursor-not-allowed'
@@ -91,7 +91,7 @@ export function TrackList({
             <button
               onClick={() => onAddTrack('bus')}
               disabled={!canAdd}
-              className={`text-[9px] font-mono px-1.5 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
+              className={`text-[11px] font-mono px-1.5 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
                 canAdd
                   ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
                   : 'text-zinc-700 cursor-not-allowed'
@@ -182,7 +182,7 @@ export function TrackList({
           />
           {/* Master volume slider + stereo meter */}
           <div className="flex items-center gap-1.5 mt-1 px-1">
-            <span className="text-[7px] font-mono uppercase text-zinc-600 shrink-0">Vol</span>
+            <span className="text-[9px] font-mono uppercase text-zinc-600 shrink-0">Vol</span>
             <input
               type="range"
               min={0}
@@ -195,7 +195,7 @@ export function TrackList({
               title={`Master volume: ${Math.round((masterVolume ?? 0.8) * 100)}%`}
               aria-label="Master volume"
             />
-            <span className="text-[8px] font-mono text-zinc-600 w-5 text-right shrink-0 tabular-nums">
+            <span className="text-[10px] font-mono text-zinc-600 w-5 text-right shrink-0 tabular-nums">
               {Math.round((masterVolume ?? 0.8) * 100)}
             </span>
           </div>

@@ -19,15 +19,15 @@ export function TrackMixStrip({ activeTrack, onChangeVolume, onChangePan }: Prop
 
   return (
     <div className="flex items-center gap-3 px-4 py-1.5 border-b border-zinc-800/50 shrink-0">
-      <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-400">
+      <span className="text-[12px] font-medium tracking-wider uppercase text-zinc-400">
         {getTrackLabel(activeTrack)}
       </span>
       <div className="flex items-center gap-1 ml-auto" title={`Volume: ${Math.round(activeTrack.volume * 100)}%`}>
-        <span className="text-[9px] text-zinc-600 font-mono">Vol</span>
+        <span className="text-[11px] text-zinc-600 font-mono">Vol</span>
         <Knob value={activeTrack.volume} label="" accentColor="amber" onChange={onChangeVolume} size={20} />
       </div>
       <div className="flex items-center gap-1" title={`Pan: ${panDisplay}`}>
-        <span className="text-[9px] text-zinc-600 font-mono">Pan</span>
+        <span className="text-[11px] text-zinc-600 font-mono">Pan</span>
         <Knob value={(activeTrack.pan + 1) / 2} label="" accentColor="sky" onChange={(v) => onChangePan(v * 2 - 1)} size={20} />
       </div>
     </div>

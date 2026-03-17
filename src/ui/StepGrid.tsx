@@ -67,7 +67,7 @@ export function StepGrid({
             )}
 
             {/* Step number (1-based) */}
-            <span className="text-[9px] text-zinc-600 absolute top-0.5 left-1">
+            <span className="text-[11px] text-zinc-600 absolute top-0.5 left-1">
               {globalIndex + 1}
             </span>
           </button>

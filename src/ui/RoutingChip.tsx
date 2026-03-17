@@ -74,7 +74,7 @@ export function RoutingChip({
     return (
       <span
         ref={chipRef}
-        className={`inline-flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded bg-violet-400/10 border text-violet-300 cursor-pointer transition-colors ${
+        className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-violet-400/10 border text-violet-300 cursor-pointer transition-colors ${
           isSelected ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-violet-400/20'
         }`}
         onClick={handleClick}
@@ -99,7 +99,7 @@ export function RoutingChip({
   // Read-only chip
   return (
     <span
-      className="text-[9px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
+      className="text-[11px] px-2 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
     >
       {'\u2192'} {label} ({route.depth > 0 ? '+' : ''}{route.depth.toFixed(2)})
     </span>
@@ -129,7 +129,7 @@ export function RoutingChips({
     return (
       <div className="border-t border-zinc-800/40 pt-2 mt-auto">
         <div className="rounded bg-violet-400/5 border border-violet-400/10 p-1.5">
-          <div className="text-[7px] font-mono uppercase tracking-widest text-violet-400/40 mb-1 px-0.5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-violet-400/40 mb-1 px-0.5">
             Routes
           </div>
           <div className="flex flex-wrap gap-1">
@@ -149,7 +149,7 @@ export function RoutingChips({
             <button
               type="button"
               onClick={onNavigateToPatch}
-              className="mt-1.5 text-[8px] font-mono uppercase tracking-wider text-violet-400/50 hover:text-violet-400 transition-colors"
+              className="mt-1.5 text-[10px] font-mono uppercase tracking-wider text-violet-400/50 hover:text-violet-400 transition-colors"
             >
               Edit routes in Patch
             </button>

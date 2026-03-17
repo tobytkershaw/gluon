@@ -97,7 +97,7 @@ export function UndoButton({ onClick, disabled, description, undoStack }: Props)
       {open && hasHistory && (
         <div className="absolute top-full right-0 mt-1 w-64 max-h-72 overflow-y-auto rounded-lg border border-zinc-700/50 bg-zinc-900 shadow-xl z-50">
           <div className="px-3 py-1.5 border-b border-zinc-800/50">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-zinc-500">
               Undo history ({entries.length})
             </span>
           </div>
@@ -108,19 +108,19 @@ export function UndoButton({ onClick, disabled, description, undoStack }: Props)
                 key={`${entry.timestamp}-${i}`}
                 className="px-3 py-1.5 flex items-start gap-2 hover:bg-zinc-800/40 transition-colors"
               >
-                <span className="shrink-0 mt-0.5 w-4 text-right text-[10px] tabular-nums text-zinc-600">
+                <span className="shrink-0 mt-0.5 w-4 text-right text-[11px] tabular-nums text-zinc-600">
                   {entries.length - i}
                 </span>
                 <div className="flex-1 min-w-0">
                   <span className="text-xs text-zinc-300 leading-tight line-clamp-2">
                     {entryDescription(entry)}
                   </span>
-                  <span className="block text-[10px] text-zinc-600 mt-0.5">
+                  <span className="block text-[11px] text-zinc-600 mt-0.5">
                     {timeAgo(entry.timestamp)}
                   </span>
                 </div>
                 {i === 0 && (
-                  <span className="shrink-0 text-[9px] font-medium text-violet-400/70 uppercase tracking-wider mt-0.5">
+                  <span className="shrink-0 text-[11px] font-medium text-violet-400/70 uppercase tracking-wider mt-0.5">
                     next
                   </span>
                 )}

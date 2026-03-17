@@ -20,7 +20,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
           setGeminiKey(currentGeminiKey);
           setExpanded(true);
         }}
-        className="flex items-center gap-2 px-3 py-2 bg-zinc-900/50 border border-zinc-800/50 rounded-lg text-[10px] font-mono text-zinc-500 hover:border-zinc-700 transition-colors"
+        className="flex items-center gap-2 px-3 py-2 bg-zinc-900/50 border border-zinc-800/50 rounded-lg text-[11px] font-mono text-zinc-500 hover:border-zinc-700 transition-colors"
       >
         <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
         API Connected
@@ -43,7 +43,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
         className="flex flex-col gap-2"
       >
         <div>
-          <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
+          <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
             OpenAI API Key
           </div>
           <input
@@ -55,7 +55,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
           />
         </div>
         <div>
-          <div className="text-[9px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
+          <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
             Google API Key
           </div>
           <input
@@ -69,7 +69,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
         <button
           type="submit"
           disabled={!canSubmit}
-          className="text-[9px] font-mono uppercase tracking-wider px-3 py-1.5 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:text-zinc-700 disabled:hover:bg-zinc-800 rounded transition-colors self-end"
+          className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:text-zinc-700 disabled:hover:bg-zinc-800 rounded transition-colors self-end"
         >
           {isConfigured ? 'Update' : 'Connect'}
         </button>

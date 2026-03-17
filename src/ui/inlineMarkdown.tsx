@@ -44,7 +44,7 @@ export function renderInlineMarkdown(text: string): React.ReactNode {
       segments.push(
         <code
           key={key++}
-          className="px-1 py-px rounded bg-zinc-800 text-teal-400 text-[10px] font-mono"
+          className="px-1 py-px rounded bg-zinc-800 text-teal-400 text-[11px] font-mono"
         >
           {match[4]}
         </code>,
