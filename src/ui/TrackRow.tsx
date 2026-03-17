@@ -7,9 +7,9 @@ import { computeThumbprintColor } from './thumbprint';
 import { TrackLevelMeter } from './TrackLevelMeter';
 
 const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
-  exploratory: { label: '', color: '', title: 'Exploratory — AI may freely edit' },
-  liked: { label: 'L', color: 'bg-blue-500/20 text-blue-400', title: 'Liked — AI preserves unless asked' },
-  approved: { label: 'A', color: 'bg-emerald-500/20 text-emerald-400', title: 'Approved — AI preserves during expansion' },
+  exploratory: { label: '', color: '', title: 'Exploratory — Gluon may freely edit' },
+  liked: { label: 'L', color: 'bg-blue-500/20 text-blue-400', title: 'Liked — Gluon preserves unless asked' },
+  approved: { label: 'A', color: 'bg-emerald-500/20 text-emerald-400', title: 'Approved — Gluon preserves during expansion' },
   anchor: { label: '#', color: 'bg-purple-500/20 text-purple-400', title: 'Anchor — core identity, changes need confirmation' },
 };
 
@@ -238,7 +238,7 @@ export function TrackRow({
         {onToggleAgency && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-            title={track.agency === 'OFF' ? 'AI Agency — protected from AI edits (click to allow)' : 'AI Agency — AI may modify this track (click to protect)'}
+            title={track.agency === 'OFF' ? 'Gluon agency — protected from Gluon edits (click to allow)' : 'Gluon agency — Gluon may modify this track (click to protect)'}
             className={`shrink-0 text-[9px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
               track.agency === 'ON'
                 ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'

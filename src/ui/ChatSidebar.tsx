@@ -73,7 +73,7 @@ export function ChatSidebar({
       >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-violet-900/20">
-          <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">AI</span>
+          <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
           <div className="flex-1" />
           <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} />
         </div>

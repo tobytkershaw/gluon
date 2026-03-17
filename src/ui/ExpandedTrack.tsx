@@ -121,7 +121,7 @@ export function ExpandedTrack({
               : 'bg-zinc-800 text-zinc-500'
           }`}
         >
-          {activeTrack.agency === 'ON' ? 'AI ON' : 'AI OFF'}
+          {activeTrack.agency === 'ON' ? 'Gluon ON' : 'Gluon OFF'}
         </button>
 
       </div>

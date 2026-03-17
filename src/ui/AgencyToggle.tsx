@@ -10,7 +10,7 @@ export function AgencyToggle({ value, onChange }: Props) {
   return (
     <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-3">
       <div className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-500 mb-2.5">
-        AI Access
+        Gluon Access
       </div>
       <button
         onClick={() => onChange(isProtected ? 'ON' : 'OFF')}

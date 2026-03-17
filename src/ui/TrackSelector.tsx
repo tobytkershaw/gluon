@@ -58,7 +58,7 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               {onToggleAgency && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggleAgency(track.id); }}
-                  title={track.agency === 'OFF' ? 'AI: Protected' : 'AI: Editable'}
+                  title={track.agency === 'OFF' ? 'Gluon: Protected' : 'Gluon: Editable'}
                   className={`text-[11px] px-0.5 rounded ${
                     track.agency === 'OFF'
                       ? 'bg-amber-500/20 text-amber-400'

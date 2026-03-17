@@ -32,7 +32,7 @@ export function EmptyState({ onAddTrack, onSendPrompt, chatOpen, onOpenChat, onD
             Welcome to Gluon
           </h2>
           <p className="text-sm text-zinc-500">
-            Add a track to start making sound, or ask the AI for help.
+            Add a track to start making sound, or ask Gluon for help.
           </p>
         </div>
 

@@ -767,7 +767,7 @@ export default function App() {
       // Only allow undo when the message's entry is on top of the stack
       if (msg.undoStackIndex !== s.undoStack.length - 1) return s;
       const topEntry = s.undoStack[s.undoStack.length - 1];
-      const description = topEntry.description ?? 'AI action';
+      const description = topEntry.description ?? 'Gluon action';
       const undone = applyUndo(s);
       // Clear the undoStackIndex on the message so the button disappears
       const updatedMessages = undone.messages.map((m, i) =>
