@@ -23,7 +23,9 @@ Browser-based AI-assisted music instrument. Human directs AI via natural languag
 
 ## Finalization Progress
 
-Goal: reflect what is actually shipped and what is still follow-on work, rather than treating all stabilisation and Surface claims as complete.
+Goal: finalize all implemented elements so you can compose full songs in collaboration with the AI.
+
+This page should describe that goal honestly, including what is already solid and what is still follow-on work, rather than treating all stabilisation and Surface claims as complete.
 
 ### Wave 1: "Make it usable" — Complete (10/10 PRs merged)
 
@@ -71,7 +73,6 @@ Still open from the audit/follow-on backlog:
 - #559 and #560: Surface placeholder vs intended curated model; make Surface state real in the UI
 - #561: make bus sends and routing topology usable from the human UI
 - #568 and #571: browser/runtime failure-mode and long-session performance audits
-- #572: docs/status/roadmap truthfulness pass
 
 ### Wave 4: "Make it polished" — Replaced by targeted follow-on work
 
