@@ -370,7 +370,28 @@ export interface PatternCrudSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot;
+/** Snapshot for discrete track-level property changes (mute, solo, volume, pan, name, agency). */
+export interface TrackPropertySnapshot {
+  kind: 'track-property';
+  trackId: string;
+  prevProps: Partial<Track>;
+  timestamp: number;
+  description: string;
+}
+
+/** Snapshot for A/B restore — captures the full musical state before the swap. */
+export interface ABRestoreSnapshot {
+  kind: 'ab-restore';
+  prevTracks: Track[];
+  prevTransport: Transport;
+  prevMaster: MasterChannel;
+  prevContext: MusicalContext;
+  prevActiveTrackId: string;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | ABRestoreSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';

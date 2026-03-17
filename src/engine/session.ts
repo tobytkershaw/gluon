@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot } from './types';
+import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, ABRestoreSnapshot, ActionGroupSnapshot, Snapshot } from './types';
 import type { SourceAdapter, Pattern } from './canonical-types';
 import type { TransportMode } from './sequencer-types';
 import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
@@ -238,7 +238,10 @@ export function removeTrack(session: Session, trackId: string): Session | null {
 }
 
 export function setAgency(session: Session, trackId: string, agency: Agency): Session {
-  return updateTrack(session, trackId, { agency });
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track || track.agency === agency) return session;
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { agency: track.agency }, `Set agency to ${agency}`);
+  return updateTrack(withSnapshot, trackId, { agency });
 }
 
 export function updateTrackParams(
@@ -318,7 +321,8 @@ export function setActiveTrack(session: Session, trackId: string): Session {
 export function toggleMute(session: Session, trackId: string): Session {
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return session;
-  return updateTrack(session, trackId, { muted: !track.muted });
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { muted: track.muted }, `Toggle mute on ${trackId}`);
+  return updateTrack(withSnapshot, trackId, { muted: !track.muted });
 }
 
 export function toggleSolo(session: Session, trackId: string, exclusive = true): Session {
@@ -329,55 +333,116 @@ export function toggleSolo(session: Session, trackId: string, exclusive = true):
 
   // When turning solo ON exclusively, clear solo on all other tracks first
   if (newSolo && exclusive) {
+    // Capture snapshots for every track that will change
+    const snapshots: Snapshot[] = [];
+    snapshots.push({
+      kind: 'track-property',
+      trackId,
+      prevProps: { solo: track.solo },
+      timestamp: Date.now(),
+      description: `Toggle solo on ${trackId}`,
+    });
+    for (const t of session.tracks) {
+      if (t.id !== trackId && t.solo) {
+        snapshots.push({
+          kind: 'track-property',
+          trackId: t.id,
+          prevProps: { solo: true },
+          timestamp: Date.now(),
+          description: `Clear solo on ${t.id}`,
+        });
+      }
+    }
+    const group: ActionGroupSnapshot = {
+      kind: 'group',
+      snapshots,
+      timestamp: Date.now(),
+      description: `Exclusive solo on ${trackId}`,
+    };
     const tracks = session.tracks.map(t =>
       t.id === trackId
         ? { ...t, solo: true }
         : t.solo ? { ...t, solo: false } : t,
     );
-    return { ...session, tracks };
+    return { ...session, tracks, undoStack: [...session.undoStack, group] };
   }
 
-  return updateTrack(session, trackId, { solo: newSolo });
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { solo: track.solo }, `Toggle solo on ${trackId}`);
+  return updateTrack(withSnapshot, trackId, { solo: newSolo });
 }
 
 export function renameTrack(session: Session, trackId: string, name: string): Session {
-  return updateTrack(session, trackId, { name });
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { name: track.name }, `Rename track to ${name}`);
+  return updateTrack(withSnapshot, trackId, { name });
 }
 
 export function setTrackVolume(session: Session, trackId: string, volume: number): Session {
-  return updateTrack(session, trackId, { volume: Math.max(0, Math.min(1, volume)) });
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { volume: track.volume }, `Set track volume to ${volume}`);
+  return updateTrack(withSnapshot, trackId, { volume: Math.max(0, Math.min(1, volume)) });
 }
 
 export function setTrackPan(session: Session, trackId: string, pan: number): Session {
-  return updateTrack(session, trackId, { pan: Math.max(-1, Math.min(1, pan)) });
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { pan: track.pan }, `Set track pan to ${pan}`);
+  return updateTrack(withSnapshot, trackId, { pan: Math.max(-1, Math.min(1, pan)) });
+}
+
+function pushTransportSnapshot(session: Session, description: string): Session {
+  const snapshot: TransportSnapshot = {
+    kind: 'transport',
+    prevTransport: { ...session.transport },
+    timestamp: Date.now(),
+    description,
+  };
+  return { ...session, undoStack: [...session.undoStack, snapshot] };
+}
+
+function pushTrackPropertySnapshot(session: Session, trackId: string, prevProps: Partial<Track>, description: string): Session {
+  const snapshot: TrackPropertySnapshot = {
+    kind: 'track-property',
+    trackId,
+    prevProps,
+    timestamp: Date.now(),
+    description,
+  };
+  return { ...session, undoStack: [...session.undoStack, snapshot] };
 }
 
 export function setTransportBpm(session: Session, bpm: number): Session {
+  const withSnapshot = pushTransportSnapshot(session, `Set BPM to ${bpm}`);
   return {
-    ...session,
-    transport: { ...session.transport, bpm: Math.max(20, Math.min(300, bpm)) },
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, bpm: Math.max(20, Math.min(300, bpm)) },
   };
 }
 
 export function toggleMetronome(session: Session): Session {
   const prev = session.transport.metronome;
+  const withSnapshot = pushTransportSnapshot(session, `Toggle metronome ${prev.enabled ? 'off' : 'on'}`);
   return {
-    ...session,
-    transport: { ...session.transport, metronome: { ...prev, enabled: !prev.enabled } },
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, metronome: { ...prev, enabled: !prev.enabled } },
   };
 }
 
 export function setMetronomeVolume(session: Session, volume: number): Session {
+  const withSnapshot = pushTransportSnapshot(session, `Set metronome volume to ${volume}`);
   return {
-    ...session,
-    transport: { ...session.transport, metronome: { ...session.transport.metronome, volume: Math.max(0, Math.min(1, volume)) } },
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, metronome: { ...withSnapshot.transport.metronome, volume: Math.max(0, Math.min(1, volume)) } },
   };
 }
 
 export function setTransportSwing(session: Session, swing: number): Session {
+  const withSnapshot = pushTransportSnapshot(session, `Set swing to ${swing}`);
   return {
-    ...session,
-    transport: { ...session.transport, swing: Math.max(0, Math.min(1, swing)) },
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, swing: Math.max(0, Math.min(1, swing)) },
   };
 }
 
@@ -385,10 +450,11 @@ export function setTimeSignature(session: Session, numerator: number, denominato
   const clampedNum = Math.max(1, Math.min(16, Math.round(numerator)));
   const validDenominators = [2, 4, 8, 16];
   const clampedDen = validDenominators.includes(denominator) ? denominator : 4;
+  const withSnapshot = pushTransportSnapshot(session, `Set time signature to ${clampedNum}/${clampedDen}`);
   return {
-    ...session,
+    ...withSnapshot,
     transport: {
-      ...session.transport,
+      ...withSnapshot.transport,
       timeSignature: { numerator: clampedNum, denominator: clampedDen },
     },
   };
@@ -418,22 +484,21 @@ export function stopTransport(session: Session): Session {
 // --- Transport mode ---
 
 export function setTransportMode(session: Session, mode: TransportMode): Session {
+  const withSnapshot = pushTransportSnapshot(session, `Set transport mode to ${mode}`);
   return {
-    ...session,
-    transport: { ...session.transport, mode },
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, mode },
   };
 }
 
 // --- Master channel helpers ---
 
 export function setMasterVolume(session: Session, volume: number): Session {
-  const clamped = Math.max(0, Math.min(1, volume));
-  return { ...session, master: { ...session.master, volume: clamped } };
+  return setMaster(session, { volume });
 }
 
 export function setMasterPan(session: Session, pan: number): Session {
-  const clamped = Math.max(-1, Math.min(1, pan));
-  return { ...session, master: { ...session.master, pan: clamped } };
+  return setMaster(session, { pan });
 }
 
 // --- Reaction history helpers ---
@@ -841,6 +906,17 @@ export function captureABSnapshot(session: Session): ABSnapshot {
  *  Playback state (playing, status, playFromStep) is preserved from the
  *  current session so that switching A/B does not interrupt the transport. */
 export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Session {
+  const abSnapshot: ABRestoreSnapshot = {
+    kind: 'ab-restore',
+    prevTracks: session.tracks.map(deepCopyTrack),
+    prevTransport: { ...session.transport, metronome: { ...session.transport.metronome } },
+    prevMaster: { ...session.master },
+    prevContext: { ...session.context },
+    prevActiveTrackId: session.activeTrackId,
+    timestamp: Date.now(),
+    description: 'Restore A/B snapshot',
+  };
+
   return {
     ...session,
     tracks: snapshot.tracks.map(deepCopyTrack),
@@ -857,5 +933,6 @@ export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Sessi
     activeTrackId: snapshot.tracks.some(t => t.id === session.activeTrackId)
       ? session.activeTrackId
       : snapshot.tracks[0]?.id ?? session.activeTrackId,
+    undoStack: [...session.undoStack, abSnapshot],
   };
 }

@@ -44,10 +44,16 @@ export function reverse(events: MusicalEvent[], duration: number): MusicalEvent[
  * Duplicate all events, shifting copies by `duration`.
  * Returns doubled events and doubled duration.
  */
+/** Maximum duration after duplication (in steps). */
+const MAX_DUPLICATE_DURATION = 512;
+
 export function duplicate(
   events: MusicalEvent[],
   duration: number,
 ): { events: MusicalEvent[]; duration: number } {
+  if (duration * 2 > MAX_DUPLICATE_DURATION) {
+    return { events: events.map((e) => ({ ...e })), duration };
+  }
   const originals = events.map((e) => ({ ...e }));
   const copies = events.map((e) => ({ ...e, at: e.at + duration }));
   return {

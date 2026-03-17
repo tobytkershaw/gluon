@@ -4,10 +4,12 @@ import {
   createSession, addTrack, setAgency, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   setApproval, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
-  setTimeSignature, setTransportMode,
+  setTimeSignature, setTransportMode, toggleMetronome, setMetronomeVolume,
+  setTrackVolume, setTrackPan, setMasterVolume, setMasterPan,
   captureABSnapshot, restoreABSnapshot,
   MAX_REACTION_HISTORY, MAX_OPEN_DECISIONS,
 } from '../../src/engine/session';
+import { applyUndo } from '../../src/engine/primitives';
 import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
 
 describe('Session (Phase 2)', () => {
@@ -104,6 +106,45 @@ describe('Session (Phase 2)', () => {
     expect(s.transport.bpm).toBe(300);
     s = setTransportBpm(s, 120.5);
     expect(s.transport.bpm).toBe(120.5);
+  });
+
+  // -------------------------------------------------------------------------
+  // #519 — Transport shortcuts must be undoable
+  // -------------------------------------------------------------------------
+
+  it('setTransportBpm pushes TransportSnapshot onto undoStack (#519)', () => {
+    const s1 = createSession();
+    const s2 = setTransportBpm(s1, 140);
+    expect(s2.undoStack.length).toBe(1);
+    const snap = s2.undoStack[0];
+    expect(snap.kind).toBe('transport');
+    if (snap.kind === 'transport') {
+      expect(snap.prevTransport.bpm).toBe(120);
+    }
+  });
+
+  it('setTransportMode pushes TransportSnapshot onto undoStack (#519)', () => {
+    const s1 = createSession();
+    const s2 = setTransportMode(s1, 'song');
+    expect(s2.undoStack.length).toBe(1);
+    const snap = s2.undoStack[0];
+    expect(snap.kind).toBe('transport');
+    if (snap.kind === 'transport') {
+      expect(snap.prevTransport.mode).toBeUndefined(); // default
+    }
+  });
+
+  it('toggleMetronome pushes TransportSnapshot onto undoStack (#519)', () => {
+    const s1 = createSession();
+    expect(s1.transport.metronome.enabled).toBe(false);
+    const s2 = toggleMetronome(s1);
+    expect(s2.transport.metronome.enabled).toBe(true);
+    expect(s2.undoStack.length).toBe(1);
+    const snap = s2.undoStack[0];
+    expect(snap.kind).toBe('transport');
+    if (snap.kind === 'transport') {
+      expect(snap.prevTransport.metronome.enabled).toBe(false);
+    }
   });
 
   it('sets transport swing clamped to 0-1', () => {
@@ -533,11 +574,11 @@ describe('A/B comparison', () => {
     const snap = captureABSnapshot(s);
     // Add something to undo stack
     s = setMaster(s, { volume: 0.5 });
-    expect(s.undoStack.length).toBe(1);
+    expect(s.undoStack.length).toBe(2); // setTransportBpm + setMaster
 
     const restored = restoreABSnapshot(s, snap);
-    // Undo stack should be preserved (non-musical state)
-    expect(restored.undoStack.length).toBe(1);
+    // Undo stack should be preserved (non-musical state) + the AB restore snapshot
+    expect(restored.undoStack.length).toBe(3);
   });
 
   it('restoreABSnapshot swaps transport mode (not preserved) (#520)', () => {
@@ -593,5 +634,196 @@ describe('A/B comparison', () => {
     const restored = restoreABSnapshot(s, snap);
     // Paused — playFromStep should be preserved
     expect(restored.transport.playFromStep).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Undo contract tests — every discrete state mutation must be undoable
+// ---------------------------------------------------------------------------
+// These tests pin the contract: if a session helper changes musical state,
+// it must push a snapshot so the user can undo the change. The AI path
+// (operation-executor) already does this; the human path must match.
+//
+// See: #519, human-capability-parity principle
+// ---------------------------------------------------------------------------
+
+describe('Undo contract: transport helpers', () => {
+  // setTransportBpm, setTransportMode, toggleMetronome are in the main
+  // describe block above (#519). These cover the rest.
+
+  it('setTransportSwing pushes TransportSnapshot', () => {
+    const s1 = createSession();
+    const s2 = setTransportSwing(s1, 0.6);
+    expect(s2.undoStack.length).toBe(1);
+    expect(s2.undoStack[0].kind).toBe('transport');
+  });
+
+  it('setTransportSwing is undoable', () => {
+    const s1 = createSession();
+    const s2 = setTransportSwing(s1, 0.6);
+    const s3 = applyUndo(s2);
+    expect(s3.transport.swing).toBe(s1.transport.swing);
+  });
+
+  it('setTimeSignature pushes TransportSnapshot', () => {
+    const s1 = createSession();
+    const s2 = setTimeSignature(s1, 3, 4);
+    expect(s2.undoStack.length).toBe(1);
+    expect(s2.undoStack[0].kind).toBe('transport');
+  });
+
+  it('setTimeSignature is undoable', () => {
+    const s1 = createSession();
+    const s2 = setTimeSignature(s1, 3, 8);
+    const s3 = applyUndo(s2);
+    expect(s3.transport.timeSignature).toEqual(s1.transport.timeSignature);
+  });
+
+  it('setMetronomeVolume pushes TransportSnapshot', () => {
+    const s1 = createSession();
+    const s2 = setMetronomeVolume(s1, 0.8);
+    expect(s2.undoStack.length).toBe(1);
+    expect(s2.undoStack[0].kind).toBe('transport');
+  });
+});
+
+describe('Undo contract: track mix helpers', () => {
+  it('toggleMute pushes a snapshot', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = toggleMute(s1, trackId);
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('toggleMute is undoable', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = toggleMute(s1, trackId);
+    expect(s2.tracks.find(t => t.id === trackId)!.muted).toBe(true);
+    const s3 = applyUndo(s2);
+    expect(s3.tracks.find(t => t.id === trackId)!.muted).toBe(false);
+  });
+
+  it('toggleSolo pushes a snapshot', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = toggleSolo(s1, trackId);
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('toggleSolo is undoable', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = toggleSolo(s1, trackId);
+    expect(s2.tracks.find(t => t.id === trackId)!.solo).toBe(true);
+    const s3 = applyUndo(s2);
+    expect(s3.tracks.find(t => t.id === trackId)!.solo).toBe(false);
+  });
+
+  it('exclusive toggleSolo undo restores solo on previously-soloed tracks', () => {
+    let s = createSession();
+    // Need at least 2 audio tracks
+    s = addTrack(s)!;
+    const trackA = s.tracks[0].id;
+    const trackB = s.tracks[1].id;
+    // Solo track A
+    s = toggleSolo(s, trackA);
+    expect(s.tracks.find(t => t.id === trackA)!.solo).toBe(true);
+    // Solo track B exclusively — should clear A
+    s = toggleSolo(s, trackB);
+    expect(s.tracks.find(t => t.id === trackB)!.solo).toBe(true);
+    expect(s.tracks.find(t => t.id === trackA)!.solo).toBe(false);
+    // Undo — should restore A's solo and clear B's
+    const undone = applyUndo(s);
+    expect(undone.tracks.find(t => t.id === trackA)!.solo).toBe(true);
+    expect(undone.tracks.find(t => t.id === trackB)!.solo).toBe(false);
+  });
+
+  it('setTrackVolume pushes a snapshot', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = setTrackVolume(s1, trackId, 0.3);
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('setTrackPan pushes a snapshot', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = setTrackPan(s1, trackId, -0.5);
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('renameTrack pushes a snapshot', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = renameTrack(s1, trackId, 'Kick');
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('renameTrack is undoable', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const originalName = s1.tracks[0].name;
+    const s2 = renameTrack(s1, trackId, 'Kick');
+    const s3 = applyUndo(s2);
+    expect(s3.tracks.find(t => t.id === trackId)!.name).toBe(originalName);
+  });
+
+  it('setAgency pushes a snapshot', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = setAgency(s1, trackId, 'OFF');
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('setAgency is undoable', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    const s2 = setAgency(s1, trackId, 'OFF');
+    const s3 = applyUndo(s2);
+    expect(s3.tracks.find(t => t.id === trackId)!.agency).toBe('ON');
+  });
+});
+
+describe('Undo contract: master helpers', () => {
+  // setMaster already pushes MasterSnapshot (tested above).
+  // These shortcut helpers must also push snapshots.
+
+  it('setMasterVolume pushes a snapshot', () => {
+    const s1 = createSession();
+    const s2 = setMasterVolume(s1, 0.5);
+    expect(s2.undoStack.length).toBe(1);
+  });
+
+  it('setMasterPan pushes a snapshot', () => {
+    const s1 = createSession();
+    const s2 = setMasterPan(s1, -0.3);
+    expect(s2.undoStack.length).toBe(1);
+  });
+});
+
+describe('Undo contract: A/B restore', () => {
+  it('restoreABSnapshot pushes a snapshot so the swap is undoable', () => {
+    let s = createSession();
+    const snap = captureABSnapshot(s);
+    s = setTransportBpm(s, 200);
+    // restoreABSnapshot replaces all musical state — this must be undoable
+    const restored = restoreABSnapshot(s, snap);
+    expect(restored.undoStack.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('restoreABSnapshot is undoable (round-trip)', () => {
+    let s = createSession();
+    s = setTransportBpm(s, 180);
+    const snap = captureABSnapshot(s);
+    s = setTransportBpm(s, 200);
+    expect(s.transport.bpm).toBe(200);
+
+    const restored = restoreABSnapshot(s, snap);
+    expect(restored.transport.bpm).toBe(180);
+
+    // Undo should get us back to 200
+    const undone = applyUndo(restored);
+    expect(undone.transport.bpm).toBe(200);
   });
 });

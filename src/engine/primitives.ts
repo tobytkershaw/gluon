@@ -235,6 +235,21 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { sends: snapshot.prevSends });
   }
 
+  if (snapshot.kind === 'track-property') {
+    return updateTrack(session, snapshot.trackId, snapshot.prevProps);
+  }
+
+  if (snapshot.kind === 'ab-restore') {
+    return {
+      ...session,
+      tracks: snapshot.prevTracks,
+      transport: snapshot.prevTransport,
+      master: snapshot.prevMaster,
+      context: snapshot.prevContext,
+      activeTrackId: snapshot.prevActiveTrackId,
+    };
+  }
+
   if (snapshot.kind === 'pattern-crud') {
     const track = getTrack(session, snapshot.trackId);
     if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
@@ -525,6 +540,27 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'send') {
     const track = getTrack(session, snapshot.trackId);
     return { ...snapshot, prevSends: [...(track.sends ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'track-property') {
+    const track = getTrack(session, snapshot.trackId);
+    const prevProps: Partial<import('./types').Track> = {};
+    for (const key of Object.keys(snapshot.prevProps)) {
+      (prevProps as Record<string, unknown>)[key] = (track as Record<string, unknown>)[key];
+    }
+    return { ...snapshot, prevProps, timestamp: now };
+  }
+
+  if (snapshot.kind === 'ab-restore') {
+    return {
+      ...snapshot,
+      prevTracks: session.tracks,
+      prevTransport: { ...session.transport },
+      prevMaster: { ...session.master },
+      prevContext: { ...session.context },
+      prevActiveTrackId: session.activeTrackId,
+      timestamp: now,
+    };
   }
 
   if (snapshot.kind === 'pattern-crud') {

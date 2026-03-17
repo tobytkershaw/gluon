@@ -235,6 +235,20 @@ describe('duplicate', () => {
     duplicate(events, 8);
     expect(events).toEqual(copy);
   });
+
+  it('caps duration at a sane upper bound (#535)', () => {
+    // Repeatedly doubling: 16 → 32 → 64 → 128 → 256 → 512 → 1024 → ...
+    // Without a cap, 10 doublings of a 16-step pattern = 16384 steps.
+    // Duration should never exceed a reasonable max (e.g. 512 steps).
+    let events: MusicalEvent[] = [note(0), note(4)];
+    let duration = 16;
+    for (let i = 0; i < 10; i++) {
+      const result = duplicate(events, duration);
+      events = result.events;
+      duration = result.duration;
+    }
+    expect(duration).toBeLessThanOrEqual(512);
+  });
 });
 
 // ---------------------------------------------------------------------------
