@@ -16,10 +16,18 @@ import type {
 
 export const controlIdToRuntimeParam: Record<string, string> = {
   frequency: 'note',
+  'fm-amount': 'fm_amount',
+  'timbre-mod-amount': 'timbre_mod_amount',
+  'morph-mod-amount': 'morph_mod_amount',
+  'lpg-colour': 'lpg_colour',
 };
 
 export const runtimeParamToControlId: Record<string, string> = {
   note: 'frequency',
+  fm_amount: 'fm-amount',
+  timbre_mod_amount: 'timbre-mod-amount',
+  morph_mod_amount: 'morph-mod-amount',
+  lpg_colour: 'lpg-colour',
 };
 
 // --- Control factory ---

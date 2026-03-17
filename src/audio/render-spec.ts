@@ -98,9 +98,10 @@ export interface RenderModulationSpec {
 export interface RenderEvent {
   /** Absolute beat position (0-based, in steps — 16ths). */
   beatTime: number;
-  type: 'trigger' | 'gate-on' | 'gate-off' | 'set-patch' | 'set-note';
+  type: 'trigger' | 'gate-on' | 'gate-off' | 'set-patch' | 'set-note' | 'set-extended';
   accentLevel?: number;
   patch?: Partial<RenderSynthPatch>;
+  extended?: Partial<RenderPlaitsExtended>;
   note?: number;   // normalised 0-1 pitch for set-note
 }
 
@@ -111,6 +112,11 @@ export interface RenderEvent {
 const GLUON_TO_PLAITS_ENGINE_OFFSET = 8;
 const STEPS_PER_BAR = 16;
 const NOTE_DURATION_STEPS = 0.25;  // default gate length for note events
+
+/** Runtime param keys that belong to the Plaits extended surface (set via _plaits_set_extended). */
+const EXTENDED_RUNTIME_KEYS = new Set([
+  'fm_amount', 'timbre_mod_amount', 'morph_mod_amount', 'decay', 'lpg_colour',
+]);
 
 // ---------------------------------------------------------------------------
 // Builder
@@ -380,11 +386,19 @@ function pushMusicalEvent(
       // Map semantic control ID to runtime param name
       const runtimeParam = controlIdToRuntimeParam[pe.controlId] ?? pe.controlId;
       if (typeof pe.value === 'number') {
-        out.push({
-          beatTime,
-          type: 'set-patch',
-          patch: { [runtimeParam]: pe.value } as Partial<RenderSynthPatch>,
-        });
+        if (EXTENDED_RUNTIME_KEYS.has(runtimeParam)) {
+          out.push({
+            beatTime,
+            type: 'set-extended',
+            extended: { [runtimeParam]: pe.value } as Partial<RenderPlaitsExtended>,
+          });
+        } else {
+          out.push({
+            beatTime,
+            type: 'set-patch',
+            patch: { [runtimeParam]: pe.value } as Partial<RenderSynthPatch>,
+          });
+        }
       }
       break;
     }
@@ -410,11 +424,19 @@ function pushInterpolatedEvents(
     const interpolated = getInterpolatedParams(regionEvents, step, regionDuration);
     for (const { controlId, value } of interpolated) {
       const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
-      out.push({
-        beatTime,
-        type: 'set-patch',
-        patch: { [runtimeParam]: value } as Partial<RenderSynthPatch>,
-      });
+      if (EXTENDED_RUNTIME_KEYS.has(runtimeParam)) {
+        out.push({
+          beatTime,
+          type: 'set-extended',
+          extended: { [runtimeParam]: value } as Partial<RenderPlaitsExtended>,
+        });
+      } else {
+        out.push({
+          beatTime,
+          type: 'set-patch',
+          patch: { [runtimeParam]: value } as Partial<RenderSynthPatch>,
+        });
+      }
     }
   }
 }

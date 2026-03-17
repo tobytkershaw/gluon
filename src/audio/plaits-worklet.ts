@@ -83,6 +83,14 @@ class PlaitsProcessor extends AudioWorkletProcessor {
   private modTimbre = 0;
   private modHarmonics = 0;
   private modMorph = 0;
+  /** Last values sent to WASM for dirty-check (NaN = never sent). */
+  private lastH = NaN;
+  private lastT = NaN;
+  private lastMo = NaN;
+  private lastN = NaN;
+  private lastModT = NaN;
+  private lastModH = NaN;
+  private lastModMo = NaN;
 
   constructor(options?: WorkletInitOptions) {
     super();
@@ -209,13 +217,21 @@ class PlaitsProcessor extends AudioWorkletProcessor {
   private applyPatchWithModulation(modTimbre: number, modHarmonics: number, modMorph: number): void {
     if (!this.wasm || !this.handle) return;
     const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
-    this.wasm._plaits_set_patch(
-      this.handle,
-      clamp01(this.currentPatch.harmonics + modHarmonics),
-      clamp01(this.currentPatch.timbre + modTimbre),
-      clamp01(this.currentPatch.morph + modMorph),
-      this.currentPatch.note,
-    );
+    const h = clamp01(this.currentPatch.harmonics + modHarmonics);
+    const t = clamp01(this.currentPatch.timbre + modTimbre);
+    const mo = clamp01(this.currentPatch.morph + modMorph);
+    const n = this.currentPatch.note;
+    // Value-based dirty-check: skip WASM call when nothing changed.
+    // Prevents per-block _plaits_set_patch from overriding per-step note
+    // pitches set by timed set-patch events.
+    if (h === this.lastH && t === this.lastT && mo === this.lastMo && n === this.lastN
+        && modTimbre === this.lastModT && modHarmonics === this.lastModH
+        && modMorph === this.lastModMo) {
+      return;
+    }
+    this.lastH = h; this.lastT = t; this.lastMo = mo; this.lastN = n;
+    this.lastModT = modTimbre; this.lastModH = modHarmonics; this.lastModMo = modMorph;
+    this.wasm._plaits_set_patch(this.handle, h, t, mo, n);
     this.patchDirty = false;
   }
 

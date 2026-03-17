@@ -9,6 +9,7 @@ import type {
   RenderProcessorSpec,
   RenderEvent,
   RenderSynthPatch,
+  RenderPlaitsExtended,
   RenderModulatorSpec,
 } from './render-spec';
 import { applyProcessorModulations, applySourceModulations, averageSignal } from './render-modulation';
@@ -218,8 +219,9 @@ async function renderTrack(
   plaits._plaits_set_model(pHandle, track.model);
   const currentPatch: RenderSynthPatch = { ...track.params };
   plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
-  const ext = track.extendedParams;
-  plaits._plaits_set_extended(pHandle, ext.fm_amount, ext.timbre_mod_amount, ext.morph_mod_amount, ext.decay, ext.lpg_colour);
+  const currentExtended: RenderPlaitsExtended = { ...track.extendedParams };
+  let extendedDirty = true;
+  plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
 
   // --- Load and init processors ---
   interface ProcessorHandle {
@@ -279,8 +281,18 @@ async function renderTrack(
     // Apply events that fall within this block
     while (eventIndex < sortedEvents.length && sortedEvents[eventIndex].beatTime < blockBeatEnd) {
       const ev = sortedEvents[eventIndex];
-      applyEvent(ev, plaits, pHandle, currentPatch);
+      if (ev.type === 'set-extended' && ev.extended) {
+        Object.assign(currentExtended, ev.extended);
+        extendedDirty = true;
+      } else {
+        applyEvent(ev, plaits, pHandle, currentPatch);
+      }
       eventIndex++;
+    }
+
+    if (extendedDirty) {
+      plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
+      extendedDirty = false;
     }
 
     const modulatorValues = renderModulationBlock(modHandles, framesToRender);

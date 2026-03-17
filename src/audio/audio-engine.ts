@@ -5,11 +5,12 @@ import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
-import type { ModulationTarget } from '../engine/types';
+import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
 import type { TidesPatchParams } from './tides-messages';
 import type { RingsPatchParams } from './rings-messages';
 import type { CloudsPatchParams } from './clouds-messages';
+import type { PlaitsExtendedParams } from './plaits-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 import { VoicePool, ACCENT_BASELINE } from './voice-pool';
@@ -56,7 +57,7 @@ interface TrackSlot {
   /** Bus input node: audio sent from other tracks is summed here, then into chainOutGain. */
   busInput: GainNode | null; // non-null only for bus tracks
   processors: ProcessorSlot[];
-  currentParams: SynthParams;
+  currentParams: SynthParamValues;
   currentModel: number;
   /** Whether this is a bus track (no voice pool). */
   isBus: boolean;
@@ -128,6 +129,16 @@ function toTidesExtendedParams(params: Record<string, number>): import('./tides-
     shift: params.shift ?? 0.0,
     output_mode: Math.round(params['output-mode'] ?? 0),
     range: Math.round(params.range ?? 0),
+  };
+}
+
+function toPlaitsExtendedParams(params: SynthParamValues): PlaitsExtendedParams {
+  return {
+    fm_amount: params.fm_amount ?? params['fm-amount'] ?? 0.0,
+    timbre_mod_amount: params.timbre_mod_amount ?? params['timbre-mod-amount'] ?? 0.0,
+    morph_mod_amount: params.morph_mod_amount ?? params['morph-mod-amount'] ?? 0.0,
+    decay: params.decay ?? 0.5,
+    lpg_colour: params.lpg_colour ?? params['lpg-colour'] ?? 0.5,
   };
 }
 
@@ -484,11 +495,12 @@ export class AudioEngine {
     slot.pool.setModel(model);
   }
 
-  setTrackParams(trackId: string, params: SynthParams): void {
+  setTrackParams(trackId: string, params: SynthParamValues): void {
     const slot = this.tracks.get(trackId);
     if (!slot || !slot.pool) return;
     slot.currentParams = { ...params };
-    slot.pool.setParams(params);
+    slot.pool.setParams(params);           // base 4 → SynthParams
+    slot.pool.setExtended(toPlaitsExtendedParams(params));  // extended 5
   }
 
   muteTrack(trackId: string, muted: boolean): void {

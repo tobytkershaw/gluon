@@ -47,6 +47,12 @@ struct PlaitsVoiceState {
   bool gate_open;
   float sample_rate;
 
+  // Level pre-charge state machine: delays trigger by 5 blocks so the vactrol
+  // (LPG) settles before the trigger fires — prevents double-trigger.
+  // Matches Plaits' internal kTriggerDelay = 5 in voice.h.
+  int level_precharge_remaining;   // blocks until trigger fires (0 = idle)
+  bool level_active;               // true from precharge start until gate closes
+
   // Smoothed parameters — applied per-block before Voice::Render
   SmoothedParam smooth_harmonics;
   SmoothedParam smooth_timbre;
@@ -60,7 +66,8 @@ struct PlaitsVoiceState {
   SmoothedParam smooth_decay;
   SmoothedParam smooth_lpg_colour;
 
-  PlaitsVoiceState() : trigger_blocks_remaining(0), accent_level(0.8f), gate_open(false), sample_rate(48000.0f) {
+  PlaitsVoiceState() : trigger_blocks_remaining(0), accent_level(0.0f), gate_open(false), sample_rate(48000.0f),
+                       level_precharge_remaining(0), level_active(false) {
     std::memset(&patch, 0, sizeof(patch));
     std::memset(&modulations, 0, sizeof(modulations));
   }
@@ -110,7 +117,7 @@ void init_state(PlaitsVoiceState* state, float sample_rate) {
   state->modulations.timbre = 0.0f;
   state->modulations.morph = 0.0f;
   state->modulations.trigger = 0.0f;
-  state->modulations.level = 0.8f;
+  state->modulations.level = 0.0f;
   state->modulations.frequency_patched = false;
   state->modulations.timbre_patched = false;
   state->modulations.morph_patched = false;
@@ -162,7 +169,10 @@ void plaits_trigger(void* handle, float accent_level) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state) return;
   state->accent_level = std::max(0.0f, accent_level);
-  state->trigger_blocks_remaining = 1;
+  state->level_precharge_remaining = 5;  // match kTriggerDelay
+  state->level_active = true;
+  // Snap note pitch to target so the trigger fires at the correct pitch.
+  state->smooth_note.reset(state->smooth_note.target);
   // gate_open is managed by plaits_set_gate — don't set it here.
 }
 
@@ -205,13 +215,29 @@ int plaits_render(void* handle, float* output, int num_frames) {
     state->patch.decay = state->smooth_decay.current;
     state->patch.lpg_colour = state->smooth_lpg_colour.current;
 
-    // Trigger is a one-shot pulse (1 block).
-    // Level is held at accent_level unconditionally — the Web Audio accent gain
-    // node handles amplitude gating. Previously, level tracked gate_open, which
-    // caused Plaits to detect a rising edge on level as a second trigger,
-    // producing a "du-dum" double-hit on every note.
+    // Level pre-charge state machine:
+    // Pre-charge level to accent_level BEFORE the trigger fires. Plaits
+    // internally delays trigger by kTriggerDelay=5 blocks; we mirror that
+    // delay so the vactrol (LPG) settles before the trigger fires into it.
+    // After gate-off, level drops to 0 → vactrol decays naturally following
+    // short_decay + decay_tail (shaped by patch.decay and patch.lpg_colour).
+    // This IS the LPG envelope.
+    if (state->level_precharge_remaining > 0) {
+      --state->level_precharge_remaining;
+      if (state->level_precharge_remaining == 0) {
+        state->trigger_blocks_remaining = 1;  // fire trigger after precharge
+      }
+    }
+
     state->modulations.trigger = (state->trigger_blocks_remaining > 0) ? 1.0f : 0.0f;
-    state->modulations.level = state->accent_level;
+    state->modulations.level = state->level_active ? state->accent_level : 0.0f;
+
+    // Begin release after gate closes and precharge/trigger complete
+    if (!state->gate_open && state->level_precharge_remaining == 0
+        && state->trigger_blocks_remaining == 0) {
+      state->level_active = false;
+    }
+
     state->voice.Render(state->patch, state->modulations, state->frames, block);
     for (size_t i = 0; i < block; ++i) {
       output[rendered + i] = static_cast<float>(state->frames[i].out) / 32768.0f + DENORMAL_GUARD;
