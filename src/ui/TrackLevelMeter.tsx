@@ -1,9 +1,12 @@
 // src/ui/TrackLevelMeter.tsx
-// Thin horizontal level meter for the track sidebar.
+// Per-track level meter for the track sidebar.
+// Supports vertical (left-edge bar) and horizontal (bottom bar) orientations.
 import { useTrackLevel } from './useTrackLevel';
 
 interface Props {
   analyser: AnalyserNode | null;
+  /** Orientation: 'vertical' renders a left-edge bar, 'horizontal' a bottom bar. Default 'horizontal'. */
+  orientation?: 'vertical' | 'horizontal';
 }
 
 /** Color for a given level (0-1). */
@@ -13,8 +16,25 @@ function levelColor(level: number): string {
   return '#22c55e'; // green-500
 }
 
-export function TrackLevelMeter({ analyser }: Props) {
+export function TrackLevelMeter({ analyser, orientation = 'horizontal' }: Props) {
   const level = useTrackLevel(analyser);
+
+  if (orientation === 'vertical') {
+    return (
+      <div
+        className="w-[3px] h-3 bg-zinc-800/60 rounded-full overflow-hidden flex flex-col justify-end shrink-0"
+        title={`Level: ${Math.round(level * 100)}%`}
+      >
+        <div
+          className="w-full rounded-full transition-none"
+          style={{
+            height: `${level * 100}%`,
+            backgroundColor: level > 0 ? levelColor(level) : 'transparent',
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -25,7 +45,7 @@ export function TrackLevelMeter({ analyser }: Props) {
         className="h-full rounded-full transition-none"
         style={{
           width: `${level * 100}%`,
-          backgroundColor: levelColor(level),
+          backgroundColor: level > 0 ? levelColor(level) : 'transparent',
         }}
       />
     </div>

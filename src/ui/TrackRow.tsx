@@ -173,7 +173,7 @@ export function TrackRow({
         }}
       />
 
-      {/* Main row: chevron + dot + label + controls */}
+      {/* Main row: chevron + meter + dot + label + controls */}
       <div className="flex items-center gap-2">
         {/* Expand/collapse chevron */}
         {onToggleExpand && !isMasterBus && (
@@ -186,6 +186,9 @@ export function TrackRow({
             {isExpanded ? '\u25BC' : '\u25B6'}
           </button>
         )}
+
+        {/* Per-track vertical level meter — always visible */}
+        {analyser && <TrackLevelMeter analyser={analyser} orientation="vertical" />}
 
         {/* Thumbprint dot — bus tracks show a different shape + bus badge */}
         {isBus ? (
@@ -278,9 +281,6 @@ export function TrackRow({
           {/* Track removal: select track then press Delete/Backspace */}
         </div>
       </div>
-
-      {/* Per-track level meter */}
-      {analyser && <TrackLevelMeter analyser={analyser} />}
 
       {/* Expanded sends section (expanded non-master tracks only) */}
       {isExpanded && !isMasterBus && onAddSend && busTracks && (
