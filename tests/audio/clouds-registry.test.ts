@@ -37,7 +37,7 @@ describe('Clouds instrument definition', () => {
 
   it('control IDs are position, size, density, feedback, freeze, texture, pitch, dry-wet, stereo-spread, reverb', () => {
     const controlIds = cloudsInstrument.engines[0].controls.map(c => c.id);
-    expect(controlIds).toEqual(['position', 'size', 'density', 'feedback', 'freeze', 'texture', 'pitch', 'dry-wet', 'stereo-spread', 'reverb']);
+    expect(controlIds).toEqual(['position', 'size', 'pitch', 'density', 'texture', 'dry-wet', 'feedback', 'stereo-spread', 'reverb', 'freeze']);
   });
 
   it('all continuous controls are normalized 0-1', () => {
@@ -104,7 +104,7 @@ describe('Processor registry includes Clouds', () => {
 
   it('getProcessorControlIds returns Clouds controls', () => {
     const ids = getProcessorControlIds('clouds');
-    expect(ids).toEqual(['position', 'size', 'density', 'feedback', 'freeze', 'texture', 'pitch', 'dry-wet', 'stereo-spread', 'reverb']);
+    expect(ids).toEqual(['position', 'size', 'pitch', 'density', 'texture', 'dry-wet', 'feedback', 'stereo-spread', 'reverb', 'freeze']);
   });
 
   it('getProcessorEngineByName finds Clouds modes', () => {

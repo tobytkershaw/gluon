@@ -61,13 +61,11 @@ function makePlaitsControl(
 function defaultControls(): ControlSchema[] {
   return [
     makePlaitsControl(
-      'timbre',
-      'Timbre',
-      'brightness',
-      'Spectral content of the sound. Low values are dark and warm, high values are bright and cutting.',
-      'timbre',
-      0.5,
-      'medium',
+      'frequency',
+      'Frequency',
+      'pitch',
+      'Fundamental pitch of the sound. 0.0 is the lowest, 1.0 is the highest.',
+      'note',
     ),
     makePlaitsControl(
       'harmonics',
@@ -79,6 +77,15 @@ function defaultControls(): ControlSchema[] {
       'medium',
     ),
     makePlaitsControl(
+      'timbre',
+      'Timbre',
+      'brightness',
+      'Spectral content of the sound. Low values are dark and warm, high values are bright and cutting.',
+      'timbre',
+      0.5,
+      'medium',
+    ),
+    makePlaitsControl(
       'morph',
       'Morph',
       'texture',
@@ -86,13 +93,6 @@ function defaultControls(): ControlSchema[] {
       'morph',
       0.5,
       'medium',
-    ),
-    makePlaitsControl(
-      'frequency',
-      'Frequency',
-      'pitch',
-      'Fundamental pitch of the sound. 0.0 is the lowest, 1.0 is the highest.',
-      'note',
     ),
     // --- Extended parameters (via _plaits_set_extended) ---
     makePlaitsControl(
@@ -253,14 +253,13 @@ function ringsControls(): ControlSchema[] {
     ),
     // --- Secondary controls (WASM bridge exists) ---
     makeRingsControl(
-      'polyphony',
-      'Polyphony',
-      'density',
-      'Number of simultaneous resonating voices (1–4).',
-      'discrete',
-      1,
+      'fine-tune',
+      'Fine Tune',
+      'pitch',
+      'Fine pitch offset in semitones. 0.5 is centered (no offset), 0.0 is -1 semitone, 1.0 is +1 semitone.',
+      'continuous',
+      0.5,
       'small',
-      { min: 1, max: 4, default: 1 },
     ),
     {
       id: 'internal-exciter',
@@ -278,13 +277,14 @@ function ringsControls(): ControlSchema[] {
       },
     },
     makeRingsControl(
-      'fine-tune',
-      'Fine Tune',
-      'pitch',
-      'Fine pitch offset in semitones. 0.5 is centered (no offset), 0.0 is -1 semitone, 1.0 is +1 semitone.',
-      'continuous',
-      0.5,
+      'polyphony',
+      'Polyphony',
+      'density',
+      'Number of simultaneous resonating voices (1–4).',
+      'discrete',
+      1,
       'small',
+      { min: 1, max: 4, default: 1 },
     ),
   ];
 }
@@ -399,6 +399,7 @@ function makeCloudsControl(
 
 function cloudsControls(): ControlSchema[] {
   return [
+    // --- Primary knobs (matching hardware faceplate order) ---
     makeCloudsControl(
       'position',
       'Position',
@@ -412,43 +413,6 @@ function cloudsControls(): ControlSchema[] {
       'Grain size or texture scale. Small values are glitchy, large values are smooth and ambient.',
     ),
     makeCloudsControl(
-      'density',
-      'Density',
-      'density',
-      'Grain generation rate. Low values are sparse, high values create dense textures.',
-    ),
-    makeCloudsControl(
-      'feedback',
-      'Feedback',
-      'decay',
-      'Wet signal recirculation. High values create evolving, self-reinforcing textures.',
-      'continuous',
-      0.0,
-    ),
-    // --- Secondary controls (WASM bridge exists) ---
-    {
-      id: 'freeze',
-      name: 'Freeze',
-      kind: 'boolean' as ControlKind,
-      semanticRole: 'stability',
-      description: 'When enabled, freezes the recording buffer so no new audio is captured. Grains read from the frozen buffer.',
-      readable: true,
-      writable: true,
-      range: { min: 0, max: 1, default: 0 },
-      size: 'small',
-      binding: {
-        adapterId: 'clouds',
-        path: 'params.freeze',
-      },
-    },
-    // --- Extended parameters (via _clouds_set_extended) ---
-    makeCloudsControl(
-      'texture',
-      'Texture',
-      'texture',
-      'Grain envelope shape. Controls the window function applied to each grain.',
-    ),
-    makeCloudsControl(
       'pitch',
       'Pitch',
       'pitch',
@@ -457,10 +421,32 @@ function cloudsControls(): ControlSchema[] {
       0.5,
     ),
     makeCloudsControl(
+      'density',
+      'Density',
+      'density',
+      'Grain generation rate. Low values are sparse, high values create dense textures.',
+    ),
+    makeCloudsControl(
+      'texture',
+      'Texture',
+      'texture',
+      'Grain envelope shape. Controls the window function applied to each grain.',
+    ),
+    makeCloudsControl(
       'dry-wet',
       'Dry/Wet',
       'body',
       'Blend between dry input and processed wet signal.',
+    ),
+    // --- Secondary controls (attenuverters + extended) ---
+    makeCloudsControl(
+      'feedback',
+      'Feedback',
+      'decay',
+      'Wet signal recirculation. High values create evolving, self-reinforcing textures.',
+      'continuous',
+      0.0,
+      'small',
     ),
     makeCloudsControl(
       'stereo-spread',
@@ -480,6 +466,21 @@ function cloudsControls(): ControlSchema[] {
       0.0,
       'small',
     ),
+    {
+      id: 'freeze',
+      name: 'Freeze',
+      kind: 'boolean' as ControlKind,
+      semanticRole: 'stability',
+      description: 'When enabled, freezes the recording buffer so no new audio is captured. Grains read from the frozen buffer.',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 1, default: 0 },
+      size: 'small',
+      binding: {
+        adapterId: 'clouds',
+        path: 'params.freeze',
+      },
+    },
   ];
 }
 
