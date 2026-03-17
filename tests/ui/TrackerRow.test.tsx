@@ -77,7 +77,7 @@ describe('TrackerRow', () => {
     const fxValues = new Map<string, ParameterEvent>();
     fxValues.set('timbre', paramEvent);
 
-    const fxColumns: FxColumnDef[] = [{ controlId: 'timbre', label: 'TBR' }];
+    const fxColumns: FxColumnDef[] = [{ controlId: 'timbre', label: 'TBR', fullName: 'Timbre' }];
 
     render(
       <table>
@@ -104,7 +104,7 @@ describe('TrackerRow', () => {
 
   it('shows empty FX cells as clickable placeholders', () => {
     const onAddParamEvent = vi.fn();
-    const fxColumns: FxColumnDef[] = [{ controlId: 'timbre', label: 'TBR' }];
+    const fxColumns: FxColumnDef[] = [{ controlId: 'timbre', label: 'TBR', fullName: 'Timbre' }];
 
     render(
       <table>

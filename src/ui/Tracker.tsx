@@ -20,6 +20,7 @@ interface ClipboardEntry {
 export interface FxColumnDef {
   controlId: string;
   label: string;
+  fullName: string;
 }
 
 /**
@@ -138,6 +139,7 @@ function buildSlotGrid(events: MusicalEvent[], duration: number): {
   const fxColumns: FxColumnDef[] = Array.from(fxControlIds).sort().map(controlId => ({
     controlId,
     label: abbreviateControlId(controlId),
+    fullName: humanizeControlId(controlId),
   }));
 
   return { slots, maxNoteColumns, fxColumns };
@@ -155,6 +157,13 @@ function abbreviateControlId(controlId: string): string {
   const parts = controlId.split('.');
   const lastPart = parts[parts.length - 1];
   return abbrevs[lastPart] ?? lastPart.slice(0, 3).toUpperCase();
+}
+
+/** Return a human-readable name for a controlId (used in tooltips). */
+function humanizeControlId(controlId: string): string {
+  const parts = controlId.split('.');
+  const lastPart = parts[parts.length - 1];
+  return lastPart.charAt(0).toUpperCase() + lastPart.slice(1);
 }
 
 /**
@@ -524,7 +533,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   // Build FX column headers
   const fxColumnHeaders = useMemo(() => {
     return fxColumns.map((fx, i) => (
-      <th key={`fx-${i}`} className="px-1 py-1 text-right w-8 font-mono" title={fx.controlId}>
+      <th key={`fx-${i}`} className="px-1 py-1 text-right w-8 font-mono" title={fx.fullName}>
         {fx.label}
       </th>
     ));
