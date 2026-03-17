@@ -16,7 +16,7 @@ import {
   addTrack, removeTrack,
   addSend, removeSend, setSendLevel,
   toggleMetronome, setMetronomeVolume,
-  addReaction,
+  addReaction, setTrackImportance,
   addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack,
   setTimeSignature, setTransportMode,
   addPatternRef, removePatternRef, reorderPatternRef,
@@ -1027,6 +1027,14 @@ export default function App() {
     setSession((s) => renameTrack(s, trackId, name));
   }, []);
 
+  const handleSetImportance = useCallback((trackId: string, importance: number) => {
+    setSession((s) => setTrackImportance(s, trackId, importance));
+  }, []);
+
+  const handleSetMusicalRole = useCallback((trackId: string, role: string) => {
+    setSession((s) => setTrackImportance(s, trackId, s.tracks.find(t => t.id === trackId)?.importance ?? 0.5, role));
+  }, []);
+
   const handleChangeVolume = useCallback((trackId: string, value: number) => {
     ensureAudio();
     setSession((s) => setTrackVolume(s, trackId, value));
@@ -1905,6 +1913,8 @@ export default function App() {
       }}
       onAddTrack={handleAddTrack}
       onRemoveTrack={handleRemoveTrack}
+      onSetImportance={handleSetImportance}
+      onSetMusicalRole={handleSetMusicalRole}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}

@@ -30,17 +30,22 @@ interface Props {
   onRename?: (name: string) => void;
   onCycleApproval?: () => void;
   onRemove?: () => void;
+  onSetImportance?: (importance: number) => void;
+  onSetMusicalRole?: (role: string) => void;
 }
 
 export function TrackRow({
   track, label, isActive, isBus, isMasterBus, analyser,
   activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
-  onRemove,
+  onRemove, onSetImportance, onSetMusicalRole,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [editingRole, setEditingRole] = useState(false);
+  const [roleEditValue, setRoleEditValue] = useState('');
+  const roleInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -57,6 +62,13 @@ export function TrackRow({
       inputRef.current?.select();
     }
   }, [editing]);
+
+  useEffect(() => {
+    if (editingRole) {
+      roleInputRef.current?.focus();
+      roleInputRef.current?.select();
+    }
+  }, [editingRole]);
 
   const commitRename = useCallback(() => {
     const trimmed = editValue.trim();
@@ -86,6 +98,28 @@ export function TrackRow({
       cancelRename();
     }
   }, [commitRename, cancelRename]);
+
+  const commitRole = useCallback(() => {
+    const trimmed = roleEditValue.trim();
+    if (onSetMusicalRole) {
+      onSetMusicalRole(trimmed);
+    }
+    setEditingRole(false);
+  }, [roleEditValue, onSetMusicalRole]);
+
+  const cancelRole = useCallback(() => {
+    setEditingRole(false);
+  }, []);
+
+  const handleRoleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      commitRole();
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      cancelRole();
+    }
+  }, [commitRole, cancelRole]);
 
   const thumbColor = computeThumbprintColor(track);
   const approval = track.approval ?? 'exploratory';
@@ -205,6 +239,64 @@ export function TrackRow({
 
       {/* Per-track level meter */}
       {analyser && <TrackLevelMeter analyser={analyser} />}
+
+      {/* Expanded metadata: importance + musical role (active non-bus tracks only) */}
+      {isActive && !isBus && !isMasterBus && (onSetImportance || onSetMusicalRole) && (
+        <div className="mt-1.5 space-y-1 px-0.5">
+          {/* Importance slider */}
+          {onSetImportance && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0">Imp</span>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={track.importance ?? 0.5}
+                onChange={(e) => { e.stopPropagation(); onSetImportance(parseFloat(e.target.value)); }}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 h-1 accent-zinc-500 cursor-pointer"
+                title={`Importance: ${Math.round((track.importance ?? 0.5) * 100)}%`}
+                aria-label="Track importance"
+              />
+              <span className="text-[7px] font-mono text-zinc-600 w-5 text-right shrink-0">
+                {Math.round((track.importance ?? 0.5) * 100)}
+              </span>
+            </div>
+          )}
+          {/* Musical role */}
+          {onSetMusicalRole && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0">Role</span>
+              {editingRole ? (
+                <input
+                  ref={roleInputRef}
+                  className="text-[8px] font-mono flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-300 outline-none"
+                  value={roleEditValue}
+                  onChange={(e) => setRoleEditValue(e.target.value)}
+                  onBlur={commitRole}
+                  onKeyDown={handleRoleKeyDown}
+                  onClick={(e) => e.stopPropagation()}
+                  maxLength={40}
+                  placeholder="e.g. driving rhythm"
+                />
+              ) : (
+                <span
+                  className="text-[8px] font-mono text-zinc-500 flex-1 truncate cursor-pointer hover:text-zinc-400"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRoleEditValue(track.musicalRole ?? '');
+                    setEditingRole(true);
+                  }}
+                  title={track.musicalRole || 'Click to set musical role'}
+                >
+                  {track.musicalRole || '—'}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

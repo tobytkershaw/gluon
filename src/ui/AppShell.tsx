@@ -33,6 +33,8 @@ interface Props {
   onCycleApproval?: (trackId: string) => void;
   onAddTrack?: (kind?: import('../engine/types').TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
+  onSetImportance?: (trackId: string, importance: number) => void;
+  onSetMusicalRole?: (trackId: string, role: string) => void;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -121,7 +123,7 @@ const CHAT_COLLAPSE_WIDTH = 1280;
 export function AppShell({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
-  onAddTrack, onRemoveTrack,
+  onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole,
   messages, onSend, isThinking, isListening, streamingText,
   reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
@@ -254,6 +256,8 @@ export function AppShell({
             onCycleApproval={onCycleApproval}
             onAddTrack={onAddTrack}
             onRemoveTrack={onRemoveTrack}
+            onSetImportance={onSetImportance}
+            onSetMusicalRole={onSetMusicalRole}
             audioEngine={audioEngine}
             masterVolume={masterVolume}
             masterStereoAnalysers={stereoAnalysers}
