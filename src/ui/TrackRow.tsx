@@ -130,8 +130,10 @@ export function TrackRow({
       className={`group/row relative px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
         isActive
           ? 'bg-zinc-800 border border-zinc-700'
-          : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'
-      }`}
+          : isBus
+            ? 'bg-zinc-900/60 hover:bg-zinc-800/40 border border-zinc-800/30'
+            : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'
+      }${isBus && !isMasterBus ? ' ml-1.5 border-l-2 border-l-zinc-700/50' : ''}`}
       onClick={onClick}
     >
       {/* Activity pulse overlay */}
@@ -145,12 +147,19 @@ export function TrackRow({
 
       {/* Main row: dot + label + controls */}
       <div className="flex items-center gap-2">
-        {/* Thumbprint dot — bus tracks show a different shape */}
+        {/* Thumbprint dot — bus tracks show a different shape + bus badge */}
         {isBus ? (
-          <div
-            className={`w-2 h-2 shrink-0 ${isMasterBus ? 'rounded-sm bg-zinc-500' : 'rounded-sm bg-zinc-600'}`}
-            style={{ transition: 'background-color 1s ease' }}
-          />
+          <>
+            <div
+              className={`w-2 h-2 shrink-0 ${isMasterBus ? 'rounded-sm bg-zinc-500' : 'rounded-sm bg-zinc-600'}`}
+              style={{ transition: 'background-color 1s ease' }}
+            />
+            {!isMasterBus && (
+              <span className="text-[6px] font-mono uppercase text-zinc-600 tracking-wider shrink-0 leading-none">
+                bus
+              </span>
+            )}
+          </>
         ) : (
           <div
             className="w-2 h-2 rounded-full shrink-0"
@@ -175,6 +184,7 @@ export function TrackRow({
             className={`text-[10px] font-mono uppercase tracking-wider flex-1 truncate ${
               track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : isBus ? 'text-zinc-500 italic' : 'text-zinc-500'
             }`}
+            title={label}
             onDoubleClick={handleDoubleClick}
           >
             {label}

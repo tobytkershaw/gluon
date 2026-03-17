@@ -50,6 +50,49 @@ input[type="range"]::-moz-range-thumb {
   border: 2px solid #18181b;
 }
 
+/* Master volume slider — subdued style for sidebar */
+.master-volume-slider::-webkit-slider-track {
+  height: 2px;
+  border-radius: 1px;
+  background: #3f3f46;
+}
+
+.master-volume-slider::-webkit-slider-thumb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a1a1aa;
+  border: 1.5px solid #27272a;
+  margin-top: -3px;
+}
+
+.master-volume-slider:hover::-webkit-slider-thumb {
+  background: #d4d4d8;
+}
+
+.master-volume-slider:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+  background: #e4e4e7;
+}
+
+.master-volume-slider::-moz-range-track {
+  height: 2px;
+  border-radius: 1px;
+  background: #3f3f46;
+}
+
+.master-volume-slider::-moz-range-thumb {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a1a1aa;
+  border: 1.5px solid #27272a;
+}
+
+.master-volume-slider:hover::-moz-range-thumb {
+  background: #d4d4d8;
+}
+
 /* Minimal scrollbar */
 .chat-scroll::-webkit-scrollbar {
   width: 3px;
