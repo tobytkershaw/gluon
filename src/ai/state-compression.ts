@@ -106,7 +106,7 @@ export interface CompressedState {
   track_count: number;
   soft_track_cap: number;
   activeTrackId: string;
-  transport: { bpm: number; swing: number; playing: boolean; time_signature: string };
+  transport: { bpm: number; swing: number; playing: boolean; mode: string; time_signature: string };
   context: { energy: number; density: number };
   undo_depth: number;
   redo_depth: number;
@@ -411,6 +411,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
       playing: session.transport.status === 'playing',
+      mode: session.transport.mode ?? 'pattern',
       time_signature: `${session.transport.timeSignature?.numerator ?? 4}/${session.transport.timeSignature?.denominator ?? 4}`,
     },
     context: {

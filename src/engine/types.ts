@@ -445,6 +445,7 @@ export interface AITransportAction {
   type: 'set_transport';
   bpm?: number;
   swing?: number;
+  mode?: 'pattern' | 'song';
   timeSignatureNumerator?: number;
   timeSignatureDenominator?: number;
 }

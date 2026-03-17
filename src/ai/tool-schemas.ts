@@ -284,7 +284,7 @@ const listenTool: ToolSchema = {
 const setTransportTool: ToolSchema = {
   name: 'set_transport',
   description:
-    'Change tempo, swing, time signature, or play/stop state. Takes effect after this response.',
+    'Change tempo, swing, time signature, or transport mode (pattern/song). Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
@@ -295,6 +295,11 @@ const setTransportTool: ToolSchema = {
       swing: {
         type: 'number',
         description: 'Swing amount (0.0-1.0, where 0 is straight).',
+      },
+      mode: {
+        type: 'string',
+        enum: ['pattern', 'song'],
+        description: 'Transport mode. "pattern" loops the active pattern; "song" plays through the sequence.',
       },
       timeSignatureNumerator: {
         type: 'number',

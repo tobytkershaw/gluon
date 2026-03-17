@@ -82,6 +82,7 @@ function projectAction(session: Session, action: AIAction): Session {
       const t = { ...session.transport };
       if (action.bpm !== undefined) t.bpm = Math.max(20, Math.min(300, action.bpm));
       if (action.swing !== undefined) t.swing = Math.max(0, Math.min(1, action.swing));
+      if (action.mode !== undefined) t.mode = action.mode;
       return { ...session, transport: t };
     }
     case 'sketch': {
@@ -726,14 +727,19 @@ export class GluonAI {
       case 'set_transport': {
         const hasBpm = typeof args.bpm === 'number';
         const hasSwing = typeof args.swing === 'number';
-        if (!hasBpm && !hasSwing) {
-          return { actions: [], response: errorPayload('At least one of bpm or swing must be provided') };
+        const hasMode = typeof args.mode === 'string' && ['pattern', 'song'].includes(args.mode as string);
+        const hasTimeSig = typeof args.timeSignatureNumerator === 'number' || typeof args.timeSignatureDenominator === 'number';
+        if (!hasBpm && !hasSwing && !hasMode && !hasTimeSig) {
+          return { actions: [], response: errorPayload('At least one transport property must be provided') };
         }
 
         const action: AITransportAction = {
           type: 'set_transport',
           ...(hasBpm ? { bpm: args.bpm as number } : {}),
           ...(hasSwing ? { swing: args.swing as number } : {}),
+          ...(hasMode ? { mode: args.mode as 'pattern' | 'song' } : {}),
+          ...(typeof args.timeSignatureNumerator === 'number' ? { timeSignatureNumerator: args.timeSignatureNumerator as number } : {}),
+          ...(typeof args.timeSignatureDenominator === 'number' ? { timeSignatureDenominator: args.timeSignatureDenominator as number } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);
@@ -748,6 +754,7 @@ export class GluonAI {
             applied: true,
             ...(resultBpm !== undefined ? { bpm: resultBpm } : {}),
             ...(resultSwing !== undefined ? { swing: Math.round(resultSwing * 100) / 100 } : {}),
+            ...(action.mode ? { mode: action.mode } : {}),
           },
         };
       }

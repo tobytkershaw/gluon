@@ -28,7 +28,7 @@ describe('State Compression (Phase 2)', () => {
     expect(result.tracks).toHaveLength(2); // 1 audio + 1 master bus
     // Default tracks are empty (no engine)
     expect(result.tracks[0].model).toBe('no_source');
-    expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false, time_signature: '4/4' });
+    expect(result.transport).toEqual({ bpm: 120, swing: 0, playing: false, mode: 'pattern', time_signature: '4/4' });
     expect(result.activeTrackId).toBe(session.activeTrackId);
     // Master bus should be compressed with kind: 'bus'
     const masterTrack = result.tracks.find((t: Record<string, unknown>) => t.id === 'master-bus');
