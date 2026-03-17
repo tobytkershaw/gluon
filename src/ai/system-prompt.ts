@@ -80,7 +80,7 @@ Shortcuts: Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 
 **Shortcuts**: Space = play/stop, Cmd+Z = undo, Cmd+1/2 = Control/Tracker view, Tab = cycle views, Cmd+/ = toggle chat.
 
-**Track Sidebar**: Click track to select. Buttons: M = mute, S = solo, C = toggle AI agency. Teal dot = agency ON.
+**Track Sidebar**: Click track to select. Buttons: M = mute, S = solo, AI = toggle AI agency (teal when ON, grey when OFF/protected).
 
 **Control View**: Chain strip (source → processors → modulators, click to focus). Sliders (0.0-1.0). Mode selector. XY pad. Step grid (when pattern exists).
 
@@ -88,7 +88,7 @@ Shortcuts: Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 
 **Project**: Click project name for menu (rename, new, duplicate, delete, export, import).
 
-**Common Workflows**: Ask AI to sketch patterns, add processors/modulators. Click C to protect a track. Cmd+Z undoes everything.`;
+**Common Workflows**: Ask AI to sketch patterns, add processors/modulators. Click the AI button to protect a track. Cmd+Z undoes everything.`;
 }
 
 export function buildSystemPrompt(session: Session): string {
@@ -112,6 +112,7 @@ ${generateTrackSetup(session)}
 5. Use the transform tool to rotate, transpose, reverse, or duplicate patterns instead of rewriting with sketch.
 6. Combine tool calls in one turn when appropriate (sketch + move params).
 7. After sketching a percussion pattern, add a step-grid view with manage_view(action: 'add') if missing. Only add views after relevant actions or when asked.
+8. **Always use human-readable names in conversation.** Refer to tracks by their display name or "Track N" label (e.g. "Kick", "Track 1"), never by internal IDs like "v0". Reference UI buttons by their visible label (e.g. the "AI" button for agency, "M" for mute, "S" for solo).
 
 ## Approval & Importance
 Each track has an \`approval\` level (editability) and optional \`importance\` (0.0-1.0, mix priority). Both are in the compressed state.

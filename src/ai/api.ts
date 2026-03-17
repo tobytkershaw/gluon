@@ -445,7 +445,7 @@ export class GluonAI {
       if (resolved) {
         args.trackId = resolved;
       } else {
-        return { actions: [], response: errorPayload(`Unknown track: "${fc.args.trackId}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+        return { actions: [], response: errorPayload(`Unknown track: "${fc.args.trackId}". Use "Track N" (1-indexed) or an internal track ID.`) };
       }
     }
 
@@ -458,7 +458,7 @@ export class GluonAI {
         if (resolved) {
           resolvedIds.push(resolved);
         } else {
-          return { actions: [], response: errorPayload(`Unknown track in trackIds: "${ref}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+          return { actions: [], response: errorPayload(`Unknown track in trackIds: "${ref}". Use "Track N" (1-indexed) or an internal track ID.`) };
         }
       }
       args.trackIds = resolvedIds;
@@ -470,7 +470,7 @@ export class GluonAI {
       if (resolved) {
         args.scope = resolved;
       } else {
-        return { actions: [], response: errorPayload(`Unknown track in scope: "${args.scope}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+        return { actions: [], response: errorPayload(`Unknown track in scope: "${args.scope}". Use "Track N" (1-indexed) or an internal track ID.`) };
       }
     } else if (Array.isArray(args.scope)) {
       const resolvedScope: string[] = [];
@@ -480,7 +480,7 @@ export class GluonAI {
         if (resolved) {
           resolvedScope.push(resolved);
         } else {
-          return { actions: [], response: errorPayload(`Unknown track in scope: "${ref}". Use "Track N" (1-indexed) or an internal ID like "v0".`) };
+          return { actions: [], response: errorPayload(`Unknown track in scope: "${ref}". Use "Track N" (1-indexed) or an internal track ID.`) };
         }
       }
       args.scope = resolvedScope;
