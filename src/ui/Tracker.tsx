@@ -3,6 +3,7 @@ import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObjec
 import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { TrackerRow } from './TrackerRow';
+import { keyToMidi, isPianoKey, BASE_MIDI_LOWER, OCTAVE } from './keyboard-piano-map';
 
 /** Number of rows to jump for Page Up / Page Down. */
 const PAGE_JUMP = 8;
@@ -208,6 +209,9 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   // --- Internal clipboard ---
   const [clipboard, setClipboard] = useState<ClipboardEntry[]>([]);
 
+  // --- Octave offset for keyboard-as-piano entry ---
+  const [octaveOffset, setOctaveOffset] = useState(0);
+
   useEffect(() => {
     if (playing && playheadStep !== null && playheadRef.current) {
       playheadRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -392,6 +396,47 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       return;
     }
 
+    // --- Keyboard-as-piano note entry (Renoise-style) ---
+    // When cursor is on a note column, piano keys enter notes directly.
+    // Octave shift: -/= keys adjust octave when on a note column.
+    const cursorColumnType = getColumnType(cursorCol);
+    if (!isMod && !e.altKey && cursorColumnType === 'note') {
+      // Octave shift
+      if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        setOctaveOffset(o => Math.max(o - 1, -4));
+        return;
+      }
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        setOctaveOffset(o => Math.min(o + 1, 4));
+        return;
+      }
+
+      // Piano key → MIDI note
+      if (isPianoKey(e.key)) {
+        const midi = keyToMidi(e.key, octaveOffset);
+        if (midi !== undefined && cursorRow < slots.length) {
+          e.preventDefault();
+          const slot = slots[cursorRow];
+          const noteColIdx = getNoteColumnIndex(cursorCol);
+          const existingNote = noteColIdx !== null && noteColIdx < slot.notes.length ? slot.notes[noteColIdx] : null;
+
+          if (existingNote && onUpdate) {
+            // Update existing note's pitch
+            const selector: EventSelector = { at: existingNote.at, kind: 'note' as const, pitch: existingNote.pitch };
+            onUpdate(selector, { pitch: midi });
+          } else if (onAddNote) {
+            // Add new note at this step
+            onAddNote(slot.step, midi);
+          }
+          // Auto-advance cursor to next row (standard Renoise behavior)
+          setCursorRow(r => Math.min(rowCount - 1, r + 1));
+          return;
+        }
+      }
+    }
+
     switch (e.key) {
       case 'ArrowUp': {
         e.preventDefault();
@@ -532,7 +577,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       default:
         return;
     }
-  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, onTransposeByIndices, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns]);
+  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, onTransposeByIndices, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns, getColumnType, octaveOffset, onUpdate, onAddNote]);
 
   /** Handle row click — set cursor, optionally extend selection with Shift. */
   const handleRowClick = useCallback((rowIndex: number, shiftKey: boolean) => {
@@ -576,6 +621,9 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       data-shortcut-scope="tracker"
       className="outline-none h-full"
     >
+      <div className="flex items-center gap-2 px-1 py-0.5 text-[9px] text-zinc-500 font-mono sticky top-0 bg-zinc-900/95 backdrop-blur-sm z-10">
+        <span title="Base octave for keyboard-as-piano entry (-/= to shift)">Oct:{Math.floor(BASE_MIDI_LOWER / OCTAVE) - 1 + octaveOffset}</span>
+      </div>
       <table className="w-full border-collapse select-none font-mono">
         <thead>
           <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">

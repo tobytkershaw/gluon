@@ -504,6 +504,14 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
 
     // Velocity column — show note velocity, or trigger velocity if no note
     let velNode: React.ReactNode = '--';
+    /** Validate velocity: must be a number in 0.0-1.0 range. */
+    const validateVelocity = (s: string): boolean => {
+      const trimmed = s.trim();
+      if (trimmed === '') return true; // allow clearing
+      const n = parseFloat(trimmed);
+      return !isNaN(n) && n >= 0 && n <= 1;
+    };
+
     if (firstNote) {
       const vel = firstNote.velocity;
       const selector = selectorFromEvent(firstNote);
@@ -511,6 +519,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={vel.toFixed(2)}
           onCommit={(v) => onUpdate!(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          validate={validateVelocity}
           cancelEditRef={cancelEditRef}
           editRequested={velEditReq}
         />
@@ -522,6 +531,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={vel.toFixed(2)}
           onCommit={(v) => onUpdate!(selector, { velocity: Math.max(0, Math.min(1, v)) })}
+          validate={validateVelocity}
           cancelEditRef={cancelEditRef}
           editRequested={velEditReq}
         />
