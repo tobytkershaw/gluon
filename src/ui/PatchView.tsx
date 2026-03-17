@@ -232,7 +232,7 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
         ports.push({
           nodeId: node.id,
           paramId: p,
-          paramLabel: p.slice(0, 4),
+          paramLabel: p,
           x: node.x + spacing * (i + 1),
           y: node.y + node.h,
           target: { kind: 'source', param: p },
@@ -247,7 +247,7 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
           ports.push({
             nodeId: node.id,
             paramId: c,
-            paramLabel: c.slice(0, 4),
+            paramLabel: c,
             x: node.x + spacing * (i + 1),
             y: node.y + node.h,
             target: { kind: 'processor', processorId: proc.id, param: c },
@@ -631,6 +631,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
                 <span
                   className="text-[7px] text-cyan-400/50 mt-0.5 leading-none whitespace-nowrap"
                   style={{ pointerEvents: 'none' }}
+                  title={port.paramId}
                 >
                   {port.paramLabel}
                 </span>
