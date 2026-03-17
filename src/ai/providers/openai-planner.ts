@@ -148,17 +148,18 @@ export class OpenAIPlannerProvider implements PlannerProvider {
 
     // Take only the most recent exchanges to avoid context bloat
     const recent = pairs.slice(-MAX_RESTORED);
-    for (const pair of recent) {
+    for (let idx = 0; idx < recent.length; idx++) {
+      const pair = recent[idx];
       this.exchanges.push({
         inputItems: [{ role: 'user' as const, content: pair.human }],
         outputItems: [{
           type: 'message' as const,
-          id: '',
+          id: `restored-msg-${idx}`,
           role: 'assistant' as const,
           status: 'completed' as const,
           content: [{ type: 'output_text' as const, text: pair.ai, annotations: [] }],
         }],
-        responseId: '', // Not recoverable from persisted messages
+        responseId: `restored-resp-${idx}`,
       });
     }
 
