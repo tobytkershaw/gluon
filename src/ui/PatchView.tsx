@@ -1343,11 +1343,13 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
               </div>
             ))}
 
-            {/* SVG modulation edge layer — container allows events; non-interactive children opt out */}
+            {/* SVG modulation edge layer — pointer-events:none so clicks pass through to nodes;
+               individual cable hit-detection paths opt in via pointer-events:auto */}
             <svg
               className="absolute inset-0"
               width={maxX}
               height={maxY}
+              style={{ pointerEvents: 'none' }}
             >
               <defs>
                 <marker
