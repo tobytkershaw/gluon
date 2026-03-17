@@ -252,9 +252,9 @@ export function RackView({
           style={{ minWidth: processors.length === 0 && modulators.length === 0 ? 220 : 148, height: 572 }}
         >
           <span className="text-xl leading-none">+</span>
-          <span className="text-[9px] font-mono uppercase tracking-wider">Add Module</span>
+          <span className="text-[11px] font-mono uppercase tracking-wider">Add Module</span>
           {processors.length === 0 && modulators.length === 0 && (
-            <span className="text-[8px] text-zinc-600 mt-1 max-w-[160px] text-center leading-tight">
+            <span className="text-[10px] text-zinc-600 mt-1 max-w-[160px] text-center leading-tight">
               Add processors and modulators to build your signal chain
             </span>
           )}

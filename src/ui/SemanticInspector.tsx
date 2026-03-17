@@ -34,14 +34,14 @@ export function SemanticInspector({ control, resolveModuleLabel, onClose }: Sema
     >
       <div className="text-[11px] font-medium text-emerald-300 mb-1">{control.name}</div>
       {control.description && (
-        <div className="text-[9px] text-zinc-500 mb-2">{control.description}</div>
+        <div className="text-[11px] text-zinc-500 mb-2">{control.description}</div>
       )}
       <div className="space-y-1">
         {control.weights.map((w, i) => {
           const pct = Math.round(w.weight * 100);
           const transformTag = TRANSFORM_LABEL[w.transform];
           return (
-            <div key={i} className="flex items-center gap-1 text-[9px]">
+            <div key={i} className="flex items-center gap-1 text-[11px]">
               <span className="text-zinc-400 truncate flex-1">
                 {resolveModuleLabel(w.moduleId)}:{w.controlId}
               </span>

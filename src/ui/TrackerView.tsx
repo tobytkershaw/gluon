@@ -89,7 +89,7 @@ function InlineNumberInput({
     <input
       ref={inputRef}
       type="number"
-      className="w-10 text-center text-[10px] bg-zinc-800 border border-zinc-600 rounded text-zinc-200 outline-none focus:border-amber-500/50"
+      className="w-10 text-center text-[11px] bg-zinc-800 border border-zinc-600 rounded text-zinc-200 outline-none focus:border-amber-500/50"
       value={value}
       onChange={(e) => setValue(parseInt(e.target.value, 10) || 0)}
       onKeyDown={handleKeyDown}
@@ -144,7 +144,7 @@ export function TrackerView({
   const [showRotateInput, setShowRotateInput] = useState(false);
   const [showTransposeInput, setShowTransposeInput] = useState(false);
 
-  const buttonClass = "px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors";
+  const buttonClass = "px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors";
 
   return (
     <div className="flex flex-col h-full">
@@ -155,13 +155,13 @@ export function TrackerView({
           <div className="flex items-center gap-3">
             {onPatternLengthChange && (
               <div className="flex items-center gap-1 ml-4">
-                <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Len</span>
+                <span className="text-zinc-500 text-[11px] uppercase tracking-wider">Len</span>
                 <div className="flex gap-0.5">
                   {[4, 8, 16, 32, 64].map(len => (
                     <button
                       key={len}
                       onClick={() => onPatternLengthChange(len)}
-                      className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                      className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
                         getActivePattern(activeTrack).duration === len
                           ? 'bg-amber-500/20 text-amber-400'
                           : 'text-zinc-500 hover:text-zinc-300'
@@ -174,7 +174,7 @@ export function TrackerView({
                 {onClearPattern && (
                   <button
                     onClick={onClearPattern}
-                    className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-500/10"
+                    className="text-[11px] text-zinc-500 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-500/10"
                     title="Clear all events in pattern"
                   >
                     CLR
@@ -273,7 +273,7 @@ export function TrackerView({
 
           {/* Pattern tabs */}
           {activeTrack.patterns.length > 0 && (
-            <div className="flex items-center gap-1 text-[10px]">
+            <div className="flex items-center gap-1 text-[11px]">
               {activeTrack.patterns.map((pat, idx) => {
                 const isActive = activeRegion?.id === pat.id;
                 const label = pat.name || `P${idx + 1}`;
@@ -281,7 +281,7 @@ export function TrackerView({
                   <div key={pat.id} className="flex items-center group">
                     {renamingRegionId === pat.id ? (
                       <input
-                        className="w-16 text-[10px] bg-zinc-800 border border-amber-500/50 rounded px-1 py-0.5 text-zinc-200 outline-none"
+                        className="w-16 text-[11px] bg-zinc-800 border border-amber-500/50 rounded px-1 py-0.5 text-zinc-200 outline-none"
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => {
@@ -385,7 +385,7 @@ export function TrackerView({
                 stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
               />
             ) : (
-              <div className="px-4 py-8 text-center text-[10px] text-zinc-600 italic">
+              <div className="px-4 py-8 text-center text-[11px] text-zinc-600 italic">
                 No patterns
               </div>
             )}

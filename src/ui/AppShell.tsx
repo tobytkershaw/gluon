@@ -202,7 +202,7 @@ export function AppShell({
   return (
     <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
       {/* Global top bar — split into workstation (left) and collaboration (right) zones */}
-      <div className="flex items-center h-9 border-b border-zinc-800/50 shrink-0">
+      <div className="flex items-center h-9 border-b border-zinc-700/40 shrink-0">
         {/* Left zone: workstation controls */}
         <div className="flex-1 flex items-center gap-3 px-3">
           <ProjectMenu
@@ -326,13 +326,13 @@ export function AppShell({
       </div>
 
       {/* Global footer bar */}
-      <div className="flex items-center h-7 border-t border-zinc-800/50 shrink-0">
+      <div className="flex items-center h-7 border-t border-zinc-700/40 shrink-0">
         {/* Workstation footer: audio load + position + info + stereo meter */}
         <div className="flex-1 flex items-center gap-3 px-3">
           <AudioLoadMeter audioContext={audioContext} />
           <div className="w-px h-3 bg-zinc-800" />
           {/* Playback position */}
-          <span className="text-[10px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
+          <span className="text-[12px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
             {(() => {
               const beatsPerBar = timeSignatureNumerator || 4;
               const currentBeat = Math.floor(globalStep) + 1;
@@ -343,12 +343,12 @@ export function AppShell({
           </span>
           <div className="w-px h-3 bg-zinc-800" />
           {/* Transport mode */}
-          <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
+          <span className="text-[11px] text-zinc-600 uppercase tracking-wider">
             {transportMode === 'song' ? 'Song' : 'Pattern'}
           </span>
           <div className="w-px h-3 bg-zinc-800" />
           {/* Track count */}
-          <span className="text-[10px] text-zinc-600">
+          <span className="text-[11px] text-zinc-600">
             {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
           </span>
           <div className="flex-1" />

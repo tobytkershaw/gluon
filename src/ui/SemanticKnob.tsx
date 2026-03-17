@@ -106,8 +106,8 @@ export function SemanticKnob({
           />
         )}
       </svg>
-      <span className="text-[9px] text-zinc-400 text-center truncate w-full">{name}</span>
-      <span className="text-[8px] text-zinc-500 font-mono">{value.toFixed(2)}</span>
+      <span className="text-[11px] text-zinc-400 text-center truncate w-full">{name}</span>
+      <span className="text-[10px] text-zinc-500 font-mono">{value.toFixed(2)}</span>
     </div>
   );
 }

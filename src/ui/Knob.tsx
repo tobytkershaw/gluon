@@ -139,7 +139,7 @@ export function Knob({
       onMouseLeave={() => setHovered(false)}
     >
       {/* Label */}
-      <span className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[8px]' : 'text-[9px]'}`}>
+      <span className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[9px]' : 'text-[11px]'}`}>
         {label}
       </span>
 
@@ -216,7 +216,7 @@ export function Knob({
           {modulations.map((mod) => (
             <div
               key={mod.routeId}
-              className={`flex items-center gap-0.5 max-w-full ${isSmall ? 'text-[6px]' : 'text-[7px]'}`}
+              className={`flex items-center gap-0.5 max-w-full ${isSmall ? 'text-[7px]' : 'text-[9px]'}`}
               title={`${mod.modulatorLabel} depth: ${mod.depth > 0 ? '+' : ''}${mod.depth.toFixed(2)}`}
             >
               <button
@@ -233,7 +233,7 @@ export function Knob({
                   max={1}
                   step={0.01}
                   decimals={2}
-                  className={`text-cyan-300/80 hover:text-cyan-200 ${isSmall ? '!text-[6px]' : '!text-[7px]'}`}
+                  className={`text-cyan-300/80 hover:text-cyan-200 ${isSmall ? '!text-[7px]' : '!text-[9px]'}`}
                   onChange={(depth) => onModulationDepthChange(mod.routeId, depth)}
                   onCommit={onModulationDepthCommit ? (depth) => onModulationDepthCommit(mod.routeId, depth) : undefined}
                 />
@@ -246,7 +246,7 @@ export function Knob({
           ))}
         </div>
       ) : (
-        <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[7px]' : 'text-[8px]'}`}>
+        <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[8px]' : 'text-[10px]'}`}>
           {(hovered || dragging.current) && displayMapping
             ? formatDisplayValue(value, displayMapping)
             : formatDisplayValue(value)}

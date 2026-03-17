@@ -517,7 +517,7 @@ function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: numbe
             className={`rounded-full border-[1.5px] ${portSignalColor(port.def.signal)} shadow-[0_0_3px_rgba(0,0,0,0.3)]`}
             style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
           />
-          <span className={`text-[9px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+          <span className={`text-[11px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
             {port.def.name}
           </span>
         </div>
@@ -537,7 +537,7 @@ function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: numb
           className="absolute flex items-center justify-end gap-1.5"
           style={{ right: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
-          <span className={`text-[9px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+          <span className={`text-[11px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
             {port.def.name}
           </span>
           <div
@@ -581,7 +581,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
           style={{ left: -7, top: OUTPUT_R - 7 }}
         />
         <div className={`w-9 h-9 rounded-full border-2 shadow-[0_2px_8px_rgba(0,0,0,0.4)] ${selected ? 'bg-zinc-600 border-zinc-300 shadow-[0_0_12px_rgba(161,161,170,0.4)]' : 'bg-zinc-700 border-zinc-500'}`} />
-        <span className="text-[9px] font-medium text-zinc-400 mt-1 whitespace-nowrap select-none">
+        <span className="text-[11px] font-medium text-zinc-400 mt-1 whitespace-nowrap select-none">
           {node.label}
         </span>
       </div>
@@ -612,7 +612,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
           {node.label}
         </div>
         {node.sublabel && (
-          <div className="text-[9px] text-zinc-400 truncate leading-tight mt-0.5">
+          <div className="text-[11px] text-zinc-400 truncate leading-tight mt-0.5">
             {node.sublabel}
           </div>
         )}
@@ -671,7 +671,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
                 />
                 {/* Param label */}
                 <span
-                  className="text-[7px] text-cyan-400/50 mt-0.5 leading-none whitespace-nowrap"
+                  className="text-[9px] text-cyan-400/50 mt-0.5 leading-none whitespace-nowrap"
                   style={{ pointerEvents: 'none' }}
                   title={port.paramId}
                 >
@@ -721,7 +721,7 @@ function NodeDetailPanel({ node, track }: { node: NodePos; track: Track }) {
       }}
     >
       {params.map(([name, value]) => (
-        <div key={name} className="flex justify-between gap-2 text-[9px] font-mono leading-relaxed">
+        <div key={name} className="flex justify-between gap-2 text-[11px] font-mono leading-relaxed">
           <span className="text-zinc-500">{name}</span>
           <span className="text-zinc-300 tabular-nums">{value.toFixed(2)}</span>
         </div>
@@ -818,7 +818,7 @@ function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
         max={1}
         step={0.01}
         decimals={2}
-        className="text-[9px] text-cyan-300/80 hover:text-cyan-200"
+        className="text-[11px] text-cyan-300/80 hover:text-cyan-200"
         onChange={(v) => onDepthChange(edge.routeId, v)}
         onCommit={onDepthCommit ? (v) => onDepthCommit(edge.routeId, v) : undefined}
       />
@@ -873,7 +873,7 @@ function EmptyState() {
     <div className="flex-1 flex items-center justify-center text-zinc-500">
       <div className="text-center">
         <div className="text-[11px] font-mono uppercase tracking-wider mb-1">Patch</div>
-        <div className="text-[10px]">No tracks in session</div>
+        <div className="text-[11px]">No tracks in session</div>
       </div>
     </div>
   );
@@ -1320,10 +1320,10 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     <div className="flex-1 flex flex-col h-full">
       {/* Track header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-        <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
+        <span className="text-[12px] font-medium tracking-wider uppercase text-zinc-300">
           {getTrackLabel(track)}
         </span>
-        <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Patch</span>
+        <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Patch</span>
       </div>
 
       {/* Graph area */}
@@ -1395,8 +1395,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
                   height: sn.h,
                 }}
               >
-                <div className="text-[9px] font-mono text-zinc-400 truncate">{sn.label}</div>
-                <div className="text-[7px] font-mono text-zinc-600">{sn.sublabel}</div>
+                <div className="text-[11px] font-mono text-zinc-400 truncate">{sn.label}</div>
+                <div className="text-[9px] font-mono text-zinc-600">{sn.sublabel}</div>
               </div>
             ))}
 
@@ -1469,7 +1469,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
         <div className="absolute bottom-3 right-3 flex items-center gap-2">
           {(onAddProcessor || onAddModulator) && (
             <button
-              className="h-6 px-2 flex items-center gap-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors text-[10px] font-mono uppercase tracking-wider"
+              className="h-6 px-2 flex items-center gap-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors text-[11px] font-mono uppercase tracking-wider"
               title="Add module"
               onClick={() => setBrowserOpen(true)}
             >
@@ -1477,7 +1477,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
               <span>Module</span>
             </button>
           )}
-          <span className="text-[9px] text-zinc-500 font-mono tabular-nums select-none">
+          <span className="text-[11px] text-zinc-500 font-mono tabular-nums select-none">
             {zoomPercent}%
           </span>
           <button

@@ -147,7 +147,7 @@ export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers,
     <div className="flex items-center gap-2 px-2 select-none">
       {/* Volume */}
       <div className="flex items-center gap-1" title={`Master volume: ${volumePercent}%`} aria-label="Master volume">
-        <span className="text-[10px] text-zinc-500 w-6 text-right font-mono">{volumePercent}</span>
+        <span className="text-[11px] text-zinc-500 w-6 text-right font-mono">{volumePercent}</span>
         <Knob
           value={volume}
           label="Vol"
@@ -164,7 +164,7 @@ export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers,
         aria-label="Master pan"
         onDoubleClick={handlePanDoubleClick}
       >
-        <span className="text-[10px] text-zinc-500 w-5 text-right font-mono">{panLabel}</span>
+        <span className="text-[11px] text-zinc-500 w-5 text-right font-mono">{panLabel}</span>
         <Knob
           value={panKnobValue}
           label="Pan"

@@ -72,13 +72,13 @@ function ToggleControl({ control, accentColor, onChange }: {
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[8px] text-zinc-500 text-center leading-tight truncate w-full">
+      <span className="text-[10px] text-zinc-500 text-center leading-tight truncate w-full">
         {control.name}
       </span>
       <button
         type="button"
         onClick={() => onChange(control.id, isOn ? 0 : 1)}
-        className={`px-2.5 py-1 rounded text-[9px] font-medium transition-colors ${
+        className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
           isOn ? accent.toggleOn : accent.toggleOff
         }`}
       >
@@ -102,7 +102,7 @@ function DiscreteSelector({ control, accentColor, onChange }: {
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[8px] text-zinc-500 text-center leading-tight truncate w-full">
+      <span className="text-[10px] text-zinc-500 text-center leading-tight truncate w-full">
         {control.name}
       </span>
       <div className="flex gap-0.5">
@@ -111,7 +111,7 @@ function DiscreteSelector({ control, accentColor, onChange }: {
             key={step}
             type="button"
             onClick={() => onChange(control.id, (step - min) / (max - min))}
-            className={`w-5 h-5 rounded text-[9px] font-mono transition-colors border ${
+            className={`w-5 h-5 rounded text-[11px] font-mono transition-colors border ${
               Math.round(control.value * (max - min) + min) === step
                 ? accent.selectorActive
                 : `border-transparent ${accent.selectorInactive}`
@@ -150,7 +150,7 @@ function ModeSelector({ engines, currentModel, onChange, accentColor }: {
     <div ref={ref} className="relative w-full">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded text-[10px] hover:border-zinc-600 transition-colors w-full"
+        className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800/50 border border-zinc-700/50 rounded text-[11px] hover:border-zinc-600 transition-colors w-full"
       >
         <span className="text-zinc-400 flex-1 text-left truncate">
           {engines.find(e => e.index === currentModel)?.label ?? 'Unknown'}
@@ -165,7 +165,7 @@ function ModeSelector({ engines, currentModel, onChange, accentColor }: {
             <button
               key={engine.index}
               onClick={() => { onChange(engine.index); setOpen(false); }}
-              className={`block w-full text-left px-2 py-1 rounded text-[10px] transition-colors ${
+              className={`block w-full text-left px-2 py-1 rounded text-[11px] transition-colors ${
                 engine.index === currentModel
                   ? accent.modeBg
                   : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
@@ -303,7 +303,7 @@ export function ModulePanel({
           ) : (
             <div className={`w-1.5 h-1.5 rounded-full ${accent.dot} shrink-0`} />
           )}
-          <span className={`text-[10px] font-medium truncate ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
+          <span className={`text-[11px] font-medium truncate ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
         </div>
         {/* Module removal: select panel (click) then press Delete/Backspace */}
       </div>
@@ -322,7 +322,7 @@ export function ModulePanel({
 
         {/* Empty-engine placeholder */}
         {controls.length === 0 && (
-          <div className="flex items-center justify-center py-6 text-zinc-500 text-[10px] font-mono uppercase tracking-wider">
+          <div className="flex items-center justify-center py-6 text-zinc-500 text-[11px] font-mono uppercase tracking-wider">
             Select an engine
           </div>
         )}

@@ -4,6 +4,20 @@
 @theme {
   --font-sans: 'Syne', system-ui, sans-serif;
   --font-mono: 'DM Mono', ui-monospace, monospace;
+
+  /* Warm dark theme — shift zinc palette toward warm stone/brown tint */
+  /* Keeps the dark studio feel but adds intentional warmth like Bitwig/M8 */
+  --color-zinc-50: #faf9f7;
+  --color-zinc-100: #f3f1ed;
+  --color-zinc-200: #e5e2dc;
+  --color-zinc-300: #d1cdc5;
+  --color-zinc-400: #a8a39a;
+  --color-zinc-500: #7c776e;
+  --color-zinc-600: #57534e;
+  --color-zinc-700: #3d3935;
+  --color-zinc-800: #282523;
+  --color-zinc-900: #1c1917;
+  --color-zinc-950: #0f0e0c;
 }
 
 /* Range input styling */
@@ -18,7 +32,7 @@ input[type="range"] {
 input[type="range"]::-webkit-slider-track {
   height: 3px;
   border-radius: 2px;
-  background: #27272a;
+  background: #282523;
 }
 
 input[type="range"]::-webkit-slider-thumb {
@@ -27,7 +41,7 @@ input[type="range"]::-webkit-slider-thumb {
   height: 12px;
   border-radius: 50%;
   background: #fbbf24;
-  border: 2px solid #18181b;
+  border: 2px solid #1c1917;
   margin-top: -4.5px;
   transition: transform 0.1s;
 }
@@ -39,7 +53,7 @@ input[type="range"]:active::-webkit-slider-thumb {
 input[type="range"]::-moz-range-track {
   height: 3px;
   border-radius: 2px;
-  background: #27272a;
+  background: #282523;
 }
 
 input[type="range"]::-moz-range-thumb {
@@ -47,14 +61,14 @@ input[type="range"]::-moz-range-thumb {
   height: 12px;
   border-radius: 50%;
   background: #fbbf24;
-  border: 2px solid #18181b;
+  border: 2px solid #1c1917;
 }
 
 /* Master volume slider — subdued style for sidebar */
 .master-volume-slider::-webkit-slider-track {
   height: 2px;
   border-radius: 1px;
-  background: #3f3f46;
+  background: #3d3935;
 }
 
 .master-volume-slider::-webkit-slider-thumb {
@@ -62,7 +76,7 @@ input[type="range"]::-moz-range-thumb {
   height: 8px;
   border-radius: 50%;
   background: #a1a1aa;
-  border: 1.5px solid #27272a;
+  border: 1.5px solid #282523;
   margin-top: -3px;
 }
 
@@ -78,7 +92,7 @@ input[type="range"]::-moz-range-thumb {
 .master-volume-slider::-moz-range-track {
   height: 2px;
   border-radius: 1px;
-  background: #3f3f46;
+  background: #3d3935;
 }
 
 .master-volume-slider::-moz-range-thumb {
@@ -86,7 +100,7 @@ input[type="range"]::-moz-range-thumb {
   height: 8px;
   border-radius: 50%;
   background: #a1a1aa;
-  border: 1.5px solid #27272a;
+  border: 1.5px solid #282523;
 }
 
 .master-volume-slider:hover::-moz-range-thumb {
@@ -101,7 +115,7 @@ input[type="range"]::-moz-range-thumb {
   background: transparent;
 }
 .chat-scroll::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #3d3935;
   border-radius: 2px;
 }
 

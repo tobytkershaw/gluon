@@ -132,12 +132,12 @@ export function AutomationPanel({
     return (
       <button
         onClick={() => setExpanded(true)}
-        className="w-full px-3 py-1 text-[10px] font-medium tracking-wider uppercase text-zinc-500 hover:text-zinc-300 border-t border-zinc-800/50 transition-colors text-left flex items-center gap-2"
+        className="w-full px-3 py-1 text-[12px] font-medium tracking-wider uppercase text-zinc-500 hover:text-zinc-300 border-t border-zinc-800/50 transition-colors text-left flex items-center gap-2"
       >
         <svg className="text-zinc-500" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M3 1l5 4-5 4V1z" /></svg>
         Automation
         {eventCounts.size > 0 && (
-          <span className="text-[9px] text-amber-500/70 ml-1">
+          <span className="text-[11px] text-amber-500/70 ml-1">
             {eventCounts.size} param{eventCounts.size !== 1 ? 's' : ''}
           </span>
         )}
@@ -151,18 +151,18 @@ export function AutomationPanel({
       <div className="flex items-center gap-2 px-3 py-1">
         <button
           onClick={() => setExpanded(false)}
-          className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
           title="Collapse automation panel"
         >
           <svg className="text-zinc-400" width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M1 3l4 5 4-5H1z" /></svg>
         </button>
-        <span className="text-[10px] font-medium tracking-wider uppercase text-zinc-400">
+        <span className="text-[12px] font-medium tracking-wider uppercase text-zinc-400">
           Automation
         </span>
 
         {/* Parameter selector */}
         <select
-          className="text-[10px] bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-300 outline-none focus:border-amber-500/50 max-w-[140px]"
+          className="text-[11px] bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-300 outline-none focus:border-amber-500/50 max-w-[140px]"
           value={effectiveControlId ?? ''}
           onChange={(e) => setSelectedControlId(e.target.value || null)}
         >
@@ -193,7 +193,7 @@ export function AutomationPanel({
         </select>
 
         {/* Legend */}
-        <div className="ml-auto flex items-center gap-3 text-[9px] text-zinc-600">
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-zinc-600">
           <span>click: add</span>
           <span>alt+click: remove</span>
           <span>dbl-click: cycle mode</span>

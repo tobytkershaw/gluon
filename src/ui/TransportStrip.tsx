@@ -17,7 +17,7 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
       {abActive === null ? (
         <button
           onClick={onAbCapture}
-          className="h-5 px-1.5 rounded text-[9px] font-medium tracking-wider uppercase transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
+          className="h-5 px-1.5 rounded text-[12px] font-medium tracking-wider uppercase transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
           title="Snapshot current state as A"
         >
           A/B
@@ -26,7 +26,7 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
         <>
           <button
             onClick={onAbToggle}
-            className={`h-5 w-5 rounded-l text-[10px] font-bold transition-colors border ${
+            className={`h-5 w-5 rounded-l text-[11px] font-bold transition-colors border ${
               abActive === 'a'
                 ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
                 : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
@@ -37,7 +37,7 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
           </button>
           <button
             onClick={onAbToggle}
-            className={`h-5 w-5 rounded-r text-[10px] font-bold transition-colors border border-l-0 ${
+            className={`h-5 w-5 rounded-r text-[11px] font-bold transition-colors border border-l-0 ${
               abActive === 'b'
                 ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
                 : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
@@ -48,7 +48,7 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
           </button>
           <button
             onClick={onAbClear}
-            className="h-5 w-4 rounded text-[9px] transition-colors bg-zinc-800 text-zinc-600 border border-zinc-700 hover:text-zinc-300 ml-0.5"
+            className="h-5 w-4 rounded text-[11px] transition-colors bg-zinc-800 text-zinc-600 border border-zinc-700 hover:text-zinc-300 ml-0.5"
             title="Discard A/B snapshot"
           >
             x
@@ -171,7 +171,7 @@ export function TransportStrip({
         {/* Pattern / Song mode */}
         <button
           onClick={() => onTransportModeChange(transportMode === 'pattern' ? 'song' : 'pattern')}
-          className={`h-6 px-1.5 rounded-full flex items-center justify-center transition-colors text-[9px] font-bold tracking-wider ${
+          className={`h-6 px-1.5 rounded-full flex items-center justify-center transition-colors text-[11px] font-bold tracking-wider ${
             transportMode === 'song'
               ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
               : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
@@ -206,7 +206,7 @@ export function TransportStrip({
             className="!text-lg text-zinc-100 hover:text-amber-400 transition-colors font-semibold"
             onChange={onBpmChange}
           />
-          <span className="!text-[9px] uppercase tracking-wider text-zinc-600 ml-0.5 font-normal">bpm</span>
+          <span className="!text-[11px] uppercase tracking-wider text-zinc-600 ml-0.5 font-normal">bpm</span>
         </div>
         <TimeSignatureControl
           numerator={timeSignatureNumerator}
@@ -217,7 +217,7 @@ export function TransportStrip({
 
       {/* Swing */}
       <div className="flex items-baseline gap-1">
-        <span className="text-[9px] uppercase tracking-wider text-zinc-600">Swing</span>
+        <span className="text-[11px] uppercase tracking-wider text-zinc-600">Swing</span>
         <DraggableNumber
           value={Math.round(swing * 100)}
           min={0}
@@ -281,7 +281,7 @@ function MetronomeButton({ enabled, volume, onToggle, onVolumeChange }: {
       </button>
       {showVolume && (
         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-zinc-900 border border-zinc-700 rounded p-2 z-50 shadow-xl flex items-center gap-2">
-          <span className="text-[9px] text-zinc-500 uppercase tracking-wider whitespace-nowrap">Vol</span>
+          <span className="text-[11px] text-zinc-500 uppercase tracking-wider whitespace-nowrap">Vol</span>
           <input
             type="range"
             min={0}
@@ -290,7 +290,7 @@ function MetronomeButton({ enabled, volume, onToggle, onVolumeChange }: {
             onChange={(e) => onVolumeChange(Number(e.target.value) / 100)}
             className="w-20 h-1 accent-amber-400"
           />
-          <span className="text-[10px] text-zinc-400 tabular-nums w-6 text-right">{Math.round(volume * 100)}</span>
+          <span className="text-[11px] text-zinc-400 tabular-nums w-6 text-right">{Math.round(volume * 100)}</span>
         </div>
       )}
     </div>
@@ -337,7 +337,7 @@ function TimeSignatureControl({ numerator, denominator, onChange }: {
               <button
                 key={`${n}/${d}`}
                 onClick={() => { onChange(n, d); setOpen(false); }}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors whitespace-nowrap ${
+                className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums transition-colors whitespace-nowrap ${
                   n === numerator && d === denominator
                     ? 'bg-amber-500/20 text-amber-400'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'
@@ -353,7 +353,7 @@ function TimeSignatureControl({ numerator, denominator, onChange }: {
               <button
                 key={`${n}/${d}`}
                 onClick={() => { onChange(n, d); setOpen(false); }}
-                className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums transition-colors whitespace-nowrap ${
+                className={`px-2 py-0.5 rounded text-[11px] font-mono tabular-nums transition-colors whitespace-nowrap ${
                   n === numerator && d === denominator
                     ? 'bg-amber-500/20 text-amber-400'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'

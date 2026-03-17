@@ -66,7 +66,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               style={{ minHeight: '1rem' }}
             />
             <div className="min-w-0 flex-1">
-              <div className={`text-[8px] font-mono uppercase tracking-[0.2em] mb-1 ${
+              <div className={`text-[10px] font-mono uppercase tracking-[0.2em] mb-1 ${
                 msg.role === 'ai' ? 'text-teal-600/80' : 'text-zinc-600'
               }`}>
                 {msg.role === 'ai' ? 'AI' : msg.role === 'system' ? 'SYS' : 'YOU'}
@@ -124,7 +124,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
             style={{ ...(!streamingText ? { animation: 'pulse-soft 1.5s ease-in-out infinite' } : {}), minHeight: '1rem' }}
           />
           <div className="min-w-0 flex-1">
-            <div className="text-[8px] font-mono uppercase tracking-[0.2em] mb-1 text-teal-600/80">AI</div>
+            <div className="text-[10px] font-mono uppercase tracking-[0.2em] mb-1 text-teal-600/80">AI</div>
             {streamingText ? (
               <div className="text-[11px] leading-[1.6] break-words text-zinc-300">
                 {renderInlineMarkdown(streamingText)}
@@ -136,7 +136,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
             ) : (
               <div className="flex items-center gap-1.5">
                 <ThinkingDots />
-                <span className="text-[10px] font-mono text-zinc-600">
+                <span className="text-[11px] font-mono text-zinc-600">
                   {isListening ? 'listening' : 'thinking'}
                 </span>
               </div>

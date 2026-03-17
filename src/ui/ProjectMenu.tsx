@@ -134,7 +134,7 @@ export function ProjectMenu({
             <MenuItem label="Import .gluon" onClick={handleImportClick} />
             <input ref={fileRef} type="file" accept=".gluon,.json" className="hidden" onChange={handleFileChange} />
             {importError && (
-              <div className="px-3 py-1.5 text-[10px] font-mono text-red-400/80">{importError}</div>
+              <div className="px-3 py-1.5 text-[11px] font-mono text-red-400/80">{importError}</div>
             )}
             {onExportWav && (
               <>
@@ -146,13 +146,13 @@ export function ProjectMenu({
                   />
                 ) : (
                   <div className="px-3 py-1.5">
-                    <div className="text-[9px] font-mono text-zinc-500 mb-1.5">Bars to export</div>
+                    <div className="text-[11px] font-mono text-zinc-500 mb-1.5">Bars to export</div>
                     <div className="flex gap-1">
                       {[1, 2, 4, 8, 16].map(n => (
                         <button
                           key={n}
                           onClick={() => { onExportWav(n); setWavBarPicker(false); setOpen(false); }}
-                          className="flex-1 px-1.5 py-1 text-[10px] font-mono text-zinc-300 bg-zinc-800 rounded hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                          className="flex-1 px-1.5 py-1 text-[11px] font-mono text-zinc-300 bg-zinc-800 rounded hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
                         >
                           {n}
                         </button>
@@ -172,7 +172,7 @@ export function ProjectMenu({
               <div className="border-t border-zinc-800/60" />
               <div className="py-1 max-h-48 overflow-y-auto chat-scroll">
                 <div className="px-3 py-1">
-                  <span className="text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600">Projects</span>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-600">Projects</span>
                 </div>
                 {projects.map(p => (
                   <button
@@ -180,8 +180,8 @@ export function ProjectMenu({
                     onClick={() => { onOpen(p.id); setOpen(false); }}
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-800/50 transition-colors"
                   >
-                    <span className="text-[10px] font-mono text-zinc-400 truncate flex-1">{p.name}</span>
-                    <span className="text-[9px] font-mono text-zinc-700 shrink-0">{relativeTime(p.updatedAt)}</span>
+                    <span className="text-[11px] font-mono text-zinc-400 truncate flex-1">{p.name}</span>
+                    <span className="text-[11px] font-mono text-zinc-700 shrink-0">{relativeTime(p.updatedAt)}</span>
                   </button>
                 ))}
               </div>
@@ -236,7 +236,7 @@ function MenuItem({ label, onClick, danger }: { label: string; onClick: () => vo
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 text-[10px] font-mono transition-colors ${
+      className={`w-full text-left px-3 py-1.5 text-[11px] font-mono transition-colors ${
         danger
           ? 'text-red-400/70 hover:text-red-400 hover:bg-red-500/10'
           : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'

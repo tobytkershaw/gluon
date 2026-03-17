@@ -107,15 +107,15 @@ export function ExpandedTrack({
         className="flex items-center gap-3"
         onDoubleClick={() => onOpenDeepView('all')}
       >
-        <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
+        <span className="text-[12px] font-medium tracking-wider uppercase text-zinc-300">
           {getTrackLabel(activeTrack)}
         </span>
-        <span className="text-[10px] text-zinc-500">
+        <span className="text-[11px] text-zinc-500">
           {getModelName(activeTrack.model)}
         </span>
         <button
           onClick={() => onAgencyChange(activeTrack.agency === 'OFF' ? 'ON' : 'OFF')}
-          className={`text-[10px] px-2 py-0.5 rounded transition-colors ${
+          className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
             activeTrack.agency === 'ON'
               ? 'bg-teal-400/20 text-teal-400'
               : 'bg-zinc-800 text-zinc-500'
@@ -276,7 +276,7 @@ export function ExpandedTrack({
       {onAddView && (
         <div className="flex items-center gap-2">
           <button
-            className="text-[9px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-colors"
+            className="text-[11px] text-zinc-600 hover:text-zinc-400 uppercase tracking-widest transition-colors"
             onClick={() => onAddView('step-grid')}
           >
             + Step Grid

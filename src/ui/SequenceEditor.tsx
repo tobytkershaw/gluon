@@ -140,10 +140,10 @@ export function SequenceEditor({
     <div className="flex flex-col gap-1">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-medium tracking-wider uppercase text-zinc-400">
+        <span className="text-[12px] font-medium tracking-wider uppercase text-zinc-400">
           Sequence
         </span>
-        <span className="text-[10px] text-zinc-600">
+        <span className="text-[11px] text-zinc-600">
           {track.sequence.length} slot{track.sequence.length !== 1 ? 's' : ''}
         </span>
         {!isSongMode && track.sequence.length > 1 && (
@@ -172,7 +172,7 @@ export function SequenceEditor({
               role="option"
               aria-selected={isSelected}
               aria-current={isPlaying ? 'true' : undefined}
-              className={`group flex items-center gap-1 px-1.5 py-[3px] text-[10px] cursor-pointer transition-colors select-none ${
+              className={`group flex items-center gap-1 px-1.5 py-[3px] text-[11px] cursor-pointer transition-colors select-none ${
                 isSelected
                   ? 'bg-amber-500/15 text-amber-300'
                   : isPlaying
@@ -225,7 +225,7 @@ export function SequenceEditor({
         {/* Add pattern ref dropdown */}
         {track.patterns.length > 0 && (
           <select
-            className="text-[10px] bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors cursor-pointer outline-none focus:border-amber-500/50"
+            className="text-[11px] bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors cursor-pointer outline-none focus:border-amber-500/50"
             value=""
             onChange={(e) => {
               if (e.target.value) {

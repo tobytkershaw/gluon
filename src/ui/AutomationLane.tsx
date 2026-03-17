@@ -276,7 +276,7 @@ export function AutomationLane({
   return (
     <div className="relative">
       {/* Label */}
-      <div className="absolute top-0 left-0 z-10 px-1 py-0.5 text-[9px] font-medium tracking-wider uppercase text-zinc-500 select-none">
+      <div className="absolute top-0 left-0 z-10 px-1 py-0.5 text-[12px] font-medium tracking-wider uppercase text-zinc-500 select-none">
         {label}
       </div>
 

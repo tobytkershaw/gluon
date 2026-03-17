@@ -16,7 +16,7 @@ export function PitchControl({ note, harmonics, onNoteChange, onHarmonicsChange 
   return (
     <div className="flex gap-5 w-48 shrink-0">
       <div className="flex-1">
-        <label className="block text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-600 mb-1.5">
           Note
         </label>
         <input
@@ -33,7 +33,7 @@ export function PitchControl({ note, harmonics, onNoteChange, onHarmonicsChange 
         </div>
       </div>
       <div className="flex-1">
-        <label className="block text-[8px] font-mono uppercase tracking-[0.2em] text-zinc-600 mb-1.5">
+        <label className="block text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-600 mb-1.5">
           Harmonics
         </label>
         <input

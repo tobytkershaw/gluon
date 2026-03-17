@@ -27,7 +27,7 @@ export function ModelSelector({ model, onChange }: Props) {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2.5 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded text-xs hover:border-zinc-600 transition-colors"
       >
-        <span className="font-mono text-amber-400 text-[10px]">
+        <span className="font-mono text-amber-400 text-[11px]">
           {String(model).padStart(2, '0')}
         </span>
         <span className="text-zinc-300 text-[11px] font-medium">
@@ -53,10 +53,10 @@ export function ModelSelector({ model, onChange }: Props) {
                   : 'border border-transparent text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
               }`}
             >
-              <div className="font-mono text-[8px] leading-none opacity-40 mb-1">
+              <div className="font-mono text-[10px] leading-none opacity-40 mb-1">
                 {String(m.index).padStart(2, '0')}
               </div>
-              <div className="text-[10px] font-medium leading-tight">
+              <div className="text-[11px] font-medium leading-tight">
                 {m.name}
               </div>
             </button>

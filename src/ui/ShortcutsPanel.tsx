@@ -70,14 +70,14 @@ export function ShortcutsPanel({ onClose }: Props) {
               if (!defs || defs.length === 0) return null;
               return (
                 <div key={section}>
-                  <h3 className="text-[9px] font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-widest text-zinc-500 mb-1.5">
                     {SECTION_LABELS[section]}
                   </h3>
                   <ul className="space-y-0.5">
                     {defs.map(def => (
                       <li key={def.key} className="flex items-center justify-between text-[11px] py-0.5">
                         <span className="text-zinc-400">{def.label}</span>
-                        <kbd className="ml-2 shrink-0 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[10px] font-mono">
+                        <kbd className="ml-2 shrink-0 px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 text-[11px] font-mono">
                           {def.key}
                         </kbd>
                       </li>
