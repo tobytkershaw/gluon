@@ -218,7 +218,7 @@ export function RackView({
           );
         })}
 
-        {/* Add module button (fits in the grid flow, matches 1U height) */}
+        {/* Add module button (fits in the grid flow, matches uniform module height) */}
         <button
           type="button"
           onClick={() => setBrowserOpen(true)}
