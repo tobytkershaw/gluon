@@ -24,7 +24,7 @@ const NODE_GAP = 80;
 const PAD_X = 40;
 const PAD_Y = 32;
 const AUDIO_ROW_Y = PAD_Y;
-const OUTPUT_R = 10;
+const OUTPUT_R = 18;
 const PORT_CIRCLE_R = 4;   // radius of port circles
 
 // --- Pan/Zoom constants ---
@@ -64,9 +64,9 @@ function portSignalStroke(signal: PortSignalType): string {
 
 function portSignalLabelColor(signal: PortSignalType): string {
   switch (signal) {
-    case 'audio': return 'text-amber-400/70';
-    case 'cv':    return 'text-emerald-400/60';
-    case 'gate':  return 'text-rose-400/60';
+    case 'audio': return 'text-amber-300';
+    case 'cv':    return 'text-emerald-300';
+    case 'gate':  return 'text-rose-300';
   }
 }
 
@@ -179,7 +179,7 @@ function layoutNodes(track: Track): NodePos[] {
     id: 'output',
     x,
     y: AUDIO_ROW_Y,
-    label: 'Out',
+    label: 'Output',
     sublabel: '',
     kind: 'output',
     h: OUTPUT_NODE_H,
@@ -476,7 +476,7 @@ function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: numbe
             className={`rounded-full border ${portSignalColor(port.def.signal)}`}
             style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
           />
-          <span className={`text-[7px] leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+          <span className={`text-[9px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
             {port.def.name}
           </span>
         </div>
@@ -496,7 +496,7 @@ function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: numb
           className="absolute flex items-center justify-end gap-1"
           style={{ right: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
-          <span className={`text-[7px] leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+          <span className={`text-[9px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
             {port.def.name}
           </span>
           <div
@@ -522,7 +522,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
   if (node.kind === 'output') {
     return (
       <div
-        className="absolute flex items-center justify-center"
+        className="absolute flex flex-col items-center justify-center"
         style={{
           left: node.x,
           top: node.y + node.h / 2 - OUTPUT_R,
@@ -539,7 +539,10 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
           className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
           style={{ left: -6, top: OUTPUT_R - 6 }}
         />
-        <div className={`w-5 h-5 rounded-full bg-zinc-700 border ${selected ? 'border-zinc-300 shadow-[0_0_8px_rgba(161,161,170,0.4)]' : 'border-zinc-500'}`} />
+        <div className={`w-8 h-8 rounded-full bg-zinc-700 border-2 ${selected ? 'border-zinc-300 shadow-[0_0_8px_rgba(161,161,170,0.4)]' : 'border-zinc-500'}`} />
+        <span className="text-[9px] font-medium text-zinc-400 mt-1 whitespace-nowrap select-none">
+          {node.label}
+        </span>
       </div>
     );
   }
