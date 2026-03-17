@@ -365,6 +365,18 @@ describe('setTrackImportance', () => {
       expect(track.importance).toBeUndefined();
     }
   });
+
+  it('role-only edit preserves importance as undefined', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    // importance starts undefined on a fresh track
+    expect(s1.tracks.find(t => t.id === trackId)!.importance).toBeUndefined();
+    // set only musicalRole, passing undefined for importance
+    const s2 = setTrackImportance(s1, trackId, undefined, 'bass');
+    const track = s2.tracks.find(t => t.id === trackId)!;
+    expect(track.musicalRole).toBe('bass');
+    expect(track.importance).toBeUndefined();
+  });
 });
 
 describe('setMaster', () => {

@@ -530,10 +530,9 @@ export function addReaction(session: Session, reaction: Reaction): Session {
   return { ...session, reactionHistory: next };
 }
 
-export function setTrackImportance(session: Session, trackId: string, importance: number, musicalRole?: string): Session {
-  const clamped = Math.max(0, Math.min(1, importance));
+export function setTrackImportance(session: Session, trackId: string, importance?: number, musicalRole?: string): Session {
   return updateTrack(session, trackId, {
-    importance: clamped,
+    ...(importance !== undefined ? { importance: Math.max(0, Math.min(1, importance)) } : {}),
     ...(musicalRole !== undefined ? { musicalRole } : {}),
   });
 }

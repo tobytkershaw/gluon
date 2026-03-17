@@ -1,12 +1,13 @@
 // tests/engine/metadata-undo.test.ts
 // Contract tests: AI track-metadata actions (set_importance) must be undoable.
+// Human-UI importance/role changes must also be undoable.
 // These tests must FAIL if metadata writes stop participating in undo.
 import { describe, it, expect, vi } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
 import { applyUndo } from '../../src/engine/primitives';
-import { createSession, setAgency } from '../../src/engine/session';
+import { createSession, setAgency, setTrackImportance } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
-import type { AIAction, Snapshot, ActionGroupSnapshot } from '../../src/engine/types';
+import type { AIAction, Snapshot, ActionGroupSnapshot, TrackPropertySnapshot } from '../../src/engine/types';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 
 function createTestAdapter(): SourceAdapter {
@@ -197,5 +198,108 @@ describe('AI track-metadata undo contract', () => {
     // mark_approved stores prevApproval as track.approval ?? 'exploratory', so undo restores 'exploratory'
     expect(undone.tracks.find(t => t.id === 'v0')!.approval).toBe('exploratory');
     expect(undone.tracks.find(t => t.id === 'v0')!.importance).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Human-UI importance/role undo contract
+// ---------------------------------------------------------------------------
+// These tests simulate the same undo pattern used by App.tsx handleSetImportance
+// and handleSetMusicalRole: push a TrackPropertySnapshot, then call setTrackImportance.
+
+/** Simulate the human-UI handler: capture prev, mutate, push snapshot. */
+function humanSetImportance(session: ReturnType<typeof createSession>, trackId: string, importance: number) {
+  const track = session.tracks.find(t => t.id === trackId)!;
+  const clamped = Math.max(0, Math.min(1, importance));
+  const snapshot: TrackPropertySnapshot = {
+    kind: 'track-property',
+    trackId,
+    prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+    timestamp: Date.now(),
+    description: `Set importance: ${track.importance ?? 'unset'} → ${clamped}`,
+  };
+  const next = setTrackImportance(session, trackId, importance);
+  return { ...next, undoStack: [...next.undoStack, snapshot] };
+}
+
+function humanSetMusicalRole(session: ReturnType<typeof createSession>, trackId: string, role: string) {
+  const track = session.tracks.find(t => t.id === trackId)!;
+  const snapshot: TrackPropertySnapshot = {
+    kind: 'track-property',
+    trackId,
+    prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+    timestamp: Date.now(),
+    description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
+  };
+  const next = setTrackImportance(session, trackId, undefined, role);
+  return { ...next, undoStack: [...next.undoStack, snapshot] };
+}
+
+describe('Human-UI importance/role undo contract', () => {
+  it('human importance change pushes an undo snapshot', () => {
+    const session = setupSession();
+    const stackBefore = session.undoStack.length;
+    const after = humanSetImportance(session, 'v0', 0.75);
+    expect(after.undoStack.length).toBe(stackBefore + 1);
+    expect(after.tracks.find(t => t.id === 'v0')!.importance).toBe(0.75);
+  });
+
+  it('undo reverts human importance change', () => {
+    const session = setupSession();
+    const after = humanSetImportance(session, 'v0', 0.8);
+    expect(after.tracks.find(t => t.id === 'v0')!.importance).toBe(0.8);
+
+    const undone = applyUndo(after);
+    expect(undone.tracks.find(t => t.id === 'v0')!.importance).toBeUndefined();
+  });
+
+  it('human musical role change pushes an undo snapshot', () => {
+    const session = setupSession();
+    const stackBefore = session.undoStack.length;
+    const after = humanSetMusicalRole(session, 'v0', 'bass');
+    expect(after.undoStack.length).toBe(stackBefore + 1);
+    expect(after.tracks.find(t => t.id === 'v0')!.musicalRole).toBe('bass');
+  });
+
+  it('undo reverts human musical role change', () => {
+    const session = setupSession();
+    const after = humanSetMusicalRole(session, 'v0', 'lead');
+    expect(after.tracks.find(t => t.id === 'v0')!.musicalRole).toBe('lead');
+
+    const undone = applyUndo(after);
+    expect(undone.tracks.find(t => t.id === 'v0')!.musicalRole).toBeUndefined();
+  });
+
+  it('undo reverts multiple sequential human changes in LIFO order', () => {
+    let session = setupSession();
+
+    session = humanSetImportance(session, 'v0', 0.5);
+    session = humanSetMusicalRole(session, 'v0', 'pad');
+    session = humanSetImportance(session, 'v0', 0.9);
+
+    expect(session.tracks.find(t => t.id === 'v0')!.importance).toBe(0.9);
+
+    // Undo third change (importance 0.9 -> 0.5)
+    session = applyUndo(session);
+    expect(session.tracks.find(t => t.id === 'v0')!.importance).toBe(0.5);
+    expect(session.tracks.find(t => t.id === 'v0')!.musicalRole).toBe('pad');
+
+    // Undo second change (role 'pad' -> undefined)
+    session = applyUndo(session);
+    expect(session.tracks.find(t => t.id === 'v0')!.musicalRole).toBeUndefined();
+    expect(session.tracks.find(t => t.id === 'v0')!.importance).toBe(0.5);
+
+    // Undo first change (importance 0.5 -> undefined)
+    session = applyUndo(session);
+    expect(session.tracks.find(t => t.id === 'v0')!.importance).toBeUndefined();
+  });
+
+  it('human importance change clamps to 0-1 range', () => {
+    const session = setupSession();
+    const over = humanSetImportance(session, 'v0', 1.5);
+    expect(over.tracks.find(t => t.id === 'v0')!.importance).toBe(1);
+
+    const under = humanSetImportance(session, 'v0', -0.3);
+    expect(under.tracks.find(t => t.id === 'v0')!.importance).toBe(0);
   });
 });
