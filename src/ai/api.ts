@@ -1,12 +1,13 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity, TrackKind } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity, TrackKind } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { resolveTrackId } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
+import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
@@ -98,6 +99,10 @@ function projectAction(session: Session, action: AIAction): Session {
       const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
       const newRegions = track.patterns.map(r => r.id === activeReg.id ? updatedRegion : r);
       return updateTrack(session, action.trackId, { patterns: newRegions, stepGrid: pattern });
+    }
+    case 'edit_pattern': {
+      // Projection: apply edits to session for mid-turn state validation
+      return editPatternEvents(session, action.trackId, action.patternId, action.operations, action.description);
     }
     case 'transform': {
       const track = getTrack(session, action.trackId);
@@ -628,6 +633,58 @@ export class GluonAI {
             rhythmChanged,
             ...(hasApprovalLock ? { approvalLevel: approval } : {}),
             ...(preservationReport ? { preservation: preservationReport } : {}),
+          },
+        };
+      }
+
+      case 'edit_pattern': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.description !== 'string') {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+        if (!Array.isArray(args.operations) || args.operations.length === 0) {
+          return { actions: [], response: errorPayload('Missing required parameter: operations (must be a non-empty array)') };
+        }
+
+        // Validate operation shape
+        const validActions = ['add', 'remove', 'modify'];
+        for (let i = 0; i < (args.operations as PatternEditOp[]).length; i++) {
+          const op = (args.operations as PatternEditOp[])[i];
+          if (!validActions.includes(op.action)) {
+            return { actions: [], response: errorPayload(`operations[${i}]: unknown action "${op.action}". Must be add, remove, or modify`) };
+          }
+          if (typeof op.step !== 'number' || op.step < 0) {
+            return { actions: [], response: errorPayload(`operations[${i}]: step must be a non-negative integer`) };
+          }
+        }
+
+        const action: AIEditPatternAction = {
+          type: 'edit_pattern',
+          trackId: args.trackId as string,
+          operations: args.operations as PatternEditOp[],
+          description: args.description as string,
+          ...(args.patternId ? { patternId: args.patternId as string } : {}),
+        };
+
+        const rejection = ctx?.validateAction?.(action);
+        if (rejection) return { actions: [], response: errorPayload(rejection) };
+
+        // Summarize operations
+        const adds = action.operations.filter(o => o.action === 'add').length;
+        const removes = action.operations.filter(o => o.action === 'remove').length;
+        const modifies = action.operations.filter(o => o.action === 'modify').length;
+
+        return {
+          actions: [action],
+          response: {
+            applied: true,
+            trackId: action.trackId,
+            description: action.description,
+            added: adds,
+            removed: removes,
+            modified: modifies,
           },
         };
       }

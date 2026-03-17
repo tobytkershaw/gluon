@@ -169,7 +169,7 @@ describe('API Structural Integrity', () => {
   it('projectAction handles all action types that executeFunctionCall can produce', () => {
     // Tools that produce actions (not analysis-only tools like listen/render/analyze):
     const actionProducingTools = [
-      'move', 'sketch', 'set_transport', 'set_model', 'transform',
+      'move', 'sketch', 'edit_pattern', 'set_transport', 'set_model', 'transform',
       'manage_view', 'manage_processor', 'manage_modulator',
       'modulation_route', 'set_surface', 'pin_control', 'label_axes',
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
@@ -190,7 +190,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(21);
+    expect(GLUON_TOOLS.length).toBe(22);
   });
 
   // -----------------------------------------------------------------------

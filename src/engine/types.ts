@@ -468,6 +468,27 @@ export interface AITransformAction {
   description: string;
 }
 
+export interface PatternEditOp {
+  action: 'add' | 'remove' | 'modify';
+  step: number;
+  event?: {
+    type: 'trigger' | 'note';
+    pitch?: number;      // 0-127 for notes
+    velocity?: number;   // 0-1
+    accent?: boolean;
+    duration?: number;   // in steps
+  };
+  params?: { controlId: string; value: number }[];  // parameter locks
+}
+
+export interface AIEditPatternAction {
+  type: 'edit_pattern';
+  trackId: string;
+  patternId?: string;
+  operations: PatternEditOp[];
+  description: string;
+}
+
 export interface AIAddViewAction {
   type: 'add_view';
   trackId: string;
@@ -631,7 +652,7 @@ export interface AIRemoveTrackAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction;
 
 // --- Reaction History ---
 

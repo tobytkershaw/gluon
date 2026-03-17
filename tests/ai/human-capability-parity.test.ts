@@ -27,6 +27,7 @@ const PARITY_OK_TOOLS = new Set([
   'set_model',         // Rack: mode selector dropdowns
   'set_transport',     // Global: BPM input, swing slider, play/stop buttons
   'sketch',            // Step grid (triggers), keyboard piano (notes) — partial: no param events
+  'edit_pattern',      // Step grid: toggle individual gates, accents, param locks
   'manage_processor',  // Rack: Module Browser (add), Remove button (remove) — replace has no UI but add/remove do
   'manage_modulator',  // Rack: Module Browser (add), Remove button (remove)
   'modulation_route',  // Patch: port drag to connect, edge select + Delete to disconnect, DraggableNumber for depth

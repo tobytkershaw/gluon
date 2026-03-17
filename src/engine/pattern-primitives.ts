@@ -1,6 +1,7 @@
 // src/engine/pattern-primitives.ts
-import type { Session, SynthParamValues, PatternEditSnapshot } from './types';
+import type { Session, SynthParamValues, PatternEditSnapshot, PatternEditOp } from './types';
 import { getTrack, getActivePattern, updateTrack } from './types';
+import type { Pattern } from './canonical-types';
 import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from './canonical-types';
 import { reprojectTrackStepGrid } from './region-projection';
 import { normalizePatternEvents } from './region-helpers';
@@ -368,4 +369,295 @@ export function quantizeRegion(
   });
 
   return applyRegionEdit(session, trackId, quantized, undefined, `Quantize to grid ${gridSize}`);
+}
+
+// ---------------------------------------------------------------------------
+// Non-destructive pattern editing — add/remove/modify individual events
+// ---------------------------------------------------------------------------
+
+/** Tolerance for matching events at the same step position. */
+const STEP_TOLERANCE = 0.001;
+
+function sameStep(a: number, b: number): boolean {
+  return Math.abs(a - b) < STEP_TOLERANCE;
+}
+
+/** Count note events at a given step position. */
+function countNotesAt(events: MusicalEvent[], step: number): number {
+  return events.filter(e => e.kind === 'note' && sameStep(e.at, step)).length;
+}
+
+/**
+ * Validate a batch of PatternEditOp against a pattern.
+ * Returns an array of error strings (empty = valid).
+ */
+export function validatePatternEditOps(
+  pattern: Pattern,
+  operations: PatternEditOp[],
+): string[] {
+  const errors: string[] = [];
+  for (let i = 0; i < operations.length; i++) {
+    const op = operations[i];
+    const prefix = `ops[${i}]`;
+
+    if (op.step < 0 || op.step >= pattern.duration) {
+      errors.push(`${prefix}: step ${op.step} out of range [0, ${pattern.duration})`);
+      continue;
+    }
+
+    if (op.action === 'modify' || op.action === 'remove') {
+      // Must have an existing event at this step to modify/remove
+      const hasGateEvent = pattern.events.some(
+        e => (e.kind === 'trigger' || e.kind === 'note') && sameStep(e.at, op.step),
+      );
+      const hasParamEvent = op.params?.length
+        ? op.params.some(p =>
+            pattern.events.some(
+              e => e.kind === 'parameter' && sameStep(e.at, op.step) && (e as ParameterEvent).controlId === p.controlId,
+            ),
+          )
+        : false;
+      if (op.action === 'remove' && !hasGateEvent && !hasParamEvent) {
+        errors.push(`${prefix}: no event at step ${op.step} to remove`);
+      }
+      if (op.action === 'modify' && !hasGateEvent && !hasParamEvent) {
+        errors.push(`${prefix}: no event at step ${op.step} to modify`);
+      }
+    }
+
+    if (op.event) {
+      if (op.event.velocity !== undefined && (op.event.velocity < 0 || op.event.velocity > 1)) {
+        errors.push(`${prefix}: velocity ${op.event.velocity} out of range [0, 1]`);
+      }
+      if (op.event.type === 'note') {
+        if (op.event.pitch !== undefined && (op.event.pitch < 0 || op.event.pitch > 127)) {
+          errors.push(`${prefix}: pitch ${op.event.pitch} out of range [0, 127]`);
+        }
+        if (op.event.duration !== undefined && op.event.duration <= 0) {
+          errors.push(`${prefix}: duration must be > 0`);
+        }
+      }
+    }
+  }
+  return errors;
+}
+
+/**
+ * Apply a batch of non-destructive edit operations to a pattern.
+ * All operations are applied as a single undo group.
+ *
+ * - `add`: insert event at step (error if trigger already occupied; notes allow stacking up to 4)
+ * - `remove`: remove event at step (by type if specified, otherwise all gate events)
+ * - `modify`: change velocity/accent/pitch on existing event at step
+ *
+ * Parameter locks (via `params`) are added/modified on add/modify, or removed on remove.
+ */
+export function editPatternEvents(
+  session: Session,
+  trackId: string,
+  patternId: string | undefined,
+  operations: PatternEditOp[],
+  description: string,
+): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+
+  // Resolve pattern: by ID or active
+  const pattern = patternId
+    ? track.patterns.find(p => p.id === patternId)
+    : getActivePattern(track);
+  if (!pattern) return session;
+
+  const events = [...pattern.events];
+
+  for (const op of operations) {
+    switch (op.action) {
+      case 'add': {
+        // Add gate event if specified
+        if (op.event) {
+          if (op.event.type === 'trigger') {
+            // Check for existing trigger at this step
+            const existingIdx = events.findIndex(
+              e => e.kind === 'trigger' && sameStep(e.at, op.step),
+            );
+            if (existingIdx >= 0) {
+              // Overwrite existing trigger rather than error — more useful behavior
+              events[existingIdx] = {
+                ...events[existingIdx],
+                velocity: op.event.velocity ?? 0.8,
+                accent: op.event.accent ?? false,
+              } as TriggerEvent;
+            } else {
+              const newTrigger: TriggerEvent = {
+                kind: 'trigger',
+                at: op.step,
+                velocity: op.event.velocity ?? 0.8,
+                accent: op.event.accent ?? false,
+              };
+              const insertAt = events.findIndex(e => e.at > op.step);
+              if (insertAt === -1) events.push(newTrigger);
+              else events.splice(insertAt, 0, newTrigger);
+            }
+          } else if (op.event.type === 'note') {
+            // Notes allow stacking up to 4
+            if (countNotesAt(events, op.step) >= 4) {
+              // Skip — max polyphony reached
+              continue;
+            }
+            const newNote: NoteEvent = {
+              kind: 'note',
+              at: op.step,
+              pitch: op.event.pitch ?? 60,
+              velocity: op.event.velocity ?? 0.8,
+              duration: op.event.duration ?? 1,
+            };
+            const insertAt = events.findIndex(e => e.at > op.step);
+            if (insertAt === -1) events.push(newNote);
+            else events.splice(insertAt, 0, newNote);
+          }
+        }
+
+        // Add parameter locks
+        if (op.params) {
+          for (const p of op.params) {
+            const existingIdx = events.findIndex(
+              e => e.kind === 'parameter' && sameStep(e.at, op.step) && (e as ParameterEvent).controlId === p.controlId,
+            );
+            if (existingIdx >= 0) {
+              events[existingIdx] = { ...events[existingIdx], value: p.value } as ParameterEvent;
+            } else {
+              const newParam: ParameterEvent = {
+                kind: 'parameter',
+                at: op.step,
+                controlId: p.controlId,
+                value: p.value,
+              };
+              const insertAt = events.findIndex(e => e.at > op.step);
+              if (insertAt === -1) events.push(newParam);
+              else events.splice(insertAt, 0, newParam);
+            }
+          }
+        }
+        break;
+      }
+
+      case 'remove': {
+        if (op.event?.type) {
+          // Remove by specific type
+          const kind = op.event.type === 'trigger' ? 'trigger' : 'note';
+          const idx = events.findIndex(e => e.kind === kind && sameStep(e.at, op.step));
+          if (idx >= 0) events.splice(idx, 1);
+        } else {
+          // Remove all gate events (triggers + notes) at this step
+          for (let i = events.length - 1; i >= 0; i--) {
+            if ((events[i].kind === 'trigger' || events[i].kind === 'note') && sameStep(events[i].at, op.step)) {
+              events.splice(i, 1);
+            }
+          }
+        }
+
+        // Remove parameter locks
+        if (op.params) {
+          for (const p of op.params) {
+            const idx = events.findIndex(
+              e => e.kind === 'parameter' && sameStep(e.at, op.step) && (e as ParameterEvent).controlId === p.controlId,
+            );
+            if (idx >= 0) events.splice(idx, 1);
+          }
+        }
+        break;
+      }
+
+      case 'modify': {
+        // Modify gate event
+        if (op.event) {
+          const kind = op.event.type === 'trigger' ? 'trigger' : 'note';
+          const idx = events.findIndex(e => e.kind === kind && sameStep(e.at, op.step));
+          if (idx >= 0) {
+            const existing = events[idx];
+            if (existing.kind === 'trigger') {
+              events[idx] = {
+                ...existing,
+                ...(op.event.velocity !== undefined ? { velocity: op.event.velocity } : {}),
+                ...(op.event.accent !== undefined ? { accent: op.event.accent } : {}),
+              } as TriggerEvent;
+            } else if (existing.kind === 'note') {
+              events[idx] = {
+                ...existing,
+                ...(op.event.velocity !== undefined ? { velocity: op.event.velocity } : {}),
+                ...(op.event.pitch !== undefined ? { pitch: op.event.pitch } : {}),
+                ...(op.event.duration !== undefined ? { duration: op.event.duration } : {}),
+              } as NoteEvent;
+            }
+          }
+        }
+
+        // Modify or add parameter locks
+        if (op.params) {
+          for (const p of op.params) {
+            const existingIdx = events.findIndex(
+              e => e.kind === 'parameter' && sameStep(e.at, op.step) && (e as ParameterEvent).controlId === p.controlId,
+            );
+            if (existingIdx >= 0) {
+              events[existingIdx] = { ...events[existingIdx], value: p.value } as ParameterEvent;
+            } else {
+              // For modify, also add param locks if they don't exist yet
+              const newParam: ParameterEvent = {
+                kind: 'parameter',
+                at: op.step,
+                controlId: p.controlId,
+                value: p.value,
+              };
+              const insertAt = events.findIndex(e => e.at > op.step);
+              if (insertAt === -1) events.push(newParam);
+              else events.splice(insertAt, 0, newParam);
+            }
+          }
+        }
+        break;
+      }
+    }
+  }
+
+  // Use the pattern-specific applyRegionEdit variant that targets a specific pattern
+  return applyRegionEditForPattern(session, trackId, pattern.id, events, description);
+}
+
+/**
+ * Like applyRegionEdit but targets a specific pattern by ID (not just active).
+ */
+function applyRegionEditForPattern(
+  session: Session,
+  trackId: string,
+  patternId: string,
+  newEvents: MusicalEvent[],
+  description: string,
+): Session {
+  const track = getTrack(session, trackId);
+  const pattern = track.patterns.find(p => p.id === patternId);
+  if (!pattern) return session;
+
+  const snapshot: PatternEditSnapshot = {
+    kind: 'pattern-edit',
+    trackId,
+    patternId: pattern.id,
+    prevEvents: [...pattern.events],
+    prevHiddenEvents: track._hiddenEvents ? [...track._hiddenEvents] : undefined,
+    timestamp: Date.now(),
+    description,
+  };
+
+  const region = normalizePatternEvents({
+    ...pattern,
+    events: newEvents,
+  });
+  const newRegions = track.patterns.map(r => r.id === pattern.id ? region : r);
+  const updatedTrack = reprojectTrackStepGrid({ ...track, patterns: newRegions }, defaultInverseOpts);
+  const result = updateTrack(session, trackId, {
+    patterns: updatedTrack.patterns,
+    stepGrid: updatedTrack.stepGrid,
+    _patternDirty: true,
+  });
+
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
 }

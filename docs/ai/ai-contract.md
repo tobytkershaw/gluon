@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has twenty-one tools, declared as neutral JSON Schema and adapted per provider.
+The AI has twenty-two tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -43,6 +43,29 @@ Apply a rhythmic or melodic pattern to a track using musical events.
 - `parameter` — per-step param lock. Fields: `at`, `controlId` (control name), `value` (0.0–1.0)
 
 Fractional `at` values are supported for microtiming (e.g., `4.3` places an event slightly after step 4).
+
+#### `edit_pattern`
+
+Non-destructively add, remove, or modify individual events in a pattern without replacing the whole thing. Use for surgical edits (adding a ghost hit, tweaking one velocity, adding a param lock to one step). For writing a whole new pattern, use `sketch` instead.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track ID |
+| `patternId` | string | no | Pattern ID to edit. Defaults to active pattern if omitted. |
+| `operations` | array | yes | Batch of add/remove/modify operations (see below). All applied as one undo group. |
+| `description` | string | yes | Short description of the edit (e.g. "add ghost hit on step 7") |
+
+**Operation fields:**
+- `action` — `add`, `remove`, or `modify`
+- `step` — step index (0-based)
+- `event` — (optional) gate event: `{ type: "trigger"|"note", pitch?, velocity?, accent?, duration? }`
+- `params` — (optional) parameter locks: `[{ controlId, value }]`
+
+**Semantics:**
+- `add`: inserts event at step. Triggers overwrite existing triggers; notes stack up to 4.
+- `remove`: removes event at step by type, or all gate events if no type specified.
+- `modify`: changes properties on existing events in place (velocity, accent, pitch, duration).
+- Parameter locks are added/modified on `add`/`modify`, removed on `remove`.
 
 #### `transform`
 
