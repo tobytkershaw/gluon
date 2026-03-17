@@ -617,11 +617,133 @@ const labelAxesTool: ToolSchema = {
   },
 };
 
+const manageSendTool: ToolSchema = {
+  name: 'manage_send',
+  description:
+    'Add, remove, or set the level of a post-fader send from a track to a bus track. Takes effect after this response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['add', 'remove', 'set_level'],
+        description: 'Operation to perform.',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Source track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      busId: {
+        type: 'string',
+        description: 'Target bus track ID (e.g. "bus-1710342000000" or "master-bus").',
+      },
+      level: {
+        type: 'number',
+        description: 'Send level (0.0-1.0). Required for add and set_level.',
+      },
+    },
+    required: ['action', 'trackId', 'busId'],
+  },
+};
+
+const setMasterTool: ToolSchema = {
+  name: 'set_master',
+  description:
+    'Set master channel volume and/or pan. Takes effect after this response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      volume: {
+        type: 'number',
+        description: 'Master volume (0.0-1.0, linear gain).',
+      },
+      pan: {
+        type: 'number',
+        description: 'Master pan (-1.0 left to 1.0 right).',
+      },
+    },
+  },
+};
+
+const managePatternTool: ToolSchema = {
+  name: 'manage_pattern',
+  description:
+    'Add, remove, duplicate, rename, set active, set length, or clear a pattern on a track. Takes effect after this response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['add', 'remove', 'duplicate', 'rename', 'set_active', 'set_length', 'clear'],
+        description: 'Operation to perform.',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      patternId: {
+        type: 'string',
+        description: 'Pattern ID to target. Required for remove, duplicate, rename, set_active.',
+      },
+      name: {
+        type: 'string',
+        description: 'New pattern name. Required for rename.',
+      },
+      length: {
+        type: 'integer',
+        description: 'Pattern length in steps (1-64). Required for set_length.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the operation.',
+      },
+    },
+    required: ['action', 'trackId', 'description'],
+  },
+};
+
+const manageSequenceTool: ToolSchema = {
+  name: 'manage_sequence',
+  description:
+    'Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, or reorder references. Takes effect after this response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['append', 'remove', 'reorder'],
+        description: 'Operation to perform.',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      patternId: {
+        type: 'string',
+        description: 'Pattern ID to append. Required for append.',
+      },
+      sequenceIndex: {
+        type: 'integer',
+        description: 'Index into the sequence array. Required for remove and reorder (as fromIndex).',
+      },
+      toIndex: {
+        type: 'integer',
+        description: 'Destination index. Required for reorder.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the operation.',
+      },
+    },
+    required: ['action', 'trackId', 'description'],
+  },
+};
+
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata in a single call: approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
-    'Example: set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
+    'Set track metadata in a single call: muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
+    'Example: set_track_meta(trackId: "Track 1", muted: true) or set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -641,6 +763,14 @@ const setTrackMetaTool: ToolSchema = {
       musicalRole: {
         type: 'string',
         description: 'Brief description of the track\'s musical role (e.g. "driving rhythm", "ambient pad").',
+      },
+      muted: {
+        type: 'boolean',
+        description: 'Set the track muted state. true = muted (silent), false = unmuted.',
+      },
+      solo: {
+        type: 'boolean',
+        description: 'Set the track solo state. true = solo (only this track audible), false = unsolo.',
       },
       reason: {
         type: 'string',
@@ -842,6 +972,10 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setSurfaceTool,
   pinControlTool,
   labelAxesTool,
+  manageSendTool,
+  setMasterTool,
+  managePatternTool,
+  manageSequenceTool,
   renderTool,
   analyzeTool,
   setTrackMetaTool,

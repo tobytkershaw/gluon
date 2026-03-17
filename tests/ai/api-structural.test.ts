@@ -95,6 +95,14 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { question: 'which direction?' };
     case 'manage_track':
       return { action: 'add', kind: 'audio', description: 'test' };
+    case 'manage_send':
+      return { action: 'add', trackId: 'v0', busId: 'master-bus', level: 0.5 };
+    case 'set_master':
+      return { volume: 0.7 };
+    case 'manage_pattern':
+      return { action: 'add', trackId: 'v0', description: 'test' };
+    case 'manage_sequence':
+      return { action: 'append', trackId: 'v0', patternId: 'v0-pattern-0', description: 'test' };
     case 'report_bug':
       return { summary: 'test bug', category: 'tool', details: 'expected X got Y', severity: 'low' };
     default:
@@ -172,6 +180,7 @@ describe('API Structural Integrity', () => {
       'move', 'sketch', 'edit_pattern', 'set_transport', 'set_model', 'transform',
       'manage_view', 'manage_processor', 'manage_modulator',
       'modulation_route', 'set_surface', 'pin_control', 'label_axes',
+      'manage_send', 'set_master', 'manage_pattern', 'manage_sequence',
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
     ];
 
@@ -190,7 +199,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(22);
+    expect(GLUON_TOOLS.length).toBe(26);
   });
 
   // -----------------------------------------------------------------------

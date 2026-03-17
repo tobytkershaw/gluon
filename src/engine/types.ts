@@ -574,6 +574,41 @@ export interface AISetMasterAction {
   pan?: number;     // -1.0 to 1.0
 }
 
+export interface AISetMuteSoloAction {
+  type: 'set_mute_solo';
+  trackId: string;
+  muted?: boolean;
+  solo?: boolean;
+}
+
+export interface AIManageSendAction {
+  type: 'manage_send';
+  action: 'add' | 'remove' | 'set_level';
+  trackId: string;
+  busId: string;
+  level?: number;  // 0.0–1.0
+}
+
+export interface AIManagePatternAction {
+  type: 'manage_pattern';
+  action: 'add' | 'remove' | 'duplicate' | 'rename' | 'set_active' | 'set_length' | 'clear';
+  trackId: string;
+  patternId?: string;
+  name?: string;
+  length?: number;
+  description: string;
+}
+
+export interface AIManageSequenceAction {
+  type: 'manage_sequence';
+  action: 'append' | 'remove' | 'reorder';
+  trackId: string;
+  patternId?: string;
+  sequenceIndex?: number;
+  toIndex?: number;
+  description: string;
+}
+
 export interface AISetSurfaceAction {
   type: 'set_surface';
   trackId: string;
@@ -652,7 +687,7 @@ export interface AIRemoveTrackAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction;
 
 // --- Reaction History ---
 

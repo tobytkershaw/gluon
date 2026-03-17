@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, BugReport } from './types';
+import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, SendSnapshot, BugReport } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -12,7 +12,8 @@ import { editPatternEvents, validatePatternEditOps } from './pattern-primitives'
 import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
-import { addTrack, removeTrack } from './session';
+import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef } from './session';
+import { setPatternLength, clearPattern } from './pattern-primitives';
 
 /**
  * Extract sorted rhythm positions (the `at` values of note and trigger events)
@@ -483,6 +484,32 @@ export function prevalidateAction(
     case 'report_bug':
       // No side-effect guards needed — report_bug only appends to bugReports
       return null;
+
+    case 'set_mute_solo': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      return null;
+    }
+
+    case 'manage_send': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      return null;
+    }
+
+    case 'manage_pattern': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      return null;
+    }
+
+    case 'manage_sequence': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      return null;
+    }
 
     case 'set_transport':
     case 'set_master':
@@ -1710,6 +1737,127 @@ export function executeOperations(
         };
         next = { ...next, bugReports: [...existingBugs, newBug].slice(-50) };
         log.push({ trackId: '', trackLabel: 'BUG', description: `[${action.severity}] ${action.summary}`, kind: 'bug-report' });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_mute_solo': {
+        const track = getTrack(next, action.trackId);
+        const prevProps: Partial<typeof track> = {};
+        if (action.muted !== undefined) prevProps.muted = track.muted;
+        if (action.solo !== undefined) prevProps.solo = track.solo;
+
+        const muteSoloSnapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId: action.trackId,
+          prevProps,
+          timestamp: Date.now(),
+          description: `AI set_mute_solo on ${action.trackId}`,
+        };
+
+        const update: Partial<typeof track> = {};
+        if (action.muted !== undefined) update.muted = action.muted;
+        if (action.solo !== undefined) update.solo = action.solo;
+
+        next = {
+          ...updateTrack(next, action.trackId, update),
+          undoStack: [...next.undoStack, muteSoloSnapshot],
+        };
+
+        const msLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        const msParts: string[] = [];
+        if (action.muted !== undefined) msParts.push(`muted=${action.muted}`);
+        if (action.solo !== undefined) msParts.push(`solo=${action.solo}`);
+        log.push({ trackId: action.trackId, trackLabel: msLabel, description: msParts.join(', ') });
+        accepted.push(action);
+        break;
+      }
+
+      case 'manage_send': {
+        let sendResult: Session | null = null;
+        switch (action.action) {
+          case 'add':
+            sendResult = addSend(next, action.trackId, action.busId, action.level ?? 1.0);
+            break;
+          case 'remove':
+            sendResult = removeSend(next, action.trackId, action.busId);
+            break;
+          case 'set_level':
+            sendResult = action.level !== undefined ? setSendLevel(next, action.trackId, action.busId, action.level) : null;
+            break;
+        }
+        if (!sendResult) {
+          rejected.push({ op: action, reason: `manage_send ${action.action} failed for ${action.trackId} → ${action.busId}` });
+          break;
+        }
+        next = sendResult;
+        const sendLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: sendLabel, description: `send ${action.action}: ${action.trackId} → ${action.busId}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'manage_pattern': {
+        let patResult: Session | null = null;
+        switch (action.action) {
+          case 'add':
+            patResult = addPattern(next, action.trackId);
+            break;
+          case 'remove':
+            patResult = action.patternId ? removePattern(next, action.trackId, action.patternId) : null;
+            break;
+          case 'duplicate':
+            patResult = action.patternId ? duplicatePattern(next, action.trackId, action.patternId) : null;
+            break;
+          case 'rename':
+            patResult = (action.patternId && action.name !== undefined)
+              ? renamePattern(next, action.trackId, action.patternId, action.name)
+              : null;
+            break;
+          case 'set_active':
+            patResult = action.patternId ? setActivePatternOnTrack(next, action.trackId, action.patternId) : null;
+            break;
+          case 'set_length':
+            patResult = action.length !== undefined ? setPatternLength(next, action.trackId, action.length) : null;
+            break;
+          case 'clear':
+            patResult = clearPattern(next, action.trackId);
+            break;
+        }
+        if (!patResult) {
+          rejected.push({ op: action, reason: `manage_pattern ${action.action} failed for ${action.trackId}` });
+          break;
+        }
+        next = patResult;
+        const patLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: patLabel, description: `pattern ${action.action}: ${action.description}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'manage_sequence': {
+        let seqResult: Session = next;
+        switch (action.action) {
+          case 'append':
+            seqResult = action.patternId ? addPatternRef(next, action.trackId, action.patternId) : next;
+            break;
+          case 'remove':
+            seqResult = action.sequenceIndex !== undefined ? removePatternRef(next, action.trackId, action.sequenceIndex) : next;
+            break;
+          case 'reorder':
+            seqResult = (action.sequenceIndex !== undefined && action.toIndex !== undefined)
+              ? reorderPatternRef(next, action.trackId, action.sequenceIndex, action.toIndex)
+              : next;
+            break;
+        }
+        if (seqResult === next && action.action !== 'append') {
+          // No change happened — but append returning same session means the patternId didn't exist
+          rejected.push({ op: action, reason: `manage_sequence ${action.action} had no effect on ${action.trackId}` });
+          break;
+        }
+        next = seqResult;
+        const seqLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: seqLabel, description: `sequence ${action.action}: ${action.description}` });
         accepted.push(action);
         break;
       }
