@@ -42,6 +42,13 @@ When an issue is actively being worked, also add exactly one provisional owner l
 
 These labels are temporary execution signals, not permanent taxonomy. Remove or switch them when work is handed off, paused, or merged.
 
+Before implementation starts, the provisional owner label must already match the agent who is about to work on the issue.
+
+- If Codex takes an issue currently marked `provisional:claude`, switch the label first, then create the worktree and branch.
+- If Claude takes an issue currently marked `provisional:codex`, switch the label first, then start implementation.
+- If ownership is changing after work has already started, leave a short issue comment when switching labels so the handoff is explicit.
+- Never leave both provisional owner labels on the same issue.
+
 ## Issue Quality
 
 Implementation issues should be self-contained. Each issue body should include:
