@@ -29,7 +29,7 @@ interface TransportControllerDeps {
     onNote: (note: import('./sequencer-types').ScheduledNote) => void;
     onPositionChange: (step: number) => void;
     getHeldParams: (trackId: string) => Partial<SynthParamValues>;
-    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean, time: number) => void;
     onClick?: (time: number, accent: boolean) => void;
     onSequenceEnd?: () => void;
   }) => SchedulerLike;
@@ -44,6 +44,8 @@ export class TransportController {
   private pendingHardStop = false;
   private lastStep = 0;
   private trackSeen = new Set<string>();
+  private lastHandledPlayFromStep: number | null = null;
+  private parameterEventTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor({
     audio,
@@ -64,13 +66,34 @@ export class TransportController {
       this.onPositionChange(step);
     };
     const handleClick = (time: number, accent: boolean) => this.audio.scheduleClick(time, accent);
+    const handleParameterEvent = (
+      trackId: string,
+      controlId: string,
+      value: number | string | boolean,
+      time: number,
+    ) => {
+      if (!onParameterEvent) return;
+      const delayMs = Math.max(0, (time - this.audio.getCurrentTime()) * 1000);
+      if (delayMs <= 1) {
+        onParameterEvent(trackId, controlId, value);
+        return;
+      }
+
+      const generation = this.runtime.generation;
+      const timer = setTimeout(() => {
+        this.parameterEventTimers.delete(timer);
+        if (this.runtime.generation !== generation || this.runtime.status !== 'playing') return;
+        onParameterEvent(trackId, controlId, value);
+      }, delayMs);
+      this.parameterEventTimers.add(timer);
+    };
     this.scheduler = createScheduler
       ? createScheduler({
           getSession,
           onNote: (note) => this.audio.scheduleNote(note, this.runtime.generation),
           onPositionChange: handlePositionChange,
           getHeldParams,
-          onParameterEvent,
+          onParameterEvent: handleParameterEvent,
           onClick: handleClick,
           onSequenceEnd,
         })
@@ -81,7 +104,7 @@ export class TransportController {
           (note) => this.audio.scheduleNote(note, this.runtime.generation),
           handlePositionChange,
           getHeldParams,
-          onParameterEvent,
+          handleParameterEvent,
           handleClick,
           onSequenceEnd,
         );
@@ -97,18 +120,22 @@ export class TransportController {
     };
 
     if (transport.status === 'playing') {
+      const hasFreshPlayFromStep = transport.playFromStep != null
+        && transport.playFromStep !== this.lastHandledPlayFromStep;
       const needsRestart = this.runtime.status !== 'playing'
-        || transport.playFromStep != null;
+        || hasFreshPlayFromStep;
       if (needsRestart) {
         // Stop the current scheduler if already playing (play-from-cursor restart)
         if (this.runtime.status === 'playing') {
           this.scheduler.stop();
+          this.clearParameterEventTimers();
           this.audio.releaseGeneration(this.audio.advanceGeneration());
         }
         const generation = this.audio.advanceGeneration();
         let startStep: number;
         if (transport.playFromStep != null) {
           startStep = transport.playFromStep;
+          this.lastHandledPlayFromStep = transport.playFromStep;
         } else if (this.runtime.status === 'paused') {
           startStep = this.runtime.playheadBeats * 4;
         } else {
@@ -132,6 +159,7 @@ export class TransportController {
     } else if (transport.status === 'paused') {
       if (this.runtime.status === 'playing') {
         this.scheduler.stop();
+        this.clearParameterEventTimers();
         this.audio.silenceMetronome();
         const generation = this.audio.advanceGeneration();
         this.audio.releaseGeneration(generation);
@@ -140,8 +168,10 @@ export class TransportController {
           generation,
         );
       }
+      this.lastHandledPlayFromStep = null;
     } else if (this.runtime.status !== 'stopped') {
       this.scheduler.stop();
+      this.clearParameterEventTimers();
       this.audio.silenceMetronome();
       const generation = this.audio.advanceGeneration();
       if (this.pendingHardStop) {
@@ -151,13 +181,16 @@ export class TransportController {
       }
       this.pendingHardStop = false;
       this.lastStep = 0;
+      this.lastHandledPlayFromStep = null;
       this.runtime = stopTransportState(this.runtime, generation);
       this.onPositionChange(0);
     } else if (this.pendingHardStop) {
+      this.clearParameterEventTimers();
       this.audio.silenceMetronome();
       const generation = this.audio.advanceGeneration();
       this.audio.silenceGeneration(generation);
       this.pendingHardStop = false;
+      this.lastHandledPlayFromStep = null;
       this.runtime = stopTransportState(this.runtime, generation);
       this.onPositionChange(0);
     }
@@ -174,6 +207,13 @@ export class TransportController {
 
   requestHardStop(): void {
     this.pendingHardStop = true;
+  }
+
+  private clearParameterEventTimers(): void {
+    for (const timer of this.parameterEventTimers) {
+      clearTimeout(timer);
+    }
+    this.parameterEventTimers.clear();
   }
 
   syncArrangement(): void {
@@ -198,5 +238,6 @@ export class TransportController {
 
   dispose(): void {
     this.scheduler.stop();
+    this.clearParameterEventTimers();
   }
 }

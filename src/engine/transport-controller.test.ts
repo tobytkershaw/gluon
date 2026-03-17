@@ -214,6 +214,140 @@ describe('TransportController', () => {
     controller.dispose();
   });
 
+  it('does not replay a stale playFromStep when transport settings change during playback', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => scheduler,
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true, playFromStep: 8 };
+    controller.sync();
+
+    expect(scheduler.start).toHaveBeenCalledTimes(1);
+    expect(scheduler.start).toHaveBeenLastCalledWith(expect.any(Number), 8, 1);
+
+    // A later transport settings sync should not restart playback from the stale cursor request.
+    session.transport = { ...session.transport, bpm: 132 };
+    controller.sync();
+
+    expect(scheduler.start).toHaveBeenCalledTimes(1);
+    expect(audio.releaseGeneration).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+
+  it('delays parameter events until their scheduled audio time', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    let currentTime = 1;
+    let schedulerParameterEvent: ((trackId: string, controlId: string, value: number | string | boolean, time: number) => void) | null = null;
+    const onParameterEvent = vi.fn();
+    const audio = {
+      getCurrentTime: vi.fn(() => currentTime),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      onParameterEvent,
+      createScheduler: ({ onParameterEvent: internalCb }) => {
+        schedulerParameterEvent = internalCb ?? null;
+        return { start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() };
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+
+    schedulerParameterEvent?.('v0', 'timbre', 0.8, 1.25);
+    expect(onParameterEvent).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(249);
+    expect(onParameterEvent).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(onParameterEvent).toHaveBeenCalledWith('v0', 'timbre', 0.8);
+
+    controller.dispose();
+  });
+
+  it('cancels queued parameter events when playback stops', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    let currentTime = 1;
+    let schedulerParameterEvent: ((trackId: string, controlId: string, value: number | string | boolean, time: number) => void) | null = null;
+    const onParameterEvent = vi.fn();
+    const audio = {
+      getCurrentTime: vi.fn(() => currentTime),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn()
+        .mockReturnValueOnce(1)
+        .mockReturnValueOnce(2),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      onParameterEvent,
+      createScheduler: ({ onParameterEvent: internalCb }) => {
+        schedulerParameterEvent = internalCb ?? null;
+        return { start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() };
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing', playing: true };
+    controller.sync();
+
+    schedulerParameterEvent?.('v0', 'timbre', 0.8, 1.25);
+    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    controller.sync();
+
+    vi.advanceTimersByTime(300);
+    expect(onParameterEvent).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+
   it('restores metronome volume on play after stop silenced it', () => {
     vi.useFakeTimers();
     const session = makeSession();

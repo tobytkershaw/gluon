@@ -463,21 +463,26 @@ export function setTimeSignature(session: Session, numerator: number, denominato
 export function playTransport(session: Session, fromStep?: number): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'playing', playing: true, playFromStep: fromStep },
+    transport: {
+      ...session.transport,
+      status: 'playing',
+      playing: true,
+      ...(fromStep !== undefined ? { playFromStep: fromStep } : { playFromStep: undefined }),
+    },
   };
 }
 
 export function pauseTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'paused', playing: false },
+    transport: { ...session.transport, status: 'paused', playing: false, playFromStep: undefined },
   };
 }
 
 export function stopTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'stopped', playing: false },
+    transport: { ...session.transport, status: 'stopped', playing: false, playFromStep: undefined },
   };
 }
 
