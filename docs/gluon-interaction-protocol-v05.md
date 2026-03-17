@@ -61,7 +61,7 @@ Voice {
 }
 ```
 
-Parameters use semantic control IDs (`brightness`, `richness`, `texture`, `pitch`) that map to engine-specific runtime parameters through an adapter layer. The AI reasons about semantic names; the adapter handles translation.
+Parameters use hardware-derived control IDs (`timbre`, `harmonics`, `morph`, `frequency`) that map directly to engine runtime parameters. The only non-identity mapping is `frequency` → `note` at the Plaits adapter boundary.
 
 ### Module
 
@@ -126,7 +126,7 @@ enum Agency {
 }
 ```
 
-Agency gates **programming** and **structure** operations. It does not gate **observation** (listen) or **UI curation** (add_view, remove_view). OFF means "don't change my sound or my instrument," not "don't help me look at this voice."
+Agency gates **programming** and **structure** operations. It does not gate **observation** (listen, render, analyze) or **UI curation** (manage_view, set_surface, pin_control, label_axes). OFF means "don't change my sound or my instrument," not "don't help me look at this voice."
 
 ### Transport
 
@@ -134,9 +134,10 @@ Global playback state shared across all voices.
 
 ```
 Transport {
-  bpm: f32          // 60-200
+  bpm: f32          // 20-300
   swing: f32        // 0.0-1.0 (0 = straight)
   playing: bool
+  timeSignature: { numerator: int, denominator: int }
 }
 ```
 
@@ -300,102 +301,58 @@ set_model {
 }
 ```
 
-#### `add_processor`
+#### `manage_processor`
 
-Add a processor module to a voice's chain. Max 2 per voice.
+Add, remove, replace, or bypass a processor module in a voice's chain. Max 2 per voice.
 
 ```
-add_processor {
+manage_processor {
+  action: "add" | "remove" | "replace" | "bypass"
   trackId: VoiceID
-  moduleType: ModuleType     // "rings", "clouds"
+  moduleType: ModuleType?      // Required for add/replace. "rings", "clouds"
+  processorId: ProcessorID?    // Required for remove/replace/bypass
+  enabled: bool?               // For bypass: false=bypass, true=re-enable
   description: string
 }
 ```
 
-Returns `{ processorId }` so the AI can reference the new processor in later same-turn calls.
+Returns `{ processorId }` (add) or `{ newProcessorId }` (replace) for same-turn configuration.
 
-#### `remove_processor`
+#### `manage_modulator`
 
-Remove a processor module from a voice's chain.
+Add or remove a modulator module (LFO/envelope) on a voice. Max 2 per voice. Use `modulation_route` to wire it to parameters.
 
 ```
-remove_processor {
+manage_modulator {
+  action: "add" | "remove"
   trackId: VoiceID
-  processorId: ProcessorID
+  moduleType: ModuleType?      // Required for add. "tides"
+  modulatorId: ModulatorID?    // Required for remove
   description: string
 }
 ```
 
-#### `replace_processor`
+Returns `{ modulatorId }` for same-turn configuration. Remove cascades: all routings from this modulator are also removed.
 
-Atomically swap one processor for another type. Keeps chain position.
+#### `modulation_route`
+
+Connect or disconnect a modulation routing. Idempotent — calling connect with the same modulator + target updates the depth.
 
 ```
-replace_processor {
+modulation_route {
+  action: "connect" | "disconnect"
   trackId: VoiceID
-  processorId: ProcessorID     // Existing processor to replace
-  newModuleType: ModuleType    // "rings", "clouds"
-  description: string
-}
-```
-
-Returns `{ newProcessorId }` for same-turn configuration.
-
-#### `add_modulator`
-
-Add a modulator module (LFO/envelope) to a voice. Max 2 per voice. Use `connect_modulator` to wire it to parameters.
-
-```
-add_modulator {
-  trackId: VoiceID
-  moduleType: ModuleType     // "tides"
-  description: string
-}
-```
-
-Returns `{ modulatorId }` for same-turn configuration.
-
-#### `remove_modulator`
-
-Remove a modulator from a voice. Cascades: all routings from this modulator are also removed.
-
-```
-remove_modulator {
-  trackId: VoiceID
-  modulatorId: ModulatorID
-  description: string
-}
-```
-
-#### `connect_modulator`
-
-Route a modulator's output to a target parameter. Idempotent — calling with the same modulator + target updates the depth.
-
-```
-connect_modulator {
-  trackId: VoiceID
-  modulatorId: ModulatorID
-  targetKind: "source" | "processor"
+  modulatorId: ModulatorID?    // Required for connect
+  modulationId: ModulationID?  // Required for disconnect
+  targetKind: "source" | "processor"?  // Required for connect
   processorId: ProcessorID?    // Required when targetKind is "processor"
-  targetParam: ControlID       // e.g. "brightness", "position"
-  depth: f32                   // -1.0 to 1.0 (bipolar)
+  targetParam: ControlID?      // Required for connect. e.g. "timbre", "position"
+  depth: f32?                  // Required for connect. -1.0 to 1.0 (bipolar)
   description: string
 }
 ```
 
 Returns `{ modulationId }` for same-turn disconnect. Human sets center, modulation adds around it. Multiple routings to the same param sum additively.
-
-#### `disconnect_modulator`
-
-Remove a modulation routing by its ID.
-
-```
-disconnect_modulator {
-  trackId: VoiceID
-  modulationId: ModulationID
-  description: string
-}
-```
 
 #### `create_voice` (future)
 
@@ -417,13 +374,15 @@ Global playback control. **No agency gate** — transport is shared, not per-voi
 
 #### `set_transport`
 
-Change tempo, swing, or play/stop state.
+Change tempo, swing, time signature, or play/stop state.
 
 ```
 set_transport {
-  bpm: f32?          // 60-200
-  swing: f32?        // 0.0-1.0
+  bpm: f32?                       // 20-300
+  swing: f32?                     // 0.0-1.0
   playing: bool?
+  timeSignatureNumerator: int?    // Beats per bar (1-16)
+  timeSignatureDenominator: int?  // Beat unit (2, 4, 8, or 16)
 }
 ```
 
@@ -433,53 +392,158 @@ Inspect the current state without changing anything. **No agency gate.** Not und
 
 #### `listen`
 
-Capture a few bars of audio and evaluate how it sounds.
+Render audio offline and evaluate how it sounds. Works whether or not the transport is playing.
 
 ```
 listen {
-  question: string    // "How does the kick sound?", "Is the mix balanced?"
+  question: string       // "How does the kick sound?", "Is the mix balanced?"
+  trackIds: [VoiceID]?   // Render specific tracks in isolation. Default: all unmuted.
+  bars: int?             // Number of bars to render (1-16, default 2)
+  lens: string?          // Focus: "full-mix", "low-end", "rhythm", "harmony", "texture", "dynamics"
+  compare: {             // Optional before/after comparison
+    beforeSessionIndex: int
+    question: string
+  }?
 }
 ```
 
-Renders what's currently playing, sends the audio to a multimodal model, and returns a musical critique. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
+Renders audio offline from the current project state, converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
+
+#### `render`
+
+Capture an audio snapshot with explicit scope. Returns a `snapshotId` for use with `analyze`.
+
+```
+render {
+  scope: VoiceID | [VoiceID]?   // Track(s) to render. Omit for full mix.
+  bars: int?                     // Duration in bars (1-16, default 2)
+}
+```
+
+#### `analyze`
+
+Run deterministic audio analysis on a rendered snapshot.
+
+```
+analyze {
+  snapshotId: string            // From a previous render call
+  types: ["spectral" | "dynamics" | "rhythm"]
+}
+```
+
+Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing.
 
 ### UI Curation
 
 Changes to what the human sees, not what the instrument plays. **No agency gate** — the AI should be able to help the human inspect any voice regardless of agency. No sound change. Undoable. Persistent.
 
-#### `add_view`
+#### `manage_view`
 
-Add a sequencer view to a voice.
+Add or remove a sequencer view on a voice.
 
 ```
-add_view {
+manage_view {
+  action: "add" | "remove"
   trackId: VoiceID
-  viewKind: SequencerViewKind
+  viewKind: SequencerViewKind?  // Required for add. "step-grid"
+  viewId: string?               // Required for remove
   description: string
 }
 ```
 
-#### `remove_view`
+#### `set_surface`
 
-Remove a sequencer view from a voice.
+Define semantic controls for a voice's UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters via weighted sums.
 
 ```
-remove_view {
+set_surface {
   trackId: VoiceID
-  viewId: string
+  semanticControls: [{
+    name: string              // Human-readable label (e.g. "Warmth")
+    weights: [{
+      moduleId: string        // "source" or a processor ID
+      controlId: ControlID
+      weight: f32             // Must sum to 1.0
+      transform: string?      // "linear" (default), "inverse", "bipolar"
+    }]
+    range: { min, max, default }?
+  }]
+  xyAxes: { x: string, y: string }?
   description: string
 }
 ```
 
-#### Future UI curation operations
+#### `pin_control`
 
-The curated surfaces RFC defines additional operations for when voices have multi-module chains:
+Pin or unpin a raw module control on the voice's surface. Max 4 pins per track.
 
-- **`set_surface`** — set semantic control aggregation across chain modules (e.g., "Brightness" maps to Plaits timbre + Rings brightness + Clouds feedback). Immediate and undoable, like all other AI actions.
-- **`pin`** / **`unpin`** — surface or remove a raw module control for direct access
-- **`label_axes`** — set XY pad axis bindings
+```
+pin_control {
+  action: "pin" | "unpin"
+  trackId: VoiceID
+  moduleId: string        // "source" or a processor ID
+  controlId: ControlID
+}
+```
 
-These follow the same pattern as all other AI operations: immediate, undoable, no approval gate. The human undoes if they don't like the result.
+#### `label_axes`
+
+Set semantic labels for the voice's XY pad axes.
+
+```
+label_axes {
+  trackId: VoiceID
+  x: string               // e.g. "Brightness"
+  y: string               // e.g. "Texture"
+}
+```
+
+All surface tools follow the same pattern as other AI operations: immediate, undoable, no agency gate.
+
+### Track Metadata
+
+#### `set_track_meta`
+
+Set track metadata: approval level, importance, and/or musical role. At least one field required. Approval requires agency ON and a reason.
+
+```
+set_track_meta {
+  trackId: VoiceID
+  approval: "exploratory" | "liked" | "approved" | "anchor"?
+  importance: f32?         // 0.0-1.0, mix priority
+  musicalRole: string?     // e.g. "driving rhythm"
+  reason: string?          // Required when setting approval
+}
+```
+
+### Decision
+
+#### `raise_decision`
+
+Flag an unresolved question or choice that needs human input. Use when you encounter a subjective choice you should not make alone.
+
+```
+raise_decision {
+  question: string
+  context: string?
+  options: [string]?
+  trackIds: [VoiceID]?
+}
+```
+
+#### `report_bug`
+
+Report a bug or issue encountered during operation. Use sparingly, only for things that seem genuinely broken.
+
+```
+report_bug {
+  summary: string
+  category: "audio" | "state" | "tool" | "ui" | "other"
+  details: string
+  severity: "low" | "medium" | "high"
+  context: string?
+}
+```
 
 ### Communication
 
@@ -495,7 +559,7 @@ When the AI makes a coordinated change across multiple parameters or voices, tho
 
 The AI should group actions when they are musically related. "Make it darker" might touch controls on three voices — that's one undo group.
 
-UI curation actions (add_view, remove_view, set_surface, pin, unpin, label_axes) are grouped with other operations from the same AI response into a single undo entry, following the standard action group pattern.
+UI curation actions (manage_view, set_surface, pin_control, label_axes) are grouped with other operations from the same AI response into a single undo entry, following the standard action group pattern.
 
 ---
 
@@ -520,22 +584,28 @@ The AI can make multiple changes in a single response (moving parameters, sketch
 The AI receives a compressed, semantically-named representation of the session. This is optimised for reasoning, not for mirroring internals.
 
 Per voice:
-- Identity: id, label, agency state
+- Identity: id, label, agency state, approval level
 - Chain: source module and processors, in signal order
 - Modulators: LFO/envelope modules with current parameters and mode
 - Modulations: routing connections from modulators to parameters, with depth
-- Controls: semantic parameter values (brightness, richness, texture, pitch)
+- Controls: hardware-derived parameter values (`timbre`, `harmonics`, `morph`, `frequency`)
 - Pattern summary: event count, trigger positions, note pitches, accent positions, density
 - Views: active sequencer projections
-- Status: muted, solo
+- Surface: semantic controls, XY axis labels, pinned controls (when configured)
+- Status: muted, solo, volume, pan
+- Metadata: importance, musical role
 
 Global:
-- Transport: bpm, swing, playing
+- Transport: bpm, swing, playing, time signature
 - Musical context: energy, density (inferred)
-- Undo depth
+- Undo depth, redo depth
 - Recent human actions (what the human just touched, for context)
+- Recent reactions: approval/rejection verdicts on AI actions
+- Observed patterns: natural-language summaries derived from reaction history
+- Restraint level: `conservative`, `moderate`, or `adventurous` (derived from reactions)
+- Open decisions: unresolved questions raised by `raise_decision`
 
-The AI uses semantic control IDs throughout — `brightness` not `timbre`, `richness` not `harmonics`. The adapter layer translates at the boundary.
+The AI uses hardware-derived control IDs throughout — `timbre`, `harmonics`, `morph`, `frequency`. The only non-identity adapter mapping is `frequency` → `note` at the Plaits boundary.
 
 ---
 
@@ -581,7 +651,7 @@ Undo for native modules is exact — restore previous parameter values. Undo for
 
 **Transport and networking.** How messages are serialised. Could be in-process calls, WebSocket, OSC, whatever.
 
-**Surface curation details.** Semantic control aggregation, pinning, chain-aware surfaces. See the AI-curated surfaces RFC.
+**Surface curation internals.** How semantic control weights are computed, surface module taxonomy, and chain-aware defaults. See the AI-curated surfaces RFC.
 
 ---
 
@@ -596,10 +666,12 @@ The AI's tools fall into five categories:
 | Category | Tools | Agency? | Changes sound? |
 |----------|-------|---------|----------------|
 | **Program** | move, sketch, transform | Yes | Yes |
-| **Structure** | set_model, add/remove/replace_processor, add/remove_modulator, connect/disconnect_modulator | Yes | Yes |
+| **Structure** | set_model, manage_processor, manage_modulator, modulation_route | Yes | Yes |
 | **Transport** | set_transport | No | Yes |
-| **Observation** | listen | No | No |
-| **UI curation** | add_view, remove_view | No | No |
+| **Observation** | listen, render, analyze | No | No |
+| **UI curation** | manage_view, set_surface, pin_control, label_axes | No | No |
+| **Track metadata** | set_track_meta | Partial (approval requires ON) | No |
+| **Decision** | raise_decision, report_bug | No | No |
 
 Plus **say** — talk back to the human.
 
