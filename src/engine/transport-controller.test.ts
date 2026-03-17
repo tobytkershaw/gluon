@@ -214,7 +214,7 @@ describe('TransportController', () => {
     controller.dispose();
   });
 
-  it('does not replay a stale playFromStep when transport settings change during playback', () => {
+  it('does not replay a stale transport command when transport settings change during playback', () => {
     vi.useFakeTimers();
     const session = makeSession();
     const scheduler = {
@@ -242,7 +242,8 @@ describe('TransportController', () => {
       createScheduler: () => scheduler,
     });
 
-    session.transport = { ...session.transport, status: 'playing', playFromStep: 8 };
+    session.transport = { ...session.transport, status: 'playing' };
+    session.transportCommand = { kind: 'play-from-step', step: 8, requestId: 1 };
     controller.sync();
 
     expect(scheduler.start).toHaveBeenCalledTimes(1);
@@ -262,7 +263,7 @@ describe('TransportController', () => {
     vi.useFakeTimers();
     const session = makeSession();
     let currentTime = 1;
-    let schedulerParameterEvent: ((trackId: string, controlId: string, value: number | string | boolean, time: number) => void) | null = null;
+    let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
     const onParameterEvent = vi.fn();
     const audio = {
       getCurrentTime: vi.fn(() => currentTime),
@@ -291,14 +292,14 @@ describe('TransportController', () => {
     session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
-    schedulerParameterEvent?.('v0', 'timbre', 0.8, 1.25);
+    schedulerParameterEvent?.({ trackId: 'v0', controlId: 'timbre', value: 0.8, time: 1.25 });
     expect(onParameterEvent).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(249);
     expect(onParameterEvent).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1);
-    expect(onParameterEvent).toHaveBeenCalledWith('v0', 'timbre', 0.8);
+    expect(onParameterEvent).toHaveBeenCalledWith({ trackId: 'v0', controlId: 'timbre', value: 0.8, time: 1.25 });
 
     controller.dispose();
   });
@@ -307,7 +308,7 @@ describe('TransportController', () => {
     vi.useFakeTimers();
     const session = makeSession();
     let currentTime = 1;
-    let schedulerParameterEvent: ((trackId: string, controlId: string, value: number | string | boolean, time: number) => void) | null = null;
+    let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
     const onParameterEvent = vi.fn();
     const audio = {
       getCurrentTime: vi.fn(() => currentTime),
@@ -338,7 +339,7 @@ describe('TransportController', () => {
     session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
-    schedulerParameterEvent?.('v0', 'timbre', 0.8, 1.25);
+    schedulerParameterEvent?.({ trackId: 'v0', controlId: 'timbre', value: 0.8, time: 1.25 });
     session.transport = { ...session.transport, status: 'stopped' };
     controller.sync();
 

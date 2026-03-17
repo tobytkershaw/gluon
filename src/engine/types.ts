@@ -1,5 +1,5 @@
 // src/engine/types.ts
-import type { StepGrid, StepGridSketch, Transport, PatternRef } from './sequencer-types';
+import type { StepGrid, StepGridSketch, Transport, TransportCommand, PatternRef } from './sequencer-types';
 import type { ControlState, Pattern, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
@@ -655,6 +655,7 @@ export interface Session {
   tracks: Track[];
   activeTrackId: string;
   transport: Transport;
+  transportCommand?: TransportCommand;
   master: MasterChannel;
   undoStack: UndoEntry[];
   /** Redo stack: entries moved here on undo, cleared on new user actions. */

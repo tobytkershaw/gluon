@@ -204,7 +204,7 @@ export default function App() {
     return arbRef.current.getHeldParams(trackId);
   }, []);
 
-  const handleTransportParameterEvent = useCallback((trackId: string, controlId: string, value: number | string | boolean) => {
+  const handleTransportParameterEvent = useCallback(({ trackId, controlId, value }: { trackId: string; controlId: string; value: number | string | boolean }) => {
     const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
     if (arbRef.current.isHoldingSource(trackId)) return;
     setSession(s => {

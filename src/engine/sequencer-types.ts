@@ -37,8 +37,12 @@ export interface Transport {
   timeSignature: TimeSignature;
   /** Transport mode: 'pattern' loops active pattern, 'song' walks sequence. Default: 'pattern'. */
   mode?: TransportMode;
-  /** When set, next play should start from this step (consumed on play). */
-  playFromStep?: number;
+}
+
+export interface TransportCommand {
+  kind: 'play-from-step';
+  step: number;
+  requestId: number;
 }
 
 /** A reference to a pattern within a track's sequence (arrangement). */
@@ -56,6 +60,13 @@ export interface ScheduledNote {
   params: SynthParamValues;
   /** Base track params — if params matches this, no set-patch is sent (sync effect handles it). */
   baseParams?: SynthParamValues;
+}
+
+export interface ScheduledParameterEvent {
+  trackId: string;
+  controlId: string;
+  value: number | string | boolean;
+  time: number;
 }
 
 export interface StepGridSketch {

@@ -13,6 +13,16 @@ function createDefaultTrack(index: number): Track {
   return { ...track, name: `T${index + 1}` };
 }
 
+let nextTransportCommandRequestId = 1;
+
+function createPlayFromStepCommand(step: number) {
+  return {
+    kind: 'play-from-step' as const,
+    step,
+    requestId: nextTransportCommandRequestId++,
+  };
+}
+
 /**
  * Create a bus track. Bus tracks have no source engine, empty patterns,
  * and exist to receive audio from sends and apply processing.
@@ -66,6 +76,7 @@ export function createSession(): Session {
     tracks,
     activeTrackId: tracks[0].id,
     transport: { status: 'stopped', bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
+    transportCommand: undefined,
     master: { ...DEFAULT_MASTER },
     undoStack: [],
     redoStack: [],
@@ -466,22 +477,24 @@ export function playTransport(session: Session, fromStep?: number): Session {
     transport: {
       ...session.transport,
       status: 'playing',
-      ...(fromStep !== undefined ? { playFromStep: fromStep } : { playFromStep: undefined }),
     },
+    transportCommand: fromStep !== undefined ? createPlayFromStepCommand(fromStep) : undefined,
   };
 }
 
 export function pauseTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'paused', playFromStep: undefined },
+    transport: { ...session.transport, status: 'paused' },
+    transportCommand: undefined,
   };
 }
 
 export function stopTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'stopped', playFromStep: undefined },
+    transport: { ...session.transport, status: 'stopped' },
+    transportCommand: undefined,
   };
 }
 
@@ -981,7 +994,7 @@ export function captureABSnapshot(session: Session): ABSnapshot {
 }
 
 /** Restore an A/B snapshot into a session, preserving non-musical state.
- *  Playback state (playing, status, playFromStep) is preserved from the
+ *  Playback state (playing, status, transportCommand) is preserved from the
  *  current session so that switching A/B does not interrupt the transport. */
 export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Session {
   const abSnapshot: ABRestoreSnapshot = {
@@ -1003,8 +1016,8 @@ export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Sessi
       metronome: { ...snapshot.transport.metronome },
       // Preserve playback state so A/B switching doesn't interrupt transport
       status: session.transport.status,
-      playFromStep: session.transport.status === 'playing' ? undefined : session.transport.playFromStep,
     },
+    transportCommand: session.transport.status === 'playing' ? undefined : session.transportCommand,
     master: { ...snapshot.master },
     context: { ...snapshot.context },
     activeTrackId: snapshot.tracks.some(t => t.id === session.activeTrackId)
