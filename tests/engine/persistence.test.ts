@@ -1,10 +1,10 @@
 // tests/engine/persistence.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_PERSISTED_UNDO } from '../../src/engine/persistence';
+import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_PERSISTED_UNDO, restoreSession } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
 import { createDefaultStepGrid } from '../../src/engine/sequencer-helpers';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
-import { getTrack } from '../../src/engine/types';
+import { getTrack, MASTER_BUS_ID } from '../../src/engine/types';
 import type { Reaction, OpenDecision } from '../../src/engine/types';
 import type { TriggerEvent } from '../../src/engine/canonical-types';
 
@@ -40,6 +40,67 @@ describe('persistence', () => {
     expect(loaded!.messages[0].text).toBe('hello');
     expect(loaded!.undoStack).toEqual([]); // no undo entries were added
     expect(loaded!.transport.playing).toBe(false);
+  });
+
+  it('restoreSession normalizes project-loaded sessions through the full shared contract', () => {
+    const session = createSession();
+    const withoutMaster = {
+      ...session,
+      tracks: session.tracks.filter(track => track.id !== MASTER_BUS_ID),
+      transport: {
+        ...session.transport,
+        status: undefined,
+        metronome: undefined,
+        timeSignature: undefined,
+        mode: undefined,
+      },
+      master: undefined,
+      undoStack: undefined,
+      redoStack: undefined,
+      recentHumanActions: undefined,
+      reactionHistory: undefined,
+      openDecisions: undefined,
+    };
+
+    const restored = restoreSession(withoutMaster);
+    expect(restored.tracks.some(track => track.id === MASTER_BUS_ID)).toBe(true);
+    expect(restored.transport.status).toBe('stopped');
+    expect(restored.transport.metronome).toEqual({ enabled: false, volume: 0.5 });
+    expect(restored.transport.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+    expect(restored.transport.mode).toBe('pattern');
+    expect(restored.master).toEqual({ volume: 0.8, pan: 0.0 });
+    expect(restored.undoStack).toEqual([]);
+    expect(restored.redoStack).toEqual([]);
+    expect(restored.recentHumanActions).toEqual([]);
+    expect(restored.reactionHistory).toEqual([]);
+    expect(restored.openDecisions).toEqual([]);
+  });
+
+  it('restoreSession clears undo history for pre-v6 sessions', () => {
+    const session = createSession();
+    const legacySession = {
+      ...session,
+      undoStack: [{
+        kind: 'param' as const,
+        trackId: 'v0',
+        prevValues: { timbre: 0.2 },
+        aiTargetValues: { timbre: 0.8 },
+        timestamp: 1,
+        description: 'legacy',
+      }],
+      redoStack: [{
+        kind: 'param' as const,
+        trackId: 'v0',
+        prevValues: { morph: 0.1 },
+        aiTargetValues: { morph: 0.9 },
+        timestamp: 2,
+        description: 'legacy-redo',
+      }],
+    };
+
+    const restored = restoreSession(legacySession, 5);
+    expect(restored.undoStack).toEqual([]);
+    expect(restored.redoStack).toEqual([]);
   });
 
   it('returns null when no saved session exists', () => {

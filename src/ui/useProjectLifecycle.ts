@@ -10,8 +10,7 @@ import {
   importProject as importProjectInDB, migrateLegacySession,
   type ProjectMeta,
 } from '../engine/project-store';
-import { migrateTrack } from '../engine/persistence';
-import { DEFAULT_MASTER } from '../engine/types';
+import { restoreSession } from '../engine/persistence';
 
 const ACTIVE_KEY = 'gluon-active-project';
 const AUTOSAVE_DELAY = 500;
@@ -94,7 +93,7 @@ export function useProjectLifecycle(
       if (!project) return;
       setProjectId(project.id);
       setProjectName(project.meta.name);
-      setSession(restoreSession(project.session));
+      setSession(restoreSession(project.session, project.version));
       localStorage.setItem(ACTIVE_KEY, project.id);
       await refreshProjects();
     } finally {
@@ -115,7 +114,7 @@ export function useProjectLifecycle(
           if (project && !cancelled) {
             setProjectId(project.id);
             setProjectName(project.meta.name);
-            setSession(restoreSession(project.session));
+            setSession(restoreSession(project.session, project.version));
             localStorage.setItem(ACTIVE_KEY, project.id);
             await refreshProjects();
             loadingRef.current = false;
@@ -282,22 +281,5 @@ export function useProjectLifecycle(
     deleteActiveProject: deleteActiveProjectAction,
     exportActiveProject: exportActiveProjectAction,
     importProject: importProjectAction,
-  };
-}
-
-/** Restore transient fields and run track migration on load. */
-function restoreSession(session: Session): Session {
-  const transport = {
-    ...session.transport,
-    metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
-  };
-  return {
-    ...session,
-    tracks: session.tracks.map(migrateTrack),
-    master: session.master ?? { ...DEFAULT_MASTER },
-    transport,
-    undoStack: session.undoStack ?? [],
-    redoStack: session.redoStack ?? [],
-    recentHumanActions: session.recentHumanActions ?? [],
   };
 }

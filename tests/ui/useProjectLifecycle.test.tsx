@@ -150,4 +150,43 @@ describe('useProjectLifecycle', () => {
     expect(saveProject).toHaveBeenCalledWith('p1', 'One', session);
     expect(result.current.projectId).toBe('p2');
   });
+
+  it('restores IndexedDB-loaded older projects using the persisted project version', async () => {
+    localStorage.setItem('gluon-active-project', 'p1');
+    const legacySession = {
+      ...session,
+      undoStack: [{
+        kind: 'param' as const,
+        trackId: 'v0',
+        prevValues: { timbre: 0.2 },
+        aiTargetValues: { timbre: 0.8 },
+        timestamp: 1,
+        description: 'legacy',
+      }],
+      redoStack: [{
+        kind: 'param' as const,
+        trackId: 'v0',
+        prevValues: { morph: 0.1 },
+        aiTargetValues: { morph: 0.9 },
+        timestamp: 2,
+        description: 'legacy-redo',
+      }],
+    };
+    loadProject.mockResolvedValue({
+      id: 'p1',
+      version: 5,
+      meta: { id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 },
+      session: legacySession,
+    });
+    listProjects.mockResolvedValue([{ id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }]);
+
+    const setSession = vi.fn();
+    renderHook(() => useProjectLifecycle(session, setSession));
+
+    await waitFor(() => expect(setSession).toHaveBeenCalled());
+
+    const restoredSession = setSession.mock.calls[0]?.[0];
+    expect(restoredSession.undoStack).toEqual([]);
+    expect(restoredSession.redoStack).toEqual([]);
+  });
 });
