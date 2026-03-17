@@ -1,5 +1,5 @@
 // src/engine/types.ts
-import type { StepGrid, StepGridSketch, Step, Transport, PatternRef } from './sequencer-types';
+import type { StepGrid, StepGridSketch, Transport, PatternRef } from './sequencer-types';
 import type { ControlState, Pattern, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
 
 export type Agency = 'OFF' | 'ON';
@@ -209,12 +209,12 @@ export interface ParamSnapshot {
 export interface PatternSnapshot {
   kind: 'pattern';
   trackId: string;
-  prevSteps: { index: number; step: Step }[];
-  prevLength?: number;
-  /** Pattern events before the legacy sketch was applied (for full undo). */
-  prevEvents?: CanonicalMusicalEvent[];
-  /** Hidden events before the legacy sketch was applied (for length undo). */
+  /** Canonical events before the sketch was applied (for full undo). */
+  prevEvents: CanonicalMusicalEvent[];
+  /** Hidden events before the sketch was applied (for length undo). */
   prevHiddenEvents?: CanonicalMusicalEvent[];
+  /** Previous pattern length, if changed by the sketch. */
+  prevLength?: number;
   timestamp: number;
   description: string;
 }
