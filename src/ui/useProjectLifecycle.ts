@@ -93,7 +93,7 @@ export function useProjectLifecycle(
       if (!project) return;
       setProjectId(project.id);
       setProjectName(project.meta.name);
-      setSession(restoreSession(project.session));
+      setSession(restoreSession(project.session, project.version));
       localStorage.setItem(ACTIVE_KEY, project.id);
       await refreshProjects();
     } finally {
@@ -114,7 +114,7 @@ export function useProjectLifecycle(
           if (project && !cancelled) {
             setProjectId(project.id);
             setProjectName(project.meta.name);
-            setSession(restoreSession(project.session));
+            setSession(restoreSession(project.session, project.version));
             localStorage.setItem(ACTIVE_KEY, project.id);
             await refreshProjects();
             loadingRef.current = false;

@@ -170,7 +170,7 @@ export async function importProject(json: string): Promise<{ id: string; name: s
   if (projects.some(p => p.name === name)) {
     name = `${name} (imported)`;
   }
-  const migratedSession = restoreSession(parsed.session as Session, parsed.version ?? CURRENT_VERSION);
+  const migratedSession = restoreSession(parsed.session as Session, parsed.version ?? 0);
   await saveProject(id, name, migratedSession);
   return { id, name };
 }
