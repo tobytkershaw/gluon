@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, TrackPropertySnapshot } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -1028,11 +1028,36 @@ export default function App() {
   }, []);
 
   const handleSetImportance = useCallback((trackId: string, importance: number) => {
-    setSession((s) => setTrackImportance(s, trackId, importance));
+    setSession((s) => {
+      const track = s.tracks.find(t => t.id === trackId);
+      if (!track) return s;
+      const clamped = Math.max(0, Math.min(1, importance));
+      const snapshot: TrackPropertySnapshot = {
+        kind: 'track-property',
+        trackId,
+        prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+        timestamp: Date.now(),
+        description: `Set importance: ${track.importance ?? 'unset'} → ${clamped}`,
+      };
+      const next = setTrackImportance(s, trackId, importance);
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
   }, []);
 
   const handleSetMusicalRole = useCallback((trackId: string, role: string) => {
-    setSession((s) => setTrackImportance(s, trackId, s.tracks.find(t => t.id === trackId)?.importance ?? 0.5, role));
+    setSession((s) => {
+      const track = s.tracks.find(t => t.id === trackId);
+      if (!track) return s;
+      const snapshot: TrackPropertySnapshot = {
+        kind: 'track-property',
+        trackId,
+        prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+        timestamp: Date.now(),
+        description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
+      };
+      const next = setTrackImportance(s, trackId, track.importance ?? 0.5, role);
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
   }, []);
 
   const handleChangeVolume = useCallback((trackId: string, value: number) => {
