@@ -145,10 +145,12 @@ const sketchTool: ToolSchema = {
 const listenTool: ToolSchema = {
   name: 'listen',
   description:
-    'Render audio offline and evaluate how it sounds. ' +
+    'Render audio offline and send to an evaluator for qualitative judgment. ' +
     'Works whether or not the transport is playing. ' +
     'Changes you make in this turn aren\'t audible yet — listen in a follow-up turn to hear your edits. ' +
-    'Supports focused evaluation via lens and before/after comparison via compare.',
+    'Key modes: (1) basic — ask a question about the current sound, (2) lens — focus on low-end, rhythm, harmony, texture, or dynamics, ' +
+    '(3) compare — render before/after audio to evaluate an edit (e.g. "did the bass get warmer?"). ' +
+    'Compare mode is the recommended way to verify your changes improved the sound.',
   parameters: {
     type: 'object',
     properties: {
@@ -172,7 +174,7 @@ const listenTool: ToolSchema = {
       },
       compare: {
         type: 'object',
-        description: 'Compare two snapshots (before/after an edit). Renders the before state from the previous session snapshot and the current state, concatenates them with a brief silence, and sends to the evaluator.',
+        description: 'Before/after comparison. Renders audio from a previous session state and the current state, concatenates them with silence, and sends both to the evaluator. Use after making edits to hear whether they improved things. Example: { beforeSessionIndex: 0, question: "did adding Rings make the texture richer?" }.',
         properties: {
           beforeSessionIndex: {
             type: 'integer',
@@ -180,7 +182,7 @@ const listenTool: ToolSchema = {
           },
           question: {
             type: 'string',
-            description: 'What to compare (e.g. "did the bass get warmer?", "which groove is tighter?").',
+            description: 'What to compare (e.g. "did the bass get warmer?", "which groove is tighter?", "is the new pattern better?").',
           },
         },
       },
@@ -528,7 +530,8 @@ const labelAxesTool: ToolSchema = {
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata: approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.',
+    'Set track metadata in a single call: approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
+    'Example: set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -561,8 +564,8 @@ const setTrackMetaTool: ToolSchema = {
 const renderTool: ToolSchema = {
   name: 'render',
   description:
-    'Capture an audio snapshot with explicit scope. Returns a snapshotId that can be passed to analyze or listen. ' +
-    'Cheap — use freely before analysis tools. ' +
+    'Capture an audio snapshot. Returns a snapshotId for use with analyze. ' +
+    'Cheap — use freely. Scope to specific tracks for isolation (e.g. scope: "Track 1") or omit for full mix. ' +
     'Changes you make in this turn aren\'t audible yet — render in a follow-up turn to capture your edits.',
   parameters: {
     type: 'object',
@@ -607,7 +610,7 @@ const analyzeTool: ToolSchema = {
 const explainChainTool: ToolSchema = {
   name: 'explain_chain',
   description:
-    'Generate a musical-language description of a track\'s signal chain. Read-only — does not modify state.',
+    'Describe a track\'s signal chain in musical language (source → processors → modulators → routings). Read-only. Use to understand what a track does before modifying it.',
   parameters: {
     type: 'object',
     properties: {
@@ -623,7 +626,7 @@ const explainChainTool: ToolSchema = {
 const simplifyChainTool: ToolSchema = {
   name: 'simplify_chain',
   description:
-    'Analyze a track\'s signal chain for redundant or no-op processors and suggest removals. Read-only — does not modify state.',
+    'Analyze a track\'s signal chain for redundant or no-op processors and suggest removals. Read-only. Use when a chain feels cluttered or you want to reduce latency.',
   parameters: {
     type: 'object',
     properties: {
