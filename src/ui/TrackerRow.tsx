@@ -441,13 +441,13 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
 
     // Cursor cell highlight
     const cursorCellClass = (colType: string) =>
-      isCursorRow && cursorColumnType === colType ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+      isCursorRow && cursorColumnType === colType ? 'ring-1 ring-sky-400/70 rounded-sm bg-sky-500/10' : '';
 
     const cursorNoteCellClass = (colIdx: number) =>
-      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'ring-1 ring-sky-400/70 rounded-sm bg-sky-500/10' : '';
 
     const cursorFxCellClass = (fxIdx: number) =>
-      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-amber-400/60 rounded-sm bg-amber-500/10' : '';
+      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-sky-400/70 rounded-sm bg-sky-500/10' : '';
 
     // Row color: emerald for steps with notes or active triggers, neutral for empty
     const rowColor = (hasNotes || slot.hasGate) ? 'text-emerald-300' : 'text-zinc-500';
@@ -557,9 +557,9 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         ref={ref}
         className={`
           group text-[11px] font-mono leading-5 ${rowColor}
-          ${isSelected ? 'bg-amber-500/20' : ''}
-          ${isAtPlayhead && !isCursorRow && !isSelected ? 'bg-amber-500/15' : ''}
-          ${isCursorRow && !isSelected ? 'bg-amber-500/10' : ''}
+          ${isSelected ? 'bg-sky-500/15' : ''}
+          ${isAtPlayhead ? 'bg-amber-500/20 border-l-2 border-l-amber-400' : ''}
+          ${isCursorRow && !isAtPlayhead && !isSelected ? 'bg-sky-500/10' : ''}
           ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
