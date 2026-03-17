@@ -92,29 +92,34 @@ export function RoutingChips({
 
   if (interactive) {
     return (
-      <div className="border-t border-zinc-800/40 pt-2">
-        <div className="flex flex-wrap gap-1">
-          {routings.map(r => (
-            <RoutingChip
-              key={r.id}
-              route={r}
-              track={track}
-              interactive
-              onDepthChange={onDepthChange}
-              onDepthCommit={onDepthCommit}
-              onRemove={onRemove}
-            />
-          ))}
+      <div className="border-t border-zinc-800/40 pt-2 mt-auto">
+        <div className="rounded bg-violet-400/5 border border-violet-400/10 p-1.5">
+          <div className="text-[7px] font-mono uppercase tracking-widest text-violet-400/40 mb-1 px-0.5">
+            Routes
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {routings.map(r => (
+              <RoutingChip
+                key={r.id}
+                route={r}
+                track={track}
+                interactive
+                onDepthChange={onDepthChange}
+                onDepthCommit={onDepthCommit}
+                onRemove={onRemove}
+              />
+            ))}
+          </div>
+          {onNavigateToPatch && (
+            <button
+              type="button"
+              onClick={onNavigateToPatch}
+              className="mt-1.5 text-[8px] font-mono uppercase tracking-wider text-violet-400/50 hover:text-violet-400 transition-colors"
+            >
+              Edit routes in Patch
+            </button>
+          )}
         </div>
-        {onNavigateToPatch && (
-          <button
-            type="button"
-            onClick={onNavigateToPatch}
-            className="mt-1.5 text-[8px] font-mono uppercase tracking-wider text-violet-400/50 hover:text-violet-400 transition-colors"
-          >
-            Edit routes in Patch
-          </button>
-        )}
       </div>
     );
   }
