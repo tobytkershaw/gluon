@@ -16,7 +16,7 @@ import { ModuleBrowser } from './ModuleBrowser';
 // --- Layout constants ---
 
 const NODE_W = 168;
-const NODE_HEADER_H = 36;  // title + sublabel area
+const NODE_HEADER_H = 40;  // colored header strip + sublabel area
 const PORT_ROW_H = 14;     // height per port row
 const PORT_MIN_ROWS = 2;   // minimum port rows even when fewer ports
 const NODE_GAP = 80;
@@ -24,7 +24,7 @@ const PAD_X = 40;
 const PAD_Y = 32;
 const AUDIO_ROW_Y = PAD_Y;
 const OUTPUT_R = 18;
-const PORT_CIRCLE_R = 4;   // radius of port circles
+const PORT_CIRCLE_R = 5;   // radius of port circles
 
 // --- Pan/Zoom constants ---
 const MIN_ZOOM = 0.25;
@@ -259,22 +259,64 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
   return ports;
 }
 
+// --- Node type styling ---
+
+/** Background style per node kind (subtle gradient) */
+function nodeBgStyle(kind: NodePos['kind']): React.CSSProperties {
+  switch (kind) {
+    case 'source': return { background: 'linear-gradient(180deg, rgba(120,53,15,0.18) 0%, rgba(39,39,42,1) 40%)' };
+    case 'processor': return { background: 'linear-gradient(180deg, rgba(76,29,149,0.15) 0%, rgba(39,39,42,1) 40%)' };
+    case 'modulator': return { background: 'linear-gradient(180deg, rgba(8,145,178,0.15) 0%, rgba(39,39,42,1) 40%)' };
+    default: return {};
+  }
+}
+
+/** Header strip color per node kind */
+function headerStripColor(kind: NodePos['kind']): string {
+  switch (kind) {
+    case 'source': return 'bg-amber-600/60';
+    case 'processor': return 'bg-violet-600/50';
+    case 'modulator': return 'bg-cyan-600/50';
+    default: return 'bg-zinc-700/50';
+  }
+}
+
+/** Header text color per node kind */
+function headerTextColor(kind: NodePos['kind']): string {
+  switch (kind) {
+    case 'source': return 'text-amber-100';
+    case 'processor': return 'text-violet-100';
+    case 'modulator': return 'text-cyan-100';
+    default: return 'text-zinc-200';
+  }
+}
+
 // Border color per node kind
 function accentColor(kind: NodePos['kind']): string {
   switch (kind) {
-    case 'source': return 'border-l-amber-500';
-    case 'processor': return 'border-l-violet-500';
-    case 'modulator': return 'border-l-cyan-500';
+    case 'source': return 'border-amber-700/60';
+    case 'processor': return 'border-violet-700/50';
+    case 'modulator': return 'border-cyan-700/50';
     default: return '';
   }
 }
 
 function selectedBorderColor(kind: NodePos['kind']): string {
   switch (kind) {
-    case 'source': return 'border-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]';
-    case 'processor': return 'border-violet-500 shadow-[0_0_8px_rgba(139,92,246,0.4)]';
-    case 'modulator': return 'border-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.4)]';
+    case 'source': return 'border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.35)]';
+    case 'processor': return 'border-violet-500 shadow-[0_0_12px_rgba(139,92,246,0.35)]';
+    case 'modulator': return 'border-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.35)]';
     default: return '';
+  }
+}
+
+/** Default shadow for unselected nodes */
+function defaultShadow(kind: NodePos['kind']): string {
+  switch (kind) {
+    case 'source': return 'shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_1px_rgba(245,158,11,0.15)]';
+    case 'processor': return 'shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_1px_rgba(139,92,246,0.12)]';
+    case 'modulator': return 'shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_1px_rgba(6,182,212,0.12)]';
+    default: return 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]';
   }
 }
 
@@ -468,11 +510,11 @@ function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: numbe
       {ports.map(port => (
         <div
           key={port.def.id}
-          className="absolute flex items-center gap-1"
+          className="absolute flex items-center gap-1.5"
           style={{ left: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
           <div
-            className={`rounded-full border ${portSignalColor(port.def.signal)}`}
+            className={`rounded-full border-[1.5px] ${portSignalColor(port.def.signal)} shadow-[0_0_3px_rgba(0,0,0,0.3)]`}
             style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
           />
           <span className={`text-[9px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
@@ -492,14 +534,14 @@ function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: numb
       {ports.map(port => (
         <div
           key={port.def.id}
-          className="absolute flex items-center justify-end gap-1"
+          className="absolute flex items-center justify-end gap-1.5"
           style={{ right: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
           <span className={`text-[9px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
             {port.def.name}
           </span>
           <div
-            className={`rounded-full border ${portSignalColor(port.def.signal)}`}
+            className={`rounded-full border-[1.5px] ${portSignalColor(port.def.signal)} shadow-[0_0_3px_rgba(0,0,0,0.3)]`}
             style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
           />
         </div>
@@ -535,10 +577,10 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
       >
         {/* Input port on left side */}
         <div
-          className="absolute w-3 h-3 rounded-full bg-zinc-600 border border-zinc-500"
-          style={{ left: -6, top: OUTPUT_R - 6 }}
+          className="absolute w-3.5 h-3.5 rounded-full bg-zinc-600 border-[1.5px] border-zinc-400"
+          style={{ left: -7, top: OUTPUT_R - 7 }}
         />
-        <div className={`w-8 h-8 rounded-full bg-zinc-700 border-2 ${selected ? 'border-zinc-300 shadow-[0_0_8px_rgba(161,161,170,0.4)]' : 'border-zinc-500'}`} />
+        <div className={`w-9 h-9 rounded-full border-2 shadow-[0_2px_8px_rgba(0,0,0,0.4)] ${selected ? 'bg-zinc-600 border-zinc-300 shadow-[0_0_12px_rgba(161,161,170,0.4)]' : 'bg-zinc-700 border-zinc-500'}`} />
         <span className="text-[9px] font-medium text-zinc-400 mt-1 whitespace-nowrap select-none">
           {node.label}
         </span>
@@ -551,26 +593,26 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
 
   return (
     <div
-      className={`absolute rounded-md border border-l-2 bg-zinc-800 select-none overflow-visible ${
+      className={`absolute rounded-lg border-[1.5px] select-none overflow-visible ${
         isDragging ? 'cursor-grabbing' : 'cursor-grab'
       } ${
         selected
           ? `${selectedBorderColor(node.kind)}`
-          : `border-zinc-700 ${accentColor(node.kind)}`
+          : `${accentColor(node.kind)} ${defaultShadow(node.kind)}`
       } ${node.bypassed ? 'opacity-40 border-dashed' : ''}`}
-      style={{ left: node.x, top: node.y, width: NODE_W, height: node.h }}
+      style={{ left: node.x, top: node.y, width: NODE_W, height: node.h, ...nodeBgStyle(node.kind) }}
       onMouseDown={(e) => {
         e.stopPropagation();
         onDragStart?.(e, node.id, node.x, node.y);
       }}
     >
-      {/* Header area */}
-      <div className="px-3 pt-2">
-        <div className={`text-[11px] font-medium truncate leading-tight ${node.bypassed ? 'text-zinc-500 line-through' : 'text-zinc-200'}`}>
+      {/* Colored header strip */}
+      <div className={`${headerStripColor(node.kind)} rounded-t-[5px] px-3 py-1.5`}>
+        <div className={`text-[11px] font-semibold truncate leading-tight ${node.bypassed ? 'text-zinc-500 line-through' : headerTextColor(node.kind)}`}>
           {node.label}
         </div>
         {node.sublabel && (
-          <div className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5">
+          <div className="text-[9px] text-zinc-400 truncate leading-tight mt-0.5">
             {node.sublabel}
           </div>
         )}
@@ -587,7 +629,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
           style={{ left: NODE_W / 2 - 10, top: -10 }}
         >
           {/* Visual port */}
-          <div className="absolute w-3 h-3 rounded-full bg-cyan-500/50 border border-cyan-400" />
+          <div className="absolute w-3.5 h-3.5 rounded-full bg-cyan-500/50 border-[1.5px] border-cyan-400 shadow-[0_0_4px_rgba(6,182,212,0.3)]" />
           {/* Hit area */}
           <div
             className="absolute w-5 h-5 rounded-full cursor-crosshair"
@@ -671,7 +713,7 @@ function NodeDetailPanel({ node, track }: { node: NodePos; track: Track }) {
 
   return (
     <div
-      className="absolute bg-zinc-900/95 border border-zinc-700 rounded px-2 py-1.5 pointer-events-none"
+      className="absolute bg-zinc-900/95 border border-zinc-700 rounded-md shadow-lg px-2 py-1.5 pointer-events-none"
       style={{
         left: node.x,
         top: node.y + node.h + (node.kind === 'source' || node.kind === 'processor' ? 16 : 4),
@@ -694,9 +736,9 @@ function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
     <path
       d={`M ${edge.fromX} ${edge.fromY} C ${cx} ${edge.fromY}, ${cx} ${edge.toY}, ${edge.toX} ${edge.toY}`}
       stroke={edge.stroke}
-      strokeWidth={1.5}
+      strokeWidth={2}
       fill="none"
-      opacity={0.6}
+      opacity={0.7}
     />
   );
 }
@@ -1193,6 +1235,20 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
     setPanZoom({ zoom, panX, panY });
   }, [nodes.length, contentBounds]);
+
+  // Auto-fit on initial render and when node layout changes (e.g. modules added/removed).
+  // Uses a signature string of node ids to detect structural changes vs. just param tweaks.
+  const nodeSignature = allNodes.map(n => n.id).join(',');
+  const prevNodeSigRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevNodeSigRef.current !== nodeSignature) {
+      prevNodeSigRef.current = nodeSignature;
+      // Defer to next frame so container has its layout dimensions
+      requestAnimationFrame(() => {
+        handleFitToView();
+      });
+    }
+  }, [nodeSignature, handleFitToView]);
 
   // Dismiss context menu on click outside
   useEffect(() => {
