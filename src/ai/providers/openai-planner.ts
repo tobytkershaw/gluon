@@ -154,7 +154,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
         inputItems: [{ role: 'user' as const, content: pair.human }],
         outputItems: [{
           type: 'message' as const,
-          id: `restored-msg-${idx}`,
+          id: `msg_restored_${idx}`,
           role: 'assistant' as const,
           status: 'completed' as const,
           content: [{ type: 'output_text' as const, text: pair.ai, annotations: [] }],
