@@ -576,7 +576,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       data-shortcut-scope="tracker"
       className="outline-none h-full"
     >
-      <table className="border-collapse select-none font-mono">
+      <table className="w-full border-collapse select-none font-mono">
         <thead>
           <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
             <th className="px-1 py-1 text-left w-8">Pos</th>

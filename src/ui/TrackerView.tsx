@@ -6,8 +6,6 @@ import { getActivePattern } from '../engine/types';
 import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { resolveSequencePosition } from '../engine/sequence-helpers';
-import { getModelName } from '../audio/instrument-registry';
-import { getTrackLabel } from '../engine/track-labels';
 import { Tracker } from './Tracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
 import { AutomationPanel } from './AutomationPanel';
@@ -153,14 +151,8 @@ export function TrackerView({
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
         <div className="flex-1 min-w-0 flex flex-col gap-3 p-4">
-          {/* Track header */}
+          {/* Toolbar */}
           <div className="flex items-center gap-3">
-            <span className="text-[11px] font-medium tracking-wider uppercase text-zinc-300">
-              {getTrackLabel(activeTrack)}
-            </span>
-            <span className="text-[10px] text-zinc-500">
-              {getModelName(activeTrack.model)}
-            </span>
             {onPatternLengthChange && (
               <div className="flex items-center gap-1 ml-4">
                 <span className="text-zinc-500 text-[10px] uppercase tracking-wider">Len</span>
