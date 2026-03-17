@@ -138,6 +138,11 @@ export class TransportController {
         } else {
           startStep = 0;
         }
+        // On resume from pause, skip the start offset — the audio worklet is
+        // already running and the offset would push globalStep backward by
+        // ~0.5 steps on the first tick, causing a visible/audible position jump.
+        const isResume = this.runtime.status === 'paused';
+        const offset = isResume ? 0 : START_OFFSET_SEC;
         this.audio.restoreBaseline();
         // Restore metronome volume after silenceMetronome() zeroed it on stop/pause.
         const metVol = transport.metronome?.volume ?? 0.5;
@@ -145,7 +150,7 @@ export class TransportController {
         // Update runtime BEFORE starting the scheduler so that the synchronous
         // first tick sees the new generation (fixes #543 — stale generation on resume).
         this.runtime = playTransportState(this.runtime, generation);
-        this.scheduler.start(START_OFFSET_SEC, startStep, generation);
+        this.scheduler.start(offset, startStep, generation);
         recordQaAudioTrace({
           type: 'transport.play-start',
           audioTime: this.audio.getCurrentTime(),
