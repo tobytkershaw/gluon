@@ -9,9 +9,11 @@ const SECTION_LABELS: Record<ShortcutDef['section'], string> = {
   mixing: 'Mixing',
   editing: 'Editing',
   tracker: 'Tracker',
+  chat: 'Chat',
+  piano: 'Keyboard Piano',
 };
 
-const SECTION_ORDER: ShortcutDef['section'][] = ['transport', 'mixing', 'view', 'editing', 'tracker'];
+const SECTION_ORDER: ShortcutDef['section'][] = ['transport', 'mixing', 'view', 'editing', 'tracker', 'chat', 'piano'];
 
 interface Props {
   onClose: () => void;
