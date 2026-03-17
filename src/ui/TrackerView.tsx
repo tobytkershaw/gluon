@@ -297,9 +297,9 @@ export function TrackerView({
                       />
                     ) : (
                       <button
-                        className={`px-2 py-0.5 rounded transition-colors ${
+                        className={`px-2 py-0.5 rounded transition-colors outline-none ${
                           isActive
-                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 focus:ring-1 focus:ring-amber-400/40'
                             : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'
                         }`}
                         onClick={() => onSetActiveRegion?.(pat.id)}
@@ -307,20 +307,19 @@ export function TrackerView({
                           setRenamingRegionId(pat.id);
                           setRenameValue(pat.name || '');
                         }}
-                        title={`Pattern ${idx + 1}${pat.name ? `: ${pat.name}` : ''} — double-click to rename`}
+                        onKeyDown={(e) => {
+                          if ((e.key === 'Delete' || e.key === 'Backspace') && isActive && activeTrack.patterns.length > 1) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            onRemoveRegion?.(pat.id);
+                          }
+                        }}
+                        title={`Pattern ${idx + 1}${pat.name ? `: ${pat.name}` : ''} — double-click to rename, Delete to remove`}
                       >
                         {label}
                       </button>
                     )}
-                    {isActive && activeTrack.patterns.length > 1 && (
-                      <button
-                        className="ml-0.5 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => onRemoveRegion?.(pat.id)}
-                        title="Remove pattern"
-                      >
-                        x
-                      </button>
-                    )}
+                    {/* Pattern removal: select tab then press Delete/Backspace while tab is focused */}
                     {isActive && (
                       <button
                         className="ml-0.5 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"

@@ -1,7 +1,7 @@
 // src/ui/SequenceEditor.tsx
 // Sequence editor for Song mode: edit the per-track arrangement of pattern refs.
 
-import { useMemo } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import type { Track } from '../engine/types';
 import type { Pattern } from '../engine/canonical-types';
 import type { PatternRef } from '../engine/sequencer-types';
@@ -40,6 +40,43 @@ export function SequenceEditor({
   }, [playing, isSongMode, globalStep, track.sequence, track.patterns]);
 
   const canRemove = track.sequence.length > 1;
+  const [selectedSlot, setSelectedSlot] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Deselect when clicking outside
+  useEffect(() => {
+    if (selectedSlot === null) return;
+    const handler = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setSelectedSlot(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [selectedSlot]);
+
+  // Delete/Backspace key removes selected slot
+  useEffect(() => {
+    if (selectedSlot === null || !canRemove) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+        e.preventDefault();
+        onRemovePatternRef(selectedSlot);
+        setSelectedSlot(null);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [selectedSlot, canRemove, onRemovePatternRef]);
+
+  // Reset selection if it goes out of range
+  useEffect(() => {
+    if (selectedSlot !== null && selectedSlot >= track.sequence.length) {
+      setSelectedSlot(null);
+    }
+  }, [selectedSlot, track.sequence.length]);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -53,22 +90,26 @@ export function SequenceEditor({
       </div>
 
       {/* Sequence slots */}
-      <div className="flex flex-wrap items-center gap-1">
+      <div ref={containerRef} className="flex flex-wrap items-center gap-1">
         {track.sequence.map((ref, idx) => {
           const isPlaying = activeSequenceIndex === idx;
+          const isSlotSelected = selectedSlot === idx;
           return (
             <div
               key={`${idx}-${ref.patternId}`}
-              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border transition-colors ${
-                isPlaying
-                  ? 'bg-green-500/20 text-green-400 border-green-500/40'
-                  : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50'
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] border transition-colors cursor-pointer ${
+                isSlotSelected
+                  ? 'bg-red-500/10 text-red-300 border-red-500/50 ring-1 ring-red-500/30'
+                  : isPlaying
+                    ? 'bg-green-500/20 text-green-400 border-green-500/40'
+                    : 'bg-zinc-800/60 text-zinc-400 border-zinc-700/50'
               }`}
+              onClick={() => setSelectedSlot(isSlotSelected ? null : idx)}
             >
               {/* Move up (left) */}
               <button
                 className="text-zinc-600 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-default transition-colors"
-                onClick={() => onReorderPatternRef(idx, idx - 1)}
+                onClick={(e) => { e.stopPropagation(); onReorderPatternRef(idx, idx - 1); }}
                 disabled={idx === 0}
                 title="Move left"
               >
@@ -82,22 +123,14 @@ export function SequenceEditor({
               {/* Move down (right) */}
               <button
                 className="text-zinc-600 hover:text-zinc-300 disabled:opacity-30 disabled:cursor-default transition-colors"
-                onClick={() => onReorderPatternRef(idx, idx + 1)}
+                onClick={(e) => { e.stopPropagation(); onReorderPatternRef(idx, idx + 1); }}
                 disabled={idx === track.sequence.length - 1}
                 title="Move right"
               >
                 &rarr;
               </button>
 
-              {/* Remove */}
-              <button
-                className="text-zinc-600 hover:text-red-400 disabled:opacity-30 disabled:cursor-default transition-colors ml-0.5"
-                onClick={() => onRemovePatternRef(idx)}
-                disabled={!canRemove}
-                title={canRemove ? 'Remove from sequence' : 'Cannot remove the last slot'}
-              >
-                x
-              </button>
+              {/* Slot removal: select slot (click) then press Delete/Backspace */}
             </div>
           );
         })}

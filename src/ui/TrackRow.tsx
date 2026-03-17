@@ -121,20 +121,37 @@ export function TrackRow({
     }
   }, [commitRole, cancelRole]);
 
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Handle Delete/Backspace on the focused track row
+  const handleRowKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (!onRemove) return;
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Don't intercept if editing inline
+      if (editing || editingRole) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onRemove();
+    }
+  }, [onRemove, editing, editingRole]);
+
   const thumbColor = computeThumbprintColor(track);
   const approval = track.approval ?? 'exploratory';
   const approvalInfo = APPROVAL_DISPLAY[approval];
 
   return (
     <div
-      className={`group/row relative px-2.5 py-1.5 rounded cursor-pointer transition-colors ${
+      ref={rowRef}
+      tabIndex={0}
+      className={`group/row relative px-2.5 py-1.5 rounded cursor-pointer transition-colors outline-none ${
         isActive
-          ? 'bg-zinc-800 border border-zinc-700'
+          ? 'bg-zinc-800 border border-zinc-700 focus:border-zinc-600'
           : isBus
             ? 'bg-zinc-900/60 hover:bg-zinc-800/40 border border-zinc-800/30'
             : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'
       }${isBus && !isMasterBus ? ' ml-1.5 border-l-2 border-l-zinc-700/50' : ''}`}
       onClick={onClick}
+      onKeyDown={handleRowKeyDown}
     >
       {/* Activity pulse overlay */}
       <div
@@ -235,15 +252,7 @@ export function TrackRow({
               {approvalInfo.label}
             </button>
           )}
-          {onRemove && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              title="Remove track"
-              className="text-[9px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors text-zinc-700 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover/row:opacity-100"
-            >
-              x
-            </button>
-          )}
+          {/* Track removal: select track then press Delete/Backspace */}
         </div>
       </div>
 
