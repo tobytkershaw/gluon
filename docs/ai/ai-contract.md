@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has twenty tools, declared as neutral JSON Schema and adapted per provider.
+The AI has twenty-one tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -106,7 +106,19 @@ Change tempo, swing, time signature, or play/stop state. At least one parameter 
 
 ### Structure
 
-Change what the instrument is — its modules, signal chain, and configuration. **Requires track agency ON.**
+Change what the instrument is — its modules, signal chain, and configuration. **Requires track agency ON** (except `manage_track` add, which creates a new track).
+
+#### `manage_track`
+
+Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Adding does not require agency. Removing requires agency ON and the track must not have anchor approval.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | yes | `add` or `remove` |
+| `kind` | string | no | Required for add. `audio` or `bus`. |
+| `trackId` | string | no | Required for remove. The track ID to remove. |
+| `label` | string | no | Optional display name for the new track. |
+| `description` | string | yes | Short description of the operation. |
 
 #### `set_model`
 

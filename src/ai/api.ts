@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity, TrackKind } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -8,6 +8,7 @@ import { resolveTrackId } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { generatePreservationReport } from '../engine/operation-executor';
+import { addTrack, removeTrack } from '../engine/session';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
@@ -302,6 +303,14 @@ function projectAction(session: Session, action: AIAction): Session {
         timestamp: Date.now(),
       };
       return { ...session, bugReports: [...existing, report].slice(-50) };
+    }
+    case 'add_track': {
+      const result = addTrack(session, action.kind);
+      return result ?? session;
+    }
+    case 'remove_track': {
+      const result = removeTrack(session, action.trackId);
+      return result ?? session;
     }
     case 'say':
     default:
@@ -1527,6 +1536,71 @@ export class GluonAI {
             question: raiseAction.question,
           },
         };
+      }
+
+      case 'manage_track': {
+        const trackSubAction = args.action as string;
+        if (!trackSubAction) return { actions: [], response: errorPayload('Missing required: action') };
+        if (typeof args.description !== 'string') {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+        switch (trackSubAction) {
+          case 'add': {
+            const kind = (args.kind as string) ?? 'audio';
+            const validKinds: TrackKind[] = ['audio', 'bus'];
+            if (!validKinds.includes(kind as TrackKind)) {
+              return { actions: [], response: errorPayload(`Invalid kind: ${kind}. Must be one of: ${validKinds.join(', ')}`) };
+            }
+
+            const addTrackAction: AIAddTrackAction = {
+              type: 'add_track',
+              kind: kind as TrackKind,
+              ...(typeof args.label === 'string' ? { label: args.label } : {}),
+              description: args.description as string,
+            };
+
+            const addTrackRejection = ctx?.validateAction?.(addTrackAction);
+            if (addTrackRejection) return { actions: [], response: errorPayload(addTrackRejection) };
+
+            return {
+              actions: [addTrackAction],
+              response: {
+                applied: true,
+                kind: addTrackAction.kind,
+                ...(addTrackAction.label ? { label: addTrackAction.label } : {}),
+              },
+            };
+          }
+          case 'remove': {
+            if (typeof args.trackId !== 'string' || !args.trackId) {
+              return { actions: [], response: errorPayload('action=remove requires trackId') };
+            }
+
+            const resolvedTrackId = resolveTrackId(args.trackId as string, session);
+            if (!resolvedTrackId) {
+              return { actions: [], response: errorPayload(`Track not found: ${args.trackId}`) };
+            }
+
+            const removeTrackAction: AIRemoveTrackAction = {
+              type: 'remove_track',
+              trackId: resolvedTrackId,
+              description: args.description as string,
+            };
+
+            const removeTrackRejection = ctx?.validateAction?.(removeTrackAction);
+            if (removeTrackRejection) return { actions: [], response: errorPayload(removeTrackRejection) };
+
+            return {
+              actions: [removeTrackAction],
+              response: {
+                applied: true,
+                trackId: removeTrackAction.trackId,
+              },
+            };
+          }
+          default:
+            return { actions: [], response: errorPayload(`Invalid action "${trackSubAction}". Use: add, remove`) };
+        }
       }
 
       case 'report_bug': {
