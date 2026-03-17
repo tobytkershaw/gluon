@@ -24,8 +24,10 @@ interface Props {
   // Track sidebar
   tracks: Track[];
   activeTrackId: string;
+  expandedTrackIds?: string[];
   activityMap: Record<string, number>;
   onSelectTrack: (trackId: string) => void;
+  onToggleTrackExpanded?: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
   onToggleSolo: (trackId: string, additive?: boolean) => void;
   onToggleAgency: (trackId: string) => void;
@@ -125,8 +127,8 @@ interface Props {
 const CHAT_COLLAPSE_WIDTH = 1280;
 
 export function AppShell({
-  tracks, activeTrackId, activityMap,
-  onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
+  tracks, activeTrackId, expandedTrackIds, activityMap,
+  onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole,
   onAddSend, onRemoveSend, onSetSendLevel,
   messages, onSend, isThinking, isListening, streamingText,
@@ -253,8 +255,10 @@ export function AppShell({
           <TrackList
             tracks={tracks}
             activeTrackId={activeTrackId}
+            expandedTrackIds={expandedTrackIds}
             activityMap={activityMap}
             onSelectTrack={onSelectTrack}
+            onToggleTrackExpanded={onToggleTrackExpanded}
             onToggleMute={onToggleMute}
             onToggleSolo={onToggleSolo}
             onToggleAgency={onToggleAgency}
