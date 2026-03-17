@@ -562,23 +562,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         </td>
         {/* FX columns */}
         {fxColumnCells}
-        {/* Delete button */}
-        {onDelete && slot.allEvents.length > 0 && (
-          <td className="px-1 py-0 w-6 text-center">
-            <button
-              className="text-zinc-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => {
-                // Prefer note/trigger events over parameter events
-                const gateEvent = slot.allEvents.find(e => e.kind === 'note' || e.kind === 'trigger');
-                const target = gateEvent ?? slot.allEvents[0];
-                onDelete(selectorFromEvent(target));
-              }}
-              title="Delete event"
-            >
-              x
-            </button>
-          </td>
-        )}
+        {/* Delete column spacer (deletion via keyboard Delete/Backspace on cursor row) */}
       </tr>
     );
   },

@@ -2,7 +2,7 @@
 // Eurorack-style vertical module panel for the Rack view grid layout.
 // Displays large knobs for primary controls, small knobs for secondary,
 // toggles for booleans, and a mode selector for multi-engine modules.
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ControlDef } from './module-controls';
 import { Knob } from './Knob';
 import type { KnobModulationInfo } from './Knob';
@@ -216,6 +216,47 @@ export function ModulePanel({
 }: ModulePanelProps) {
   const accent = ACCENT[accentColor];
   const isBypassed = enabled === false;
+  const [isSelected, setIsSelected] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Click to select (for Delete key removal)
+  const handlePanelClick = useCallback((e: React.MouseEvent) => {
+    // Don't select if clicking on interactive children (knobs, buttons, selectors)
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('select')) return;
+    if (onRemove) {
+      setIsSelected(prev => !prev);
+    }
+  }, [onRemove]);
+
+  // Deselect when clicking outside
+  useEffect(() => {
+    if (!isSelected) return;
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setIsSelected(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isSelected]);
+
+  // Delete/Backspace key removes selected module
+  useEffect(() => {
+    if (!isSelected || !onRemove) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Don't intercept if an input/textarea is focused
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+        e.preventDefault();
+        onRemove();
+        setIsSelected(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isSelected, onRemove]);
 
   // Partition controls by size and kind
   const largeKnobs = controls.filter(c => c.size === 'large' && c.kind === 'continuous');
@@ -236,10 +277,12 @@ export function ModulePanel({
 
   return (
     <div
+      ref={panelRef}
       className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden ${
-        isHighlighted ? accent.highlight : 'border-zinc-800/60'
-      } ${isBypassed ? 'opacity-50' : ''}`}
+        isSelected ? 'border-red-500/50 ring-1 ring-red-500/30' : isHighlighted ? accent.highlight : 'border-zinc-800/60'
+      } ${isBypassed ? 'opacity-50' : ''} ${onRemove ? 'cursor-pointer' : ''}`}
       style={{ minWidth: 148, height: MODULE_HEIGHT }}
+      onClick={handlePanelClick}
     >
       {/* Header bar */}
       <div className={`flex items-center justify-between gap-1 px-3 py-1.5 ${accent.headerBg} border-b border-zinc-800/40`}>
@@ -258,14 +301,7 @@ export function ModulePanel({
           )}
           <span className={`text-[10px] font-medium truncate ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
         </div>
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="text-[8px] text-zinc-600 hover:text-red-400 uppercase tracking-widest transition-colors shrink-0"
-          >
-            x
-          </button>
-        )}
+        {/* Module removal: select panel (click) then press Delete/Backspace */}
       </div>
 
       {/* Body */}

@@ -1,7 +1,8 @@
 // src/ui/RoutingChip.tsx
 // Shared routing chip for modulation route display.
 // Configurable interactivity: read-only (ExpandedTrack/Surface) or
-// editable with depth drag + remove button (RackView).
+// editable with depth drag + selection-based removal (RackView).
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ModulationRouting, Track, ModulationTarget } from '../engine/types';
 import { getProcessorInstrument } from '../audio/instrument-registry';
 import { DraggableNumber } from './DraggableNumber';
@@ -19,7 +20,7 @@ export function formatRoutingTarget(target: ModulationTarget, track: Track): str
 interface RoutingChipProps {
   route: ModulationRouting;
   track: Track;
-  /** When true, shows depth editing + remove button. When false, read-only display. */
+  /** When true, shows depth editing + selection-based removal. When false, read-only display. */
   interactive?: boolean;
   onDepthChange?: (routeId: string, depth: number) => void;
   onDepthCommit?: (routeId: string, depth: number) => void;
@@ -31,11 +32,52 @@ export function RoutingChip({
   onDepthChange, onDepthCommit, onRemove,
 }: RoutingChipProps) {
   const label = formatRoutingTarget(route.target, track);
+  const [isSelected, setIsSelected] = useState(false);
+  const chipRef = useRef<HTMLSpanElement>(null);
+
+  // Click to toggle selection
+  const handleClick = useCallback(() => {
+    if (onRemove) {
+      setIsSelected(prev => !prev);
+    }
+  }, [onRemove]);
+
+  // Deselect when clicking outside
+  useEffect(() => {
+    if (!isSelected) return;
+    const handler = (e: MouseEvent) => {
+      if (chipRef.current && !chipRef.current.contains(e.target as Node)) {
+        setIsSelected(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isSelected]);
+
+  // Delete/Backspace key removes selected route
+  useEffect(() => {
+    if (!isSelected || !onRemove) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        const active = document.activeElement;
+        if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) return;
+        e.preventDefault();
+        onRemove(route.id);
+        setIsSelected(false);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isSelected, onRemove, route.id]);
 
   if (interactive) {
     return (
       <span
-        className="inline-flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded bg-violet-400/10 border border-violet-400/20 text-violet-300"
+        ref={chipRef}
+        className={`inline-flex items-center gap-0.5 text-[8px] px-1.5 py-0.5 rounded bg-violet-400/10 border text-violet-300 cursor-pointer transition-colors ${
+          isSelected ? 'border-red-500/50 ring-1 ring-red-500/30' : 'border-violet-400/20'
+        }`}
+        onClick={handleClick}
       >
         <span className="opacity-60">{'\u2192'}</span>
         <span className="truncate max-w-[80px]">{label}</span>
@@ -49,14 +91,7 @@ export function RoutingChip({
           onChange={(depth) => onDepthChange?.(route.id, depth)}
           onCommit={(depth) => onDepthCommit?.(route.id, depth)}
         />
-        <button
-          type="button"
-          onClick={() => onRemove?.(route.id)}
-          className="ml-0.5 text-violet-400/40 hover:text-red-400 transition-colors leading-none"
-          title="Remove route"
-        >
-          {'\u00d7'}
-        </button>
+        {/* Route removal: select chip (click) then press Delete/Backspace */}
       </span>
     );
   }

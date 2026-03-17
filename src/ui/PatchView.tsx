@@ -751,27 +751,6 @@ function ModEdgeSvg({ edge, selected, onSelect }: {
   );
 }
 
-/** Delete button shown on a selected modulation edge */
-function EdgeDeleteButton({ edge, onRemove }: {
-  edge: ModEdge;
-  onRemove: (routeId: string) => void;
-}) {
-  const mid = bezierMidpoint(edge.fromX, edge.fromY, edge.cx0, edge.cy0, edge.cx1, edge.cy1, edge.toX, edge.toY);
-
-  return (
-    <div
-      className="absolute flex items-center justify-center w-4 h-4 rounded-full bg-zinc-800 border border-red-500/60 text-red-400 text-[10px] leading-none cursor-pointer hover:bg-red-500/20 hover:text-red-300 transition-colors"
-      style={{ left: mid.x - 16, top: mid.y - 8 }}
-      onMouseDown={(e) => {
-        e.stopPropagation();
-        onRemove(edge.routeId);
-      }}
-    >
-      &times;
-    </div>
-  );
-}
-
 /** HTML overlay for an interactive depth label on a modulation edge */
 function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
   edge: ModEdge;
@@ -1296,10 +1275,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
               <NodeDetailPanel node={selectedNode} track={track} />
             )}
 
-            {/* Edge delete button */}
-            {selectedEdge && onRemoveModulation && (
-              <EdgeDeleteButton edge={selectedEdge} onRemove={onRemoveModulation} />
-            )}
+            {/* Edge deletion via Delete/Backspace key when edge is selected */}
 
             {/* Modulation depth overlays (interactive HTML on top of SVG edges) */}
             {onModulationDepthChange && modEdges.map(e => (
