@@ -48,6 +48,16 @@ interface RackViewProps {
   onNavigateToPatch?: () => void;
 }
 
+/** Distinct colors for modulation arcs — visually separable on dark backgrounds */
+const MODULATION_ARC_COLORS = [
+  'rgb(167 139 250)', // violet-400
+  'rgb(34 211 238)',   // cyan-400
+  'rgb(251 146 60)',   // orange-400
+  'rgb(52 211 153)',   // emerald-400
+  'rgb(251 113 133)',  // rose-400
+  'rgb(250 204 21)',   // yellow-400
+];
+
 /**
  * Build a map of controlId -> KnobModulationInfo[] for a given moduleId.
  * Used to show modulation indicators on Rack knobs.
@@ -59,6 +69,12 @@ function buildModulationMap(
   const map = new Map<string, KnobModulationInfo[]>();
   const modulations = track.modulations ?? [];
   const modulators = track.modulators ?? [];
+
+  // Assign a stable color per modulator ID based on its index in the modulators array
+  const modulatorColorMap = new Map<string, string>();
+  for (let i = 0; i < modulators.length; i++) {
+    modulatorColorMap.set(modulators[i].id, MODULATION_ARC_COLORS[i % MODULATION_ARC_COLORS.length]);
+  }
 
   for (const route of modulations) {
     let matchedParam: string | undefined;
@@ -72,9 +88,10 @@ function buildModulationMap(
     const mod = modulators.find(m => m.id === route.modulatorId);
     const modInst = mod ? getModulatorInstrument(mod.type) : undefined;
     const modLabel = modInst?.label?.replace('Mutable Instruments ', '') ?? route.modulatorId.slice(0, 8);
+    const modColor = modulatorColorMap.get(route.modulatorId) ?? MODULATION_ARC_COLORS[0];
 
     const existing = map.get(matchedParam) ?? [];
-    existing.push({ modulatorLabel: modLabel, depth: route.depth });
+    existing.push({ modulatorLabel: modLabel, depth: route.depth, color: modColor });
     map.set(matchedParam, existing);
   }
   return map;
