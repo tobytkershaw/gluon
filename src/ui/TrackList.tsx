@@ -1,9 +1,12 @@
 // src/ui/TrackList.tsx
 // Vertical track sidebar — replaces horizontal TrackStage in the top bar.
+import { useCallback } from 'react';
 import type { Track, TrackKind } from '../engine/types';
 import { getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { getTrackLabel } from '../engine/track-labels';
 import { TrackRow } from './TrackRow';
+import { TrackLevelMeter } from './TrackLevelMeter';
+import type { AudioEngine } from '../audio/audio-engine';
 
 interface Props {
   tracks: Track[];
@@ -18,6 +21,13 @@ interface Props {
   onAddTrack?: (kind?: TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
   maxTracks?: number;
+  /** Audio engine ref for per-track analyser access. */
+  audioEngine?: AudioEngine | null;
+  /** Master bus volume (0-1). */
+  masterVolume?: number;
+  /** Master bus stereo analysers for the anchored meter. */
+  masterStereoAnalysers?: [AnalyserNode, AnalyserNode] | null;
+  onMasterVolumeChange?: (v: number) => void;
 }
 
 export function TrackList({
@@ -25,6 +35,7 @@ export function TrackList({
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
   onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, maxTracks = 16,
+  audioEngine, masterVolume, masterStereoAnalysers, onMasterVolumeChange,
 }: Props) {
   const canAdd = tracks.length < maxTracks;
 
@@ -36,6 +47,10 @@ export function TrackList({
 
   // Can only remove if more than 1 audio track remains (bus removal is separate)
   const canRemoveAudio = audioTracks.length > 1;
+
+  const handleVolumeInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onMasterVolumeChange?.(parseFloat(e.target.value));
+  }, [onMasterVolumeChange]);
 
   return (
     <div className="w-44 border-l border-zinc-800/40 bg-zinc-950/80 flex flex-col min-h-0">
@@ -76,7 +91,7 @@ export function TrackList({
         </div>
       </div>
 
-      {/* Track rows */}
+      {/* Track rows — scrollable */}
       <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
         {/* Audio tracks */}
         {audioTracks.map((track) => (
@@ -85,6 +100,7 @@ export function TrackList({
             track={track}
             label={getTrackLabel(track)}
             isActive={track.id === activeTrackId}
+            analyser={audioEngine?.getTrackAnalyser(track.id) ?? null}
             activityTimestamp={activityMap[track.id] ?? null}
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
@@ -97,7 +113,7 @@ export function TrackList({
         ))}
 
         {/* Separator between audio and bus tracks */}
-        {(busTracks.length > 0 || masterBus) && audioTracks.length > 0 && (
+        {busTracks.length > 0 && audioTracks.length > 0 && (
           <div className="border-t border-zinc-800/40 my-1" />
         )}
 
@@ -109,6 +125,7 @@ export function TrackList({
             label={getTrackLabel(track)}
             isActive={track.id === activeTrackId}
             isBus
+            analyser={audioEngine?.getTrackAnalyser(track.id) ?? null}
             activityTimestamp={activityMap[track.id] ?? null}
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
@@ -118,23 +135,57 @@ export function TrackList({
             onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
           />
         ))}
+      </div>
 
-        {/* Master bus — always visible at bottom */}
-        {masterBus && (
+      {/* Master bus — anchored at bottom, outside scrollable area */}
+      {masterBus && (
+        <div className="border-t border-zinc-800/40 p-1.5 shrink-0">
           <TrackRow
-            key={masterBus.id}
             track={masterBus}
             label={getTrackLabel(masterBus)}
             isActive={masterBus.id === activeTrackId}
             isBus
             isMasterBus
+            analyser={audioEngine?.getTrackAnalyser(masterBus.id) ?? null}
             activityTimestamp={activityMap[masterBus.id] ?? null}
             onClick={() => onSelectTrack(masterBus.id)}
             onToggleMute={() => onToggleMute(masterBus.id)}
             onToggleSolo={(additive) => onToggleSolo(masterBus.id, additive)}
           />
-        )}
-      </div>
+          {/* Master volume slider + stereo meter */}
+          <div className="flex items-center gap-1.5 mt-1 px-1">
+            <span className="text-[8px] font-mono text-zinc-600 w-5 text-right shrink-0">
+              {Math.round((masterVolume ?? 0.8) * 100)}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={masterVolume ?? 0.8}
+              onChange={handleVolumeInput}
+              onClick={(e) => e.stopPropagation()}
+              className="flex-1 h-1 accent-zinc-500 cursor-pointer"
+              title={`Master volume: ${Math.round((masterVolume ?? 0.8) * 100)}%`}
+              aria-label="Master volume"
+            />
+          </div>
+          {/* Stereo level meter for master bus */}
+          {masterStereoAnalysers && (
+            <MasterBusMeter stereoAnalysers={masterStereoAnalysers} />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Thin horizontal stereo level meter for the master bus in the sidebar. */
+function MasterBusMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode, AnalyserNode] }) {
+  return (
+    <div className="flex gap-0.5 mt-1 px-1">
+      <TrackLevelMeter analyser={stereoAnalysers[0]} />
+      <TrackLevelMeter analyser={stereoAnalysers[1]} />
     </div>
   );
 }

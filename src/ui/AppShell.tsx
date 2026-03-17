@@ -19,6 +19,7 @@ import { UndoButton } from './UndoButton';
 import { RedoButton } from './RedoButton';
 import { PeakMeter as PeakMeterFooter } from './MasterStrip';
 import { AudioLoadMeter } from './AudioLoadMeter';
+import type { AudioEngine } from '../audio/audio-engine';
 
 interface Props {
   // Track sidebar
@@ -109,6 +110,7 @@ interface Props {
   analyser: AnalyserNode | null;
   stereoAnalysers: [AnalyserNode, AnalyserNode] | null;
   audioContext: AudioContext | null;
+  audioEngine?: AudioEngine | null;
   onMasterVolumeChange: (v: number) => void;
   onMasterPanChange: (p: number) => void;
   // Main content
@@ -138,7 +140,7 @@ export function AppShell({
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
   abActive, onAbCapture, onAbToggle, onAbClear,
-  masterVolume, masterPan, analyser, stereoAnalysers, audioContext, onMasterVolumeChange, onMasterPanChange,
+  masterVolume, masterPan, analyser, stereoAnalysers, audioContext, audioEngine, onMasterVolumeChange, onMasterPanChange,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -259,6 +261,10 @@ export function AppShell({
             onCycleApproval={onCycleApproval}
             onAddTrack={onAddTrack}
             onRemoveTrack={onRemoveTrack}
+            audioEngine={audioEngine}
+            masterVolume={masterVolume}
+            masterStereoAnalysers={stereoAnalysers}
+            onMasterVolumeChange={onMasterVolumeChange}
           />
         </div>
 

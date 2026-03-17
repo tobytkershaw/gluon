@@ -1965,6 +1965,7 @@ export default function App() {
       analyser={audioStarted ? audioRef.current.getAnalyser() : null}
       stereoAnalysers={audioStarted ? audioRef.current.getStereoAnalysers() : null}
       audioContext={audioStarted ? audioRef.current.getAudioContext() : null}
+      audioEngine={audioStarted ? audioRef.current : null}
       onMasterVolumeChange={handleMasterVolumeChange}
       onMasterPanChange={handleMasterPanChange}
       abActive={abActive}
