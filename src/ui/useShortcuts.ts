@@ -38,7 +38,7 @@ function isTrackerFocused(): boolean {
 export interface ShortcutDef {
   key: string;
   label: string;
-  section: 'transport' | 'view' | 'mixing' | 'editing' | 'tracker';
+  section: 'transport' | 'view' | 'mixing' | 'editing' | 'tracker' | 'chat' | 'piano';
 }
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
@@ -61,7 +61,6 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: `${mod}3`, label: 'Patch view', section: 'view' },
   { key: `${mod}4`, label: 'Tracker view', section: 'view' },
   { key: 'Tab', label: 'Cycle views', section: 'view' },
-  { key: `${mod}/`, label: 'Toggle chat', section: 'view' },
   { key: `${mod}?`, label: 'Shortcuts reference', section: 'view' },
   // Mixing
   { key: 'M', label: 'Mute active track', section: 'mixing' },
@@ -83,6 +82,15 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: `${mod}C / ${mod}X / ${mod}V`, label: 'Copy / Cut / Paste', section: 'tracker' },
   { key: `${mod}Shift+\u2191/\u2193`, label: 'Transpose selection', section: 'tracker' },
   { key: 'Delete', label: 'Remove event(s)', section: 'tracker' },
+  // Chat
+  { key: `${mod}/`, label: 'Toggle chat sidebar', section: 'chat' },
+  { key: 'Enter', label: 'Send message', section: 'chat' },
+  // Keyboard Piano
+  { key: 'Z–M', label: 'Lower octave (white keys)', section: 'piano' },
+  { key: 'S D G H J', label: 'Lower octave (black keys)', section: 'piano' },
+  { key: 'Q–U', label: 'Upper octave (white keys)', section: 'piano' },
+  { key: '2 3 5 6 7', label: 'Upper octave (black keys)', section: 'piano' },
+  { key: '- / =', label: 'Octave down / up', section: 'piano' },
 ];
 
 export function useShortcuts({
