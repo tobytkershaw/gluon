@@ -17,6 +17,8 @@ interface Props {
   cursorFxColumn?: number | null;
   isAtPlayhead: boolean;
   showBeatSeparator: boolean;
+  /** Which beat this row belongs to (0-based), for alternating beat tints. */
+  beatIndex: number;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
@@ -411,7 +413,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
   function TrackerRow({
     slot, maxNoteColumns, fxColumns,
     cursorNoteColumn, cursorFxColumn,
-    isAtPlayhead, showBeatSeparator,
+    isAtPlayhead, showBeatSeparator, beatIndex,
     onUpdate, onDelete, onAddParamEvent, onAddNote,
     cancelEditRef,
     isCursorRow, cursorColumnType, editRequestCounter,
@@ -552,6 +554,10 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       ) : gate.toFixed(2);
     }
 
+    // Alternating beat tint: odd beats get a subtle lighter background
+    const oddBeat = beatIndex % 2 === 1;
+    const beatTint = (!isSelected && !isAtPlayhead && !isCursorRow && oddBeat) ? 'bg-zinc-800/25' : '';
+
     return (
       <tr
         ref={ref}
@@ -560,8 +566,8 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           ${isSelected ? 'bg-sky-500/15' : ''}
           ${isAtPlayhead ? 'bg-amber-500/20 border-l-2 border-l-amber-400' : ''}
           ${isCursorRow && !isAtPlayhead && !isSelected ? 'bg-sky-500/10' : ''}
-          ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
-          ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
+          ${!isAtPlayhead && !isCursorRow && !isSelected ? `hover:bg-zinc-800/30 ${beatTint}` : ''}
+          ${showBeatSeparator ? 'border-t-2 border-zinc-500/50' : ''}
         `}
         onClick={(e) => onRowClick?.(e.shiftKey)}
         onDoubleClick={() => onRowDoubleClick?.()}
