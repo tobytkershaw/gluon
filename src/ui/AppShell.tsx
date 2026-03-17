@@ -3,14 +3,13 @@
 // Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
 // When chat collapsed: floating composer pill at bottom-right.
-import { useRef, useEffect, useCallback, type ReactNode, type MutableRefObject } from 'react';
+import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry, Reaction } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
-import { ChatComposer } from './ChatComposer';
 import { ProjectMenu } from './ProjectMenu';
 import { ViewToggle } from './ViewToggle';
 import { TransportStrip } from './TransportStrip';
@@ -145,12 +144,6 @@ export function AppShell({
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
   const prevNarrowRef = useRef(false);
-
-  // Sending from the floating composer pill reopens the sidebar
-  const handleFloatingComposerSend = useCallback((message: string) => {
-    onSend(message);
-    if (!chatOpen) onChatToggle();
-  }, [onSend, chatOpen, onChatToggle]);
 
   // Responsive: auto-collapse chat when crossing below threshold.
   // Only triggers the collapse on the transition from wide -> narrow,
@@ -321,15 +314,7 @@ export function AppShell({
         </div>
       </div>
 
-      {/* Floating composer — bare input, no chrome. pl-[2px] matches the border-left in open state. */}
-      {!chatOpen && (
-        <div
-          className="fixed z-50 pl-[2px]"
-          style={{ bottom: 34, right: 0, width: chatWidth }}
-        >
-          <ChatComposer onSend={handleFloatingComposerSend} disabled={isThinking || isListening} variant="sidebar" />
-        </div>
-      )}
+      {/* Floating composer — hidden when chat collapsed to avoid overlapping the footer */}
     </div>
   );
 }
