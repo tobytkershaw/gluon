@@ -47,11 +47,12 @@ struct PlaitsVoiceState {
   bool gate_open;
   float sample_rate;
 
-  // Level pre-charge state machine: delays trigger by 5 blocks so the vactrol
-  // (LPG) settles before the trigger fires — prevents double-trigger.
-  // Matches Plaits' internal kTriggerDelay = 5 in voice.h.
-  int level_precharge_remaining;   // blocks until trigger fires (0 = idle)
-  bool level_active;               // true from precharge start until gate closes
+  // Level gating: true from trigger until gate closes. Controls whether
+  // the LPG receives signal. Plaits' internal kTriggerDelay (5 blocks)
+  // delays the trigger pulse, giving the vactrol time to settle at
+  // accent_level before the engine excitation fires — this is the
+  // built-in pre-charge that prevents double-trigger.
+  bool level_active;
 
   // Smoothed parameters — applied per-block before Voice::Render
   SmoothedParam smooth_harmonics;
@@ -67,7 +68,7 @@ struct PlaitsVoiceState {
   SmoothedParam smooth_lpg_colour;
 
   PlaitsVoiceState() : trigger_blocks_remaining(0), accent_level(0.0f), gate_open(false), sample_rate(48000.0f),
-                       level_precharge_remaining(0), level_active(false) {
+                       level_active(false) {
     std::memset(&patch, 0, sizeof(patch));
     std::memset(&modulations, 0, sizeof(modulations));
   }
@@ -169,11 +170,18 @@ void plaits_trigger(void* handle, float accent_level) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state) return;
   state->accent_level = std::max(0.0f, accent_level);
-  state->level_precharge_remaining = 5;  // match kTriggerDelay
+  state->trigger_blocks_remaining = 1;
   state->level_active = true;
   // Snap note pitch to target so the trigger fires at the correct pitch.
   state->smooth_note.reset(state->smooth_note.target);
   // gate_open is managed by plaits_set_gate — don't set it here.
+  //
+  // Timing: we set modulations.trigger = 1 immediately, but Plaits internally
+  // delays it by kTriggerDelay=5 blocks (voice.cc trigger_delay_) before the
+  // engine excitation fires. During those 5 blocks, modulations.level is
+  // already at accent_level (level_active = true), so the vactrol settles
+  // before the trigger arrives — this IS the pre-charge. No external delay
+  // needed.
 }
 
 void plaits_set_gate(void* handle, int open) {
@@ -215,26 +223,17 @@ int plaits_render(void* handle, float* output, int num_frames) {
     state->patch.decay = state->smooth_decay.current;
     state->patch.lpg_colour = state->smooth_lpg_colour.current;
 
-    // Level pre-charge state machine:
-    // Pre-charge level to accent_level BEFORE the trigger fires. Plaits
-    // internally delays trigger by kTriggerDelay=5 blocks; we mirror that
-    // delay so the vactrol (LPG) settles before the trigger fires into it.
-    // After gate-off, level drops to 0 → vactrol decays naturally following
-    // short_decay + decay_tail (shaped by patch.decay and patch.lpg_colour).
-    // This IS the LPG envelope.
-    if (state->level_precharge_remaining > 0) {
-      --state->level_precharge_remaining;
-      if (state->level_precharge_remaining == 0) {
-        state->trigger_blocks_remaining = 1;  // fire trigger after precharge
-      }
-    }
-
+    // Trigger is a one-shot pulse (1 block). Plaits internally delays it by
+    // kTriggerDelay=5 blocks (voice.cc trigger_delay_) before the engine
+    // excitation fires. level_active gates modulations.level so the vactrol
+    // is pre-charged during that internal delay window.
     state->modulations.trigger = (state->trigger_blocks_remaining > 0) ? 1.0f : 0.0f;
     state->modulations.level = state->level_active ? state->accent_level : 0.0f;
 
-    // Begin release after gate closes and precharge/trigger complete
-    if (!state->gate_open && state->level_precharge_remaining == 0
-        && state->trigger_blocks_remaining == 0) {
+    // Release: level drops to 0 when gate closes → vactrol decays naturally
+    // following short_decay + decay_tail (shaped by patch.decay and
+    // patch.lpg_colour). This IS the LPG envelope.
+    if (!state->gate_open && state->trigger_blocks_remaining == 0) {
       state->level_active = false;
     }
 

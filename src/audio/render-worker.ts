@@ -220,7 +220,7 @@ async function renderTrack(
   const currentPatch: RenderSynthPatch = { ...track.params };
   plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
   const currentExtended: RenderPlaitsExtended = { ...track.extendedParams };
-  let extendedDirty = true;
+  let extendedDirty = false;
   plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
 
   // --- Load and init processors ---

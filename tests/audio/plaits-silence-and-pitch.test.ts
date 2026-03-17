@@ -1,7 +1,7 @@
 // tests/audio/plaits-silence-and-pitch.test.ts
 //
 // Contract tests for Plaits WASM bridge: silence at init, pitch snap, and
-// level pre-charge state machine.
+// level gating via level_active.
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -55,11 +55,8 @@ describe('gluon_plaits.cpp — worklet uses dirty-check instead of modulation-on
     );
     expect(method).not.toBeNull();
     const body = method![0];
-    // Uses _plaits_set_patch (the standard function)
     expect(body).toContain('_plaits_set_patch');
-    // Does NOT use the removed _plaits_set_modulation
     expect(body).not.toContain('_plaits_set_modulation');
-    // Has value-based dirty-check to avoid overriding per-step note pitches
     expect(body).toContain('this.lastH');
   });
 

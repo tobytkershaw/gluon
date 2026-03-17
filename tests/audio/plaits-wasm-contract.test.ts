@@ -16,9 +16,8 @@ const PLAITS_SRC = readFileSync(
 
 describe('gluon_plaits.cpp contracts', () => {
   it('modulations.level uses level_active, not unconditional accent_level', () => {
-    // Level is gated by level_active (the pre-charge state machine), not
-    // by gate_open (which caused double-trigger) nor unconditionally (which
-    // killed the LPG envelope).
+    // Level is gated by level_active, not by gate_open (which caused
+    // double-trigger) nor unconditionally (which killed the LPG envelope).
     const levelAssignments = PLAITS_SRC
       .split('\n')
       .filter(line => line.includes('modulations.level') && line.includes('=') && !line.includes('//'));
@@ -38,9 +37,7 @@ describe('gluon_plaits.cpp contracts', () => {
     expect(PLAITS_SRC).toContain('level_patched = true');
   });
 
-  it('level_precharge_remaining exists and is used in render', () => {
-    // The pre-charge state machine must exist in PlaitsVoiceState
-    expect(PLAITS_SRC).toContain('int level_precharge_remaining');
+  it('level_active exists and is used in render', () => {
     expect(PLAITS_SRC).toContain('bool level_active');
 
     // Must be used in the render loop
@@ -49,22 +46,31 @@ describe('gluon_plaits.cpp contracts', () => {
     );
     expect(renderFn).not.toBeNull();
     const body = renderFn![1];
-    expect(body).toContain('level_precharge_remaining');
     expect(body).toContain('level_active');
   });
 
-  it('trigger fires AFTER precharge, not simultaneously', () => {
-    // plaits_trigger must NOT set trigger_blocks_remaining directly.
-    // Instead it sets level_precharge_remaining, and the render loop
-    // sets trigger_blocks_remaining = 1 only when precharge reaches 0.
+  it('trigger fires immediately — no external pre-charge delay', () => {
+    // Plaits internally delays trigger by kTriggerDelay=5 blocks (voice.cc
+    // trigger_delay_). We must NOT add our own delay on top — that would
+    // stack to 10 blocks total. The trigger should fire immediately
+    // (trigger_blocks_remaining = 1 in plaits_trigger).
     const triggerFn = PLAITS_SRC.match(
       /void plaits_trigger\(.*?\{([\s\S]*?)\n\}/,
     );
     expect(triggerFn).not.toBeNull();
     const body = triggerFn![1];
-    // Must set precharge, not trigger directly
-    expect(body).toContain('level_precharge_remaining');
-    expect(body).not.toContain('trigger_blocks_remaining');
+    // Must set trigger_blocks_remaining = 1 directly
+    expect(body).toContain('trigger_blocks_remaining = 1');
+    // Must NOT have level_precharge_remaining (removed — stacked delay)
+    expect(body).not.toContain('level_precharge_remaining');
+    // Must set level_active = true so LPG pre-charges during Plaits' internal delay
+    expect(body).toContain('level_active = true');
+  });
+
+  it('no level_precharge_remaining field exists — single delay via Plaits internal', () => {
+    // The external pre-charge state machine was removed because it stacked
+    // on top of Plaits' internal kTriggerDelay, doubling the onset latency.
+    expect(PLAITS_SRC).not.toContain('level_precharge_remaining');
   });
 
   it('level_active is false at init — silence before first trigger', () => {
@@ -86,18 +92,13 @@ describe('gluon_plaits.cpp contracts', () => {
     expect(body).toMatch(/modulations\.level\s*=\s*0\.0f/);
   });
 
-  it('short-gate edge case: level_active release requires precharge and trigger complete', () => {
-    // If gate-off arrives during precharge, level_active must NOT go false
-    // until precharge AND trigger are both complete. This ensures very short
-    // notes still produce sound.
+  it('release condition checks gate_open and trigger_blocks_remaining', () => {
     const renderFn = PLAITS_SRC.match(
       /int plaits_render\(.*?\{([\s\S]*?)\n\}/,
     );
     expect(renderFn).not.toBeNull();
     const body = renderFn![1];
-    // The release condition must check all three: !gate_open, precharge==0, trigger==0
     expect(body).toContain('!state->gate_open');
-    expect(body).toContain('level_precharge_remaining == 0');
     expect(body).toContain('trigger_blocks_remaining == 0');
   });
 
