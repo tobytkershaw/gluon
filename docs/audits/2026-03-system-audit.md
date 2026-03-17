@@ -31,6 +31,8 @@ This report is the running record for the current full-system audit. Each comple
 - [#566](https://github.com/tobytkershaw/gluon/issues/566) Unify the written AI contract with the actual tool/state/executor interface
 - [#567](https://github.com/tobytkershaw/gluon/issues/567) Make AI track-metadata actions undoable
 - [#568](https://github.com/tobytkershaw/gluon/issues/568) Browser/runtime failure-mode and degraded-state audit
+- [#642](https://github.com/tobytkershaw/gluon/issues/642) Fence project lifecycle loads and surface degraded persistence failures honestly
+- [#643](https://github.com/tobytkershaw/gluon/issues/643) Make audio runtime degradation explicit and user-visible
 - [#569](https://github.com/tobytkershaw/gluon/issues/569) End-to-end composition walkthrough audit
 - [#571](https://github.com/tobytkershaw/gluon/issues/571) Performance and resource lifecycle audit
 - [#572](https://github.com/tobytkershaw/gluon/issues/572) Docs/status/roadmap truthfulness audit
@@ -133,6 +135,7 @@ These are recommended after the current stabilization sequence, not before it:
 | Chain / routing lifecycle | Complete | Findings filed |
 | Persistence / undo | Complete | Findings filed |
 | AI action contract | Complete | Findings filed |
+| Browser / runtime failure modes | Complete | Findings filed |
 
 ---
 
@@ -327,3 +330,47 @@ These are recommended after the current stabilization sequence, not before it:
 
 - [#566](https://github.com/tobytkershaw/gluon/issues/566) `Unify the written AI contract with the actual tool, state, and executor interface`
 - [#567](https://github.com/tobytkershaw/gluon/issues/567) `Make AI track-metadata actions undoable and consistent with the collaboration contract`
+
+---
+
+## 6. Browser / Runtime Failure Modes
+
+### Product alignment
+
+| Layer | Assessment |
+| --- | --- |
+| Planned | Browser/runtime failures should degrade honestly, recover where possible, and avoid leaving hidden broken state behind. |
+| Claimed | The current product implies graceful fallback in a few places, especially source fallback and persistence degraded mode, but does not describe the real limits of those degraded states. |
+| Implemented | Healthy-path guards exist for suspend/resume, AI request staleness, import validation, and some persistence fallback. |
+| Required | Runtime failures need to become explicit product state: users should know when Gluon is no longer running the intended audio engine or when persistence/project actions are degraded. |
+
+### Findings
+
+1. `P0` Source-engine degradation is still silent at the product layer. Plaits source init failure falls back to `WebAudioSynth` with only a console warning in [create-synth.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/audio/create-synth.ts#L11), and the only automated coverage locks in the fallback rather than requiring explicit degraded-state visibility in [create-synth.test.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/tests/audio/create-synth.test.ts#L35).
+
+2. `P0` Async processor/modulator init failures are not surfaced honestly. The UI adds tracks, processors, and modulators with `void ... .then(...)` chains in [App.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/App.tsx#L245), [App.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/App.tsx#L349), and [App.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/App.tsx#L405) with no rejection handling, while the engine-side constructors for Rings, Clouds, and Tides can reject during WASM/worklet init in [audio-engine.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/audio/audio-engine.ts#L744) and [audio-engine.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/audio/audio-engine.ts#L894). I infer these failures currently become console/unhandled-promise behavior rather than visible degraded state.
+
+3. `P1` Persistence degraded mode is only partially honest. On IndexedDB init failure, `useProjectLifecycle()` drops to an in-memory session plus `saveStatus = 'error'` in [useProjectLifecycle.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/useProjectLifecycle.ts#L104), and the UI reduces that to a save-error dot titled “Save failed — working in memory” in [ProjectMenu.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/ProjectMenu.tsx#L214). But most project actions still target IndexedDB-backed flows and are not represented as unavailable or degraded.
+
+4. `P1` Project lifecycle actions are not fenced or surfaced consistently under failure. `loadProjectById()` has no request token or stale-response guard in [useProjectLifecycle.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/useProjectLifecycle.ts#L89), so rapid switch/duplicate/delete flows can race. `ProjectMenu` only awaits import; `new/open/duplicate/delete/export` are fire-and-forget in [ProjectMenu.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/ProjectMenu.tsx#L129), which means action failures can disappear into unhandled rejections rather than user-visible feedback.
+
+5. `P2` Failure-path coverage is narrow and creates false confidence. Current tests prove that source fallback exists, IndexedDB migration works, and scheduler skips work during suspend in [create-synth.test.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/tests/audio/create-synth.test.ts#L16), [useProjectLifecycle.test.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/tests/ui/useProjectLifecycle.test.tsx#L34), and [scheduler.test.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/engine/scheduler.test.ts#L46). They do not lock in degraded-state visibility, stale-load fencing, or async module-init failure handling.
+
+### Orthodoxy alignment
+
+| Subsystem | Orthodox pattern | Gluon approach | Deviation class | Reason | Risk |
+| --- | --- | --- | --- | --- | --- |
+| Audio init failure | Explicit degraded mode or hard failure when the intended engine is unavailable | silent source fallback plus console warning | unjustified | historical convenience fallback | high |
+| Async lifecycle loads | Token/fence stale async responses so only the latest request wins | project load path has no request fencing | unjustified | implementation drift | high |
+| Browser suspend/resume | Skip scheduling while suspended, cap catch-up on resume | aligned | justified | good Web Audio adaptation | low |
+| Degraded persistence UX | Disable or clearly qualify unavailable project actions | save-error dot plus mostly unchanged project menu | pragmatic-temporary | incomplete degraded-state design | medium |
+
+### Tests run
+
+- `npx vitest run tests/audio/create-synth.test.ts tests/ui/useProjectLifecycle.test.tsx src/engine/scheduler.test.ts`
+- Result: 24 tests passed
+
+### Filed issues
+
+- [#642](https://github.com/tobytkershaw/gluon/issues/642) `Fence project lifecycle loads and surface degraded persistence failures honestly`
+- [#643](https://github.com/tobytkershaw/gluon/issues/643) `Make audio runtime degradation explicit and user-visible`
