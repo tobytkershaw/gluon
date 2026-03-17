@@ -97,7 +97,7 @@ export function ExpandedTrack({
   const processors = activeTrack.processors ?? [];
   const modulators = activeTrack.modulators ?? [];
   const modulations = activeTrack.modulations ?? [];
-  const sourceLabel = `Plaits (${getModelName(activeTrack.model)})`;
+  const sourceLabel = activeTrack.model < 0 ? 'No Source' : `Plaits (${getModelName(activeTrack.model)})`;
 
   // Build source engine list for mode selector
   const sourceEngines = Array.from({ length: 16 }, (_, i) => {
