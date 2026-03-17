@@ -47,6 +47,7 @@ import { RackView } from './RackView';
 import { PatchView } from './PatchView';
 import { TrackMixStrip } from './TrackMixStrip';
 import { AppShell } from './AppShell';
+import { EmptyState } from './EmptyState';
 import { useShortcuts } from './useShortcuts';
 import { ShortcutsPanel } from './ShortcutsPanel';
 import { useKeyboardPiano } from './useKeyboardPiano';
@@ -1955,6 +1956,13 @@ export default function App() {
   // Keyboard piano: map computer keys to musical notes for real-time audition
   useKeyboardPiano(audioRef, session, recordArmed, globalStepRef, handleRecordEvents);
 
+  // Detect fresh/empty session — no events in any audio track and no chat messages.
+  // When true, show a welcome empty state instead of the normal view content.
+  const isSessionEmpty = session.messages.length === 0 &&
+    session.tracks
+      .filter(t => getTrackKind(t) === 'audio')
+      .every(t => t.patterns.every(p => p.events.length === 0));
+
   return (
     <>
     <AppShell
@@ -2065,7 +2073,15 @@ export default function App() {
           onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
           onChangePan={(v) => handleChangePan(activeTrack.id, v)}
         />
-        {view === 'surface' && (
+        {isSessionEmpty && (
+          <EmptyState
+            onAddTrack={() => handleAddTrack()}
+            onSendPrompt={handleSend}
+            chatOpen={chatOpen}
+            onOpenChat={() => setChatOpen(true)}
+          />
+        )}
+        {!isSessionEmpty && view === 'surface' && (
           <InstrumentView
             session={session}
             activeTrack={activeTrack}
@@ -2111,7 +2127,7 @@ export default function App() {
             analyser={audioRef.current.getAnalyser()}
           />
         )}
-        {view === 'rack' && (
+        {!isSessionEmpty && view === 'rack' && (
           <RackView
             activeTrack={activeTrack}
             onParamChange={handleParamChange}
@@ -2139,7 +2155,7 @@ export default function App() {
             onNavigateToPatch={() => setView('patch')}
           />
         )}
-        {view === 'patch' && (
+        {!isSessionEmpty && view === 'patch' && (
           <PatchView
             session={session}
             onModulationDepthChange={handleModulationDepthChange}
@@ -2152,7 +2168,7 @@ export default function App() {
             onRemoveModulator={handleRemoveModulator}
           />
         )}
-        {view === 'tracker' && (
+        {!isSessionEmpty && view === 'tracker' && (
           <TrackerView
             session={session}
             activeTrack={activeTrack}
