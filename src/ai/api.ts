@@ -1,7 +1,7 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage } from '../engine/types';
-import { getTrack, getActivePattern, updateTrack } from '../engine/types';
+import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { resolveTrackId } from '../engine/track-labels';
@@ -1668,13 +1668,20 @@ export class GluonAI {
             const addTrackRejection = ctx?.validateAction?.(addTrackAction);
             if (addTrackRejection) return { actions: [], response: errorPayload(addTrackRejection) };
 
+            // Project the addition to determine the new track's ordinal position
+            const projectedAfterAdd = addTrack(session, kind as TrackKind);
+            const newTrackCount = projectedAfterAdd
+              ? projectedAfterAdd.tracks.filter(t => getTrackKind(t) !== 'bus').length
+              : session.tracks.filter(t => getTrackKind(t) !== 'bus').length + 1;
+
             return {
               actions: [addTrackAction],
               response: {
                 queued: true,
                 kind: addTrackAction.kind,
                 ...(addTrackAction.label ? { label: addTrackAction.label } : {}),
-                note: 'The new track ID will appear in the state at the start of your next turn.',
+                trackRef: `Track ${newTrackCount}`,
+                note: `Use "Track ${newTrackCount}" to reference this track in subsequent tool calls this turn.`,
               },
             };
           }
@@ -2017,7 +2024,7 @@ export class GluonAI {
             action: patternSubAction,
             trackId: patternTrackId,
             ...(patternSubAction === 'add' || patternSubAction === 'duplicate'
-              ? { note: 'The new pattern ID will appear in the state at the start of your next turn.' }
+              ? { note: 'The new pattern will be available immediately. Continue with further edits this turn.' }
               : {}),
           },
         };
