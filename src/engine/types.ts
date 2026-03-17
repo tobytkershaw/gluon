@@ -721,6 +721,8 @@ export interface ActionLogEntry {
   trackLabel: string;
   description: string;
   diff?: ActionDiff;
+  /** Discriminator for special entry types (e.g. bug reports vs normal actions). */
+  kind?: 'action' | 'bug-report';
 }
 
 /** A tool call the AI made during a turn, for display in chat. */

@@ -1605,7 +1605,7 @@ export function executeOperations(
           timestamp: Date.now(),
         };
         next = { ...next, bugReports: [...existingBugs, newBug].slice(-50) };
-        log.push({ trackId: '', trackLabel: 'BUG', description: `[${action.severity}] ${action.summary}` });
+        log.push({ trackId: '', trackLabel: 'BUG', description: `[${action.severity}] ${action.summary}`, kind: 'bug-report' });
         accepted.push(action);
         break;
       }

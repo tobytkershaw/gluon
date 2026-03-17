@@ -8,7 +8,7 @@ export function ActionDiffView({ entry }: Props) {
   const { diff } = entry;
 
   // Bug reports get a distinctive amber visual treatment
-  if (entry.trackLabel === 'BUG') {
+  if (entry.kind === 'bug-report') {
     return (
       <div className="flex items-baseline gap-1.5 text-[10px] font-mono rounded px-1.5 py-0.5 bg-amber-900/20 border border-amber-800/30">
         <span className="text-amber-500/80">BUG</span>
