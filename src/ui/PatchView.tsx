@@ -701,10 +701,11 @@ function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
   );
 }
 
-function ModEdgeSvg({ edge, selected, onSelect }: {
+function ModEdgeSvg({ edge, selected, onSelect, onContextMenu }: {
   edge: ModEdge;
   selected: boolean;
   onSelect: (routeId: string) => void;
+  onContextMenu?: (routeId: string, screenX: number, screenY: number) => void;
 }) {
   const mid = bezierMidpoint(
     edge.fromX, edge.fromY,
@@ -724,6 +725,11 @@ function ModEdgeSvg({ edge, selected, onSelect }: {
         fill="none"
         style={{ cursor: 'pointer', pointerEvents: 'auto' }}
         onMouseDown={(e) => { e.stopPropagation(); onSelect(edge.routeId); }}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onContextMenu?.(edge.routeId, e.clientX, e.clientY);
+        }}
       />
       {/* Visible edge */}
       <path
@@ -800,7 +806,14 @@ function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
 }
 
 /** SVG preview edge while dragging from modulator port */
-function DragPreviewEdge({ drag }: { drag: DragState }) {
+function DragPreviewEdge({ drag, snapped }: { drag: DragState; snapped: boolean }) {
+  // Bezier curve from modulator port (top) to mouse/target
+  const cx0 = drag.fromX;
+  const cy0 = drag.fromY - 30;
+  const cx1 = drag.mouseX;
+  const cy1 = drag.mouseY + 30;
+  const pathD = `M ${drag.fromX} ${drag.fromY} C ${cx0} ${cy0}, ${cx1} ${cy1}, ${drag.mouseX} ${drag.mouseY}`;
+
   return (
     <svg
       className="absolute inset-0"
@@ -808,16 +821,26 @@ function DragPreviewEdge({ drag }: { drag: DragState }) {
       width="100%"
       height="100%"
     >
-      <line
-        x1={drag.fromX}
-        y1={drag.fromY}
-        x2={drag.mouseX}
-        y2={drag.mouseY}
-        stroke="#22d3ee"
-        strokeWidth={1}
+      <path
+        d={pathD}
+        stroke={snapped ? '#67e8f9' : '#22d3ee'}
+        strokeWidth={snapped ? 1.5 : 1}
         strokeDasharray="4 3"
-        opacity={0.5}
+        fill="none"
+        opacity={snapped ? 0.9 : 0.5}
       />
+      {/* Snap indicator circle at cursor position */}
+      {snapped && (
+        <circle
+          cx={drag.mouseX}
+          cy={drag.mouseY}
+          r={5}
+          fill="none"
+          stroke="#67e8f9"
+          strokeWidth={1.5}
+          opacity={0.8}
+        />
+      )}
     </svg>
   );
 }
@@ -877,6 +900,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const [browserOpen, setBrowserOpen] = useState(false);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [hoveredPortKey, setHoveredPortKey] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ routeId: string; x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Node position offsets (local UI state, not persisted)
@@ -935,6 +959,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   }, [nodes]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    // Dismiss context menu on any click
+    setContextMenu(null);
     // Middle-click, Space+click, or left-click on empty canvas starts panning
     if (e.button === 1 || e.button === 0) {
       e.preventDefault();
@@ -980,6 +1006,13 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   }, [panZoom]);
 
   const handleEdgeSelect = useCallback((routeId: string) => {
+    setSelectedEdgeId(routeId);
+    setSelectedNodeId(null);
+    setContextMenu(null);
+  }, []);
+
+  const handleEdgeContextMenu = useCallback((routeId: string, screenX: number, screenY: number) => {
+    setContextMenu({ routeId, x: screenX, y: screenY });
     setSelectedEdgeId(routeId);
     setSelectedNodeId(null);
   }, []);
@@ -1042,6 +1075,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       const dy = canvas.y - port.y;
       if (Math.abs(dx) < 12 && Math.abs(dy) < 12) {
         found = `${port.nodeId}:${port.paramId}`;
+        // Snap the cable endpoint to the port position
+        setDragState(prev => prev ? { ...prev, mouseX: port.x, mouseY: port.y } : null);
         break;
       }
     }
@@ -1066,7 +1101,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       // Find the matching target port
       const port = targetPorts.find(p => `${p.nodeId}:${p.paramId}` === hoveredPortKey);
       if (port) {
-        onConnectModulator(dragState.fromModulatorId, port.target, 0.2);
+        onConnectModulator(dragState.fromModulatorId, port.target, 0.5);
       }
     }
 
@@ -1133,6 +1168,14 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
     setPanZoom({ zoom, panX, panY });
   }, [nodes.length, contentBounds]);
+
+  // Dismiss context menu on click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+    const dismiss = () => setContextMenu(null);
+    window.addEventListener('mousedown', dismiss);
+    return () => window.removeEventListener('mousedown', dismiss);
+  }, [contextMenu]);
 
   // Space key tracking for Space+drag panning
   useEffect(() => {
@@ -1284,12 +1327,13 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
                   edge={e}
                   selected={selectedEdgeId === e.routeId}
                   onSelect={handleEdgeSelect}
+                  onContextMenu={handleEdgeContextMenu}
                 />
               ))}
             </svg>
 
             {/* Drag preview edge */}
-            {dragState && <DragPreviewEdge drag={dragState} />}
+            {dragState && <DragPreviewEdge drag={dragState} snapped={hoveredPortKey !== null} />}
 
             {/* Selected node detail panel */}
             {selectedNode && selectedNode.kind !== 'output' && (
@@ -1340,6 +1384,26 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </button>
         </div>
       </div>
+
+      {/* Right-click context menu on modulation cable */}
+      {contextMenu && onRemoveModulation && (
+        <div
+          className="fixed z-50 bg-zinc-800 border border-zinc-600 rounded shadow-lg py-1 min-w-[140px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-3 py-1.5 text-left text-[11px] text-red-400 hover:bg-zinc-700 hover:text-red-300 transition-colors"
+            onClick={() => {
+              onRemoveModulation(contextMenu.routeId);
+              setContextMenu(null);
+              setSelectedEdgeId(null);
+            }}
+          >
+            Remove connection
+          </button>
+        </div>
+      )}
 
       {/* Module browser slide-out */}
       {browserOpen && onAddProcessor && onAddModulator && (
