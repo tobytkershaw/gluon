@@ -63,7 +63,7 @@ describe('PlaybackPlan', () => {
     expect(plan.admit(earlyId, 2, 5, 'v1')).toBe(true);
     expect(plan.admit(lateId, 12, 5, 'v1')).toBe(true);
 
-    plan.invalidateTrack('v1', 5, 8);
+    plan.invalidateTrack('v1', 8);
 
     expect(plan.has(earlyId)).toBe(true);
     expect(plan.has(lateId)).toBe(false);
