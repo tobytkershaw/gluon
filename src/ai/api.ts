@@ -405,7 +405,11 @@ export class GluonAI {
 
     const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session);
-    const userMessage = `Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
+    // If the provider has restored conversation context (e.g. after reload),
+    // prepend it to the first user message so the AI has continuity.
+    const contextPrefix = this.planner.consumeConversationContext?.() ?? null;
+    const contextBlock = contextPrefix ? `${contextPrefix}\n\n` : '';
+    const userMessage = `${contextBlock}Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
     const collectedActions: AIAction[] = [];
     let projectedSession = session;
     let hadError = false;

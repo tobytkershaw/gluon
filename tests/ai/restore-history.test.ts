@@ -17,21 +17,31 @@ function makeMsgs(...pairs: Array<[string, string]>): ChatMessage[] {
 }
 
 // ---------------------------------------------------------------------------
-// OpenAI provider
+// OpenAI provider — uses context summary (not exchange replay)
 // ---------------------------------------------------------------------------
 
 describe('OpenAIPlannerProvider.restoreHistory', () => {
-  it('populates exchanges from chat messages', () => {
+  it('builds conversation context from chat messages', () => {
     const provider = new OpenAIPlannerProvider('');
-    const messages = makeMsgs(['hello', 'hi there'], ['how are you', 'fine']);
-    provider.restoreHistory(messages);
+    provider.restoreHistory(makeMsgs(['hello', 'hi there'], ['how are you', 'fine']));
 
-    // Access internal state for verification
-    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
-    expect(exchanges).toHaveLength(2);
+    const ctx = provider.consumeConversationContext();
+    expect(ctx).toBeTruthy();
+    expect(ctx).toContain('hello');
+    expect(ctx).toContain('hi there');
+    expect(ctx).toContain('how are you');
+    expect(ctx).toContain('fine');
   });
 
-  it('limits restored exchanges to 20', () => {
+  it('does not populate exchanges (avoids Responses API ID conflicts)', () => {
+    const provider = new OpenAIPlannerProvider('');
+    provider.restoreHistory(makeMsgs(['hello', 'hi there']));
+
+    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
+    expect(exchanges).toHaveLength(0);
+  });
+
+  it('limits restored messages', () => {
     const provider = new OpenAIPlannerProvider('');
     const pairs: Array<[string, string]> = [];
     for (let i = 0; i < 30; i++) {
@@ -39,54 +49,40 @@ describe('OpenAIPlannerProvider.restoreHistory', () => {
     }
     provider.restoreHistory(makeMsgs(...pairs));
 
-    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
-    expect(exchanges).toHaveLength(20);
+    const ctx = provider.consumeConversationContext();
+    expect(ctx).toBeTruthy();
+    // Should not contain earliest messages (trimmed to recent)
+    expect(ctx).not.toContain('q0');
+    // Should contain recent messages
+    expect(ctx).toContain('q29');
   });
 
-  it('marks chain as broken after restore', () => {
+  it('context is consumed once then returns null', () => {
     const provider = new OpenAIPlannerProvider('');
     provider.restoreHistory(makeMsgs(['hello', 'world']));
 
-    const chainBroken = (provider as unknown as { chainBroken: boolean }).chainBroken;
-    expect(chainBroken).toBe(true);
+    expect(provider.consumeConversationContext()).toBeTruthy();
+    expect(provider.consumeConversationContext()).toBeNull();
   });
 
-  it('clears existing history before restoring', () => {
+  it('clears context on re-restore', () => {
     const provider = new OpenAIPlannerProvider('');
-    // Restore once
     provider.restoreHistory(makeMsgs(['a', 'b']));
-    // Restore again with different data
     provider.restoreHistory(makeMsgs(['c', 'd'], ['e', 'f']));
 
-    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
-    expect(exchanges).toHaveLength(2);
+    const ctx = provider.consumeConversationContext();
+    expect(ctx).toContain('c');
+    expect(ctx).toContain('e');
   });
 
   it('handles empty messages gracefully', () => {
     const provider = new OpenAIPlannerProvider('');
     provider.restoreHistory([]);
 
-    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
-    expect(exchanges).toHaveLength(0);
-    const chainBroken = (provider as unknown as { chainBroken: boolean }).chainBroken;
-    expect(chainBroken).toBe(false);
+    expect(provider.consumeConversationContext()).toBeNull();
   });
 
-  it('skips unpaired human messages', () => {
-    const provider = new OpenAIPlannerProvider('');
-    const messages: ChatMessage[] = [
-      { role: 'human', text: 'first', timestamp: 1 },
-      { role: 'ai', text: 'response', timestamp: 2 },
-      { role: 'human', text: 'trailing', timestamp: 3 },
-      // No AI response for the last human message
-    ];
-    provider.restoreHistory(messages);
-
-    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
-    expect(exchanges).toHaveLength(1);
-  });
-
-  it('skips system messages', () => {
+  it('skips system messages in context', () => {
     const provider = new OpenAIPlannerProvider('');
     const messages: ChatMessage[] = [
       { role: 'system', text: 'welcome', timestamp: 1 },
@@ -95,8 +91,11 @@ describe('OpenAIPlannerProvider.restoreHistory', () => {
     ];
     provider.restoreHistory(messages);
 
-    const exchanges = (provider as unknown as { exchanges: unknown[] }).exchanges;
-    expect(exchanges).toHaveLength(1);
+    const ctx = provider.consumeConversationContext();
+    expect(ctx).toBeTruthy();
+    expect(ctx).not.toContain('welcome');
+    expect(ctx).toContain('hello');
+    expect(ctx).toContain('hi');
   });
 });
 

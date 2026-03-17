@@ -96,6 +96,13 @@ export interface PlannerProvider {
    * Optional — providers that don't support it simply don't implement it.
    */
   restoreHistory?(messages: ChatMessage[]): void;
+
+  /**
+   * Consume any restored conversation context as a text prefix.
+   * Used by providers (like OpenAI) that can't replay exchanges but can
+   * prepend a summary to the first user message. Returns null if none.
+   */
+  consumeConversationContext?(): string | null;
 }
 
 // ---------------------------------------------------------------------------

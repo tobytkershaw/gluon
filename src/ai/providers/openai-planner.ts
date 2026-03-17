@@ -127,46 +127,38 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     this.backoff = { until: 0, delay: 0 };
   }
 
+  /**
+   * OpenAI Responses API cannot accept reconstructed exchanges — it validates
+   * item IDs against server-side state. Instead, we build a conversation
+   * summary that gets prepended to the first user message via contextPrefix.
+   */
   restoreHistory(messages: ChatMessage[]): void {
     this.clearHistory();
 
-    // Pair up human/ai messages into exchanges.
-    // We can't recover response IDs from persisted messages, so the chain
-    // starts broken and the first real request will replay all exchanges.
-    const MAX_RESTORED = 20;
-    const pairs: Array<{ human: string; ai: string }> = [];
-    for (let i = 0; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg.role === 'human') {
-        // Find the next AI message as the response
-        const aiMsg = messages.slice(i + 1).find(m => m.role === 'ai');
-        if (aiMsg) {
-          pairs.push({ human: msg.text, ai: aiMsg.text });
-        }
-      }
-    }
+    // Build a compact conversation summary for context continuity.
+    const MAX_RESTORED = 10;
+    const relevant = messages.filter(m => m.role === 'human' || m.role === 'ai').slice(-MAX_RESTORED * 2);
+    if (relevant.length === 0) return;
 
-    // Take only the most recent exchanges to avoid context bloat
-    const recent = pairs.slice(-MAX_RESTORED);
-    for (let idx = 0; idx < recent.length; idx++) {
-      const pair = recent[idx];
-      this.exchanges.push({
-        inputItems: [{ role: 'user' as const, content: pair.human }],
-        outputItems: [{
-          type: 'message' as const,
-          id: `msg_restored_${idx}`,
-          role: 'assistant' as const,
-          status: 'completed' as const,
-          content: [{ type: 'output_text' as const, text: pair.ai, annotations: [] }],
-        }],
-        responseId: `restored-resp-${idx}`,
-      });
+    const lines: string[] = ['[Prior conversation summary]'];
+    for (const msg of relevant) {
+      const role = msg.role === 'human' ? 'Human' : 'Gluon';
+      // Truncate long messages to keep the summary compact
+      const text = msg.text.length > 200 ? msg.text.slice(0, 200) + '…' : msg.text;
+      lines.push(`${role}: ${text}`);
     }
+    lines.push('[End of prior conversation — current state is in the project state below]');
+    this.conversationContext = lines.join('\n');
+  }
 
-    // Mark chain as broken since we don't have valid response IDs
-    if (this.exchanges.length > 0) {
-      this.chainBroken = true;
-    }
+  /** Conversation context from restored history, prepended to the first user message. */
+  private conversationContext: string | null = null;
+
+  /** Consume and return the conversation context prefix (used once per session). */
+  consumeConversationContext(): string | null {
+    const ctx = this.conversationContext;
+    this.conversationContext = null;
+    return ctx;
   }
 
   private async generate(systemPrompt: string, tools: ToolSchema[], extraInput: ResponseInput = [], onStreamText?: StreamTextCallback): Promise<GenerateResult> {
