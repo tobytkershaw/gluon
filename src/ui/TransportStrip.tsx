@@ -178,7 +178,7 @@ export function TransportStrip({
           }`}
           title={transportMode === 'pattern' ? 'Pattern mode (loops active pattern) — click for Song mode' : 'Song mode (plays sequence) — click for Pattern mode'}
         >
-          {transportMode === 'song' ? 'SONG' : 'PTN'}
+          {transportMode === 'song' ? 'SONG' : 'PAT'}
         </button>
       </div>
 
