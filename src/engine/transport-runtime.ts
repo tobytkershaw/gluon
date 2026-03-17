@@ -5,7 +5,6 @@ export type TransportStatus = Transport['status'];
 export interface RuntimeTransportState {
   status: TransportStatus;
   playheadBeats: number;
-  anchorAudioTime: number | null;
   generation: number;
   bpm: number;
   swing: number;
@@ -25,18 +24,16 @@ export function createRuntimeTransport(transport: Transport): RuntimeTransportSt
     // controller is created after session.transport flips to "playing".
     status: 'stopped',
     playheadBeats: 0,
-    anchorAudioTime: null,
     generation: 0,
     bpm: normalized.bpm,
     swing: normalized.swing,
   };
 }
 
-export function playTransportState(state: RuntimeTransportState, audioTime: number, generation: number): RuntimeTransportState {
+export function playTransportState(state: RuntimeTransportState, generation: number): RuntimeTransportState {
   return {
     ...state,
     status: 'playing',
-    anchorAudioTime: audioTime,
     generation,
   };
 }
@@ -45,7 +42,6 @@ export function pauseTransportState(state: RuntimeTransportState, generation: nu
   return {
     ...state,
     status: 'paused',
-    anchorAudioTime: null,
     generation,
   };
 }
@@ -55,7 +51,6 @@ export function stopTransportState(state: RuntimeTransportState, generation: num
     ...state,
     status: 'stopped',
     playheadBeats: 0,
-    anchorAudioTime: null,
     generation,
   };
 }

@@ -103,7 +103,7 @@ export class Scheduler {
   }
 
   invalidateTrack(trackId: string, fromStep = this.cursor): void {
-    this.playbackPlan.invalidateTrack(trackId, this.generation, Math.floor(fromStep));
+    this.playbackPlan.invalidateTrack(trackId, Math.floor(fromStep));
   }
 
   private tick(): void {

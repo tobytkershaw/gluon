@@ -5,7 +5,6 @@ export type RuntimeEventId = string;
 interface PlannedEvent {
   absoluteStep: number;
   trackId: string;
-  generation: number;
 }
 
 function formatStep(value: number): string {
@@ -41,7 +40,7 @@ export class PlaybackPlan {
       this.reset(generation);
     }
     if (this.planned.has(eventId)) return false;
-    this.planned.set(eventId, { absoluteStep, trackId, generation });
+    this.planned.set(eventId, { absoluteStep, trackId });
     return true;
   }
 
@@ -57,9 +56,9 @@ export class PlaybackPlan {
     return this.planned.has(eventId);
   }
 
-  invalidateTrack(trackId: string, generation: number, minStep = 0): void {
+  invalidateTrack(trackId: string, minStep = 0): void {
     for (const [eventId, event] of this.planned) {
-      if (event.generation === generation && event.trackId === trackId && event.absoluteStep >= minStep) {
+      if (event.trackId === trackId && event.absoluteStep >= minStep) {
         this.planned.delete(eventId);
       }
     }

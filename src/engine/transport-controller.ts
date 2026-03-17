@@ -147,7 +147,7 @@ export class TransportController {
         this.audio.setMetronomeVolume(metVol);
         // Update runtime BEFORE starting the scheduler so that the synchronous
         // first tick sees the new generation (fixes #543 — stale generation on resume).
-        this.runtime = playTransportState(this.runtime, this.audio.getCurrentTime(), generation);
+        this.runtime = playTransportState(this.runtime, generation);
         this.scheduler.start(START_OFFSET_SEC, startStep, generation);
         recordQaAudioTrace({
           type: 'transport.play-start',
