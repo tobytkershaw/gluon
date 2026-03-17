@@ -52,9 +52,6 @@ interface Props {
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;
-  // Volume / Pan
-  onChangeVolume?: (value: number) => void;
-  onChangePan?: (value: number) => void;
   // Audio
   analyser: AnalyserNode | null;
 }
@@ -75,7 +72,6 @@ export function InstrumentView({
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
   deepViewModuleId, onOpenDeepView,
-  onChangeVolume, onChangePan,
   analyser,
 }: Props) {
   return (
@@ -121,8 +117,6 @@ export function InstrumentView({
           onClearPattern={onClearPattern}
           onAddView={onAddView}
           onRemoveView={onRemoveView}
-          onChangeVolume={onChangeVolume}
-          onChangePan={onChangePan}
           deepViewModuleId={deepViewModuleId}
           onOpenDeepView={onOpenDeepView}
           analyser={analyser}

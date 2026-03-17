@@ -2106,8 +2106,6 @@ export default function App() {
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
-            onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
-            onChangePan={(v) => handleChangePan(activeTrack.id, v)}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}

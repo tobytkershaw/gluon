@@ -8,7 +8,6 @@ import { getTrackLabel } from '../engine/track-labels';
 import { ParameterSpace } from './ParameterSpace';
 import { Visualiser } from './Visualiser';
 import { PitchControl } from './PitchControl';
-import { Knob } from './Knob';
 import { SequencerViewSlot } from './SequencerViewSlot';
 import { ChainStrip } from './ChainStrip';
 import { ModulePanel } from './ModulePanel';
@@ -67,9 +66,6 @@ interface ExpandedTrackProps {
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;
-  // Volume / Pan
-  onChangeVolume?: (value: number) => void;
-  onChangePan?: (value: number) => void;
   // Audio
   analyser: AnalyserNode | null;
 }
@@ -89,7 +85,6 @@ export function ExpandedTrack({
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
-  onChangeVolume, onChangePan,
   deepViewModuleId, onOpenDeepView,
   analyser,
 }: ExpandedTrackProps) {
@@ -129,19 +124,6 @@ export function ExpandedTrack({
           {activeTrack.agency === 'ON' ? 'AI ON' : 'AI OFF'}
         </button>
 
-        {/* Volume / Pan */}
-        {onChangeVolume && (
-          <div className="flex items-center gap-1 ml-auto" title={`Volume: ${Math.round(activeTrack.volume * 100)}%`}>
-            <span className="text-[9px] text-zinc-600 font-mono">Vol</span>
-            <Knob value={activeTrack.volume} label="" accentColor="amber" onChange={onChangeVolume} size={20} />
-          </div>
-        )}
-        {onChangePan && (
-          <div className="flex items-center gap-1" title={`Pan: ${activeTrack.pan === 0 ? 'C' : activeTrack.pan < 0 ? `L${Math.round(Math.abs(activeTrack.pan) * 100)}` : `R${Math.round(activeTrack.pan * 100)}`}`}>
-            <span className="text-[9px] text-zinc-600 font-mono">Pan</span>
-            <Knob value={(activeTrack.pan + 1) / 2} label="" accentColor="sky" onChange={(v) => onChangePan(v * 2 - 1)} size={20} />
-          </div>
-        )}
       </div>
 
       {/* Chain strip (if processors or modulators exist) */}
