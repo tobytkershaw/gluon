@@ -231,7 +231,7 @@ function humanSetMusicalRole(session: ReturnType<typeof createSession>, trackId:
     timestamp: Date.now(),
     description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
   };
-  const next = setTrackImportance(session, trackId, track.importance ?? 0.5, role);
+  const next = setTrackImportance(session, trackId, undefined, role);
   return { ...next, undoStack: [...next.undoStack, snapshot] };
 }
 

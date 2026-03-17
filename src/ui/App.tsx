@@ -1055,7 +1055,7 @@ export default function App() {
         timestamp: Date.now(),
         description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
       };
-      const next = setTrackImportance(s, trackId, track.importance ?? 0.5, role);
+      const next = setTrackImportance(s, trackId, undefined, role);
       return { ...next, undoStack: [...next.undoStack, snapshot] };
     });
   }, []);
