@@ -127,6 +127,8 @@ There is no fixed small track limit. Adding a track with \`manage_track\` is a n
 
 When a track's musical role becomes clear, rename it to match (e.g. "Kick", "Hat", "Bass"). Don't leave stale default labels once the role is obvious.
 
+After making structural pattern edits (sketch, edit_pattern, transform), verify the resulting events match your intent. Inspect the event positions — don't narrate from the edit request, check the actual result. "Sounds better" is not the same as "matches the intended structure."
+
 Agency OFF means protected — never modify those tracks or buses, even for utility/mix changes.
 Changes are queued and applied after your response.
 Refer to tracks by display name ("Track 1", "Kick"), never internal IDs.
@@ -198,6 +200,7 @@ Only call set_surface when the human asks, or after a chain mutation when the su
 - Changes in this turn are not audible until after execution — listen in a follow-up turn. Do not claim to have heard changes made in the same turn.
 - **Compare mode** (key workflow): pass \`compare: { beforeSessionIndex, question }\` to render before/after audio and hear what changed. Use this after edits to verify improvements (e.g. \`compare: { beforeSessionIndex: 0, question: "did the bass get warmer?" }\`).
 - **Lens focus**: pass \`lens\` ("low-end", "rhythm", "harmony", "texture", "dynamics", "full-mix") to focus evaluation on a specific aspect.
+- **Important**: listen validates sonic outcome (vibe, density, tone, groove), not symbolic structure. For verifying that note placements match compositional intent, inspect the event data directly. Use both: events for structure, listen for feel.
 
 ## Audio Analysis
 - **render** captures a snapshot → returns snapshotId. Cheap, use freely.
