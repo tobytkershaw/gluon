@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, BugReport } from './types';
+import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, BugReport } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -8,6 +8,7 @@ import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
 import { projectPatternToStepGrid } from './region-projection';
 import { normalizePatternEvents, validatePattern } from './region-helpers';
+import { editPatternEvents, validatePatternEditOps } from './pattern-primitives';
 import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
@@ -244,6 +245,28 @@ export function prevalidateAction(
       // Source path: resolve against Plaits engines
       const engine = getEngineById(action.model);
       if (!engine) return `Unknown model: ${action.model}`;
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
+      }
+      return null;
+    }
+
+    case 'edit_pattern': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      if (track.patterns.length === 0) return `Track ${action.trackId} has no patterns`;
+      // Resolve pattern
+      const targetPattern = action.patternId
+        ? track.patterns.find(p => p.id === action.patternId)
+        : getActivePattern(track);
+      if (!targetPattern) return `Pattern not found: ${action.patternId}`;
+      // Validate operations against pattern
+      const opErrors = validatePatternEditOps(targetPattern, action.operations);
+      if (opErrors.length > 0) return opErrors[0];
+      // Check preservation
+      const editPreservation = checkPreservationForSketch(session, action.trackId, undefined);
+      if (editPreservation) return editPreservation;
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
         return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
@@ -1025,6 +1048,42 @@ export function executeOperations(
         };
 
         log.push({ trackId: action.trackId, trackLabel: vLabel, description: `model → ${engineDef.label}`, diff: { kind: 'model-change', from: plaitsInstrument.engines[prevModel]?.label ?? String(prevModel), to: engineDef.label } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'edit_pattern': {
+        const track = getTrack(next, action.trackId);
+        if (track.patterns.length === 0) {
+          rejected.push({ op: action, reason: 'No patterns on track' });
+          break;
+        }
+        const targetPattern = action.patternId
+          ? track.patterns.find(p => p.id === action.patternId)
+          : getActivePattern(track);
+        if (!targetPattern) {
+          rejected.push({ op: action, reason: `Pattern not found: ${action.patternId}` });
+          break;
+        }
+
+        const eventsBefore = targetPattern.events.length;
+
+        // Apply edits via pattern-primitives (includes undo snapshot)
+        next = editPatternEvents(next, action.trackId, action.patternId, action.operations, action.description);
+
+        const updatedTrack = getTrack(next, action.trackId);
+        const updatedPattern = action.patternId
+          ? updatedTrack.patterns.find(p => p.id === action.patternId)
+          : getActivePattern(updatedTrack);
+        const eventsAfter = updatedPattern?.events.length ?? eventsBefore;
+
+        const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({
+          trackId: action.trackId,
+          trackLabel: vLabel,
+          description: `edit_pattern: ${action.description}`,
+          diff: { kind: 'pattern-change', eventsBefore, eventsAfter, description: action.description },
+        });
         accepted.push(action);
         break;
       }

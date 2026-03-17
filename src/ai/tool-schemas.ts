@@ -142,6 +142,96 @@ const sketchTool: ToolSchema = {
   },
 };
 
+const editPatternTool: ToolSchema = {
+  name: 'edit_pattern',
+  description:
+    'Non-destructively add, remove, or modify individual events in a pattern without replacing the whole thing. ' +
+    'Use this for surgical edits (adding a ghost hit, tweaking one velocity, adding a param lock to one step). ' +
+    'For writing a whole new pattern, use sketch instead. Takes effect after this response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      patternId: {
+        type: 'string',
+        description: 'Pattern ID to edit. Defaults to active pattern if omitted.',
+      },
+      operations: {
+        type: 'array',
+        description: 'Batch of add/remove/modify operations. All applied as one undo group.',
+        items: {
+          type: 'object',
+          properties: {
+            action: {
+              type: 'string',
+              enum: ['add', 'remove', 'modify'],
+              description: '"add" inserts an event, "remove" deletes it, "modify" changes properties in place.',
+            },
+            step: {
+              type: 'integer',
+              description: 'Step index (0-based) to target.',
+            },
+            event: {
+              type: 'object',
+              description: 'Gate event to add/remove/modify. Omit to only affect parameter locks.',
+              properties: {
+                type: {
+                  type: 'string',
+                  enum: ['trigger', 'note'],
+                  description: '"trigger" for percussion, "note" for melodic.',
+                },
+                pitch: {
+                  type: 'integer',
+                  description: 'MIDI pitch (0-127). For note events.',
+                },
+                velocity: {
+                  type: 'number',
+                  description: 'Velocity (0.0-1.0).',
+                },
+                accent: {
+                  type: 'boolean',
+                  description: 'Accent flag (trigger events only).',
+                },
+                duration: {
+                  type: 'number',
+                  description: 'Note duration in steps. For note events.',
+                },
+              },
+            },
+            params: {
+              type: 'array',
+              description: 'Parameter locks to add/modify/remove at this step.',
+              items: {
+                type: 'object',
+                properties: {
+                  controlId: {
+                    type: 'string',
+                    description: 'Control ID for the parameter lock.',
+                  },
+                  value: {
+                    type: 'number',
+                    description: 'Parameter value (0.0-1.0).',
+                  },
+                },
+                required: ['controlId', 'value'],
+              },
+            },
+          },
+          required: ['action', 'step'],
+        },
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the edit (e.g. "add ghost hit on step 7").',
+      },
+    },
+    required: ['trackId', 'operations', 'description'],
+  },
+};
+
 const listenTool: ToolSchema = {
   name: 'listen',
   description:
@@ -740,6 +830,7 @@ const reportBugTool: ToolSchema = {
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
+  editPatternTool,
   transformTool,
   listenTool,
   setTransportTool,
