@@ -11,13 +11,9 @@ export interface RuntimeTransportState {
   swing: number;
 }
 
+/** @deprecated No-op — kept temporarily so call sites compile. Remove in a follow-up. */
 export function normalizeTransport(transport: Transport): Transport {
-  const status = transport.status ?? (transport.playing ? 'playing' : 'stopped');
-  return {
-    ...transport,
-    status,
-    playing: status === 'playing',
-  };
+  return transport;
 }
 
 export function createRuntimeTransport(transport: Transport): RuntimeTransportState {

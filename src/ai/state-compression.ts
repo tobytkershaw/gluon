@@ -406,7 +406,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
     transport: {
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
-      playing: session.transport.playing,
+      playing: session.transport.status === 'playing',
       time_signature: `${session.transport.timeSignature?.numerator ?? 4}/${session.transport.timeSignature?.denominator ?? 4}`,
     },
     context: {

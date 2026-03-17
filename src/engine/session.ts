@@ -65,7 +65,7 @@ export function createSession(): Session {
   return {
     tracks,
     activeTrackId: tracks[0].id,
-    transport: { status: 'stopped', playing: false, bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
+    transport: { status: 'stopped', bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
     master: { ...DEFAULT_MASTER },
     undoStack: [],
     redoStack: [],
@@ -466,7 +466,6 @@ export function playTransport(session: Session, fromStep?: number): Session {
     transport: {
       ...session.transport,
       status: 'playing',
-      playing: true,
       ...(fromStep !== undefined ? { playFromStep: fromStep } : { playFromStep: undefined }),
     },
   };
@@ -475,14 +474,14 @@ export function playTransport(session: Session, fromStep?: number): Session {
 export function pauseTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'paused', playing: false, playFromStep: undefined },
+    transport: { ...session.transport, status: 'paused', playFromStep: undefined },
   };
 }
 
 export function stopTransport(session: Session): Session {
   return {
     ...session,
-    transport: { ...session.transport, status: 'stopped', playing: false, playFromStep: undefined },
+    transport: { ...session.transport, status: 'stopped', playFromStep: undefined },
   };
 }
 
@@ -1004,7 +1003,6 @@ export function restoreABSnapshot(session: Session, snapshot: ABSnapshot): Sessi
       metronome: { ...snapshot.transport.metronome },
       // Preserve playback state so A/B switching doesn't interrupt transport
       status: session.transport.status,
-      playing: session.transport.playing,
       playFromStep: session.transport.status === 'playing' ? undefined : session.transport.playFromStep,
     },
     master: { ...snapshot.master },

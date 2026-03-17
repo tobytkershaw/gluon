@@ -49,7 +49,6 @@ function argsSummary(name: string, args: Record<string, unknown>): string | null
       const parts: string[] = [];
       if (args.bpm !== undefined) parts.push(`${args.bpm} bpm`);
       if (args.swing !== undefined) parts.push(`swing ${args.swing}`);
-      if (args.playing !== undefined) parts.push(args.playing ? 'play' : 'stop');
       return parts.length > 0 ? parts.join(', ') : null;
     }
     case 'set_model':

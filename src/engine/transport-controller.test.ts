@@ -7,7 +7,7 @@ function makeSession(): Session {
   return {
     tracks: [],
     activeTrackId: 'v0',
-    transport: { status: 'stopped', bpm: 120, swing: 0, playing: false },
+    transport: { status: 'stopped', bpm: 120, swing: 0 },
     master: { volume: 0.8, pan: 0 },
     undoStack: [],
     context: { key: null, scale: null, tempo: null, energy: 0.3, density: 0.2 },
@@ -44,7 +44,7 @@ describe('TransportController', () => {
       createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
     expect(audio.advanceGeneration).toHaveBeenCalledTimes(1);
@@ -56,7 +56,7 @@ describe('TransportController', () => {
   it('starts playback when constructed after session already flipped to playing', () => {
     vi.useFakeTimers();
     const session = makeSession();
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     const scheduler = {
       start: vi.fn(),
       stop: vi.fn(),
@@ -116,9 +116,9 @@ describe('TransportController', () => {
       createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
-    session.transport = { ...session.transport, status: 'paused', playing: false };
+    session.transport = { ...session.transport, status: 'paused' };
     controller.sync();
 
     expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
@@ -152,10 +152,10 @@ describe('TransportController', () => {
       createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
     controller.requestHardStop();
-    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    session.transport = { ...session.transport, status: 'stopped' };
     controller.sync();
 
     expect(audio.silenceGeneration).toHaveBeenCalledWith(2);
@@ -199,12 +199,12 @@ describe('TransportController', () => {
       },
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
     schedulerPositionChange?.(8);
-    session.transport = { ...session.transport, status: 'paused', playing: false };
+    session.transport = { ...session.transport, status: 'paused' };
     controller.sync();
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
     expect(audio.releaseGeneration).toHaveBeenCalledWith(2);
@@ -242,7 +242,7 @@ describe('TransportController', () => {
       createScheduler: () => scheduler,
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true, playFromStep: 8 };
+    session.transport = { ...session.transport, status: 'playing', playFromStep: 8 };
     controller.sync();
 
     expect(scheduler.start).toHaveBeenCalledTimes(1);
@@ -288,7 +288,7 @@ describe('TransportController', () => {
       },
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
     schedulerParameterEvent?.('v0', 'timbre', 0.8, 1.25);
@@ -335,11 +335,11 @@ describe('TransportController', () => {
       },
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
     schedulerParameterEvent?.('v0', 'timbre', 0.8, 1.25);
-    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    session.transport = { ...session.transport, status: 'stopped' };
     controller.sync();
 
     vi.advanceTimersByTime(300);
@@ -379,15 +379,15 @@ describe('TransportController', () => {
     });
 
     // Play → stop (silences metronome) → play again
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
-    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    session.transport = { ...session.transport, status: 'stopped' };
     controller.sync();
 
     expect(audio.silenceMetronome).toHaveBeenCalled();
 
     // Play again — should restore volume
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
     expect(audio.setMetronomeVolume).toHaveBeenCalledWith(0.7);
@@ -420,9 +420,9 @@ describe('TransportController', () => {
       createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
-    session.transport = { ...session.transport, status: 'paused', playing: false };
+    session.transport = { ...session.transport, status: 'paused' };
     controller.sync();
 
     expect(audio.silenceMetronome).toHaveBeenCalledTimes(1);
@@ -497,19 +497,19 @@ describe('TransportController', () => {
 
     // Play (generation 1) — note the bug also affects first play:
     // runtime.generation is 0 (initial) when the first tick fires.
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
     // Fixed: first-play notes now use the correct generation
     expect(noteGenerations[0]).toBe(1);
 
     // Advance playhead, then pause
     schedulerPositionChange?.(8);
-    session.transport = { ...session.transport, status: 'paused', playing: false };
+    session.transport = { ...session.transport, status: 'paused' };
     controller.sync();
 
     // Resume (should use generation 3)
     noteGenerations.length = 0;
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
 
     // The note fired during scheduler.start()'s synchronous first tick
@@ -545,9 +545,9 @@ describe('TransportController', () => {
       createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
-    session.transport = { ...session.transport, status: 'stopped', playing: false };
+    session.transport = { ...session.transport, status: 'stopped' };
     controller.sync();
 
     expect(audio.silenceMetronome).toHaveBeenCalledTimes(1);
@@ -606,7 +606,7 @@ describe('TransportController', () => {
     session.tracks[0]._patternDirty = true;
 
     // Start playback so invalidation path fires
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
     controller.syncArrangement();
 
@@ -669,7 +669,7 @@ describe('TransportController', () => {
       },
     });
 
-    session.transport = { ...session.transport, status: 'playing', playing: true };
+    session.transport = { ...session.transport, status: 'playing' };
     controller.sync();
     schedulerPositionChange?.(6);
 

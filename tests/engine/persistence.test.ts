@@ -39,7 +39,7 @@ describe('persistence', () => {
     expect(loaded!.messages).toHaveLength(1);
     expect(loaded!.messages[0].text).toBe('hello');
     expect(loaded!.undoStack).toEqual([]); // no undo entries were added
-    expect(loaded!.transport.playing).toBe(false);
+    expect(loaded!.transport.status).toBe('stopped');
   });
 
   it('restoreSession normalizes project-loaded sessions through the full shared contract', () => {

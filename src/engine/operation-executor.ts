@@ -878,10 +878,6 @@ export function executeOperations(
         const newTransport = { ...prev };
         if (action.bpm !== undefined) newTransport.bpm = Math.max(20, Math.min(300, action.bpm));
         if (action.swing !== undefined) newTransport.swing = Math.max(0, Math.min(1, action.swing));
-        if (action.playing !== undefined) {
-          newTransport.playing = action.playing;
-          newTransport.status = action.playing ? 'playing' : 'stopped';
-        }
         if (action.timeSignatureNumerator !== undefined || action.timeSignatureDenominator !== undefined) {
           const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
           const validDenominators = [2, 4, 8, 16];
@@ -897,7 +893,6 @@ export function executeOperations(
         const parts: string[] = [];
         if (action.bpm !== undefined && newTransport.bpm !== prev.bpm) parts.push(`bpm ${prev.bpm} → ${newTransport.bpm}`);
         if (action.swing !== undefined && newTransport.swing !== prev.swing) parts.push(`swing ${prev.swing.toFixed(2)} → ${newTransport.swing.toFixed(2)}`);
-        if (action.playing !== undefined && newTransport.playing !== prev.playing) parts.push(newTransport.playing ? 'play' : 'stop');
         if (action.timeSignatureNumerator !== undefined || action.timeSignatureDenominator !== undefined) {
           const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
           parts.push(`time sig ${prevTs.numerator}/${prevTs.denominator} → ${newTransport.timeSignature.numerator}/${newTransport.timeSignature.denominator}`);
@@ -917,13 +912,6 @@ export function executeOperations(
           transportDiff = { kind: 'transport-change', field: 'bpm', from: prev.bpm, to: newTransport.bpm };
         } else if (action.swing !== undefined && newTransport.swing !== prev.swing) {
           transportDiff = { kind: 'transport-change', field: 'swing', from: prev.swing, to: newTransport.swing };
-        } else if (action.playing !== undefined && newTransport.playing !== prev.playing) {
-          transportDiff = {
-            kind: 'transport-change',
-            field: 'status',
-            from: prev.status ?? (prev.playing ? 'playing' : 'stopped'),
-            to: newTransport.status ?? (newTransport.playing ? 'playing' : 'stopped'),
-          };
         }
         log.push({ trackId: '', trackLabel: 'TRANSPORT', description: snapshot.description, diff: transportDiff });
         accepted.push(action);

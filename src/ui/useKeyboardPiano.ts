@@ -171,7 +171,7 @@ export function useKeyboardPiano(
     heldKeys.current.add(lower);
 
     // Start recording a pending note if recording is active
-    if (recordArmedRef.current && currentSession.transport.playing) {
+    if (recordArmedRef.current && currentSession.transport.status === 'playing') {
       pendingNotes.current.set(lower, {
         midi,
         startStep: globalStepRef.current,
@@ -245,7 +245,7 @@ export function useKeyboardPiano(
   }, [audioRef, finalizeNote]);
 
   // When recording stops (disarm or transport stop), finalize any held notes
-  const isRecordingActive = recordArmed && session.transport.playing;
+  const isRecordingActive = recordArmed && session.transport.status === 'playing';
   const wasRecordingRef = useRef(false);
 
   useEffect(() => {

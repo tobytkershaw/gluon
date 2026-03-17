@@ -33,7 +33,7 @@ function makeSession(events: (TriggerEvent | NoteEvent | ParameterEvent)[], dura
       },
     }],
     activeTrackId: 'track-1',
-    transport: { status: 'stopped', bpm: 120, swing: 0, playing: false, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
+    transport: { status: 'stopped', bpm: 120, swing: 0, metronome: { enabled: false, volume: 0.5 }, timeSignature: { numerator: 4, denominator: 4 } },
     master: { volume: 0.8, pan: 0 },
     undoStack: [],
     redoStack: [],

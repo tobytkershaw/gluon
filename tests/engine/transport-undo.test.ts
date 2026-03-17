@@ -65,16 +65,16 @@ describe('Transport Undo', () => {
     expect(report.session.transport.swing).toBe(1);
   });
 
-  it('handles playing state changes', () => {
+  it('handles bpm changes and undo', () => {
     const session = createSession();
-    expect(session.transport.playing).toBe(false);
+    expect(session.transport.bpm).toBe(120);
 
-    const actions: AIAction[] = [{ type: 'set_transport', playing: true }];
+    const actions: AIAction[] = [{ type: 'set_transport', bpm: 140 }];
     const report = executeOperations(session, actions, adapter, makeArbitrator());
-    expect(report.session.transport.playing).toBe(true);
+    expect(report.session.transport.bpm).toBe(140);
 
     const undone = applyUndo(report.session);
-    expect(undone.transport.playing).toBe(false);
+    expect(undone.transport.bpm).toBe(120);
   });
 
   it('transport grouped with other actions in ActionGroupSnapshot', () => {
@@ -110,12 +110,11 @@ describe('Transport Undo', () => {
   it('handles multiple transport fields at once', () => {
     const session = createSession();
     const actions: AIAction[] = [{
-      type: 'set_transport', bpm: 140, swing: 0.6, playing: true,
+      type: 'set_transport', bpm: 140, swing: 0.6,
     }];
     const report = executeOperations(session, actions, adapter, makeArbitrator());
 
     expect(report.session.transport.bpm).toBe(140);
     expect(report.session.transport.swing).toBe(0.6);
-    expect(report.session.transport.playing).toBe(true);
   });
 });
