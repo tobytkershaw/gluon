@@ -219,7 +219,7 @@ export function TrackRow({
         {onToggleAgency && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-            title={track.agency === 'OFF' ? 'AI: Protected (click to enable)' : 'AI: Editable (click to protect)'}
+            title={track.agency === 'OFF' ? 'AI Agency — protected from AI edits (click to allow)' : 'AI Agency — AI may modify this track (click to protect)'}
             className={`shrink-0 text-[7px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
               track.agency === 'ON'
                 ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'
@@ -284,7 +284,7 @@ export function TrackRow({
           {/* Importance slider */}
           {onSetImportance && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0">Imp</span>
+              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Importance — how prominent this track should be in the mix">Imp</span>
               <input
                 type="range"
                 min={0}
@@ -305,7 +305,7 @@ export function TrackRow({
           {/* Musical role */}
           {onSetMusicalRole && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0">Role</span>
+              <span className="text-[7px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Musical Role — what this track contributes (e.g. driving rhythm, bass, lead)">Role</span>
               {editingRole ? (
                 <input
                   ref={roleInputRef}
