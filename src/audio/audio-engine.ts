@@ -249,8 +249,8 @@ export class AudioEngine {
     trackVolume.connect(trackPanner);
     trackPanner.connect(muteGain);
     muteGain.connect(this.mixer);
-    // Tap post-volume for level metering
-    trackVolume.connect(analyser);
+    // Tap post-mute for level metering (reflects mute/solo state)
+    muteGain.connect(analyser);
 
     const poolVoices = [];
     for (let i = 0; i < VOICES_PER_TRACK; i++) {
@@ -304,8 +304,8 @@ export class AudioEngine {
     trackVolume.connect(trackPanner);
     trackPanner.connect(muteGain);
     muteGain.connect(this.mixer);
-    // Tap post-volume for level metering
-    trackVolume.connect(analyser);
+    // Tap post-mute for level metering (reflects mute/solo state)
+    muteGain.connect(analyser);
 
     this.tracks.set(busId, {
       pool: null,
