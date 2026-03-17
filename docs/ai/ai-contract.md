@@ -20,7 +20,7 @@ Change a control parameter value on a track source, processor, or modulator.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `param` | string | yes | Control ID. Track source: `timbre`, `harmonics`, `morph`, `frequency`. Processor (Rings): `structure`, `brightness`, `damping`, `position`, `polyphony`, `internal-exciter`. Processor (Clouds): `position`, `size`, `density`, `feedback`, `freeze`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`. |
+| `param` | string | yes | Control ID. Track source (Plaits): `frequency`, `harmonics`, `timbre`, `morph`, `timbre-mod-amount`, `fm-amount`, `morph-mod-amount`, `decay`, `lpg-colour`. Processor (Rings): `structure`, `brightness`, `damping`, `position`, `fine-tune`, `internal-exciter`, `polyphony`. Processor (Clouds): `position`, `size`, `pitch`, `density`, `texture`, `dry-wet`, `feedback`, `stereo-spread`, `reverb`, `freeze`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`, `shift`, `output-mode`, `range`. |
 | `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
 | `trackId` | string | no | Target track — ordinal ("Track 1") or internal ID ("v0"). Defaults to active track. |
 | `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the track source. |
@@ -348,7 +348,7 @@ Fields:
 - **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`
 - **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
 - **volume** / **pan** — track mix levels (0.0–1.0)
-- **stepGrid** — canonical event summary with trigger positions, notes, accents, param locks, and density
+- **pattern** — canonical event summary with trigger positions, notes, accents, param locks, and density
 - **activeTrackId** — the track the human currently has selected
 - **views** — list of active sequencer views (`kind:id` format)
 - **processors** — processor chain with IDs, types, models, current parameter values, and enabled state
@@ -377,43 +377,54 @@ Fields:
 
 ### Track source (Plaits)
 
-Four controls, all 0.0–1.0:
+Nine controls, all 0.0–1.0:
 
-| Control        | Meaning                                 | Plaits parameter |
-|---------------|----------------------------------------|------------------|
-| **timbre**     | Spectral content. Dark to bright.      | `timbre`         |
-| **harmonics**  | Harmonic complexity. Simple to dense.  | `harmonics`      |
-| **morph**      | Surface character. Smooth to textured. | `morph`          |
-| **frequency**  | Fundamental pitch. Low to high.        | `note`           |
+| Control              | Meaning                                         | Plaits parameter   |
+|---------------------|------------------------------------------------|-------------------|
+| **frequency**        | Fundamental pitch. Low to high.                 | `note`            |
+| **harmonics**        | Harmonic complexity. Simple to dense.            | `harmonics`       |
+| **timbre**           | Spectral content. Dark to bright.                | `timbre`          |
+| **morph**            | Surface character. Smooth to textured.           | `morph`           |
+| **timbre-mod-amount**| Internal envelope → timbre modulation depth.     | `timbre_mod_amount`|
+| **fm-amount**        | Internal envelope → pitch modulation depth.      | `fm_amount`       |
+| **morph-mod-amount** | Internal envelope → morph modulation depth.      | `morph_mod_amount` |
+| **decay**            | LPG decay time.                                  | `decay`           |
+| **lpg-colour**       | LPG response character (VCA to filter).          | `lpg_colour`      |
 
 ### Processor (Rings)
 
-Six controls, all 0.0–1.0:
+Seven controls (polyphony is discrete 1–4, internal-exciter is boolean, rest 0.0–1.0):
 
-| Control              | Meaning                                 |
-|---------------------|----------------------------------------|
-| **structure**        | Geometric structure of the resonator.  |
-| **brightness**       | Spectral content of the resonance.     |
-| **damping**          | Decay time. Low = long ring, high = short. |
-| **position**         | Excitation position on the resonator.  |
-| **polyphony**        | Number of simultaneous voices.         |
-| **internal-exciter** | Use internal excitation vs external input. |
+| Control              | Meaning                                         |
+|---------------------|------------------------------------------------|
+| **structure**        | Geometric structure of the resonator.            |
+| **brightness**       | Spectral content of the resonance.               |
+| **damping**          | Decay time. Low = long ring, high = short.       |
+| **position**         | Excitation position on the resonator.            |
+| **fine-tune**        | Fine pitch offset. 0.5 = centered, +/- 1 semitone. |
+| **internal-exciter** | Use internal excitation vs external input (boolean). |
+| **polyphony**        | Number of simultaneous voices (discrete, 1–4).   |
 
 ### Processor (Clouds)
 
-Five controls, all 0.0–1.0:
+Ten controls, all 0.0–1.0 (freeze is boolean):
 
-| Control      | Meaning                                               |
-|-------------|-------------------------------------------------------|
-| **position** | Where in the recording buffer to read.                |
-| **size**     | Grain size or texture scale. Small = glitchy, large = smooth. |
-| **density**  | Grain generation rate. Low = sparse, high = dense.    |
-| **feedback** | Wet signal recirculation. High = evolving textures.   |
-| **freeze**   | Freeze the buffer contents.                           |
+| Control           | Meaning                                                         |
+|------------------|-----------------------------------------------------------------|
+| **position**      | Where in the recording buffer to read.                          |
+| **size**          | Grain size or texture scale. Small = glitchy, large = smooth.   |
+| **pitch**         | Grain transposition. 0.5 = no shift.                            |
+| **density**       | Grain generation rate. Low = sparse, high = dense.              |
+| **texture**       | Grain envelope shape / window function.                         |
+| **dry-wet**       | Blend between dry input and processed wet signal.               |
+| **feedback**      | Wet signal recirculation. High = evolving textures.             |
+| **stereo-spread** | Stereo image width. 0 = mono, 1 = full spread.                 |
+| **reverb**        | Built-in reverb amount.                                         |
+| **freeze**        | Freeze the recording buffer (boolean).                          |
 
 ### Modulator (Tides)
 
-Four controls, all 0.0–1.0:
+Seven controls (output-mode and range are discrete, rest 0.0–1.0):
 
 | Control         | Meaning                                                    |
 |----------------|-----------------------------------------------------------|
@@ -421,6 +432,9 @@ Four controls, all 0.0–1.0:
 | **shape**       | Waveform character. Blends between sine, triangle, saw, square-like. |
 | **slope**       | Attack/decay symmetry. Low = fast attack, high = slow attack. |
 | **smoothness**  | Waveform smoothing. Low = sharp edges, high = rounded curves. |
+| **shift**       | Multi-channel phase spread between output channels.        |
+| **output-mode** | Output signal type: gates (0), amplitude (1), slope/phase (2), frequency (3). |
+| **range**       | Operating range: control rate (0) for LFO, audio rate (1) for oscillator. |
 
 The compressed state and tool parameters use control IDs directly. For note events in sketches, pitch is specified as MIDI (0–127), not normalised.
 
