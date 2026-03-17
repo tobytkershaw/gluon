@@ -305,6 +305,7 @@ export function ModulePanel({
                 size={LARGE_KNOB_SIZE}
                 modulations={modulationMap?.get(control.id)}
                 onModulationClick={onModulationClick}
+                displayMapping={control.displayMapping}
               />
             ))}
           </div>

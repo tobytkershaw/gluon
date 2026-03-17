@@ -4,6 +4,7 @@ import type {
   SemanticRole,
   ControlSchema,
   ControlBinding,
+  DisplayMapping,
   EngineDef,
   InstrumentDef,
 } from '../engine/canonical-types';
@@ -40,6 +41,7 @@ function makePlaitsControl(
   runtimeParam: string,
   defaultVal = 0.5,
   size: 'large' | 'medium' | 'small' = 'large',
+  displayMapping?: DisplayMapping,
 ): ControlSchema {
   return {
     id,
@@ -55,6 +57,7 @@ function makePlaitsControl(
       adapterId: 'plaits',
       path: `params.${runtimeParam}`,
     },
+    displayMapping,
   };
 }
 
@@ -67,6 +70,9 @@ function defaultControls(): ControlSchema[] {
       'pitch',
       'Fundamental pitch of the sound. 0.0 is the lowest, 1.0 is the highest.',
       'note',
+      0.5,
+      'large',
+      { type: 'log', min: 20, max: 16000, unit: 'Hz', decimals: 0 },
     ),
     makePlaitsControl(
       'harmonics',
@@ -103,6 +109,7 @@ function defaultControls(): ControlSchema[] {
       'timbre_mod_amount',
       0.0,
       'small',
+      { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
     makePlaitsControl(
       'fm-amount',
@@ -112,6 +119,7 @@ function defaultControls(): ControlSchema[] {
       'fm_amount',
       0.0,
       'small',
+      { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
     makePlaitsControl(
       'morph-mod-amount',
@@ -121,6 +129,7 @@ function defaultControls(): ControlSchema[] {
       'morph_mod_amount',
       0.0,
       'small',
+      { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
     makePlaitsControl(
       'decay',
@@ -130,6 +139,7 @@ function defaultControls(): ControlSchema[] {
       'decay',
       0.5,
       'small',
+      { type: 'log', min: 1, max: 4000, unit: 'ms', decimals: 0 },
     ),
     makePlaitsControl(
       'lpg-colour',
@@ -205,6 +215,7 @@ function makeRingsControl(
   defaultVal = 0.5,
   size: 'large' | 'medium' | 'small' = 'large',
   range?: { min: number; max: number; default: number },
+  displayMapping?: DisplayMapping,
 ): ControlSchema {
   return {
     id,
@@ -220,6 +231,7 @@ function makeRingsControl(
       adapterId: 'rings',
       path: `params.${id}`,
     },
+    displayMapping,
   };
 }
 
@@ -379,6 +391,7 @@ function makeCloudsControl(
   kind: ControlKind = 'continuous',
   defaultVal = 0.5,
   size: 'large' | 'medium' | 'small' = 'large',
+  displayMapping?: DisplayMapping,
 ): ControlSchema {
   return {
     id,
@@ -394,6 +407,7 @@ function makeCloudsControl(
       adapterId: 'clouds',
       path: `params.${id}`,
     },
+    displayMapping,
   };
 }
 
@@ -447,6 +461,7 @@ function cloudsControls(): ControlSchema[] {
       'continuous',
       0.5,
       'small',
+      { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
     // --- Secondary controls (attenuverters + extended) ---
     makeCloudsControl(
@@ -457,6 +472,7 @@ function cloudsControls(): ControlSchema[] {
       'continuous',
       0.0,
       'small',
+      { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
     makeCloudsControl(
       'stereo-spread',
@@ -475,6 +491,7 @@ function cloudsControls(): ControlSchema[] {
       'continuous',
       0.0,
       'small',
+      { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
     {
       id: 'freeze',
@@ -546,6 +563,7 @@ function makeTidesControl(
   description: string,
   defaultVal = 0.5,
   size: 'large' | 'medium' | 'small' = 'large',
+  displayMapping?: DisplayMapping,
 ): ControlSchema {
   return {
     id,
@@ -561,6 +579,7 @@ function makeTidesControl(
       adapterId: 'tides',
       path: `params.${id}`,
     },
+    displayMapping,
   };
 }
 
@@ -572,6 +591,8 @@ function tidesControls(): ControlSchema[] {
       'pitch',
       'Rate of the modulation cycle. Low values are slow sweeps, high values are fast oscillation.',
       0.3,
+      'large',
+      { type: 'log', min: 0.05, max: 100, unit: 'Hz', decimals: 1 },
     ),
     makeTidesControl(
       'shape',

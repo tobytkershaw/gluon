@@ -1,7 +1,9 @@
 // src/ui/Knob.tsx
 // General-purpose SVG rotary knob for the Rack view.
 // Adapted from SemanticKnob but with configurable accent colors.
-import { useRef, useCallback } from 'react';
+import { useRef, useState, useCallback } from 'react';
+import type { DisplayMapping } from '../engine/canonical-types';
+import { formatDisplayValue } from './format-display-value';
 
 /** Modulation info for a single routing targeting this knob */
 export interface KnobModulationInfo {
@@ -21,6 +23,8 @@ interface KnobProps {
   modulations?: KnobModulationInfo[];
   /** Called when user clicks on a modulation indicator */
   onModulationClick?: () => void;
+  /** Optional display mapping for showing human-readable values with units */
+  displayMapping?: DisplayMapping;
 }
 
 const DEFAULT_SIZE = 40;
@@ -69,8 +73,9 @@ function indicatorPosition(cx: number, cy: number, r: number, fraction: number) 
 export function Knob({
   value, label, accentColor, onChange,
   onPointerDown, onPointerUp, size = DEFAULT_SIZE,
-  modulations, onModulationClick,
+  modulations, onModulationClick, displayMapping,
 }: KnobProps) {
+  const [hovered, setHovered] = useState(false);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startValue = useRef(0);
@@ -118,7 +123,12 @@ export function Knob({
   const isSmall = size < 40;
 
   return (
-    <div className="flex flex-col items-center gap-0.5 select-none" style={{ width: containerWidth }}>
+    <div
+      className="flex flex-col items-center gap-0.5 select-none"
+      style={{ width: containerWidth }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {/* Label */}
       <span className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[8px]' : 'text-[9px]'}`}>
         {label}
@@ -199,7 +209,9 @@ export function Knob({
         </button>
       ) : (
         <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[7px]' : 'text-[8px]'}`}>
-          {Math.round(value * 100)}
+          {(hovered || dragging.current) && displayMapping
+            ? formatDisplayValue(value, displayMapping)
+            : formatDisplayValue(value)}
         </span>
       )}
     </div>
