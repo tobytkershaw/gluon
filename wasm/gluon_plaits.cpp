@@ -205,9 +205,13 @@ int plaits_render(void* handle, float* output, int num_frames) {
     state->patch.decay = state->smooth_decay.current;
     state->patch.lpg_colour = state->smooth_lpg_colour.current;
 
-    // Trigger is a one-shot pulse (1 block); level follows the gate for sustain.
+    // Trigger is a one-shot pulse (1 block).
+    // Level is held at accent_level unconditionally — the Web Audio accent gain
+    // node handles amplitude gating. Previously, level tracked gate_open, which
+    // caused Plaits to detect a rising edge on level as a second trigger,
+    // producing a "du-dum" double-hit on every note.
     state->modulations.trigger = (state->trigger_blocks_remaining > 0) ? 1.0f : 0.0f;
-    state->modulations.level = state->gate_open ? state->accent_level : 0.0f;
+    state->modulations.level = state->accent_level;
     state->voice.Render(state->patch, state->modulations, state->frames, block);
     for (size_t i = 0; i < block; ++i) {
       output[rendered + i] = static_cast<float>(state->frames[i].out) / 32768.0f + DENORMAL_GUARD;
