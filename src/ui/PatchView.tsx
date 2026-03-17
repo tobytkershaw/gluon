@@ -671,9 +671,9 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
                 />
                 {/* Param label */}
                 <span
-                  className="text-[9px] text-cyan-400/50 mt-0.5 leading-none whitespace-nowrap"
-                  style={{ pointerEvents: 'none' }}
-                  title={port.paramId}
+                  className="text-[9px] text-cyan-400/50 mt-0.5 leading-none truncate text-center"
+                  style={{ pointerEvents: 'none', maxWidth: 56 }}
+                  title={port.paramLabel}
                 >
                   {port.paramLabel}
                 </span>
