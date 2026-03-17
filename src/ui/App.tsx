@@ -1094,6 +1094,18 @@ export default function App() {
     setDeepViewModuleId(null);
   }, []);
 
+  const handleAddSend = useCallback((trackId: string, busId: string, level?: number) => {
+    setSession((s) => addSend(s, trackId, busId, level) ?? s);
+  }, []);
+
+  const handleRemoveSend = useCallback((trackId: string, busId: string) => {
+    setSession((s) => removeSend(s, trackId, busId) ?? s);
+  }, []);
+
+  const handleSetSendLevel = useCallback((trackId: string, busId: string, level: number) => {
+    setSession((s) => setSendLevel(s, trackId, busId, level));
+  }, []);
+
   const handleMasterVolumeChange = useCallback((v: number) => {
     ensureAudio();
     setSession((s) => setMaster(s, { volume: v }));
@@ -1940,6 +1952,9 @@ export default function App() {
       onRemoveTrack={handleRemoveTrack}
       onSetImportance={handleSetImportance}
       onSetMusicalRole={handleSetMusicalRole}
+      onAddSend={handleAddSend}
+      onRemoveSend={handleRemoveSend}
+      onSetSendLevel={handleSetSendLevel}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}

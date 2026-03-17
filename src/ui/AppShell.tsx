@@ -35,6 +35,10 @@ interface Props {
   onRemoveTrack?: (trackId: string) => void;
   onSetImportance?: (trackId: string, importance: number) => void;
   onSetMusicalRole?: (trackId: string, role: string) => void;
+  // Send routing
+  onAddSend?: (trackId: string, busId: string, level?: number) => void;
+  onRemoveSend?: (trackId: string, busId: string) => void;
+  onSetSendLevel?: (trackId: string, busId: string, level: number) => void;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -124,6 +128,7 @@ export function AppShell({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole,
+  onAddSend, onRemoveSend, onSetSendLevel,
   messages, onSend, isThinking, isListening, streamingText,
   reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
@@ -259,6 +264,9 @@ export function AppShell({
             onRemoveTrack={onRemoveTrack}
             onSetImportance={onSetImportance}
             onSetMusicalRole={onSetMusicalRole}
+            onAddSend={onAddSend}
+            onRemoveSend={onRemoveSend}
+            onSetSendLevel={onSetSendLevel}
             audioEngine={audioEngine}
             masterVolume={masterVolume}
             masterStereoAnalysers={stereoAnalysers}

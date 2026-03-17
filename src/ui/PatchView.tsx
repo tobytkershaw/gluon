@@ -1,12 +1,11 @@
 // src/ui/PatchView.tsx
 // Per-track node graph for signal chain and modulation routing (#158)
-// Scope: source -> processors -> output, plus modulation connections.
-// Does NOT show cross-track topology (bus sends, master bus routing) — see #561.
+// Scope: source -> processors -> output, plus modulation connections and send topology.
 // Port rendering from hardware I/O registry (#394)
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import type { Session, Track, ModulationRouting, ModulationTarget } from '../engine/types';
-import { getActiveTrack } from '../engine/types';
+import { getActiveTrack, getBusTracks } from '../engine/types';
 import { getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorControlIds } from '../audio/instrument-registry';
 import { getModulePortDef, getSourceModTargets } from '../audio/port-registry';
 import type { PortDef, PortSignalType } from '../audio/port-registry';
@@ -78,7 +77,7 @@ interface NodePos {
   y: number;
   label: string;
   sublabel: string;
-  kind: 'source' | 'processor' | 'modulator' | 'output';
+  kind: 'source' | 'processor' | 'modulator' | 'output' | 'send-dest';
   /** Adapter ID for port registry lookup */
   adapterId?: string;
   /** Computed node height (varies per module based on port count) */
@@ -894,16 +893,62 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const audioEdges = buildAudioEdges(nodes);
   const modEdges = buildModEdges(nodes, track.modulations ?? [], targetPorts);
 
+  // Send destination nodes — show where this track's audio is routed
+  const sends = track.sends ?? [];
+  const busTracks = getBusTracks(session);
+  const sendNodes = useMemo(() => {
+    if (sends.length === 0) return [];
+    const outputNode = nodes.find(n => n.kind === 'output');
+    if (!outputNode) return [];
+    const startX = outputNode.x + OUTPUT_R * 2 + NODE_GAP / 2;
+    const SEND_NODE_W = 100;
+    const SEND_NODE_H = NODE_HEADER_H + 8;
+    return sends.map((send, i): NodePos => {
+      const bus = busTracks.find(b => b.id === send.busId);
+      return {
+        id: `send-${send.busId}`,
+        x: startX,
+        y: AUDIO_ROW_Y + i * (SEND_NODE_H + 12),
+        label: bus ? getTrackLabel(bus) : send.busId,
+        sublabel: `${Math.round(send.level * 100)}%`,
+        kind: 'send-dest',
+        h: SEND_NODE_H,
+        inputPorts: [],
+        outputPorts: [],
+      };
+    });
+  }, [sends, nodes, busTracks]);
+
+  // Edges from output to send destinations
+  const sendEdges = useMemo(() => {
+    if (sendNodes.length === 0) return [];
+    const outputNode = nodes.find(n => n.kind === 'output');
+    if (!outputNode) return [];
+    const outCx = outputNode.x + OUTPUT_R;
+    const outCy = outputNode.y + OUTPUT_R;
+    return sendNodes.map(sn => ({
+      id: sn.id,
+      x1: outCx,
+      y1: outCy,
+      x2: sn.x,
+      y2: sn.y + sn.h / 2,
+    }));
+  }, [sendNodes, nodes]);
+
+  // All nodes including send destinations
+  const allNodes = useMemo(() => [...nodes, ...sendNodes], [nodes, sendNodes]);
+
   // Compute SVG canvas size from node positions — extend for detail panels and port labels
-  const maxX = Math.max(...nodes.map(n => n.x + (n.kind === 'output' ? OUTPUT_R * 2 : NODE_W))) + PAD_X;
-  const maxY = Math.max(...nodes.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : n.h))) + PAD_Y + 60;
+  const allNodesForSize = allNodes;
+  const maxX = Math.max(...allNodesForSize.map(n => n.x + (n.kind === 'output' ? OUTPUT_R * 2 : n.kind === 'send-dest' ? 100 : NODE_W))) + PAD_X;
+  const maxY = Math.max(...allNodesForSize.map(n => n.y + (n.kind === 'output' ? OUTPUT_R * 2 : n.h))) + PAD_Y + 60;
 
   // Bounding box for fit-to-view
   const contentBounds = useMemo(() => {
-    if (nodes.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
+    if (allNodes.length === 0) return { minX: 0, minY: 0, maxX: 0, maxY: 0 };
     let minX = Infinity, minY = Infinity, bMaxX = -Infinity, bMaxY = -Infinity;
-    for (const n of nodes) {
-      const w = n.kind === 'output' ? OUTPUT_R * 2 : NODE_W;
+    for (const n of allNodes) {
+      const w = n.kind === 'output' ? OUTPUT_R * 2 : n.kind === 'send-dest' ? 100 : NODE_W;
       const h = n.kind === 'output' ? OUTPUT_R * 2 : n.h;
       minX = Math.min(minX, n.x);
       minY = Math.min(minY, n.y);
@@ -911,7 +956,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       bMaxY = Math.max(bMaxY, n.y + h);
     }
     return { minX, minY, maxX: bMaxX, maxY: bMaxY };
-  }, [nodes]);
+  }, [allNodes]);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     // Middle-click, Space+click, or left-click on empty canvas starts panning
@@ -1210,6 +1255,17 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
               {audioEdges.map((e, i) => (
                 <AudioEdgeSvg key={`audio-${i}`} edge={e} />
               ))}
+              {/* Send edges — dashed lines from output to bus destinations */}
+              {sendEdges.map((e) => (
+                <line
+                  key={e.id}
+                  x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
+                  stroke="#71717a"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                  opacity={0.5}
+                />
+              ))}
             </svg>
 
             {/* Node layer */}
@@ -1225,6 +1281,23 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
                 dragState={dragState}
                 hoveredPortKey={hoveredPortKey}
               />
+            ))}
+
+            {/* Send destination nodes — read-only bus labels */}
+            {sendNodes.map(sn => (
+              <div
+                key={sn.id}
+                className="absolute rounded border border-zinc-700/60 bg-zinc-900/80 px-2 py-1 pointer-events-none"
+                style={{
+                  left: sn.x,
+                  top: sn.y,
+                  width: 100,
+                  height: sn.h,
+                }}
+              >
+                <div className="text-[9px] font-mono text-zinc-400 truncate">{sn.label}</div>
+                <div className="text-[7px] font-mono text-zinc-600">{sn.sublabel}</div>
+              </div>
             ))}
 
             {/* SVG modulation edge layer — container allows events; non-interactive children opt out */}

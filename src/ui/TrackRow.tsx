@@ -1,7 +1,8 @@
 // src/ui/TrackRow.tsx
 // Horizontal track row for the vertical track sidebar.
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Track, ApprovalLevel } from '../engine/types';
+import type { Track, ApprovalLevel, Send } from '../engine/types';
+import { getTrackLabel } from '../engine/track-labels';
 import { computeThumbprintColor } from './thumbprint';
 import { TrackLevelMeter } from './TrackLevelMeter';
 
@@ -32,6 +33,11 @@ interface Props {
   onRemove?: () => void;
   onSetImportance?: (importance: number) => void;
   onSetMusicalRole?: (role: string) => void;
+  /** Available bus tracks for send routing. */
+  busTracks?: Track[];
+  onAddSend?: (busId: string, level?: number) => void;
+  onRemoveSend?: (busId: string) => void;
+  onSetSendLevel?: (busId: string, level: number) => void;
 }
 
 export function TrackRow({
@@ -39,6 +45,7 @@ export function TrackRow({
   activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
   onRemove, onSetImportance, onSetMusicalRole,
+  busTracks, onAddSend, onRemoveSend, onSetSendLevel,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -259,6 +266,18 @@ export function TrackRow({
       {/* Per-track level meter */}
       {analyser && <TrackLevelMeter analyser={analyser} />}
 
+      {/* Expanded sends section (active non-master tracks only) */}
+      {isActive && !isMasterBus && onAddSend && busTracks && (
+        <SendSection
+          sends={track.sends ?? []}
+          busTracks={busTracks}
+          trackId={track.id}
+          onAddSend={onAddSend}
+          onRemoveSend={onRemoveSend}
+          onSetSendLevel={onSetSendLevel}
+        />
+      )}
+
       {/* Expanded metadata: importance + musical role (active non-bus tracks only) */}
       {isActive && !isBus && !isMasterBus && (onSetImportance || onSetMusicalRole) && (
         <div className="mt-1.5 space-y-1 px-0.5">
@@ -315,6 +334,106 @@ export function TrackRow({
             </div>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// --- Send routing section ---
+
+interface SendSectionProps {
+  sends: Send[];
+  busTracks: Track[];
+  trackId: string;
+  onAddSend?: (busId: string, level?: number) => void;
+  onRemoveSend?: (busId: string) => void;
+  onSetSendLevel?: (busId: string, level: number) => void;
+}
+
+function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSetSendLevel }: SendSectionProps) {
+  const [addOpen, setAddOpen] = useState(false);
+
+  // Bus targets that don't already have a send (and exclude self)
+  const availableBuses = busTracks.filter(
+    (bus) => bus.id !== trackId && !sends.some((s) => s.busId === bus.id),
+  );
+
+  return (
+    <div className="mt-1.5 px-0.5 space-y-0.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[7px] font-mono uppercase text-zinc-600 tracking-wider">Sends</span>
+        {availableBuses.length > 0 && onAddSend && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setAddOpen(!addOpen); }}
+            className="text-[8px] font-mono text-zinc-600 hover:text-zinc-400 cursor-pointer transition-colors"
+            title="Add send"
+          >
+            +
+          </button>
+        )}
+      </div>
+
+      {/* Existing sends */}
+      {sends.map((send) => {
+        const bus = busTracks.find((b) => b.id === send.busId);
+        const busLabel = bus ? getTrackLabel(bus) : send.busId;
+        return (
+          <div key={send.busId} className="flex items-center gap-1">
+            <span className="text-[8px] font-mono text-zinc-500 w-10 truncate shrink-0" title={busLabel}>
+              {busLabel}
+            </span>
+            {onSetSendLevel && (
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={send.level}
+                onChange={(e) => { e.stopPropagation(); onSetSendLevel(send.busId, parseFloat(e.target.value)); }}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 h-1 accent-zinc-500 cursor-pointer"
+                title={`Send level: ${Math.round(send.level * 100)}%`}
+                aria-label={`Send level to ${busLabel}`}
+              />
+            )}
+            <span className="text-[7px] font-mono text-zinc-600 w-4 text-right shrink-0 tabular-nums">
+              {Math.round(send.level * 100)}
+            </span>
+            {onRemoveSend && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRemoveSend(send.busId); }}
+                className="text-[8px] font-mono text-zinc-700 hover:text-red-400 cursor-pointer transition-colors shrink-0"
+                title={`Remove send to ${busLabel}`}
+              >
+                x
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Add send dropdown */}
+      {addOpen && availableBuses.length > 0 && (
+        <div className="bg-zinc-900 border border-zinc-700 rounded p-0.5 space-y-0.5">
+          {availableBuses.map((bus) => (
+            <button
+              key={bus.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSend?.(bus.id);
+                setAddOpen(false);
+              }}
+              className="w-full text-left text-[8px] font-mono text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded px-1 py-0.5 cursor-pointer transition-colors"
+            >
+              {getTrackLabel(bus)}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Empty state */}
+      {sends.length === 0 && !addOpen && (
+        <span className="text-[7px] font-mono text-zinc-700 italic">No sends</span>
       )}
     </div>
   );
