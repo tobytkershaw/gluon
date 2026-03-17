@@ -153,6 +153,151 @@ describe('TrackerRow', () => {
     expect(screen.getByText('C-4')).toBeTruthy();
   });
 
+  // --- Text-first note editing (#541) ---
+
+  it('typing into an empty cell creates a note at the typed pitch', () => {
+    const onAddNote = vi.fn();
+
+    render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({ step: 2 })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead={false}
+            showBeatSeparator={false}
+            onUpdate={vi.fn()}
+            onAddNote={onAddNote}
+          />
+        </tbody>
+      </table>,
+    );
+
+    // Click the empty --- cell to enter edit mode
+    fireEvent.click(screen.getByText('---'));
+
+    // Should now be in edit mode with an input
+    const input = screen.getByDisplayValue('---');
+    expect(input).toBeTruthy();
+
+    // Type a note name
+    fireEvent.change(input, { target: { value: 'E-4' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    // Should call onAddNote with step and parsed pitch
+    expect(onAddNote).toHaveBeenCalledWith(2, 64); // E4 = MIDI 64
+  });
+
+  it('committing empty text on an empty cell is a no-op', () => {
+    const onAddNote = vi.fn();
+
+    render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({ step: 0 })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead={false}
+            showBeatSeparator={false}
+            onUpdate={vi.fn()}
+            onAddNote={onAddNote}
+          />
+        </tbody>
+      </table>,
+    );
+
+    // Click the empty cell, clear the text, and commit
+    fireEvent.click(screen.getByText('---'));
+    const input = screen.getByDisplayValue('---');
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    // Should NOT call onAddNote
+    expect(onAddNote).not.toHaveBeenCalled();
+  });
+
+  it('clearing text on an existing note deletes it', () => {
+    const onUpdate = vi.fn();
+    const onDelete = vi.fn();
+    const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };
+
+    render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({
+              step: 0,
+              notes: [note],
+              allEvents: [note],
+              eventIndices: [0],
+              hasGate: true,
+            })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead={false}
+            showBeatSeparator={false}
+            onUpdate={onUpdate}
+            onDelete={onDelete}
+          />
+        </tbody>
+      </table>,
+    );
+
+    // Click the note to edit it
+    fireEvent.click(screen.getByText('C-4'));
+    const input = screen.getByDisplayValue('C-4');
+
+    // Clear and commit
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    // Should call onDelete, not onUpdate
+    expect(onDelete).toHaveBeenCalledWith({ at: 0, kind: 'note', pitch: 60 });
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
+  it('typing over an existing note changes its pitch', () => {
+    const onUpdate = vi.fn();
+    const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };
+
+    render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({
+              step: 0,
+              notes: [note],
+              allEvents: [note],
+              eventIndices: [0],
+              hasGate: true,
+            })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead={false}
+            showBeatSeparator={false}
+            onUpdate={onUpdate}
+          />
+        </tbody>
+      </table>,
+    );
+
+    // Click the note to edit
+    fireEvent.click(screen.getByText('C-4'));
+    const input = screen.getByDisplayValue('C-4');
+
+    // Type a new pitch
+    fireEvent.change(input, { target: { value: 'G-5' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    // Should update the pitch (G5 = MIDI 79)
+    expect(onUpdate).toHaveBeenCalledWith(
+      { at: 0, kind: 'note', pitch: 60 },
+      { pitch: 79 },
+    );
+  });
+
   it('derives FX columns from parameter events in the pattern', async () => {
     const { Tracker } = await import('../../src/ui/Tracker');
     const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };

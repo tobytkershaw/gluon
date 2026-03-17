@@ -21,8 +21,8 @@ interface Props {
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
   onAddParamEvent?: (at: number, controlId: string, value: number) => void;
-  /** Callback to add a note event at a given step. */
-  onAddNote?: (step: number) => void;
+  /** Callback to add a note event at a given step, optionally with a specific pitch. */
+  onAddNote?: (step: number, pitch?: number) => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
   /** Whether this row has the keyboard cursor. */
@@ -96,6 +96,7 @@ function selectorFromEvent(event: MusicalEvent): EventSelector {
 function EditableCell({
   value,
   onCommit,
+  onDelete,
   className,
   parse,
   cancelEditRef,
@@ -104,6 +105,8 @@ function EditableCell({
 }: {
   value: string;
   onCommit: (v: number) => void;
+  /** Called when the user commits empty or invalid text (clears the cell). */
+  onDelete?: () => void;
   className?: string;
   parse?: (s: string) => number;
   /** When true on blur, discard the draft instead of committing. */
@@ -132,6 +135,14 @@ function EditableCell({
   }, [editRequested, startEdit]);
 
   const tryCommit = useCallback(() => {
+    // Empty text → delete the note/event
+    const trimmed = draft.trim();
+    if (trimmed === '' || trimmed === '---') {
+      setEditing(false);
+      setInvalid(false);
+      if (onDelete) onDelete();
+      return;
+    }
     if (validate && !validate(draft)) {
       // Flash red
       setInvalid(true);
@@ -143,7 +154,7 @@ function EditableCell({
     setInvalid(false);
     const parsed = parse ? parse(draft) : parseFloat(draft);
     if (!isNaN(parsed)) onCommit(parsed);
-  }, [draft, onCommit, parse, validate]);
+  }, [draft, onCommit, onDelete, parse, validate]);
 
   const cancel = useCallback(() => {
     setEditing(false);
@@ -202,6 +213,7 @@ function NoteColumnCell({
   step,
   editable,
   onUpdate,
+  onDelete,
   onAddNote,
   cancelEditRef,
   editRequested,
@@ -211,23 +223,35 @@ function NoteColumnCell({
   step: number;
   editable: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
-  onAddNote?: (step: number) => void;
+  onDelete?: (selector: EventSelector) => void;
+  onAddNote?: (step: number, pitch?: number) => void;
   cancelEditRef?: MutableRefObject<boolean>;
   editRequested?: number;
   isCursor: boolean;
 }) {
+  // --- Empty cell: type to add a note ---
   if (!note) {
-    return (
-      <span
-        className={`text-zinc-700 ${onAddNote ? 'cursor-pointer hover:text-zinc-500' : ''}`}
-        onClick={onAddNote ? () => onAddNote(step) : undefined}
-        title={onAddNote ? `Add note at step ${step}` : undefined}
-      >
-        ---
-      </span>
-    );
+    if (editable && onAddNote) {
+      return (
+        <EditableCell
+          value="---"
+          className="text-zinc-700"
+          onCommit={(pitch) => onAddNote(step, Math.max(0, Math.min(127, pitch)))}
+          parse={parseNoteName}
+          validate={(s) => {
+            const trimmed = s.trim();
+            if (trimmed === '' || trimmed === '---') return true; // allow clearing (no-op for empty)
+            return !isNaN(parseNoteName(s));
+          }}
+          cancelEditRef={cancelEditRef}
+          editRequested={isCursor ? editRequested : undefined}
+        />
+      );
+    }
+    return <span className="text-zinc-700">---</span>;
   }
 
+  // --- Existing note: edit pitch, clear to delete ---
   const selector = selectorFromEvent(note);
   const noteUngated = note.velocity === 0;
 
@@ -237,8 +261,13 @@ function NoteColumnCell({
         <EditableCell
           value={midiToNoteName(note.pitch)}
           onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
+          onDelete={onDelete ? () => onDelete(selector) : undefined}
           parse={parseNoteName}
-          validate={(s) => !isNaN(parseNoteName(s))}
+          validate={(s) => {
+            const trimmed = s.trim();
+            if (trimmed === '' || trimmed === '---') return true; // allow clearing → delete
+            return !isNaN(parseNoteName(s));
+          }}
           cancelEditRef={cancelEditRef}
           editRequested={isCursor ? editRequested : undefined}
         />
@@ -371,6 +400,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             step={slot.step}
             editable={editable}
             onUpdate={onUpdate}
+            onDelete={onDelete}
             onAddNote={onAddNote}
             cancelEditRef={cancelEditRef}
             editRequested={noteEditReq}
