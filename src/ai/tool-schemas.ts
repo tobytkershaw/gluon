@@ -639,6 +639,40 @@ const simplifyChainTool: ToolSchema = {
   },
 };
 
+const manageTrackTool: ToolSchema = {
+  name: 'manage_track',
+  description:
+    'Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Takes effect after this response.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['add', 'remove'],
+        description: 'Operation to perform.',
+      },
+      kind: {
+        type: 'string',
+        enum: ['audio', 'bus'],
+        description: 'Required for add. Type of track to create.',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Required for remove. The track ID to remove (visible in project state).',
+      },
+      label: {
+        type: 'string',
+        description: 'Optional display name for the new track (e.g. "Kick", "Reverb Bus").',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description (e.g. "add audio track for bass line").',
+      },
+    },
+    required: ['action', 'description'],
+  },
+};
+
 const raiseDecisionTool: ToolSchema = {
   name: 'raise_decision',
   description:
@@ -722,6 +756,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setTrackMetaTool,
   explainChainTool,
   simplifyChainTool,
+  manageTrackTool,
   raiseDecisionTool,
   reportBugTool,
 ];

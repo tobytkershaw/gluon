@@ -31,6 +31,7 @@ const PARITY_OK_TOOLS = new Set([
   'manage_modulator',  // Rack: Module Browser (add), Remove button (remove)
   'modulation_route',  // Patch: port drag to connect, edge select + Delete to disconnect, DraggableNumber for depth
   'manage_view',       // Surface: + Step Grid (add), remove button (remove)
+  'manage_track',      // Sidebar: + Track button (add), remove button (remove)
 ]);
 
 // Tools with identified parity gaps (no or partial UI path).

@@ -11,6 +11,7 @@ import { normalizePatternEvents, validatePattern } from './region-helpers';
 import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
+import { addTrack, removeTrack } from './session';
 
 /**
  * Extract sorted rhythm positions (the `at` values of note and trigger events)
@@ -443,6 +444,18 @@ export function prevalidateAction(
     case 'raise_decision':
       // No side-effect guards needed — raise_decision only appends to openDecisions
       return null;
+
+    case 'add_track':
+      // No agency check — adding a new track doesn't mutate existing state
+      return null;
+
+    case 'remove_track': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `Track ${action.trackId} has agency OFF`;
+      if (track.approval === 'anchor') return `Track ${action.trackId} has anchor approval — cannot remove`;
+      return null;
+    }
 
     case 'report_bug':
       // No side-effect guards needed — report_bug only appends to bugReports
@@ -1589,6 +1602,38 @@ export function executeOperations(
         };
         next = { ...next, openDecisions: [...unresolved, newDecision].slice(-20) };
         log.push({ trackId: '', trackLabel: 'DECISION', description: `raised: ${action.question}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'add_track': {
+        const result = addTrack(next, action.kind);
+        if (!result) {
+          rejected.push({ op: action, reason: 'Max track limit reached' });
+          break;
+        }
+        next = result;
+        // If a label was provided, set it on the newly created track
+        if (action.label) {
+          const newTrackId = result.activeTrackId;
+          next = updateTrack(next, newTrackId, { label: action.label });
+        }
+        const addedTrackId = next.activeTrackId;
+        const addedLabel = getTrackLabel(getTrack(next, addedTrackId)).toUpperCase();
+        log.push({ trackId: addedTrackId, trackLabel: addedLabel, description: `added ${action.kind} track` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'remove_track': {
+        const result = removeTrack(next, action.trackId);
+        if (!result) {
+          rejected.push({ op: action, reason: `Cannot remove track ${action.trackId}` });
+          break;
+        }
+        const removedLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        next = result;
+        log.push({ trackId: action.trackId, trackLabel: removedLabel, description: 'removed track' });
         accepted.push(action);
         break;
       }
