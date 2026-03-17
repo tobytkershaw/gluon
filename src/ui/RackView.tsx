@@ -143,8 +143,8 @@ export function RackView({
         </div>
       )}
 
-      {/* Module grid: wrap left-to-right, vertical scroll */}
-      <div className="flex flex-wrap gap-3 items-start">
+      {/* Module grid: wrap left-to-right, centered horizontally */}
+      <div className="flex flex-wrap gap-3 items-start justify-center">
         {/* Source module panel */}
         <ModulePanel
           label={sourceLabel}
@@ -240,15 +240,24 @@ export function RackView({
           );
         })}
 
-        {/* Add module button (fits in the grid flow, matches uniform module height) */}
+        {/* Add module button — wider hint when chain is empty, compact when populated */}
         <button
           type="button"
           onClick={() => setBrowserOpen(true)}
-          className="flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50 transition-colors"
-          style={{ minWidth: 148, height: 572 }}
+          className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed transition-colors ${
+            processors.length === 0 && modulators.length === 0
+              ? 'border-zinc-700/40 text-zinc-600 hover:text-zinc-400 hover:border-zinc-600/50 bg-zinc-800/20'
+              : 'border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50'
+          }`}
+          style={{ minWidth: processors.length === 0 && modulators.length === 0 ? 220 : 148, height: 572 }}
         >
           <span className="text-xl leading-none">+</span>
           <span className="text-[9px] font-mono uppercase tracking-wider">Add Module</span>
+          {processors.length === 0 && modulators.length === 0 && (
+            <span className="text-[8px] text-zinc-600 mt-1 max-w-[160px] text-center leading-tight">
+              Add processors and modulators to build your signal chain
+            </span>
+          )}
         </button>
       </div>
 
