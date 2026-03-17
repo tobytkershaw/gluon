@@ -33,6 +33,10 @@ This report is the running record for the current full-system audit. Each comple
 - [#568](https://github.com/tobytkershaw/gluon/issues/568) Browser/runtime failure-mode and degraded-state audit
 - [#642](https://github.com/tobytkershaw/gluon/issues/642) Fence project lifecycle loads and surface degraded persistence failures honestly
 - [#643](https://github.com/tobytkershaw/gluon/issues/643) Make audio runtime degradation explicit and user-visible
+- [#648](https://github.com/tobytkershaw/gluon/issues/648) Run a hands-on Playwright UI audit of the current product
+- [#650](https://github.com/tobytkershaw/gluon/issues/650) Clarify AI/chat readiness and collaboration entry point in the main workspace
+- [#651](https://github.com/tobytkershaw/gluon/issues/651) Make tracker note entry and cell editing behave like a trustworthy musical grid
+- [#652](https://github.com/tobytkershaw/gluon/issues/652) Fix first-run UI flow and default landing experience
 - [#569](https://github.com/tobytkershaw/gluon/issues/569) End-to-end composition walkthrough audit
 - [#571](https://github.com/tobytkershaw/gluon/issues/571) Performance and resource lifecycle audit
 - [#572](https://github.com/tobytkershaw/gluon/issues/572) Docs/status/roadmap truthfulness audit
@@ -136,6 +140,7 @@ These are recommended after the current stabilization sequence, not before it:
 | Persistence / undo | Complete | Findings filed |
 | AI action contract | Complete | Findings filed |
 | Browser / runtime failure modes | Complete | Findings filed |
+| Hands-on UI audit | Complete | Findings filed |
 
 ---
 
@@ -346,15 +351,15 @@ These are recommended after the current stabilization sequence, not before it:
 
 ### Findings
 
-1. `P0` Source-engine degradation is still silent at the product layer. Plaits source init failure falls back to `WebAudioSynth` with only a console warning in [create-synth.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/audio/create-synth.ts#L11), and the only automated coverage locks in the fallback rather than requiring explicit degraded-state visibility in [create-synth.test.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/tests/audio/create-synth.test.ts#L35).
+1. `P0` Source-engine degradation is still silent at the product layer. Plaits source init failure falls back to `WebAudioSynth` with only a console warning in `src/audio/create-synth.ts`, and the only automated coverage locks in the fallback rather than requiring explicit degraded-state visibility in `tests/audio/create-synth.test.ts`.
 
-2. `P0` Async processor/modulator init failures are not surfaced honestly. The UI adds tracks, processors, and modulators with `void ... .then(...)` chains in [App.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/App.tsx#L245), [App.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/App.tsx#L349), and [App.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/App.tsx#L405) with no rejection handling, while the engine-side constructors for Rings, Clouds, and Tides can reject during WASM/worklet init in [audio-engine.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/audio/audio-engine.ts#L744) and [audio-engine.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/audio/audio-engine.ts#L894). I infer these failures currently become console/unhandled-promise behavior rather than visible degraded state.
+2. `P0` Async processor/modulator init failures are not surfaced honestly. The UI adds tracks, processors, and modulators with `void ... .then(...)` chains in `src/ui/App.tsx` with no rejection handling, while the engine-side constructors for Rings, Clouds, and Tides can reject during WASM/worklet init in `src/audio/audio-engine.ts`. I infer these failures currently become console/unhandled-promise behavior rather than visible degraded state.
 
-3. `P1` Persistence degraded mode is only partially honest. On IndexedDB init failure, `useProjectLifecycle()` drops to an in-memory session plus `saveStatus = 'error'` in [useProjectLifecycle.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/useProjectLifecycle.ts#L104), and the UI reduces that to a save-error dot titled “Save failed — working in memory” in [ProjectMenu.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/ProjectMenu.tsx#L214). But most project actions still target IndexedDB-backed flows and are not represented as unavailable or degraded.
+3. `P1` Persistence degraded mode is only partially honest. On IndexedDB init failure, `useProjectLifecycle()` drops to an in-memory session plus `saveStatus = 'error'` in `src/ui/useProjectLifecycle.ts`, and the UI reduces that to a save-error dot titled “Save failed — working in memory” in `src/ui/ProjectMenu.tsx`. But most project actions still target IndexedDB-backed flows and are not represented as unavailable or degraded.
 
-4. `P1` Project lifecycle actions are not fenced or surfaced consistently under failure. `loadProjectById()` has no request token or stale-response guard in [useProjectLifecycle.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/useProjectLifecycle.ts#L89), so rapid switch/duplicate/delete flows can race. `ProjectMenu` only awaits import; `new/open/duplicate/delete/export` are fire-and-forget in [ProjectMenu.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/ui/ProjectMenu.tsx#L129), which means action failures can disappear into unhandled rejections rather than user-visible feedback.
+4. `P1` Project lifecycle actions are not fenced or surfaced consistently under failure. `loadProjectById()` has no request token or stale-response guard in `src/ui/useProjectLifecycle.ts`, so rapid switch/duplicate/delete flows can race. `ProjectMenu` only awaits import; `new/open/duplicate/delete/export` are fire-and-forget in `src/ui/ProjectMenu.tsx`, which means action failures can disappear into unhandled rejections rather than user-visible feedback.
 
-5. `P2` Failure-path coverage is narrow and creates false confidence. Current tests prove that source fallback exists, IndexedDB migration works, and scheduler skips work during suspend in [create-synth.test.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/tests/audio/create-synth.test.ts#L16), [useProjectLifecycle.test.tsx](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/tests/ui/useProjectLifecycle.test.tsx#L34), and [scheduler.test.ts](/Users/tobykershaw/Development/gluon/.codex-worktrees/audit-568-failure-modes/src/engine/scheduler.test.ts#L46). They do not lock in degraded-state visibility, stale-load fencing, or async module-init failure handling.
+5. `P2` Failure-path coverage is narrow and creates false confidence. Current tests prove that source fallback exists, IndexedDB migration works, and scheduler skips work during suspend in `tests/audio/create-synth.test.ts`, `tests/ui/useProjectLifecycle.test.tsx`, and `src/engine/scheduler.test.ts`. They do not lock in degraded-state visibility, stale-load fencing, or async module-init failure handling.
 
 ### Orthodoxy alignment
 
@@ -374,3 +379,65 @@ These are recommended after the current stabilization sequence, not before it:
 
 - [#642](https://github.com/tobytkershaw/gluon/issues/642) `Fence project lifecycle loads and surface degraded persistence failures honestly`
 - [#643](https://github.com/tobytkershaw/gluon/issues/643) `Make audio runtime degradation explicit and user-visible`
+
+---
+
+## 7. Hands-On Playwright UI Audit
+
+### Scope
+
+Manual browser audit performed against the live app using Playwright-driven clicks, key presses, view switches, and screenshots. The audit stayed on the real interaction path and did not use JS state mutation shortcuts.
+
+### Screenshots
+
+- [01-initial-shell.png](ui-audit-2026-03/01-initial-shell.png)
+- [02-project-menu.png](ui-audit-2026-03/02-project-menu.png)
+- [03-tracker-default.png](ui-audit-2026-03/03-tracker-default.png)
+- [04-rack-no-source.png](ui-audit-2026-03/04-rack-no-source.png)
+- [05-rack-source-picker.png](ui-audit-2026-03/05-rack-source-picker.png)
+- [06-rack-source-selected.png](ui-audit-2026-03/06-rack-source-selected.png)
+- [07-tracker-cell-editing.png](ui-audit-2026-03/07-tracker-cell-editing.png)
+- [08-tracker-playing-with-invalid-cell.png](ui-audit-2026-03/08-tracker-playing-with-invalid-cell.png)
+- [09-patch-playing.png](ui-audit-2026-03/09-patch-playing.png)
+- [10-send-picker.png](ui-audit-2026-03/10-send-picker.png)
+- [11-send-added.png](ui-audit-2026-03/11-send-added.png)
+
+### Product alignment
+
+| Layer | Assessment |
+| --- | --- |
+| Planned | Canonical workbench views should be trustworthy, source setup should be legible, and chat should read as a clear collaboration entry point. |
+| Claimed | The app shell presents Surface, Rack, Patch, Tracker, transport, project controls, and chat as one coherent product workspace. |
+| Implemented | Rack and Patch are materially usable; Tracker is visually legible but interaction semantics are shaky; Surface is still a building site; chat is hidden and under-explained until expanded. |
+| Required | A first-run user needs an obvious place to start, a clear source-setup path, a trustworthy tracker editing model, and an understandable collaboration entry point. |
+
+### Findings
+
+1. `P0` The first-run landing flow is misleading. The app lands in Surface even though Surface is not currently the clearest primary workflow, and the initial track has no source loaded. A new user has to discover Rack before Tracker/playback become materially useful. See [01-initial-shell.png](ui-audit-2026-03/01-initial-shell.png), [03-tracker-default.png](ui-audit-2026-03/03-tracker-default.png), and [04-rack-no-source.png](ui-audit-2026-03/04-rack-no-source.png).
+
+2. `P0` The live browser session silently degraded the audio engine while the UI continued to imply the intended source model was running. During source selection, the console reported repeated `Plaits init failed, falling back to WebAudioSynth` warnings, but the UI still presented `Plaits (Virtual Analog)` as if the intended engine were active.
+
+3. `P0` Tracker note entry is not trustworthy enough in live use. Clicking the first empty note cell immediately changed the cell state and focused a textbox; pressing `z` then changed the visible note cell to literal `Z`, making the tracker behave like raw text editing instead of a clear musical grid. Playback kept running while the grid showed invalid-looking content. See [07-tracker-cell-editing.png](ui-audit-2026-03/07-tracker-cell-editing.png) and [08-tracker-playing-with-invalid-cell.png](ui-audit-2026-03/08-tracker-playing-with-invalid-cell.png).
+
+4. `P1` The project shell under-explains persistence and destructive actions. The project menu exposes new, duplicate, export, import, delete, and WAV export, but most of the state context is compressed into a tiny save indicator dot in the title button. See [02-project-menu.png](ui-audit-2026-03/02-project-menu.png).
+
+5. `P1` Source setup is discoverable only after switching to Rack, and the initiating control label is poor. The underlying source picker is reasonable once open, but the trigger is a vague `Unknown` button that hides the real module vocabulary. See [04-rack-no-source.png](ui-audit-2026-03/04-rack-no-source.png) and [05-rack-source-picker.png](ui-audit-2026-03/05-rack-source-picker.png).
+
+6. `P1` The AI/chat entry point is under-signposted for first-run use. Expanding chat reveals API-key fields and a disabled prompt box, but there is little framing about whether collaboration is ready, blocked, or how central this panel is to the product. See [11-send-added.png](ui-audit-2026-03/11-send-added.png).
+
+7. `P2` Routing usability is better than the earlier code audit suggested. In live use, adding a send from the sidebar was straightforward and both the sidebar and Patch reflected the result coherently. This lowers the severity of “no human routing path” for the current product, though it does not remove broader topology-truth issues. See [10-send-picker.png](ui-audit-2026-03/10-send-picker.png) and [11-send-added.png](ui-audit-2026-03/11-send-added.png).
+
+### Orthodoxy alignment
+
+| Subsystem | Orthodox pattern | Gluon approach | Deviation class | Reason | Risk |
+| --- | --- | --- | --- | --- | --- |
+| First-run workbench | Land on the most trustworthy, legible primary workflow | lands on unfinished Surface path | pragmatic-temporary | historical default / unfinished transition | high |
+| Tracker editing | Explicit musical cell-edit model, not ambiguous text-entry behavior | tracker cells can drift into raw textbox semantics | unjustified | interaction model mismatch | high |
+| Collaboration entry | Clear visible collaboration panel or obvious setup/readiness state | hidden side panel with under-explained disabled state | pragmatic-temporary | product shell still evolving | medium |
+| Routing UI | Human-editable send workflow in the shell | better than expected; coherent enough in live use | justified | currently acceptable | low |
+
+### Filed issues
+
+- [#650](https://github.com/tobytkershaw/gluon/issues/650) `Clarify AI/chat readiness and collaboration entry point in the main workspace`
+- [#651](https://github.com/tobytkershaw/gluon/issues/651) `Make tracker note entry and cell editing behave like a trustworthy musical grid`
+- [#652](https://github.com/tobytkershaw/gluon/issues/652) `Fix first-run UI flow and default landing experience`
