@@ -291,9 +291,31 @@ export function AppShell({
 
       {/* Global footer bar */}
       <div className="flex items-center h-7 border-t border-zinc-800/50 shrink-0">
-        {/* Workstation footer: audio load + stereo meter */}
-        <div className="flex-1 flex items-center gap-2 px-3">
+        {/* Workstation footer: audio load + position + info + stereo meter */}
+        <div className="flex-1 flex items-center gap-3 px-3">
           <AudioLoadMeter audioContext={audioContext} />
+          <div className="w-px h-3 bg-zinc-800" />
+          {/* Playback position */}
+          <span className="text-[10px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
+            {(() => {
+              const beatsPerBar = timeSignatureNumerator || 4;
+              const currentBeat = globalStep + 1;
+              const bar = Math.floor((currentBeat - 1) / beatsPerBar) + 1;
+              const beat = ((currentBeat - 1) % beatsPerBar) + 1;
+              return `${String(bar).padStart(3, '\u2007')}:${beat}`;
+            })()}
+          </span>
+          <div className="w-px h-3 bg-zinc-800" />
+          {/* Transport mode */}
+          <span className="text-[10px] text-zinc-600 uppercase tracking-wider">
+            {transportMode === 'song' ? 'Song' : 'Pattern'}
+          </span>
+          <div className="w-px h-3 bg-zinc-800" />
+          {/* Track count */}
+          <span className="text-[10px] text-zinc-600">
+            {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
+          </span>
+          <div className="flex-1" />
           <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
         </div>
         {/* Chat toggle button */}
