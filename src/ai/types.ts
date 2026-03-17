@@ -1,5 +1,7 @@
 // src/ai/types.ts — Neutral provider interfaces for multi-model AI stack.
 
+import type { ChatMessage } from '../engine/types';
+
 /** Standard JSON Schema (draft-compatible subset used by OpenAI function calling). */
 export interface JsonSchema {
   type?: string;
@@ -85,6 +87,15 @@ export interface PlannerProvider {
   discardTurn(): void;
   trimHistory(maxExchanges: number): void;
   clearHistory(): void;
+
+  /**
+   * Restore conversational context from persisted chat messages.
+   * Called on project load to reconstruct the provider's in-memory history
+   * from the ChatMessage array stored in IndexedDB. Only the most recent
+   * exchanges are restored to avoid context bloat.
+   * Optional — providers that don't support it simply don't implement it.
+   */
+  restoreHistory?(messages: ChatMessage[]): void;
 }
 
 // ---------------------------------------------------------------------------
