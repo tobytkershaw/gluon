@@ -51,9 +51,8 @@ const ACCENT = {
 type AccentColor = keyof typeof ACCENT;
 
 // --- Uniform module height ---
-// All modules use the same compact height. Modules with many controls
-// go wider (more columns) rather than taller; overflow scrolls vertically.
-const MODULE_HEIGHT = 280;
+// All modules use the same 2U height for a consistent row baseline.
+const MODULE_HEIGHT = 572;
 
 // --- Large knob size for primary controls ---
 const LARGE_KNOB_SIZE = 52;
