@@ -22,6 +22,9 @@ interface Props {
   onRemoveTrack?: (trackId: string) => void;
   onSetImportance?: (trackId: string, importance: number) => void;
   onSetMusicalRole?: (trackId: string, role: string) => void;
+  onAddSend?: (trackId: string, busId: string, level?: number) => void;
+  onRemoveSend?: (trackId: string, busId: string) => void;
+  onSetSendLevel?: (trackId: string, busId: string, level: number) => void;
   maxTracks?: number;
   /** Audio engine ref for per-track analyser access. */
   audioEngine?: AudioEngine | null;
@@ -36,7 +39,9 @@ export function TrackList({
   tracks, activeTrackId, activityMap,
   onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency,
   onRenameTrack, onCycleApproval,
-  onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole, maxTracks = 16,
+  onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole,
+  onAddSend, onRemoveSend, onSetSendLevel,
+  maxTracks = 16,
   audioEngine, masterVolume, masterStereoAnalysers, onMasterVolumeChange,
 }: Props) {
   const canAdd = tracks.length < maxTracks;
@@ -49,6 +54,9 @@ export function TrackList({
 
   // Can only remove if more than 1 audio track remains (bus removal is separate)
   const canRemoveAudio = audioTracks.length > 1;
+
+  // All bus tracks (including master) for send target selection
+  const allBusTracks = ordered.filter(t => getTrackKind(t) === 'bus');
 
   const handleVolumeInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     onMasterVolumeChange?.(parseFloat(e.target.value));
@@ -113,6 +121,10 @@ export function TrackList({
             onRemove={onRemoveTrack && canRemoveAudio ? () => onRemoveTrack(track.id) : undefined}
             onSetImportance={onSetImportance ? (v) => onSetImportance(track.id, v) : undefined}
             onSetMusicalRole={onSetMusicalRole ? (r) => onSetMusicalRole(track.id, r) : undefined}
+            busTracks={allBusTracks}
+            onAddSend={onAddSend ? (busId, level) => onAddSend(track.id, busId, level) : undefined}
+            onRemoveSend={onRemoveSend ? (busId) => onRemoveSend(track.id, busId) : undefined}
+            onSetSendLevel={onSetSendLevel ? (busId, level) => onSetSendLevel(track.id, busId, level) : undefined}
           />
         ))}
 
@@ -137,6 +149,10 @@ export function TrackList({
             onToggleAgency={() => onToggleAgency(track.id)}
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
+            busTracks={allBusTracks}
+            onAddSend={onAddSend ? (busId, level) => onAddSend(track.id, busId, level) : undefined}
+            onRemoveSend={onRemoveSend ? (busId) => onRemoveSend(track.id, busId) : undefined}
+            onSetSendLevel={onSetSendLevel ? (busId, level) => onSetSendLevel(track.id, busId, level) : undefined}
           />
         ))}
       </div>
