@@ -4,13 +4,13 @@
 
 ## Where We Are
 
-Gluon now has a working cockpit as well as a working engine: 4-voice Plaits synthesis, Rings and Clouds processors, Tides modulation, canonical event sequencing, four navigable views (Surface, Rack, Patch, Tracker), project persistence, mix bus, offline listen, and AI-curated surface tools.
+Gluon now has a working cockpit as well as a working engine: Plaits synthesis, Rings and Clouds processors, Tides modulation, canonical event sequencing, four navigable views (Surface, Rack, Patch, Tracker), project persistence, mix bus, offline listen, and AI surface tooling.
 
-What it still cannot do well enough is collaborate over time with taste and memory. The next gap is not "show more controls" or "add another view" — it is teaching the AI to preserve approved material, reason about what matters, and size edits to the session's history.
+What it still does not do cleanly enough is hold one truthful contract across docs, UI, runtime, and AI. Collaboration quality improved substantially in M6, but the March 2026 audit found follow-on gaps around Surface honesty, routing usability, audio runtime parity, and degraded-mode robustness.
 
-The roadmap from here is therefore less about structural UI and more about collaboration quality.
+The roadmap from here is therefore not just "more collaboration quality." It is also about making the shipped workbench and documentation honest, robust, and orthodoxy-aligned before pushing further into new abstractions.
 
-**Completed:** Phases 1–3, M0–M6, Phase 4B (Tides modulation).
+**Completed foundations:** Phases 1–3, core M0 stabilisation fixes, major M5 workbench foundations, M6 collaboration systems, Phase 4B (Tides modulation).
 
 ---
 
@@ -35,9 +35,9 @@ Each phase has a clear product test — what can the user do at the end that the
 
 ## STABILIZE — M0: Stabilization
 
-**Status:** Complete.
+**Status:** Core stabilisation work landed; audit-driven follow-ons remain.
 
-M0 closed the blocker clusters that prevented Gluon from feeling like a reliable instrument: transport correctness, voice audibility, UI control stability, chain cleanup, stop/start behavior, and QA gate infrastructure. Follow-on fixes (pause vs hard stop, offline listen timing, chain rebuild smoothing, stop/start race fencing) also landed during late M5 work.
+M0 closed the initial blocker clusters that prevented Gluon from feeling like a reliable instrument: transport correctness, voice audibility, UI control stability, chain cleanup, stop/start behavior, and QA gate infrastructure. Later audit work also landed fixes for transport command/state separation, cursor-play behavior, parameter-timing drift, restore-path unification, and several live/offline audio-module parity gaps.
 
 **What M0 delivered:**
 - reliable play/stop/pause behavior
@@ -50,11 +50,11 @@ M0 closed the blocker clusters that prevented Gluon from feeling like a reliable
 
 ## WORKBENCH — M5: UI Layers
 
-**Status:** Complete.
+**Status:** Foundations landed; some product claims still need to be made honest.
 
 **Product test:** The human can navigate a complex project fluently — see all parameters, inspect wiring, save and reload, mix voices, and understand what the AI changed.
 
-M5 transformed the UI from scaffolding into a usable workbench and is now effectively closed.
+M5 transformed the UI from scaffolding into a usable workbench. The canonical views are strong, but the audit found that Surface and routing claims still overstate what the current UI really supports.
 
 ### 5A: Project Foundation
 
@@ -87,7 +87,7 @@ The human needs to see and control everything the AI can touch.
 - `docs/design-references.md` (on PR #165) — NI ecosystem, Bitwig, Reason, VCV Rack references
 
 **Dependencies:** 5A (layout foundation). Canonical model's ControlSchema.
-**Enables:** Human capability parity — the human can inspect and edit everything the AI can modify. AI-curated surfaces become possible once the ground-truth views exist.
+**Enables:** Near-parity for canonical views — the human can inspect most of what the AI can modify through Tracker, Rack, Patch, and chat-visible state. Full parity is still incomplete where the AI can manipulate Surface metadata that the UI does not yet make real.
 
 ### 5C: AI-Curated Surfaces (M5 Steps 5–7)
 
@@ -95,9 +95,9 @@ The AI configures what the human sees, not just what the instrument sounds like.
 
 | # | Issue | What |
 |---|-------|------|
-| 73 | Three-layer UI model | Structural foundation landed; remaining Surface ambition is now post-M5 follow-on work |
+| 73 | Three-layer UI model | Structural foundation landed; the current Surface tab is still a placeholder/hybrid rather than the full curated-surface model |
 
-**What this adds:**
+**What this is intended to add:**
 - Semantic controls (AI-chosen names and ranges for the current context)
 - Pin mechanism (human or AI pins important controls to the surface)
 - AI surface curation tools (configure XY axes, choose which controls to show)
@@ -105,7 +105,7 @@ The AI configures what the human sees, not just what the instrument sounds like.
 
 **Design docs:** `docs/rfcs/ai-curated-surfaces.md`
 **Dependencies:** 5B (ground-truth views must exist before projections over them).
-**Enables:** The AI becomes a UI designer, not just a sound designer. The human sees a curated, context-appropriate interface rather than raw parameter lists.
+**Reality check:** parts of this state exist in the model and AI tools, but the current UI does not yet make pinned controls and custom XY axes fully real. Treat this section as the intended direction, not as a claim that the shipped Surface already meets it.
 
 ### 5D: Sequencer Polish & Listen Tool
 
@@ -138,13 +138,13 @@ The AI configures what the human sees, not just what the instrument sounds like.
 - AI can evaluate audio offline with voice isolation
 - Human can understand AI actions from the chat history
 
-These criteria are now met by the current build.
+These criteria are mostly met for the canonical workbench views, persistence, and AI legibility. They are not fully met for the intended curated Surface model or for routing usability from the human UI.
 
 ---
 
 ## COLLABORATION — M6: AI Collaboration Quality
 
-**Status:** Complete.
+**Status:** Core systems landed and later contract-alignment fixes have also shipped.
 
 **Product test:** The AI calibrates its behavior to the session — avoids repeating rejected directions, preserves approved material, sizes its interventions appropriately, and asks when uncertain about taste.
 
@@ -259,9 +259,9 @@ Those are different bets and should not be collapsed into one phase heading.
 
 ## Surface Follow-On
 
-M5 delivered the structural Surface foundation: four-view navigation, semantic controls, surface templates, and AI surface tools. That does **not** mean Surface expression is finished.
+M5 delivered the structural Surface foundation: four-view navigation, semantic controls, surface templates, and AI surface tools. That does **not** mean the shipped Surface experience is yet the intended curated model.
 
-The next Surface-specific work is no longer core M5 plumbing; it is a follow-on stream that builds on the completed foundation.
+The next Surface-specific work is partly expressivity and partly contract honesty: the product needs to either realize or narrow the current Surface claim before layering richer visual language on top.
 
 ### Surface Expression
 
@@ -270,7 +270,7 @@ The next Surface-specific work is no longer core M5 plumbing; it is a follow-on 
 | Advanced Surface module library and performance-oriented compositions | `docs/rfcs/view-architecture.md` |
 | Surface visual language / Surface Score | `docs/briefs/visual-language.md` |
 
-**Framing:** canonical views (Tracker, Rack, Patch) stay exact and trustworthy. Surface is where project-responsive visual identity, performative emphasis, and bounded AI-authored expression can evolve.
+**Framing:** canonical views (Tracker, Rack, Patch) stay exact and trustworthy. Surface is where project-responsive visual identity, performative emphasis, and bounded AI-authored expression can evolve, but the current app still needs follow-on work to make Surface state real and trustworthy.
 
 **Why separate this from M5:** this is no longer foundational cockpit work. It is post-foundation Surface evolution that should not reopen the completed M5 exit criteria.
 
