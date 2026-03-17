@@ -50,8 +50,8 @@ interface Props {
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
   onAddParamEvent?: (at: number, controlId: string, value: number) => void;
-  /** Callback to add a note event at a given step. */
-  onAddNote?: (step: number) => void;
+  /** Callback to add a note event at a given step, optionally with a specific pitch. */
+  onAddNote?: (step: number, pitch?: number) => void;
   /** When true, in-progress inline edits should be discarded on blur. */
   cancelEditRef?: MutableRefObject<boolean>;
   /** Bulk delete events by indices (for cut/delete selection). */

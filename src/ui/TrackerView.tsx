@@ -122,9 +122,9 @@ export function TrackerView({
   const [renamingRegionId, setRenamingRegionId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
-  const handleAddNote = useCallback((step: number) => {
+  const handleAddNote = useCallback((step: number, pitch?: number) => {
     if (!onEventAdd) return;
-    const event: NoteEvent = { kind: 'note', at: step, pitch: 60, velocity: 0.8, duration: 1 };
+    const event: NoteEvent = { kind: 'note', at: step, pitch: pitch ?? 60, velocity: 0.8, duration: 1 };
     onEventAdd(step, event);
   }, [onEventAdd]);
 
