@@ -1,8 +1,9 @@
 // src/ui/RackView.tsx
 // Rack view: Eurorack-style vertical module panel grid for the active track.
-// Modules fill left to right in a flex-wrap container, wrapping to the next row
-// at the container edge. Each module is a vertical panel with large knobs for
-// primary controls, small knobs for secondary, selectors/toggles for mode pickers.
+// Modules flow left to right in a horizontal-scroll container (no wrapping),
+// preserving clear signal-flow direction: Source → Processors → Output.
+// Each module is a vertical panel with large knobs for primary controls,
+// small knobs for secondary, selectors/toggles for mode pickers.
 import { useState, useMemo } from 'react';
 import type { Track } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
@@ -125,8 +126,8 @@ export function RackView({
         </div>
       )}
 
-      {/* Module grid: flex-wrap left-to-right */}
-      <div className="flex flex-wrap gap-3 items-start">
+      {/* Module grid: horizontal scroll, no wrap — preserves signal flow direction */}
+      <div className="flex flex-nowrap gap-3 items-start overflow-x-auto pb-2">
         {/* Source module panel */}
         <ModulePanel
           label={sourceLabel}
@@ -222,7 +223,7 @@ export function RackView({
         <button
           type="button"
           onClick={() => setBrowserOpen(true)}
-          className="flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50 transition-colors"
+          className="flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50 transition-colors shrink-0"
           style={{ width: 168, height: 280 }}
         >
           <span className="text-xl leading-none">+</span>
