@@ -143,8 +143,8 @@ export function RackView({
         </div>
       )}
 
-      {/* Module grid: wrap left-to-right, centered horizontally */}
-      <div className="flex flex-wrap gap-3 items-start justify-center">
+      {/* Module grid: wrap left-to-right, filling like a physical rack */}
+      <div className="flex flex-wrap gap-3 items-start">
         {/* Source module panel */}
         <ModulePanel
           label={sourceLabel}
