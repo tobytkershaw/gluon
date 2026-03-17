@@ -10,8 +10,7 @@ import {
   importProject as importProjectInDB, migrateLegacySession,
   type ProjectMeta,
 } from '../engine/project-store';
-import { migrateTrack } from '../engine/persistence';
-import { DEFAULT_MASTER } from '../engine/types';
+import { restoreSession } from '../engine/persistence';
 
 const ACTIVE_KEY = 'gluon-active-project';
 const AUTOSAVE_DELAY = 500;
@@ -282,22 +281,5 @@ export function useProjectLifecycle(
     deleteActiveProject: deleteActiveProjectAction,
     exportActiveProject: exportActiveProjectAction,
     importProject: importProjectAction,
-  };
-}
-
-/** Restore transient fields and run track migration on load. */
-function restoreSession(session: Session): Session {
-  const transport = {
-    ...session.transport,
-    metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
-  };
-  return {
-    ...session,
-    tracks: session.tracks.map(migrateTrack),
-    master: session.master ?? { ...DEFAULT_MASTER },
-    transport,
-    undoStack: session.undoStack ?? [],
-    redoStack: session.redoStack ?? [],
-    recentHumanActions: session.recentHumanActions ?? [],
   };
 }

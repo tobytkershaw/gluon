@@ -241,6 +241,44 @@ export function saveSession(session: Session): void {
   }
 }
 
+/**
+ * Restore a persisted session into the normalized runtime shape expected by the app.
+ * This is the shared contract for legacy localStorage load, IndexedDB project load,
+ * and imported project files.
+ */
+export function restoreSession(session: Session, persistedVersion: number = CURRENT_VERSION): Session {
+  let migratedTracks = session.tracks.map(migrateTrack);
+
+  // Ensure a master bus exists across all persisted load paths.
+  if (!migratedTracks.some(t => t.id === MASTER_BUS_ID)) {
+    migratedTracks = [...migratedTracks, createBusTrack(MASTER_BUS_ID, 'Master')];
+  }
+
+  // Clear undo/redo on v5→v6 migration (old snapshots reference removed fields).
+  const clearUndo = persistedVersion < 6;
+  if (clearUndo) {
+    console.warn('[persistence] v5→v6 migration: clearing undo/redo stacks (old snapshots incompatible)');
+  }
+
+  return {
+    ...session,
+    transport: {
+      ...session.transport,
+      status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
+      metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
+      timeSignature: session.transport.timeSignature ?? { numerator: 4, denominator: 4 },
+      mode: session.transport.mode ?? 'pattern',
+    },
+    tracks: migratedTracks as Track[],
+    master: session.master ?? { ...DEFAULT_MASTER },
+    undoStack: clearUndo ? [] : (session.undoStack ?? []),
+    redoStack: clearUndo ? [] : (session.redoStack ?? []),
+    recentHumanActions: session.recentHumanActions ?? [],
+    reactionHistory: session.reactionHistory ?? [],
+    openDecisions: session.openDecisions ?? [],
+  };
+}
+
 export function loadSession(): Session | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -251,37 +289,7 @@ export function loadSession(): Session | null {
     if (data.version > CURRENT_VERSION) return null;
     if (!isValidSession(data.session)) return null;
 
-    const session = data.session;
-    let migratedTracks = session.tracks.map(migrateTrack);
-
-    // Ensure a master bus exists
-    if (!migratedTracks.some(t => t.id === MASTER_BUS_ID)) {
-      migratedTracks = [...migratedTracks, createBusTrack(MASTER_BUS_ID, 'Master')];
-    }
-
-    // Clear undo/redo on v5→v6 migration (old snapshots reference removed fields)
-    const clearUndo = data.version < 6;
-    if (clearUndo) {
-      console.warn('[persistence] v5→v6 migration: clearing undo/redo stacks (old snapshots incompatible)');
-    }
-
-    return {
-      ...session,
-      transport: {
-        ...session.transport,
-        status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
-        metronome: session.transport.metronome ?? { enabled: false, volume: 0.5 },
-        timeSignature: session.transport.timeSignature ?? { numerator: 4, denominator: 4 },
-        mode: session.transport.mode ?? 'pattern',
-      },
-      tracks: migratedTracks as Track[],
-      master: session.master ?? { ...DEFAULT_MASTER },
-      undoStack: clearUndo ? [] : (session.undoStack ?? []),
-      redoStack: clearUndo ? [] : (session.redoStack ?? []),
-      recentHumanActions: session.recentHumanActions ?? [],
-      reactionHistory: session.reactionHistory ?? [],
-      openDecisions: session.openDecisions ?? [],
-    };
+    return restoreSession(data.session, data.version);
   } catch {
     return null;
   }
