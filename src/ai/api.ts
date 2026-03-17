@@ -2,7 +2,7 @@
 
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, BugReport, BugCategory, BugSeverity } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack } from '../engine/types';
-import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName } from '../audio/instrument-registry';
+import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { resolveTrackId } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -1363,6 +1363,144 @@ export class GluonAI {
             ...(errors.length > 0 ? { errors } : {}),
           },
         };
+      }
+
+      case 'explain_chain': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        const explainTrackId = resolveTrackId(args.trackId as string, session);
+        if (!explainTrackId) {
+          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+        }
+        const explainTrack = getTrack(session, explainTrackId);
+
+        // Source description
+        const sourceName = getModelName(explainTrack.model);
+        const parts: string[] = [`Source: Plaits — ${sourceName} (engine ${explainTrack.model}).`];
+
+        // Source params that differ from 0.5 default
+        const sourceParamEntries = Object.entries(explainTrack.params)
+          .filter(([k, v]) => k !== 'note' && v !== undefined)
+          .map(([k, v]) => `${k}=${(v as number).toFixed(2)}`);
+        if (sourceParamEntries.length > 0) {
+          parts.push(`Source params: ${sourceParamEntries.join(', ')}.`);
+        }
+
+        // Processors
+        const processors = explainTrack.processors ?? [];
+        if (processors.length === 0) {
+          parts.push('No processors in the chain.');
+        } else {
+          for (const proc of processors) {
+            const procInst = getProcessorInstrument(proc.type);
+            const procLabel = procInst?.label ?? proc.type;
+            const modeName = getProcessorEngineName(proc.type, proc.model) ?? `mode ${proc.model}`;
+            const bypassStr = proc.enabled === false ? ' [BYPASSED]' : '';
+            const paramStrs = Object.entries(proc.params)
+              .map(([k, v]) => `${k}=${v.toFixed(2)}`)
+              .join(', ');
+            parts.push(`Processor: ${procLabel} (${modeName})${bypassStr}${paramStrs ? ` — ${paramStrs}` : ''}.`);
+          }
+        }
+
+        // Modulators and routings
+        const modulators = explainTrack.modulators ?? [];
+        const modulations = explainTrack.modulations ?? [];
+        if (modulators.length === 0) {
+          parts.push('No modulators.');
+        } else {
+          for (const mod of modulators) {
+            const modInst = getModulatorInstrument(mod.type);
+            const modLabel = modInst?.label ?? mod.type;
+            const modModeName = getModulatorEngineName(mod.type, mod.model) ?? `mode ${mod.model}`;
+            const modParamStrs = Object.entries(mod.params)
+              .map(([k, v]) => `${k}=${v.toFixed(2)}`)
+              .join(', ');
+            parts.push(`Modulator: ${modLabel} (${modModeName})${modParamStrs ? ` — ${modParamStrs}` : ''}.`);
+
+            // Routings from this modulator
+            const routes = modulations.filter(r => r.modulatorId === mod.id);
+            for (const route of routes) {
+              const targetDesc = route.target.kind === 'source'
+                ? `source.${route.target.param}`
+                : `processor(${route.target.processorId}).${route.target.param}`;
+              parts.push(`  → routed to ${targetDesc}, depth ${route.depth.toFixed(2)}.`);
+            }
+          }
+        }
+
+        return { actions: [], response: { trackId: explainTrackId, description: parts.join('\n') } };
+      }
+
+      case 'simplify_chain': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        const simplifyTrackId = resolveTrackId(args.trackId as string, session);
+        if (!simplifyTrackId) {
+          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+        }
+        const simplifyTrack = getTrack(session, simplifyTrackId);
+        const simplifyProcessors = simplifyTrack.processors ?? [];
+
+        const suggestions: string[] = [];
+
+        if (simplifyProcessors.length === 0) {
+          return { actions: [], response: { trackId: simplifyTrackId, suggestions: [], summary: 'No processors in the chain — nothing to simplify.' } };
+        }
+
+        // Check for bypassed processors
+        for (const proc of simplifyProcessors) {
+          if (proc.enabled === false) {
+            suggestions.push(`"${proc.id}" (${proc.type}) is bypassed — consider removing it if no longer needed.`);
+          }
+        }
+
+        // Check for default-valued processors (all params at default ~0.5 or empty)
+        for (const proc of simplifyProcessors) {
+          if (proc.enabled === false) continue; // already flagged
+          const procInst = getProcessorInstrument(proc.type);
+          if (!procInst || procInst.engines.length === 0) continue;
+          const controlDefs = procInst.engines[0].controls;
+          const allDefault = controlDefs.every(ctrl => {
+            const val = proc.params[ctrl.id];
+            const defaultVal = ctrl.range.default;
+            return val === undefined || Math.abs(val - defaultVal) < 0.01;
+          });
+          if (allDefault) {
+            suggestions.push(`"${proc.id}" (${proc.type}) has all parameters at defaults — it may not be contributing to the sound.`);
+          }
+        }
+
+        // Check for duplicate processor types
+        const typeCounts = new Map<string, string[]>();
+        for (const proc of simplifyProcessors) {
+          const ids = typeCounts.get(proc.type) ?? [];
+          ids.push(proc.id);
+          typeCounts.set(proc.type, ids);
+        }
+        for (const [type, ids] of typeCounts) {
+          if (ids.length > 1) {
+            suggestions.push(`Multiple ${type} processors: ${ids.join(', ')}. Consider whether all are needed.`);
+          }
+        }
+
+        // Check for unrouted modulators (modulators with no routing)
+        const simplifyModulators = simplifyTrack.modulators ?? [];
+        const simplifyModulations = simplifyTrack.modulations ?? [];
+        for (const mod of simplifyModulators) {
+          const hasRoute = simplifyModulations.some(r => r.modulatorId === mod.id);
+          if (!hasRoute) {
+            suggestions.push(`Modulator "${mod.id}" (${mod.type}) has no routings — it is not affecting any parameter.`);
+          }
+        }
+
+        const summary = suggestions.length === 0
+          ? 'Chain looks clean — no obvious redundancies found.'
+          : `Found ${suggestions.length} suggestion(s) for simplification.`;
+
+        return { actions: [], response: { trackId: simplifyTrackId, suggestions, summary } };
       }
 
       case 'raise_decision': {
