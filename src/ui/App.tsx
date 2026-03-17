@@ -1958,10 +1958,12 @@ export default function App() {
 
   // Detect fresh/empty session — no events in any audio track and no chat messages.
   // When true, show a welcome empty state instead of the normal view content.
-  const isSessionEmpty = session.messages.length === 0 &&
-    session.tracks
-      .filter(t => getTrackKind(t) === 'audio')
-      .every(t => t.patterns.every(p => p.events.length === 0));
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const audioTracks = session.tracks.filter(t => getTrackKind(t) === 'audio');
+  const isSessionEmpty = !welcomeDismissed &&
+    session.messages.length === 0 &&
+    audioTracks.length <= 1 &&
+    audioTracks.every(t => t.patterns.every(p => p.events.length === 0));
 
   return (
     <>
@@ -2079,6 +2081,7 @@ export default function App() {
             onSendPrompt={handleSend}
             chatOpen={chatOpen}
             onOpenChat={() => setChatOpen(true)}
+            onDismiss={() => setWelcomeDismissed(true)}
           />
         )}
         {!isSessionEmpty && view === 'surface' && (
