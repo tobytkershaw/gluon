@@ -26,12 +26,12 @@ const PARITY_OK_TOOLS = new Set([
   'sketch',            // Step grid (triggers), keyboard piano (notes) — partial: no param events
   'manage_processor',  // Rack: Module Browser (add), Remove button (remove) — replace has no UI but add/remove do
   'manage_modulator',  // Rack: Module Browser (add), Remove button (remove)
+  'modulation_route',  // Patch: port drag to connect, edge select + Delete to disconnect, DraggableNumber for depth
   'manage_view',       // Surface: + Step Grid (add), remove button (remove)
 ]);
 
 // Tools with identified parity gaps (no or partial UI path).
 const PARITY_GAP_TOOLS = new Set([
-  'modulation_route',    // CRITICAL: connect has no UI (disconnect does via routing chip)
   'transform',           // CRITICAL: no rotate/transpose/reverse/duplicate UI
   'set_surface',         // MODERATE: AI-only surface authoring
   'pin_control',         // MODERATE: no UI to pin/unpin controls
@@ -63,9 +63,9 @@ describe('Human Capability Parity', () => {
 
   it('documents the expected number of parity gaps', () => {
     // Update this count when gaps are closed or new ones discovered.
-    // Current gaps: modulation_route, transform, set_surface,
+    // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta
-    expect(PARITY_GAP_TOOLS.size).toBe(6);
+    expect(PARITY_GAP_TOOLS.size).toBe(5);
   });
 
   it('documents the expected number of AI-only tools', () => {
@@ -73,10 +73,10 @@ describe('Human Capability Parity', () => {
   });
 
   it('most musical tools have UI parity', () => {
-    // At least 7 of the 13 non-AI-only tools should have parity
+    // At least 8 of the 13 non-AI-only tools should have parity
     const nonAiTools = AI_TOOL_NAMES.filter(n => !AI_ONLY_TOOLS.has(n));
     const parityCount = nonAiTools.filter(n => PARITY_OK_TOOLS.has(n)).length;
-    expect(parityCount).toBeGreaterThanOrEqual(7);
+    expect(parityCount).toBeGreaterThanOrEqual(8);
   });
 
   // --- Structural checks: verify UI component exports exist ---
