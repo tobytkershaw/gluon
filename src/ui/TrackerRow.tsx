@@ -238,15 +238,6 @@ function NoteColumnCell({
     return (
       <span className="text-amber-400 font-bold">
         TRG
-        {editable && onDelete && (
-          <button
-            className="ml-1 text-zinc-700 hover:text-red-400 text-[9px]"
-            onClick={() => onDelete(selector)}
-            title="Delete trigger"
-          >
-            x
-          </button>
-        )}
       </span>
     );
   }
