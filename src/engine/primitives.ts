@@ -240,7 +240,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'sequence-edit') {
-    return updateTrack(session, snapshot.trackId, { sequence: snapshot.prevSequence });
+    return updateTrack(session, snapshot.trackId, { sequence: snapshot.prevSequence, _patternDirty: true });
   }
 
   if (snapshot.kind === 'ab-restore') {

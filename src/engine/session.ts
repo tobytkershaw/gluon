@@ -874,7 +874,7 @@ export function addPatternRef(session: Session, trackId: string, patternId: stri
   };
 
   const newSequence = [...track.sequence, { patternId }];
-  const result = updateTrack(session, trackId, { sequence: newSequence });
+  const result = updateTrack(session, trackId, { sequence: newSequence, _patternDirty: true });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
@@ -897,7 +897,7 @@ export function removePatternRef(session: Session, trackId: string, sequenceInde
   };
 
   const newSequence = track.sequence.filter((_, i) => i !== sequenceIndex);
-  const result = updateTrack(session, trackId, { sequence: newSequence });
+  const result = updateTrack(session, trackId, { sequence: newSequence, _patternDirty: true });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
@@ -923,7 +923,7 @@ export function reorderPatternRef(session: Session, trackId: string, fromIndex: 
   const newSequence = [...track.sequence];
   const [moved] = newSequence.splice(fromIndex, 1);
   newSequence.splice(toIndex, 0, moved);
-  const result = updateTrack(session, trackId, { sequence: newSequence });
+  const result = updateTrack(session, trackId, { sequence: newSequence, _patternDirty: true });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 

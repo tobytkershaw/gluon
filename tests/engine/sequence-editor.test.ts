@@ -51,6 +51,15 @@ describe('addPatternRef', () => {
     expect(undoneTrack.sequence).toEqual(prevSequence);
   });
 
+  it('marks track dirty for scheduler invalidation', () => {
+    const { session, trackId } = setupSession();
+    const track = getTrack(session, trackId);
+    const patternId = track.patterns[0].id;
+
+    const result = addPatternRef(session, trackId, patternId);
+    expect(getTrack(result, trackId)._patternDirty).toBe(true);
+  });
+
   it('no-ops if track does not exist', () => {
     const { session } = setupSession();
     const result = addPatternRef(session, 'nonexistent', 'whatever');
@@ -85,6 +94,12 @@ describe('removePatternRef', () => {
 
     const result = removePatternRef(session, trackId, 0);
     expect(result).toBe(session); // should be unchanged
+  });
+
+  it('marks track dirty for scheduler invalidation', () => {
+    const { session, trackId } = setupSession();
+    const result = removePatternRef(session, trackId, 0);
+    expect(getTrack(result, trackId)._patternDirty).toBe(true);
   });
 
   it('no-ops for out-of-range index', () => {
@@ -131,6 +146,12 @@ describe('reorderPatternRef', () => {
 
     expect(after.sequence[0].patternId).toBe(secondRef.patternId);
     expect(after.sequence[1].patternId).toBe(firstRef.patternId);
+  });
+
+  it('marks track dirty for scheduler invalidation', () => {
+    const { session, trackId } = setupSession();
+    const result = reorderPatternRef(session, trackId, 0, 1);
+    expect(getTrack(result, trackId)._patternDirty).toBe(true);
   });
 
   it('no-ops when fromIndex === toIndex', () => {
