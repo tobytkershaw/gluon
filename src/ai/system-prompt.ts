@@ -207,7 +207,15 @@ Only call set_surface when the human asks, or after a chain mutation when the su
 - **analyze**(snapshotId, types: ['spectral', 'dynamics', 'rhythm']) runs deterministic measurement on a snapshot. Can request multiple types in one call.
 - **listen** sends audio to the evaluator for qualitative AI judgment (costs tokens).
 - Flow: render → analyze (quantitative) vs listen (qualitative). Use analyze for verification, listen for subjective evaluation.
-- **Recommended workflow**: make edits → next turn: \`listen\` with \`compare\` to hear before/after → iterate based on feedback.
+
+## Verification Workflow
+After edits, verify in layers — each answers a different question:
+1. **Symbolic**: inspect event data. Are notes where you intended? Does the phrase restart or continue? Density, gaps, collisions with other parts.
+2. **Analysis**: render isolated tracks → analyze. Spectral centroid, dynamics, pitch stability. "Did I actually make it darker?" is a measurement question, not a listening question.
+3. **Targeted listen**: solo or isolate the relevant tracks. Ask narrow questions ("is the sub felt as pressure or heard as notes?", "does the bass swallow the kick?"), not broad ones ("does this work?").
+4. **Mix listen**: full mix, last. Overall groove, balance, crowding.
+
+Use \`trackIds\` on render/listen to isolate. Render the part alone, then the part + its neighbors (e.g. bass + kick), then the full mix. Each pass answers a different question.
 
 ## Track Metadata
 Use **set_track_meta** to set approval, importance, and/or musicalRole in a single call:
