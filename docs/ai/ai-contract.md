@@ -60,7 +60,7 @@ Transform an existing pattern structurally rather than rewriting it.
 
 #### `listen`
 
-Render audio offline and evaluate how it sounds. Works whether or not the transport is playing. Supports focused evaluation via `lens` and before/after comparison via `compare`.
+Render audio offline and evaluate how it sounds. Works whether or not the transport is playing. Supports focused evaluation via `lens`.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -68,7 +68,7 @@ Render audio offline and evaluate how it sounds. Works whether or not the transp
 | `trackIds` | string[] | no | Track IDs to render in isolation (e.g. `["Track 1", "Track 2"]` or `["v0", "v1"]`). Default: all unmuted tracks. |
 | `bars` | integer | no | Number of bars to render (1-16). Default: 2. |
 | `lens` | string | no | Focus the evaluation on a specific aspect. One of: `full-mix`, `low-end`, `rhythm`, `harmony`, `texture`, `dynamics`. |
-| `compare` | object | no | Compare two snapshots (before/after an edit). Contains `beforeSessionIndex` (undo stack index) and `question` (what to compare). |
+| `compare` | object | no | Request comparative evaluation. Contains `beforeSessionIndex` and `question`. **Note:** true before/after rendering is not yet implemented — the runtime currently renders only the current state and uses the compare prompt to frame evaluation as comparative. |
 
 Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Track isolation is built into the render — only the requested tracks are included. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
 
@@ -272,7 +272,7 @@ Each turn, the AI receives compressed session state as JSON:
       "solo": false,
       "volume": 0.80,
       "pan": 0.50,
-      "stepGrid": {
+      "pattern": {
         "length": 16,
         "event_count": 4,
         "triggers": [0, 4, 8, 12],

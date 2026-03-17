@@ -179,6 +179,22 @@ describe('AI Contract alignment with live implementation', () => {
     expect(transportSection).toContain(codeRange![2]); // max BPM
   });
 
+  // ── State example uses runtime field name "pattern", not type alias "stepGrid" ──
+  it('contract state example uses "pattern" field name matching compressState() output', () => {
+    const json = contractText.match(/```json[\s\S]*?```/)![0];
+    expect(json).toContain('"pattern"');
+    expect(json).not.toContain('"stepGrid"');
+  });
+
+  // ── listen.compare documents current implementation limitations ─────────
+  it('contract documents that listen.compare does not yet render before-state', () => {
+    const listenSection = contractText.match(/#### `listen`[\s\S]*?(?=####)/);
+    expect(listenSection, 'Contract should have listen section').toBeTruthy();
+    const section = listenSection![0];
+    // Must mention that true before/after rendering is not yet implemented
+    expect(section).toMatch(/not yet implemented|current state only|current.state/i);
+  });
+
   // ── Uses "track" not "voice" for entities ───────────────────────────────
   it('contract uses "track" terminology consistently', () => {
     // Should not use "voice" as the primary entity name (except in processor model names like "fm-voice")
