@@ -224,10 +224,15 @@ export function ModulePanel({
   const booleanControls = controls.filter(c => c.kind === 'boolean' || c.kind === 'trigger');
   const discreteControls = controls.filter(c => c.kind === 'discrete' || c.kind === 'enum');
 
-  // Grid columns per tier: adapt to count
-  const largeCols = largeKnobs.length > 4 ? 3 : 2;
+  // Columns per tier and max-width to force wrapping (flex-wrap + justify-center)
+  const largeCols = largeKnobs.length > 4 ? 3 : largeKnobs.length === 3 ? 3 : 2;
   const mediumCols = mediumKnobs.length > 4 ? 4 : mediumKnobs.length > 2 ? 3 : 2;
-  const smallCols = smallKnobs.length > 4 ? 4 : smallKnobs.length > 2 ? 3 : 2;
+  const smallCols = smallKnobs.length > 6 ? 4 : smallKnobs.length > 2 ? 3 : 2;
+  // knob container widths: large=64, medium=54, small=48 (from Knob.tsx)
+  const largeMaxW = 64 * largeCols + 16 * (largeCols - 1);
+  const mediumMaxW = 54 * mediumCols + 12 * (mediumCols - 1);
+  const smallMaxW = 48 * smallCols + 8 * (smallCols - 1);
+
 
   return (
     <div
@@ -285,8 +290,8 @@ export function ModulePanel({
         {/* Primary knobs (large) */}
         {largeKnobs.length > 0 && (
           <div
-            className="grid justify-items-center gap-y-2 gap-x-1"
-            style={{ gridTemplateColumns: `repeat(${largeCols}, 1fr)` }}
+            className="flex flex-wrap justify-center gap-y-2 gap-x-4 mx-auto"
+            style={{ maxWidth: largeMaxW }}
           >
             {largeKnobs.map((control) => (
               <Knob
@@ -310,8 +315,8 @@ export function ModulePanel({
           <>
             <div className="border-t border-zinc-800/40" />
             <div
-              className="grid justify-items-center gap-y-2 gap-x-1"
-              style={{ gridTemplateColumns: `repeat(${mediumCols}, 1fr)` }}
+              className="flex flex-wrap justify-center gap-y-2 gap-x-3 mx-auto"
+              style={{ maxWidth: mediumMaxW }}
             >
               {mediumKnobs.map((control) => (
                 <Knob
@@ -336,8 +341,8 @@ export function ModulePanel({
           <>
             <div className="border-t border-zinc-800/40" />
             <div
-              className="grid justify-items-center gap-y-2 gap-x-1"
-              style={{ gridTemplateColumns: `repeat(${smallCols}, 1fr)` }}
+              className="flex flex-wrap justify-center gap-y-2 gap-x-2 mx-auto"
+              style={{ maxWidth: smallMaxW }}
             >
               {smallKnobs.map((control) => (
                 <Knob

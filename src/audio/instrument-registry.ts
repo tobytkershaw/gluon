@@ -60,6 +60,7 @@ function makePlaitsControl(
 
 function defaultControls(): ControlSchema[] {
   return [
+    // Row 1: Frequency, Harmonics (matching hardware 2x2 layout)
     makePlaitsControl(
       'frequency',
       'Frequency',
@@ -73,9 +74,8 @@ function defaultControls(): ControlSchema[] {
       'richness',
       'Harmonic richness and complexity. Low values are simple and pure, high values are dense and complex.',
       'harmonics',
-      0.5,
-      'medium',
     ),
+    // Row 2: Timbre, Morph (medium — smaller knobs on hardware)
     makePlaitsControl(
       'timbre',
       'Timbre',
@@ -94,22 +94,22 @@ function defaultControls(): ControlSchema[] {
       0.5,
       'medium',
     ),
-    // --- Extended parameters (via _plaits_set_extended) ---
-    makePlaitsControl(
-      'fm-amount',
-      'FM Amount',
-      'richness',
-      'Frequency modulation depth. Controls how much the internal envelope modulates the pitch.',
-      'fm_amount',
-      0.0,
-      'small',
-    ),
+    // Row 3: Timbre Mod, FM Amount, Morph Mod (attenuverters, matching hardware order)
     makePlaitsControl(
       'timbre-mod-amount',
       'Timbre Mod',
       'brightness',
       'How much the internal envelope modulates the timbre parameter.',
       'timbre_mod_amount',
+      0.0,
+      'small',
+    ),
+    makePlaitsControl(
+      'fm-amount',
+      'FM Amount',
+      'richness',
+      'Frequency modulation depth. Controls how much the internal envelope modulates the pitch.',
+      'fm_amount',
       0.0,
       'small',
     ),
@@ -399,7 +399,7 @@ function makeCloudsControl(
 
 function cloudsControls(): ControlSchema[] {
   return [
-    // --- Primary knobs (matching hardware faceplate order) ---
+    // Large knobs (hardware top row): Position, Size, Pitch
     makeCloudsControl(
       'position',
       'Position',
@@ -420,23 +420,33 @@ function cloudsControls(): ControlSchema[] {
       'continuous',
       0.5,
     ),
+    // Small knobs (hardware lower row, same size as attenuverters): Density, Texture, Dry/Wet (Blend)
     makeCloudsControl(
       'density',
       'Density',
       'density',
       'Grain generation rate. Low values are sparse, high values create dense textures.',
+      'continuous',
+      0.5,
+      'small',
     ),
     makeCloudsControl(
       'texture',
       'Texture',
       'texture',
       'Grain envelope shape. Controls the window function applied to each grain.',
+      'continuous',
+      0.5,
+      'small',
     ),
     makeCloudsControl(
       'dry-wet',
-      'Dry/Wet',
+      'Blend',
       'body',
       'Blend between dry input and processed wet signal.',
+      'continuous',
+      0.5,
+      'small',
     ),
     // --- Secondary controls (attenuverters + extended) ---
     makeCloudsControl(
