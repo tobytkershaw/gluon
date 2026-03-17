@@ -163,6 +163,32 @@ export function removeEventsByIndices(
   return applyEventEdit(session, trackId, events, `Delete ${indices.length} event(s)`);
 }
 
+/** Transpose note events at the given indices by `semitones`, clamped 0-127. Single undo entry. */
+export function transposeEventsByIndices(
+  session: Session,
+  trackId: string,
+  indices: number[],
+  semitones: number,
+): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  if (indices.length === 0 || semitones === 0) return session;
+
+  const activeReg = getActivePattern(track);
+  const indexSet = new Set(indices);
+  let changed = false;
+  const events = activeReg.events.map((e, i) => {
+    if (!indexSet.has(i) || e.kind !== 'note') return e;
+    const note = e as NoteEvent;
+    const pitch = Math.max(0, Math.min(127, note.pitch + semitones));
+    if (pitch === note.pitch) return e;
+    changed = true;
+    return { ...note, pitch };
+  });
+  if (!changed) return session;
+  return applyEventEdit(session, trackId, events, `Transpose ${indices.length} event(s) by ${semitones} semitones`);
+}
+
 /** Insert multiple events into a track's active region. */
 export function addEvents(
   session: Session,

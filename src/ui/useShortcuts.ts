@@ -79,8 +79,10 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: 'Enter', label: 'Edit cell', section: 'tracker' },
   { key: 'Escape', label: 'Cancel / Deselect', section: 'tracker' },
   { key: `${mod}A`, label: 'Select all', section: 'tracker' },
+  { key: 'Shift+Arrows', label: 'Extend selection', section: 'tracker' },
   { key: `${mod}C / ${mod}X / ${mod}V`, label: 'Copy / Cut / Paste', section: 'tracker' },
-  { key: 'Delete', label: 'Remove event', section: 'tracker' },
+  { key: `${mod}Shift+\u2191/\u2193`, label: 'Transpose selection', section: 'tracker' },
+  { key: 'Delete', label: 'Remove event(s)', section: 'tracker' },
 ];
 
 export function useShortcuts({
