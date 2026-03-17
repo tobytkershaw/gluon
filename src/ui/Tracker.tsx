@@ -63,6 +63,10 @@ interface Props {
   onCursorStepChange?: (step: number) => void;
   /** Steps per beat for beat separators (derived from time signature). Default: 4. */
   stepsPerBeat?: number;
+  /** Called when a note cell is hovered (pitch) or unhovered (null). */
+  onNotePreview?: (pitch: number | null) => void;
+  /** Called when a row is double-clicked (play-from-row). */
+  onPlayFromRow?: (step: number) => void;
 }
 
 /**
@@ -185,7 +189,7 @@ function getColCount(noteColumns: number, fxColumns: number): number {
   return 1 + noteColumns + 2 + fxColumns;
 }
 
-export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4 }: Props) {
+export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -318,6 +322,18 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
     if (col === 2 + maxNoteColumns) return 'dur';
     return 'fx';
   }, [maxNoteColumns]);
+
+  // Preview note when cursor moves to a cell with a note
+  useEffect(() => {
+    if (!onNotePreview || cursorRow >= slots.length) return;
+    const noteColIdx = getNoteColumnIndex(cursorCol);
+    if (noteColIdx === null) return;
+    const slot = slots[cursorRow];
+    const note = noteColIdx < slot.notes.length ? slot.notes[noteColIdx] : null;
+    if (note) {
+      onNotePreview(note.pitch);
+    }
+  }, [cursorRow, cursorCol, slots, onNotePreview, getNoteColumnIndex]);
 
   // --- Keyboard handler ---
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -590,6 +606,8 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
                 editRequestCounter={isCursor ? editRequestCounter : undefined}
                 isSelected={isSelected}
                 onRowClick={(shiftKey) => handleRowClick(si, shiftKey)}
+                onRowDoubleClick={onPlayFromRow ? () => onPlayFromRow(slot.step) : undefined}
+                onNotePreview={onNotePreview}
                 ref={isCursor ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
               />
             );

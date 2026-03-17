@@ -35,6 +35,10 @@ interface Props {
   isSelected?: boolean;
   /** Click handler for row selection (receives shiftKey state). */
   onRowClick?: (shiftKey: boolean) => void;
+  /** Double-click handler for play-from-row. */
+  onRowDoubleClick?: () => void;
+  /** Called when a note cell is hovered (pitch) or unhovered (null). */
+  onNotePreview?: (pitch: number | null) => void;
 }
 
 // --- Formatting helpers ---
@@ -241,6 +245,7 @@ function NoteColumnCell({
   cancelEditRef,
   editRequested,
   isCursor,
+  onNotePreview,
 }: {
   note: NoteEvent | null;
   /** Trigger event to display when no note is present (column 0 only). */
@@ -253,6 +258,7 @@ function NoteColumnCell({
   cancelEditRef?: MutableRefObject<boolean>;
   editRequested?: number;
   isCursor: boolean;
+  onNotePreview?: (pitch: number | null) => void;
 }) {
   // --- Trigger event (no note, but a trigger exists): show TRG ---
   if (!note && trigger) {
@@ -292,9 +298,18 @@ function NoteColumnCell({
   const selector = selectorFromEvent(note);
   const noteUngated = note.velocity === 0;
 
+  const hoverHandlers = onNotePreview ? {
+    onMouseEnter: () => onNotePreview(note.pitch),
+    onMouseLeave: () => onNotePreview(null),
+  } : {};
+
   if (editable && onUpdate) {
     return (
-      <span className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}>
+      <span
+        className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}
+        title={`MIDI ${note.pitch}`}
+        {...hoverHandlers}
+      >
         <EditableCell
           value={midiToNoteName(note.pitch)}
           onCommit={(v) => onUpdate(selector, { pitch: Math.max(0, Math.min(127, v)) })}
@@ -313,7 +328,15 @@ function NoteColumnCell({
     );
   }
 
-  return <span className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}>{midiToNoteName(note.pitch)}</span>;
+  return (
+    <span
+      className={noteUngated ? 'opacity-40 line-through decoration-zinc-500' : ''}
+      title={`MIDI ${note.pitch}`}
+      {...hoverHandlers}
+    >
+      {midiToNoteName(note.pitch)}
+    </span>
+  );
 }
 
 // --- FX column cell (compact parameter value) ---
@@ -392,7 +415,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     onUpdate, onDelete, onAddParamEvent, onAddNote,
     cancelEditRef,
     isCursorRow, cursorColumnType, editRequestCounter,
-    isSelected, onRowClick,
+    isSelected, onRowClick, onRowDoubleClick, onNotePreview,
   }, ref) {
     const editable = !!onUpdate;
     const hasNotes = slot.notes.some(n => n !== null);
@@ -449,6 +472,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
             cancelEditRef={cancelEditRef}
             editRequested={noteEditReq}
             isCursor={isCursorRow === true && cursorNoteColumn === c}
+            onNotePreview={onNotePreview}
           />
         </td>
       );
@@ -540,6 +564,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           ${showBeatSeparator ? 'border-t border-zinc-600/30' : ''}
         `}
         onClick={(e) => onRowClick?.(e.shiftKey)}
+        onDoubleClick={() => onRowDoubleClick?.()}
       >
         {/* POS column — left-aligned */}
         <td className={`px-1 py-0 text-left text-zinc-500 tabular-nums w-8 ${cursorCellClass('pos')}`}>
