@@ -420,7 +420,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       noteColumnCells.push(
         <td
           key={`nc-${c}`}
-          className={`px-1 py-0 w-[3rem] tabular-nums text-emerald-300 ${cursorNoteCellClass(c)}`}
+          className={`px-1 py-0 w-10 tabular-nums text-emerald-300 ${cursorNoteCellClass(c)}`}
         >
           <NoteColumnCell
             note={note}
@@ -444,7 +444,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       return (
         <td
           key={`fx-${fi}`}
-          className={`px-1 py-0 w-[2.5rem] tabular-nums text-right ${cursorFxCellClass(fi)}`}
+          className={`px-1 py-0 w-8 tabular-nums text-right ${cursorFxCellClass(fi)}`}
         >
           <FxCell
             paramEvent={paramEvent}
@@ -526,7 +526,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         onClick={(e) => onRowClick?.(e.shiftKey)}
       >
         {/* POS column — left-aligned */}
-        <td className={`px-1 py-0 text-left text-zinc-500 tabular-nums w-[2.5rem] ${cursorCellClass('pos')}`}>
+        <td className={`px-1 py-0 text-left text-zinc-500 tabular-nums w-8 ${cursorCellClass('pos')}`}>
           {String(slot.step).padStart(2, '\u2007')}
           {microOffset !== null && (
             <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
@@ -537,11 +537,11 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         {/* Note columns */}
         {noteColumnCells}
         {/* Vel column */}
-        <td className={`px-1 py-0 text-right w-[2.5rem] tabular-nums text-zinc-400 ${cursorCellClass('vel')}`}>
+        <td className={`px-1 py-0 text-right w-9 tabular-nums text-zinc-400 ${cursorCellClass('vel')}`}>
           {velNode}
         </td>
         {/* Dur column */}
-        <td className={`px-1 py-0 text-right w-[2.5rem] tabular-nums text-zinc-500 ${cursorCellClass('dur')}`}>
+        <td className={`px-1 py-0 text-right w-10 tabular-nums text-zinc-500 ${cursorCellClass('dur')}`}>
           {durNode}
         </td>
         {/* FX columns */}
