@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -1558,11 +1558,24 @@ export function executeOperations(
       }
 
       case 'set_importance': {
+        const track = getTrack(next, action.trackId);
+        const prevImportance = track.importance;
+        const prevMusicalRole = track.musicalRole;
         const clamped = Math.max(0, Math.min(1, action.importance));
-        next = updateTrack(next, action.trackId, {
-          importance: clamped,
-          ...(action.musicalRole ? { musicalRole: action.musicalRole } : {}),
-        });
+        const metaSnapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId: action.trackId,
+          prevProps: { importance: prevImportance, musicalRole: prevMusicalRole },
+          timestamp: Date.now(),
+          description: `AI set_importance: ${prevImportance ?? 'unset'} → ${clamped}${action.musicalRole ? ` (${action.musicalRole})` : ''}`,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, {
+            importance: clamped,
+            ...(action.musicalRole ? { musicalRole: action.musicalRole } : {}),
+          }),
+          undoStack: [...next.undoStack, metaSnapshot],
+        };
         const iLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const roleSuffix = action.musicalRole ? ` (${action.musicalRole})` : '';
         log.push({ trackId: action.trackId, trackLabel: iLabel, description: `importance: ${clamped.toFixed(2)}${roleSuffix}` });
