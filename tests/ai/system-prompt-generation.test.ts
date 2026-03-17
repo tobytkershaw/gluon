@@ -77,7 +77,7 @@ describe('system prompt generation', () => {
 
   it('backwards-compatible GLUON_SYSTEM_PROMPT export works', () => {
     expect(GLUON_SYSTEM_PROMPT).toContain('v0');
-    expect(GLUON_SYSTEM_PROMPT).toContain('Behaviour Rules');
+    expect(GLUON_SYSTEM_PROMPT).toContain('How to Work');
   });
 });
 
@@ -118,9 +118,9 @@ describe('dynamic track setup', () => {
     expect(prompt).toContain('Track 4 (Harmonic) [id: v3]: Harmonic');
   });
 
-  it('mentions transform tool', () => {
+  it('mentions transform in capabilities', () => {
     const prompt = defaultPrompt();
-    expect(prompt).toContain('transform tool');
+    expect(prompt).toContain('transform');
   });
 
   it('includes restraint guidance section', () => {
