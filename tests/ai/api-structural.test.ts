@@ -93,6 +93,8 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { snapshotId: 'snap-1', types: ['spectral'] };
     case 'raise_decision':
       return { question: 'which direction?' };
+    case 'report_bug':
+      return { summary: 'test bug', category: 'tool', details: 'expected X got Y', severity: 'low' };
     default:
       return {};
   }
@@ -168,7 +170,7 @@ describe('API Structural Integrity', () => {
       'move', 'sketch', 'set_transport', 'set_model', 'transform',
       'manage_view', 'manage_processor', 'manage_modulator',
       'modulation_route', 'set_surface', 'pin_control', 'label_axes',
-      'set_track_meta', 'raise_decision',
+      'set_track_meta', 'raise_decision', 'report_bug',
     ];
 
     // Analysis-only tools produce no actions (actions: []):
@@ -186,7 +188,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(17);
+    expect(GLUON_TOOLS.length).toBe(18);
   });
 
   // -----------------------------------------------------------------------

@@ -20,6 +20,7 @@ const FRIENDLY_NAMES: Record<string, string> = {
   label_axes: 'Labeled axes',
   set_track_meta: 'Set track metadata',
   raise_decision: 'Raised decision',
+  report_bug: 'Reported bug',
 };
 
 function friendlyName(toolName: string): string {

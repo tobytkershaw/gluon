@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has seventeen tools, declared as neutral JSON Schema and adapted per provider.
+The AI has eighteen tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -236,6 +236,20 @@ Flag an unresolved question or choice that needs human input. Use when you encou
 | `context` | string | no | Why this decision matters for the current session. |
 | `options` | string[] | no | Possible options the AI sees, if any. |
 | `trackIds` | string[] | no | Which track(s) this decision relates to, if any. |
+
+#### `report_bug`
+
+Report a bug or issue encountered during operation. Use sparingly, only for things that seem genuinely broken (silent tool failures, unexpected audio, state inconsistencies).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `summary` | string | yes | One-line description of the issue. |
+| `category` | string | yes | Issue category: `audio`, `state`, `tool`, `ui`, `other`. |
+| `details` | string | yes | What happened and what was expected. |
+| `severity` | string | yes | `low` (cosmetic), `medium` (functional with workaround), `high` (blocks workflow). |
+| `context` | string | no | Relevant state at the time (e.g. track config, parameter values, tool args). |
+
+Duplicate detection: reports with identical summaries within the same session are rejected.
 
 ---
 

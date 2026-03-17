@@ -608,7 +608,17 @@ export interface AIMarkApprovedAction {
   reason: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction;
+export interface AIReportBugAction {
+  type: 'report_bug';
+  bugId: string;
+  summary: string;
+  category: BugCategory;
+  details: string;
+  severity: BugSeverity;
+  context?: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction;
 
 // --- Reaction History ---
 
@@ -620,6 +630,21 @@ export interface Reaction {
   /** Optional rationale explaining why */
   rationale?: string;
   /** When the reaction was recorded */
+  timestamp: number;
+}
+
+// --- Bug Reports ---
+
+export type BugCategory = 'audio' | 'state' | 'tool' | 'ui' | 'other';
+export type BugSeverity = 'low' | 'medium' | 'high';
+
+export interface BugReport {
+  id: string;
+  summary: string;
+  category: BugCategory;
+  details: string;
+  severity: BugSeverity;
+  context?: string;
   timestamp: number;
 }
 
@@ -667,6 +692,8 @@ export interface Session {
   reactionHistory?: Reaction[];
   /** Unresolved decisions that need human input */
   openDecisions?: OpenDecision[];
+  /** Bug reports filed by the AI during this session */
+  bugReports?: BugReport[];
 }
 
 export type ActionDiff =
@@ -694,6 +721,8 @@ export interface ActionLogEntry {
   trackLabel: string;
   description: string;
   diff?: ActionDiff;
+  /** Discriminator for special entry types (e.g. bug reports vs normal actions). */
+  kind?: 'action' | 'bug-report';
 }
 
 /** A tool call the AI made during a turn, for display in chat. */

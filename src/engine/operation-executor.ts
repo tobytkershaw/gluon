@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, BugReport } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -442,6 +442,10 @@ export function prevalidateAction(
 
     case 'raise_decision':
       // No side-effect guards needed — raise_decision only appends to openDecisions
+      return null;
+
+    case 'report_bug':
+      // No side-effect guards needed — report_bug only appends to bugReports
       return null;
 
     case 'set_transport':
@@ -1585,6 +1589,23 @@ export function executeOperations(
         };
         next = { ...next, openDecisions: [...unresolved, newDecision].slice(-20) };
         log.push({ trackId: '', trackLabel: 'DECISION', description: `raised: ${action.question}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'report_bug': {
+        const existingBugs = next.bugReports ?? [];
+        const newBug: BugReport = {
+          id: action.bugId,
+          summary: action.summary,
+          category: action.category,
+          details: action.details,
+          severity: action.severity,
+          ...(action.context ? { context: action.context } : {}),
+          timestamp: Date.now(),
+        };
+        next = { ...next, bugReports: [...existingBugs, newBug].slice(-50) };
+        log.push({ trackId: '', trackLabel: 'BUG', description: `[${action.severity}] ${action.summary}`, kind: 'bug-report' });
         accepted.push(action);
         break;
       }
