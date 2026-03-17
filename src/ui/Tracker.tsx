@@ -513,7 +513,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
     const headers: React.ReactNode[] = [];
     for (let c = 0; c < maxNoteColumns; c++) {
       headers.push(
-        <th key={`note-${c}`} className="px-1 py-1 text-left w-[3rem] font-mono">
+        <th key={`note-${c}`} className="px-1 py-1 text-left w-10 font-mono">
           Ch{c + 1}
         </th>
       );
@@ -524,7 +524,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   // Build FX column headers
   const fxColumnHeaders = useMemo(() => {
     return fxColumns.map((fx, i) => (
-      <th key={`fx-${i}`} className="px-1 py-1 text-right w-[2.5rem] font-mono" title={fx.controlId}>
+      <th key={`fx-${i}`} className="px-1 py-1 text-right w-8 font-mono" title={fx.controlId}>
         {fx.label}
       </th>
     ));
@@ -538,13 +538,13 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       data-shortcut-scope="tracker"
       className="outline-none h-full"
     >
-      <table className="w-full border-collapse select-none font-mono">
+      <table className="border-collapse select-none font-mono">
         <thead>
           <tr className="text-[9px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
-            <th className="px-1 py-1 text-left w-[2.5rem]">Pos</th>
+            <th className="px-1 py-1 text-left w-8">Pos</th>
             {noteColumnHeaders}
-            <th className="px-1 py-1 text-right w-[2.5rem]">Vel</th>
-            <th className="px-1 py-1 text-right w-[2.5rem]">Dur</th>
+            <th className="px-1 py-1 text-right w-9">Vel</th>
+            <th className="px-1 py-1 text-right w-10">Dur</th>
             {fxColumnHeaders}
           </tr>
         </thead>
