@@ -536,15 +536,16 @@ describe('A/B comparison', () => {
     expect(restored.transport.bpm).toBe(120);
   });
 
-  it('restoreABSnapshot clears playFromStep when playing (avoids stale restart)', () => {
+  it('restoreABSnapshot clears transportCommand when playing (avoids stale restart)', () => {
     let s = createSession();
     const snap = captureABSnapshot(s);
     s = playTransport(s, 8); // play from step 8
-    expect(s.transport.playFromStep).toBe(8);
+    expect(s.transportCommand?.kind).toBe('play-from-step');
+    expect(s.transportCommand?.step).toBe(8);
 
     const restored = restoreABSnapshot(s, snap);
-    // While playing, playFromStep is cleared to prevent scheduler restarting at stale position
-    expect(restored.transport.playFromStep).toBeUndefined();
+    // While playing, the one-shot command is cleared to prevent stale restart.
+    expect(restored.transportCommand).toBeUndefined();
   });
 
   it('restoreABSnapshot preserves activeTrackId when track exists in snapshot', () => {
@@ -603,29 +604,29 @@ describe('A/B comparison', () => {
     expect(restored.activeTrackId).toBe(snap.tracks[0].id);
   });
 
-  it('restoreABSnapshot clears playFromStep when playing to avoid stale restart (#520)', () => {
+  it('restoreABSnapshot clears transportCommand when playing to avoid stale restart (#520)', () => {
     let s = createSession();
     // Play from step 8, then capture snapshot
     s = playTransport(s, 8);
     const snap = captureABSnapshot(s);
 
-    // Still playing — playFromStep should be cleared on restore
+    // Still playing — one-shot transport command should be cleared on restore.
     const restored = restoreABSnapshot(s, snap);
     expect(restored.transport.status).toBe('playing');
-    expect(restored.transport.playFromStep).toBeUndefined();
+    expect(restored.transportCommand).toBeUndefined();
   });
 
-  it('restoreABSnapshot preserves playFromStep when paused', () => {
+  it('restoreABSnapshot preserves no transportCommand when paused', () => {
     let s = createSession();
     s = playTransport(s, 4);
     s = pauseTransport(s);
     // Pausing clears the one-shot cursor-play request.
-    expect(s.transport.playFromStep).toBeUndefined();
+    expect(s.transportCommand).toBeUndefined();
     expect(s.transport.status).toBe('paused');
 
     const snap = captureABSnapshot(s);
     const restored = restoreABSnapshot(s, snap);
-    expect(restored.transport.playFromStep).toBeUndefined();
+    expect(restored.transportCommand).toBeUndefined();
   });
 });
 
@@ -678,24 +679,24 @@ describe('Undo contract: transport helpers', () => {
     expect(s2.undoStack[0].kind).toBe('transport');
   });
 
-  it('pauseTransport clears playFromStep', () => {
+  it('pauseTransport clears transportCommand', () => {
     let s = createSession();
     s = playTransport(s, 8);
-    expect(s.transport.playFromStep).toBe(8);
+    expect(s.transportCommand?.step).toBe(8);
 
     s = pauseTransport(s);
     expect(s.transport.status).toBe('paused');
-    expect(s.transport.playFromStep).toBeUndefined();
+    expect(s.transportCommand).toBeUndefined();
   });
 
-  it('stopTransport clears playFromStep', () => {
+  it('stopTransport clears transportCommand', () => {
     let s = createSession();
     s = playTransport(s, 8);
-    expect(s.transport.playFromStep).toBe(8);
+    expect(s.transportCommand?.step).toBe(8);
 
     s = stopTransport(s);
     expect(s.transport.status).toBe('stopped');
-    expect(s.transport.playFromStep).toBeUndefined();
+    expect(s.transportCommand).toBeUndefined();
   });
 });
 

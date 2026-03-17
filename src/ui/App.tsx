@@ -35,6 +35,7 @@ import type { EventSelector } from '../engine/event-primitives';
 import type { MusicalEvent } from '../engine/canonical-types';
 import { addView, removeView } from '../engine/view-primitives';
 import type { SequencerViewKind } from '../engine/types';
+import type { ScheduledParameterEvent } from '../engine/sequencer-types';
 import { GluonAI } from '../ai/api';
 import { OpenAIPlannerProvider } from '../ai/providers/openai-planner';
 import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
@@ -204,7 +205,7 @@ export default function App() {
     return arbRef.current.getHeldParams(trackId);
   }, []);
 
-  const handleTransportParameterEvent = useCallback((trackId: string, controlId: string, value: number | string | boolean) => {
+  const handleTransportParameterEvent = useCallback(({ trackId, controlId, value }: ScheduledParameterEvent) => {
     const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
     if (arbRef.current.isHoldingSource(trackId)) return;
     setSession(s => {

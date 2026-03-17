@@ -28,6 +28,7 @@ const defaultInverseOpts: InverseConversionOptions = {
 export function stripForPersistence(session: Session): Session {
   return {
     ...session,
+    transportCommand: undefined,
     undoStack: session.undoStack.slice(-MAX_PERSISTED_UNDO),
     redoStack: [],
     recentHumanActions: [],

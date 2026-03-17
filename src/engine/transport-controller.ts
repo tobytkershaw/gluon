@@ -1,6 +1,7 @@
 import type { Session, SynthParamValues } from './types';
 import type { AudioEngine } from '../audio/audio-engine';
 import { Scheduler, START_OFFSET_SEC } from './scheduler';
+import type { ScheduledParameterEvent } from './sequencer-types';
 import {
   createRuntimeTransport,
   normalizeTransport,
@@ -22,14 +23,14 @@ interface TransportControllerDeps {
   getSession: () => Session;
   onPositionChange: (step: number) => void;
   getHeldParams: (trackId: string) => Partial<SynthParamValues>;
-  onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean) => void;
+  onParameterEvent?: (event: ScheduledParameterEvent) => void;
   onSequenceEnd?: () => void;
   createScheduler?: (deps: {
     getSession: () => Session;
     onNote: (note: import('./sequencer-types').ScheduledNote) => void;
     onPositionChange: (step: number) => void;
     getHeldParams: (trackId: string) => Partial<SynthParamValues>;
-    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean, time: number) => void;
+    onParameterEvent?: (event: ScheduledParameterEvent) => void;
     onClick?: (time: number, accent: boolean) => void;
     onSequenceEnd?: () => void;
   }) => SchedulerLike;
@@ -44,7 +45,7 @@ export class TransportController {
   private pendingHardStop = false;
   private lastStep = 0;
   private trackSeen = new Set<string>();
-  private lastHandledPlayFromStep: number | null = null;
+  private lastHandledTransportCommandId: number | null = null;
   private parameterEventTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor({
@@ -66,16 +67,11 @@ export class TransportController {
       this.onPositionChange(step);
     };
     const handleClick = (time: number, accent: boolean) => this.audio.scheduleClick(time, accent);
-    const handleParameterEvent = (
-      trackId: string,
-      controlId: string,
-      value: number | string | boolean,
-      time: number,
-    ) => {
+    const handleParameterEvent = (event: ScheduledParameterEvent) => {
       if (!onParameterEvent) return;
-      const delayMs = Math.max(0, (time - this.audio.getCurrentTime()) * 1000);
+      const delayMs = Math.max(0, (event.time - this.audio.getCurrentTime()) * 1000);
       if (delayMs <= 1) {
-        onParameterEvent(trackId, controlId, value);
+        onParameterEvent(event);
         return;
       }
 
@@ -83,7 +79,7 @@ export class TransportController {
       const timer = setTimeout(() => {
         this.parameterEventTimers.delete(timer);
         if (this.runtime.generation !== generation || this.runtime.status !== 'playing') return;
-        onParameterEvent(trackId, controlId, value);
+        onParameterEvent(event);
       }, delayMs);
       this.parameterEventTimers.add(timer);
     };
@@ -118,10 +114,11 @@ export class TransportController {
       bpm: transport.bpm,
       swing: transport.swing,
     };
+    const transportCommand = this.getSession().transportCommand;
 
     if (transport.status === 'playing') {
-      const hasFreshPlayFromStep = transport.playFromStep != null
-        && transport.playFromStep !== this.lastHandledPlayFromStep;
+      const hasFreshPlayFromStep = transportCommand?.kind === 'play-from-step'
+        && transportCommand.requestId !== this.lastHandledTransportCommandId;
       const needsRestart = this.runtime.status !== 'playing'
         || hasFreshPlayFromStep;
       if (needsRestart) {
@@ -133,9 +130,9 @@ export class TransportController {
         }
         const generation = this.audio.advanceGeneration();
         let startStep: number;
-        if (transport.playFromStep != null) {
-          startStep = transport.playFromStep;
-          this.lastHandledPlayFromStep = transport.playFromStep;
+        if (transportCommand?.kind === 'play-from-step') {
+          startStep = transportCommand.step;
+          this.lastHandledTransportCommandId = transportCommand.requestId;
         } else if (this.runtime.status === 'paused') {
           startStep = this.runtime.playheadBeats * 4;
         } else {
@@ -168,7 +165,7 @@ export class TransportController {
           generation,
         );
       }
-      this.lastHandledPlayFromStep = null;
+      this.lastHandledTransportCommandId = null;
     } else if (this.runtime.status !== 'stopped') {
       this.scheduler.stop();
       this.clearParameterEventTimers();
@@ -181,7 +178,7 @@ export class TransportController {
       }
       this.pendingHardStop = false;
       this.lastStep = 0;
-      this.lastHandledPlayFromStep = null;
+      this.lastHandledTransportCommandId = null;
       this.runtime = stopTransportState(this.runtime, generation);
       this.onPositionChange(0);
     } else if (this.pendingHardStop) {
@@ -190,7 +187,7 @@ export class TransportController {
       const generation = this.audio.advanceGeneration();
       this.audio.silenceGeneration(generation);
       this.pendingHardStop = false;
-      this.lastHandledPlayFromStep = null;
+      this.lastHandledTransportCommandId = null;
       this.runtime = stopTransportState(this.runtime, generation);
       this.onPositionChange(0);
     }

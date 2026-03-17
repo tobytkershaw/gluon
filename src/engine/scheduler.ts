@@ -1,7 +1,7 @@
 // src/engine/scheduler.ts
 import type { Session, SynthParamValues, Track } from './types';
 import { getActivePattern } from './types';
-import type { ScheduledNote } from './sequencer-types';
+import type { ScheduledNote, ScheduledParameterEvent } from './sequencer-types';
 import type { MusicalEvent, Pattern, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
@@ -38,7 +38,7 @@ export class Scheduler {
   private onNote: (note: ScheduledNote) => void;
   private onPositionChange: (globalStep: number) => void;
   private getHeldParams: (trackId: string) => Partial<SynthParamValues>;
-  private onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean, time: number) => void;
+  private onParameterEvent?: (event: ScheduledParameterEvent) => void;
   private onClick?: (time: number, accent: boolean) => void;
   private onSequenceEnd?: () => void;
 
@@ -58,7 +58,7 @@ export class Scheduler {
     onNote: (note: ScheduledNote) => void,
     onPositionChange: (globalStep: number) => void,
     getHeldParams: (trackId: string) => Partial<SynthParamValues>,
-    onParameterEvent?: (trackId: string, controlId: string, value: number | string | boolean, time: number) => void,
+    onParameterEvent?: (event: ScheduledParameterEvent) => void,
     onClick?: (time: number, accent: boolean) => void,
     onSequenceEnd?: () => void,
   ) {
@@ -295,7 +295,12 @@ export class Scheduler {
         }
         if (this.onParameterEvent) {
           const pe = event as ParameterEvent;
-          this.onParameterEvent(track.id, pe.controlId, pe.value, eventTime);
+          this.onParameterEvent({
+            trackId: track.id,
+            controlId: pe.controlId,
+            value: pe.value,
+            time: eventTime,
+          });
         }
         continue;
       }
@@ -384,7 +389,12 @@ export class Scheduler {
           const interpBaseTime = this.startTime + absStep * stepDuration;
           const interpOddInPair = Math.floor(absStep) % 2 === 1;
           const interpSwingDelay = interpOddInPair ? swing * (stepDuration * 0.75) : 0;
-          this.onParameterEvent(track.id, controlId, value, interpBaseTime + interpSwingDelay);
+          this.onParameterEvent({
+            trackId: track.id,
+            controlId,
+            value,
+            time: interpBaseTime + interpSwingDelay,
+          });
         }
       }
     }
