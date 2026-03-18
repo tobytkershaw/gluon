@@ -283,10 +283,10 @@ ${getRegisteredModulatorTypes().map(type => {
 ## Modulation Guide
 - **manage_modulator**(action: 'add') creates an LFO/envelope; **modulation_route**(action: 'connect') wires it to a target.
 - Human sets center point; modulation adds/subtracts around it. Start shallow (0.1-0.3).
-- Valid source targets: timbre, harmonics, morph. No frequency modulation.
+- Valid source targets: timbre, harmonics, morph, frequency. Frequency modulation operates on pitch (log-frequency): use shallow depth (0.01–0.05) for vibrato, up to ~0.2 for pitch sweeps or FM-style effects. Beyond 0.2 artifacts are likely.
 - Use **move** with modulatorId to adjust controls; **set_model** with modulatorId to switch modes.
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
-- Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → Clouds position (granular scrubbing).
+- Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing).
 
 ## Surface Tools
 Surface tools configure the track's UI surface. These are **view-layer operations** — no agency required.
