@@ -1296,6 +1296,10 @@ export class GluonAI {
             const addProcRejection = handleRejection(ctx?.validateAction?.(addProcAction), session, addProcAction);
             if (addProcRejection) return addProcRejection;
 
+            // Include the projected chain so the model knows what's already on the track
+            const projectedAfterAdd = projectAction(session, addProcAction);
+            const chainAfterAdd = projectedAfterAdd.tracks.find(v => v.id === addProcAction.trackId)?.processors ?? [];
+
             return {
               actions: [addProcAction],
               response: {
@@ -1303,6 +1307,7 @@ export class GluonAI {
                 trackId: addProcAction.trackId,
                 moduleType: addProcAction.moduleType,
                 processorId: assignedProcessorId,
+                currentChain: chainAfterAdd.map(p => ({ id: p.id, type: p.type })),
               },
             };
           }
@@ -1324,12 +1329,16 @@ export class GluonAI {
             const removeProcRejection = handleRejection(ctx?.validateAction?.(removeProcAction), session, removeProcAction);
             if (removeProcRejection) return removeProcRejection;
 
+            const projectedAfterRemove = projectAction(session, removeProcAction);
+            const chainAfterRemove = projectedAfterRemove.tracks.find(v => v.id === removeProcAction.trackId)?.processors ?? [];
+
             return {
               actions: [removeProcAction],
               response: {
                 applied: true,
                 trackId: removeProcAction.trackId,
                 processorId: removeProcAction.processorId,
+                currentChain: chainAfterRemove.map(p => ({ id: p.id, type: p.type })),
               },
             };
           }
@@ -1358,6 +1367,9 @@ export class GluonAI {
             const replaceRejection = handleRejection(ctx?.validateAction?.(replaceAction), session, replaceAction);
             if (replaceRejection) return replaceRejection;
 
+            const projectedAfterReplace = projectAction(session, replaceAction);
+            const chainAfterReplace = projectedAfterReplace.tracks.find(v => v.id === replaceAction.trackId)?.processors ?? [];
+
             return {
               actions: [replaceAction],
               response: {
@@ -1366,6 +1378,7 @@ export class GluonAI {
                 replacedProcessorId: replaceAction.processorId,
                 newModuleType: replaceAction.newModuleType,
                 newProcessorId,
+                currentChain: chainAfterReplace.map(p => ({ id: p.id, type: p.type })),
               },
             };
           }
