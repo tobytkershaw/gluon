@@ -461,7 +461,7 @@ Only call set_surface when the human asks, or after a chain mutation when the su
 - **analyze**(snapshotId, types: ['spectral', 'dynamics', 'rhythm']) runs deterministic measurement. Can request multiple types in one call.
 - **analyze**(snapshotId, compareSnapshotId, types: ['diff']) compares two snapshots — returns structured deltas (spectral centroid shift, LUFS delta, onset density change, etc.).
 - **listen** sends audio to an evaluator for qualitative AI judgment (costs tokens). Renders 2 bars by default (\`bars\` 1-16). Pass \`trackIds\` to isolate. Pass \`lens\` ("low-end", "rhythm", "harmony", "texture", "dynamics", "full-mix") to focus. Pass \`compare: { beforeSessionIndex, question }\` for before/after qualitative evaluation.
-- Changes in this turn are not audible until after execution — listen in a follow-up turn. Do not claim to have heard changes made in the same turn.
+- After making edits, you can render and analyze the result within the same turn to verify your changes. The render uses your projected state including all edits made so far this turn. Use this for edit → render → analyze → adjust workflows.
 
 ## Verification Workflow
 After edits, verify in layers — each answers a different question:
