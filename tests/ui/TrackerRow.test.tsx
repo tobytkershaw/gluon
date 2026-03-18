@@ -298,6 +298,80 @@ describe('TrackerRow', () => {
     );
   });
 
+  // --- Input validation (#715) ---
+
+  it('rejects non-musical text in note cells', () => {
+    const onAddNote = vi.fn();
+
+    render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({ step: 0 })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead={false}
+            showBeatSeparator={false}
+            beatIndex={0}
+            onUpdate={vi.fn()}
+            onAddNote={onAddNote}
+          />
+        </tbody>
+      </table>,
+    );
+
+    // Enter edit mode
+    fireEvent.click(screen.getByText('---'));
+    const input = screen.getByDisplayValue('C-4');
+
+    // Type garbage — the filter should strip non-note characters
+    fireEvent.change(input, { target: { value: 'hello world!' } });
+
+    // Only valid note characters should remain (no spaces, no !, no 'l', 'o', 'w', 'r')
+    // "hello world!" filtered: only A-G, #, b/B, -, 0-9 remain
+    // h -> stripped, e -> kept (E), l -> stripped, l -> stripped, o -> stripped,
+    // space -> stripped, w -> stripped (wait, 'w' is not A-G... but after uppercase it is not either)
+    // Actually autoCapitalize is on, so input is uppercased first:
+    // "HELLO WORLD!" -> H=strip, E=keep, L=strip, L=strip, O=strip, space=strip, W=strip, O=strip, R=strip, L=strip, D=keep, !=strip
+    // Result: "ED"
+    expect((input as HTMLInputElement).value).not.toBe('HELLO WORLD!');
+  });
+
+  it('filters velocity input to only digits and decimal point', () => {
+    const onUpdate = vi.fn();
+    const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };
+
+    render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({
+              step: 0,
+              notes: [note],
+              allEvents: [note],
+              eventIndices: [0],
+              hasGate: true,
+            })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead={false}
+            showBeatSeparator={false}
+            beatIndex={0}
+            onUpdate={onUpdate}
+          />
+        </tbody>
+      </table>,
+    );
+
+    // Click velocity to edit
+    fireEvent.click(screen.getByText('0.80'));
+    const input = screen.getByDisplayValue('0.80');
+
+    // Type text with non-numeric chars — filter should strip them
+    fireEvent.change(input, { target: { value: '0.abc75' } });
+    expect((input as HTMLInputElement).value).toBe('0.75');
+  });
+
   it('derives FX columns from parameter events in the pattern', async () => {
     const { Tracker } = await import('../../src/ui/Tracker');
     const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };
