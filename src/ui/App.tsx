@@ -38,8 +38,11 @@ import { addView, removeView } from '../engine/view-primitives';
 import type { SequencerViewKind } from '../engine/types';
 import type { ScheduledParameterEvent } from '../engine/sequencer-types';
 import { GluonAI } from '../ai/api';
+import type { ListenerMode } from '../ai/api';
+import type { ListenerProvider } from '../ai/types';
 import { OpenAIPlannerProvider } from '../ai/providers/openai-planner';
 import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
+import { OpenAIListenerProvider } from '../ai/providers/openai-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { InstrumentView } from './InstrumentView';
@@ -63,10 +66,32 @@ import { useTransportController } from './useTransportController';
 // Low risk since adapter is stateless; revisit if tests require separate instances.
 const plaitsAdapter = createPlaitsAdapter();
 
-function createAI(openaiKey: string, geminiKey: string): GluonAI {
+function createAI(openaiKey: string, geminiKey: string, listenerMode: ListenerMode = 'gemini'): GluonAI {
+  const geminiListener = new GeminiListenerProvider(geminiKey);
+  const openaiListener = new OpenAIListenerProvider(openaiKey);
+
+  let primary: ListenerProvider;
+  let listeners: ListenerProvider[];
+  switch (listenerMode) {
+    case 'openai':
+      primary = openaiListener;
+      listeners = [openaiListener];
+      break;
+    case 'both':
+      primary = geminiListener;
+      listeners = [geminiListener, openaiListener];
+      break;
+    case 'gemini':
+    default:
+      primary = geminiListener;
+      listeners = [geminiListener];
+      break;
+  }
+
   return new GluonAI(
     new OpenAIPlannerProvider(openaiKey),
-    new GeminiListenerProvider(geminiKey),
+    primary,
+    listeners,
   );
 }
 
@@ -84,7 +109,8 @@ export default function App() {
   const audioRef = useRef(new AudioEngine());
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY ?? '');
   const [geminiKey, setGeminiKey] = useState(import.meta.env.VITE_GOOGLE_API_KEY ?? '');
-  const aiRef = useRef(createAI(openaiKey, geminiKey));
+  const [listenerMode, setListenerMode] = useState<ListenerMode>('gemini');
+  const aiRef = useRef(createAI(openaiKey, geminiKey, listenerMode));
   // Signal to discard in-progress tracker inline edits when switching views.
   // mousedown on ViewToggle sets this true before blur fires on EditableCell.
   const cancelEditRef = useRef(false);
@@ -877,16 +903,18 @@ export default function App() {
     });
   }, []);
 
-  const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string) => {
+  const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string, newListenerMode?: ListenerMode) => {
     setOpenaiKey(newOpenaiKey);
     setGeminiKey(newGeminiKey);
-    aiRef.current = createAI(newOpenaiKey, newGeminiKey);
+    const mode = newListenerMode ?? listenerMode;
+    if (newListenerMode !== undefined) setListenerMode(mode);
+    aiRef.current = createAI(newOpenaiKey, newGeminiKey, mode);
     // Restore conversation context from the current session into the new provider
     if (sessionRef.current.messages.length > 0) {
       aiRef.current.restoreHistory(sessionRef.current.messages);
     }
     setApiConfigured(aiRef.current.isConfigured());
-  }, []);
+  }, [listenerMode]);
 
   const handleTogglePlay = useCallback(async () => {
     await ensureAudio();
@@ -2035,6 +2063,7 @@ export default function App() {
       onApiKey={handleApiKey}
       currentOpenaiKey={openaiKey}
       currentGeminiKey={geminiKey}
+      listenerMode={listenerMode}
       chatOpen={chatOpen}
       onChatToggle={() => setChatOpen(o => !o)}
       chatWidth={chatWidth}

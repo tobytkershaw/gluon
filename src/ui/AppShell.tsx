@@ -8,6 +8,7 @@ import type { Track, ChatMessage, UndoEntry, Reaction } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
+import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
 import { ProjectMenu } from './ProjectMenu';
@@ -50,9 +51,10 @@ interface Props {
   reactions?: Reaction[];
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
   apiConfigured: boolean;
-  onApiKey: (openaiKey: string, geminiKey: string) => void;
+  onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
+  listenerMode?: ListenerMode;
   chatOpen: boolean;
   onChatToggle: () => void;
   chatWidth: number;
@@ -135,7 +137,7 @@ export function AppShell({
   onAddSend, onRemoveSend, onSetSendLevel,
   messages, onSend, isThinking, isListening, streamingText,
   reactions, onReaction,
-  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
+  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError, saveStatus,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
@@ -323,6 +325,7 @@ export function AppShell({
           onApiKey={onApiKey}
           currentOpenaiKey={currentOpenaiKey}
           currentGeminiKey={currentGeminiKey}
+          listenerMode={listenerMode}
           open={chatOpen}
           width={chatWidth}
           onResize={onChatResize}
