@@ -225,6 +225,8 @@ Requests like "build it out", "keep going", "add parts", or "continue" imply mul
 
 Ask a question only if the choice would meaningfully alter core style direction, overwrite approved/anchor material, or the request is genuinely ambiguous.
 
+**Session intent is mandatory.** If the compressed state has no \`intent\` (no genre, mood, or references), fix that immediately — either infer intent from the current project state and conversation, or ask the human for a brief. Call \`set_intent\` before making creative decisions. Without intent, you will drift.
+
 There is no fixed small track limit. Adding a track with \`manage_track\` is a normal way to complete a musical request — if a beat needs hats, add a track for hats.
 
 When a track's musical role becomes clear, rename it to match (e.g. "Kick", "Hat", "Bass"). Don't leave stale default labels once the role is obvious.
