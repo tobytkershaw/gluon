@@ -10,6 +10,7 @@ import {
   chorusInstrument,
   distortionInstrument,
   warpsInstrument,
+  elementsInstrument,
   tidesInstrument,
   ripplesInstrument,
   eqInstrument,
@@ -35,6 +36,7 @@ const stereoParamIds = controlIds(stereoInstrument);
 const chorusParamIds = controlIds(chorusInstrument);
 const distortionParamIds = controlIds(distortionInstrument);
 const warpsParamIds = controlIds(warpsInstrument);
+const elementsParamIds = controlIds(elementsInstrument);
 const ripplesParamIds = controlIds(ripplesInstrument);
 const eqParamIds = controlIds(eqInstrument);
 const tidesParamIds = controlIds(tidesInstrument);
@@ -49,6 +51,7 @@ export const REGISTRY_CONTROL_IDS = {
   chorus: chorusParamIds,
   distortion: distortionParamIds,
   warps: warpsParamIds,
+  elements: elementsParamIds,
   ripples: ripplesParamIds,
   eq: eqParamIds,
   tides: tidesParamIds,
@@ -66,7 +69,7 @@ const moveTool: ToolSchema = {
         description:
           `The control ID to change. ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}). ` +
+          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}; Elements: ${quoted(elementsParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
       target: {
@@ -429,7 +432,7 @@ const manageProcessorTool: ToolSchema = {
       },
       moduleType: {
         type: 'string',
-        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor), "ripples" (Mutable Instruments Ripples analog filter — LP/BP/HP), "eq" (parametric EQ — 4-band and 8-band mixing), "compressor" (dynamics compressor with character modes).',
+        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor), "ripples" (Mutable Instruments Ripples analog filter — LP/BP/HP), "eq" (parametric EQ — 4-band and 8-band mixing), "compressor" (dynamics compressor with character modes), "stereo" (stereo width and spatial effects), "chorus" (chorus, flanger, and phaser), "distortion" (overdrive, saturation, and bitcrusher), "warps" (signal combiner — ring mod, wavefolder, freq shift), "elements" (Mutable Instruments Elements physical modeling synthesizer — exciter + resonator).',
       },
       processorId: {
         type: 'string',
@@ -518,7 +521,7 @@ const modulationRouteTool: ToolSchema = {
         description:
           `Required for connect. The parameter to modulate. ` +
           `Source (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}).`,
+          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}; Elements: ${quoted(elementsParamIds)}).`,
       },
       depth: {
         type: 'number',
