@@ -7,18 +7,119 @@ import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
 
+/**
+ * Model-specific parameter semantics for Plaits engines.
+ * The 4 macro knobs (frequency, harmonics, timbre, morph) mean different
+ * things on each engine. This map provides per-model guidance so the AI
+ * can make targeted sound design decisions.
+ */
+/**
+ * Verified against official Plaits documentation:
+ * https://pichenettes.github.io/mutable-instruments-documentation/modules/plaits/manual/
+ */
+const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string; morph: string }> = {
+  'virtual-analog': {
+    harmonics: 'Detuning between the two waves',
+    timbre: 'Variable square — narrow pulse to full square to hardsync formants',
+    morph: 'Variable saw — triangle to saw with increasingly wide notch',
+  },
+  'waveshaping': {
+    harmonics: 'Waveshaper waveform',
+    timbre: 'Wavefolder amount',
+    morph: 'Waveform asymmetry',
+  },
+  'fm': {
+    harmonics: 'Frequency ratio between modulator and carrier',
+    timbre: 'Modulation index — low = mellow, high = metallic/bell-like',
+    morph: 'Feedback — operator 2 modulating its own phase or operator 1\'s phase',
+  },
+  'grain-formant': {
+    harmonics: 'Frequency ratio between formant 1 and 2',
+    timbre: 'Formant frequency',
+    morph: 'Formant width and shape',
+  },
+  'harmonic': {
+    harmonics: 'Number of bumps in the spectrum',
+    timbre: 'Index of the most prominent harmonic',
+    morph: 'Bump shape — flat and wide to peaked and narrow',
+  },
+  'wavetable': {
+    harmonics: 'Bank selection',
+    timbre: 'Row index — morphs between waveforms',
+    morph: 'Column index — second axis of wavetable navigation',
+  },
+  'chords': {
+    harmonics: 'Chord type',
+    timbre: 'Chord inversion and transposition',
+    morph: 'Waveform selection',
+  },
+  'vowel-speech': {
+    harmonics: 'Crossfades between formant filtering, SAM, LPC vowels, then LPC word banks',
+    timbre: 'Species — from Daleks to chipmunks',
+    morph: 'Phoneme or word segment selection',
+  },
+  'swarm': {
+    harmonics: 'Amount of pitch randomization',
+    timbre: 'Grain density',
+    morph: 'Grain duration and overlap',
+  },
+  'filtered-noise': {
+    harmonics: 'Filter response — LP to BP to HP',
+    timbre: 'Clock frequency',
+    morph: 'Filter resonance',
+  },
+  'particle-dust': {
+    harmonics: 'Amount of frequency randomization',
+    timbre: 'Particle density',
+    morph: 'Filter type — reverberating all-pass network or resonant band-pass',
+  },
+  'inharmonic-string': {
+    harmonics: 'Amount of inharmonicity / material selection',
+    timbre: 'Excitation brightness and dust density',
+    morph: 'Decay time (energy absorption)',
+  },
+  'modal-resonator': {
+    harmonics: 'Amount of inharmonicity / material selection',
+    timbre: 'Excitation brightness and dust density',
+    morph: 'Decay time (energy absorption)',
+  },
+  'analog-bass-drum': {
+    harmonics: 'Attack sharpness and amount of overdrive',
+    timbre: 'Brightness',
+    morph: 'Decay time',
+  },
+  'analog-snare': {
+    harmonics: 'Balance of harmonic and noisy components',
+    timbre: 'Balance between different modes of the drum',
+    morph: 'Decay time',
+  },
+  'analog-hi-hat': {
+    harmonics: 'Balance of metallic and filtered noise',
+    timbre: 'High-pass filter cutoff',
+    morph: 'Decay time',
+  },
+};
+
 function generateModelReference(): string {
   return getModelList()
-    .map(m => `${m.index}: ${m.name}`)
-    .join(', ');
+    .map(m => {
+      const semantics = MODEL_PARAM_SEMANTICS[getEngineByIndex(m.index)?.id ?? ''];
+      if (!semantics) return `${m.index}: ${m.name}`;
+      return `**${m.index}: ${m.name}**
+  - harmonics: ${semantics.harmonics}
+  - timbre: ${semantics.timbre}
+  - morph: ${semantics.morph}`;
+    })
+    .join('\n');
 }
 
 function generateParameterSection(): string {
   const engine = getEngineByIndex(0);
   if (!engine) return '';
-  return engine.controls
+  return `All models share these controls (0.0–1.0). The 4 macro knobs (frequency, harmonics, timbre, morph) have model-specific meanings listed above.
+${engine.controls
     .map(c => `- **${c.id}** (${c.range?.min ?? 0}-${c.range?.max ?? 1}): ${c.description}`)
-    .join('\n');
+    .join('\n')}`;
 }
 
 function generateTrackSetup(session: Session): string {
