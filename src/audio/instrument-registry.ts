@@ -73,6 +73,13 @@ export {
   getStereoModelList,
 } from './instrument-registry-stereo';
 
+export {
+  chorusInstrument,
+  getChorusEngineById,
+  getChorusEngineByIndex,
+  getChorusModelList,
+} from './instrument-registry-chorus';
+
 // --- Processor registry ---
 
 import { ringsInstrument } from './instrument-registry-rings';
@@ -81,6 +88,7 @@ import { ripplesInstrument } from './instrument-registry-ripples';
 import { eqInstrument } from './instrument-registry-eq';
 import { compressorInstrument } from './instrument-registry-compressor';
 import { stereoInstrument } from './instrument-registry-stereo';
+import { chorusInstrument } from './instrument-registry-chorus';
 import { tidesInstrument } from './instrument-registry-tides';
 
 const processorInstruments = new Map<string, InstrumentDef>([
@@ -90,6 +98,7 @@ const processorInstruments = new Map<string, InstrumentDef>([
   ['eq', eqInstrument],
   ['compressor', compressorInstrument],
   ['stereo', stereoInstrument],
+  ['chorus', chorusInstrument],
 ]);
 
 /** Get the instrument definition for a processor type */
