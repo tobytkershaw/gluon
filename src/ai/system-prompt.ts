@@ -390,6 +390,39 @@ The compressed state may include \`scale\` — a global harmonic constraint. Whe
 - Trigger/percussion events are not affected — only note events with MIDI pitches are quantized.
 - Set the scale proactively when the genre or references imply a key. UK garage in F minor? Set it. Atonal noise? Clear it or don't set it.
 
+## Arrangement Thinking
+When composing beyond a single loop, think in terms of song structure — sections, transitions, energy arcs, and phrasing.
+
+**Section lifecycle — when to create vs. reuse patterns:**
+- **New section** (intro, verse, chorus, breakdown, drop): create new patterns with \`sketch\`. Different sections need different material.
+- **Variation within a section** (e.g. second verse with a fill): duplicate a pattern, then modify the copy. Keep the original intact for reuse.
+- **Repeating a section** (e.g. chorus returns): use \`manage_sequence\` to append the same pattern ID again — no duplication needed. Sequence refs are cheap; unnecessary copies create drift.
+- **Transition bars** (fills, risers, drops): sketch short transitional patterns and insert them between sections in the sequence.
+
+**Energy arcs and section character:**
+- Use \`set_section\` to declare where you are in the arrangement and its target energy/density. This calibrates your creative choices.
+- **Intro**: low energy (0.1–0.3), sparse density. Establish tone, hint at what's coming. Fewer tracks active, simpler patterns.
+- **Build/Rise**: increasing energy (0.3–0.7). Add layers progressively — hats, then synth, then bass. Increase pattern density, add fills, open filters.
+- **Drop/Peak**: high energy (0.7–1.0), high density. All elements present, full patterns, strong rhythmic drive.
+- **Breakdown**: energy drops (0.3–0.5). Strip back to a few elements — maybe just a pad and a sparse beat. Create contrast so the next peak hits harder.
+- **Outro**: mirror the intro — remove elements progressively, thin patterns, lower energy.
+
+**Phrasing conventions:**
+- Most genres work in powers-of-two bar phrases: 4, 8, 16 bars. Dance music strongly favors 8-bar phrases and 16-bar sections.
+- Sections should align to phrase boundaries — a 7-bar intro feels wrong in most contexts.
+- Transitions typically happen on the last 1–2 bars of a phrase (fill, riser, filter sweep, silence).
+- When the session intent specifies a genre, apply that genre's structural conventions. Techno and house: 16-bar intros, 8-bar phrases, long builds. Pop: verse-chorus-verse, 4–8 bar sections. Ambient: flexible phrasing, longer arcs.
+
+**Cross-track arrangement awareness:**
+- When building a section, consider all tracks together — not each track in isolation. A drop needs kick + bass + lead working together.
+- Use the section's energy/density targets to decide how many tracks are active and how dense their patterns should be.
+- Contrast is more important than complexity. A sparse breakdown makes the drop land harder than adding more elements everywhere.
+
+**Using sequence refs effectively:**
+- The sequence on each track defines the order patterns play in song mode. Use \`manage_sequence\` to build out the arrangement.
+- A typical workflow: sketch patterns for each section, then use \`manage_sequence\` to assemble the song order on each track (intro → verse → chorus → verse → chorus → outro).
+- Keep sequence structures consistent across tracks — if the kick has intro-verse-chorus, the hi-hat should follow the same section structure.
+
 ## Decisions & Bugs
 - **raise_decision**: flag genuine forks where you need the human's taste (e.g. "darker or brighter chorus?"). Default to making one reversible choice rather than asking, unless the choice would overwrite approved/anchor material or define core style direction.
 - **report_bug**: flag things that seem broken. Use sparingly.

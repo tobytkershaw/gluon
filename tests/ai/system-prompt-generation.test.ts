@@ -160,4 +160,13 @@ describe('dynamic track setup', () => {
     expect(prompt).toContain('observed_patterns');
     expect(prompt).toContain('restraint_level');
   });
+
+  it('includes arrangement thinking guidance', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('## Arrangement Thinking');
+    expect(prompt).toContain('Energy arcs and section character');
+    expect(prompt).toContain('Phrasing conventions');
+    expect(prompt).toContain('manage_sequence');
+    expect(prompt).toContain('set_section');
+  });
 });
