@@ -450,6 +450,8 @@ export function Tracker({ region, playheadStep, playheadFraction = 0, playing, o
             // Add new note at this step
             onAddNote(slot.step, midi);
           }
+          // Immediate audible feedback before cursor advance (#723)
+          if (onNotePreview) onNotePreview(midi);
           // Auto-advance cursor to next row (standard Renoise behavior)
           setCursorRow(r => Math.min(rowCount - 1, r + 1));
           return;
@@ -597,7 +599,7 @@ export function Tracker({ region, playheadStep, playheadFraction = 0, playing, o
       default:
         return;
     }
-  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, onTransposeByIndices, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns, getColumnType, octaveOffset, onUpdate, onAddNote]);
+  }, [rowCount, cursorRow, cursorCol, anchorRow, slots, onDelete, onDeleteByIndices, onPasteEvents, onTransposeByIndices, copyToClipboard, getSelectedEventIndices, buildPasteEvents, colCount, getNoteColumnIndex, getFxColumnIndex, fxColumns, getColumnType, octaveOffset, onUpdate, onAddNote, onNotePreview]);
 
   /** Handle row click — set cursor, optionally extend selection with Shift. */
   const handleRowClick = useCallback((rowIndex: number, shiftKey: boolean) => {
