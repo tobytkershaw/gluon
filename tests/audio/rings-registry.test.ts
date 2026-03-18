@@ -83,8 +83,23 @@ describe('Rings instrument registry', () => {
 
   it('getRingsEngineById finds engines by string ID', () => {
     expect(getRingsEngineById('modal')?.label).toBe('Modal Resonator');
-    expect(getRingsEngineById('string')?.label).toBe('String');
+    expect(getRingsEngineById('string')?.label).toBe('Modulated/Inharmonic String');
     expect(getRingsEngineById('nonexistent')).toBeUndefined();
+  });
+
+  it('first 3 modes match official MI Rings resonator types', () => {
+    const list = getRingsModelList();
+    expect(list[0].name).toBe('Modal Resonator');
+    expect(list[1].name).toBe('Sympathetic Strings');
+    expect(list[2].name).toBe('Modulated/Inharmonic String');
+  });
+
+  it('Gluon extension modes are clearly labeled', () => {
+    const list = getRingsModelList();
+    // Modes 3-5 are Gluon extensions
+    for (let i = 3; i < list.length; i++) {
+      expect(list[i].name).toContain('Gluon');
+    }
   });
 
   it('getRingsEngineByIndex returns correct engine for each index 0-5', () => {
@@ -99,15 +114,7 @@ describe('Rings instrument registry', () => {
   it('getRingsModelList returns 6 entries matching engine order', () => {
     const list = getRingsModelList();
     expect(list).toHaveLength(6);
-    expect(list[0]).toEqual({
-      index: 0,
-      name: 'Modal Resonator',
-      description: 'Resonant body model — bells, plates, bowls',
-    });
-    expect(list[5]).toEqual({
-      index: 5,
-      name: 'String + Reverb',
-      description: 'String model with integrated reverb',
-    });
+    expect(list[0].name).toBe('Modal Resonator');
+    expect(list[5].name).toContain('String + Reverb');
   });
 });

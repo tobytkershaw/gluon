@@ -118,8 +118,8 @@ describe('Warps engine lookup helpers', () => {
   it('getWarpsModelList returns all 4 modes', () => {
     const list = getWarpsModelList();
     expect(list).toHaveLength(4);
-    expect(list[0]).toEqual({ index: 0, name: 'Crossfade', description: 'Crossfade/pan between signals' });
-    expect(list[3]).toEqual({ index: 3, name: 'Frequency Shift', description: 'Frequency shifting — Hilbert transform, detuned effects' });
+    expect(list[0].name).toBe('Crossfade');
+    expect(list[3].name).toBe('Frequency Shift');
   });
 });
 

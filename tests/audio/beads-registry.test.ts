@@ -35,9 +35,9 @@ describe('Beads instrument definition', () => {
     }
   });
 
-  it('control IDs are time, density, texture, position, pitch, dry-wet', () => {
+  it('control IDs match hardware faceplate order: density, time, pitch, position, texture, dry-wet', () => {
     const controlIds = beadsInstrument.engines[0].controls.map(c => c.id);
-    expect(controlIds).toEqual(['time', 'density', 'texture', 'position', 'pitch', 'dry-wet']);
+    expect(controlIds).toEqual(['density', 'time', 'pitch', 'position', 'texture', 'dry-wet']);
   });
 
   it('all continuous controls are normalized 0-1', () => {
@@ -108,9 +108,9 @@ describe('Processor registry includes Beads', () => {
     expect(inst!.label).toBe('Mutable Instruments Beads');
   });
 
-  it('getProcessorControlIds returns Beads controls', () => {
+  it('getProcessorControlIds returns Beads controls in faceplate order', () => {
     const ids = getProcessorControlIds('beads');
-    expect(ids).toEqual(['time', 'density', 'texture', 'position', 'pitch', 'dry-wet']);
+    expect(ids).toEqual(['density', 'time', 'pitch', 'position', 'texture', 'dry-wet']);
   });
 
   it('getProcessorEngineByName finds Beads modes', () => {
