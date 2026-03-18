@@ -5,7 +5,7 @@ import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getTrack, getActivePattern, updateTrack } from './types';
-import { applyMove, applySketch } from './primitives';
+import { applyMove, applySketch, clampParam } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
 import {
   humanize,
@@ -748,7 +748,9 @@ export function executeOperations(
           const mod = modulators[modIndex];
           const currentVal = mod.params[action.param] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
-          const targetVal = Math.max(0, Math.min(1, rawTarget));
+          const clampedTarget = clampParam(rawTarget);
+          if (clampedTarget === null) { rejected.push({ op: action, reason: `Non-finite parameter value: ${rawTarget} for modulator ${action.modulatorId}/${action.param}` }); break; }
+          const targetVal = clampedTarget;
 
           const snapshot: ModulatorStateSnapshot = {
             kind: 'modulator-state',
@@ -782,6 +784,7 @@ export function executeOperations(
           const proc = processors[procIndex];
           const currentVal = proc.params[action.param] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+          if (!Number.isFinite(rawTarget)) { rejected.push({ op: action, reason: `Non-finite parameter value: ${rawTarget} for processor ${action.processorId}/${action.param}` }); break; }
           // Clamp to the control's declared range (discrete controls like polyphony use 1-4, not 0-1).
           // Boolean controls store 0/1 numerically. Default to 0-1 for unknown controls.
           const schema = getProcessorControlSchema(proc.type, action.param);
@@ -824,7 +827,9 @@ export function executeOperations(
           // Drift move: record snapshot + provenance, but actual animation is handled by caller
           const currentVal = track.params[runtimeParam] ?? 0;
           const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
-          const targetVal = Math.max(0, Math.min(1, rawTarget));
+          const clampedDrift = clampParam(rawTarget);
+          if (clampedDrift === null) { rejected.push({ op: action, reason: `Non-finite parameter value: ${rawTarget} for ${controlId}` }); break; }
+          const targetVal = clampedDrift;
 
           const prevProvenance: Partial<ControlState> = {};
           if (track.controlProvenance?.[controlId]) {
@@ -866,7 +871,9 @@ export function executeOperations(
             prevProvenance[controlId] = { ...currentTrack.controlProvenance[controlId] };
           }
 
-          next = applyMove(next, trackId, runtimeParam, action.target);
+          const moveResult = applyMove(next, trackId, runtimeParam, action.target);
+          if (moveResult === null) { rejected.push({ op: action, reason: `Non-finite parameter value for ${controlId}` }); break; }
+          next = moveResult;
 
           // Patch the last snapshot with prevProvenance
           const lastIdx = next.undoStack.length - 1;
@@ -1011,8 +1018,14 @@ export function executeOperations(
       case 'set_transport': {
         const prev = next.transport;
         const newTransport = { ...prev };
-        if (action.bpm !== undefined) newTransport.bpm = Math.max(20, Math.min(300, action.bpm));
-        if (action.swing !== undefined) newTransport.swing = Math.max(0, Math.min(1, action.swing));
+        if (action.bpm !== undefined) {
+          if (!Number.isFinite(action.bpm)) { rejected.push({ op: action, reason: `Non-finite transport value: bpm=${action.bpm}` }); break; }
+          newTransport.bpm = Math.max(20, Math.min(300, action.bpm));
+        }
+        if (action.swing !== undefined) {
+          if (!Number.isFinite(action.swing)) { rejected.push({ op: action, reason: `Non-finite transport value: swing=${action.swing}` }); break; }
+          newTransport.swing = Math.max(0, Math.min(1, action.swing));
+        }
         if (action.mode !== undefined) newTransport.mode = action.mode;
         if (action.timeSignatureNumerator !== undefined || action.timeSignatureDenominator !== undefined) {
           const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
@@ -1742,8 +1755,14 @@ export function executeOperations(
       case 'set_master': {
         const prevMaster = { ...next.master };
         const newMaster = { ...prevMaster };
-        if (action.volume !== undefined) newMaster.volume = Math.max(0, Math.min(1, action.volume));
-        if (action.pan !== undefined) newMaster.pan = Math.max(-1, Math.min(1, action.pan));
+        if (action.volume !== undefined) {
+          if (!Number.isFinite(action.volume)) { rejected.push({ op: action, reason: `Non-finite master value: volume=${action.volume}` }); break; }
+          newMaster.volume = Math.max(0, Math.min(1, action.volume));
+        }
+        if (action.pan !== undefined) {
+          if (!Number.isFinite(action.pan)) { rejected.push({ op: action, reason: `Non-finite master value: pan=${action.pan}` }); break; }
+          newMaster.pan = Math.max(-1, Math.min(1, action.pan));
+        }
 
         const masterParts: string[] = [];
         if (action.volume !== undefined && newMaster.volume !== prevMaster.volume) masterParts.push(`volume ${prevMaster.volume.toFixed(2)} → ${newMaster.volume.toFixed(2)}`);
@@ -1772,6 +1791,7 @@ export function executeOperations(
         const track = getTrack(next, action.trackId);
         const prevImportance = track.importance;
         const prevMusicalRole = track.musicalRole;
+        if (!Number.isFinite(action.importance)) { rejected.push({ op: action, reason: `Non-finite importance value: ${action.importance}` }); break; }
         const clamped = Math.max(0, Math.min(1, action.importance));
         const metaSnapshot: TrackPropertySnapshot = {
           kind: 'track-property',
@@ -1941,8 +1961,14 @@ export function executeOperations(
         };
 
         const mixUpdate: Partial<typeof mixTrack> = {};
-        if (action.volume !== undefined) mixUpdate.volume = Math.max(0, Math.min(1, action.volume));
-        if (action.pan !== undefined) mixUpdate.pan = Math.max(-1, Math.min(1, action.pan));
+        if (action.volume !== undefined) {
+          if (!Number.isFinite(action.volume)) { rejected.push({ op: action, reason: `Non-finite track mix value: volume=${action.volume}` }); break; }
+          mixUpdate.volume = Math.max(0, Math.min(1, action.volume));
+        }
+        if (action.pan !== undefined) {
+          if (!Number.isFinite(action.pan)) { rejected.push({ op: action, reason: `Non-finite track mix value: pan=${action.pan}` }); break; }
+          mixUpdate.pan = Math.max(-1, Math.min(1, action.pan));
+        }
 
         next = {
           ...updateTrack(next, action.trackId, mixUpdate),
