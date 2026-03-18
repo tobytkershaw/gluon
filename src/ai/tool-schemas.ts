@@ -1212,6 +1212,59 @@ const setSectionTool: ToolSchema = {
   },
 };
 
+const setTensionTool: ToolSchema = {
+  name: 'set_tension',
+  description:
+    'Set the tension/energy curve over the arrangement timeline. Defines an arc of energy and density that the AI uses as a compositional guide. ' +
+    'Points are interpolated linearly — the AI reads the curve to decide track activation, velocity, filter openness, density, etc. ' +
+    'Optionally map individual tracks to the curve, defining how their parameters respond to energy levels. ' +
+    'The curve is metadata/intent — it does not directly control audio parameters.',
+  parameters: {
+    type: 'object',
+    properties: {
+      points: {
+        type: 'array',
+        description: 'Tension curve points. Each point defines energy and density at a specific bar. Points are sorted by bar; duplicates at the same bar overwrite.',
+        items: {
+          type: 'object',
+          properties: {
+            bar: { type: 'number', description: 'Bar number (1-based).' },
+            energy: { type: 'number', description: 'Energy level at this bar (0.0–1.0).' },
+            density: { type: 'number', description: 'Rhythmic density at this bar (0.0–1.0).' },
+          },
+          required: ['bar', 'energy', 'density'],
+        },
+      },
+      trackMappings: {
+        type: 'array',
+        description: 'Optional per-track mappings defining how tracks respond to the curve.',
+        items: {
+          type: 'object',
+          properties: {
+            trackId: { type: 'string', description: 'Track ID or ordinal label (e.g. "Track 1").' },
+            activationThreshold: { type: 'number', description: 'Energy threshold below which this track is inactive (0.0–1.0). Optional.' },
+            params: {
+              type: 'array',
+              description: 'Per-parameter response: how each parameter maps to energy.',
+              items: {
+                type: 'object',
+                properties: {
+                  param: { type: 'string', description: 'Control ID or parameter name.' },
+                  low: { type: 'number', description: 'Parameter value when energy is 0.' },
+                  high: { type: 'number', description: 'Parameter value when energy is 1.' },
+                },
+                required: ['param', 'low', 'high'],
+              },
+            },
+          },
+          required: ['trackId', 'params'],
+        },
+      },
+    },
+    required: ['points'],
+  },
+};
+
 const applyChainRecipeTool: ToolSchema = {
   name: 'apply_chain_recipe',
   description:
@@ -1443,6 +1496,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setIntentTool,
   setSectionTool,
   setScaleTool,
+  setTensionTool,
   applyChainRecipeTool,
   setMixRoleTool,
   applyModulationTool,

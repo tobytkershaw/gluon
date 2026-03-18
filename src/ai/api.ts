@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -23,6 +23,8 @@ import { generateArchetypeEvents, getArchetype } from '../engine/pattern-archety
 import { generateFromGenerator } from '../engine/pattern-generator';
 import type { PatternGenerator, GeneratorBase, GeneratorLayer } from '../engine/pattern-generator';
 import { applyDynamicShape } from '../engine/dynamic-shapes';
+import { setTensionPoints, setTrackTensionMapping, createTensionCurve } from '../engine/tension-curve';
+import type { TensionPoint, TrackTensionMapping } from '../engine/tension-curve';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
@@ -407,6 +409,16 @@ function projectAction(session: Session, action: AIAction): Session {
     case 'manage_motif':
       // Motif operations are handled in the tool handler; no session state mutation needed.
       return session;
+    case 'set_tension': {
+      let curve = session.tensionCurve ?? createTensionCurve();
+      curve = setTensionPoints(curve, action.points);
+      if (action.trackMappings) {
+        for (const m of action.trackMappings) {
+          curve = setTrackTensionMapping(curve, m);
+        }
+      }
+      return { ...session, tensionCurve: curve };
+    }
     case 'say':
     default:
       return session;
@@ -3023,6 +3035,87 @@ export class GluonAI {
           default:
             return { actions: [], response: errorPayload(`Unknown manage_motif action: ${motifAction}. Use register, recall, develop, or list.`) };
         }
+      }
+
+      case 'set_tension': {
+        const rawPoints = Array.isArray(args.points) ? args.points : [];
+        if (rawPoints.length === 0) {
+          return { actions: [], response: errorPayload('At least one tension point is required.') };
+        }
+
+        const points: TensionPoint[] = [];
+        for (const p of rawPoints) {
+          const pt = p as Record<string, unknown>;
+          const bar = typeof pt.bar === 'number' ? pt.bar : undefined;
+          const energy = typeof pt.energy === 'number' ? pt.energy : undefined;
+          const density = typeof pt.density === 'number' ? pt.density : undefined;
+          if (bar === undefined || energy === undefined || density === undefined) {
+            return { actions: [], response: errorPayload('Each point requires bar, energy, and density (all numbers).') };
+          }
+          if (bar < 1) {
+            return { actions: [], response: errorPayload(`Invalid bar: ${bar}. Bars are 1-based.`) };
+          }
+          points.push({
+            bar,
+            energy: Math.max(0, Math.min(1, energy)),
+            density: Math.max(0, Math.min(1, density)),
+          });
+        }
+
+        let trackMappings: TrackTensionMapping[] | undefined;
+        if (Array.isArray(args.trackMappings)) {
+          trackMappings = [];
+          for (const m of args.trackMappings) {
+            const mm = m as Record<string, unknown>;
+            const rawTrackId = mm.trackId as string;
+            if (!rawTrackId) {
+              return { actions: [], response: errorPayload('Each track mapping requires a trackId.') };
+            }
+            const resolvedId = resolveTrackId(rawTrackId, session);
+            if (!resolvedId) {
+              return { actions: [], response: errorPayload(`Unknown track: "${rawTrackId}"`) };
+            }
+            const rawParams = Array.isArray(mm.params) ? mm.params : [];
+            const params: { param: string; low: number; high: number }[] = [];
+            for (const pm of rawParams) {
+              const pp = pm as Record<string, unknown>;
+              if (typeof pp.param !== 'string' || typeof pp.low !== 'number' || typeof pp.high !== 'number') {
+                return { actions: [], response: errorPayload('Each param mapping requires param (string), low (number), high (number).') };
+              }
+              params.push({ param: pp.param, low: pp.low, high: pp.high });
+            }
+            trackMappings.push({
+              trackId: resolvedId,
+              ...(typeof mm.activationThreshold === 'number' ? { activationThreshold: Math.max(0, Math.min(1, mm.activationThreshold)) } : {}),
+              params,
+            });
+          }
+        }
+
+        const setTensionAction: AISetTensionAction = {
+          type: 'set_tension',
+          points,
+          ...(trackMappings ? { trackMappings } : {}),
+        };
+
+        // Build the resulting curve for the response
+        let resultCurve = session.tensionCurve ?? createTensionCurve();
+        resultCurve = setTensionPoints(resultCurve, points);
+        if (trackMappings) {
+          for (const m of trackMappings) {
+            resultCurve = setTrackTensionMapping(resultCurve, m);
+          }
+        }
+
+        return {
+          actions: [setTensionAction],
+          response: {
+            applied: true,
+            pointCount: resultCurve.points.length,
+            trackMappingCount: resultCurve.trackMappings.length,
+            curve: resultCurve,
+          },
+        };
       }
 
       default:
