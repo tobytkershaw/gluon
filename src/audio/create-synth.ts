@@ -23,6 +23,8 @@ import type { WarpsEngine } from './warps-synth';
 import { WarpsSynth } from './warps-synth';
 import type { ElementsEngine } from './elements-synth';
 import { ElementsSynth } from './elements-synth';
+import type { BeadsEngine } from './beads-synth';
+import { BeadsSynth } from './beads-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -75,4 +77,8 @@ export async function createWarpsProcessor(ctx: AudioContext): Promise<WarpsEngi
 
 export async function createElementsProcessor(ctx: AudioContext): Promise<ElementsEngine> {
   return ElementsSynth.create(ctx);
+}
+
+export async function createBeadsProcessor(ctx: AudioContext): Promise<BeadsEngine> {
+  return BeadsSynth.create(ctx);
 }

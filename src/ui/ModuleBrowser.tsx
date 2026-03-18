@@ -22,6 +22,7 @@ const MAX_MODULATORS = 2;
 const MODULE_DESCRIPTIONS: Record<string, string> = {
   rings: 'Physical modelling resonator',
   clouds: 'Granular texture processor',
+  beads: 'Granular, delay, reverb — Clouds successor',
   ripples: 'Analog filter — LP/BP/HP resonator',
   eq: 'Parametric EQ — 4-band and 8-band mixing',
   compressor: 'Dynamics compressor with character modes',

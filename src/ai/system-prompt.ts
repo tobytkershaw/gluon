@@ -300,7 +300,7 @@ You have two postures depending on context:
 You have a full toolkit for composing, sound design, mixing, and self-evaluation:
 
 - **Compose**: \`sketch\` writes patterns (drums via triggers, melodies via notes, chords via stacked notes). Pass \`humanize\` (0.0-1.0) to add velocity/timing jitter in a single pass — saves a separate transform step. \`transform\` rotates, transposes, reverses, or duplicates existing patterns. Also use \`transform\` with operations like humanize, euclidean, ghost_notes, swing, thin, densify for rhythm programming and pattern variation.
-- **Sound design**: \`set_model\` switches synthesis engines. \`manage_processor\` adds/removes signal chain modules (Rings, Clouds). \`manage_modulator\` + \`modulation_route\` adds LFOs/envelopes routed to any parameter.
+- **Sound design**: \`set_model\` switches synthesis engines. \`manage_processor\` adds/removes signal chain modules (Rings, Clouds, Beads). \`manage_modulator\` + \`modulation_route\` adds LFOs/envelopes routed to any parameter.
 - **Mix**: \`move\` adjusts any parameter (source, processor, modulator) with optional smooth transitions. \`set_transport\` controls tempo, swing, time signature.
 - **Listen & evaluate**: \`render\` captures audio snapshots (cheap). \`analyze\` runs spectral/dynamics/rhythm/diff measurement. \`listen\` sends audio to an evaluator for qualitative judgment. **\`analyze\` with type \`'diff'\`** compares two snapshots quantitatively — render before, edit, render after, diff. **\`listen\` with \`compare\`** renders before/after audio for qualitative AI evaluation.
 - **Surface & metadata**: \`set_surface\` defines semantic controls (virtual knobs blending parameters). \`pin_control\` pins raw controls. \`set_track_meta\` sets approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
@@ -385,7 +385,7 @@ ${modulatorTypes.size > 0 ? `\n### Active Modulator Details\n${generateActiveMod
 - Valid source targets: timbre, harmonics, morph, frequency. Frequency modulation operates on pitch (log-frequency): use shallow depth (0.01–0.05) for vibrato, up to ~0.2 for pitch sweeps or FM-style effects. Beyond 0.2 artifacts are likely.
 - Use **move** with modulatorId to adjust controls; **set_model** with modulatorId to switch modes.
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
-- Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing).
+- Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing), → Beads time/position (granular texture evolution).
 
 ## Step Addressing
 Events in \`sketch\` and \`edit_pattern\` accept two position formats:

@@ -60,7 +60,7 @@ export interface RenderPlaitsExtended {
 }
 
 export interface RenderProcessorSpec {
-  type: 'rings' | 'clouds' | 'compressor';
+  type: 'rings' | 'clouds' | 'compressor' | 'beads';
   id: string;
   model: number;
   params: Record<string, number>;
@@ -203,7 +203,7 @@ function clampModel(model: number): number {
 
 function buildProcessorSpec(proc: ProcessorConfig): RenderProcessorSpec {
   return {
-    type: proc.type as 'rings' | 'clouds' | 'compressor',
+    type: proc.type as 'rings' | 'clouds' | 'compressor' | 'beads',
     id: proc.id,
     model: proc.model,
     params: { ...proc.params },
