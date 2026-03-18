@@ -105,6 +105,10 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { action: 'append', trackId: 'v0', patternId: 'v0-pattern-0', description: 'test' };
     case 'report_bug':
       return { summary: 'test bug', category: 'tool', details: 'expected X got Y', severity: 'low' };
+    case 'set_intent':
+      return { genre: ['techno'] };
+    case 'set_section':
+      return { name: 'intro' };
     default:
       return {};
   }
@@ -182,6 +186,7 @@ describe('API Structural Integrity', () => {
       'modulation_route', 'set_surface', 'pin_control', 'label_axes',
       'manage_send', 'set_master', 'manage_pattern', 'manage_sequence',
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
+      'set_intent', 'set_section',
     ];
 
     // Analysis-only tools produce no actions (actions: []):
@@ -199,7 +204,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(26);
+    expect(GLUON_TOOLS.length).toBe(28);
   });
 
   // -----------------------------------------------------------------------

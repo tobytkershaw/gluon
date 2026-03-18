@@ -963,6 +963,71 @@ const reportBugTool: ToolSchema = {
   },
 };
 
+const setIntentTool: ToolSchema = {
+  name: 'set_intent',
+  description:
+    'Set or update the session-level creative intent. Use this to record the genre, references, mood, things to avoid, and the current creative goal. ' +
+    'Updates are merged: fields you provide overwrite previous values, fields you omit are preserved. ' +
+    'Call this early in a session when you understand the direction, and update it as the session evolves.',
+  parameters: {
+    type: 'object',
+    properties: {
+      genre: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Genre tags (e.g. ["dubstep", "hyperdub", "uk bass"]).',
+      },
+      references: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Artist or track references (e.g. ["Kode9", "Burial"]).',
+      },
+      mood: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Mood descriptors (e.g. ["dark", "sparse", "roomy"]).',
+      },
+      avoid: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Things to avoid (e.g. ["busy hats", "four-on-floor"]).',
+      },
+      currentGoal: {
+        type: 'string',
+        description: 'The current creative objective (e.g. "build a half-step beat").',
+      },
+    },
+  },
+};
+
+const setSectionTool: ToolSchema = {
+  name: 'set_section',
+  description:
+    'Set or update the current section metadata. Describes what part of the arrangement you\'re working in and its target character. ' +
+    'Updates are merged: fields you provide overwrite previous values, fields you omit are preserved.',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Section name (e.g. "intro", "groove", "breakdown", "drop").',
+      },
+      intent: {
+        type: 'string',
+        description: 'Section character intent (e.g. "sparse and tense", "peak energy").',
+      },
+      targetEnergy: {
+        type: 'number',
+        description: 'Target energy level for this section (0.0-1.0).',
+      },
+      targetDensity: {
+        type: 'number',
+        description: 'Target rhythmic density for this section (0.0-1.0).',
+      },
+    },
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -990,4 +1055,6 @@ export const GLUON_TOOLS: ToolSchema[] = [
   manageTrackTool,
   raiseDecisionTool,
   reportBugTool,
+  setIntentTool,
+  setSectionTool,
 ];

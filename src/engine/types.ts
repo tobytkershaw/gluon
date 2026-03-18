@@ -186,6 +186,23 @@ export const MAX_TRACKS = 16;
 /** Well-known ID for the master bus track. */
 export const MASTER_BUS_ID = 'master-bus';
 
+/** Session-level creative intent — genre, references, mood, constraints. Survives context window rotation. */
+export interface SessionIntent {
+  genre?: string[];           // ["dubstep", "hyperdub", "uk bass"]
+  references?: string[];      // ["Kode9", "Burial"]
+  mood?: string[];            // ["dark", "sparse", "roomy"]
+  avoid?: string[];           // ["busy hats", "four-on-floor"]
+  currentGoal?: string;       // "build a half-step beat"
+}
+
+/** Section-level metadata — what part of the arrangement we're working in and its character. */
+export interface SectionMeta {
+  name?: string;              // "intro", "groove", "breakdown", "drop"
+  intent?: string;            // "sparse and tense", "peak energy"
+  targetEnergy?: number;      // 0-1
+  targetDensity?: number;     // 0-1
+}
+
 export interface MusicalContext {
   key: string | null;
   scale: string | null;
@@ -665,6 +682,16 @@ export interface AIMarkApprovedAction {
   reason: string;
 }
 
+export interface AISetIntentAction {
+  type: 'set_intent';
+  intent: SessionIntent;
+}
+
+export interface AISetSectionAction {
+  type: 'set_section';
+  section: SectionMeta;
+}
+
 export interface AIReportBugAction {
   type: 'report_bug';
   bugId: string;
@@ -688,7 +715,7 @@ export interface AIRemoveTrackAction {
   description: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AISetIntentAction | AISetSectionAction;
 
 // --- Reaction History ---
 
@@ -766,6 +793,10 @@ export interface Session {
   bugReports?: BugReport[];
   /** IDs of tracks whose sidebar rows are expanded (accordion-style, independent of selection). */
   expandedTrackIds?: string[];
+  /** Session-level creative intent (genre, mood, references, constraints). Survives context rotation. */
+  intent?: SessionIntent;
+  /** Current section metadata (name, energy, density targets). */
+  section?: SectionMeta;
 }
 
 export type ActionDiff =

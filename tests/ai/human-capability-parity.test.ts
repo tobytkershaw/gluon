@@ -46,6 +46,8 @@ const PARITY_GAP_TOOLS = new Set([
   'pin_control',         // MODERATE: no UI to pin/unpin controls
   'label_axes',          // MODERATE: no UI for axis labels
   'set_track_meta',      // MODERATE: approval has cycle button but importance/musicalRole have no UI
+  'set_intent',          // MODERATE: no UI for session intent (genre/mood/references)
+  'set_section',         // MODERATE: no UI for section metadata (name/energy/density targets)
 ]);
 
 describe('Human Capability Parity', () => {
@@ -73,8 +75,8 @@ describe('Human Capability Parity', () => {
   it('documents the expected number of parity gaps', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
-    // pin_control, label_axes, set_track_meta
-    expect(PARITY_GAP_TOOLS.size).toBe(5);
+    // pin_control, label_axes, set_track_meta, set_intent, set_section
+    expect(PARITY_GAP_TOOLS.size).toBe(7);
   });
 
   it('documents the expected number of AI-only tools', () => {
