@@ -266,7 +266,7 @@ describe('operation-executor', () => {
     // with humanize: 0.5 is negligible (avoids flaky test).
     const triggerEvents = Array.from({ length: 24 }, (_, i) => ({
       kind: 'trigger' as const,
-      at: i,
+      at: i * 0.5,
       velocity: 1.0,
     }));
     const actions: AIAction[] = [{
