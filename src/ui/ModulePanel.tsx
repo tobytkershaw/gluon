@@ -273,10 +273,10 @@ export function ModulePanel({
   const largeCols = largeKnobs.length > 4 ? 3 : largeKnobs.length === 3 ? 3 : 2;
   const mediumCols = mediumKnobs.length > 4 ? 4 : mediumKnobs.length > 2 ? 3 : 2;
   const smallCols = smallKnobs.length > 6 ? 4 : smallKnobs.length > 2 ? 3 : 2;
-  // knob container widths: large=64, medium=54, small=48 (from Knob.tsx)
-  const largeMaxW = 64 * largeCols + 16 * (largeCols - 1);
-  const mediumMaxW = 54 * mediumCols + 12 * (mediumCols - 1);
-  const smallMaxW = 48 * smallCols + 8 * (smallCols - 1);
+  // knob container widths: large=76, medium=66, small=56 (from Knob.tsx: size + 24, min 56)
+  const largeMaxW = 76 * largeCols + 16 * (largeCols - 1);
+  const mediumMaxW = 66 * mediumCols + 12 * (mediumCols - 1);
+  const smallMaxW = 56 * smallCols + 8 * (smallCols - 1);
 
 
   return (

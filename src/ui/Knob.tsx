@@ -127,8 +127,8 @@ export function Knob({
   const ind = indicatorPosition(cx, cy, r, value);
   const indInner = indicatorPosition(cx, cy, r * 0.55, value);
 
-  // Container width adapts to knob size: knob + some padding for label
-  const containerWidth = Math.max(size + 12, 48);
+  // Container width adapts to knob size: knob + generous padding for label text
+  const containerWidth = Math.max(size + 24, 56);
   const isSmall = size < 40;
 
   return (
@@ -139,7 +139,10 @@ export function Knob({
       onMouseLeave={() => setHovered(false)}
     >
       {/* Label */}
-      <span className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[9px]' : 'text-[11px]'}`}>
+      <span
+        className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[9px]' : 'text-[11px]'}`}
+        title={label}
+      >
         {label}
       </span>
 
