@@ -343,6 +343,66 @@ describe('multi-bar generation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// patternDuration inference (bug #871)
+// ---------------------------------------------------------------------------
+
+describe('patternDuration-based bar inference', () => {
+  it('explicit bars still works (no regression)', () => {
+    const events = generateFromGenerator(
+      gen({ type: 'probability', density: 1.0 }, [], 4),
+      16,
+      undefined,
+    );
+    expect(events.length).toBe(64); // 16 * 4
+  });
+
+  it('infers bars from patternDuration when bars is omitted', () => {
+    const events = generateFromGenerator(
+      gen({ type: 'probability', density: 1.0 }),
+      16,
+      64, // 4 bars worth of steps
+    );
+    expect(events.length).toBe(64); // should fill all 4 bars
+  });
+
+  it('defaults to 1 bar when neither bars nor patternDuration is provided', () => {
+    const events = generateFromGenerator(
+      gen({ type: 'probability', density: 1.0 }),
+    );
+    expect(events.length).toBe(16); // 1 bar
+  });
+
+  it('explicit bars takes precedence over patternDuration', () => {
+    const events = generateFromGenerator(
+      gen({ type: 'probability', density: 1.0 }, [], 2),
+      16,
+      64, // would infer 4 bars, but explicit 2 should win
+    );
+    expect(events.length).toBe(32); // 2 bars, not 4
+  });
+
+  it('handles patternDuration not evenly divisible by stepsPerBar', () => {
+    // 50 steps / 16 stepsPerBar = 3.125, floor = 3
+    const events = generateFromGenerator(
+      gen({ type: 'probability', density: 1.0 }),
+      16,
+      50,
+    );
+    expect(events.length).toBe(48); // 3 bars * 16
+  });
+
+  it('handles patternDuration less than stepsPerBar', () => {
+    // 8 steps / 16 stepsPerBar = 0.5, floor = 0, clamped to 1
+    const events = generateFromGenerator(
+      gen({ type: 'probability', density: 1.0 }),
+      16,
+      8,
+    );
+    expect(events.length).toBe(16); // min 1 bar
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Events are sorted by position
 // ---------------------------------------------------------------------------
 
