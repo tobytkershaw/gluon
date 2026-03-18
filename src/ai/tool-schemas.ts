@@ -755,14 +755,18 @@ const manageSequenceTool: ToolSchema = {
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata in a single call: muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
-    'Example: set_track_meta(trackId: "Track 1", muted: true) or set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
+    'Set track metadata in a single call: name (rename), muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
+    'Example: set_track_meta(trackId: "Track 1", name: "Kick") or set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
       trackId: {
         type: 'string',
         description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      name: {
+        type: 'string',
+        description: 'Display name for the track (e.g. "Kick", "Hi-Hat", "Bass", "Reverb Bus").',
       },
       approval: {
         type: 'string',

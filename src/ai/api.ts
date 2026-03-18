@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AISetIntentAction, AISetSectionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -1419,13 +1419,14 @@ export class GluonAI {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
+        const hasName = args.name !== undefined;
         const hasApproval = args.approval !== undefined;
         const hasImportance = args.importance !== undefined;
         const hasRole = args.musicalRole !== undefined;
         const hasMuted = args.muted !== undefined;
         const hasSolo = args.solo !== undefined;
-        if (!hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
-          return { actions: [], response: errorPayload('At least one of approval, importance, musicalRole, muted, solo required') };
+        if (!hasName && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
+          return { actions: [], response: errorPayload('At least one of name, approval, importance, musicalRole, muted, solo required') };
         }
 
         const metaActions: AIAction[] = [];
@@ -1443,6 +1444,21 @@ export class GluonAI {
           metaActions.push(muteSoloAction);
           if (hasMuted) applied.push('muted');
           if (hasSolo) applied.push('solo');
+        }
+
+        // Handle rename
+        if (hasName) {
+          if (typeof args.name !== 'string' || !args.name.trim()) {
+            errors.push('name must be a non-empty string');
+          } else {
+            const renameAction: AIRenameTrackAction = {
+              type: 'rename_track',
+              trackId: args.trackId as string,
+              name: args.name.trim() as string,
+            };
+            metaActions.push(renameAction);
+            applied.push('name');
+          }
         }
 
         if (hasApproval) {
