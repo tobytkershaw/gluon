@@ -138,6 +138,12 @@ const sketchTool: ToolSchema = {
           required: ['kind', 'at'],
         },
       },
+      humanize: {
+        type: 'number',
+        description:
+          'Humanize amount (0.0-1.0). Adds subtle velocity and timing jitter to events so they don\'t sound mechanical. ' +
+          '0.3 is a good default for natural feel. Saves a separate transform step.',
+      },
     },
     required: ['trackId', 'description', 'events'],
   },

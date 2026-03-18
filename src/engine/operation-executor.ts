@@ -897,10 +897,19 @@ export function executeOperations(
           const prevEvents = sketchRegion.events;
           const prevDuration = sketchRegion.duration;
 
+          // Apply humanization if requested
+          let sketchEvents = action.events;
+          if (action.humanize != null && action.humanize > 0) {
+            sketchEvents = humanize(sketchEvents, sketchRegion.duration, {
+              velocityAmount: action.humanize,
+              timingAmount: action.humanize * 0.33,
+            });
+          }
+
           // Build updated region with new events
           const updatedRegion = normalizePatternEvents({
             ...sketchRegion,
-            events: action.events,
+            events: sketchEvents,
           });
 
           // Enforce region invariants on the canonical write path

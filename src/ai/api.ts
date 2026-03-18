@@ -11,6 +11,7 @@ import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
+import { humanize as humanizeEvents } from '../engine/musical-helpers';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
@@ -89,9 +90,17 @@ function projectAction(session: Session, action: AIAction): Session {
       const track = getTrack(session, action.trackId);
       if (!action.events || track.patterns.length === 0) return session;
       const activeReg = getActivePattern(track);
+      // Apply humanization if requested
+      let sketchEvents = action.events;
+      if (action.humanize != null && action.humanize > 0) {
+        sketchEvents = humanizeEvents(sketchEvents, activeReg.duration, {
+          velocityAmount: action.humanize,
+          timingAmount: action.humanize * 0.33,
+        });
+      }
       const updatedRegion = normalizePatternEvents({
         ...activeReg,
-        events: action.events,
+        events: sketchEvents,
       });
       const inverseOpts = {
         midiToPitch: (midi: number) => midi / 127,
@@ -634,6 +643,7 @@ export class GluonAI {
           trackId: args.trackId as string,
           description: args.description as string,
           events: args.events as AISketchAction['events'],
+          ...(typeof args.humanize === 'number' ? { humanize: Math.max(0, Math.min(1, args.humanize)) } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);
