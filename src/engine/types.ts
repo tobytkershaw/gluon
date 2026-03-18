@@ -1,6 +1,7 @@
 // src/engine/types.ts
 import type { StepGrid, StepGridSketch, Transport, TransportCommand, PatternRef } from './sequencer-types';
 import type { ControlState, Pattern, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
+import type { TensionCurve, TensionPoint, TrackTensionMapping } from './tension-curve';
 
 export type Agency = 'OFF' | 'ON';
 
@@ -788,6 +789,14 @@ export interface AIManageMotifAction {
   description: string;
 }
 
+export interface AISetTensionAction {
+  type: 'set_tension';
+  /** Tension curve points to set (replaces existing points). */
+  points: TensionPoint[];
+  /** Optional track mappings to set or update. */
+  trackMappings?: TrackTensionMapping[];
+}
+
 export interface AIReportBugAction {
   type: 'report_bug';
   bugId: string;
@@ -817,7 +826,7 @@ export interface AIRenameTrackAction {
   name: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction | AIManageMotifAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
 
 // --- Reaction History ---
 
@@ -901,6 +910,8 @@ export interface Session {
   section?: SectionMeta;
   /** Global scale/key constraint. When set, sketch pitches are auto-quantized. Null = chromatic/atonal. */
   scale?: ScaleConstraint | null;
+  /** Tension/energy curve over the arrangement timeline. Metadata for AI compositional decisions. */
+  tensionCurve?: TensionCurve;
 }
 
 export type ActionDiff =
