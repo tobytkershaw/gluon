@@ -24,6 +24,7 @@ import { validateChainMutation, validateProcessorTarget, validateModulatorMutati
 import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef } from './session';
 import { setPatternLength, clearPattern } from './pattern-primitives';
 import { quantizePitch, scaleToString } from './scale';
+import { applyDynamicShape } from './dynamic-shapes';
 
 /**
  * Extract sorted rhythm positions (the `at` values of note and trigger events)
@@ -916,6 +917,12 @@ export function executeOperations(
               velocityAmount: action.humanize,
               timingAmount: action.humanize * 0.33,
             });
+          }
+
+          // Apply dynamic shape (velocity contour post-processing)
+          if (action.dynamic) {
+            const stepsPerBar = sketchRegion.duration;
+            sketchEvents = applyDynamicShape(action.dynamic, sketchEvents, stepsPerBar);
           }
 
           // Auto-quantize note pitches to the session scale when set

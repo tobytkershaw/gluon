@@ -76,9 +76,9 @@ describe('Tool Schemas', () => {
     expect(move.parameters.required).toEqual(['param', 'target']);
   });
 
-  it('sketch tool requires trackId, description, events', () => {
+  it('sketch tool requires trackId, description (events optional when archetype/generator used)', () => {
     const sketch = GLUON_TOOLS.find(t => t.name === 'sketch')!;
-    expect(sketch.parameters.required).toEqual(['trackId', 'description', 'events']);
+    expect(sketch.parameters.required).toEqual(['trackId', 'description']);
   });
 
   it('listen tool requires question', () => {

@@ -15,6 +15,10 @@ import { rotate, transpose, reverse, duplicate } from '../engine/transformations
 import { humanize as humanizeEvents } from '../engine/musical-helpers';
 import { applyGroove, GROOVE_TEMPLATES } from '../engine/groove-templates';
 import type { InstrumentHint } from '../engine/groove-templates';
+import { generateArchetypeEvents, getArchetype } from '../engine/pattern-archetypes';
+import { generateFromGenerator } from '../engine/pattern-generator';
+import type { PatternGenerator, GeneratorBase, GeneratorLayer } from '../engine/pattern-generator';
+import { applyDynamicShape } from '../engine/dynamic-shapes';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
@@ -107,6 +111,10 @@ function projectAction(session: Session, action: AIAction): Session {
           velocityAmount: action.humanize,
           timingAmount: action.humanize * 0.33,
         });
+      }
+      // Apply dynamic shape (velocity contour post-processing)
+      if (action.dynamic) {
+        sketchEvents = applyDynamicShape(action.dynamic, sketchEvents, activeReg.duration);
       }
       const updatedRegion = normalizePatternEvents({
         ...activeReg,
@@ -649,25 +657,56 @@ export class GluonAI {
         if (typeof args.description !== 'string') {
           return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
-        if (!Array.isArray(args.events)) {
-          return { actions: [], response: errorPayload('Missing required parameter: events (must be an array)') };
+
+        // Resolve events from generator > archetype > explicit events
+        let resolvedEvents: AISketchAction['events'] | undefined;
+        let generatorUsed = false;
+        let archetypeUsed = false;
+
+        if (args.generator && typeof args.generator === 'object') {
+          // Pattern generator takes priority
+          const genArgs = args.generator as Record<string, unknown>;
+          const base = genArgs.base as GeneratorBase;
+          const layers = (genArgs.layers as GeneratorLayer[]) ?? [];
+          const bars = typeof genArgs.bars === 'number' ? genArgs.bars : undefined;
+          if (!base || typeof base.type !== 'string') {
+            return { actions: [], response: errorPayload('Generator requires a base with a type field') };
+          }
+          const gen: PatternGenerator = { base, layers, bars };
+          resolvedEvents = generateFromGenerator(gen);
+          generatorUsed = true;
+        } else if (typeof args.archetype === 'string') {
+          // Archetype lookup
+          const arch = getArchetype(args.archetype);
+          if (!arch) {
+            return { actions: [], response: errorPayload(`Unknown archetype: "${args.archetype}"`) };
+          }
+          resolvedEvents = generateArchetypeEvents(args.archetype);
+          archetypeUsed = true;
+        } else if (Array.isArray(args.events)) {
+          resolvedEvents = args.events as AISketchAction['events'];
+        } else {
+          return { actions: [], response: errorPayload('Sketch requires one of: events array, archetype name, or generator object') };
         }
 
         // Resolve bar.beat.sixteenth strings to absolute step numbers
-        try {
-          resolveSketchPositions(args.events as { at: number | string }[]);
-        } catch (e) {
-          return { actions: [], response: errorPayload((e as Error).message) };
+        if (resolvedEvents) {
+          try {
+            resolveSketchPositions(resolvedEvents as { at: number | string }[]);
+          } catch (e) {
+            return { actions: [], response: errorPayload((e as Error).message) };
+          }
         }
 
         const action: AISketchAction = {
           type: 'sketch',
           trackId: args.trackId as string,
           description: args.description as string,
-          events: args.events as AISketchAction['events'],
+          events: resolvedEvents,
           ...(typeof args.humanize === 'number' ? { humanize: Math.max(0, Math.min(1, args.humanize)) } : {}),
           ...(typeof args.groove === 'string' && args.groove in GROOVE_TEMPLATES ? { groove: args.groove } : {}),
           ...(typeof args.groove_amount === 'number' ? { grooveAmount: Math.max(0, Math.min(1, args.groove_amount)) } : {}),
+          ...(typeof args.dynamic === 'string' ? { dynamic: args.dynamic as string } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);
@@ -717,6 +756,9 @@ export class GluonAI {
             rhythmChanged,
             ...(hasApprovalLock ? { approvalLevel: approval } : {}),
             ...(preservationReport ? { preservation: preservationReport } : {}),
+            ...(generatorUsed ? { source: 'generator' } : {}),
+            ...(archetypeUsed ? { source: 'archetype', archetype: args.archetype } : {}),
+            ...(action.dynamic ? { dynamic: action.dynamic } : {}),
           },
         };
       }

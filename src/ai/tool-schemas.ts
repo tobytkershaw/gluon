@@ -182,8 +182,74 @@ const sketchTool: ToolSchema = {
         type: 'number',
         description: 'Groove intensity 0.0-1.0. Default 0.7. Higher values apply stronger timing offsets.',
       },
+      archetype: {
+        type: 'string',
+        description:
+          'Pattern archetype name — generates events from a built-in library instead of specifying them manually. ' +
+          'Drums: four_on_the_floor, two_and_four, offbeat_hat, 16th_hat, breakbeat, halftime, dnb_break. ' +
+          'Bass: root_eighth, octave_bounce, walking_bass, syncopated_sub. ' +
+          'Melodic: arp_up, arp_down, arp_updown, stab. ' +
+          'When set, overrides the events array. Groove and humanize are still applied on top.',
+      },
+      generator: {
+        type: 'object',
+        description:
+          'Composable pattern generator — produces events algorithmically. Base types: ' +
+          '"pulse" (Euclidean: steps + pulses + rotation), "sequence" (explicit hit positions), ' +
+          '"probability" (density 0-1), "archetype" (named archetype). ' +
+          'Layers are applied in order: velocity_cycle, accent, skip_every, swing, humanize, ' +
+          'pitch_pattern, ghost_notes, density_ramp. When set, overrides events and archetype.',
+        properties: {
+          base: {
+            type: 'object',
+            description: 'Base pattern generator.',
+            properties: {
+              type: { type: 'string', description: '"pulse", "sequence", "probability", or "archetype".' },
+              steps: { type: 'integer', description: 'Total steps for pulse (Euclidean).' },
+              pulses: { type: 'integer', description: 'Number of pulses for pulse (Euclidean).' },
+              rotation: { type: 'integer', description: 'Rotation offset for pulse.' },
+              hits: { type: 'array', items: { type: 'number' }, description: 'Step positions for sequence base.' },
+              density: { type: 'number', description: 'Hit probability (0-1) for probability base.' },
+              name: { type: 'string', description: 'Archetype name for archetype base.' },
+            },
+            required: ['type'],
+          },
+          layers: {
+            type: 'array',
+            description: 'Transformation layers applied in order.',
+            items: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', description: 'Layer type.' },
+                values: { type: 'array', items: { type: 'number' }, description: 'Values for velocity_cycle.' },
+                positions: { type: 'array', items: { type: 'number' }, description: 'Step positions for accent.' },
+                amount: { type: 'number', description: 'Amount for accent or swing.' },
+                n: { type: 'integer', description: 'Skip interval for skip_every.' },
+                offset: { type: 'integer', description: 'Offset for skip_every.' },
+                timing: { type: 'number', description: 'Timing jitter (0-1) for humanize.' },
+                velocity: { type: 'number', description: 'Velocity jitter (0-1) for humanize or ghost velocity.' },
+                notes: { type: 'array', items: { type: 'integer' }, description: 'MIDI pitches for pitch_pattern.' },
+                mode: { type: 'string', description: '"cycle" or "random" for pitch_pattern.' },
+                probability: { type: 'number', description: 'Probability (0-1) for ghost_notes.' },
+                from: { type: 'number', description: 'Start density for density_ramp.' },
+                to: { type: 'number', description: 'End density for density_ramp.' },
+              },
+              required: ['type'],
+            },
+          },
+          bars: { type: 'integer', description: 'Number of bars (default 1).' },
+        },
+        required: ['base', 'layers'],
+      },
+      dynamic: {
+        type: 'string',
+        description:
+          'Dynamic shape name — applies a velocity contour as post-processing. ' +
+          'Options: accent_downbeats, accent_backbeat, accent_offbeats, crescendo, decrescendo, ' +
+          'ghost_verse, push_pull, swell. Applied after archetype/generator/groove/humanize.',
+      },
     },
-    required: ['trackId', 'description', 'events'],
+    required: ['trackId', 'description'],
   },
 };
 
