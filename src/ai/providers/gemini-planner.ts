@@ -132,7 +132,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
       contents: [...contents],
       config: {
         systemInstruction: systemPrompt,
-        maxOutputTokens: 2048,
+        maxOutputTokens: 16384,
         tools: [{ functionDeclarations: geminiDeclarations }],
         toolConfig: {
           functionCallingConfig: {
@@ -148,6 +148,8 @@ export class GeminiPlannerProvider implements PlannerProvider {
     // history but are neither text nor functionCall.
     const opaqueParts: Part[] = [];
 
+    let truncated = false;
+
     if (onStreamText) {
       // Streaming path — emit text chunks as they arrive
       let stream: AsyncGenerator<import('@google/genai').GenerateContentResponse>;
@@ -162,10 +164,14 @@ export class GeminiPlannerProvider implements PlannerProvider {
       // Track accumulated text parts for building the final array.
       // Each chunk may contribute to an existing text part or start a new one.
       let currentTextPartIndex = -1;
+      let lastFinishReason: string | undefined;
 
       try {
         for await (const chunk of stream) {
           const candidate = chunk.candidates?.[0];
+          if (candidate?.finishReason) {
+            lastFinishReason = candidate.finishReason as string;
+          }
           const parts = candidate?.content?.parts;
           if (!parts) continue;
 
@@ -200,6 +206,10 @@ export class GeminiPlannerProvider implements PlannerProvider {
       } catch (error) {
         throw this.translateError(error);
       }
+
+      if (lastFinishReason === 'MAX_TOKENS') {
+        truncated = true;
+      }
     } else {
       // Non-streaming path — unchanged behavior
       let response;
@@ -212,10 +222,13 @@ export class GeminiPlannerProvider implements PlannerProvider {
       this.backoff = { until: 0, delay: 0 };
 
       const candidate = response.candidates?.[0];
+      if (candidate?.finishReason === 'MAX_TOKENS') {
+        truncated = true;
+      }
       const rawContent = candidate?.content;
 
       if (!rawContent || !Array.isArray(rawContent.parts) || rawContent.parts.length === 0) {
-        return { textParts: [], functionCalls: [] };
+        return { textParts: [], functionCalls: [], truncated };
       }
 
       for (const part of rawContent.parts) {
@@ -251,7 +264,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
       this.pendingContents.push({ role: 'model', parts: modelParts });
     }
 
-    return { textParts, functionCalls };
+    return { textParts, functionCalls, truncated };
   }
 
   private translateError(error: unknown): ProviderError {
@@ -272,7 +285,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
     if (status && status >= 500) {
       const delay = 10_000;
       this.backoff = { until: Date.now() + delay, delay };
-      return new ProviderError('API error — retrying shortly.', 'server', delay);
+      return new ProviderError('API error — please try again.', 'server', delay);
     }
 
     return new ProviderError(msg, 'unknown');

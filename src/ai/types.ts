@@ -48,6 +48,7 @@ export class ProviderError extends Error {
 export interface GenerateResult {
   textParts: string[];
   functionCalls: NeutralFunctionCall[];
+  truncated?: boolean;
 }
 
 export interface NeutralFunctionCall {
