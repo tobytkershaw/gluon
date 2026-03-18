@@ -511,6 +511,7 @@ export interface AITransportAction {
   bpm?: number;
   swing?: number;
   mode?: 'pattern' | 'song';
+  playing?: boolean;
   timeSignatureNumerator?: number;
   timeSignatureDenominator?: number;
 }
