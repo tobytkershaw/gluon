@@ -429,4 +429,72 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     const unconfiguredAI = new GluonAI(emptyPlanner, emptyListener);
     expect(unconfiguredAI.isConfigured()).toBe(false);
   });
+
+  // -------------------------------------------------------------------------
+  // Token-budget-aware trimming (Phase 1a, #785)
+  // -------------------------------------------------------------------------
+
+  describe('token-budget-aware trimming', () => {
+    it('skips trimming when provider reports under budget', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      // Token-aware provider: under budget
+      tokenPlanner.countContextTokens = vi.fn(async () => 50_000);
+      tokenPlanner.getTokenBudget = () => 170_000;
+      tokenPlanner.getExchangeCount = () => 10;
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      await tokenAI.ask(session, 'hello');
+
+      // Should NOT have called trimHistory — we're under budget
+      expect(tokenPlanner.trimCalls).toEqual([]);
+      // countContextTokens should have been called once
+      expect(tokenPlanner.countContextTokens).toHaveBeenCalledTimes(1);
+    });
+
+    it('trims exchanges when provider reports over budget', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      // Start over budget, then under after trim
+      let callCount = 0;
+      tokenPlanner.countContextTokens = vi.fn(async () => {
+        callCount++;
+        return callCount === 1 ? 200_000 : 100_000; // Over, then under
+      });
+      tokenPlanner.getTokenBudget = () => 170_000;
+      tokenPlanner.getExchangeCount = () => 20;
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      await tokenAI.ask(session, 'hello');
+
+      // Should have trimmed
+      expect(tokenPlanner.trimCalls.length).toBeGreaterThan(0);
+      // The kept count should be less than the original 20
+      expect(tokenPlanner.trimCalls[0]).toBeLessThan(20);
+    });
+
+    it('falls back to exchange cap when countContextTokens throws', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      tokenPlanner.countContextTokens = vi.fn(async () => { throw new Error('network'); });
+      tokenPlanner.getTokenBudget = () => 170_000;
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      await tokenAI.ask(session, 'hello');
+
+      // Should fall back to the exchange-count cap
+      expect(tokenPlanner.trimCalls).toEqual([12]);
+    });
+
+    it('falls back to exchange cap for providers without countContextTokens', async () => {
+      // The default mock planner has no countContextTokens — this is the existing test
+      planner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      const session = createSession();
+      await ai.ask(session, 'hello');
+      expect(planner.trimCalls).toEqual([12]);
+    });
+  });
 });

@@ -104,6 +104,34 @@ export interface PlannerProvider {
    * prepend a summary to the first user message. Returns null if none.
    */
   consumeConversationContext?(): string | null;
+
+  // ---------------------------------------------------------------------------
+  // Token-budget-aware context management (Phase 1a, #785)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Count the total input tokens for the current context: system prompt,
+   * tools, committed history, and pending contents. Uses the provider's
+   * native token counting API (e.g. Gemini countTokens).
+   * Optional — providers that don't support it fall back to exchange-count trimming.
+   */
+  countContextTokens?(systemPrompt: string, tools: ToolSchema[]): Promise<number>;
+
+  /**
+   * Provider-specific token budget ceiling. Should stay under pricing thresholds
+   * (e.g. 200K for Gemini where input cost doubles).
+   */
+  getTokenBudget?(): number;
+
+  /**
+   * Return token usage from the most recent generate() call, if available.
+   */
+  getLastTokenUsage?(): { promptTokens: number; outputTokens: number } | null;
+
+  /**
+   * Return the current number of committed exchanges in the provider's history.
+   */
+  getExchangeCount?(): number;
 }
 
 // ---------------------------------------------------------------------------

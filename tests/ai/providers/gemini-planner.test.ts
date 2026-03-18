@@ -4,10 +4,11 @@ import { ProviderError } from '../../../src/ai/types';
 
 // Mock the @google/genai module
 const mockGenerateContent = vi.fn();
+const mockCountTokens = vi.fn();
 vi.mock('@google/genai', () => {
   return {
     GoogleGenAI: class {
-      models = { generateContent: mockGenerateContent };
+      models = { generateContent: mockGenerateContent, countTokens: mockCountTokens };
     },
     Type: {
       STRING: 'STRING',
@@ -315,5 +316,58 @@ describe('GeminiPlannerProvider', () => {
     const result = await planner.startTurn({ systemPrompt: 'system', userMessage: 'test', tools: GLUON_TOOLS });
     expect(result.textParts).toEqual([]);
     expect(result.functionCalls).toEqual([]);
+  });
+
+  // -------------------------------------------------------------------------
+  // Token-budget-aware methods (Phase 1a, #785)
+  // -------------------------------------------------------------------------
+
+  it('countContextTokens calls the Gemini countTokens API', async () => {
+    mockCountTokens.mockResolvedValueOnce({ totalTokens: 42_000 });
+    const tokens = await planner.countContextTokens('system prompt', GLUON_TOOLS);
+    expect(tokens).toBe(42_000);
+    expect(mockCountTokens).toHaveBeenCalledTimes(1);
+    const call = mockCountTokens.mock.calls[0][0];
+    expect(call.model).toBe('gemini-2.5-flash');
+    expect(call.config.systemInstruction).toBe('system prompt');
+  });
+
+  it('getTokenBudget returns the configured budget', () => {
+    expect(planner.getTokenBudget()).toBe(170_000);
+  });
+
+  it('getExchangeCount returns the number of committed exchanges', async () => {
+    expect(planner.getExchangeCount()).toBe(0);
+
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('reply'));
+    await planner.startTurn({ systemPrompt: 's', userMessage: 'msg', tools: [] });
+    planner.commitTurn();
+
+    expect(planner.getExchangeCount()).toBe(1);
+
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('reply2'));
+    await planner.startTurn({ systemPrompt: 's', userMessage: 'msg2', tools: [] });
+    planner.commitTurn();
+
+    expect(planner.getExchangeCount()).toBe(2);
+  });
+
+  it('getLastTokenUsage returns null before any request', () => {
+    expect(planner.getLastTokenUsage()).toBeNull();
+  });
+
+  it('tracks usageMetadata from non-streaming response', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      ...mockTextResponse('hello'),
+      usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 200, totalTokenCount: 1200 },
+    });
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'test', tools: GLUON_TOOLS });
+    const usage = planner.getLastTokenUsage();
+    expect(usage).toEqual({ promptTokens: 1000, outputTokens: 200 });
+  });
+
+  it('countContextTokens throws when not configured', async () => {
+    const unconfigured = new GeminiPlannerProvider('');
+    await expect(unconfigured.countContextTokens('prompt', [])).rejects.toThrow(ProviderError);
   });
 });

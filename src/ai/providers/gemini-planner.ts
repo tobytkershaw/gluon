@@ -9,6 +9,9 @@ import { toGeminiDeclarations } from './schema-converters';
 
 const MODEL = 'gemini-2.5-flash';
 
+/** Token budget ceiling — stay under the 200K Gemini pricing threshold. */
+const TOKEN_BUDGET = 170_000;
+
 interface BackoffState {
   until: number;
   delay: number;
@@ -16,6 +19,11 @@ interface BackoffState {
 
 interface ExchangeBoundary {
   contentCount: number;
+}
+
+interface TokenUsage {
+  promptTokens: number;
+  outputTokens: number;
 }
 
 export class GeminiPlannerProvider implements PlannerProvider {
@@ -26,6 +34,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
   private permanentContents: Content[] = [];
   private pendingContents: Content[] = [];
   private exchangeBoundaries: ExchangeBoundary[] = [];
+  private lastUsage: TokenUsage | null = null;
 
   constructor(apiKey: string) {
     this.ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -116,6 +125,40 @@ export class GeminiPlannerProvider implements PlannerProvider {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Token-budget-aware context management (Phase 1a, #785)
+  // ---------------------------------------------------------------------------
+
+  async countContextTokens(systemPrompt: string, tools: ToolSchema[]): Promise<number> {
+    if (!this.ai) throw new ProviderError('API not configured.', 'auth');
+
+    const contents = [...this.permanentContents, ...this.pendingContents];
+    const geminiDeclarations = toGeminiDeclarations(tools);
+
+    const result = await this.ai.models.countTokens({
+      model: MODEL,
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        tools: [{ functionDeclarations: geminiDeclarations }],
+      },
+    });
+
+    return result.totalTokens ?? 0;
+  }
+
+  getTokenBudget(): number {
+    return TOKEN_BUDGET;
+  }
+
+  getLastTokenUsage(): TokenUsage | null {
+    return this.lastUsage;
+  }
+
+  getExchangeCount(): number {
+    return this.exchangeBoundaries.length;
+  }
+
   private async generate(systemPrompt: string, tools: ToolSchema[], onStreamText?: StreamTextCallback): Promise<GenerateResult> {
     if (!this.ai) throw new ProviderError('API not configured.', 'auth');
 
@@ -165,12 +208,17 @@ export class GeminiPlannerProvider implements PlannerProvider {
       // Each chunk may contribute to an existing text part or start a new one.
       let currentTextPartIndex = -1;
       let lastFinishReason: string | undefined;
+      let lastUsageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined;
 
       try {
         for await (const chunk of stream) {
           const candidate = chunk.candidates?.[0];
           if (candidate?.finishReason) {
             lastFinishReason = candidate.finishReason as string;
+          }
+          // usageMetadata typically arrives on the final chunk
+          if (chunk.usageMetadata) {
+            lastUsageMetadata = chunk.usageMetadata;
           }
           const parts = candidate?.content?.parts;
           if (!parts) continue;
@@ -210,6 +258,17 @@ export class GeminiPlannerProvider implements PlannerProvider {
       if (lastFinishReason === 'MAX_TOKENS') {
         truncated = true;
       }
+
+      // Track token usage from streaming response
+      if (lastUsageMetadata) {
+        this.lastUsage = {
+          promptTokens: lastUsageMetadata.promptTokenCount ?? 0,
+          outputTokens: lastUsageMetadata.candidatesTokenCount ?? 0,
+        };
+        console.debug(
+          `[gluon-ai] token usage: prompt=${this.lastUsage.promptTokens}, output=${this.lastUsage.outputTokens}`,
+        );
+      }
     } else {
       // Non-streaming path — unchanged behavior
       let response;
@@ -220,6 +279,17 @@ export class GeminiPlannerProvider implements PlannerProvider {
       }
 
       this.backoff = { until: 0, delay: 0 };
+
+      // Track token usage from non-streaming response
+      if (response.usageMetadata) {
+        this.lastUsage = {
+          promptTokens: response.usageMetadata.promptTokenCount ?? 0,
+          outputTokens: response.usageMetadata.candidatesTokenCount ?? 0,
+        };
+        console.debug(
+          `[gluon-ai] token usage: prompt=${this.lastUsage.promptTokens}, output=${this.lastUsage.outputTokens}`,
+        );
+      }
 
       const candidate = response.candidates?.[0];
       if (candidate?.finishReason === 'MAX_TOKENS') {
