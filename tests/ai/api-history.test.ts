@@ -560,4 +560,46 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     // Final say should be present
     expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
   });
+
+  // -------------------------------------------------------------------------
+  // Enriched error payloads
+  // -------------------------------------------------------------------------
+
+  it('returns enriched error with available tracks when track ID is unknown', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'nonexistent' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Not found.'], functionCalls: [] });
+
+    const session = createSession();
+    await ai.ask(session, 'brighten nonexistent');
+
+    // The first continueTurn should have received an enriched error
+    const callArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const response = callArgs.functionResponses[0].result;
+    expect(response.error).toContain('Unknown track');
+    expect(response.hint).toBeDefined();
+    expect(response.available).toBeInstanceOf(Array);
+    expect(response.available.length).toBeGreaterThan(0);
+    // Available should contain track ID = label mappings
+    expect(response.available[0]).toContain('=');
+  });
+
+  it('returns enriched error with available archetypes when archetype is unknown', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'sketch', args: { trackId: 'v0', archetype: 'nonexistent_pattern', description: 'test' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['Not found.'], functionCalls: [] });
+
+    const session = createSession();
+    await ai.ask(session, 'use nonexistent pattern');
+
+    const callArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const response = callArgs.functionResponses[0].result;
+    expect(response.error).toContain('Unknown archetype');
+    expect(response.available).toBeInstanceOf(Array);
+    expect(response.available).toContain('four_on_the_floor');
+  });
 });
