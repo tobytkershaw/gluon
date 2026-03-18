@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has thirty-two tools, declared as neutral JSON Schema and adapted per provider.
+The AI has thirty-three tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -394,6 +394,18 @@ Set the global scale/key constraint. When set, note pitches in `sketch` and `edi
 | `clear` | boolean | no | Set to true to clear the scale constraint. When true, `root` and `mode` are ignored. |
 
 Undoable. Produces a `ScaleSnapshot` for undo.
+
+#### `shape_timbre`
+
+Move a track's timbre in a musical direction. Translates musical descriptors (darker, brighter, thicker, etc.) to appropriate parameter changes for the active synthesis model and any processors in the chain.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
+| `direction` | string | yes | Musical direction: darker, brighter, thicker, thinner, aggressive, gentle, metallic, organic, dry, wet, open, closed, smooth, rough, hollow, full. |
+| `amount` | number | no | Scale factor (0.0-1.0, default 0.3). Higher values produce more dramatic changes. |
+
+Produces `move` actions for affected parameters. Undoable via the standard move undo path.
 
 #### `explain_chain`
 
