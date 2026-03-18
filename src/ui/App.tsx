@@ -1122,23 +1122,6 @@ export default function App() {
     setSession((s) => renameTrack(s, trackId, name));
   }, []);
 
-  const handleSetImportance = useCallback((trackId: string, importance: number) => {
-    setSession((s) => {
-      const track = s.tracks.find(t => t.id === trackId);
-      if (!track) return s;
-      const clamped = Math.max(0, Math.min(1, importance));
-      const snapshot: TrackPropertySnapshot = {
-        kind: 'track-property',
-        trackId,
-        prevProps: { importance: track.importance, musicalRole: track.musicalRole },
-        timestamp: Date.now(),
-        description: `Set importance: ${track.importance ?? 'unset'} → ${clamped}`,
-      };
-      const next = setTrackImportance(s, trackId, importance);
-      return { ...next, undoStack: [...next.undoStack, snapshot] };
-    });
-  }, []);
-
   const handleSetMusicalRole = useCallback((trackId: string, role: string) => {
     setSession((s) => {
       const track = s.tracks.find(t => t.id === trackId);
@@ -2060,7 +2043,6 @@ export default function App() {
       }}
       onAddTrack={handleAddTrack}
       onRemoveTrack={handleRemoveTrack}
-      onSetImportance={handleSetImportance}
       onSetMusicalRole={handleSetMusicalRole}
       onAddSend={handleAddSend}
       onRemoveSend={handleRemoveSend}

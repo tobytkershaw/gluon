@@ -36,7 +36,6 @@ interface Props {
   onCycleApproval?: (trackId: string) => void;
   onAddTrack?: (kind?: import('../engine/types').TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
-  onSetImportance?: (trackId: string, importance: number) => void;
   onSetMusicalRole?: (trackId: string, role: string) => void;
   // Send routing
   onAddSend?: (trackId: string, busId: string, level?: number) => void;
@@ -133,7 +132,7 @@ const CHAT_COLLAPSE_WIDTH = 1280;
 export function AppShell({
   tracks, activeTrackId, expandedTrackIds, activityMap,
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
-  onAddTrack, onRemoveTrack, onSetImportance, onSetMusicalRole,
+  onAddTrack, onRemoveTrack, onSetMusicalRole,
   onAddSend, onRemoveSend, onSetSendLevel,
   messages, onSend, isThinking, isListening, streamingText,
   reactions, onReaction,
@@ -298,7 +297,6 @@ export function AppShell({
             onCycleApproval={onCycleApproval}
             onAddTrack={onAddTrack}
             onRemoveTrack={onRemoveTrack}
-            onSetImportance={onSetImportance}
             onSetMusicalRole={onSetMusicalRole}
             onAddSend={onAddSend}
             onRemoveSend={onRemoveSend}

@@ -35,7 +35,6 @@ interface Props {
   onRename?: (name: string) => void;
   onCycleApproval?: () => void;
   onRemove?: () => void;
-  onSetImportance?: (importance: number) => void;
   onSetMusicalRole?: (role: string) => void;
   /** Available bus tracks for send routing. */
   busTracks?: Track[];
@@ -48,7 +47,7 @@ export function TrackRow({
   track, label, isActive, isExpanded, onToggleExpand, isBus, isMasterBus, analyser,
   activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
-  onRemove, onSetImportance, onSetMusicalRole,
+  onRemove, onSetMusicalRole,
   busTracks, onAddSend, onRemoveSend, onSetSendLevel,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
@@ -294,30 +293,9 @@ export function TrackRow({
         />
       )}
 
-      {/* Expanded metadata: importance + musical role (expanded non-bus tracks only) */}
-      {isExpanded && !isBus && !isMasterBus && (onSetImportance || onSetMusicalRole) && (
+      {/* Expanded metadata: musical role (expanded non-bus tracks only) */}
+      {isExpanded && !isBus && !isMasterBus && onSetMusicalRole && (
         <div className="mt-1.5 space-y-1 px-0.5">
-          {/* Importance slider */}
-          {onSetImportance && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Importance — how prominent this track should be in the mix">Imp</span>
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={track.importance ?? 0.5}
-                onChange={(e) => { e.stopPropagation(); onSetImportance(parseFloat(e.target.value)); }}
-                onClick={(e) => e.stopPropagation()}
-                className="flex-1 h-1 accent-zinc-500 cursor-pointer"
-                title={`Importance: ${Math.round((track.importance ?? 0.5) * 100)}%`}
-                aria-label="Track importance"
-              />
-              <span className="text-[9px] font-mono text-zinc-600 w-5 text-right shrink-0">
-                {Math.round((track.importance ?? 0.5) * 100)}
-              </span>
-            </div>
-          )}
           {/* Musical role */}
           {onSetMusicalRole && (
             <div className="flex items-center gap-1.5">
