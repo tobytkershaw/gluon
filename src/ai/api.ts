@@ -8,7 +8,7 @@ import { resolveTrackId, getTrackLabel, getTrackOrdinalLabel } from '../engine/t
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
-import { generatePreservationReport } from '../engine/operation-executor';
+import { generatePreservationReport, groupSnapshots } from '../engine/operation-executor';
 import type { StepExecutionReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
@@ -807,6 +807,7 @@ export class GluonAI {
 
       const onStreamText = ctx?.onStreamText;
       let stepCount = 0;
+      let stepBaseline = workingSession.undoStack.length;
 
       // First step: startTurn
       let generateResult = await this.planner.startTurn({
@@ -833,7 +834,20 @@ export class GluonAI {
           if (execReport.accepted.length > 0 || execReport.log.length > 0) {
             hadVisibleOutput = true;
           }
+
+          // Group this step's snapshots into one ActionGroupSnapshot
+          const stepSayText = roundResult.textParts.join(' ');
+          const stepDesc = stepSayText
+            || (execReport.log.length > 0
+              ? `Step ${stepCount + 1}: ${execReport.log.length} changes`
+              : `Step ${stepCount + 1}`);
+          workingSession = {
+            ...workingSession,
+            undoStack: groupSnapshots(workingSession.undoStack, stepBaseline, stepDesc),
+          };
         }
+        // Advance baseline (say-only steps produce no undo entries)
+        stepBaseline = workingSession.undoStack.length;
 
         // Build immutable step payload and notify UI
         const stepResult: StepResult = {

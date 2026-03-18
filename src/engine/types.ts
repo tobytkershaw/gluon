@@ -994,9 +994,11 @@ export interface ChatMessage {
   actions?: ActionLogEntry[];
   /** Tool calls the AI made during this turn (for transparency display). */
   toolCalls?: ToolCallEntry[];
-  /** Index into the undo stack where this message's grouped undo entry lives.
-   *  Set by executeOperations on AI messages that produce undoable changes. */
-  undoStackIndex?: number;
+  /** Range of undo stack entries produced by this AI turn.
+   *  After collapse (batch path), start === end (single group).
+   *  In streaming path with per-step groups, start..end spans multiple entries.
+   *  The "undo this message" button is only available when end === undoStack.length - 1. */
+  undoStackRange?: { start: number; end: number };
 }
 
 // --- Helpers ---

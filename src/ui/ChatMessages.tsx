@@ -42,13 +42,13 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
       {messages.map((msg, i) => {
         const hasActions = msg.role === 'ai' && msg.actions && msg.actions.length > 0;
         const reaction = hasActions ? reactions.find(r => r.actionGroupIndex === i) : undefined;
-        // A message can be undone if it has an undoStackIndex and that entry
-        // is currently on top of the undo stack (LIFO — only the most recent
-        // AI change can be cleanly reverted).
+        // A message can be undone if its entire undo range is contiguous
+        // at the top of the stack. After partial Cmd+Z of individual steps,
+        // the button disables — per-step Cmd+Z is the appropriate interface.
         const canUndo = hasActions
-          && msg.undoStackIndex != null
+          && msg.undoStackRange != null
           && undoStack.length > 0
-          && msg.undoStackIndex === undoStack.length - 1;
+          && msg.undoStackRange.end === undoStack.length - 1;
 
         return (
           <div

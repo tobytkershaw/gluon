@@ -739,10 +739,39 @@ export function executeStepActions(
 }
 
 /**
- * Finalize an AI turn: collapse undo snapshots above `undoBaseline` into a
- * single ActionGroupSnapshot and append a ChatMessage with the combined text,
- * action log, and tool calls. Creates a ChatMessage whenever there is say
+ * Collapse undo entries above `baseline` into a single ActionGroupSnapshot.
+ * Handles nested groups (e.g. remove_processor cascades) by flattening.
+ * Returns the stack unchanged if there are 0 or 1 new entries.
+ */
+export function groupSnapshots(
+  undoStack: UndoEntry[],
+  baseline: number,
+  description: string,
+): UndoEntry[] {
+  const newEntries = undoStack.slice(baseline);
+  if (newEntries.length <= 1) return undoStack;
+  const flatSnaps: Snapshot[] = [];
+  for (const e of newEntries) {
+    if (e.kind === 'group') flatSnaps.push(...e.snapshots);
+    else flatSnaps.push(e);
+  }
+  const group: ActionGroupSnapshot = {
+    kind: 'group',
+    snapshots: flatSnaps,
+    timestamp: Date.now(),
+    description,
+  };
+  return [...undoStack.slice(0, baseline), group];
+}
+
+/**
+ * Finalize an AI turn: optionally collapse undo snapshots above `undoBaseline`
+ * into a single ActionGroupSnapshot and append a ChatMessage with the combined
+ * text, action log, and tool calls. Creates a ChatMessage whenever there is say
  * text or log entries (even when no undo entries exist).
+ *
+ * @param collapse  When true (default), collapses all snapshots above baseline
+ *   into one group. When false, leaves per-step groups intact (streaming path).
  */
 export function finalizeAITurn(
   session: Session,
@@ -750,27 +779,16 @@ export function finalizeAITurn(
   sayTexts: string[],
   log: ExecutionReportLogEntry[],
   toolCalls?: ToolCallEntry[],
+  collapse = true,
 ): Session {
   let next = session;
 
-  // Collapse multiple snapshots into a single undo group
-  const newSnapshots = next.undoStack.slice(undoBaseline);
-  if (newSnapshots.length > 1) {
+  if (collapse) {
+    // Collapse multiple snapshots into a single undo group
     const sayText = sayTexts.join(' ');
     const trackCount = new Set(log.map(e => e.trackId)).size;
     const undoDesc = sayText || `AI: ${log.length} changes across ${trackCount} track${trackCount !== 1 ? 's' : ''}`;
-    const flatSnaps: Snapshot[] = [];
-    for (const e of newSnapshots) {
-      if (e.kind === 'group') flatSnaps.push(...e.snapshots);
-      else flatSnaps.push(e);
-    }
-    const group: ActionGroupSnapshot = {
-      kind: 'group',
-      snapshots: flatSnaps,
-      timestamp: Date.now(),
-      description: undoDesc,
-    };
-    next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
+    next = { ...next, undoStack: groupSnapshots(next.undoStack, undoBaseline, undoDesc) };
   }
 
   // Add message
@@ -785,7 +803,7 @@ export function finalizeAITurn(
         timestamp: Date.now(),
         ...(log.length > 0 ? { actions: log } : {}),
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
-        ...(hasUndoEntries ? { undoStackIndex: next.undoStack.length - 1 } : {}),
+        ...(hasUndoEntries ? { undoStackRange: { start: undoBaseline, end: next.undoStack.length - 1 } } : {}),
       }],
     };
   }
