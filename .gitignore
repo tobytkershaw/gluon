@@ -43,6 +43,9 @@ Thumbs.db
 .claude/worktrees/
 .codex-worktrees/
 
+# ask-gluon interview history
+.claude/gluon-interview.json
+
 # Playwright
 .playwright-cli/
 output/playwright/
