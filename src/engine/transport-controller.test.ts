@@ -622,6 +622,88 @@ describe('TransportController', () => {
     controller.dispose();
   });
 
+  it('silences metronome immediately when toggled off during playback', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    session.transport = {
+      ...session.transport,
+      metronome: { enabled: true, volume: 0.6 },
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
+    });
+
+    // Start playback
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+
+    // Toggle metronome off while still playing
+    (audio.silenceMetronome as ReturnType<typeof vi.fn>).mockClear();
+    session.transport = { ...session.transport, metronome: { enabled: false, volume: 0.6 } };
+    controller.sync();
+
+    expect(audio.silenceMetronome).toHaveBeenCalledTimes(1);
+
+    controller.dispose();
+  });
+
+  it('updates metronome volume during playback without restart', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    session.transport = {
+      ...session.transport,
+      metronome: { enabled: true, volume: 0.5 },
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => ({ start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() }),
+    });
+
+    // Start playback
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+
+    // Change volume while playing
+    (audio.setMetronomeVolume as ReturnType<typeof vi.fn>).mockClear();
+    session.transport = { ...session.transport, metronome: { enabled: true, volume: 0.9 } };
+    controller.sync();
+
+    expect(audio.setMetronomeVolume).toHaveBeenCalledWith(0.9);
+
+    controller.dispose();
+  });
+
   it('invalidates a playing track when its region changes', () => {
     vi.useFakeTimers();
     const region = createDefaultPattern('v0', 16);

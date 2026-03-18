@@ -157,6 +157,13 @@ export class TransportController {
           generation,
           startStep,
         });
+      } else {
+        // Already playing, no restart needed — but metronome state may have changed.
+        if (!transport.metronome?.enabled) {
+          this.audio.silenceMetronome();
+        } else {
+          this.audio.setMetronomeVolume(transport.metronome.volume ?? 0.5);
+        }
       }
     } else if (transport.status === 'paused') {
       if (this.runtime.status === 'playing') {
