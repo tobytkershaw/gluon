@@ -1,9 +1,10 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, ScaleConstraint } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
+import { scaleToString, scaleNoteNames } from '../engine/scale';
 
 interface CompressedPattern {
   length: number;
@@ -118,6 +119,7 @@ export interface CompressedState {
   recent_preservation?: CompressedPreservationReport[];
   intent?: SessionIntent;
   section?: SectionMeta;
+  scale?: { root: number; mode: string; label: string; notes: string[] } | null;
 }
 
 function round2(n: number): number {
@@ -461,6 +463,14 @@ export function compressState(session: Session, recentPreservationReports?: Pres
     } : {}),
     ...(session.intent && Object.keys(session.intent).length > 0 ? { intent: session.intent } : {}),
     ...(session.section && Object.keys(session.section).length > 0 ? { section: session.section } : {}),
+    ...(session.scale !== undefined ? {
+      scale: session.scale ? {
+        root: session.scale.root,
+        mode: session.scale.mode,
+        label: scaleToString(session.scale),
+        notes: scaleNoteNames(session.scale),
+      } : null,
+    } : {}),
   };
 
   return result;

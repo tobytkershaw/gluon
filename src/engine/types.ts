@@ -186,6 +186,25 @@ export const MAX_TRACKS = 16;
 /** Well-known ID for the master bus track. */
 export const MASTER_BUS_ID = 'master-bus';
 
+/** Supported scale mode names. */
+export type ScaleMode =
+  | 'major' | 'minor' | 'dorian' | 'phrygian' | 'lydian'
+  | 'mixolydian' | 'aeolian' | 'locrian'
+  | 'harmonic-minor' | 'melodic-minor'
+  | 'pentatonic' | 'minor-pentatonic' | 'blues'
+  | 'chromatic' | 'whole-tone';
+
+/**
+ * Global scale/key constraint. When set, sketch note pitches are
+ * auto-quantized to the nearest in-scale degree.
+ */
+export interface ScaleConstraint {
+  /** Root note as pitch class (0 = C, 1 = C#, ... 11 = B). */
+  root: number;
+  /** Scale mode. */
+  mode: ScaleMode;
+}
+
 /** Session-level creative intent — genre, references, mood, constraints. Survives context window rotation. */
 export interface SessionIntent {
   genre?: string[];           // ["dubstep", "hyperdub", "uk bass"]
@@ -417,7 +436,14 @@ export interface ABRestoreSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot;
+export interface ScaleSnapshot {
+  kind: 'scale';
+  prevScale: ScaleConstraint | null | undefined;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -708,6 +734,11 @@ export interface AISetSectionAction {
   section: SectionMeta;
 }
 
+export interface AISetScaleAction {
+  type: 'set_scale';
+  scale: ScaleConstraint | null;
+}
+
 export interface AIReportBugAction {
   type: 'report_bug';
   bugId: string;
@@ -737,7 +768,7 @@ export interface AIRenameTrackAction {
   name: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction;
 
 // --- Reaction History ---
 
@@ -819,6 +850,8 @@ export interface Session {
   intent?: SessionIntent;
   /** Current section metadata (name, energy, density targets). */
   section?: SectionMeta;
+  /** Global scale/key constraint. When set, sketch pitches are auto-quantized. Null = chromatic/atonal. */
+  scale?: ScaleConstraint | null;
 }
 
 export type ActionDiff =
