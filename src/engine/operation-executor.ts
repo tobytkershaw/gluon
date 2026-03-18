@@ -1027,6 +1027,7 @@ export function executeOperations(
           newTransport.swing = Math.max(0, Math.min(1, action.swing));
         }
         if (action.mode !== undefined) newTransport.mode = action.mode;
+        if (action.playing !== undefined) newTransport.status = action.playing ? 'playing' : 'stopped';
         if (action.timeSignatureNumerator !== undefined || action.timeSignatureDenominator !== undefined) {
           const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
           const validDenominators = [2, 4, 8, 16];
@@ -1047,6 +1048,7 @@ export function executeOperations(
           parts.push(`time sig ${prevTs.numerator}/${prevTs.denominator} → ${newTransport.timeSignature.numerator}/${newTransport.timeSignature.denominator}`);
         }
         if (action.mode !== undefined && newTransport.mode !== (prev.mode ?? 'pattern')) parts.push(`mode ${prev.mode ?? 'pattern'} → ${action.mode}`);
+        if (action.playing !== undefined && newTransport.status !== prev.status) parts.push(`playback ${prev.status} → ${newTransport.status}`);
 
         const snapshot: TransportSnapshot = {
           kind: 'transport',

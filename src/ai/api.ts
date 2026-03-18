@@ -142,6 +142,7 @@ function projectAction(session: Session, action: AIAction): Session {
         t.swing = Math.max(0, Math.min(1, action.swing));
       }
       if (action.mode !== undefined) t.mode = action.mode;
+      if (action.playing !== undefined) t.status = action.playing ? 'playing' : 'stopped';
       return { ...session, transport: t };
     }
     case 'sketch': {
@@ -1053,8 +1054,9 @@ export class GluonAI {
         const hasBpm = typeof args.bpm === 'number';
         const hasSwing = typeof args.swing === 'number';
         const hasMode = typeof args.mode === 'string' && ['pattern', 'song'].includes(args.mode as string);
+        const hasPlaying = typeof args.playing === 'boolean';
         const hasTimeSig = typeof args.timeSignatureNumerator === 'number' || typeof args.timeSignatureDenominator === 'number';
-        if (!hasBpm && !hasSwing && !hasMode && !hasTimeSig) {
+        if (!hasBpm && !hasSwing && !hasMode && !hasPlaying && !hasTimeSig) {
           return { actions: [], response: errorPayload('At least one transport property must be provided') };
         }
 
@@ -1063,6 +1065,7 @@ export class GluonAI {
           ...(hasBpm ? { bpm: args.bpm as number } : {}),
           ...(hasSwing ? { swing: args.swing as number } : {}),
           ...(hasMode ? { mode: args.mode as 'pattern' | 'song' } : {}),
+          ...(hasPlaying ? { playing: args.playing as boolean } : {}),
           ...(typeof args.timeSignatureNumerator === 'number' ? { timeSignatureNumerator: args.timeSignatureNumerator as number } : {}),
           ...(typeof args.timeSignatureDenominator === 'number' ? { timeSignatureDenominator: args.timeSignatureDenominator as number } : {}),
         };
@@ -1081,6 +1084,7 @@ export class GluonAI {
             ...(resultBpm !== undefined ? { bpm: resultBpm } : {}),
             ...(resultSwing !== undefined ? { swing: Math.round(resultSwing * 100) / 100 } : {}),
             ...(action.mode ? { mode: action.mode } : {}),
+            ...(hasPlaying ? { playing: action.playing } : {}),
           },
         };
       }
