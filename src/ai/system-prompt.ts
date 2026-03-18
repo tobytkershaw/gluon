@@ -559,7 +559,7 @@ When composing beyond a single loop, think in terms of song structure — sectio
 - Use \`assign_spectral_slot\` proactively to allocate frequency bands per track (sub, low, mid, high, air) with priority. Higher-priority tracks win shared bands; lower-priority ones get EQ attenuation suggestions. Use masking analysis diagnostically when tracks sound muddy.
 
 **Cross-track arrangement awareness:**
-- When building a section, consider all tracks together — not each track in isolation. A drop needs kick + bass + lead working together.
+- When building a multi-section arrangement, work **section-by-section across all tracks** — not track-by-track through all sections. Build the complete drop (kick + bass + lead + hats) before moving to the intro. This keeps cross-track relationships coherent.
 - Use the section's energy/density targets to decide how many tracks are active and how dense their patterns should be.
 - Contrast is more important than complexity. A sparse breakdown makes the drop land harder than adding more elements everywhere.
 
