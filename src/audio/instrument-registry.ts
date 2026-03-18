@@ -87,6 +87,13 @@ export {
   getDistortionModelList,
 } from './instrument-registry-distortion';
 
+export {
+  warpsInstrument,
+  getWarpsEngineById,
+  getWarpsEngineByIndex,
+  getWarpsModelList,
+} from './instrument-registry-warps';
+
 // --- Processor registry ---
 
 import { ringsInstrument } from './instrument-registry-rings';
@@ -97,6 +104,7 @@ import { compressorInstrument } from './instrument-registry-compressor';
 import { stereoInstrument } from './instrument-registry-stereo';
 import { chorusInstrument } from './instrument-registry-chorus';
 import { distortionInstrument } from './instrument-registry-distortion';
+import { warpsInstrument } from './instrument-registry-warps';
 import { tidesInstrument } from './instrument-registry-tides';
 
 const processorInstruments = new Map<string, InstrumentDef>([
@@ -108,6 +116,7 @@ const processorInstruments = new Map<string, InstrumentDef>([
   ['stereo', stereoInstrument],
   ['chorus', chorusInstrument],
   ['distortion', distortionInstrument],
+  ['warps', warpsInstrument],
 ]);
 
 /** Get the instrument definition for a processor type */
