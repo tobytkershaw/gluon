@@ -501,6 +501,8 @@ export interface AISketchAction {
   groove?: string;
   /** Groove intensity 0.0-1.0. Default 0.7. */
   grooveAmount?: number;
+  /** Dynamic shape name. Applied as velocity post-processing after groove/humanize. */
+  dynamic?: string;
 }
 
 export interface AITransportAction {
