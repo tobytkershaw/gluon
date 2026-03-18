@@ -332,7 +332,10 @@ export class GeminiPlannerProvider implements PlannerProvider {
       this.pendingContents.push({ role: 'model', parts: rawModelParts });
     }
 
-    return { textParts, functionCalls, truncated };
+    // Deduplicate identical function calls (Gemini sometimes returns duplicates)
+    const dedupedCalls = deduplicateFunctionCalls(functionCalls);
+
+    return { textParts, functionCalls: dedupedCalls, truncated };
   }
 
   private translateError(error: unknown): ProviderError {
@@ -358,4 +361,25 @@ export class GeminiPlannerProvider implements PlannerProvider {
 
     return new ProviderError(msg, 'unknown');
   }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Remove exact-duplicate function calls (same name + same args via JSON key). */
+export function deduplicateFunctionCalls(calls: NeutralFunctionCall[]): NeutralFunctionCall[] {
+  const seen = new Set<string>();
+  const deduped = calls.filter(fc => {
+    const key = JSON.stringify({ name: fc.name, args: fc.args });
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (deduped.length < calls.length) {
+    console.debug(
+      `[gluon-ai] deduplicated ${calls.length - deduped.length} identical function call(s)`,
+    );
+  }
+  return deduped;
 }
