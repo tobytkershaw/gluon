@@ -39,7 +39,7 @@ Apply a rhythmic or melodic pattern to a track using musical events.
 
 **Event kinds:**
 - `trigger` — percussion hit. Fields: `at` (step index, 0-based), `velocity` (0.0–1.0), `accent` (boolean)
-- `note` — melodic note. Fields: `at`, `pitch` (MIDI 0–127), `velocity`, `duration` (always 0.25)
+- `note` — melodic note. Fields: `at`, `pitch` (MIDI 0–127), `velocity`, `duration` (gate length in steps: 0.25 = staccato, 0.5 = normal, 1.0 = legato, 2.0+ = sustained)
 - `parameter` — per-step param lock. Fields: `at`, `controlId` (control name), `value` (0.0–1.0)
 
 Fractional `at` values are supported for microtiming (e.g., `4.3` places an event slightly after step 4).
@@ -558,7 +558,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 3. Agency must be **ON** for the target track (programming, structure, and modulation tools). UI curation tools (`manage_view`, `set_surface`, `pin_control`, `label_axes`) do not require agency.
 4. `at` in events is a **0-based step index** (fractional values allowed for microtiming).
 5. MIDI pitch in note events is **0–127**.
-6. `duration` in note events is always **0.25**.
+6. `duration` in note events must be **> 0** (gate length in steps).
 7. `controlId` in parameter events must be a known control.
 8. `listen` works regardless of transport state (offline render).
 9. `set_transport` requires at least one of `bpm`, `swing`, `playing`, `timeSignatureNumerator`, or `timeSignatureDenominator`.

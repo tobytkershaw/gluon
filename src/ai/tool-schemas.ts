@@ -123,7 +123,7 @@ const sketchTool: ToolSchema = {
             },
             duration: {
               type: 'number',
-              description: 'Note duration as fraction of a step (always 0.25). Required for note events.',
+              description: 'Note duration in steps. Controls gate length: 0.25 = staccato (short gate), 0.5 = normal, 1.0 = legato (full step), 2.0+ = sustained/tied. Required for note events.',
             },
             controlId: {
               type: 'string',
@@ -197,7 +197,7 @@ const editPatternTool: ToolSchema = {
                 },
                 duration: {
                   type: 'number',
-                  description: 'Note duration in steps. For note events.',
+                  description: 'Note duration in steps. Controls gate length: 0.25 = staccato, 0.5 = normal, 1.0 = legato, 2.0+ = sustained. For note events.',
                 },
               },
             },

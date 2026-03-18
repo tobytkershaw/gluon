@@ -152,7 +152,8 @@ function generateTrackSetup(session: Session): string {
   return `${session.tracks.length} tracks (use "Track N" or internal ID in tool calls):
 ${trackLines}
 For percussion tracks, use trigger events in sketch.
-For melodic tracks, use note events with MIDI pitches. Duration is always 0.25.`;
+For melodic tracks, use note events with MIDI pitches.
+Duration controls gate length in steps: 0.125 = very short staccato, 0.25 = staccato, 0.5 = normal, 1.0 = legato (full step), 2.0+ = sustained/tied across steps. Use shorter durations for percussive plucks and staccato phrasing, longer for pads and legato lines.`;
 }
 
 function generateRestraintGuidance(level: RestraintLevel): string {
