@@ -1,7 +1,7 @@
 // tests/engine/scheduler.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Scheduler } from '../../src/engine/scheduler';
-import { createSession } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import type { Session } from '../../src/engine/types';
 import type { ScheduledNote } from '../../src/engine/sequencer-types';
@@ -716,6 +716,64 @@ describe('Scheduler', () => {
       expect(clicks[1].accent).toBe(false); // step 2
       expect(clicks[6].accent).toBe(true);  // step 12 = downbeat of bar 2
     }
+  });
+
+  // --- Solo / mute scheduling tests (#769) ---
+
+  it('schedules events on non-soloed tracks (solo is gain-only)', () => {
+    // Add a second audio track
+    session = addTrack(session)!;
+    // Gate step 0 on both audio tracks
+    const track0Id = session.tracks[0].id;
+    const track1Id = session.tracks[1].id;  // second audio track (not master bus)
+    session = toggleStepGate(session, track0Id, 0);
+    session = toggleStepGate(session, track1Id, 0);
+
+    // Solo track 0 — track 1 is NOT soloed
+    session = {
+      ...session,
+      tracks: session.tracks.map(v =>
+        v.id === track0Id ? { ...v, solo: true } : v
+      ),
+    };
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.2;
+    vi.advanceTimersByTime(100);
+    sched.stop();
+
+    // Both tracks should have scheduled notes — solo is a monitoring
+    // concern handled by gain muting, not a scheduling concern.
+    const scheduledTrackIds = [...new Set(notes.map(n => n.trackId))];
+    expect(scheduledTrackIds).toContain(track0Id);
+    expect(scheduledTrackIds).toContain(track1Id);
+  });
+
+  it('muted tracks are still excluded from scheduling', () => {
+    session = addTrack(session)!;
+    const track0Id = session.tracks[0].id;
+    const track1Id = session.tracks[1].id;
+    session = toggleStepGate(session, track0Id, 0);
+    session = toggleStepGate(session, track1Id, 0);
+
+    // Mute track 0
+    session = {
+      ...session,
+      tracks: session.tracks.map(v =>
+        v.id === track0Id ? { ...v, muted: true } : v
+      ),
+    };
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.2;
+    vi.advanceTimersByTime(100);
+    sched.stop();
+
+    const scheduledTrackIds = [...new Set(notes.map(n => n.trackId))];
+    expect(scheduledTrackIds).not.toContain(track0Id);
+    expect(scheduledTrackIds).toContain(track1Id);
   });
 
   it('default time signature (4/4) behaves like hardcoded 4', () => {
