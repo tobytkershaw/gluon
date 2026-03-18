@@ -903,13 +903,22 @@ export interface OpenDecision {
 
 // --- Session ---
 
-export interface HumanAction {
+export interface HumanParamAction {
+  kind: 'param';
   trackId: string;
   param: string;
   from: number;
   to: number;
   timestamp: number;
 }
+
+export interface HumanUndoRedoAction {
+  kind: 'undo' | 'redo';
+  description: string;
+  timestamp: number;
+}
+
+export type HumanAction = HumanParamAction | HumanUndoRedoAction;
 
 export interface Session {
   tracks: Track[];

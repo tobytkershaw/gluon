@@ -836,7 +836,7 @@ export class GluonAI {
         const HUMAN_TOUCH_WINDOW_MS = 5000;
         const now = Date.now();
         const recentHumanTouch = session.recentHumanActions.some(
-          ha => ha.trackId === trackId && ha.param === action.param &&
+          ha => ha.kind === 'param' && ha.trackId === trackId && ha.param === action.param &&
                 (now - ha.timestamp) < HUMAN_TOUCH_WINDOW_MS,
         );
 

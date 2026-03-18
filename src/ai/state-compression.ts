@@ -441,13 +441,19 @@ export function compressState(session: Session, recentPreservationReports?: Pres
     },
     undo_depth: session.undoStack.length,
     redo_depth: session.redoStack.length,
-    recent_human_actions: session.recentHumanActions.slice(-5).map(a => ({
-      trackId: a.trackId,
-      param: runtimeParamToControlId[a.param] ?? a.param,
-      from: round2(a.from),
-      to: round2(a.to),
-      age_ms: now - a.timestamp,
-    })),
+    recent_human_actions: session.recentHumanActions.slice(-5).map(a => {
+      if (a.kind === 'undo' || a.kind === 'redo') {
+        return { type: a.kind, description: a.description, age_ms: now - a.timestamp };
+      }
+      return {
+        type: 'param',
+        trackId: a.trackId,
+        param: runtimeParamToControlId[a.param] ?? a.param,
+        from: round2(a.from),
+        to: round2(a.to),
+        age_ms: now - a.timestamp,
+      };
+    }),
     recent_reactions: (session.reactionHistory ?? []).slice(-10).map((r: Reaction) => ({
       actionGroupIndex: r.actionGroupIndex,
       verdict: r.verdict,
