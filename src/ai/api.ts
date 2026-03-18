@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -35,6 +35,8 @@ import { getChainRecipe } from '../engine/chain-recipes';
 import { getMixRole } from '../engine/mix-roles';
 import { getModulationRecipe } from '../engine/modulation-recipes';
 import { resolveTimbralMove, getProcessorTimbralVector } from '../engine/timbral-vocabulary';
+import { SpectralSlotManager, FREQUENCY_BANDS } from '../engine/spectral-slots';
+import type { FrequencyBand } from '../engine/spectral-slots';
 import type { TimbralDirection } from '../engine/timbral-vocabulary';
 import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
 
@@ -445,6 +447,9 @@ export class GluonAI {
   /** Fallback exchange cap for providers without token counting. */
   private static FALLBACK_MAX_EXCHANGES = 12;
   private static MAX_PLANNER_INVOCATIONS = 5;
+
+  /** Spectral slot manager — persists across tool calls within a session. */
+  private spectralSlots = new SpectralSlotManager();
 
   constructor(
     private planner: PlannerProvider,
@@ -2737,6 +2742,52 @@ export class GluonAI {
             amount,
             sourceParams: appliedParams,
             ...(processorResults.length > 0 ? { processorParams: processorResults } : {}),
+          },
+        };
+      }
+
+      case 'assign_spectral_slot': {
+        const trackId = resolveTrackId(args.trackId as string, session);
+        if (!trackId) {
+          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+        }
+        const track = session.tracks.find(t => t.id === trackId);
+        if (!track) {
+          return { actions: [], response: errorPayload(`Unknown track: ${trackId}`) };
+        }
+
+        const rawBands = args.bands as string[] | undefined;
+        if (!rawBands || !Array.isArray(rawBands) || rawBands.length === 0) {
+          return { actions: [], response: errorPayload('Missing required parameter: bands (non-empty array)') };
+        }
+
+        const validBands = rawBands.filter(b => (FREQUENCY_BANDS as readonly string[]).includes(b)) as FrequencyBand[];
+        if (validBands.length === 0) {
+          return { actions: [], response: errorPayload(`No valid frequency bands. Available: ${FREQUENCY_BANDS.join(', ')}`) };
+        }
+
+        const priority = typeof args.priority === 'number' ? Math.max(0, Math.min(10, Math.round(args.priority))) : 5;
+
+        const slot = this.spectralSlots.assign(trackId, validBands, priority);
+        const collisions = this.spectralSlots.detectCollisions();
+        const adjustments = this.spectralSlots.computeAdjustments();
+
+        const action: AIAssignSpectralSlotAction = {
+          type: 'assign_spectral_slot',
+          trackId,
+          bands: validBands,
+          priority,
+        };
+
+        return {
+          actions: [action],
+          response: {
+            assigned: true,
+            trackId,
+            slot,
+            collisions: collisions.length > 0 ? collisions : undefined,
+            suggestedAdjustments: adjustments.length > 0 ? adjustments : undefined,
+            allSlots: this.spectralSlots.getAll(),
           },
         };
       }

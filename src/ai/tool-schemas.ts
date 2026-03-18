@@ -19,6 +19,7 @@ import {
 import { RECIPE_NAMES } from '../engine/chain-recipes';
 import { ROLE_NAMES } from '../engine/mix-roles';
 import { MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
+import { FREQUENCY_BANDS } from '../engine/spectral-slots';
 
 // ---------------------------------------------------------------------------
 // Derive param lists from the instrument registry so descriptions stay in sync
@@ -1304,6 +1305,33 @@ const shapeTimbreTool: ToolSchema = {
   },
 };
 
+const assignSpectralSlotTool: ToolSchema = {
+  name: 'assign_spectral_slot',
+  description:
+    'Assign a track to frequency bands with a priority. Prevents frequency collisions: ' +
+    'when multiple tracks share a band, lower-priority tracks receive gentle EQ attenuation suggestions. ' +
+    'Returns collision info and EQ adjustments to apply via move or manage_processor.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      bands: {
+        type: 'array',
+        description: `Frequency bands this track should occupy. Available bands: ${FREQUENCY_BANDS.map(b => `"${b}"`).join(', ')}.`,
+        items: { type: 'string' },
+      },
+      priority: {
+        type: 'integer',
+        description: 'Priority (0-10). Higher priority wins shared bands. Kick=10, bass=8, lead=7, pad=3, texture=1.',
+      },
+    },
+    required: ['trackId', 'bands', 'priority'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1338,4 +1366,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setMixRoleTool,
   applyModulationTool,
   shapeTimbreTool,
+  assignSpectralSlotTool,
 ];

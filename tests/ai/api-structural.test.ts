@@ -111,6 +111,8 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { name: 'intro' };
     case 'set_scale':
       return { root: 0, mode: 'major' };
+    case 'assign_spectral_slot':
+      return { trackId: 'v0', bands: ['sub', 'low'], priority: 8 };
     default:
       return {};
   }
@@ -190,6 +192,7 @@ describe('API Structural Integrity', () => {
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
       'set_intent', 'set_section', 'set_scale', 'shape_timbre',
       'apply_chain_recipe', 'set_mix_role', 'apply_modulation',
+      'assign_spectral_slot',
     ];
 
     // Analysis-only tools produce no actions (actions: []):
@@ -207,7 +210,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(33);
+    expect(GLUON_TOOLS.length).toBe(34);
   });
 
   // -----------------------------------------------------------------------
