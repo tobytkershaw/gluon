@@ -616,11 +616,11 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
     >
       {/* Colored header strip */}
       <div className={`${headerStripColor(node.kind)} rounded-t-[5px] px-3 py-1.5`}>
-        <div className={`text-[11px] font-semibold truncate leading-tight ${node.bypassed ? 'text-zinc-500 line-through' : headerTextColor(node.kind)}`}>
+        <div className={`text-[11px] font-semibold truncate leading-tight ${node.bypassed ? 'text-zinc-500 line-through' : headerTextColor(node.kind)}`} title={node.label}>
           {node.label}
         </div>
         {node.sublabel && (
-          <div className="text-[11px] text-zinc-400 truncate leading-tight mt-0.5">
+          <div className="text-[11px] text-zinc-400 truncate leading-tight mt-0.5" title={node.sublabel}>
             {node.sublabel}
           </div>
         )}
