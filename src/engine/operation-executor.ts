@@ -1916,26 +1916,12 @@ export function executeOperations(
 
       case 'set_mute_solo': {
         const track = getTrack(next, action.trackId);
-        const prevProps: Partial<typeof track> = {};
-        if (action.muted !== undefined) prevProps.muted = track.muted;
-        if (action.solo !== undefined) prevProps.solo = track.solo;
-
-        const muteSoloSnapshot: TrackPropertySnapshot = {
-          kind: 'track-property',
-          trackId: action.trackId,
-          prevProps,
-          timestamp: Date.now(),
-          description: `AI set_mute_solo on ${action.trackId}`,
-        };
 
         const update: Partial<typeof track> = {};
         if (action.muted !== undefined) update.muted = action.muted;
         if (action.solo !== undefined) update.solo = action.solo;
 
-        next = {
-          ...updateTrack(next, action.trackId, update),
-          undoStack: [...next.undoStack, muteSoloSnapshot],
-        };
+        next = updateTrack(next, action.trackId, update);
 
         const msLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const msParts: string[] = [];
