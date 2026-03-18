@@ -323,6 +323,12 @@ describe('GeminiPlannerProvider', () => {
   // -------------------------------------------------------------------------
 
   it('countContextTokens calls the Gemini countTokens API', async () => {
+    // Add some history so contents is non-empty
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('reply'));
+    await planner.startTurn({ systemPrompt: 's', userMessage: 'msg', tools: [] });
+    planner.commitTurn();
+    vi.clearAllMocks();
+
     // First call counts system prompt tokens, second counts message + tool tokens
     mockCountTokens.mockResolvedValueOnce({ totalTokens: 2_000 });
     mockCountTokens.mockResolvedValueOnce({ totalTokens: 40_000 });
@@ -376,5 +382,16 @@ describe('GeminiPlannerProvider', () => {
   it('countContextTokens throws when not configured', async () => {
     const unconfigured = new GeminiPlannerProvider('');
     await expect(unconfigured.countContextTokens('prompt', [])).rejects.toThrow(ProviderError);
+  });
+
+  it('countContextTokens handles empty history without error (#917)', async () => {
+    // On the first turn, no history exists. The Gemini countTokens API requires
+    // at least one content entry, so we skip the message count call.
+    mockCountTokens.mockResolvedValueOnce({ totalTokens: 3_000 });
+    const tokens = await planner.countContextTokens('system prompt', GLUON_TOOLS);
+    // Only the system prompt count should be returned
+    expect(tokens).toBe(3_000);
+    // Only one countTokens call (system prompt), not two
+    expect(mockCountTokens).toHaveBeenCalledTimes(1);
   });
 });

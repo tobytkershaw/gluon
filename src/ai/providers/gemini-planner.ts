@@ -142,6 +142,12 @@ export class GeminiPlannerProvider implements PlannerProvider {
       contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
     });
 
+    // On the first turn, contents is empty — Gemini's countTokens API requires
+    // at least one content entry (#917). Only system prompt tokens matter here.
+    if (contents.length === 0) {
+      return sysResult.totalTokens ?? 0;
+    }
+
     const msgResult = await this.ai.models.countTokens({
       model: MODEL,
       contents,
