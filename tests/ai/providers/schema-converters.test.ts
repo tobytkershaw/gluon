@@ -63,7 +63,9 @@ describe('toGeminiDeclarations', () => {
     expect(eventsProp.type).toBe(Type.ARRAY);
     expect(eventsProp.items!.type).toBe(Type.OBJECT);
     expect(eventsProp.items!.properties!.kind.type).toBe(Type.STRING);
-    expect(eventsProp.items!.properties!.at.type).toBe(Type.NUMBER);
+    // at has no type (accepts number or bar.beat.sixteenth string) — verify description exists
+    expect(eventsProp.items!.properties!.at.type).toBeUndefined();
+    expect(eventsProp.items!.properties!.at.description).toBeDefined();
     expect(eventsProp.items!.required).toEqual(['kind', 'at']);
   });
 

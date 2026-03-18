@@ -290,6 +290,13 @@ ${getRegisteredModulatorTypes().map(type => {
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
 - Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing).
 
+## Step Addressing
+Events in \`sketch\` and \`edit_pattern\` accept two position formats:
+- **Numeric**: 0-based step index (e.g. \`0\`, \`4\`, \`36\`). Supports fractional values for microtiming (e.g. \`4.1\`).
+- **Bar.beat.sixteenth string**: \`"bar.beat.sixteenth"\` where all components are 1-based (e.g. \`"1.1.1"\` = step 0, \`"3.2.1"\` = step 36, \`"2.1.3"\` = step 18). Assumes 4/4 time, 16 steps per bar.
+
+**Prefer bar.beat.sixteenth for multi-bar patterns** — "add a snare on beat 3" translates directly to \`"1.3.1"\` instead of computing step 8. For single-bar patterns, numeric indices are fine.
+
 ## Microtiming & Groove
 Events support fractional \`at\` values for sub-grid timing. Integer steps land on the 16th-note grid; fractional offsets push events early or late.
 

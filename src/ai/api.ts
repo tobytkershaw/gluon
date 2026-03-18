@@ -22,6 +22,7 @@ import { ProviderError } from './types';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm } from '../audio/audio-analysis';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
+import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
 
 /**
  * Lightweight projection of an action onto session state.
@@ -638,6 +639,13 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: events (must be an array)') };
         }
 
+        // Resolve bar.beat.sixteenth strings to absolute step numbers
+        try {
+          resolveSketchPositions(args.events as { at: number | string }[]);
+        } catch (e) {
+          return { actions: [], response: errorPayload((e as Error).message) };
+        }
+
         const action: AISketchAction = {
           type: 'sketch',
           trackId: args.trackId as string,
@@ -706,6 +714,13 @@ export class GluonAI {
         }
         if (!Array.isArray(args.operations) || args.operations.length === 0) {
           return { actions: [], response: errorPayload('Missing required parameter: operations (must be a non-empty array)') };
+        }
+
+        // Resolve bar.beat.sixteenth strings to absolute step numbers before validation
+        try {
+          resolveEditPatternPositions(args.operations as { step: number | string }[]);
+        } catch (e) {
+          return { actions: [], response: errorPayload((e as Error).message) };
         }
 
         // Validate operation shape
