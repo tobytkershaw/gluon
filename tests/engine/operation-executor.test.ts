@@ -260,6 +260,56 @@ describe('operation-executor', () => {
     expect((track.stepGrid.steps[2].params as Record<string, unknown>)?.['timbre']).toBe(0.9);
   });
 
+  it('applies sketch with humanize parameter', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [{
+      type: 'sketch',
+      trackId: 'v0',
+      description: 'humanized kick',
+      humanize: 0.5,
+      events: [
+        { kind: 'trigger', at: 0, velocity: 1.0 },
+        { kind: 'trigger', at: 4, velocity: 1.0 },
+        { kind: 'trigger', at: 8, velocity: 1.0 },
+        { kind: 'trigger', at: 12, velocity: 1.0 },
+      ],
+    }];
+    const report = executeOperations(session, actions, adapter, new Arbitrator());
+    expect(report.accepted).toHaveLength(1);
+    // Humanization should jitter velocities — at least one should differ from 1.0
+    const track = report.session.tracks.find(v => v.id === 'v0')!;
+    const region = track.patterns[0];
+    const velocities = region.events
+      .filter(e => e.kind === 'trigger')
+      .map(e => (e as { velocity: number }).velocity);
+    expect(velocities.length).toBe(4);
+    const allSame = velocities.every(v => v === 1.0);
+    expect(allSame).toBe(false); // humanization should have changed at least one velocity
+  });
+
+  it('sketch without humanize leaves velocities unchanged', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [{
+      type: 'sketch',
+      trackId: 'v0',
+      description: 'rigid kick',
+      events: [
+        { kind: 'trigger', at: 0, velocity: 1.0 },
+        { kind: 'trigger', at: 4, velocity: 1.0 },
+        { kind: 'trigger', at: 8, velocity: 1.0 },
+        { kind: 'trigger', at: 12, velocity: 1.0 },
+      ],
+    }];
+    const report = executeOperations(session, actions, adapter, new Arbitrator());
+    expect(report.accepted).toHaveLength(1);
+    const track = report.session.tracks.find(v => v.id === 'v0')!;
+    const region = track.patterns[0];
+    const velocities = region.events
+      .filter(e => e.kind === 'trigger')
+      .map(e => (e as { velocity: number }).velocity);
+    expect(velocities.every(v => v === 1.0)).toBe(true);
+  });
+
   describe('transform actions', () => {
     function setupWithEvents() {
       let session = createSession();

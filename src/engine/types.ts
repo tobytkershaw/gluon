@@ -456,6 +456,8 @@ export interface AISketchAction {
   pattern?: StepGridSketch;
   /** Canonical event shape */
   events?: CanonicalMusicalEvent[];
+  /** Humanize amount (0.0-1.0). When set, applies velocity/timing jitter to events. */
+  humanize?: number;
 }
 
 export interface AITransportAction {
