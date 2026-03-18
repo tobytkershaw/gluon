@@ -323,13 +323,20 @@ describe('GeminiPlannerProvider', () => {
   // -------------------------------------------------------------------------
 
   it('countContextTokens calls the Gemini countTokens API', async () => {
-    mockCountTokens.mockResolvedValueOnce({ totalTokens: 42_000 });
+    // First call counts system prompt tokens, second counts message + tool tokens
+    mockCountTokens.mockResolvedValueOnce({ totalTokens: 2_000 });
+    mockCountTokens.mockResolvedValueOnce({ totalTokens: 40_000 });
     const tokens = await planner.countContextTokens('system prompt', GLUON_TOOLS);
     expect(tokens).toBe(42_000);
-    expect(mockCountTokens).toHaveBeenCalledTimes(1);
-    const call = mockCountTokens.mock.calls[0][0];
-    expect(call.model).toBe('gemini-3.1-pro-preview-customtools');
-    expect(call.config.systemInstruction).toBe('system prompt');
+    expect(mockCountTokens).toHaveBeenCalledTimes(2);
+    // First call: system prompt as content (no systemInstruction config)
+    const sysCall = mockCountTokens.mock.calls[0][0];
+    expect(sysCall.model).toBe('gemini-3.1-pro-preview-customtools');
+    expect(sysCall.contents).toEqual([{ role: 'user', parts: [{ text: 'system prompt' }] }]);
+    // Second call: messages + tools
+    const msgCall = mockCountTokens.mock.calls[1][0];
+    expect(msgCall.config.tools).toBeDefined();
+    expect(msgCall.config.systemInstruction).toBeUndefined();
   });
 
   it('getTokenBudget returns the configured budget', () => {

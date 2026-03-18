@@ -135,16 +135,22 @@ export class GeminiPlannerProvider implements PlannerProvider {
     const contents = [...this.permanentContents, ...this.pendingContents];
     const geminiDeclarations = toGeminiDeclarations(tools);
 
-    const result = await this.ai.models.countTokens({
+    // Count system prompt tokens separately — the countTokens endpoint on the
+    // Gemini Developer API does not support the systemInstruction config param.
+    const sysResult = await this.ai.models.countTokens({
+      model: MODEL,
+      contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
+    });
+
+    const msgResult = await this.ai.models.countTokens({
       model: MODEL,
       contents,
       config: {
-        systemInstruction: systemPrompt,
         tools: [{ functionDeclarations: geminiDeclarations }],
       },
     });
 
-    return result.totalTokens ?? 0;
+    return (sysResult.totalTokens ?? 0) + (msgResult.totalTokens ?? 0);
   }
 
   getTokenBudget(): number {
