@@ -287,6 +287,7 @@ export function updateTrackParams(
     ? [
         ...session.recentHumanActions,
         ...Object.entries(params).map(([param, to]) => ({
+          kind: 'param' as const,
           trackId,
           param,
           from: track.params[param] ?? 0,

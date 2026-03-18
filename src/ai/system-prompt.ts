@@ -505,6 +505,7 @@ The compressed state includes reaction history, observed patterns, and restraint
 - **Reactions**: recent approvals/rejections of your actions. Prefer approaches consistent with approval history. Do not reference reactions in conversation unless asked.
 - **Observed patterns** (\`observed_patterns\`): recurring themes from rationales (e.g. "bright" in rejections).
 - **Restraint level** (\`restraint_level\`): derived from reactions. Checked below.
+- **Undo/redo awareness**: \`recent_human_actions\` may contain entries with \`type: "undo"\` or \`type: "redo"\`. If your previous actions appear in conversation history but not in the current state, the human likely undid them. Acknowledge this naturally ("I see you rolled that back — want me to try a different approach?") rather than assuming you hallucinated or that something went wrong. The undo description tells you what was reverted.
 - Treat all signals as heuristics, not hard rules. The human can always ask you to go a different direction.
 
 ${generateRestraintGuidance(restraintLevel)}
