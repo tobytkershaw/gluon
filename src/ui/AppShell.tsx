@@ -51,6 +51,7 @@ interface Props {
   isThinking: boolean;
   isListening: boolean;
   streamingText?: string;
+  streamingToolCalls?: { name: string; args: Record<string, unknown>; errored: boolean }[];
   reactions?: Reaction[];
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
   apiConfigured: boolean;
@@ -141,7 +142,7 @@ export function AppShell({
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetMusicalRole,
   onAddSend, onRemoveSend, onSetSendLevel,
-  messages, onSend, isThinking, isListening, streamingText,
+  messages, onSend, isThinking, isListening, streamingText, streamingToolCalls,
   reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   chatOpen, onChatToggle, chatWidth, onChatResize,
@@ -320,7 +321,7 @@ export function AppShell({
             {apiConfigured ? (
               <>
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                  <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
+                  <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingToolCalls={streamingToolCalls} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
                 </div>
 
                 {/* Composer */}
@@ -451,6 +452,7 @@ export function AppShell({
           isThinking={isThinking}
           isListening={isListening}
           streamingText={streamingText}
+          streamingToolCalls={streamingToolCalls}
           reactions={reactions}
           onReaction={onReaction}
           undoStack={undoStack}

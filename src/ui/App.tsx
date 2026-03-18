@@ -860,11 +860,13 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [streamingText, setStreamingText] = useState('');
+  const [streamingToolCalls, setStreamingToolCalls] = useState<{ name: string; args: Record<string, unknown>; errored: boolean }[]>([]);
 
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
     setStreamingText('');
+    setStreamingToolCalls([]);
     await ensureAudio();
     // Add human message to session synchronously via ref so askStreaming
     // receives the session with the message already present. Without this,
@@ -908,6 +910,10 @@ export default function App() {
       onToolCall: (name: string, args: Record<string, unknown>) => {
         if (thisRequest !== requestIdRef.current) return;
         collectedToolCalls.push({ name, args });
+      },
+      onToolCallComplete: (entry: { name: string; args: Record<string, unknown>; errored: boolean }) => {
+        if (thisRequest !== requestIdRef.current) return;
+        setStreamingToolCalls(prev => [...prev, { name: entry.name, args: entry.args, errored: entry.errored }]);
       },
       userSelection,
     };
@@ -983,6 +989,7 @@ export default function App() {
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');
+        setStreamingToolCalls([]);
       }
     }
   }, [ensureAudio]);
@@ -2150,6 +2157,7 @@ export default function App() {
       isThinking={isThinking}
       isListening={isListening}
       streamingText={streamingText}
+      streamingToolCalls={streamingToolCalls}
       reactions={session.reactionHistory}
       onReaction={handleReaction}
       apiConfigured={apiConfigured}
