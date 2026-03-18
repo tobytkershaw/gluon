@@ -2376,10 +2376,9 @@ export class GluonAI {
             const newTrackCount = projectedAfterAdd
               ? projectedAfterAdd.tracks.filter(t => getTrackKind(t) !== 'bus').length
               : session.tracks.filter(t => getTrackKind(t) !== 'bus').length + 1;
-            // Find the actual internal ID of the newly added track
-            const newTrackId = projectedAfterAdd
-              ? projectedAfterAdd.tracks[projectedAfterAdd.tracks.length - 1]?.id
-              : undefined;
+            // The new track's ID — addTrack sets activeTrackId to the new track.
+            // Don't use tracks[length-1] because splice inserts before master bus.
+            const newTrackId = projectedAfterAdd?.activeTrackId;
 
             const addResponse: Record<string, unknown> = {
                 queued: true,
