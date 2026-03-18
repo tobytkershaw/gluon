@@ -100,17 +100,33 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
   },
 };
 
-function generateModelReference(): string {
+/**
+ * Compact one-line index of all Plaits models. Always included so the AI
+ * knows the full palette even when detailed semantics are elided.
+ */
+function generateModelIndex(): string {
   return getModelList()
+    .map(m => `${m.index}: ${m.name}`)
+    .join('\n');
+}
+
+/**
+ * Detailed parameter semantics for Plaits models that are currently
+ * assigned to at least one track in the session.
+ */
+function generateActiveModelReference(activeModelIds: Set<number>): string {
+  if (activeModelIds.size === 0) return '';
+  const lines = getModelList()
+    .filter(m => activeModelIds.has(m.index))
     .map(m => {
       const semantics = MODEL_PARAM_SEMANTICS[getEngineByIndex(m.index)?.id ?? ''];
-      if (!semantics) return `${m.index}: ${m.name}`;
+      if (!semantics) return `**${m.index}: ${m.name}**`;
       return `**${m.index}: ${m.name}**
   - harmonics: ${semantics.harmonics}
   - timbre: ${semantics.timbre}
   - morph: ${semantics.morph}`;
-    })
-    .join('\n');
+    });
+  return lines.join('\n');
 }
 
 function generateParameterSection(): string {
@@ -193,8 +209,85 @@ Shortcuts: Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 **Common Workflows**: Ask AI to sketch patterns, add processors/modulators. Click the AI button to protect a track. Cmd+Z undoes everything.`;
 }
 
+/**
+ * Scan session tracks and return the set of active Plaits model indices,
+ * processor types, and modulator types. Exported for testing.
+ */
+export function extractActiveModules(session: Session): {
+  modelIds: Set<number>;
+  processorTypes: Set<string>;
+  modulatorTypes: Set<string>;
+} {
+  const modelIds = new Set<number>();
+  const processorTypes = new Set<string>();
+  const modulatorTypes = new Set<string>();
+  for (const track of session.tracks) {
+    if (track.model >= 0) modelIds.add(track.model);
+    for (const p of track.processors ?? []) processorTypes.add(p.type);
+    for (const m of track.modulators ?? []) modulatorTypes.add(m.type);
+  }
+  return { modelIds, processorTypes, modulatorTypes };
+}
+
+/**
+ * Compact processor index (always included). One line per registered type.
+ */
+function generateProcessorIndex(): string {
+  return getRegisteredProcessorTypes().map(type => {
+    const inst = getProcessorInstrument(type);
+    if (!inst) return '';
+    return `- **${type}**: ${inst.label}`;
+  }).filter(Boolean).join('\n');
+}
+
+/**
+ * Detailed processor reference — models and controls — only for types
+ * currently in at least one track's chain.
+ */
+function generateActiveProcessorReference(activeTypes: Set<string>): string {
+  if (activeTypes.size === 0) return '';
+  return getRegisteredProcessorTypes()
+    .filter(type => activeTypes.has(type))
+    .map(type => {
+      const inst = getProcessorInstrument(type);
+      if (!inst) return '';
+      const models = inst.engines.map(e => e.label).join(', ');
+      const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
+      return `- **${type}** — ${inst.label}.\n  Models: ${models}.\n  Controls: ${controls}.`;
+    }).filter(Boolean).join('\n');
+}
+
+/**
+ * Compact modulator index (always included). One line per registered type.
+ */
+function generateModulatorIndex(): string {
+  return getRegisteredModulatorTypes().map(type => {
+    const inst = getModulatorInstrument(type);
+    if (!inst) return '';
+    return `- **${type}**: ${inst.label}`;
+  }).filter(Boolean).join('\n');
+}
+
+/**
+ * Detailed modulator reference — modes and controls — only for types
+ * currently in at least one track's modulator list.
+ */
+function generateActiveModulatorReference(activeTypes: Set<string>): string {
+  if (activeTypes.size === 0) return '';
+  return getRegisteredModulatorTypes()
+    .filter(type => activeTypes.has(type))
+    .map(type => {
+      const inst = getModulatorInstrument(type);
+      if (!inst) return '';
+      const models = inst.engines.map(e => `${e.id} (${e.description})`).join(', ');
+      const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
+      return `- **${type}** — ${inst.label}.\n  Modes: ${models}.\n  Controls: ${controls}.`;
+    }).filter(Boolean).join('\n');
+}
+
 export function buildSystemPrompt(session: Session): string {
   const restraintLevel = deriveRestraintLevel(session.reactionHistory ?? []);
+  const { modelIds, processorTypes, modulatorTypes } = extractActiveModules(session);
   return `You are a musical collaborator in Gluon, a shared instrument in the browser. You and the human make music together — they direct, you contribute.
 
 You have two postures depending on context:
@@ -251,21 +344,17 @@ Each track has an \`approval\` level (editability) and optional \`importance\` (
 
 **Importance** (0.0-1.0) is advisory — high means be more careful, low means experiment freely. Set it with **set_track_meta** when you understand a track's role.
 
-## Plaits Models Reference
-${generateModelReference()}
+## Plaits Models (all available)
+${generateModelIndex()}
+${modelIds.size > 0 ? `\n### Active Model Details\nDetailed parameter semantics for models currently assigned to tracks:\n${generateActiveModelReference(modelIds)}` : ''}
 
 ## Parameter Space (semantic controls)
 ${generateParameterSection()}
 
 ## Processor Modules
-Available processor types you can add to a track's signal chain using manage_processor(action: 'add'):
-${getRegisteredProcessorTypes().map(type => {
-  const inst = getProcessorInstrument(type);
-  if (!inst) return '';
-  const models = inst.engines.map(e => e.label).join(', ');
-  const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
-  return `- **${type}** — ${inst.label}.\n  Models: ${models}.\n  Controls: ${controls}.`;
-}).filter(Boolean).join('\n')}
+Available processor types (add with manage_processor):
+${generateProcessorIndex()}
+${processorTypes.size > 0 ? `\n### Active Processor Details\n${generateActiveProcessorReference(processorTypes)}` : ''}
 
 Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types, 'bypass' to toggle enabled/disabled.
 To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx").
@@ -273,14 +362,9 @@ To switch processor modes, use **set_model** with the processorId parameter (e.g
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.
 
 ## Modulator Modules
-Available modulator types you can add to a track using manage_modulator(action: 'add'):
-${getRegisteredModulatorTypes().map(type => {
-  const inst = getModulatorInstrument(type);
-  if (!inst) return '';
-  const models = inst.engines.map(e => `${e.id} (${e.description})`).join(', ');
-  const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
-  return `- **${type}** — ${inst.label}.\n  Modes: ${models}.\n  Controls: ${controls}.`;
-}).filter(Boolean).join('\n')}
+Available modulator types (add with manage_modulator):
+${generateModulatorIndex()}
+${modulatorTypes.size > 0 ? `\n### Active Modulator Details\n${generateActiveModulatorReference(modulatorTypes)}` : ''}
 
 ## Modulation Guide
 - **manage_modulator**(action: 'add') creates an LFO/envelope; **modulation_route**(action: 'connect') wires it to a target.
