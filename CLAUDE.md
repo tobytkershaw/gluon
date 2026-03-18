@@ -59,6 +59,14 @@ npm run wasm:build   # Compile Plaits to WASM
 
 **CRITICAL: Never chain `cd` with git commands using `&&`** (e.g. `cd /path && git checkout -b branch`). This triggers bare-repository attack prevention and causes excessive permission prompts. In worktree isolation mode, just run git directly — your cwd is already the worktree. Otherwise use `git -C /path` or separate sequential commands.
 
+**Prefer dedicated tools over Bash.** Use Read instead of `cat`, Glob instead of `ls`/`find`, Grep instead of `grep`. These never trigger permission prompts and give better output. Only use Bash for commands that have no dedicated tool equivalent (e.g. `git`, `gh`, `npm`, `npx`, `which`).
+
+**Avoid Bash patterns that trigger un-approvable security prompts.** These always require manual confirmation regardless of permission settings:
+- `$()` command substitution — use pipes, `xargs`, or dedicated tools instead
+- `2>/dev/null` and stderr redirects — just let stderr print; it doesn't hurt anything
+- Semicolon-chained compound commands (`cmd1; cmd2; cmd3`) — use separate parallel tool calls or `&&` instead
+- Quoted newlines followed by `#`-prefixed lines — split into separate commands or remove comments
+
 ## Key Design Principles
 
 1. The human's hands always win (arbitration rule)
