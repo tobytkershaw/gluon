@@ -97,7 +97,8 @@ const sketchTool: ToolSchema = {
         description:
           'Sparse list of musical events. Only include steps you want to set. ' +
           'For drums/percussion, use "trigger" events. For melodic tracks, use "note" events with MIDI pitches. ' +
-          'For chords, place multiple "note" events at the same step with different pitches (up to 4 simultaneous notes).',
+          'For chords, place multiple "note" events at the same step with different pitches (up to 4 simultaneous notes). ' +
+          'Fractional "at" values enable microtiming — e.g. at:4.1 pushes an event slightly late for groove. Use sparingly for humanization.',
         items: {
           type: 'object',
           properties: {
@@ -106,8 +107,8 @@ const sketchTool: ToolSchema = {
               description: '"trigger" for percussion, "note" for melodic, "parameter" for per-step param lock.',
             },
             at: {
-              type: 'integer',
-              description: 'Step index (0-based, 16 steps per bar).',
+              type: 'number',
+              description: 'Step position (0-based, 16 steps per bar). Supports fractional values for microtiming — e.g. 4.1 places the event slightly after step 4, 3.9 places it slightly before step 4. Use offsets of ±0.05 to ±0.15 for subtle groove.',
             },
             velocity: {
               type: 'number',
@@ -171,8 +172,8 @@ const editPatternTool: ToolSchema = {
               description: '"add" inserts an event, "remove" deletes it, "modify" changes properties in place.',
             },
             step: {
-              type: 'integer',
-              description: 'Step index (0-based) to target.',
+              type: 'number',
+              description: 'Step position (0-based) to target. Supports fractional values for microtiming — e.g. 4.1 for slightly late, 3.9 for slightly early. For remove/modify, matches the nearest event within tolerance (0.001).',
             },
             event: {
               type: 'object',
