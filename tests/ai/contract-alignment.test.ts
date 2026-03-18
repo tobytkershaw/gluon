@@ -99,7 +99,7 @@ describe('AI Contract alignment with live implementation', () => {
 
   // ── Modulation targets use live param names ─────────────────────────────
   it('contract uses live param names for modulation targets', () => {
-    // The modulation_route tool in code says source targets are: timbre, harmonics, morph
+    // The modulation_route tool in code says source targets are: timbre, harmonics, morph, frequency
     const routeTool = GLUON_TOOLS.find(t => t.name === 'modulation_route')!;
     const targetDesc = routeTool.parameters.properties?.targetParam?.description ?? '';
 

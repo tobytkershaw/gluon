@@ -122,9 +122,9 @@ describe('port-registry', () => {
   });
 
   describe('getSourceModTargets', () => {
-    it('returns timbre, harmonics, morph', () => {
+    it('returns timbre, harmonics, morph, frequency', () => {
       const targets = getSourceModTargets();
-      expect(targets).toEqual(['timbre', 'harmonics', 'morph']);
+      expect(targets).toEqual(['timbre', 'harmonics', 'morph', 'frequency']);
     });
   });
 

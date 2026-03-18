@@ -191,7 +191,7 @@ Connect or disconnect a modulation routing. Connect routes a modulator's output 
 | `modulationId` | string | no | Required for `disconnect`. The modulation routing ID to remove (visible in project state). |
 | `targetKind` | string | no | Required for `connect`. `"source"` for the track's Plaits source, or `"processor"` for a processor module. |
 | `processorId` | string | no | Required for `connect` when `targetKind` is `"processor"`. The processor ID to target. |
-| `targetParam` | string | no | Required for `connect`. The parameter to modulate. Source: `timbre`, `harmonics`, `morph`. Processor: depends on type. |
+| `targetParam` | string | no | Required for `connect`. The parameter to modulate. Source: `timbre`, `harmonics`, `morph`, `frequency`. Processor: depends on type. |
 | `depth` | number | no | Required for `connect`. Modulation depth (-1.0 to 1.0). Prefer shallow values (0.1-0.3). Negative inverts. |
 | `description` | string | yes | Short description (e.g. "route Tides to timbre for slow sweep"). |
 
@@ -568,7 +568,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 13. `moduleType` in `manage_modulator` (add) must be a registered modulator type (`tides`).
 14. Max **2 processors** and **2 modulators** per track.
 15. Modulation depth must be **-1.0 to 1.0**.
-16. Modulation targets must be valid controls on the target module. Source targets: `timbre`, `harmonics`, `morph` (frequency is excluded). Processor targets: all controls for that processor type.
+16. Modulation targets must be valid controls on the target module. Source targets: `timbre`, `harmonics`, `morph`, `frequency`. Processor targets: all controls for that processor type. Frequency modulation depth guidance: 0.01–0.05 for vibrato, up to ~0.2 for pitch sweeps; beyond 0.2 artifacts are likely.
 17. One route per `(modulatorId, target)` pair — `modulation_route`(connect) is idempotent.
 18. Invalid tool calls get error responses; valid calls in the same round are unaffected.
 

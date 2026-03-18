@@ -134,12 +134,16 @@ export function getModuleInputs(adapterId: string): PortDef[] {
  * RackView, PatchView) import from here instead of maintaining their own copies.
  *
  * Each entry corresponds to a CV input on the Plaits hardware panel (e.g.
- * 'timbre' ← TIMBRE CV, 'harmonics' ← HARMONICS CV, 'morph' ← MORPH CV).
- * Frequency/note modulation is intentionally excluded (needs different depth
- * semantics — see Phase 4B).
+ * 'timbre' ← TIMBRE CV, 'harmonics' ← HARMONICS CV, 'morph' ← MORPH CV,
+ * 'frequency' ← FM CV / V/OCT).
+ *
+ * Frequency modulation uses the same 0–1 normalized range as other params,
+ * but operates on pitch (log-frequency).  Shallow depths (0.01–0.05) give
+ * vibrato; deeper values (up to ~0.2) produce pitch sweeps or FM-style
+ * effects.  Beyond 0.2 artifacts are likely.
  */
 export function getSourceModTargets(): string[] {
-  return ['timbre', 'harmonics', 'morph'];
+  return ['timbre', 'harmonics', 'morph', 'frequency'];
 }
 
 /** Get all registered adapter IDs that have port definitions */

@@ -161,7 +161,7 @@ export function validateModulationTarget(
   const target = routing.target;
   if (target.kind === 'source') {
     if (!VALID_SOURCE_MOD_TARGETS.has(target.param)) {
-      errors.push(`Cannot modulate source param "${target.param}". Valid targets: ${Array.from(VALID_SOURCE_MOD_TARGETS).join(', ')}. Frequency modulation is excluded in Phase 4B.`);
+      errors.push(`Cannot modulate source param "${target.param}". Valid targets: ${Array.from(VALID_SOURCE_MOD_TARGETS).join(', ')}.`);
     }
   } else if (target.kind === 'processor') {
     const processors = track.processors ?? [];
