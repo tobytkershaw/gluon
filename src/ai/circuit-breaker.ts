@@ -5,8 +5,6 @@
 // - Consecutive all-failure steps (model stuck in error loop)
 // - Total call count exceeding budget
 
-import type { NeutralFunctionCall } from './types';
-
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -65,30 +63,6 @@ export function createCircuitBreaker(
     totalCalls: 0,
     config: { ...DEFAULT_CONFIG, ...config },
   };
-}
-
-/**
- * Check whether a set of calls should be blocked BEFORE execution.
- * Returns per-call verdicts: blocked calls get a synthetic error message,
- * unblocked calls get null.
- */
-export function preCheckCalls(
-  state: CircuitBreakerState,
-  calls: NeutralFunctionCall[],
-): Map<string, string | null> {
-  const verdicts = new Map<string, string | null>();
-  for (const call of calls) {
-    const hash = callHash(call.name, call.args);
-    if (state.failedCallHashes.has(hash)) {
-      verdicts.set(
-        call.id,
-        `This operation already failed with these exact arguments. Try a different approach.`,
-      );
-    } else {
-      verdicts.set(call.id, null);
-    }
-  }
-  return verdicts;
 }
 
 export interface StepOutcome {

@@ -904,6 +904,9 @@ export default function App() {
 
     // Step callback: GluonAI calls this after each step for UI rendering.
     const onStep: OnStepCallback = (stepResult, updatedSession) => {
+      // Guard: if a new request superseded this one, don't push stale state
+      if (thisRequest !== requestIdRef.current) return;
+
       // Collect say texts for the final ChatMessage
       for (const a of stepResult.actions) {
         if (a.type === 'say') allSayTexts.push(a.text);

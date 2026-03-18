@@ -795,11 +795,15 @@ export class GluonAI {
     } catch (error) {
       hadError = true;
       allActions.push(...this.handleError(error));
-      hadVisibleOutput = true; // error messages are visible
+      // Don't set hadVisibleOutput here — the error message is shown to the
+      // user via allActions, but it doesn't mean provider history should be
+      // committed. Only steps that were successfully processed count.
     }
 
-    // Finalize provider history
-    if (hadVisibleOutput && !hadError) {
+    // Finalize provider history. Commit if any visible output was produced,
+    // even if the turn ended with an error — the user saw partial work and
+    // conversation continuity requires the provider to remember what happened.
+    if (hadVisibleOutput) {
       this.planner.commitTurn();
     } else {
       this.planner.discardTurn();
@@ -840,17 +844,26 @@ export class GluonAI {
       actions.push({ type: 'say', text: truncMsg });
     }
 
-    // Execute each function call
+    // Execute each function call. Within a single round, project each call's
+    // actions onto a running session snapshot so later calls (e.g. listen after
+    // sketch) see the effects of earlier calls in the same round.
+    let roundSession = session;
     for (const fc of result.functionCalls) {
       ctx?.onToolCall?.(fc.name, fc.args);
-      const execResult = await this.executeFunctionCall(fc, session, ctx);
+      const execResult = await this.executeFunctionCall(fc, roundSession, ctx);
       actions.push(...execResult.actions);
       functionResponses.push({ id: fc.id, name: fc.name, result: execResult.response });
+      // Project actions onto the running snapshot for subsequent calls
+      for (const action of execResult.actions) {
+        roundSession = projectAction(roundSession, action);
+      }
 
-      // Track whether this call errored (for circuit breaker)
+      // Track whether this call errored (for circuit breaker).
+      // errorPayload() returns { error: "message string" }, so check for
+      // any truthy `error` field (string or boolean).
       const errored = execResult.response != null &&
         typeof execResult.response === 'object' &&
-        'error' in execResult.response && execResult.response.error === true;
+        'error' in execResult.response && !!execResult.response.error;
       callOutcomes.push({ name: fc.name, args: fc.args, errored });
     }
 
