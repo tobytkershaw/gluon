@@ -1143,3 +1143,155 @@ describe('Operation executor adversarial tests', () => {
     });
   });
 });
+
+// ===========================================================================
+// NaN and Infinity rejection (#892)
+// ===========================================================================
+
+describe('operation-executor adversarial — NaN and Infinity rejection (#892)', () => {
+  // #892: NaN must be rejected, not silently passed through clamping
+  it('rejects NaN in absolute move target', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: NaN } },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+    expect(report.accepted).toHaveLength(0);
+    // State must not be mutated — timbre should retain its original value
+    const origTrack = session.tracks.find(v => v.id === 'v0')!;
+    const track = report.session.tracks.find(v => v.id === 'v0')!;
+    expect(track.params.timbre).toBe(origTrack.params.timbre);
+  });
+
+  // #892: Infinity must be rejected, not clamped to 1
+  it('rejects Infinity in absolute move target', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: Infinity } },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+    expect(report.accepted).toHaveLength(0);
+  });
+
+  // #892: -Infinity must be rejected, not clamped to 0
+  it('rejects -Infinity in absolute move target', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: -Infinity } },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+    expect(report.accepted).toHaveLength(0);
+  });
+
+  it('rejects NaN in relative move target', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { relative: NaN } },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
+
+  it('rejects NaN in drift move target', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: NaN }, over: 500 },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
+
+  it('rejects Infinity in drift move target', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: Infinity }, over: 500 },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
+
+  it('rejects NaN in set_transport swing', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'set_transport', swing: NaN },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+    // Transport must not be mutated
+    expect(Number.isFinite(report.session.transport.swing)).toBe(true);
+  });
+
+  it('rejects NaN in set_transport bpm', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'set_transport', bpm: NaN },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
+
+  it('rejects NaN in set_master volume', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'set_master', volume: NaN },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
+
+  it('rejects Infinity in set_master volume', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'set_master', volume: Infinity },
+    ];
+    const report = run(session, actions);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
+
+  it('accepts valid finite values normally', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.5 } },
+    ];
+    const report = run(session, actions);
+    expect(report.accepted).toHaveLength(1);
+    expect(report.rejected).toHaveLength(0);
+    const track = report.session.tracks.find(v => v.id === 'v0')!;
+    expect(track.params.timbre).toBeCloseTo(0.5);
+  });
+
+  it('still clamps out-of-range finite values', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 1.5 } },
+    ];
+    const report = run(session, actions);
+    expect(report.accepted).toHaveLength(1);
+    const track = report.session.tracks.find(v => v.id === 'v0')!;
+    expect(track.params.timbre).toBeCloseTo(1.0);
+  });
+
+  it('still clamps negative finite values to 0', () => {
+    const session = setupSession();
+    const actions: AIAction[] = [
+      { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: -0.5 } },
+    ];
+    const report = run(session, actions);
+    expect(report.accepted).toHaveLength(1);
+    const track = report.session.tracks.find(v => v.id === 'v0')!;
+    expect(track.params.timbre).toBeCloseTo(0);
+  });
+});

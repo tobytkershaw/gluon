@@ -68,6 +68,7 @@ function projectAction(session: Session, action: AIAction): Session {
         const rawTarget = 'absolute' in action.target
           ? action.target.absolute
           : currentVal + action.target.relative;
+        if (!Number.isFinite(rawTarget)) return session; // reject non-finite (#892)
         const value = Math.max(0, Math.min(1, rawTarget));
         const updatedMod = { ...mod, params: { ...mod.params, [action.param]: value } };
         const newModulators = [...modulators];
@@ -85,6 +86,7 @@ function projectAction(session: Session, action: AIAction): Session {
         const rawTarget = 'absolute' in action.target
           ? action.target.absolute
           : currentVal + action.target.relative;
+        if (!Number.isFinite(rawTarget)) return session; // reject non-finite (#892)
         const value = Math.max(0, Math.min(1, rawTarget));
         const updatedProc = { ...proc, params: { ...proc.params, [action.param]: value } };
         const newProcessors = [...processors];
@@ -98,6 +100,7 @@ function projectAction(session: Session, action: AIAction): Session {
       const rawTarget = 'absolute' in action.target
         ? action.target.absolute
         : currentVal + action.target.relative;
+      if (!Number.isFinite(rawTarget)) return session; // reject non-finite (#892)
       const value = Math.max(0, Math.min(1, rawTarget));
       return updateTrack(session, trackId, {
         params: { ...track.params, [runtimeKey]: value },
@@ -105,8 +108,14 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'set_transport': {
       const t = { ...session.transport };
-      if (action.bpm !== undefined) t.bpm = Math.max(20, Math.min(300, action.bpm));
-      if (action.swing !== undefined) t.swing = Math.max(0, Math.min(1, action.swing));
+      if (action.bpm !== undefined) {
+        if (!Number.isFinite(action.bpm)) return session; // reject non-finite (#892)
+        t.bpm = Math.max(20, Math.min(300, action.bpm));
+      }
+      if (action.swing !== undefined) {
+        if (!Number.isFinite(action.swing)) return session; // reject non-finite (#892)
+        t.swing = Math.max(0, Math.min(1, action.swing));
+      }
       if (action.mode !== undefined) t.mode = action.mode;
       return { ...session, transport: t };
     }
@@ -318,6 +327,7 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, { surface: { ...track.surface, xyAxes: { x: action.x, y: action.y } } });
     }
     case 'set_importance': {
+      if (!Number.isFinite(action.importance)) return session; // reject non-finite (#892)
       const clamped = Math.max(0, Math.min(1, action.importance));
       return updateTrack(session, action.trackId, {
         importance: clamped,
@@ -392,8 +402,14 @@ function projectAction(session: Session, action: AIAction): Session {
       return session;
     case 'set_track_mix': {
       const update: Partial<Track> = {};
-      if (action.volume !== undefined) update.volume = Math.max(0, Math.min(1, action.volume));
-      if (action.pan !== undefined) update.pan = Math.max(-1, Math.min(1, action.pan));
+      if (action.volume !== undefined) {
+        if (!Number.isFinite(action.volume)) return session; // reject non-finite (#892)
+        update.volume = Math.max(0, Math.min(1, action.volume));
+      }
+      if (action.pan !== undefined) {
+        if (!Number.isFinite(action.pan)) return session; // reject non-finite (#892)
+        update.pan = Math.max(-1, Math.min(1, action.pan));
+      }
       return updateTrack(session, action.trackId, update);
     }
     case 'set_intent': {
@@ -752,6 +768,9 @@ export class GluonAI {
         const rawTarget = 'absolute' in action.target
           ? action.target.absolute
           : currentVal + (action.target as { relative: number }).relative;
+        if (!Number.isFinite(rawTarget)) {
+          return { result: `Error: non-finite parameter value (${rawTarget}) for ${action.param}`, session, actions: [] };
+        }
         const resultValue = Math.max(0, Math.min(1, rawTarget));
 
         // Detect recent human touch on this parameter for conflict awareness

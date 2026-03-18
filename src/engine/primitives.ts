@@ -10,7 +10,12 @@ import { stepsToEvents } from './event-conversion';
 import { normalizePatternEvents } from './region-helpers';
 import { runtimeParamToControlId } from '../audio/instrument-registry';
 
-function clampParam(value: number): number {
+/**
+ * Clamp a parameter value to [0, 1]. Returns null for non-finite values
+ * (NaN, Infinity, -Infinity) so the caller can reject the operation. (#892)
+ */
+export function clampParam(value: number): number | null {
+  if (!Number.isFinite(value)) return null;
   return Math.max(0, Math.min(1, value));
 }
 
@@ -19,11 +24,12 @@ export function applyMove(
   trackId: string,
   param: string,
   target: { absolute: number } | { relative: number },
-): Session {
+): Session | null {
   const track = getTrack(session, trackId);
   const currentValue = track.params[param] ?? 0;
   const newValue = 'absolute' in target ? target.absolute : currentValue + target.relative;
   const clamped = clampParam(newValue);
+  if (clamped === null) return null; // non-finite value rejected (#892)
 
   const snapshot: ParamSnapshot = {
     kind: 'param',
@@ -46,7 +52,7 @@ export function applyMoveGroup(
   session: Session,
   trackId: string,
   moves: { param: string; target: { absolute: number } | { relative: number } }[],
-): Session {
+): Session | null {
   const track = getTrack(session, trackId);
   const prevValues: Partial<SynthParamValues> = {};
   const aiTargetValues: Partial<SynthParamValues> = {};
@@ -55,7 +61,9 @@ export function applyMoveGroup(
   for (const move of moves) {
     const cur = track.params[move.param] ?? 0;
     prevValues[move.param] = cur;
-    const nv = clampParam('absolute' in move.target ? move.target.absolute : cur + move.target.relative);
+    const raw = 'absolute' in move.target ? move.target.absolute : cur + move.target.relative;
+    const nv = clampParam(raw);
+    if (nv === null) return null; // non-finite value rejected (#892)
     aiTargetValues[move.param] = nv;
     descriptions.push(`${move.param} ${cur.toFixed(2)} -> ${nv.toFixed(2)}`);
   }
@@ -73,7 +81,9 @@ export function applyMoveGroup(
   for (const move of moves) {
     const currentValue = newParams[move.param] ?? 0;
     const newValue = 'absolute' in move.target ? move.target.absolute : currentValue + move.target.relative;
-    newParams[move.param] = clampParam(newValue);
+    const clamped = clampParam(newValue);
+    if (clamped === null) return null; // non-finite value rejected (#892)
+    newParams[move.param] = clamped;
   }
 
   return {
