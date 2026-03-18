@@ -102,8 +102,11 @@ export class Scheduler {
     return this.intervalId !== null;
   }
 
-  invalidateTrack(trackId: string, fromStep = this.cursor): void {
-    this.playbackPlan.invalidateTrack(trackId, Math.floor(fromStep));
+  invalidateTrack(trackId: string, _fromStep?: number): void {
+    // Bump the track revision so subsequent events get fresh runtime IDs.
+    // Old plan entries remain and harmlessly block the now-stale IDs —
+    // they'll be pruned naturally by pruneBeforeStep.
+    this.playbackPlan.invalidateTrack(trackId);
   }
 
   private tick(): void {
@@ -155,17 +158,20 @@ export class Scheduler {
       if (maxSequenceLen > 0 && globalStep >= maxSequenceLen) {
         const loop = session.transport.loop ?? true;
         if (loop) {
-          // Restart the sequence from the beginning by rewinding startTime
+          // Restart the sequence from the beginning by rewinding startTime.
+          // Use a while loop in case more than one full sequence elapsed
+          // (e.g., if the tab was backgrounded).
           const stepDuration2 = 60 / (bpm * 4);
-          this.startTime += maxSequenceLen * stepDuration2;
-          // Re-derive globalStep after rewind
-          globalStep -= maxSequenceLen;
-          // Reset the cursor to globalStep so the scheduling window starts
-          // from the beginning of the rewound sequence.  Without this, the
-          // cursor (which sits ahead of globalStep by the lookahead window)
-          // remains past the start of the sequence after the rewind,
-          // causing events near position 0 to be permanently skipped.
-          this.cursor = globalStep;
+          while (globalStep >= maxSequenceLen) {
+            this.startTime += maxSequenceLen * stepDuration2;
+            globalStep -= maxSequenceLen;
+          }
+          // Reset cursor to 0 — not globalStep — so that events right at
+          // position 0 are included in the scheduling window.  globalStep
+          // is typically slightly > 0 because audioTime advanced past the
+          // exact sequence boundary; using it as the cursor would skip
+          // beat-1 events on every loop after the first.
+          this.cursor = 0;
           // Clear the playback plan so events from the new loop iteration
           // are not blocked by dedup entries from the previous pass.
           // Song mode uses loopCycle=0 (no pattern-level looping), so
@@ -204,12 +210,16 @@ export class Scheduler {
       this.cursor + lookaheadSteps,
       globalStep + lookaheadSteps,
     );
-    // Prune at the playhead (globalStep), not the cursor (scheduling frontier).
-    // The cursor is always ahead of globalStep by the lookahead window. Pruning
-    // at cursor would remove plan entries for events between globalStep and
-    // cursor — events that haven't actually played yet — making them vulnerable
-    // to double-scheduling if invalidateTrack re-admits them.
-    this.playbackPlan.pruneBeforeStep(Math.floor(globalStep));
+    // Prune entries that are safely in the past — before BOTH the cursor and
+    // the playhead.  After a BPM reanchor the cursor can momentarily sit
+    // behind globalStep (it is reset to the playback position without the
+    // lookahead offset).  Pruning at globalStep in that case would remove
+    // plan entries for events that the cursor hasn't re-visited yet, making
+    // them vulnerable to double-scheduling on the next tick.  The revision-
+    // based invalidation (see invalidateTrack) prevents duplicates from
+    // stale entries, but conservative pruning avoids unnecessary re-admission
+    // attempts.
+    this.playbackPlan.pruneBeforeStep(Math.floor(Math.min(this.cursor, globalStep)));
 
     // Schedule metronome clicks if enabled
     if (session.transport.metronome?.enabled && this.onClick) {
@@ -289,6 +299,7 @@ export class Scheduler {
     swing: number,
   ): void {
     const startIdx = lowerBound(events, seg.localStart);
+    const trackRevision = this.playbackPlan.getTrackRevision(track.id);
 
     for (let i = startIdx; i < events.length; i++) {
       const event = events[i];
@@ -309,6 +320,7 @@ export class Scheduler {
           pattern.id,
           event,
           seg.loopCycle,
+          trackRevision,
         );
         if (!this.playbackPlan.admit(parameterEventId, absoluteStep, this.generation, track.id)) {
           continue;
@@ -333,6 +345,7 @@ export class Scheduler {
         pattern.id,
         event,
         seg.loopCycle,
+        trackRevision,
       );
       if (!this.playbackPlan.admit(runtimeEventId, absoluteStep, this.generation, track.id)) {
         continue;
@@ -401,7 +414,8 @@ export class Scheduler {
       for (let step = iStart; step < iEnd; step++) {
         const interpolated = getInterpolatedParams(events, step, patternLen);
         for (const { controlId, value } of interpolated) {
-          const interpId = `${this.generation}:${track.id}:${pattern.id}:${seg.loopCycle}:interp:${controlId}@${step}`;
+          const revSuffix = trackRevision > 0 ? `:r${trackRevision}` : '';
+          const interpId = `${this.generation}:${track.id}:${pattern.id}:${seg.loopCycle}${revSuffix}:interp:${controlId}@${step}`;
           const absStep = sequenceOffset + seg.loopCycle * patternLen + step;
           if (!this.playbackPlan.admit(interpId, absStep, this.generation, track.id)) {
             continue;

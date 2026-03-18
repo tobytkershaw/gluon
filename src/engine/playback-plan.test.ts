@@ -52,20 +52,27 @@ describe('PlaybackPlan', () => {
     expect(plan.admit(idE, 4, 1, 'v1')).toBe(true);
   });
 
-  it('invalidates planned events for a track from a minimum step', () => {
+  it('invalidateTrack bumps revision so new events get fresh IDs', () => {
     const plan = new PlaybackPlan();
     plan.reset(5);
-    const early: TriggerEvent = { kind: 'trigger', at: 2, velocity: 0.8 };
-    const late: TriggerEvent = { kind: 'trigger', at: 12, velocity: 0.8 };
-    const earlyId = buildRuntimeEventId(5, 'v1', 'r1', early, 0);
-    const lateId = buildRuntimeEventId(5, 'v1', 'r1', late, 0);
+    const event: TriggerEvent = { kind: 'trigger', at: 2, velocity: 0.8 };
 
-    expect(plan.admit(earlyId, 2, 5, 'v1')).toBe(true);
-    expect(plan.admit(lateId, 12, 5, 'v1')).toBe(true);
+    // Admit with revision 0
+    const id0 = buildRuntimeEventId(5, 'v1', 'r1', event, 0, 0);
+    expect(plan.admit(id0, 2, 5, 'v1')).toBe(true);
+    // Same ID blocked
+    expect(plan.admit(id0, 2, 5, 'v1')).toBe(false);
 
-    plan.invalidateTrack('v1', 8);
+    // Invalidate bumps to revision 1
+    plan.invalidateTrack('v1');
+    expect(plan.getTrackRevision('v1')).toBe(1);
 
-    expect(plan.has(earlyId)).toBe(true);
-    expect(plan.has(lateId)).toBe(false);
+    // New ID with revision 1 is admitted
+    const id1 = buildRuntimeEventId(5, 'v1', 'r1', event, 0, 1);
+    expect(id1).not.toEqual(id0);
+    expect(plan.admit(id1, 2, 5, 'v1')).toBe(true);
+
+    // Old revision 0 entry still blocks re-admission of stale ID
+    expect(plan.has(id0)).toBe(true);
   });
 });

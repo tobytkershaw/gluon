@@ -749,18 +749,21 @@ describe('PlaybackPlan', () => {
     expect(plan.has('evt-10')).toBe(true);
   });
 
-  it('invalidateTrack removes only entries for the specified track from minStep', () => {
+  it('invalidateTrack bumps revision and leaves existing entries intact', () => {
     const plan = new PlaybackPlan();
     plan.admit('v1-evt-0', 0, 1, 'v1');
     plan.admit('v1-evt-8', 8, 1, 'v1');
     plan.admit('v2-evt-8', 8, 1, 'v2');
 
-    plan.invalidateTrack('v1', 5);
+    plan.invalidateTrack('v1');
 
-    // Only v1 events at step >= 5 should be removed
-    expect(plan.has('v1-evt-0')).toBe(true);  // step 0 < 5, not removed
-    expect(plan.has('v1-evt-8')).toBe(false); // step 8 >= 5, removed
-    expect(plan.has('v2-evt-8')).toBe(true);  // different track, not removed
+    // Existing entries remain — they harmlessly block stale IDs
+    expect(plan.has('v1-evt-0')).toBe(true);
+    expect(plan.has('v1-evt-8')).toBe(true);
+    expect(plan.has('v2-evt-8')).toBe(true);
+    // But the revision is bumped so new event IDs will differ
+    expect(plan.getTrackRevision('v1')).toBe(1);
+    expect(plan.getTrackRevision('v2')).toBe(0);
   });
 
   it('reset clears all entries', () => {
