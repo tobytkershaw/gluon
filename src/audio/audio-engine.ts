@@ -635,8 +635,15 @@ export class AudioEngine {
   muteTrack(trackId: string, muted: boolean): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;
-    // Only touch muteGain -- accentGain is per-voice, controlled by scheduleNote
-    slot.muteGain.gain.value = muted ? 0 : 1;
+    // Only touch muteGain -- accentGain is per-voice, controlled by scheduleNote.
+    // Use setValueAtTime for reliable gain changes during active playback —
+    // direct .value assignment can be ignored by the audio thread mid-render.
+    const target = muted ? 0 : 1;
+    if (this.ctx) {
+      slot.muteGain.gain.setValueAtTime(target, this.ctx.currentTime);
+    } else {
+      slot.muteGain.gain.value = target;
+    }
   }
 
   setTrackVolume(trackId: string, value: number): void {
