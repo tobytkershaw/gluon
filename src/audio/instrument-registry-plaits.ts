@@ -155,23 +155,26 @@ function defaultControls(): ControlSchema[] {
 
 // --- Engine definitions ---
 
+// Official Plaits model names and order per MI documentation.
+// Pair structure: 8 pitched models, then 5 noise/string models, then 3 percussion.
+// IDs are stable (used in persistence) — labels updated to match official docs.
 const ENGINE_DATA: [string, string, string, boolean][] = [
-  ['virtual-analog', 'Virtual Analog', 'VA oscillator with variable waveshape', false],
-  ['waveshaping', 'Waveshaping', 'Waveshaping oscillator', false],
-  ['fm', 'FM', '2-operator FM synthesis', false],
-  ['grain-formant', 'Grain/Formant', 'Granular formant oscillator', false],
-  ['harmonic', 'Harmonic', 'Additive harmonic oscillator', false],
-  ['wavetable', 'Wavetable', 'Wavetable oscillator', false],
-  ['chords', 'Chords', 'Chord engine', false],
-  ['vowel-speech', 'Vowel/Speech', 'Speech synthesis', false],
-  ['swarm', 'Swarm', 'Swarm of 8 sawtooth oscillators', false],
-  ['filtered-noise', 'Filtered Noise', 'Filtered noise generator', false],
-  ['particle-dust', 'Particle/Dust', 'Particle noise (dust)', false],
-  ['inharmonic-string', 'Inharmonic String', 'Inharmonic string model', false],
-  ['modal-resonator', 'Modal Resonator', 'Struck objects, bells', false],
-  ['analog-bass-drum', 'Analog Bass Drum', 'Analog bass drum', true],
-  ['analog-snare', 'Analog Snare', 'Analog snare drum', true],
-  ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat', true],
+  ['virtual-analog', 'Virtual Analog', 'Classic variable-waveshape VA oscillator', false],
+  ['waveshaping', 'Waveshaper', 'Variable-slope triangle into waveshaper and wavefolder', false],
+  ['fm', 'FM', '2-operator FM with feedback', false],
+  ['grain-formant', 'Formant', 'Granular formant oscillator — vowels and filtered sine', false],
+  ['harmonic', 'Harmonic', 'Additive synthesis — 24 harmonics', false],
+  ['wavetable', 'Wavetable', 'Wavetable oscillator — 8x8 banks', false],
+  ['chords', 'Chords', 'Chord engine — string machine style', false],
+  ['vowel-speech', 'Speech', 'Speech synthesis — SAM, LPC, and formant', false],
+  ['swarm', 'Swarm', 'Granular cloud of 8 sawtooth oscillators', false],
+  ['filtered-noise', 'Filtered Noise', 'Clocked noise through resonant filter', false],
+  ['particle-dust', 'Particle Noise', 'Dust noise through all-pass and band-pass filters', false],
+  ['inharmonic-string', 'Inharmonic String', 'Karplus-Strong extended model with inharmonicity', false],
+  ['modal-resonator', 'Modal Resonator', 'Tuned modal resonator — bells, plates, struck objects', false],
+  ['analog-bass-drum', 'Analog Bass Drum', 'Analog bass drum synthesis', true],
+  ['analog-snare', 'Analog Snare Drum', 'Analog snare drum synthesis', true],
+  ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat synthesis', true],
 ];
 
 const engines: EngineDef[] = ENGINE_DATA.map(([id, label, description]) => ({

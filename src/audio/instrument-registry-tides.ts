@@ -69,11 +69,12 @@ function tidesControls(): ControlSchema[] {
       0.5,
     ),
     // --- Extended parameters (via _tides_set_extended) ---
+    // Hardware label: SHIFT/LEVEL — function varies by output mode
     makeTidesControl(
       'shift',
-      'Shift',
+      'Shift/Level',
       'texture',
-      'Multi-channel phase spread. Controls the phase offset between output channels.',
+      'Output polarization, shifting, and phase spread. Function depends on the active output mode.',
       0.0,
       'small',
     ),
@@ -112,10 +113,14 @@ function tidesControls(): ControlSchema[] {
 
 // --- Tides engine definitions ---
 
+// Official Tides 2018 ramp modes (selected via button C on hardware):
+// 1. AD (one-shot unipolar attack-decay envelope)
+// 2. Looping (cyclic bipolar oscillations)
+// 3. AR (one-shot unipolar attack-release envelope)
 const TIDES_ENGINE_DATA: [string, string, string][] = [
-  ['ad', 'AD', 'Attack-decay envelope — one-shot shape triggered by events'],
-  ['looping', 'Looping', 'Free-running LFO — continuous cyclic modulation'],
-  ['ar', 'AR', 'Attack-release envelope — sustained shape with gate control'],
+  ['ad', 'AD Envelope', 'One-shot unipolar attack-decay envelope triggered by events'],
+  ['looping', 'Looping', 'Free-running cyclic bipolar oscillations — LFO mode'],
+  ['ar', 'AR Envelope', 'One-shot unipolar attack-release envelope with gate hold'],
 ];
 
 const tidesEngines: EngineDef[] = TIDES_ENGINE_DATA.map(([id, label, description]) => ({

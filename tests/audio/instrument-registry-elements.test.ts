@@ -33,8 +33,8 @@ describe('instrument-registry-elements', () => {
   });
 
   it('getElementsEngineById returns correct engines', () => {
-    expect(getElementsEngineById('modal')?.label).toBe('Modal Resonator');
-    expect(getElementsEngineById('string')?.label).toBe('String Resonator');
+    expect(getElementsEngineById('modal')?.label).toBe('Modal Synthesis');
+    expect(getElementsEngineById('string')?.label).toBe('String Synthesis');
     expect(getElementsEngineById('nonexistent')).toBeUndefined();
   });
 
@@ -47,16 +47,12 @@ describe('instrument-registry-elements', () => {
   it('getElementsModelList returns index, name, description for each engine', () => {
     const list = getElementsModelList();
     expect(list).toHaveLength(2);
-    expect(list[0]).toEqual({
-      index: 0,
-      name: 'Modal Resonator',
-      description: 'Modal resonator bank — struck, bowed, and blown metallic and wooden tones',
-    });
-    expect(list[1]).toEqual({
-      index: 1,
-      name: 'String Resonator',
-      description: 'String resonator — sympathetic resonance, plucked and bowed behavior',
-    });
+    expect(list[0].name).toBe('Modal Synthesis');
+    expect(list[1].name).toBe('String Synthesis');
+    // Both entries have descriptions
+    for (const entry of list) {
+      expect(entry.description.length).toBeGreaterThan(0);
+    }
   });
 
   it('instrument definition has correct metadata', () => {

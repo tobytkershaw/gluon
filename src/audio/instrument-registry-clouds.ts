@@ -91,12 +91,14 @@ function cloudsControls(): ControlSchema[] {
       'small',
       { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
     ),
-    // --- Secondary controls (attenuverters + extended) ---
+    // --- BLEND sub-parameters ---
+    // On hardware, a single BLEND knob selects between these four parameters.
+    // In Gluon they are exposed as separate controls for direct access.
     makeCloudsControl(
       'feedback',
       'Feedback',
       'decay',
-      'Wet signal recirculation. High values create evolving, self-reinforcing textures.',
+      'Wet signal recirculation. High values create evolving, self-reinforcing textures. (BLEND sub-parameter on hardware)',
       'continuous',
       0.0,
       'small',
@@ -106,7 +108,7 @@ function cloudsControls(): ControlSchema[] {
       'stereo-spread',
       'Stereo Spread',
       'density',
-      'Width of the stereo image. 0 is mono, 1 is full stereo spread.',
+      'Random panning amount applied to grains. 0 is mono, 1 is full spread. (BLEND sub-parameter on hardware)',
       'continuous',
       0.0,
       'small',
@@ -115,7 +117,7 @@ function cloudsControls(): ControlSchema[] {
       'reverb',
       'Reverb',
       'decay',
-      'Built-in reverb amount. Adds space and depth to the processed signal.',
+      'Built-in reverb amount. Adds space and depth to the processed signal. (BLEND sub-parameter on hardware)',
       'continuous',
       0.0,
       'small',
@@ -140,12 +142,17 @@ function cloudsControls(): ControlSchema[] {
 }
 
 // --- Clouds engine definitions ---
+// Official Clouds playback modes (selected by long-pressing the quality button):
+// 1. Granular — classic granular processing
+// 2. Pitch Shifter / Time Stretcher
+// 3. Looping Delay
+// 4. Spectral Madness — phase vocoder spectral processing
 
 const CLOUDS_ENGINE_DATA: [string, string, string][] = [
   ['granular', 'Granular', 'Classic granular processing — slice and scatter frozen audio'],
-  ['pitch-shifter', 'Pitch Shifter', 'Time stretcher and pitch shifter'],
-  ['looping-delay', 'Looping Delay', 'Looping delay with pitch shifting'],
-  ['spectral', 'Spectral', 'Spectral processing via phase vocoder — freeze and warp frequency content'],
+  ['pitch-shifter', 'Pitch Shifter / Time Stretcher', 'Time stretching and pitch shifting with formant preservation'],
+  ['looping-delay', 'Looping Delay', 'Looping delay with pitch shifting and feedback'],
+  ['spectral', 'Spectral Madness', 'Phase vocoder spectral processing — freeze and warp frequency content'],
 ];
 
 const cloudsEngines: EngineDef[] = CLOUDS_ENGINE_DATA.map(([id, label, description]) => ({

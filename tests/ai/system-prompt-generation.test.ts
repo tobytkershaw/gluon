@@ -26,10 +26,10 @@ describe('system prompt generation', () => {
   it('includes all 16 model names', () => {
     const prompt = defaultPrompt();
     const models = [
-      'Virtual Analog', 'Waveshaping', 'FM', 'Grain/Formant', 'Harmonic',
-      'Wavetable', 'Chords', 'Vowel/Speech', 'Swarm', 'Filtered Noise',
-      'Particle/Dust', 'Inharmonic String', 'Modal Resonator',
-      'Analog Bass Drum', 'Analog Snare', 'Analog Hi-Hat',
+      'Virtual Analog', 'Waveshaper', 'FM', 'Formant', 'Harmonic',
+      'Wavetable', 'Chords', 'Speech', 'Swarm', 'Filtered Noise',
+      'Particle Noise', 'Inharmonic String', 'Modal Resonator',
+      'Analog Bass Drum', 'Analog Snare Drum', 'Analog Hi-Hat',
     ];
     for (const name of models) {
       expect(prompt).toContain(name);
@@ -245,7 +245,7 @@ describe('dynamic prompt reference (#777)', () => {
     session = updateTrack(session, 'v0', { modulators: [tidesMod] });
     const prompt = buildSystemPrompt(session);
     expect(prompt).toContain('Active Modulator Details');
-    expect(prompt).toContain('ad (Attack-decay envelope');
+    expect(prompt).toContain('ad (One-shot unipolar attack-decay envelope');
   });
 
   it('omits active model details when no models are assigned (empty tracks)', () => {

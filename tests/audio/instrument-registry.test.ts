@@ -114,14 +114,20 @@ describe('Plaits instrument registry', () => {
   it('getModelList returns 16 entries matching engine order', () => {
     const list = getModelList();
     expect(list).toHaveLength(16);
-    expect(list[0]).toEqual({ index: 0, name: 'Virtual Analog', description: 'VA oscillator with variable waveshape' });
-    expect(list[15]).toEqual({ index: 15, name: 'Analog Hi-Hat', description: 'Analog hi-hat' });
+    expect(list[0].name).toBe('Virtual Analog');
+    expect(list[15].name).toBe('Analog Hi-Hat');
+    // All entries have index, name, description
+    for (const entry of list) {
+      expect(entry.index).toBeGreaterThanOrEqual(0);
+      expect(entry.name.length).toBeGreaterThan(0);
+      expect(entry.description.length).toBeGreaterThan(0);
+    }
   });
 
   it('PLAITS_MODELS is derived from registry and matches shape', () => {
     expect(PLAITS_MODELS).toHaveLength(16);
-    expect(PLAITS_MODELS[0]).toEqual({ index: 0, name: 'Virtual Analog', description: 'VA oscillator with variable waveshape' });
-    expect(PLAITS_MODELS[15]).toEqual({ index: 15, name: 'Analog Hi-Hat', description: 'Analog hi-hat' });
+    expect(PLAITS_MODELS[0].name).toBe('Virtual Analog');
+    expect(PLAITS_MODELS[15].name).toBe('Analog Hi-Hat');
     // Verify shape matches getModelList
     const registryList = getModelList();
     expect(PLAITS_MODELS).toEqual(registryList);

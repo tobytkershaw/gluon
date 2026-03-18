@@ -113,7 +113,7 @@ describe('Ripples engine lookup helpers', () => {
   it('getRipplesEngineById finds lp2', () => {
     const engine = getRipplesEngineById('lp2');
     expect(engine).toBeDefined();
-    expect(engine!.label).toBe('2-Pole Low-Pass');
+    expect(engine!.label).toBe('LP 2-Pole');
   });
 
   it('getRipplesEngineById returns undefined for invalid', () => {
@@ -134,7 +134,7 @@ describe('Ripples engine lookup helpers', () => {
   it('getRipplesModelList returns all 4 modes', () => {
     const list = getRipplesModelList();
     expect(list).toHaveLength(4);
-    expect(list[0]).toEqual({ index: 0, name: '2-Pole Low-Pass', description: expect.any(String) });
+    expect(list[0]).toEqual({ index: 0, name: 'LP 2-Pole', description: expect.any(String) });
   });
 });
 

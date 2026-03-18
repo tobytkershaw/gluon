@@ -107,14 +107,21 @@ function ringsControls(): ControlSchema[] {
 }
 
 // --- Rings engine definitions ---
+// Official MI Rings has 3 resonator modes (selected via button on hardware).
+// Each mode has green/yellow/red LED variants, but those are the same 3 core modes
+// with different polyphony settings, not separate engines.
+// IDs are stable (used in persistence). Extra modes (fm-voice, sympathetic-quantized,
+// string-and-reverb) were Gluon additions — kept for backward compatibility but
+// marked as Gluon extensions.
 
 const RINGS_ENGINE_DATA: [string, string, string][] = [
-  ['modal', 'Modal Resonator', 'Resonant body model — bells, plates, bowls'],
-  ['sympathetic-string', 'Sympathetic String', 'Sympathetic string resonance — sitar, tanpura'],
-  ['string', 'String', 'Karplus-Strong string model — plucked and bowed'],
-  ['fm-voice', 'FM Voice', 'FM synthesis through the resonator'],
-  ['sympathetic-quantized', 'Sympathetic Quantized', 'Sympathetic strings with quantized pitches — chordal'],
-  ['string-and-reverb', 'String + Reverb', 'String model with integrated reverb'],
+  ['modal', 'Modal Resonator', 'Inharmonic resonant body — bells, plates, bowls'],
+  ['sympathetic-string', 'Sympathetic Strings', 'Sympathetic string network — sitar, tanpura-like resonance'],
+  ['string', 'Modulated/Inharmonic String', 'String model with non-linearity and dispersion'],
+  // Gluon extensions — not on MI hardware, but useful additional modes
+  ['fm-voice', 'FM Voice (Gluon)', 'FM synthesis through the resonator — Gluon extension'],
+  ['sympathetic-quantized', 'Sympathetic Quantized (Gluon)', 'Sympathetic strings with quantized pitches — Gluon extension'],
+  ['string-and-reverb', 'String + Reverb (Gluon)', 'String model with integrated reverb — Gluon extension'],
 ];
 
 const ringsEngines: EngineDef[] = RINGS_ENGINE_DATA.map(([id, label, description]) => ({

@@ -39,6 +39,11 @@ function makeElementsControl(
 }
 
 function elementsControls(): ControlSchema[] {
+  // Hardware Elements has additional exciter controls not yet in Gluon's WASM bridge:
+  // - CONTOUR: envelope shape for bow and blow exciters
+  // - FLOW: blow generator noise/tone parameter
+  // - MALLET: strike generator type (mallet vs plectrum)
+  // These require WASM bridge additions to implement. Tracked as known gaps.
   return [
     // --- Exciter controls ---
     makeElementsControl(
@@ -155,10 +160,13 @@ function elementsControls(): ControlSchema[] {
 }
 
 // --- Elements engine definitions ---
+// Hardware Elements is a single-mode physical modeling synth (modal resonator bank).
+// There is no mode selector on the hardware — the GEOMETRY knob continuously morphs
+// the resonator character. These Gluon engine presets provide named starting points.
 
 const ELEMENTS_ENGINE_DATA: [string, string, string][] = [
-  ['modal', 'Modal Resonator', 'Modal resonator bank — struck, bowed, and blown metallic and wooden tones'],
-  ['string', 'String Resonator', 'String resonator — sympathetic resonance, plucked and bowed behavior'],
+  ['modal', 'Modal Synthesis', 'Modal resonator bank — struck, bowed, and blown metallic and wooden tones'],
+  ['string', 'String Synthesis', 'String-like resonator tuning — sympathetic resonance, plucked and bowed behavior'],
 ];
 
 const elementsEngines: EngineDef[] = ELEMENTS_ENGINE_DATA.map(([id, label, description]) => ({

@@ -52,23 +52,31 @@ function warpsControls(): ControlSchema[] {
       'texture',
       'Internal waveshaping and modulation depth. Controls how aggressively the signal is processed within the current algorithm.',
     ),
+    // On hardware this knob controls external carrier amplitude or internal oscillator
+    // frequency (when internal osc is enabled). In Gluon it controls modulator amplitude.
     makeWarpsControl(
       'level',
-      'Level',
+      'Modulator Level',
       'level',
-      'Modulator input level / internal oscillator amplitude. Controls the intensity of the modulation source.',
+      'Modulator amplitude. Controls the intensity of the modulation source signal.',
       0.5,
     ),
   ];
 }
 
 // --- Warps engine definitions ---
+// Official MI Warps has 7 algorithms selected by a continuous knob:
+// 1. Crossfade, 2. Fold (cross-folding), 3. Diode Ring Mod,
+// 4. Digital Ring Mod, 5. XOR, 6. Comparator, 7. Vocoder.
+// In Gluon the algorithm knob (0-1) sweeps through all 7 continuously,
+// so these engine presets are named entry points into the range.
+// "Ring Mod" covers both diode and digital ring mod regions.
 
 const WARPS_ENGINE_DATA: [string, string, string][] = [
-  ['crossfade', 'Crossfade', 'Crossfade/pan between signals'],
-  ['fold', 'Fold', 'Wavefolding — harmonic enrichment'],
-  ['ring', 'Ring Mod', 'Ring modulation — metallic, inharmonic textures'],
-  ['frequency_shift', 'Frequency Shift', 'Frequency shifting — Hilbert transform, detuned effects'],
+  ['crossfade', 'Crossfade', 'Constant-power crossfade between carrier and modulator'],
+  ['fold', 'Fold', 'Cross-folding — wavefolding for harmonic enrichment'],
+  ['ring', 'Ring Mod', 'Ring modulation — diode and digital models, metallic textures'],
+  ['frequency_shift', 'Frequency Shift', 'Frequency shifting via Hilbert transform — detuned, dissonant effects'],
 ];
 
 const warpsEngines: EngineDef[] = WARPS_ENGINE_DATA.map(([id, label, description]) => ({

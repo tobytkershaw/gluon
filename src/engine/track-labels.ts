@@ -3,23 +3,24 @@ import type { Track, Session } from './types';
 import { getTrackKind, MASTER_BUS_ID } from './types';
 import { getModelName } from '../audio/instrument-registry';
 
-/** Abbreviated engine labels for compact display (~176px TrackRow width). */
+/** Abbreviated engine labels for compact display (~176px TrackRow width).
+ * Keys must match the label strings from instrument-registry-plaits.ts ENGINE_DATA. */
 const ENGINE_ABBREV: Record<string, string> = {
   'Virtual Analog': 'VA',
-  'Waveshaping': 'Waveshp',
+  'Waveshaper': 'Waveshp',
   'FM': 'FM',
-  'Grain/Formant': 'Grain',
+  'Formant': 'Formant',
   'Harmonic': 'Harmonic',
   'Wavetable': 'Wavetbl',
   'Chords': 'Chords',
-  'Vowel/Speech': 'Vowel',
+  'Speech': 'Speech',
   'Swarm': 'Swarm',
   'Filtered Noise': 'Noise',
-  'Particle/Dust': 'Dust',
+  'Particle Noise': 'Dust',
   'Inharmonic String': 'InhStr',
   'Modal Resonator': 'Modal',
   'Analog Bass Drum': 'Kick',
-  'Analog Snare': 'Snare',
+  'Analog Snare Drum': 'Snare',
   'Analog Hi-Hat': 'HiHat',
   'No Source': 'Empty',
 };

@@ -41,13 +41,9 @@ function makeBeadsControl(
 
 function beadsControls(): ControlSchema[] {
   return [
-    // Large knobs (hardware top row): Time, Density, Texture
-    makeBeadsControl(
-      'time',
-      'Time',
-      'decay',
-      'Grain size in granular mode, delay time in delay mode, decay time in reverb mode.',
-    ),
+    // Hardware faceplate layout (top row, left to right): DENSITY, TIME, PITCH, SIZE, SHAPE
+    // Bottom row: FEEDBACK, DRY/WET, REVERB
+    // Our DSP params: time=TIME, density=DENSITY, texture=SHAPE, position=SIZE, pitch=PITCH
     makeBeadsControl(
       'density',
       'Density',
@@ -55,25 +51,31 @@ function beadsControls(): ControlSchema[] {
       'Grain density and overlap. Low values produce sparse grains, high values create thick clouds. In delay mode controls feedback amount.',
     ),
     makeBeadsControl(
-      'texture',
-      'Texture',
-      'texture',
-      'Grain envelope shape and tone color. Controls the window function in granular mode and filtering in delay/reverb modes.',
+      'time',
+      'Time',
+      'decay',
+      'Grain size in granular mode, delay time in delay mode, decay time in reverb mode.',
     ),
-    // Large knobs continued: Position, Pitch
+    makeBeadsControl(
+      'pitch',
+      'Pitch',
+      'pitch',
+      'Pitch shift amount. 0.5 is no shift (-24 to +24 semitones range).',
+    ),
     makeBeadsControl(
       'position',
       'Position',
       'texture',
       'Where in the recording buffer to read. Scrubs through captured audio.',
     ),
+    // Hardware label: SHAPE. Control ID kept as 'texture' for backward compatibility.
     makeBeadsControl(
-      'pitch',
-      'Pitch',
-      'pitch',
-      'Pitch shift amount. 0.5 is no shift, lower values pitch down, higher values pitch up.',
+      'texture',
+      'Shape',
+      'texture',
+      'Grain envelope shape. Morphs between different amplitude envelope windows (from sharp attack to smooth).',
     ),
-    // Mix control
+    // Bottom row mix controls
     makeBeadsControl(
       'dry-wet',
       'Dry/Wet',
