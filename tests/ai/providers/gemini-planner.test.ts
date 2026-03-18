@@ -420,11 +420,12 @@ describe('GeminiPlannerProvider', () => {
     expect(createArg.config.tools[0].functionDeclarations).toBeDefined();
     expect(createArg.config.ttl).toBe('600s');
 
-    // Request should use cachedContent instead of systemInstruction
+    // Request should use cachedContent instead of systemInstruction/tools/toolConfig
     const genArg = mockGenerateContent.mock.calls[0][0];
     expect(genArg.config.cachedContent).toBe('caches/abc123');
     expect(genArg.config.systemInstruction).toBeUndefined();
     expect(genArg.config.tools).toBeUndefined();
+    expect(genArg.config.toolConfig).toBeUndefined();
   });
 
   it('cache reused when prompt unchanged', async () => {

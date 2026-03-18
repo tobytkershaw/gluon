@@ -316,17 +316,14 @@ export class GeminiPlannerProvider implements PlannerProvider {
     cacheName: string | null,
   ) {
     if (cacheName) {
+      // When using cached content, system_instruction, tools, and tool_config
+      // are all baked into the cache — Gemini rejects them if also sent inline.
       return {
         model: MODEL,
         contents: [...contents],
         config: {
           cachedContent: cacheName,
           maxOutputTokens: 16384,
-          toolConfig: {
-            functionCallingConfig: {
-              mode: FunctionCallingConfigMode.AUTO,
-            },
-          },
         },
       };
     }
