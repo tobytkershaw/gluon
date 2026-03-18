@@ -262,17 +262,19 @@ describe('operation-executor', () => {
 
   it('applies sketch with humanize parameter', () => {
     const session = setupSession();
+    // Use 24 events so the probability of all velocities staying unchanged
+    // with humanize: 0.5 is negligible (avoids flaky test).
+    const triggerEvents = Array.from({ length: 24 }, (_, i) => ({
+      kind: 'trigger' as const,
+      at: i,
+      velocity: 1.0,
+    }));
     const actions: AIAction[] = [{
       type: 'sketch',
       trackId: 'v0',
       description: 'humanized kick',
       humanize: 0.5,
-      events: [
-        { kind: 'trigger', at: 0, velocity: 1.0 },
-        { kind: 'trigger', at: 4, velocity: 1.0 },
-        { kind: 'trigger', at: 8, velocity: 1.0 },
-        { kind: 'trigger', at: 12, velocity: 1.0 },
-      ],
+      events: triggerEvents,
     }];
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.accepted).toHaveLength(1);
@@ -282,7 +284,7 @@ describe('operation-executor', () => {
     const velocities = region.events
       .filter(e => e.kind === 'trigger')
       .map(e => (e as { velocity: number }).velocity);
-    expect(velocities.length).toBe(4);
+    expect(velocities.length).toBe(24);
     const allSame = velocities.every(v => v === 1.0);
     expect(allSame).toBe(false); // humanization should have changed at least one velocity
   });
