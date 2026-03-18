@@ -15,9 +15,9 @@ import { ModuleBrowser } from './ModuleBrowser';
 
 // --- Layout constants ---
 
-const NODE_W = 168;
+const NODE_W = 180;
 const NODE_HEADER_H = 40;  // colored header strip + sublabel area
-const PORT_ROW_H = 14;     // height per port row
+const PORT_ROW_H = 22;     // height per port row
 const PORT_MIN_ROWS = 2;   // minimum port rows even when fewer ports
 const NODE_GAP = 80;
 const PAD_X = 40;
@@ -517,7 +517,11 @@ function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: numbe
             className={`rounded-full border-[1.5px] ${portSignalColor(port.def.signal)} shadow-[0_0_3px_rgba(0,0,0,0.3)]`}
             style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
           />
-          <span className={`text-[11px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+          <span
+            className={`text-[10px] font-medium leading-none truncate ${portSignalLabelColor(port.def.signal)}`}
+            style={{ maxWidth: 60 }}
+            title={port.def.name}
+          >
             {port.def.name}
           </span>
         </div>
@@ -537,7 +541,11 @@ function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: numb
           className="absolute flex items-center justify-end gap-1.5"
           style={{ right: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
-          <span className={`text-[11px] font-medium leading-none whitespace-nowrap ${portSignalLabelColor(port.def.signal)}`}>
+          <span
+            className={`text-[10px] font-medium leading-none truncate ${portSignalLabelColor(port.def.signal)}`}
+            style={{ maxWidth: 60 }}
+            title={port.def.name}
+          >
             {port.def.name}
           </span>
           <div
@@ -933,6 +941,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const isPanningRef = useRef(false);
   const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 });
   const spaceHeldRef = useRef(false);
+  const hasAutoFitRef = useRef(false);
 
   // Clear node offsets when switching tracks — PatchView is never remounted so
   // stale offsets (especially for 'source' which always has the same id) would
@@ -943,6 +952,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       prevTrackIdRef.current = session.activeTrackId;
       setNodeOffsets({});
       setNodeDrag(null);
+      hasAutoFitRef.current = false;
     }
   });
 
@@ -1236,19 +1246,18 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     setPanZoom({ zoom, panX, panY });
   }, [nodes.length, contentBounds]);
 
-  // Auto-fit on initial render and when node layout changes (e.g. modules added/removed).
-  // Uses a signature string of node ids to detect structural changes vs. just param tweaks.
-  const nodeSignature = allNodes.map(n => n.id).join(',');
-  const prevNodeSigRef = useRef<string | null>(null);
+  // Auto-fit on initial render only — not on node additions/removals, which would
+  // cause unexpected zoom jumps (e.g. when deleting a node). Users can manually
+  // fit-to-view via the toolbar button.
   useEffect(() => {
-    if (prevNodeSigRef.current !== nodeSignature) {
-      prevNodeSigRef.current = nodeSignature;
+    if (!hasAutoFitRef.current && allNodes.length > 0) {
+      hasAutoFitRef.current = true;
       // Defer to next frame so container has its layout dimensions
       requestAnimationFrame(() => {
         handleFitToView();
       });
     }
-  }, [nodeSignature, handleFitToView]);
+  }, [allNodes.length, handleFitToView]);
 
   // Dismiss context menu on click outside
   useEffect(() => {
