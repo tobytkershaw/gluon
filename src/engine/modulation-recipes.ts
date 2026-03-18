@@ -84,6 +84,52 @@ const RECIPES: Record<string, ModulationRecipe> = {
     routeDepth: 0.5,
   },
 
+  wobble_bass: {
+    name: 'wobble_bass',
+    description: 'Wobble bass — aggressive LFO on Ripples cutoff at ~1Hz with deeper modulation',
+    modulatorType: 'tides',
+    modulatorModel: 1,
+    modulatorParams: { frequency: 0.39, shape: 0.3, slope: 0.5, smoothness: 0.5 },
+    routeTarget: 'cutoff',
+    routeTargetType: 'processor',
+    routeTargetProcessorType: 'ripples',
+    routeDepth: 0.8,
+  },
+
+  pulsing_pad: {
+    name: 'pulsing_pad',
+    description: 'Pulsing pad — gentle amplitude LFO at ~2Hz for rhythmic pad movement',
+    modulatorType: 'tides',
+    modulatorModel: 1,
+    modulatorParams: { frequency: 0.49, shape: 0.0, slope: 0.5, smoothness: 0.9 },
+    routeTarget: 'harmonics',
+    routeTargetType: 'source',
+    routeDepth: 0.3,
+  },
+
+  auto_wah: {
+    name: 'auto_wah',
+    description: 'Auto-wah — LFO modulating Ripples cutoff at ~2Hz with medium depth',
+    modulatorType: 'tides',
+    modulatorModel: 1,
+    modulatorParams: { frequency: 0.49, shape: 0.0, slope: 0.3, smoothness: 0.6 },
+    routeTarget: 'cutoff',
+    routeTargetType: 'processor',
+    routeTargetProcessorType: 'ripples',
+    routeDepth: 0.5,
+  },
+
+  ducking_sidechain: {
+    name: 'ducking_sidechain',
+    description: 'Sidechain-style ducking — fast AD envelope on amplitude for pumping effect',
+    modulatorType: 'tides',
+    modulatorModel: 0, // AD envelope
+    modulatorParams: { frequency: 0.39, shape: 0.0, slope: 0.2, smoothness: 0.7 },
+    routeTarget: 'harmonics',
+    routeTargetType: 'source',
+    routeDepth: -0.7,
+  },
+
   drift: {
     name: 'drift',
     description: 'Drift — very slow random pitch modulation for organic movement',
@@ -110,4 +156,65 @@ export function getModulationRecipeList(): { name: string; description: string }
     name: r.name,
     description: r.description,
   }));
+}
+
+/**
+ * Overrides that can be applied on top of a recipe.
+ * Explicit values always win over recipe defaults.
+ */
+export interface ModulationRecipeOverrides {
+  depth?: number;
+  rate?: number;            // maps to modulatorParams.frequency
+  shape?: number;           // maps to modulatorParams.shape
+  slope?: number;           // maps to modulatorParams.slope
+  smoothness?: number;      // maps to modulatorParams.smoothness
+  target?: string;          // override routeTarget
+  targetType?: 'source' | 'processor';
+}
+
+/**
+ * Resolve a recipe by name, applying any explicit overrides.
+ * Returns a new ModulationRecipe with override values merged in.
+ * Returns undefined if the recipe name is not found.
+ */
+export function resolveModulationRecipe(
+  name: string,
+  overrides?: ModulationRecipeOverrides,
+): ModulationRecipe | undefined {
+  const base = RECIPES[name];
+  if (!base) return undefined;
+  if (!overrides) return { ...base };
+
+  const resolved: ModulationRecipe = {
+    ...base,
+    modulatorParams: { ...base.modulatorParams },
+  };
+
+  if (overrides.depth !== undefined) {
+    resolved.routeDepth = Math.max(-1, Math.min(1, overrides.depth));
+  }
+  if (overrides.rate !== undefined) {
+    resolved.modulatorParams.frequency = Math.max(0, Math.min(1, overrides.rate));
+  }
+  if (overrides.shape !== undefined) {
+    resolved.modulatorParams.shape = Math.max(0, Math.min(1, overrides.shape));
+  }
+  if (overrides.slope !== undefined) {
+    resolved.modulatorParams.slope = Math.max(0, Math.min(1, overrides.slope));
+  }
+  if (overrides.smoothness !== undefined) {
+    resolved.modulatorParams.smoothness = Math.max(0, Math.min(1, overrides.smoothness));
+  }
+  if (overrides.target !== undefined) {
+    resolved.routeTarget = overrides.target;
+  }
+  if (overrides.targetType !== undefined) {
+    resolved.routeTargetType = overrides.targetType;
+    // Clear processor type if switching to source targeting
+    if (overrides.targetType === 'source') {
+      resolved.routeTargetProcessorType = undefined;
+    }
+  }
+
+  return resolved;
 }

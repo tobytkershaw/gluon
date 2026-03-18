@@ -40,7 +40,8 @@ import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
 import { getChainRecipe } from '../engine/chain-recipes';
 import { getMixRole } from '../engine/mix-roles';
-import { getModulationRecipe } from '../engine/modulation-recipes';
+import { resolveModulationRecipe } from '../engine/modulation-recipes';
+import type { ModulationRecipeOverrides } from '../engine/modulation-recipes';
 import { resolveTimbralMove, getProcessorTimbralVector } from '../engine/timbral-vocabulary';
 import { SpectralSlotManager, FREQUENCY_BANDS } from '../engine/spectral-slots';
 import type { FrequencyBand } from '../engine/spectral-slots';
@@ -2799,7 +2800,16 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: recipe') };
         }
 
-        const modRecipe = getModulationRecipe(args.recipe as string);
+        // Build overrides from any explicit parameters
+        const modOverrides: ModulationRecipeOverrides = {};
+        if (typeof args.depth === 'number') modOverrides.depth = args.depth;
+        if (typeof args.rate === 'number') modOverrides.rate = args.rate;
+        if (typeof args.shape === 'number') modOverrides.shape = args.shape;
+        if (typeof args.smoothness === 'number') modOverrides.smoothness = args.smoothness;
+        if (typeof args.target === 'string' && args.target) modOverrides.target = args.target;
+        const hasOverrides = Object.keys(modOverrides).length > 0;
+
+        const modRecipe = resolveModulationRecipe(args.recipe as string, hasOverrides ? modOverrides : undefined);
         if (!modRecipe) {
           return { actions: [], response: errorPayload(`Unknown modulation recipe: "${args.recipe}"`) };
         }
@@ -2910,6 +2920,7 @@ export class GluonAI {
               : `processor:${targetProcessorId}:${modRecipe.routeTarget}`,
             depth: modRecipe.routeDepth,
             description: modRecipe.description,
+            ...(hasOverrides ? { overridesApplied: modOverrides } : {}),
           },
         };
       }
