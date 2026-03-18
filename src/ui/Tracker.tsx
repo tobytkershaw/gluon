@@ -72,6 +72,8 @@ interface Props {
   onNotePreview?: (pitch: number | null) => void;
   /** Called when a row is double-clicked (play-from-row). */
   onPlayFromRow?: (step: number) => void;
+  /** Called when the selection range changes. stepRange is [lo, hi] inclusive, eventIndices are flat indices into region.events. Null when no selection. */
+  onSelectionChange?: (selection: { stepRange: [number, number]; eventIndices: number[] } | null) => void;
 }
 
 /**
@@ -194,7 +196,7 @@ function getColCount(noteColumns: number, fxColumns: number): number {
   return 1 + noteColumns + 2 + fxColumns;
 }
 
-export function Tracker({ region, playheadStep, playheadFraction = 0, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow }: Props) {
+export function Tracker({ region, playheadStep, playheadFraction = 0, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow, onSelectionChange }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -285,6 +287,22 @@ export function Tracker({ region, playheadStep, playheadFraction = 0, playing, o
     }
     return [];
   }, [getSelectionRange, cursorRow, slots]);
+
+  // --- Report selection changes to parent ---
+  useEffect(() => {
+    if (!onSelectionChange) return;
+    const range = getSelectionRange();
+    if (range) {
+      const [lo, hi] = range;
+      const indices: number[] = [];
+      for (let i = lo; i <= hi; i++) {
+        if (i < slots.length) indices.push(...slots[i].eventIndices);
+      }
+      onSelectionChange({ stepRange: [lo, hi], eventIndices: indices });
+    } else {
+      onSelectionChange(null);
+    }
+  }, [anchorRow, cursorRow, slots, onSelectionChange, getSelectionRange]);
 
   /** Copy events from selected slots to internal clipboard. */
   const copyToClipboard = useCallback((indices: number[]) => {

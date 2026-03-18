@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, ScaleConstraint } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, ScaleConstraint, UserSelection } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -102,6 +102,13 @@ interface CompressedPreservationReport {
   changed: string[];     // from PreservationReport.changed
 }
 
+/** Compressed user selection context — present only when the human has an active selection in the Tracker. */
+export interface CompressedUserSelection {
+  trackId: string;
+  stepRange: [number, number];
+  eventCount: number;
+}
+
 export interface CompressedState {
   tracks: CompressedTrack[];
   track_count: number;
@@ -120,6 +127,7 @@ export interface CompressedState {
   intent?: SessionIntent;
   section?: SectionMeta;
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
+  userSelection?: CompressedUserSelection;
 }
 
 function round2(n: number): number {
@@ -341,7 +349,7 @@ function compressPreservationReport(report: PreservationReport): CompressedPrese
   };
 }
 
-export function compressState(session: Session, recentPreservationReports?: PreservationReport[]): CompressedState {
+export function compressState(session: Session, recentPreservationReports?: PreservationReport[], userSelection?: UserSelection): CompressedState {
   const now = Date.now();
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
@@ -470,6 +478,13 @@ export function compressState(session: Session, recentPreservationReports?: Pres
         label: scaleToString(session.scale),
         notes: scaleNoteNames(session.scale),
       } : null,
+    } : {}),
+    ...(userSelection && userSelection.eventIndices.length > 0 ? {
+      userSelection: {
+        trackId: userSelection.trackId,
+        stepRange: userSelection.stepRange,
+        eventCount: userSelection.eventIndices.length,
+      },
     } : {}),
   };
 

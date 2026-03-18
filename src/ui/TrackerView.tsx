@@ -52,6 +52,8 @@ interface Props {
   onNotePreview?: (pitch: number | null) => void;
   /** Called when a row is double-clicked to play from that position. */
   onPlayFromRow?: (step: number) => void;
+  /** Called when the tracker selection range changes. Null when no selection. */
+  onSelectionChange?: (selection: { stepRange: [number, number]; eventIndices: number[] } | null) => void;
   // Sequence editor callbacks
   onAddPatternRef?: (patternId: string) => void;
   onRemovePatternRef?: (sequenceIndex: number) => void;
@@ -113,6 +115,7 @@ export function TrackerView({
   onCursorStepChange,
   onNotePreview,
   onPlayFromRow,
+  onSelectionChange,
   onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
 }: Props) {
   const activePatternId = getActivePattern(activeTrack).id;
@@ -397,6 +400,7 @@ export function TrackerView({
                 onCursorStepChange={onCursorStepChange}
                 onNotePreview={onNotePreview}
                 onPlayFromRow={onPlayFromRow}
+                onSelectionChange={onSelectionChange}
                 stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
               />
             ) : (

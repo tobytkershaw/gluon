@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, TrackPropertySnapshot } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, TrackPropertySnapshot, UserSelection } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -159,6 +159,8 @@ export default function App() {
   const globalStepRef = useRef(0);
   /** Cursor step position in the tracker (region-local). */
   const trackerCursorStepRef = useRef<number | null>(null);
+  /** Current tracker selection (step range + event indices), null when no selection active. */
+  const trackerSelectionRef = useRef<{ stepRange: [number, number]; eventIndices: number[] } | null>(null);
   const [recordArmed, setRecordArmed] = useState(false);
   const recordArmedRef = useRef(false);
   recordArmedRef.current = recordArmed;
@@ -848,6 +850,12 @@ export default function App() {
     const collectedToolCalls: ToolCallEntry[] = [];
 
     try {
+      // Capture current tracker selection (if any) so the AI knows what the human is pointing at.
+      const sel = trackerSelectionRef.current;
+      const userSelection: UserSelection | undefined = sel
+        ? { trackId: sessionRef.current.activeTrackId, stepRange: sel.stepRange, eventIndices: sel.eventIndices }
+        : undefined;
+
       const actions = await aiRef.current.ask(sessionRef.current, message, {
         listen: {
           renderOffline: (s, vIds, bars) => renderOffline(s, vIds, bars),
@@ -867,6 +875,7 @@ export default function App() {
           if (thisRequest !== requestIdRef.current) return;
           collectedToolCalls.push({ name, args });
         },
+        userSelection,
       });
       if (thisRequest !== requestIdRef.current) return;
       setStreamingText('');
@@ -934,6 +943,10 @@ export default function App() {
 
   const handleCursorStepChange = useCallback((step: number) => {
     trackerCursorStepRef.current = step;
+  }, []);
+
+  const handleTrackerSelectionChange = useCallback((selection: { stepRange: [number, number]; eventIndices: number[] } | null) => {
+    trackerSelectionRef.current = selection;
   }, []);
 
   // Note preview: short audition when hovering or cursor-selecting tracker note cells
@@ -2251,6 +2264,7 @@ export default function App() {
             onRenameRegion={handleRenameRegion}
             onSetActiveRegion={handleSetActiveRegion}
             onCursorStepChange={handleCursorStepChange}
+            onSelectionChange={handleTrackerSelectionChange}
             onNotePreview={handleNotePreview}
             onPlayFromRow={handlePlayFromRow}
             onAddPatternRef={handleAddPatternRef}
