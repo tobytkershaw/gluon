@@ -520,4 +520,44 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       expect(planner.trimCalls).toEqual([12]);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Circuit breaker: repeated failing call detection
+  // -------------------------------------------------------------------------
+
+  it('short-circuits repeated failing calls across rounds', async () => {
+    // Round 1: move to a non-existent track → fails
+    // Round 2: model retries same call → should get synthetic error, not re-execute
+    // Round 3: model gives up
+    const badCall = { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v99' } };
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [badCall],
+    });
+    // Round 2: model retries the exact same call
+    planner.continueTurnResults.push({
+      textParts: [],
+      functionCalls: [{ ...badCall, id: 'c2' }],
+    });
+    // Round 3: model gives up
+    planner.continueTurnResults.push({
+      textParts: ['That track does not exist.'],
+      functionCalls: [],
+    });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten track 99');
+
+    // Both rounds should produce function responses (round 1 real error, round 2 synthetic)
+    expect(planner.continueTurnCalls).toBe(2);
+
+    // The second round's function response should contain the "already failed" message
+    const round2Args = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[1][0];
+    const round2Response = round2Args.functionResponses[0].result;
+    expect(round2Response.error).toContain('already failed');
+
+    // Final say should be present
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
 });
