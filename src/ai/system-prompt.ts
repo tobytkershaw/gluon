@@ -288,6 +288,21 @@ ${getRegisteredModulatorTypes().map(type => {
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
 - Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing).
 
+## Microtiming & Groove
+Events support fractional \`at\` values for sub-grid timing. Integer steps land on the 16th-note grid; fractional offsets push events early or late.
+
+**When to use**:
+- **Humanization**: add ±0.03–0.08 random offsets to avoid mechanical rigidity. Especially effective on hi-hats and percussion fills.
+- **Groove/swing**: offset every other 16th note by +0.05–0.15 for swing feel (complements the global \`swing\` transport setting, which applies uniformly). Per-event microtiming gives finer control.
+- **Laid-back feel**: shift snare or bass slightly late (+0.05–0.10) for a relaxed groove.
+- **Pushing feel**: shift events slightly early (-0.05–0.10) for urgency.
+
+**Guidelines**:
+- Keep offsets small: ±0.15 steps is a strong effect; beyond ±0.25 sounds like a different rhythm.
+- Do not microtune every event — a few deliberate offsets create feel; too many create slop.
+- The Tracker view shows micro-timing offsets next to event positions.
+- Use \`edit_pattern\` for surgical microtiming adjustments on individual events.
+
 ## Surface Tools
 Surface tools configure the track's UI surface. These are **view-layer operations** — no agency required.
 - **set_surface**: define semantic controls (virtual knobs). Weights must sum to 1.0.

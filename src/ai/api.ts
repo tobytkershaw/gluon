@@ -695,7 +695,7 @@ export class GluonAI {
             return { actions: [], response: errorPayload(`operations[${i}]: unknown action "${op.action}". Must be add, remove, or modify`) };
           }
           if (typeof op.step !== 'number' || op.step < 0) {
-            return { actions: [], response: errorPayload(`operations[${i}]: step must be a non-negative integer`) };
+            return { actions: [], response: errorPayload(`operations[${i}]: step must be a non-negative number`) };
           }
         }
 

@@ -63,7 +63,7 @@ describe('toGeminiDeclarations', () => {
     expect(eventsProp.type).toBe(Type.ARRAY);
     expect(eventsProp.items!.type).toBe(Type.OBJECT);
     expect(eventsProp.items!.properties!.kind.type).toBe(Type.STRING);
-    expect(eventsProp.items!.properties!.at.type).toBe(Type.INTEGER);
+    expect(eventsProp.items!.properties!.at.type).toBe(Type.NUMBER);
     expect(eventsProp.items!.required).toEqual(['kind', 'at']);
   });
 
