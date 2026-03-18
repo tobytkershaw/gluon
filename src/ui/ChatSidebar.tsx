@@ -16,7 +16,8 @@ interface Props {
   isThinking?: boolean;
   isListening?: boolean;
   streamingText?: string;
-  streamingToolCalls?: { name: string; args: Record<string, unknown>; errored: boolean }[];
+  streamingLogEntries?: import('../engine/types').ActionLogEntry[];
+  streamingRejections?: { reason: string }[];
   reactions?: Reaction[];
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
   undoStack?: UndoEntry[];
@@ -32,7 +33,7 @@ interface Props {
 }
 
 export function ChatSidebar({
-  messages, onSend, isThinking = false, isListening = false, streamingText = '', streamingToolCalls,
+  messages, onSend, isThinking = false, isListening = false, streamingText = '', streamingLogEntries, streamingRejections,
   reactions, onReaction, undoStack, onUndoMessage,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   open, width, onResize,
@@ -87,7 +88,7 @@ export function ChatSidebar({
         {apiConfigured ? (
           <>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingToolCalls={streamingToolCalls} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
+              <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
             </div>
 
             {/* Composer at bottom of sidebar */}

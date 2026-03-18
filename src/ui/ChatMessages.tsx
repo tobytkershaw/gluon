@@ -1,14 +1,8 @@
 import { useRef, useEffect } from 'react';
-import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
+import type { ChatMessage, Reaction, UndoEntry, ActionLogEntry } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 import { renderInlineMarkdown } from './inlineMarkdown';
-
-interface StreamingToolCall {
-  name: string;
-  args: Record<string, unknown>;
-  errored: boolean;
-}
 
 interface Props {
   messages: ChatMessage[];
@@ -16,8 +10,10 @@ interface Props {
   isListening?: boolean;
   /** Partial text being streamed from the AI before the full response completes. */
   streamingText?: string;
-  /** Tool calls completing in real-time during the current AI turn. */
-  streamingToolCalls?: StreamingToolCall[];
+  /** Authoritative log entries from executed actions, streamed per-step. */
+  streamingLogEntries?: ActionLogEntry[];
+  /** Rejected actions, streamed per-step. */
+  streamingRejections?: { reason: string }[];
   /** Recorded reactions, keyed by message index. */
   reactions?: Reaction[];
   /** Callback when user clicks approve/reject on an AI message. */
@@ -28,14 +24,14 @@ interface Props {
   onUndoMessage?: (messageIndex: number) => void;
 }
 
-export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingToolCalls = [], reactions = [], onReaction, undoStack = [], onUndoMessage }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingLogEntries = [], streamingRejections = [], reactions = [], onReaction, undoStack = [], onUndoMessage }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, isThinking, isListening, streamingText, streamingToolCalls.length]);
+  }, [messages.length, isThinking, isListening, streamingText, streamingLogEntries.length, streamingRejections.length]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll p-3 space-y-2">
@@ -129,14 +125,14 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
         <div className="flex gap-2 rounded px-2.5 py-2 bg-zinc-800/20" style={{ animation: 'fade-up 0.15s ease-out' }}>
           <div
             className="w-px shrink-0 rounded-full bg-teal-500/70 mt-0.5"
-            style={{ ...(!streamingText && streamingToolCalls.length === 0 ? { animation: 'pulse-soft 1.5s ease-in-out infinite' } : {}), minHeight: '1rem' }}
+            style={{ ...(!streamingText && streamingLogEntries.length === 0 ? { animation: 'pulse-soft 1.5s ease-in-out infinite' } : {}), minHeight: '1rem' }}
           />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-mono uppercase tracking-[0.2em] mb-1 text-teal-600/80">GLUON</div>
             {streamingText && (
               <div className="text-sm leading-[1.6] break-words text-zinc-300">
                 {renderInlineMarkdown(streamingText)}
-                {streamingToolCalls.length === 0 && (
+                {streamingLogEntries.length === 0 && (
                   <span
                     className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
                     style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
@@ -144,10 +140,18 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                 )}
               </div>
             )}
-            {streamingToolCalls.length > 0 && (
+            {(streamingLogEntries.length > 0 || streamingRejections.length > 0) && (
               <div className="mt-1 space-y-px">
-                {streamingToolCalls.map((tc, i) => (
-                  <StreamingToolCallItem key={i} tc={tc} />
+                {streamingLogEntries.map((entry, i) => (
+                  <div key={i} style={{ animation: 'fade-up 0.1s ease-out' }}>
+                    <ActionDiffView entry={entry} />
+                  </div>
+                ))}
+                {streamingRejections.map((r, i) => (
+                  <div key={`rej-${i}`} className="flex items-baseline gap-1.5 text-[11px] font-mono" style={{ animation: 'fade-up 0.1s ease-out' }}>
+                    <span className="text-red-500/70">!</span>
+                    <span className="text-red-400/60">{r.reason}</span>
+                  </div>
                 ))}
                 <div className="flex items-center gap-1.5 mt-1">
                   <ThinkingDots />
@@ -155,7 +159,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                 </div>
               </div>
             )}
-            {!streamingText && streamingToolCalls.length === 0 && (
+            {!streamingText && streamingLogEntries.length === 0 && streamingRejections.length === 0 && (
               <div className="flex items-center gap-1.5">
                 <ThinkingDots />
                 <span className="text-sm font-mono text-zinc-600">
@@ -231,75 +235,3 @@ function ThinkingDots() {
   );
 }
 
-const TOOL_LABELS: Record<string, string> = {
-  move: 'Adjust',
-  sketch: 'Write pattern',
-  transform: 'Transform',
-  listen: 'Listen',
-  render: 'Render',
-  analyze: 'Analyze',
-  set_transport: 'Transport',
-  set_model: 'Set model',
-  manage_processor: 'Processor',
-  manage_modulator: 'Modulator',
-  modulation_route: 'Route mod',
-  manage_track: 'Track',
-  manage_send: 'Send',
-  manage_view: 'View',
-  set_surface: 'Surface',
-  set_track_meta: 'Track meta',
-  set_intent: 'Set intent',
-  set_scale: 'Set scale',
-  set_section: 'Set section',
-  manage_pattern: 'Pattern',
-  manage_sequence: 'Sequence',
-  edit_pattern: 'Edit pattern',
-  report_bug: 'Bug report',
-};
-
-function toolCallSummary(name: string, args: Record<string, unknown>): string {
-  const label = TOOL_LABELS[name] ?? name;
-  switch (name) {
-    case 'move':
-      return `${label} ${args.param ?? ''}${args.trackId ? ` on ${args.trackId}` : ''}`;
-    case 'sketch':
-      return args.description ? `${label}: ${args.description}` : label;
-    case 'set_model':
-      return args.model != null ? `${label} → ${args.model}` : label;
-    case 'set_transport': {
-      const parts: string[] = [];
-      if (args.bpm !== undefined) parts.push(`${args.bpm} bpm`);
-      if (args.playing !== undefined) parts.push(args.playing ? 'play' : 'stop');
-      if (args.swing !== undefined) parts.push(`swing ${args.swing}`);
-      return parts.length > 0 ? `${label}: ${parts.join(', ')}` : label;
-    }
-    case 'manage_track':
-      return args.operation ? `${label}: ${args.operation}` : label;
-    case 'manage_processor':
-    case 'manage_modulator':
-      return args.operation ? `${label}: ${args.operation}${args.type ? ` (${args.type})` : ''}` : label;
-    case 'set_track_meta':
-      return args.name ? `Rename → "${args.name}"` : label;
-    case 'listen':
-      return args.question ? `${label}: ${String(args.question).slice(0, 50)}` : label;
-    default:
-      return args.description ? `${label}: ${String(args.description).slice(0, 50)}` : label;
-  }
-}
-
-function StreamingToolCallItem({ tc }: { tc: StreamingToolCall }) {
-  const summary = toolCallSummary(tc.name, tc.args);
-  return (
-    <div
-      className="flex items-baseline gap-1.5 text-[11px] font-mono"
-      style={{ animation: 'fade-up 0.1s ease-out' }}
-    >
-      <span className={tc.errored ? 'text-red-500/70' : 'text-teal-500/50'}>
-        {tc.errored ? '!' : '\u2713'}
-      </span>
-      <span className={tc.errored ? 'text-red-400/60' : 'text-zinc-500'}>
-        {summary}
-      </span>
-    </div>
-  );
-}

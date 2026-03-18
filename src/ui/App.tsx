@@ -860,13 +860,15 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [streamingText, setStreamingText] = useState('');
-  const [streamingToolCalls, setStreamingToolCalls] = useState<{ name: string; args: Record<string, unknown>; errored: boolean }[]>([]);
+  const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
+  const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
 
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
     setStreamingText('');
-    setStreamingToolCalls([]);
+    setStreamingLogEntries([]);
+    setStreamingRejections([]);
     await ensureAudio();
     // Add human message to session synchronously via ref so askStreaming
     // receives the session with the message already present. Without this,
@@ -911,9 +913,10 @@ export default function App() {
         if (thisRequest !== requestIdRef.current) return;
         collectedToolCalls.push({ name, args });
       },
-      onToolCallComplete: (entry: { name: string; args: Record<string, unknown>; errored: boolean }) => {
+      onActionsExecuted: (report: { log: import('../engine/types').ActionLogEntry[]; rejected: { op: import('../engine/types').AIAction; reason: string }[] }) => {
         if (thisRequest !== requestIdRef.current) return;
-        setStreamingToolCalls(prev => [...prev, { name: entry.name, args: entry.args, errored: entry.errored }]);
+        if (report.log.length > 0) setStreamingLogEntries(prev => [...prev, ...report.log]);
+        if (report.rejected.length > 0) setStreamingRejections(prev => [...prev, ...report.rejected.map(r => ({ reason: r.reason }))]);
       },
       userSelection,
     };
@@ -989,7 +992,8 @@ export default function App() {
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');
-        setStreamingToolCalls([]);
+        setStreamingLogEntries([]);
+        setStreamingRejections([]);
       }
     }
   }, [ensureAudio]);
@@ -2157,7 +2161,8 @@ export default function App() {
       isThinking={isThinking}
       isListening={isListening}
       streamingText={streamingText}
-      streamingToolCalls={streamingToolCalls}
+      streamingLogEntries={streamingLogEntries}
+      streamingRejections={streamingRejections}
       reactions={session.reactionHistory}
       onReaction={handleReaction}
       apiConfigured={apiConfigured}
