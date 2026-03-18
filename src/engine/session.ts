@@ -538,6 +538,16 @@ export function setTransportMode(session: Session, mode: TransportMode): Session
   };
 }
 
+// --- Transport loop ---
+
+export function setTransportLoop(session: Session, loop: boolean): Session {
+  const withSnapshot = pushTransportSnapshot(session, `Set loop ${loop ? 'on' : 'off'}`);
+  return {
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, loop },
+  };
+}
+
 // --- Master channel helpers ---
 
 export function setMasterVolume(session: Session, volume: number): Session {

@@ -37,6 +37,8 @@ export interface Transport {
   timeSignature: TimeSignature;
   /** Transport mode: 'pattern' loops active pattern, 'song' walks sequence. Default: 'pattern'. */
   mode?: TransportMode;
+  /** Whether playback loops at the end of the sequence (song mode). Pattern mode always loops. Default: true. */
+  loop?: boolean;
 }
 
 export interface TransportCommand {

@@ -21,6 +21,7 @@ import {
   setTimeSignature, setTransportMode,
   addPatternRef, removePatternRef, reorderPatternRef,
   captureABSnapshot, restoreABSnapshot,
+  setTransportLoop,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
 import { loadSession } from '../engine/persistence';
@@ -2067,7 +2068,9 @@ export default function App() {
       onToggleMetronome={() => setSession(s => toggleMetronome(s))}
       onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
       transportMode={session.transport.mode ?? 'pattern'}
+      loop={session.transport.loop ?? true}
       onTransportModeChange={(mode: import('../engine/sequencer-types').TransportMode) => setSession(s => setTransportMode(s, mode))}
+      onLoopChange={(loop: boolean) => setSession(s => setTransportLoop(s, loop))}
       timeSignatureNumerator={session.transport.timeSignature?.numerator ?? 4}
       timeSignatureDenominator={session.transport.timeSignature?.denominator ?? 4}
       onTimeSignatureChange={(num, den) => setSession(s => setTimeSignature(s, num, den))}
