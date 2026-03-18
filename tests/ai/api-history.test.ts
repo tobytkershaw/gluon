@@ -519,6 +519,65 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       await ai.ask(session, 'hello');
       expect(planner.trimCalls).toEqual([12]);
     });
+
+    it('calls summarizeBeforeTrim instead of trimHistory when available', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      let callCount = 0;
+      tokenPlanner.countContextTokens = vi.fn(async () => {
+        callCount++;
+        return callCount === 1 ? 200_000 : 100_000;
+      });
+      tokenPlanner.getTokenBudget = () => 170_000;
+      tokenPlanner.getExchangeCount = () => 20;
+
+      const summarizeCalls: Array<{ messages: unknown[]; keepCount: number }> = [];
+      tokenPlanner.summarizeBeforeTrim = vi.fn(async (msgs: unknown[], keep: number) => {
+        summarizeCalls.push({ messages: msgs, keepCount: keep });
+      });
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      // Add some messages to session so extractOldestExchanges has data
+      session.messages.push(
+        { role: 'human', text: 'make a beat', timestamp: 1 },
+        { role: 'ai', text: 'here is a beat', timestamp: 2 },
+        { role: 'human', text: 'add hi-hat', timestamp: 3 },
+        { role: 'ai', text: 'added', timestamp: 4 },
+      );
+      await tokenAI.ask(session, 'hello');
+
+      // Should have called summarizeBeforeTrim, not trimHistory
+      expect(summarizeCalls.length).toBeGreaterThan(0);
+      expect(tokenPlanner.trimCalls).toEqual([]); // trimHistory should NOT be called directly
+    });
+
+    it('injects context summary into user message', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      tokenPlanner.getContextSummary = () => 'Track 1 is a kick in a techno project';
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      await tokenAI.ask(session, 'brighten it');
+
+      expect(tokenPlanner.userMessages).toHaveLength(1);
+      expect(tokenPlanner.userMessages[0]).toContain('[Session memory — summarized from earlier conversation]');
+      expect(tokenPlanner.userMessages[0]).toContain('Track 1 is a kick in a techno project');
+      expect(tokenPlanner.userMessages[0]).toContain('Human says: brighten it');
+    });
+
+    it('does not inject summary when getContextSummary returns null', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      tokenPlanner.getContextSummary = () => null;
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      await tokenAI.ask(session, 'hello');
+
+      expect(tokenPlanner.userMessages[0]).not.toContain('Session memory');
+    });
   });
 
   // -------------------------------------------------------------------------

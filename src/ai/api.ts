@@ -33,6 +33,7 @@ import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback, StepResult, OnStepCallback, StepExecutor } from './types';
 import { ProviderError } from './types';
+import { extractOldestExchanges } from './context-summary';
 import { createCircuitBreaker, recordStep, isBlocked, isRepeatedFailure } from './circuit-breaker';
 import type { StepOutcome } from './circuit-breaker';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff, computeBandEnergies } from '../audio/audio-analysis';
@@ -780,7 +781,16 @@ export class GluonAI {
     const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session, undefined, ctx?.userSelection);
     const contextPrefix = this.planner.consumeConversationContext?.() ?? null;
-    const contextBlock = contextPrefix ? `${contextPrefix}\n\n` : '';
+    // contextSummary is only populated by summarizeBeforeTrim, which is only
+    // called from trimToTokenBudget when countContextTokens is available.
+    // No risk of double-injection (full history + summary) because the summary
+    // only exists after exchanges have been dropped.
+    const contextSummary = this.planner.getContextSummary?.() ?? null;
+
+    let contextBlock = '';
+    if (contextPrefix) contextBlock += `${contextPrefix}\n\n`;
+    if (contextSummary) contextBlock += `[Session memory — summarized from earlier conversation]\n${contextSummary}\n\n`;
+
     const userMessage = `${contextBlock}Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
 
     let workingSession = session;
@@ -3874,20 +3884,46 @@ export class GluonAI {
       const estimatedDrop = Math.max(1, Math.ceil(overBy / tokensPerExchange));
       const keepCount = Math.max(1, exchangeCount - estimatedDrop);
 
-      planner.trimHistory(keepCount);
+      // Summarize dropped exchanges before trimming (Phase 2, #785)
+      if (planner.summarizeBeforeTrim) {
+        const dropped = extractOldestExchanges(session.messages, estimatedDrop);
+        await planner.summarizeBeforeTrim(dropped, keepCount);
+      } else {
+        planner.trimHistory(keepCount);
+      }
       tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
       console.debug(
         `[gluon-ai] trimmed to ${keepCount} exchanges, now ${tokenCount} tokens`,
       );
 
-      // Fine-tune: if still over, drop one more at a time (max 5 rounds)
+      // Fine-tune: if still over, drop one more at a time (max 5 rounds).
+      // Each round also summarizes the next-oldest exchange to avoid silent loss.
       let currentKeep = keepCount;
+      let fineTuneRounds = 0;
+      // Track the message-index boundary of already-dropped exchanges to avoid
+      // recomputing it each round (reviewer P2: eliminate redundant extraction).
+      let prevDropBoundary = extractOldestExchanges(session.messages, estimatedDrop).length;
       for (let round = 0; round < 5 && tokenCount > budget && currentKeep > 1; round++) {
         currentKeep--;
-        planner.trimHistory(currentKeep);
+        fineTuneRounds++;
+        if (planner.summarizeBeforeTrim) {
+          const totalDropped = exchangeCount - currentKeep;
+          const allDropped = extractOldestExchanges(session.messages, totalDropped);
+          // Only the newly dropped exchange (tail beyond previous boundary)
+          const newlyDropped = allDropped.slice(prevDropBoundary);
+          prevDropBoundary = allDropped.length;
+          await planner.summarizeBeforeTrim(newlyDropped, currentKeep);
+        } else {
+          planner.trimHistory(currentKeep);
+        }
         tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
         console.debug(
           `[gluon-ai] fine-trim to ${currentKeep} exchanges, now ${tokenCount} tokens`,
+        );
+      }
+      if (fineTuneRounds > 0) {
+        console.debug(
+          `[gluon-ai] context trimming required ${fineTuneRounds} fine-tune round(s) with summarization`,
         );
       }
     } catch (error) {

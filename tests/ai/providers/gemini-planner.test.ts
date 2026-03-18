@@ -559,4 +559,90 @@ describe('GeminiPlannerProvider', () => {
 
     expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'caches/to-delete' });
   });
+
+  // -------------------------------------------------------------------------
+  // LLM-summarized context trimming (Phase 2, #785)
+  // -------------------------------------------------------------------------
+
+  it('getContextSummary returns null initially', () => {
+    expect(planner.getContextSummary()).toBeNull();
+  });
+
+  it('summarizeBeforeTrim stores summary and trims history', async () => {
+    // Set up 3 committed exchanges
+    mockGenerateContent.mockResolvedValue(mockTextResponse('reply'));
+    for (let i = 0; i < 3; i++) {
+      await planner.startTurn({ systemPrompt: 's', userMessage: `msg ${i}`, tools: [] });
+      planner.commitTurn();
+    }
+    expect(planner.getExchangeCount()).toBe(3);
+
+    // Mock the summarization call (summarizeDroppedExchanges uses generateContent)
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [{ content: { role: 'model', parts: [{ text: 'Track 1 is a kick drum' }] } }],
+    });
+
+    const droppedMessages = [
+      { role: 'human' as const, text: 'make a kick', timestamp: 1 },
+      { role: 'ai' as const, text: 'here is a kick', timestamp: 2 },
+    ];
+    await planner.summarizeBeforeTrim(droppedMessages, 2);
+
+    expect(planner.getContextSummary()).toBe('Track 1 is a kick drum');
+    expect(planner.getExchangeCount()).toBe(2);
+  });
+
+  it('summarizeBeforeTrim keeps existing summary on failure', async () => {
+    // Set up 2 committed exchanges
+    mockGenerateContent.mockResolvedValue(mockTextResponse('reply'));
+    for (let i = 0; i < 2; i++) {
+      await planner.startTurn({ systemPrompt: 's', userMessage: `msg ${i}`, tools: [] });
+      planner.commitTurn();
+    }
+
+    // First summarization succeeds
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [{ content: { role: 'model', parts: [{ text: 'existing summary' }] } }],
+    });
+    await planner.summarizeBeforeTrim(
+      [{ role: 'human', text: 'hi', timestamp: 1 }], 1,
+    );
+    expect(planner.getContextSummary()).toBe('existing summary');
+
+    // Second summarization fails — summary should persist
+    mockGenerateContent.mockRejectedValueOnce(new Error('network'));
+    await planner.summarizeBeforeTrim(
+      [{ role: 'human', text: 'bye', timestamp: 2 }], 1,
+    );
+    expect(planner.getContextSummary()).toBe('existing summary');
+  });
+
+  it('clearHistory clears the context summary', async () => {
+    mockGenerateContent.mockResolvedValue(mockTextResponse('reply'));
+    await planner.startTurn({ systemPrompt: 's', userMessage: 'msg', tools: [] });
+    planner.commitTurn();
+
+    mockGenerateContent.mockResolvedValueOnce({
+      candidates: [{ content: { role: 'model', parts: [{ text: 'summary' }] } }],
+    });
+    await planner.summarizeBeforeTrim(
+      [{ role: 'human', text: 'hi', timestamp: 1 }], 0,
+    );
+    expect(planner.getContextSummary()).toBe('summary');
+
+    planner.clearHistory();
+    expect(planner.getContextSummary()).toBeNull();
+  });
+
+  it('summarizeBeforeTrim with empty messages still trims', async () => {
+    mockGenerateContent.mockResolvedValue(mockTextResponse('reply'));
+    for (let i = 0; i < 3; i++) {
+      await planner.startTurn({ systemPrompt: 's', userMessage: `msg ${i}`, tools: [] });
+      planner.commitTurn();
+    }
+
+    await planner.summarizeBeforeTrim([], 2);
+    expect(planner.getExchangeCount()).toBe(2);
+    expect(planner.getContextSummary()).toBeNull(); // No summary from empty messages
+  });
 });

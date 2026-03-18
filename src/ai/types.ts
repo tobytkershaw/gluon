@@ -142,6 +142,20 @@ export interface PlannerProvider {
    * Return the current number of committed exchanges in the provider's history.
    */
   getExchangeCount?(): number;
+
+  // ---------------------------------------------------------------------------
+  // LLM-summarized context trimming (Phase 2, #785)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Summarize exchanges about to be dropped, then trim history.
+   * Provider owns the LLM call (has SDK access). Summary stored internally.
+   * Optional — providers without support fall back to plain trimHistory.
+   */
+  summarizeBeforeTrim?(droppedMessages: ChatMessage[], keepCount: number): Promise<void>;
+
+  /** Retrieve the current context summary for injection into user messages. */
+  getContextSummary?(): string | null;
 }
 
 // ---------------------------------------------------------------------------

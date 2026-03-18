@@ -6,6 +6,7 @@ import type { PlannerProvider, GenerateResult, FunctionResponse, ToolSchema, Neu
 import { ProviderError } from '../types';
 import type { ChatMessage } from '../../engine/types';
 import { toGeminiDeclarations } from './schema-converters';
+import { summarizeDroppedExchanges } from '../context-summary';
 
 const MODEL = 'gemini-3.1-pro-preview-customtools';
 
@@ -45,6 +46,9 @@ export class GeminiPlannerProvider implements PlannerProvider {
   private pendingContents: Content[] = [];
   private exchangeBoundaries: ExchangeBoundary[] = [];
   private lastUsage: TokenUsage | null = null;
+
+  // LLM-summarized context trimming (Phase 2, #785)
+  private contextSummary: string | null = null;
 
   // Context caching (Phase 1b, #785)
   private cachedContentName: string | null = null;
@@ -113,6 +117,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
     this.permanentContents = [];
     this.pendingContents = [];
     this.exchangeBoundaries = [];
+    this.contextSummary = null;
     this.backoff = { until: 0, delay: 0 };
     void this.deleteCache();
   }
@@ -185,6 +190,31 @@ export class GeminiPlannerProvider implements PlannerProvider {
 
   getExchangeCount(): number {
     return this.exchangeBoundaries.length;
+  }
+
+  // ---------------------------------------------------------------------------
+  // LLM-summarized context trimming (Phase 2, #785)
+  // ---------------------------------------------------------------------------
+
+  async summarizeBeforeTrim(droppedMessages: ChatMessage[], keepCount: number): Promise<void> {
+    if (droppedMessages.length > 0) {
+      if (this.ai) {
+        try {
+          this.contextSummary = await summarizeDroppedExchanges(
+            this.ai, this.contextSummary, droppedMessages,
+          );
+        } catch {
+          // Best-effort — keep existing summary on failure
+        }
+      } else {
+        console.warn('[gluon-ai] summarizeBeforeTrim: skipping summarization — API not configured');
+      }
+    }
+    this.trimHistory(keepCount);
+  }
+
+  getContextSummary(): string | null {
+    return this.contextSummary;
   }
 
   // ---------------------------------------------------------------------------
