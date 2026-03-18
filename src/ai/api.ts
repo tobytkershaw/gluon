@@ -20,7 +20,7 @@ import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback } from './types';
 import { ProviderError } from './types';
-import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking } from '../audio/audio-analysis';
+import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff } from '../audio/audio-analysis';
 import type { TrackAudio } from '../audio/audio-analysis';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
@@ -1949,6 +1949,7 @@ export class GluonAI {
 
       case 'analyze': {
         const snapshotId = args.snapshotId as string | undefined;
+        const compareSnapshotId = args.compareSnapshotId as string | undefined;
         const snapshotIds = Array.isArray(args.snapshotIds) ? args.snapshotIds as string[] : undefined;
         const rawTypes = args.types as string[];
         if (!Array.isArray(rawTypes) || rawTypes.length === 0) {
@@ -1959,6 +1960,7 @@ export class GluonAI {
         const types = [...new Set(rawTypes)];
         const hasSingleTrackTypes = types.some(t => t === 'spectral' || t === 'dynamics' || t === 'rhythm');
         const hasMasking = types.includes('masking');
+        const hasDiff = types.includes('diff');
 
         // Validate: single-track types need snapshotId
         if (hasSingleTrackTypes && !snapshotId) {
@@ -1970,11 +1972,16 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Masking analysis requires snapshotIds with at least 2 snapshot IDs (one per track). Render each track separately first.') };
         }
 
+        // Validate: diff needs both snapshotId and compareSnapshotId
+        if (hasDiff && (!snapshotId || !compareSnapshotId)) {
+          return { actions: [], response: errorPayload('Diff analysis requires both snapshotId (after) and compareSnapshotId (before). Render before and after, then pass both.') };
+        }
+
         // Resolve the primary snapshot for single-track analysis
         let snapshot: ReturnType<typeof getSnapshot> | undefined;
         if (snapshotId) {
           snapshot = getSnapshot(snapshotId);
-          if (!snapshot && hasSingleTrackTypes) {
+          if (!snapshot && (hasSingleTrackTypes || hasDiff)) {
             return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
           }
         }
@@ -2024,6 +2031,23 @@ export class GluonAI {
               }
               break;
             }
+            case 'diff': {
+              if (snapshot && compareSnapshotId) {
+                const compareSnapshot = getSnapshot(compareSnapshotId);
+                if (!compareSnapshot) {
+                  analysisErrors.push(`Compare snapshot not found: ${compareSnapshotId}. Call render first.`);
+                } else {
+                  const bpm = session.transport.bpm;
+                  results.diff = analyzeDiff(
+                    compareSnapshot.pcm,
+                    snapshot.pcm,
+                    snapshot.sampleRate,
+                    bpm,
+                  );
+                }
+              }
+              break;
+            }
             default:
               analysisErrors.push(`Unknown analysis type: ${t}`);
           }
@@ -2033,6 +2057,7 @@ export class GluonAI {
           actions: [],
           response: {
             ...(snapshotId ? { snapshotId } : {}),
+            ...(compareSnapshotId ? { compareSnapshotId } : {}),
             ...(snapshotIds ? { snapshotIds } : {}),
             results,
             ...(analysisErrors.length > 0 ? { errors: analysisErrors } : {}),

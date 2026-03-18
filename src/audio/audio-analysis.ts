@@ -900,3 +900,200 @@ function generateMaskingSuggestion(
   }
   return `Minor overlap between ${trackNames} in the ${band.range} range. Usually acceptable unless the mix sounds harsh.`;
 }
+
+// ---------------------------------------------------------------------------
+// Diff analysis (before/after snapshot comparison)
+// ---------------------------------------------------------------------------
+
+/** Delta for a single numeric metric. */
+export interface MetricDelta {
+  before: number;
+  after: number;
+  delta: number;
+  /** Human-readable summary of what changed. */
+  description: string;
+}
+
+export interface DiffResult {
+  spectral: {
+    centroid: MetricDelta;
+    rolloff: MetricDelta;
+    flatness: MetricDelta;
+    bandwidth: MetricDelta;
+    fundamental: MetricDelta;
+    pitch_stability: MetricDelta;
+    signal_type_before: SpectralResult['signal_type'];
+    signal_type_after: SpectralResult['signal_type'];
+  };
+  dynamics: {
+    lufs: MetricDelta;
+    rms: MetricDelta;
+    peak: MetricDelta;
+    crest_factor: MetricDelta;
+    dynamic_range: MetricDelta;
+  };
+  rhythm: {
+    onset_count: MetricDelta;
+    rhythmic_density: MetricDelta;
+    swing_estimate: MetricDelta;
+  };
+  /** Plain-language summary of the most notable changes. */
+  summary: string;
+  confidence: number;
+}
+
+function metricDelta(before: number, after: number, description: string): MetricDelta {
+  return {
+    before: round3(before),
+    after: round3(after),
+    delta: round3(after - before),
+    description,
+  };
+}
+
+function round3(n: number): number {
+  return isFinite(n) ? Math.round(n * 1000) / 1000 : n;
+}
+
+/**
+ * Compare two rendered audio snapshots and produce structured deltas.
+ * Runs spectral, dynamics, and rhythm analysis on both and computes
+ * the difference for every metric.
+ */
+export function analyzeDiff(
+  beforePcm: Float32Array,
+  afterPcm: Float32Array,
+  sampleRate: number,
+  bpm?: number,
+): DiffResult {
+  const specBefore = analyzeSpectral(beforePcm, sampleRate);
+  const specAfter = analyzeSpectral(afterPcm, sampleRate);
+  const dynBefore = analyzeDynamics(beforePcm, sampleRate);
+  const dynAfter = analyzeDynamics(afterPcm, sampleRate);
+  const rhythmBefore = analyzeRhythm(beforePcm, sampleRate, bpm);
+  const rhythmAfter = analyzeRhythm(afterPcm, sampleRate, bpm);
+
+  const nyquist = sampleRate / 2;
+
+  // --- Spectral deltas ---
+  const centroidHzBefore = specBefore.spectral_centroid * nyquist;
+  const centroidHzAfter = specAfter.spectral_centroid * nyquist;
+  const centroidDelta = centroidHzAfter - centroidHzBefore;
+
+  const rolloffHzBefore = specBefore.spectral_rolloff * nyquist;
+  const rolloffHzAfter = specAfter.spectral_rolloff * nyquist;
+
+  const spectral = {
+    centroid: metricDelta(
+      centroidHzBefore, centroidHzAfter,
+      describeDelta(centroidDelta, 'Hz', 'brighter', 'darker', 50),
+    ),
+    rolloff: metricDelta(
+      rolloffHzBefore, rolloffHzAfter,
+      describeDelta(rolloffHzAfter - rolloffHzBefore, 'Hz', 'more high-frequency energy', 'less high-frequency energy', 100),
+    ),
+    flatness: metricDelta(
+      specBefore.spectral_flatness, specAfter.spectral_flatness,
+      describeDelta(specAfter.spectral_flatness - specBefore.spectral_flatness, '', 'noisier', 'more tonal', 0.05),
+    ),
+    bandwidth: metricDelta(
+      specBefore.spectral_bandwidth * nyquist, specAfter.spectral_bandwidth * nyquist,
+      describeDelta((specAfter.spectral_bandwidth - specBefore.spectral_bandwidth) * nyquist, 'Hz', 'wider harmonic spread', 'narrower harmonic spread', 50),
+    ),
+    fundamental: metricDelta(
+      specBefore.fundamental_estimate, specAfter.fundamental_estimate,
+      describeDelta(specAfter.fundamental_estimate - specBefore.fundamental_estimate, 'Hz', 'higher pitch', 'lower pitch', 5),
+    ),
+    pitch_stability: metricDelta(
+      specBefore.pitch_stability, specAfter.pitch_stability,
+      describeDelta(specAfter.pitch_stability - specBefore.pitch_stability, '', 'more stable pitch', 'less stable pitch', 0.05),
+    ),
+    signal_type_before: specBefore.signal_type,
+    signal_type_after: specAfter.signal_type,
+  };
+
+  // --- Dynamics deltas ---
+  const dynamics = {
+    lufs: metricDelta(
+      dynBefore.lufs, dynAfter.lufs,
+      describeDelta(dynAfter.lufs - dynBefore.lufs, 'dB', 'louder', 'quieter', 1),
+    ),
+    rms: metricDelta(
+      dynBefore.rms, dynAfter.rms,
+      describeDelta(dynAfter.rms - dynBefore.rms, 'dB', 'louder RMS', 'quieter RMS', 1),
+    ),
+    peak: metricDelta(
+      dynBefore.peak, dynAfter.peak,
+      describeDelta(dynAfter.peak - dynBefore.peak, 'dB', 'higher peak', 'lower peak', 1),
+    ),
+    crest_factor: metricDelta(
+      dynBefore.crest_factor, dynAfter.crest_factor,
+      describeDelta(dynAfter.crest_factor - dynBefore.crest_factor, 'dB', 'more transient/punchy', 'more compressed/flat', 0.5),
+    ),
+    dynamic_range: metricDelta(
+      dynBefore.dynamic_range, dynAfter.dynamic_range,
+      describeDelta(dynAfter.dynamic_range - dynBefore.dynamic_range, 'dB', 'wider dynamic range', 'narrower dynamic range', 0.5),
+    ),
+  };
+
+  // --- Rhythm deltas ---
+  const rhythm = {
+    onset_count: metricDelta(
+      rhythmBefore.onset_count, rhythmAfter.onset_count,
+      describeDelta(rhythmAfter.onset_count - rhythmBefore.onset_count, 'onsets', 'more events', 'fewer events', 1),
+    ),
+    rhythmic_density: metricDelta(
+      rhythmBefore.rhythmic_density, rhythmAfter.rhythmic_density,
+      describeDelta(rhythmAfter.rhythmic_density - rhythmBefore.rhythmic_density, '', 'denser rhythm', 'sparser rhythm', 0.02),
+    ),
+    swing_estimate: metricDelta(
+      rhythmBefore.swing_estimate, rhythmAfter.swing_estimate,
+      describeDelta(rhythmAfter.swing_estimate - rhythmBefore.swing_estimate, '', 'more swing', 'less swing', 0.02),
+    ),
+  };
+
+  // --- Summary ---
+  const notable: string[] = [];
+  if (spectral.centroid.description) notable.push(spectral.centroid.description);
+  if (dynamics.lufs.description) notable.push(dynamics.lufs.description);
+  if (rhythm.onset_count.description) notable.push(rhythm.onset_count.description);
+  if (spectral.flatness.description) notable.push(spectral.flatness.description);
+  if (dynamics.crest_factor.description) notable.push(dynamics.crest_factor.description);
+  if (specBefore.signal_type !== specAfter.signal_type) {
+    notable.push(`Signal type changed from ${specBefore.signal_type} to ${specAfter.signal_type}`);
+  }
+  const summary = notable.length > 0
+    ? notable.join('. ') + '.'
+    : 'No significant differences detected.';
+
+  // Confidence: average of individual analysis confidences
+  const confidences = [
+    specBefore.confidence, specAfter.confidence,
+    dynBefore.confidence, dynAfter.confidence,
+    rhythmBefore.confidence, rhythmAfter.confidence,
+  ];
+  const confidence = Math.round(
+    (confidences.reduce((a, b) => a + b, 0) / confidences.length) * 100,
+  ) / 100;
+
+  return { spectral, dynamics, rhythm, summary, confidence };
+}
+
+/**
+ * Produce a human-readable description of a metric delta.
+ * Returns empty string if the change is below the threshold.
+ */
+function describeDelta(
+  delta: number,
+  unit: string,
+  upWord: string,
+  downWord: string,
+  threshold: number,
+): string {
+  if (!isFinite(delta)) return '';
+  const absDelta = Math.abs(delta);
+  if (absDelta < threshold) return '';
+  const direction = delta > 0 ? upWord : downWord;
+  const rounded = Math.round(absDelta * 10) / 10;
+  return unit ? `${direction} (${rounded > 0 ? '+' : ''}${delta > 0 ? rounded : -rounded} ${unit})` : direction;
+}
