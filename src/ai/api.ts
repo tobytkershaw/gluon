@@ -4,7 +4,7 @@ import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
-import { resolveTrackId, getTrackLabel } from '../engine/track-labels';
+import { resolveTrackId, getTrackLabel, getTrackOrdinalLabel } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
@@ -20,7 +20,7 @@ import { rotate, transpose, reverse, duplicate } from '../engine/transformations
 import { humanize as humanizeEvents } from '../engine/musical-helpers';
 import { applyGroove, GROOVE_TEMPLATES } from '../engine/groove-templates';
 import type { InstrumentHint } from '../engine/groove-templates';
-import { generateArchetypeEvents, getArchetype } from '../engine/pattern-archetypes';
+import { generateArchetypeEvents, getArchetype, ARCHETYPE_NAMES } from '../engine/pattern-archetypes';
 import { generateFromGenerator } from '../engine/pattern-generator';
 import type { PatternGenerator, GeneratorBase, GeneratorLayer } from '../engine/pattern-generator';
 import { applyDynamicShape } from '../engine/dynamic-shapes';
@@ -41,9 +41,9 @@ import { getProfile, compareToProfile } from '../engine/reference-profiles';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
-import { getChainRecipe } from '../engine/chain-recipes';
-import { getMixRole } from '../engine/mix-roles';
-import { resolveModulationRecipe } from '../engine/modulation-recipes';
+import { getChainRecipe, RECIPE_NAMES as CHAIN_RECIPE_NAMES } from '../engine/chain-recipes';
+import { getMixRole, ROLE_NAMES as MIX_ROLE_NAMES } from '../engine/mix-roles';
+import { resolveModulationRecipe, MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
 import type { ModulationRecipeOverrides } from '../engine/modulation-recipes';
 import { resolveTimbralMove, getProcessorTimbralVector } from '../engine/timbral-vocabulary';
 import { SpectralSlotManager, FREQUENCY_BANDS } from '../engine/spectral-slots';
@@ -475,6 +475,51 @@ function errorPayload(message: string): Record<string, unknown> {
   return { error: message };
 }
 
+/** Build an enriched error with hint and/or available items for model recovery. */
+function enrichedError(
+  message: string,
+  extras: { hint?: string; available?: string[] },
+): Record<string, unknown> {
+  return {
+    error: message,
+    ...(extras.hint ? { hint: extras.hint } : {}),
+    ...(extras.available ? { available: extras.available } : {}),
+  };
+}
+
+/** Return a compact listing of available tracks for error messages. */
+function trackListing(session: Session): string[] {
+  const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+  const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus');
+  return session.tracks.map(t => {
+    const label = getTrackOrdinalLabel(t, audioTracks, busTracks);
+    return `${t.id} = ${label}`;
+  });
+}
+
+/** Return IDs of tracks with agency ON. */
+function agencyOnTracks(session: Session): string[] {
+  const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+  const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus');
+  return session.tracks
+    .filter(t => t.agency === 'ON')
+    .map(t => {
+      const label = getTrackOrdinalLabel(t, audioTracks, busTracks);
+      return `${t.id} = ${label}`;
+    });
+}
+
+/** Build a "track not found" error with available track listing. */
+function trackNotFoundError(ref: string, session: Session): Record<string, unknown> {
+  return enrichedError(
+    `Unknown track: "${ref}". Use "Track N" (1-indexed) or an internal track ID.`,
+    {
+      hint: 'Check the track listing below and use the exact ID or ordinal.',
+      available: trackListing(session),
+    },
+  );
+}
+
 const STEPS_PER_BAR = 16;
 
 /**
@@ -558,6 +603,32 @@ function handleRejection(
   if (!rejection) return null;
   const agencyTrackId = isAgencyRejection(rejection);
   if (agencyTrackId) return buildAgencyApproval(session, action, agencyTrackId);
+
+  // Enrich common rejection patterns with recovery hints
+  if (rejection.startsWith('Track not found')) {
+    return { actions: [], response: enrichedError(rejection, {
+      hint: 'Use "Track N" (1-indexed) or an internal track ID.',
+      available: trackListing(session),
+    }) };
+  }
+  if (rejection.startsWith('Unknown control')) {
+    const trackId = 'trackId' in action ? (action as { trackId?: string }).trackId : undefined;
+    const track = trackId ? session.tracks.find(t => t.id === trackId) : undefined;
+    const extras: { hint: string; available?: string[] } = {
+      hint: 'Check the parameter name against the track\'s source or processor controls.',
+    };
+    if (track) {
+      const sourceParams = Object.keys(track.params);
+      extras.available = sourceParams.length > 0 ? sourceParams : undefined;
+    }
+    return { actions: [], response: enrichedError(rejection, extras) };
+  }
+  if (rejection.includes('Arbitration')) {
+    return { actions: [], response: enrichedError(rejection, {
+      hint: 'The human is currently interacting with this control. Try a different parameter or wait.',
+    }) };
+  }
+
   return { actions: [], response: errorPayload(rejection) };
 }
 
@@ -927,7 +998,7 @@ export class GluonAI {
       if (resolved) {
         args.trackId = resolved;
       } else {
-        return { actions: [], response: errorPayload(`Unknown track: "${fc.args.trackId}". Use "Track N" (1-indexed) or an internal track ID.`) };
+        return { actions: [], response: trackNotFoundError(String(fc.args.trackId), session) };
       }
     }
 
@@ -940,7 +1011,7 @@ export class GluonAI {
         if (resolved) {
           resolvedIds.push(resolved);
         } else {
-          return { actions: [], response: errorPayload(`Unknown track in trackIds: "${ref}". Use "Track N" (1-indexed) or an internal track ID.`) };
+          return { actions: [], response: trackNotFoundError(ref, session) };
         }
       }
       args.trackIds = resolvedIds;
@@ -952,7 +1023,7 @@ export class GluonAI {
       if (resolved) {
         args.scope = resolved;
       } else {
-        return { actions: [], response: errorPayload(`Unknown track in scope: "${args.scope}". Use "Track N" (1-indexed) or an internal track ID.`) };
+        return { actions: [], response: trackNotFoundError(args.scope, session) };
       }
     } else if (Array.isArray(args.scope)) {
       const resolvedScope: string[] = [];
@@ -962,7 +1033,7 @@ export class GluonAI {
         if (resolved) {
           resolvedScope.push(resolved);
         } else {
-          return { actions: [], response: errorPayload(`Unknown track in scope: "${ref}". Use "Track N" (1-indexed) or an internal track ID.`) };
+          return { actions: [], response: trackNotFoundError(ref, session) };
         }
       }
       args.scope = resolvedScope;
@@ -1074,7 +1145,10 @@ export class GluonAI {
           // Archetype lookup
           const arch = getArchetype(args.archetype);
           if (!arch) {
-            return { actions: [], response: errorPayload(`Unknown archetype: "${args.archetype}"`) };
+            return { actions: [], response: enrichedError(`Unknown archetype: "${args.archetype}"`, {
+              hint: 'Use one of the built-in pattern archetypes.',
+              available: ARCHETYPE_NAMES,
+            }) };
           }
           resolvedEvents = generateArchetypeEvents(args.archetype);
           archetypeUsed = true;
@@ -1461,7 +1535,11 @@ export class GluonAI {
             if (track) {
               const chainResult = validateChainMutation(track, { kind: 'add', type: args.moduleType as string });
               if (!chainResult.valid) {
-                return { actions: [], response: errorPayload(chainResult.errors[0]) };
+                const currentChain = (track.processors ?? []).map(p => getProcessorEngineName(p.type) ?? p.type);
+                return { actions: [], response: enrichedError(chainResult.errors[0], {
+                  hint: `Current chain: [${currentChain.join(' → ')}]. Valid processor types: filter, eq, compressor, delay, reverb.`,
+                  available: currentChain,
+                }) };
               }
             }
             if (typeof args.description !== 'string') {
@@ -1614,7 +1692,11 @@ export class GluonAI {
             if (track) {
               const modResult = validateModulatorMutation(track, { kind: 'add', type: args.moduleType as string });
               if (!modResult.valid) {
-                return { actions: [], response: errorPayload(modResult.errors[0]) };
+                const currentMods = (track.modulators ?? []).map(m => getModulatorEngineName(m.type) ?? m.type);
+                return { actions: [], response: enrichedError(modResult.errors[0], {
+                  hint: `Current modulators: [${currentMods.join(', ')}]. Valid types: lfo, envelope.`,
+                  available: currentMods,
+                }) };
               }
             }
             if (typeof args.description !== 'string') {
@@ -2068,7 +2150,7 @@ export class GluonAI {
         }
         const explainTrackId = resolveTrackId(args.trackId as string, session);
         if (!explainTrackId) {
-          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
         const explainTrack = getTrack(session, explainTrackId);
 
@@ -2136,7 +2218,7 @@ export class GluonAI {
         }
         const simplifyTrackId = resolveTrackId(args.trackId as string, session);
         if (!simplifyTrackId) {
-          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
         const simplifyTrack = getTrack(session, simplifyTrackId);
         const simplifyProcessors = simplifyTrack.processors ?? [];
@@ -2287,7 +2369,7 @@ export class GluonAI {
 
             const resolvedTrackId = resolveTrackId(args.trackId as string, session);
             if (!resolvedTrackId) {
-              return { actions: [], response: errorPayload(`Track not found: ${args.trackId}`) };
+              return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
             }
 
             const removeTrackAction: AIRemoveTrackAction = {
@@ -2439,7 +2521,10 @@ export class GluonAI {
           if (invalid.length > 0) {
             return {
               actions: [],
-              response: errorPayload(`Unknown track IDs: ${invalid.join(', ')}. Available: ${[...sessionTrackIds].join(', ')}.`),
+              response: enrichedError(
+                `Unknown track IDs: ${invalid.join(', ')}.`,
+                { hint: 'Use "Track N" (1-indexed) or an internal track ID.', available: trackListing(session) },
+              ),
             };
           }
         }
@@ -2622,7 +2707,7 @@ export class GluonAI {
 
         const sendTrackId = resolveTrackId(args.trackId as string, session);
         if (!sendTrackId) {
-          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
         const sendBusId = resolveTrackId(args.busId as string, session) ?? (args.busId as string);
@@ -2679,7 +2764,7 @@ export class GluonAI {
 
         const patternTrackId = resolveTrackId(args.trackId as string, session);
         if (!patternTrackId) {
-          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
         const validPatternActions = ['add', 'remove', 'duplicate', 'rename', 'set_active', 'set_length', 'clear'];
@@ -2736,7 +2821,7 @@ export class GluonAI {
 
         const seqTrackId = resolveTrackId(args.trackId as string, session);
         if (!seqTrackId) {
-          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
         const validSeqActions = ['append', 'remove', 'reorder'];
@@ -2884,12 +2969,15 @@ export class GluonAI {
 
         const recipe = getChainRecipe(args.recipe as string);
         if (!recipe) {
-          return { actions: [], response: errorPayload(`Unknown chain recipe: "${args.recipe}"`) };
+          return { actions: [], response: enrichedError(`Unknown chain recipe: "${args.recipe}"`, {
+            hint: 'Use one of the built-in chain recipes.',
+            available: CHAIN_RECIPE_NAMES,
+          }) };
         }
 
         const recipeTrack = session.tracks.find(v => v.id === args.trackId);
         if (!recipeTrack) {
-          return { actions: [], response: errorPayload(`Track not found: "${args.trackId}"`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
         const recipeActions: AIAction[] = [];
@@ -2968,12 +3056,15 @@ export class GluonAI {
 
         const mixRole = getMixRole(args.role as string);
         if (!mixRole) {
-          return { actions: [], response: errorPayload(`Unknown mix role: "${args.role}"`) };
+          return { actions: [], response: enrichedError(`Unknown mix role: "${args.role}"`, {
+            hint: 'Use one of the built-in mix roles.',
+            available: MIX_ROLE_NAMES,
+          }) };
         }
 
         const roleTrack = session.tracks.find(v => v.id === args.trackId);
         if (!roleTrack) {
-          return { actions: [], response: errorPayload(`Track not found: "${args.trackId}"`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
         // Convert pan from 0-1 (role format) to -1..1 (track format)
@@ -3018,12 +3109,15 @@ export class GluonAI {
 
         const modRecipe = resolveModulationRecipe(args.recipe as string, hasOverrides ? modOverrides : undefined);
         if (!modRecipe) {
-          return { actions: [], response: errorPayload(`Unknown modulation recipe: "${args.recipe}"`) };
+          return { actions: [], response: enrichedError(`Unknown modulation recipe: "${args.recipe}"`, {
+            hint: 'Use one of the built-in modulation recipes.',
+            available: MODULATION_RECIPE_NAMES,
+          }) };
         }
 
         const modTrack = session.tracks.find(v => v.id === args.trackId);
         if (!modTrack) {
-          return { actions: [], response: errorPayload(`Track not found: "${args.trackId}"`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
         // For processor-targeted recipes, find the target processor
@@ -3034,7 +3128,11 @@ export class GluonAI {
             targetProcessorId = args.processorId as string;
             const exists = (modTrack.processors ?? []).some(p => p.id === targetProcessorId);
             if (!exists) {
-              return { actions: [], response: errorPayload(`Processor "${targetProcessorId}" not found on track`) };
+              const procList = (modTrack.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+              return { actions: [], response: enrichedError(`Processor "${targetProcessorId}" not found on track`, {
+                hint: 'Use one of the processor IDs on this track.',
+                available: procList,
+              }) };
             }
           } else {
             // Auto-find first matching processor type
@@ -3056,7 +3154,11 @@ export class GluonAI {
         // Validate modulator addition
         const modValidation = validateModulatorMutation(modTrack, { kind: 'add', type: modRecipe.modulatorType });
         if (!modValidation.valid) {
-          return { actions: [], response: errorPayload(modValidation.errors[0]) };
+          const currentMods = (modTrack.modulators ?? []).map(m => getModulatorEngineName(m.type) ?? m.type);
+          return { actions: [], response: enrichedError(modValidation.errors[0], {
+            hint: `Current modulators: [${currentMods.join(', ')}]. Valid types: lfo, envelope.`,
+            available: currentMods,
+          }) };
         }
 
         const modActions: AIAction[] = [];
@@ -3143,13 +3245,15 @@ export class GluonAI {
 
         const track = session.tracks.find(t => t.id === trackId);
         if (!track) {
-          return { actions: [], response: errorPayload(`Unknown track: ${trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(trackId), session) };
         }
 
         // Resolve the Plaits engine ID from the track's model index
         const engineDef = plaitsInstrument.engines[track.model];
         if (!engineDef) {
-          return { actions: [], response: errorPayload(`Track has no recognized synth engine.`) };
+          return { actions: [], response: enrichedError('Track has no recognized synth engine.', {
+            hint: `Track model index is ${track.model}. This track may be a bus or have an unrecognized source.`,
+          }) };
         }
         const engineId = engineDef.id;
 
@@ -3217,11 +3321,11 @@ export class GluonAI {
       case 'assign_spectral_slot': {
         const trackId = resolveTrackId(args.trackId as string, session);
         if (!trackId) {
-          return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
         const track = session.tracks.find(t => t.id === trackId);
         if (!track) {
-          return { actions: [], response: errorPayload(`Unknown track: ${trackId}`) };
+          return { actions: [], response: trackNotFoundError(String(trackId), session) };
         }
 
         const rawBands = args.bands as string[] | undefined;
@@ -3276,7 +3380,7 @@ export class GluonAI {
             }
             const trackId = resolveTrackId((args.trackId as string) ?? session.activeTrackId, session);
             if (!trackId) {
-              return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+              return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
             }
             const track = getTrack(session, trackId);
             const pattern = getActivePattern(track);
@@ -3495,7 +3599,7 @@ export class GluonAI {
             }
             const resolvedId = resolveTrackId(rawTrackId, session);
             if (!resolvedId) {
-              return { actions: [], response: errorPayload(`Unknown track: "${rawTrackId}"`) };
+              return { actions: [], response: trackNotFoundError(String(rawTrackId), session) };
             }
             const rawParams = Array.isArray(mm.params) ? mm.params : [];
             const params: { param: string; low: number; high: number }[] = [];
