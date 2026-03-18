@@ -197,13 +197,14 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
   });
 
-  it('respects MAX_PLANNER_INVOCATIONS limit', async () => {
-    // Always return function calls — should stop after 5 invocations
+  it('respects MAX_STREAMING_STEPS limit', async () => {
+    // Always return function calls — should stop after MAX_STREAMING_STEPS (10)
     planner.startTurnResults.push({
       textParts: [],
       functionCalls: [{ id: 'c0', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
     });
-    for (let i = 1; i < 5; i++) {
+    // Enqueue enough continue results to exceed the step limit
+    for (let i = 1; i <= 12; i++) {
       planner.continueTurnResults.push({
         textParts: [],
         functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
@@ -213,10 +214,11 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     const session = createSession();
     const actions = await ai.ask(session, 'keep going');
 
-    // 5 invocations total: 1 startTurn + 4 continueTurn
-    expect(actions.filter(a => a.type === 'move')).toHaveLength(5);
+    // MAX_STREAMING_STEPS = 10: processes startTurn + 9 continueTurn rounds
+    // (stepCount increments after each round; loop exits when stepCount === 10)
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(10);
     expect(planner.startTurnCalls).toBe(1);
-    expect(planner.continueTurnCalls).toBe(4);
+    expect(planner.continueTurnCalls).toBe(9);
   });
 
   it('cancellation prevents further API calls', async () => {

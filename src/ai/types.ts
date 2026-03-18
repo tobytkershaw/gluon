@@ -66,6 +66,16 @@ export interface FunctionResponse {
 /** Called with each text chunk as it arrives from the model during streaming. */
 export type StreamTextCallback = (chunk: string) => void;
 
+/**
+ * Executes a batch of AI actions against real session state.
+ * Provided by the UI/host to askStreaming so GluonAI can apply actions
+ * without depending on engine internals (adapter, arbitrator).
+ */
+export type StepExecutor = (
+  session: import('../engine/types').Session,
+  actions: import('../engine/types').AIAction[],
+) => import('../engine/operation-executor').StepExecutionReport;
+
 export interface PlannerProvider {
   readonly name: string;
   isConfigured(): boolean;
@@ -133,6 +143,39 @@ export interface PlannerProvider {
    */
   getExchangeCount?(): number;
 }
+
+// ---------------------------------------------------------------------------
+// Step-based execution types (#945)
+// ---------------------------------------------------------------------------
+
+/** Tool-call callback signature (fired for each tool invocation). */
+export type ToolCallCallback = (name: string, args: Record<string, unknown>) => void;
+
+/** Result of one step (one model round) in the agentic loop. Immutable once created. */
+export interface StepResult {
+  /** Text parts from this round (displayed as streaming say text). */
+  textParts: string[];
+  /** All actions produced by this step (including 'say'). */
+  actions: import('../engine/types').AIAction[];
+  /** Execution report from applying actionable (non-say) actions, or null if none. */
+  executionReport: import('../engine/operation-executor').StepExecutionReport | null;
+  /** Function responses to pass back to the planner for continueTurn. */
+  functionResponses: FunctionResponse[];
+  /** True when the model returned no function calls (natural completion). */
+  done: boolean;
+  /** True if the model response was truncated due to length limits. */
+  truncated: boolean;
+}
+
+/**
+ * Callback invoked after each step so the UI can render progress.
+ * GluonAI owns the session state — the callback receives an immutable
+ * snapshot of the updated session for rendering purposes only.
+ */
+export type OnStepCallback = (
+  stepResult: StepResult,
+  updatedSession: import('../engine/types').Session,
+) => void;
 
 // ---------------------------------------------------------------------------
 // Listener interface

@@ -9,6 +9,7 @@ import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport } from '../engine/operation-executor';
+import type { StepExecutionReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
 import { MotifLibrary } from '../engine/motif';
@@ -30,8 +31,10 @@ import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
 import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
-import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback } from './types';
+import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback, StepResult, OnStepCallback, StepExecutor } from './types';
 import { ProviderError } from './types';
+import { createCircuitBreaker, recordStep, isBlocked } from './circuit-breaker';
+import type { StepOutcome } from './circuit-breaker';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff, computeBandEnergies } from '../audio/audio-analysis';
 import type { TrackAudio } from '../audio/audio-analysis';
 import { getProfile, compareToProfile } from '../engine/reference-profiles';
@@ -645,20 +648,73 @@ export class GluonAI {
     return this.planner.isConfigured() && this.listeners.some(l => l.isConfigured());
   }
 
+  /**
+   * Batch ask — backward-compatible wrapper around askStreaming.
+   * Runs the step loop internally, collecting all actions without UI callbacks.
+   * Uses projectAction for mid-turn state visibility (no real execution).
+   */
   async ask(session: Session, humanMessage: string, ctx?: AskContext): Promise<AIAction[]> {
+    // For backward compatibility, ask() uses projectAction instead of real
+    // step execution. This preserves existing behavior for any callers that
+    // don't provide a StepExecutor.
+    let projectedSession = session;
+    const projectionExecutor: StepExecutor = (sess, actions) => {
+      // Project actions onto session without real undo/validation
+      for (const action of actions) {
+        projectedSession = projectAction(projectedSession, action);
+      }
+      return {
+        session: projectedSession,
+        accepted: actions,
+        rejected: [],
+        log: [],
+        sayTexts: [],
+        resolvedParams: new Map(),
+        preservationReports: [],
+      };
+    };
+
+    return this.askStreaming(session, humanMessage, ctx, projectionExecutor);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step-based agentic execution (#945)
+  // ---------------------------------------------------------------------------
+
+  /** Max steps per user request in the streaming loop. */
+  private static MAX_STREAMING_STEPS = 10;
+
+  /**
+   * Step-based agentic execution. Runs the tool-call loop with real state
+   * updates between steps, circuit breaker protection, and optional UI
+   * callbacks for incremental rendering.
+   *
+   * @param session      Initial session state
+   * @param humanMessage The user's message
+   * @param ctx          Ask context (listen, streaming, staleness callbacks)
+   * @param executeActions  Executes actions against real session state
+   * @param onStep       Optional callback for UI rendering after each step
+   */
+  async askStreaming(
+    session: Session,
+    humanMessage: string,
+    ctx: AskContext | undefined,
+    executeActions: StepExecutor,
+    onStep?: OnStepCallback,
+  ): Promise<AIAction[]> {
     await this.trimToTokenBudget(session, ctx);
 
     const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session, undefined, ctx?.userSelection);
-    // If the provider has restored conversation context (e.g. after reload),
-    // prepend it to the first user message so the AI has continuity.
     const contextPrefix = this.planner.consumeConversationContext?.() ?? null;
     const contextBlock = contextPrefix ? `${contextPrefix}\n\n` : '';
     const userMessage = `${contextBlock}Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
-    const collectedActions: AIAction[] = [];
-    let projectedSession = session;
+
+    let workingSession = session;
+    const allActions: AIAction[] = [];
     let hadError = false;
-    let hadModelContent = false;
+    let hadVisibleOutput = false;
+    let breaker = createCircuitBreaker();
 
     try {
       if (ctx?.isStale?.()) {
@@ -666,67 +722,146 @@ export class GluonAI {
         return [];
       }
 
-      // Only stream on the first planner invocation — subsequent continueTurn
-      // calls are tool-call loops where streaming text is less useful and the
-      // callback reference would emit interleaved fragments.
       const onStreamText = ctx?.onStreamText;
+      let stepCount = 0;
 
-      let invocationCount = 1;
-      let result = await this.planner.startTurn({
+      // First step: startTurn
+      let generateResult = await this.planner.startTurn({
         systemPrompt,
         userMessage,
         tools: GLUON_TOOLS,
         onStreamText,
       });
 
-      while (invocationCount <= GluonAI.MAX_PLANNER_INVOCATIONS) {
-        if (result.textParts.length > 0 || result.functionCalls.length > 0) {
-          hadModelContent = true;
-        }
+      while (stepCount < GluonAI.MAX_STREAMING_STEPS) {
+        // Process this round: collect text, execute tool calls
+        const roundResult = await this.processRound(generateResult, workingSession, ctx);
 
-        for (const text of result.textParts) {
-          collectedActions.push({ type: 'say', text });
-        }
+        // Track visible output
+        if (roundResult.textParts.length > 0) hadVisibleOutput = true;
+        allActions.push(...roundResult.actions);
 
-        if (result.truncated) {
-          collectedActions.push({ type: 'say', text: '(Response was truncated due to length limits.)' });
-        }
-
-        if (result.functionCalls.length === 0) break;
-
-        const responses: FunctionResponse[] = [];
-        for (const fc of result.functionCalls) {
-          ctx?.onToolCall?.(fc.name, fc.args);
-          const execResult = await this.executeFunctionCall(fc, projectedSession, ctx);
-          collectedActions.push(...execResult.actions);
-          responses.push({ id: fc.id, name: fc.name, result: execResult.response });
-          for (const action of execResult.actions) {
-            projectedSession = projectAction(projectedSession, action);
+        // Execute non-say actions against real session state
+        const actionable = roundResult.actions.filter(a => a.type !== 'say');
+        let execReport: StepExecutionReport | null = null;
+        if (actionable.length > 0) {
+          execReport = executeActions(workingSession, actionable);
+          workingSession = execReport.session;
+          if (execReport.accepted.length > 0 || execReport.log.length > 0) {
+            hadVisibleOutput = true;
           }
         }
 
-        invocationCount++;
-        if (invocationCount > GluonAI.MAX_PLANNER_INVOCATIONS || ctx?.isStale?.()) break;
+        // Build immutable step payload and notify UI
+        const stepResult: StepResult = {
+          textParts: roundResult.textParts,
+          actions: roundResult.actions,
+          executionReport: execReport,
+          functionResponses: roundResult.functionResponses,
+          done: roundResult.done,
+          truncated: roundResult.truncated,
+        };
+        onStep?.(stepResult, workingSession);
 
-        result = await this.planner.continueTurn({
+        // Check stale AFTER applying — finalize-partial
+        if (ctx?.isStale?.() || roundResult.done) break;
+
+        // Circuit breaker: record step outcome and check
+        const stepOutcome: StepOutcome = {
+          calls: roundResult.callOutcomes,
+        };
+        breaker = recordStep(breaker, stepOutcome);
+        const breakerCheck = isBlocked(breaker);
+        if (breakerCheck.blocked) {
+          const breakerAction: AIAction = { type: 'say', text: breakerCheck.reason! };
+          allActions.push(breakerAction);
+          hadVisibleOutput = true;
+          break;
+        }
+
+        stepCount++;
+        if (stepCount >= GluonAI.MAX_STREAMING_STEPS) break;
+
+        // Check stale before making another API call — don't waste a round
+        if (ctx?.isStale?.()) break;
+
+        // Continue to next step
+        generateResult = await this.planner.continueTurn({
           systemPrompt,
           tools: GLUON_TOOLS,
-          functionResponses: responses,
-          // Don't stream on continueTurn — tool loop text would interleave
+          functionResponses: roundResult.functionResponses,
         });
       }
     } catch (error) {
       hadError = true;
-      collectedActions.push(...this.handleError(error));
+      allActions.push(...this.handleError(error));
+      hadVisibleOutput = true; // error messages are visible
     }
 
-    if (!ctx?.isStale?.() && !hadError && hadModelContent) {
+    // Finalize provider history
+    if (hadVisibleOutput && !hadError) {
       this.planner.commitTurn();
     } else {
       this.planner.discardTurn();
     }
 
-    return collectedActions;
+    return allActions;
+  }
+
+  /**
+   * Process one round of model output: collect text parts, execute tool calls,
+   * build function responses. Returns an immutable result object.
+   */
+  private async processRound(
+    result: import('./types').GenerateResult,
+    session: Session,
+    ctx?: AskContext,
+  ): Promise<{
+    textParts: string[];
+    actions: AIAction[];
+    functionResponses: FunctionResponse[];
+    callOutcomes: StepOutcome['calls'];
+    done: boolean;
+    truncated: boolean;
+  }> {
+    const textParts: string[] = [];
+    const actions: AIAction[] = [];
+    const functionResponses: FunctionResponse[] = [];
+    const callOutcomes: StepOutcome['calls'] = [];
+
+    for (const text of result.textParts) {
+      textParts.push(text);
+      actions.push({ type: 'say', text });
+    }
+
+    if (result.truncated) {
+      const truncMsg = '(Response was truncated due to length limits.)';
+      textParts.push(truncMsg);
+      actions.push({ type: 'say', text: truncMsg });
+    }
+
+    // Execute each function call
+    for (const fc of result.functionCalls) {
+      ctx?.onToolCall?.(fc.name, fc.args);
+      const execResult = await this.executeFunctionCall(fc, session, ctx);
+      actions.push(...execResult.actions);
+      functionResponses.push({ id: fc.id, name: fc.name, result: execResult.response });
+
+      // Track whether this call errored (for circuit breaker)
+      const errored = execResult.response != null &&
+        typeof execResult.response === 'object' &&
+        'error' in execResult.response && execResult.response.error === true;
+      callOutcomes.push({ name: fc.name, args: fc.args, errored });
+    }
+
+    return {
+      textParts,
+      actions,
+      functionResponses,
+      callOutcomes,
+      done: result.functionCalls.length === 0,
+      truncated: result.truncated ?? false,
+    };
   }
 
   private async executeFunctionCall(
