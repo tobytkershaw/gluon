@@ -556,6 +556,39 @@ function handleRejection(
   return { actions: [], response: errorPayload(rejection) };
 }
 
+/**
+ * Auto-diff verification: renders audio before and after an edit action,
+ * runs analyzeDiff, and returns a summary to include in the tool result.
+ * Returns undefined if rendering is unavailable or fails.
+ */
+async function runAutoDiffVerification(
+  beforeSession: Session,
+  afterSession: Session,
+  trackId: string,
+  ctx?: AskContext,
+): Promise<{ verification: { summary: string; confidence: number } } | undefined> {
+  const renderPcm = ctx?.listen?.renderOfflinePcm;
+  if (!renderPcm) return undefined;
+
+  try {
+    const bars = inferBarsFromPatterns(beforeSession, [trackId]);
+    const [beforeResult, afterResult] = await Promise.all([
+      renderPcm(beforeSession, [trackId], bars),
+      renderPcm(afterSession, [trackId], bars),
+    ]);
+    const bpm = beforeSession.transport.bpm;
+    const diff = analyzeDiff(beforeResult.pcm, afterResult.pcm, afterResult.sampleRate, bpm);
+    return {
+      verification: {
+        summary: diff.summary,
+        confidence: diff.confidence,
+      },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
   /** Render audio offline — no transport or AudioContext needed. Returns WAV Blob. */
@@ -920,6 +953,13 @@ export class GluonAI {
           );
         }
 
+        // Auto-diff verification: render before/after and include diff summary
+        let verificationResult: { verification: { summary: string; confidence: number } } | undefined;
+        if (args.verify === true) {
+          const afterSession = projectAction(session, action);
+          verificationResult = await runAutoDiffVerification(session, afterSession, action.trackId, ctx);
+        }
+
         return {
           actions: [action],
           response: {
@@ -935,6 +975,7 @@ export class GluonAI {
             ...(generatorUsed ? { source: 'generator' } : {}),
             ...(archetypeUsed ? { source: 'archetype', archetype: args.archetype } : {}),
             ...(action.dynamic ? { dynamic: action.dynamic } : {}),
+            ...(verificationResult ?? {}),
           },
         };
       }
@@ -986,6 +1027,13 @@ export class GluonAI {
         const removes = action.operations.filter(o => o.action === 'remove').length;
         const modifies = action.operations.filter(o => o.action === 'modify').length;
 
+        // Auto-diff verification: render before/after and include diff summary
+        let editVerificationResult: { verification: { summary: string; confidence: number } } | undefined;
+        if (args.verify === true) {
+          const afterSession = projectAction(session, action);
+          editVerificationResult = await runAutoDiffVerification(session, afterSession, action.trackId, ctx);
+        }
+
         return {
           actions: [action],
           response: {
@@ -995,6 +1043,7 @@ export class GluonAI {
             added: adds,
             removed: removes,
             modified: modifies,
+            ...(editVerificationResult ?? {}),
           },
         };
       }
