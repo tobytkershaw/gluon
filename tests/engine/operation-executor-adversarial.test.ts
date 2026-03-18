@@ -349,18 +349,15 @@ describe('Operation executor adversarial tests', () => {
       expect(track.params.morph).toBeGreaterThanOrEqual(0);
     });
 
-    it('NaN absolute move produces NaN param (known gap — no NaN guard)', () => {
-      // This test documents a known behavior: Math.max(0, Math.min(1, NaN)) === NaN.
-      // The executor does not currently guard against NaN inputs.
-      // If this test starts failing (i.e., NaN is rejected or clamped), that's an improvement.
+    it('NaN absolute move is rejected (NaN guard added in #892)', () => {
+      // Previously NaN passed through clamping. PR #901 (#892) added NaN/Infinity rejection.
       const session = setupSession();
       const report = run(session, [
         { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: NaN } },
       ]);
-      // Currently accepted — NaN passes through clamping
-      expect(report.accepted).toHaveLength(1);
-      const track = report.session.tracks.find(t => t.id === 'v0')!;
-      expect(track.params.timbre).toBeNaN();
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('Non-finite');
+      expect(report.accepted).toHaveLength(0);
     });
   });
 
