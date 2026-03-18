@@ -20,7 +20,8 @@ import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback } from './types';
 import { ProviderError } from './types';
-import { analyzeSpectral, analyzeDynamics, analyzeRhythm } from '../audio/audio-analysis';
+import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking } from '../audio/audio-analysis';
+import type { TrackAudio } from '../audio/audio-analysis';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
@@ -1945,35 +1946,80 @@ export class GluonAI {
       }
 
       case 'analyze': {
-        const snapshotId = args.snapshotId as string;
-        if (!snapshotId) {
-          return { actions: [], response: errorPayload('Missing required parameter: snapshotId') };
-        }
+        const snapshotId = args.snapshotId as string | undefined;
+        const snapshotIds = Array.isArray(args.snapshotIds) ? args.snapshotIds as string[] : undefined;
         const rawTypes = args.types as string[];
         if (!Array.isArray(rawTypes) || rawTypes.length === 0) {
           return { actions: [], response: errorPayload('Missing required parameter: types (non-empty array)') };
         }
-        const snapshot = getSnapshot(snapshotId);
-        if (!snapshot) {
-          return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
-        }
 
         // Deduplicate to avoid wasted work
         const types = [...new Set(rawTypes)];
+        const hasSingleTrackTypes = types.some(t => t === 'spectral' || t === 'dynamics' || t === 'rhythm');
+        const hasMasking = types.includes('masking');
+
+        // Validate: single-track types need snapshotId
+        if (hasSingleTrackTypes && !snapshotId) {
+          return { actions: [], response: errorPayload('Missing required parameter: snapshotId (needed for spectral, dynamics, or rhythm analysis)') };
+        }
+
+        // Validate: masking needs snapshotIds
+        if (hasMasking && (!snapshotIds || snapshotIds.length < 2)) {
+          return { actions: [], response: errorPayload('Masking analysis requires snapshotIds with at least 2 snapshot IDs (one per track). Render each track separately first.') };
+        }
+
+        // Resolve the primary snapshot for single-track analysis
+        let snapshot: ReturnType<typeof getSnapshot> | undefined;
+        if (snapshotId) {
+          snapshot = getSnapshot(snapshotId);
+          if (!snapshot && hasSingleTrackTypes) {
+            return { actions: [], response: errorPayload(`Snapshot not found: ${snapshotId}. Call render first.`) };
+          }
+        }
+
         const results: Record<string, unknown> = {};
         const analysisErrors: string[] = [];
 
         for (const t of types) {
           switch (t) {
             case 'spectral':
-              results.spectral = analyzeSpectral(snapshot.pcm, snapshot.sampleRate);
+              if (snapshot) results.spectral = analyzeSpectral(snapshot.pcm, snapshot.sampleRate);
               break;
             case 'dynamics':
-              results.dynamics = analyzeDynamics(snapshot.pcm, snapshot.sampleRate);
+              if (snapshot) results.dynamics = analyzeDynamics(snapshot.pcm, snapshot.sampleRate);
               break;
             case 'rhythm': {
-              const bpm = session.transport.bpm;
-              results.rhythm = analyzeRhythm(snapshot.pcm, snapshot.sampleRate, bpm);
+              if (snapshot) {
+                const bpm = session.transport.bpm;
+                results.rhythm = analyzeRhythm(snapshot.pcm, snapshot.sampleRate, bpm);
+              }
+              break;
+            }
+            case 'masking': {
+              if (!snapshotIds) break;
+              // Resolve all snapshots and build TrackAudio entries
+              const trackAudios: TrackAudio[] = [];
+              for (const sid of snapshotIds) {
+                const snap = getSnapshot(sid);
+                if (!snap) {
+                  analysisErrors.push(`Snapshot not found: ${sid}`);
+                  continue;
+                }
+                if (snap.scope.length !== 1) {
+                  analysisErrors.push(`Snapshot ${sid} must have exactly one track in scope (got ${snap.scope.length}). Render each track separately.`);
+                  continue;
+                }
+                trackAudios.push({
+                  trackId: snap.scope[0],
+                  pcm: snap.pcm,
+                  sampleRate: snap.sampleRate,
+                });
+              }
+              if (trackAudios.length >= 2) {
+                results.masking = analyzeMasking(trackAudios);
+              } else {
+                analysisErrors.push('Masking analysis requires at least 2 valid single-track snapshots.');
+              }
               break;
             }
             default:
@@ -1984,7 +2030,8 @@ export class GluonAI {
         return {
           actions: [],
           response: {
-            snapshotId,
+            ...(snapshotId ? { snapshotId } : {}),
+            ...(snapshotIds ? { snapshotIds } : {}),
             results,
             ...(analysisErrors.length > 0 ? { errors: analysisErrors } : {}),
           },

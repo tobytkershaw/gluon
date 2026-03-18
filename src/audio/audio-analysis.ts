@@ -647,3 +647,256 @@ function estimateSwing(onsetTimes: number[], bpm: number): number {
   if (longShortPairs === 0) return 0;
   return Math.min(1, totalRatio / longShortPairs);
 }
+
+// ---------------------------------------------------------------------------
+// Frequency masking (cross-track spectral conflict detection)
+// ---------------------------------------------------------------------------
+
+/** A frequency band definition used by masking analysis. */
+interface FrequencyBand {
+  label: string;
+  range: string;   // human-readable (e.g. "60-200Hz")
+  lo: number;       // Hz, inclusive
+  hi: number;       // Hz, exclusive
+}
+
+const MASKING_BANDS: FrequencyBand[] = [
+  { label: 'sub',      range: '20-60Hz',     lo: 20,   hi: 60 },
+  { label: 'low',      range: '60-200Hz',    lo: 60,   hi: 200 },
+  { label: 'low-mid',  range: '200-500Hz',   lo: 200,  hi: 500 },
+  { label: 'mid',      range: '500Hz-2kHz',  lo: 500,  hi: 2000 },
+  { label: 'high-mid', range: '2-6kHz',      lo: 2000, hi: 6000 },
+  { label: 'high',     range: '6-20kHz',     lo: 6000, hi: 20000 },
+];
+
+export interface MaskingConflict {
+  band: string;          // human-readable range (e.g. "60-200Hz")
+  bandLabel: string;     // short label (e.g. "low")
+  tracks: string[];      // track IDs with significant energy in this band
+  severity: 'low' | 'medium' | 'high';
+  overlapRatio: number;  // 0.0-1.0 — how much the weaker track's energy
+                         // overlaps the dominant track's energy in this band
+  suggestion: string;
+}
+
+export interface MaskingResult {
+  conflicts: MaskingConflict[];
+  trackProfiles: Record<string, Record<string, number>>; // trackId → bandLabel → energy (dB)
+  confidence: number;
+}
+
+export interface TrackAudio {
+  trackId: string;
+  pcm: Float32Array;
+  sampleRate: number;
+}
+
+/**
+ * Compute average energy (in dB) per frequency band for a set of PCM samples.
+ * Returns a map from band label to energy in dB.
+ */
+export function computeBandEnergies(
+  samples: Float32Array,
+  sampleRate: number,
+  fftSize: number = DEFAULT_FFT_SIZE,
+): Record<string, number> {
+  const rms = computeRms(samples);
+  if (rms < 1e-6) {
+    // Silent — return -Infinity for all bands
+    const result: Record<string, number> = {};
+    for (const band of MASKING_BANDS) {
+      result[band.label] = -Infinity;
+    }
+    return result;
+  }
+
+  // Average spectra across frames
+  const hopSize = fftSize / 2;
+  const numBins = fftSize / 2 + 1;
+  const avgMagnitudes = new Float64Array(numBins);
+  let frameCount = 0;
+
+  for (let offset = 0; offset + fftSize <= samples.length; offset += hopSize) {
+    const magnitudes = computeMagnitudeSpectrum(samples, offset, fftSize);
+    for (let i = 0; i < numBins; i++) {
+      avgMagnitudes[i] += magnitudes[i];
+    }
+    frameCount++;
+  }
+
+  if (frameCount === 0) {
+    // Too short for even one frame — do a zero-padded single frame
+    const magnitudes = computeMagnitudeSpectrum(samples, 0, fftSize);
+    for (let i = 0; i < numBins; i++) {
+      avgMagnitudes[i] = magnitudes[i];
+    }
+    frameCount = 1;
+  }
+
+  for (let i = 0; i < numBins; i++) {
+    avgMagnitudes[i] /= frameCount;
+  }
+
+  // Accumulate energy per band
+  const bandEnergies: Record<string, number> = {};
+  const binFreqStep = sampleRate / fftSize;
+
+  for (const band of MASKING_BANDS) {
+    const loBin = Math.max(1, Math.ceil(band.lo / binFreqStep));
+    const hiBin = Math.min(numBins - 1, Math.floor(band.hi / binFreqStep));
+
+    let energy = 0;
+    for (let i = loBin; i <= hiBin; i++) {
+      energy += avgMagnitudes[i] * avgMagnitudes[i];
+    }
+    // Normalise by number of bins to make bands comparable
+    const binCount = Math.max(1, hiBin - loBin + 1);
+    const meanPower = energy / binCount;
+    bandEnergies[band.label] = meanPower > 1e-20 ? 10 * Math.log10(meanPower) : -Infinity;
+  }
+
+  return bandEnergies;
+}
+
+/**
+ * Analyze frequency masking across multiple tracks.
+ *
+ * For each frequency band, identifies which tracks have significant energy and
+ * flags bands where multiple tracks compete. Returns structured conflict reports
+ * with severity and remediation suggestions.
+ */
+export function analyzeMasking(tracks: TrackAudio[]): MaskingResult {
+  if (tracks.length < 2) {
+    return { conflicts: [], trackProfiles: {}, confidence: 0 };
+  }
+
+  // Compute band energies for each track
+  const profiles: Record<string, Record<string, number>> = {};
+  const allSilent = new Set<string>();
+
+  for (const track of tracks) {
+    const energies = computeBandEnergies(track.pcm, track.sampleRate);
+    profiles[track.trackId] = energies;
+
+    // Check if this track is essentially silent
+    const maxEnergy = Math.max(...Object.values(energies).filter(e => isFinite(e)));
+    if (!isFinite(maxEnergy) || maxEnergy < -80) {
+      allSilent.add(track.trackId);
+    }
+  }
+
+  const activeTracks = tracks.filter(t => !allSilent.has(t.trackId));
+  if (activeTracks.length < 2) {
+    return { conflicts: [], trackProfiles: profiles, confidence: 0.3 };
+  }
+
+  // For each band, find tracks with significant energy and detect conflicts
+  const conflicts: MaskingConflict[] = [];
+
+  // Threshold: a track has "significant" energy in a band if it is within
+  // 20dB of that track's own peak band. This is relative to each track's
+  // own level, so a quiet pad can still conflict with a loud bass.
+  const SIGNIFICANCE_OFFSET_DB = 20;
+  // Two tracks conflict if both have significant energy and the overlap
+  // (ratio of secondary to primary energy) exceeds a threshold.
+  const OVERLAP_THRESHOLD_DB = 6; // within 6dB = high overlap
+
+  for (const band of MASKING_BANDS) {
+    // Gather tracks with significant energy in this band
+    const trackEnergies: { trackId: string; energy: number }[] = [];
+
+    for (const track of activeTracks) {
+      const energy = profiles[track.trackId][band.label];
+      if (!isFinite(energy)) continue;
+
+      // Find this track's peak band energy
+      const peakEnergy = Math.max(
+        ...Object.values(profiles[track.trackId]).filter(e => isFinite(e)),
+      );
+      if (!isFinite(peakEnergy)) continue;
+
+      // Significant if within SIGNIFICANCE_OFFSET_DB of own peak
+      if (energy >= peakEnergy - SIGNIFICANCE_OFFSET_DB) {
+        trackEnergies.push({ trackId: track.trackId, energy });
+      }
+    }
+
+    if (trackEnergies.length < 2) continue;
+
+    // Sort by energy descending
+    trackEnergies.sort((a, b) => b.energy - a.energy);
+    const dominant = trackEnergies[0];
+    const secondary = trackEnergies[1];
+
+    const gap = dominant.energy - secondary.energy;
+    // overlapRatio: 1.0 when equal energy, 0.0 when gap >= 20dB
+    const overlapRatio = Math.max(0, Math.min(1, 1 - gap / 20));
+
+    if (overlapRatio < 0.1) continue; // negligible overlap
+
+    const severity: MaskingConflict['severity'] =
+      gap < OVERLAP_THRESHOLD_DB ? 'high' :
+      gap < OVERLAP_THRESHOLD_DB * 2 ? 'medium' : 'low';
+
+    const conflictingTracks = trackEnergies
+      .filter(te => dominant.energy - te.energy < 20)
+      .map(te => te.trackId);
+
+    const suggestion = generateMaskingSuggestion(band, conflictingTracks, severity);
+
+    conflicts.push({
+      band: band.range,
+      bandLabel: band.label,
+      tracks: conflictingTracks,
+      severity,
+      overlapRatio: Math.round(overlapRatio * 100) / 100,
+      suggestion,
+    });
+  }
+
+  // Sort conflicts by severity (high first)
+  const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+  conflicts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+
+  // Confidence based on number of active tracks and render quality
+  let confidence = 1.0;
+  if (activeTracks.length === 2) confidence *= 0.9;
+  // Reduce confidence if renders are very short
+  for (const track of activeTracks) {
+    const durationS = track.pcm.length / track.sampleRate;
+    if (durationS < 0.5) { confidence *= 0.5; break; }
+    if (durationS < 1.0) { confidence *= 0.7; break; }
+  }
+  confidence = Math.round(confidence * 100) / 100;
+
+  return { conflicts, trackProfiles: profiles, confidence };
+}
+
+/** Generate a human-readable suggestion for a masking conflict. */
+function generateMaskingSuggestion(
+  band: FrequencyBand,
+  trackIds: string[],
+  severity: MaskingConflict['severity'],
+): string {
+  const trackNames = trackIds.join(' and ');
+
+  if (band.label === 'sub' || band.label === 'low') {
+    if (severity === 'high') {
+      return `${trackNames} are competing in the ${band.range} range. Consider high-passing one track, using sidechain ducking, or separating them with EQ cuts.`;
+    }
+    return `Moderate overlap between ${trackNames} in the ${band.range} range. A gentle EQ cut on the less important track may help clarity.`;
+  }
+
+  if (band.label === 'mid' || band.label === 'low-mid') {
+    if (severity === 'high') {
+      return `${trackNames} are masking each other in the ${band.range} range. Try carving complementary EQ notches or adjusting timbres to occupy different spectral regions.`;
+    }
+    return `Some spectral overlap between ${trackNames} in the ${band.range} range. Consider subtle timbre adjustment on one track.`;
+  }
+
+  // high-mid and high
+  if (severity === 'high') {
+    return `${trackNames} are both bright in the ${band.range} range. Consider rolling off highs on one track or using different timbral textures.`;
+  }
+  return `Minor overlap between ${trackNames} in the ${band.range} range. Usually acceptable unless the mix sounds harsh.`;
+}

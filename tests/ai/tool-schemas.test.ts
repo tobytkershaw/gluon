@@ -125,9 +125,13 @@ describe('Tool Schemas', () => {
     }
   });
 
-  it('analyze tool requires snapshotId and types', () => {
+  it('analyze tool requires types (snapshotId optional for masking mode)', () => {
     const analyze = GLUON_TOOLS.find(t => t.name === 'analyze')!;
-    expect(analyze.parameters.required).toEqual(['snapshotId', 'types']);
+    expect(analyze.parameters.required).toEqual(['types']);
+    // snapshotId and snapshotIds are both optional at the schema level;
+    // the handler validates based on which analysis types are requested
+    expect(analyze.parameters.properties).toHaveProperty('snapshotId');
+    expect(analyze.parameters.properties).toHaveProperty('snapshotIds');
   });
 
   it('set_track_meta tool requires only trackId', () => {
