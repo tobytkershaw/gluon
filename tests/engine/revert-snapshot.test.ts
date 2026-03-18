@@ -356,4 +356,54 @@ describe('ActionGroupSnapshot undo (group-flattening)', () => {
     const result = applyUndo(s);
     expect(result).toBe(s);
   });
+
+  it('does not crash when undoing past a track creation (#921)', () => {
+    // Simulate: AI created a track, then made param changes on it, then
+    // the user undoes everything. After the track-add is undone (track removed),
+    // remaining undo entries still reference the now-gone track.
+    const s = createSession();
+    const ghostTrackId = 'ghost-track-v99';
+
+    // Build an undo stack that has a track-add followed by a param change on that track
+    const trackAddSnap: Snapshot = {
+      kind: 'track-add' as const,
+      trackId: ghostTrackId,
+      timestamp: Date.now(),
+      description: 'add track',
+    };
+    const paramSnap: Snapshot = {
+      kind: 'param' as const,
+      trackId: ghostTrackId,
+      prevValues: { timbre: 0.3 },
+      aiTargetValues: { timbre: 0.7 },
+      timestamp: Date.now(),
+      description: 'param change on ghost track',
+    };
+    const modelSnap: Snapshot = {
+      kind: 'model' as const,
+      trackId: ghostTrackId,
+      prevModel: 0,
+      prevEngine: 'plaits:analog',
+      timestamp: Date.now(),
+      description: 'model change on ghost track',
+    };
+
+    // The track doesn't actually exist in session — simulates state after
+    // the track-add was already undone (track removed) but later snapshots remain
+    const withStack = {
+      ...s,
+      undoStack: [trackAddSnap, paramSnap, modelSnap] as Snapshot[],
+    };
+
+    // Undo model snapshot — track doesn't exist, should not throw
+    expect(() => applyUndo(withStack)).not.toThrow();
+
+    // Undo param snapshot — track doesn't exist, should not throw
+    const afterFirst = applyUndo(withStack);
+    expect(() => applyUndo(afterFirst)).not.toThrow();
+
+    // Undo track-add — track doesn't exist to remove, should not throw
+    const afterSecond = applyUndo(afterFirst);
+    expect(() => applyUndo(afterSecond)).not.toThrow();
+  });
 });

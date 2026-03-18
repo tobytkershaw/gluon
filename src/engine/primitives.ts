@@ -193,7 +193,8 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'processor-state') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return session;
     const processors = (track.processors ?? []).map(p =>
       p.id === snapshot.processorId
         ? { ...p, params: { ...snapshot.prevParams }, model: snapshot.prevModel }
@@ -210,7 +211,8 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'modulator-state') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return session;
     const modulators = (track.modulators ?? []).map(m =>
       m.id === snapshot.modulatorId
         ? { ...m, params: { ...snapshot.prevParams }, model: snapshot.prevModel }
@@ -265,7 +267,8 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'pattern-crud') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return session;
     if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
       // Undo add/duplicate: remove the added region and restore sequence
       const newRegions = track.patterns.filter(r => r.id !== snapshot.addedPatternId);
@@ -324,7 +327,8 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'pattern-edit') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return session;
     if (track.patterns.length === 0) return session;
     // Find the target region by patternId, or fall back to the active region
     const targetRegionId = snapshot.patternId;
@@ -352,7 +356,8 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'pattern') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return session;
     const newLength = snapshot.prevLength ?? track.stepGrid.length;
     const updates: Partial<import('./types').Track> = {};
 
@@ -382,7 +387,8 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   // ParamSnapshot
-  const track = getTrack(session, snapshot.trackId);
+  const track = session.tracks.find(v => v.id === snapshot.trackId);
+  if (!track) return session;
   const newParams = { ...track.params };
   for (const [param, prevValue] of Object.entries(snapshot.prevValues)) {
     const aiTarget = snapshot.aiTargetValues[param];
@@ -418,7 +424,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   const now = Date.now();
 
   if (snapshot.kind === 'param') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     const prevValues: Partial<SynthParamValues> = {};
     const aiTargetValues: Partial<SynthParamValues> = {};
     for (const param of Object.keys(snapshot.prevValues)) {
@@ -429,7 +436,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'pattern') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return {
       ...snapshot,
       prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : [],
@@ -440,7 +448,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'pattern-edit') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     if (track.patterns.length === 0) return { ...snapshot, timestamp: now };
     // Use the region targeted by the snapshot, not the active region
     const targetRegion = snapshot.patternId
@@ -460,22 +469,26 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'model') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevModel: track.model, prevEngine: track.engine, timestamp: now };
   }
 
   if (snapshot.kind === 'view') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevViews: [...(track.views ?? [])], timestamp: now };
   }
 
   if (snapshot.kind === 'processor') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevProcessors: [...(track.processors ?? [])], timestamp: now };
   }
 
   if (snapshot.kind === 'processor-state') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     const proc = (track.processors ?? []).find(p => p.id === snapshot.processorId);
     return {
       ...snapshot,
@@ -486,7 +499,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'modulator') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return {
       ...snapshot,
       prevModulators: [...(track.modulators ?? [])],
@@ -496,7 +510,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'modulator-state') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     const mod = (track.modulators ?? []).find(m => m.id === snapshot.modulatorId);
     return {
       ...snapshot,
@@ -507,7 +522,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'modulation-routing') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevModulations: [...(track.modulations ?? [])], timestamp: now };
   }
 
@@ -520,22 +536,26 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'surface') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevSurface: { ...track.surface }, timestamp: now };
   }
 
   if (snapshot.kind === 'approval') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevApproval: track.approval ?? 'exploratory', timestamp: now };
   }
 
   if (snapshot.kind === 'send') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevSends: [...(track.sends ?? [])], timestamp: now };
   }
 
   if (snapshot.kind === 'track-property') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     const prevProps: Partial<import('./types').Track> = {};
     for (const key of Object.keys(snapshot.prevProps)) {
       (prevProps as Record<string, unknown>)[key] = (track as Record<string, unknown>)[key];
@@ -544,7 +564,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'sequence-edit') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevSequence: [...track.sequence], timestamp: now };
   }
 
@@ -561,7 +582,8 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   }
 
   if (snapshot.kind === 'pattern-crud') {
-    const track = getTrack(session, snapshot.trackId);
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
     if (snapshot.action === 'add' || snapshot.action === 'duplicate') {
       // Reverse of add is remove
       const addedRegion = track.patterns.find(r => r.id === snapshot.addedPatternId);
