@@ -430,6 +430,28 @@ function errorPayload(message: string): Record<string, unknown> {
   return { error: message };
 }
 
+const STEPS_PER_BAR = 16;
+
+/**
+ * Infer the number of bars to render from the active pattern durations of the
+ * given tracks (or all tracks when no IDs are provided).  Falls back to 2 when
+ * no track context is available.
+ */
+export function inferBarsFromPatterns(session: Session, trackIds?: string[]): number {
+  const tracks = trackIds
+    ? session.tracks.filter(t => trackIds.includes(t.id))
+    : session.tracks;
+  if (tracks.length === 0) return 2;
+  let maxBars = 0;
+  for (const track of tracks) {
+    if (track.patterns.length === 0) continue;
+    const pattern = getActivePattern(track);
+    const bars = Math.max(1, Math.floor(pattern.duration / STEPS_PER_BAR));
+    if (bars > maxBars) maxBars = bars;
+  }
+  return maxBars > 0 ? maxBars : 2;
+}
+
 /**
  * Check whether a rejection string is an agency-OFF block.
  * If so, return the track ID extracted from the message; otherwise null.
@@ -2036,10 +2058,10 @@ export class GluonAI {
         }
 
         const question = (args.question as string) ?? 'How does it sound?';
-        const rawBars = typeof args.bars === 'number' ? args.bars : 2;
-        const bars = Math.max(1, Math.min(16, Math.round(rawBars)));
         const rawTrackIds = args.trackIds as string[] | undefined;
         const trackIds = rawTrackIds && rawTrackIds.length > 0 ? rawTrackIds : undefined;
+        const rawBars = typeof args.bars === 'number' ? args.bars : inferBarsFromPatterns(session, trackIds);
+        const bars = Math.max(1, Math.min(16, Math.round(rawBars)));
 
         // Lens: focused evaluation aspect
         const validLenses = new Set<string>(['full-mix', 'low-end', 'rhythm', 'harmony', 'texture', 'dynamics']);
@@ -2086,9 +2108,6 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Render not available.') };
         }
 
-        const rawBars = typeof args.bars === 'number' ? args.bars : 2;
-        const renderBars = Math.max(1, Math.min(16, Math.round(rawBars)));
-
         // Parse scope: string, string[], or undefined (full mix)
         let renderTrackIds: string[] | undefined;
         if (typeof args.scope === 'string') {
@@ -2096,6 +2115,9 @@ export class GluonAI {
         } else if (Array.isArray(args.scope)) {
           renderTrackIds = args.scope as string[];
         }
+
+        const rawBars = typeof args.bars === 'number' ? args.bars : inferBarsFromPatterns(session, renderTrackIds);
+        const renderBars = Math.max(1, Math.min(16, Math.round(rawBars)));
 
         // Validate track IDs
         if (renderTrackIds) {
