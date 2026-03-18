@@ -415,7 +415,8 @@ export interface AskContext {
 export type ListenerMode = 'gemini' | 'openai' | 'both';
 
 export class GluonAI {
-  private static MAX_EXCHANGES = 12;
+  /** Fallback exchange cap for providers without token counting. */
+  private static FALLBACK_MAX_EXCHANGES = 12;
   private static MAX_PLANNER_INVOCATIONS = 5;
 
   constructor(
@@ -429,7 +430,7 @@ export class GluonAI {
   }
 
   async ask(session: Session, humanMessage: string, ctx?: AskContext): Promise<AIAction[]> {
-    this.planner.trimHistory(GluonAI.MAX_EXCHANGES);
+    await this.trimToTokenBudget(session, ctx);
 
     const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session, undefined, ctx?.userSelection);
@@ -2492,6 +2493,77 @@ export class GluonAI {
   restoreHistory(messages: ChatMessage[]): void {
     if (this.planner.restoreHistory) {
       this.planner.restoreHistory(messages);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token-budget-aware trimming (Phase 1a, #785)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Trim conversation history to fit within the provider's token budget.
+   *
+   * For providers that support countContextTokens (e.g. Gemini), we measure
+   * actual token usage and only trim when approaching the budget ceiling.
+   * This typically allows ~40-50 exchanges instead of the fixed 12 cap.
+   *
+   * For providers without token counting (e.g. OpenAI), we fall back to
+   * the fixed exchange-count cap for backward compatibility.
+   */
+  private async trimToTokenBudget(session: Session, _ctx?: AskContext): Promise<void> {
+    const planner = this.planner;
+
+    // If provider doesn't support token counting, use the fallback exchange cap
+    if (!planner.countContextTokens || !planner.getTokenBudget) {
+      planner.trimHistory(GluonAI.FALLBACK_MAX_EXCHANGES);
+      return;
+    }
+
+    const budget = planner.getTokenBudget();
+    const systemPrompt = buildSystemPrompt(session);
+
+    try {
+      let tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
+      const exchangeCount = planner.getExchangeCount?.() ?? 0;
+      console.debug(
+        `[gluon-ai] context: ${tokenCount} tokens / ${budget} budget (${Math.round((tokenCount / budget) * 100)}%), ${exchangeCount} exchanges`,
+      );
+
+      if (tokenCount <= budget) {
+        // Under budget — no trimming needed
+        return;
+      }
+
+      // Over budget — estimate tokens per exchange and drop enough to fit.
+      // We estimate, trim, then verify with one more countTokens call.
+      // If still over, trim one more exchange at a time (rare).
+      if (exchangeCount === 0) return; // Nothing to trim
+
+      const tokensPerExchange = tokenCount / exchangeCount;
+      const overBy = tokenCount - budget;
+      const estimatedDrop = Math.max(1, Math.ceil(overBy / tokensPerExchange));
+      const keepCount = Math.max(1, exchangeCount - estimatedDrop);
+
+      planner.trimHistory(keepCount);
+      tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
+      console.debug(
+        `[gluon-ai] trimmed to ${keepCount} exchanges, now ${tokenCount} tokens`,
+      );
+
+      // Fine-tune: if still over, drop one more at a time (max 5 rounds)
+      let currentKeep = keepCount;
+      for (let round = 0; round < 5 && tokenCount > budget && currentKeep > 1; round++) {
+        currentKeep--;
+        planner.trimHistory(currentKeep);
+        tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
+        console.debug(
+          `[gluon-ai] fine-trim to ${currentKeep} exchanges, now ${tokenCount} tokens`,
+        );
+      }
+    } catch (error) {
+      // If countTokens fails (e.g. network issue), fall back to exchange cap
+      console.warn('[gluon-ai] countTokens failed, falling back to exchange cap:', error);
+      planner.trimHistory(GluonAI.FALLBACK_MAX_EXCHANGES);
     }
   }
 }
