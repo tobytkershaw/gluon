@@ -118,14 +118,15 @@ Capture an audio snapshot with explicit scope. Returns a `snapshotId` that can b
 
 #### `analyze`
 
-Run deterministic audio analysis on a rendered snapshot. Supports spectral, dynamics, rhythm, masking, and diff analysis in a single call. Use `render` first to capture a snapshot, then `analyze` for quantitative measurement.
+Run deterministic audio analysis on a rendered snapshot. Supports spectral, dynamics, rhythm, masking, diff, and reference analysis in a single call. Use `render` first to capture a snapshot, then `analyze` for quantitative measurement.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `snapshotId` | string | conditional | Snapshot ID from a previous `render` call. Used for spectral, dynamics, rhythm, and diff (as the "after" snapshot). |
+| `snapshotId` | string | conditional | Snapshot ID from a previous `render` call. Used for spectral, dynamics, rhythm, reference, and diff (as the "after" snapshot). |
 | `compareSnapshotId` | string | no | Snapshot ID for the "before" state in diff analysis. Required when `types` includes `diff`. |
 | `snapshotIds` | string[] | no | Multiple snapshot IDs for cross-track masking analysis. Render each track separately, then pass all IDs here. |
-| `types` | string[] | yes | Analysis types: `spectral` (centroid, rolloff, flatness, bandwidth, pitch), `dynamics` (LUFS, RMS, peak, crest factor), `rhythm` (tempo estimate, onsets, density, swing), `masking` (cross-track frequency conflict detection — requires `snapshotIds`), `diff` (before/after comparison with structured deltas — requires `snapshotId` + `compareSnapshotId`). |
+| `types` | string[] | yes | Analysis types: `spectral` (centroid, rolloff, flatness, bandwidth, pitch), `dynamics` (LUFS, RMS, peak, crest factor), `rhythm` (tempo estimate, onsets, density, swing), `masking` (cross-track frequency conflict detection — requires `snapshotIds`), `diff` (before/after comparison with structured deltas — requires `snapshotId` + `compareSnapshotId`), `reference` (compare spectral/dynamic balance against a genre profile — requires `snapshotId` + `referenceProfile`). |
+| `referenceProfile` | string | no | Genre reference profile for `reference` analysis. Available: `techno_dark`, `techno_minimal`, `house_deep`, `ambient`, `dnb`, `hiphop`. Returns structured gaps (per-band spectral deltas, dynamic range deltas) with actionable suggestions. |
 
 ### Transport
 

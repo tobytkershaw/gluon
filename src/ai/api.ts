@@ -26,8 +26,9 @@ import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback } from './types';
 import { ProviderError } from './types';
-import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff } from '../audio/audio-analysis';
+import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff, computeBandEnergies } from '../audio/audio-analysis';
 import type { TrackAudio } from '../audio/audio-analysis';
+import { getProfile, compareToProfile } from '../engine/reference-profiles';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
@@ -2045,9 +2046,10 @@ export class GluonAI {
 
         // Deduplicate to avoid wasted work
         const types = [...new Set(rawTypes)];
-        const hasSingleTrackTypes = types.some(t => t === 'spectral' || t === 'dynamics' || t === 'rhythm');
+        const hasSingleTrackTypes = types.some(t => t === 'spectral' || t === 'dynamics' || t === 'rhythm' || t === 'reference');
         const hasMasking = types.includes('masking');
         const hasDiff = types.includes('diff');
+        const hasReference = types.includes('reference');
 
         // Validate: single-track types need snapshotId
         if (hasSingleTrackTypes && !snapshotId) {
@@ -2062,6 +2064,18 @@ export class GluonAI {
         // Validate: diff needs both snapshotId and compareSnapshotId
         if (hasDiff && (!snapshotId || !compareSnapshotId)) {
           return { actions: [], response: errorPayload('Diff analysis requires both snapshotId (after) and compareSnapshotId (before). Render before and after, then pass both.') };
+        }
+
+        // Validate: reference needs snapshotId and referenceProfile
+        const referenceProfileId = args.referenceProfile as string | undefined;
+        if (hasReference && !snapshotId) {
+          return { actions: [], response: errorPayload('Reference analysis requires snapshotId. Call render first.') };
+        }
+        if (hasReference && !referenceProfileId) {
+          return { actions: [], response: errorPayload('Reference analysis requires referenceProfile (e.g. "techno_dark"). Available: techno_dark, techno_minimal, house_deep, ambient, dnb, hiphop.') };
+        }
+        if (hasReference && referenceProfileId && !getProfile(referenceProfileId)) {
+          return { actions: [], response: errorPayload(`Unknown reference profile: ${referenceProfileId}. Available: techno_dark, techno_minimal, house_deep, ambient, dnb, hiphop.`) };
         }
 
         // Resolve the primary snapshot for single-track analysis
@@ -2135,6 +2149,17 @@ export class GluonAI {
               }
               break;
             }
+            case 'reference': {
+              if (snapshot && referenceProfileId) {
+                const profile = getProfile(referenceProfileId);
+                if (profile) {
+                  const bandEnergies = computeBandEnergies(snapshot.pcm, snapshot.sampleRate);
+                  const dyn = analyzeDynamics(snapshot.pcm, snapshot.sampleRate);
+                  results.reference = compareToProfile(profile, bandEnergies, dyn);
+                }
+              }
+              break;
+            }
             default:
               analysisErrors.push(`Unknown analysis type: ${t}`);
           }
@@ -2146,6 +2171,7 @@ export class GluonAI {
             ...(snapshotId ? { snapshotId } : {}),
             ...(compareSnapshotId ? { compareSnapshotId } : {}),
             ...(snapshotIds ? { snapshotIds } : {}),
+            ...(referenceProfileId ? { referenceProfile: referenceProfileId } : {}),
             results,
             ...(analysisErrors.length > 0 ? { errors: analysisErrors } : {}),
           },
