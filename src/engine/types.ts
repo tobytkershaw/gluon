@@ -480,9 +480,23 @@ export interface AISetModelAction {
 export interface AITransformAction {
   type: 'transform';
   trackId: string;
-  operation: 'rotate' | 'transpose' | 'reverse' | 'duplicate';
+  operation: 'rotate' | 'transpose' | 'reverse' | 'duplicate' | 'humanize' | 'euclidean' | 'ghost_notes' | 'swing' | 'thin' | 'densify';
   steps?: number;
   semitones?: number;
+  /** Velocity jitter amount for humanize (0-1). */
+  velocity_amount?: number;
+  /** Timing jitter amount for humanize (0-1). */
+  timing_amount?: number;
+  /** Number of hits for euclidean. */
+  hits?: number;
+  /** Rotation offset for euclidean (0 to steps-1). */
+  rotation?: number;
+  /** Velocity for euclidean/ghost_notes/densify (0-1). */
+  velocity?: number;
+  /** Probability for ghost_notes/thin/densify (0-1). */
+  probability?: number;
+  /** Swing amount (0-1). */
+  amount?: number;
   description: string;
 }
 

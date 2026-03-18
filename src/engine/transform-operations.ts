@@ -8,6 +8,20 @@ import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 import type { MusicalEvent } from './canonical-types';
 import { rotate, transpose, reverse, duplicate } from './transformations';
+import {
+  humanize as humanizeEvents,
+  euclidean as euclideanEvents,
+  ghostNotes as ghostNotesEvents,
+  swing as swingEvents,
+  thin as thinEvents,
+  densify as densifyEvents,
+  type HumanizeParams,
+  type EuclideanParams,
+  type GhostNotesParams,
+  type SwingParams,
+  type ThinParams,
+  type DensifyParams,
+} from './musical-helpers';
 
 const defaultInverseOpts: InverseConversionOptions = {
   canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
@@ -88,4 +102,61 @@ export function duplicateRegionEvents(session: Session, trackId: string): Sessio
   const activeReg = getActivePattern(track);
   const result = duplicate(activeReg.events, activeReg.duration);
   return applyTransform(session, trackId, result.events, result.duration, 'Duplicate region');
+}
+
+// ---------------------------------------------------------------------------
+// Musical helper session wrappers
+// ---------------------------------------------------------------------------
+
+/** Apply humanize (velocity/timing jitter) to the active pattern. */
+export function humanizeRegion(session: Session, trackId: string, params: HumanizeParams): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  const activeReg = getActivePattern(track);
+  const newEvents = humanizeEvents(activeReg.events, activeReg.duration, params);
+  return applyTransform(session, trackId, newEvents, undefined, `Humanize (vel=${params.velocityAmount}, timing=${params.timingAmount})`);
+}
+
+/** Generate a Euclidean rhythm on the active pattern (replaces existing events). */
+export function euclideanRegion(session: Session, trackId: string, params: EuclideanParams): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  const newEvents = euclideanEvents(params);
+  return applyTransform(session, trackId, newEvents, undefined, `Euclidean rhythm (${params.hits}/${params.steps}, rot=${params.rotation ?? 0})`);
+}
+
+/** Add ghost notes around existing events on the active pattern. */
+export function ghostNotesRegion(session: Session, trackId: string, params: GhostNotesParams): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  const activeReg = getActivePattern(track);
+  const newEvents = ghostNotesEvents(activeReg.events, activeReg.duration, params);
+  return applyTransform(session, trackId, newEvents, undefined, `Ghost notes (vel=${params.velocity ?? 0.3}, prob=${params.probability ?? 0.5})`);
+}
+
+/** Apply swing to the active pattern. */
+export function swingRegion(session: Session, trackId: string, params: SwingParams): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  const activeReg = getActivePattern(track);
+  const newEvents = swingEvents(activeReg.events, activeReg.duration, params);
+  return applyTransform(session, trackId, newEvents, undefined, `Swing (amount=${params.amount})`);
+}
+
+/** Probabilistically thin events from the active pattern. */
+export function thinRegion(session: Session, trackId: string, params: ThinParams): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  const activeReg = getActivePattern(track);
+  const newEvents = thinEvents(activeReg.events, params);
+  return applyTransform(session, trackId, newEvents, undefined, `Thin (prob=${params.probability})`);
+}
+
+/** Probabilistically add events at empty steps on the active pattern. */
+export function densifyRegion(session: Session, trackId: string, params: DensifyParams): Session {
+  const track = getTrack(session, trackId);
+  if (track.patterns.length === 0) return session;
+  const activeReg = getActivePattern(track);
+  const newEvents = densifyEvents(activeReg.events, activeReg.duration, params);
+  return applyTransform(session, trackId, newEvents, undefined, `Densify (prob=${params.probability})`);
 }

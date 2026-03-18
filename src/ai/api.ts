@@ -816,7 +816,7 @@ export class GluonAI {
         }
 
         const operation = args.operation as string;
-        const validOps = ['rotate', 'transpose', 'reverse', 'duplicate'];
+        const validOps = ['rotate', 'transpose', 'reverse', 'duplicate', 'humanize', 'euclidean', 'ghost_notes', 'swing', 'thin', 'densify'];
         if (!validOps.includes(operation)) {
           return { actions: [], response: errorPayload(`Unknown operation: ${operation}. Must be one of: ${validOps.join(', ')}`) };
         }
@@ -832,6 +832,8 @@ export class GluonAI {
           if (!hasSemitones) return { actions: [], response: errorPayload('transpose requires semitones parameter') };
           if (hasSteps) return { actions: [], response: errorPayload('transpose does not accept steps parameter') };
           if (args.semitones === 0) return { actions: [], response: errorPayload('semitones must be non-zero') };
+        } else if (['humanize', 'euclidean', 'ghost_notes', 'swing', 'thin', 'densify'].includes(operation)) {
+          // Helper operations accept their own specific params — no steps/semitones validation needed
         } else {
           if (hasSteps) return { actions: [], response: errorPayload(`${operation} does not accept steps parameter`) };
           if (hasSemitones) return { actions: [], response: errorPayload(`${operation} does not accept semitones parameter`) };
@@ -844,6 +846,13 @@ export class GluonAI {
           description: args.description as string,
           ...(hasSteps ? { steps: args.steps as number } : {}),
           ...(hasSemitones ? { semitones: args.semitones as number } : {}),
+          ...(typeof args.velocity_amount === 'number' ? { velocity_amount: args.velocity_amount } : {}),
+          ...(typeof args.timing_amount === 'number' ? { timing_amount: args.timing_amount } : {}),
+          ...(typeof args.hits === 'number' ? { hits: args.hits } : {}),
+          ...(typeof args.rotation === 'number' ? { rotation: args.rotation } : {}),
+          ...(typeof args.velocity === 'number' ? { velocity: args.velocity } : {}),
+          ...(typeof args.probability === 'number' ? { probability: args.probability } : {}),
+          ...(typeof args.amount === 'number' ? { amount: args.amount } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);
