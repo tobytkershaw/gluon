@@ -136,7 +136,7 @@ export interface PlannerProvider {
   /**
    * Return token usage from the most recent generate() call, if available.
    */
-  getLastTokenUsage?(): { promptTokens: number; outputTokens: number } | null;
+  getLastTokenUsage?(): { promptTokens: number; outputTokens: number; cachedTokens: number } | null;
 
   /**
    * Return the current number of committed exchanges in the provider's history.

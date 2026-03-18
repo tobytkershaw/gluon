@@ -5,10 +5,14 @@ import { ProviderError } from '../../../src/ai/types';
 // Mock the @google/genai module
 const mockGenerateContent = vi.fn();
 const mockCountTokens = vi.fn();
+const mockCachesCreate = vi.fn();
+const mockCachesUpdate = vi.fn();
+const mockCachesDelete = vi.fn();
 vi.mock('@google/genai', () => {
   return {
     GoogleGenAI: class {
       models = { generateContent: mockGenerateContent, countTokens: mockCountTokens };
+      caches = { create: mockCachesCreate, update: mockCachesUpdate, delete: mockCachesDelete };
     },
     Type: {
       STRING: 'STRING',
@@ -376,7 +380,7 @@ describe('GeminiPlannerProvider', () => {
     });
     await planner.startTurn({ systemPrompt: 'system', userMessage: 'test', tools: GLUON_TOOLS });
     const usage = planner.getLastTokenUsage();
-    expect(usage).toEqual({ promptTokens: 1000, outputTokens: 200 });
+    expect(usage).toEqual({ promptTokens: 1000, outputTokens: 200, cachedTokens: 0 });
   });
 
   it('countContextTokens throws when not configured', async () => {
@@ -393,5 +397,166 @@ describe('GeminiPlannerProvider', () => {
     expect(tokens).toBe(3_000);
     // Only one countTokens call (system prompt), not two
     expect(mockCountTokens).toHaveBeenCalledTimes(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Context caching (Phase 1b, #785)
+  // -------------------------------------------------------------------------
+
+  it('cache created on first generate()', async () => {
+    mockCachesCreate.mockResolvedValueOnce({ name: 'caches/abc123' });
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('hello'));
+
+    await planner.startTurn({
+      systemPrompt: 'system',
+      userMessage: 'hi',
+      tools: GLUON_TOOLS,
+    });
+
+    expect(mockCachesCreate).toHaveBeenCalledTimes(1);
+    const createArg = mockCachesCreate.mock.calls[0][0];
+    expect(createArg.config.systemInstruction).toBe('system');
+    expect(createArg.config.tools).toBeDefined();
+    expect(createArg.config.tools[0].functionDeclarations).toBeDefined();
+    expect(createArg.config.ttl).toBe('600s');
+
+    // Request should use cachedContent instead of systemInstruction
+    const genArg = mockGenerateContent.mock.calls[0][0];
+    expect(genArg.config.cachedContent).toBe('caches/abc123');
+    expect(genArg.config.systemInstruction).toBeUndefined();
+    expect(genArg.config.tools).toBeUndefined();
+  });
+
+  it('cache reused when prompt unchanged', async () => {
+    mockCachesCreate.mockResolvedValueOnce({ name: 'caches/abc123' });
+    mockGenerateContent.mockResolvedValue(mockTextResponse('hello'));
+
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi', tools: GLUON_TOOLS });
+    planner.commitTurn();
+
+    // Second call with same prompt — should NOT create a new cache
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi again', tools: GLUON_TOOLS });
+
+    expect(mockCachesCreate).toHaveBeenCalledTimes(1);
+    // Both requests should use cached content
+    expect(mockGenerateContent.mock.calls[1][0].config.cachedContent).toBe('caches/abc123');
+  });
+
+  it('cache invalidated on prompt change', async () => {
+    mockCachesCreate
+      .mockResolvedValueOnce({ name: 'caches/first' })
+      .mockResolvedValueOnce({ name: 'caches/second' });
+    mockCachesDelete.mockResolvedValue(undefined);
+    mockGenerateContent.mockResolvedValue(mockTextResponse('hello'));
+
+    await planner.startTurn({ systemPrompt: 'system-v1', userMessage: 'hi', tools: GLUON_TOOLS });
+    planner.commitTurn();
+
+    // Change system prompt — should delete old cache and create new
+    await planner.startTurn({ systemPrompt: 'system-v2', userMessage: 'hi', tools: GLUON_TOOLS });
+
+    expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'caches/first' });
+    expect(mockCachesCreate).toHaveBeenCalledTimes(2);
+    expect(mockGenerateContent.mock.calls[1][0].config.cachedContent).toBe('caches/second');
+  });
+
+  it('permanent error disables caching', async () => {
+    const error400 = new Error('Bad request');
+    (error400 as Record<string, unknown>).status = 400;
+    mockCachesCreate.mockRejectedValueOnce(error400);
+    mockGenerateContent.mockResolvedValue(mockTextResponse('hello'));
+
+    // First call — cache create fails with 400, falls back to inline
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi', tools: GLUON_TOOLS });
+    planner.commitTurn();
+
+    // Second call — should skip caching entirely (cacheUnsupported latched)
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi again', tools: GLUON_TOOLS });
+
+    expect(mockCachesCreate).toHaveBeenCalledTimes(1); // Only the first attempt
+    // Both should use inline config
+    expect(mockGenerateContent.mock.calls[0][0].config.systemInstruction).toBe('system');
+    expect(mockGenerateContent.mock.calls[1][0].config.systemInstruction).toBe('system');
+  });
+
+  it('transient error falls back for one request', async () => {
+    const error500 = new Error('Internal error');
+    (error500 as Record<string, unknown>).status = 500;
+    mockCachesCreate
+      .mockRejectedValueOnce(error500)
+      .mockResolvedValueOnce({ name: 'caches/recovered' });
+    mockGenerateContent.mockResolvedValue(mockTextResponse('hello'));
+
+    // First call — cache create fails with 500, falls back to inline
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi', tools: GLUON_TOOLS });
+    planner.commitTurn();
+
+    // Second call — should try caching again (transient error, not latched)
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi again', tools: GLUON_TOOLS });
+
+    expect(mockCachesCreate).toHaveBeenCalledTimes(2);
+    expect(mockGenerateContent.mock.calls[0][0].config.systemInstruction).toBe('system');
+    expect(mockGenerateContent.mock.calls[1][0].config.cachedContent).toBe('caches/recovered');
+  });
+
+  it('stale cache at generate time triggers retry', async () => {
+    mockCachesCreate.mockResolvedValueOnce({ name: 'caches/stale' });
+
+    const error404 = new Error('Cached content not found');
+    (error404 as Record<string, unknown>).status = 404;
+
+    // First call uses cache, but generateContent throws 404 (stale cache)
+    mockGenerateContent
+      .mockRejectedValueOnce(error404)
+      .mockResolvedValueOnce(mockTextResponse('recovered'));
+
+    const result = await planner.startTurn({
+      systemPrompt: 'system',
+      userMessage: 'hi',
+      tools: GLUON_TOOLS,
+    });
+
+    expect(result.textParts).toEqual(['recovered']);
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+
+    // First call used cached content
+    expect(mockGenerateContent.mock.calls[0][0].config.cachedContent).toBe('caches/stale');
+    // Retry used inline config
+    expect(mockGenerateContent.mock.calls[1][0].config.systemInstruction).toBe('system');
+    expect(mockGenerateContent.mock.calls[1][0].config.cachedContent).toBeUndefined();
+  });
+
+  it('cachedTokens tracked in token usage', async () => {
+    mockCachesCreate.mockResolvedValueOnce({ name: 'caches/abc' });
+    mockGenerateContent.mockResolvedValueOnce({
+      ...mockTextResponse('hello'),
+      usageMetadata: {
+        promptTokenCount: 1000,
+        candidatesTokenCount: 200,
+        cachedContentTokenCount: 800,
+        totalTokenCount: 1200,
+      },
+    });
+
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'test', tools: GLUON_TOOLS });
+
+    const usage = planner.getLastTokenUsage();
+    expect(usage).toEqual({ promptTokens: 1000, outputTokens: 200, cachedTokens: 800 });
+  });
+
+  it('clearHistory deletes cache', async () => {
+    mockCachesCreate.mockResolvedValueOnce({ name: 'caches/to-delete' });
+    mockCachesDelete.mockResolvedValue(undefined);
+    mockGenerateContent.mockResolvedValueOnce(mockTextResponse('hello'));
+
+    await planner.startTurn({ systemPrompt: 'system', userMessage: 'hi', tools: GLUON_TOOLS });
+    planner.commitTurn();
+
+    planner.clearHistory();
+
+    // Wait for the fire-and-forget delete to complete
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockCachesDelete).toHaveBeenCalledWith({ name: 'caches/to-delete' });
   });
 });
