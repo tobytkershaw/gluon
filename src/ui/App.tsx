@@ -882,8 +882,8 @@ export default function App() {
         onListening: setIsListening,
       },
       isStale: () => thisRequest !== requestIdRef.current,
-      validateAction: (action: AIAction) => prevalidateAction(
-        sessionRef.current, action, plaitsAdapter, arbRef.current,
+      validateAction: (sess: Session, action: AIAction) => prevalidateAction(
+        sess, action, plaitsAdapter, arbRef.current,
       ),
       onStreamText: (chunk: string) => {
         if (thisRequest !== requestIdRef.current) return;

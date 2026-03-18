@@ -325,7 +325,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => 'Agency: Track v0 has agency OFF',
+      validateAction: (_s, _a) => 'Agency: Track v0 has agency OFF',
     });
 
     // Move should not be applied
@@ -345,7 +345,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => 'Arbitration: human is holding timbre',
+      validateAction: (_s, _a) => 'Arbitration: human is holding timbre',
     });
 
     expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
@@ -362,7 +362,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => null,
+      validateAction: (_s, _a) => null,
     });
 
     expect(actions.filter(a => a.type === 'move')).toHaveLength(1);

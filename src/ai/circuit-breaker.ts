@@ -103,6 +103,18 @@ export function recordStep(
   };
 }
 
+/**
+ * Check whether a specific tool call has already failed with these exact args.
+ * Used to short-circuit repeated failing calls with a synthetic error.
+ */
+export function isRepeatedFailure(
+  state: CircuitBreakerState,
+  name: string,
+  args: Record<string, unknown>,
+): boolean {
+  return state.failedCallHashes.has(callHash(name, args));
+}
+
 export interface BreakerVerdict {
   blocked: boolean;
   reason?: string;

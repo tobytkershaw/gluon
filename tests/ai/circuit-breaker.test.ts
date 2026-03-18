@@ -4,6 +4,7 @@ import {
   createCircuitBreaker,
   recordStep,
   isBlocked,
+  isRepeatedFailure,
   callHash,
 } from '../../src/ai/circuit-breaker';
 
@@ -123,5 +124,38 @@ describe('circuit breaker', () => {
     });
     expect(breaker.config.maxTotalCalls).toBe(2);
     expect(breaker.config.maxConsecutiveFailures).toBe(1);
+  });
+
+  it('detects repeated failing calls', () => {
+    let breaker = createCircuitBreaker();
+
+    // No failure recorded yet — not a repeat
+    expect(isRepeatedFailure(breaker, 'move', { param: 'timbre', target: 0.5 })).toBe(false);
+
+    // Record a failed call
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'move', args: { param: 'timbre', target: 0.5 }, errored: true }],
+    });
+
+    // Same call is now a repeated failure
+    expect(isRepeatedFailure(breaker, 'move', { param: 'timbre', target: 0.5 })).toBe(true);
+
+    // Different args — not a repeat
+    expect(isRepeatedFailure(breaker, 'move', { param: 'timbre', target: 0.8 })).toBe(false);
+
+    // Different name — not a repeat
+    expect(isRepeatedFailure(breaker, 'sketch', { param: 'timbre', target: 0.5 })).toBe(false);
+  });
+
+  it('does not flag successful calls as repeated failures', () => {
+    let breaker = createCircuitBreaker();
+
+    // Record a successful call
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'move', args: { param: 'timbre', target: 0.5 }, errored: false }],
+    });
+
+    // Successful calls are not tracked as failures
+    expect(isRepeatedFailure(breaker, 'move', { param: 'timbre', target: 0.5 })).toBe(false);
   });
 });
