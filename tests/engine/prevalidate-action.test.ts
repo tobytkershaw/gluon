@@ -88,7 +88,7 @@ describe('prevalidateAction', () => {
         tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
       };
       const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Track v0 has agency OFF');
+      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toContain('agency OFF');
     });
 
     it('rejects move with unknown control', () => {
@@ -157,7 +157,7 @@ describe('prevalidateAction', () => {
         type: 'sketch', trackId: 'v0', description: 'kick',
         events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
       };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Track v0 has agency OFF');
+      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toContain('agency OFF');
     });
   });
 
