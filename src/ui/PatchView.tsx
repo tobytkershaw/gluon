@@ -1280,35 +1280,50 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     };
   }, []);
 
-  // Keyboard handler for Delete key on selected edge or node
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-      // Delete selected edge
-      if (selectedEdgeId && onRemoveModulation) {
+  // Keyboard handler for Delete key on selected edge or node.
+  // Uses a React onKeyDown handler on the focusable container instead of a
+  // window listener so that stopPropagation() prevents the event from reaching
+  // the TrackRow handler (which would delete the entire track).  (#720)
+  const handleDeleteKey = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+    // Delete selected edge
+    if (selectedEdgeId && onRemoveModulation) {
+      e.preventDefault();
+      e.stopPropagation();
+      onRemoveModulation(selectedEdgeId);
+      setSelectedEdgeId(null);
+      return;
+    }
+    // Delete selected node (processor or modulator only)
+    if (selectedNodeId) {
+      const node = nodes.find(n => n.id === selectedNodeId);
+      if (!node) return;
+      if (node.kind === 'processor' && onRemoveProcessor) {
         e.preventDefault();
-        onRemoveModulation(selectedEdgeId);
-        setSelectedEdgeId(null);
-        return;
+        e.stopPropagation();
+        onRemoveProcessor(node.id);
+        setSelectedNodeId(null);
+      } else if (node.kind === 'modulator' && onRemoveModulator) {
+        e.preventDefault();
+        e.stopPropagation();
+        onRemoveModulator(node.id);
+        setSelectedNodeId(null);
+      } else {
+        // Source/output nodes can't be deleted — swallow the event so the
+        // track-row handler doesn't interpret it as "delete track".
+        e.preventDefault();
+        e.stopPropagation();
       }
-      // Delete selected node (processor or modulator only)
-      if (selectedNodeId) {
-        const node = nodes.find(n => n.id === selectedNodeId);
-        if (!node) return;
-        if (node.kind === 'processor' && onRemoveProcessor) {
-          e.preventDefault();
-          onRemoveProcessor(node.id);
-          setSelectedNodeId(null);
-        } else if (node.kind === 'modulator' && onRemoveModulator) {
-          e.preventDefault();
-          onRemoveModulator(node.id);
-          setSelectedNodeId(null);
-        }
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    }
   }, [selectedEdgeId, selectedNodeId, nodes, onRemoveModulation, onRemoveProcessor, onRemoveModulator]);
+
+  // Focus the container when a node or edge is selected so that keyboard
+  // events (Delete/Backspace) are captured by the container's onKeyDown.
+  useEffect(() => {
+    if ((selectedNodeId || selectedEdgeId) && containerRef.current) {
+      containerRef.current.focus({ preventScroll: true });
+    }
+  }, [selectedNodeId, selectedEdgeId]);
 
   // Find selected node for detail panel
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
@@ -1329,7 +1344,9 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       {/* Graph area */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 overflow-hidden relative"
+        tabIndex={0}
+        className="flex-1 min-h-0 overflow-hidden relative outline-none"
+        onKeyDown={handleDeleteKey}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
