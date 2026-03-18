@@ -507,6 +507,12 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'rename_track': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      return null;
+    }
+
     case 'manage_send': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
@@ -1841,6 +1847,27 @@ export function executeOperations(
         if (action.muted !== undefined) msParts.push(`muted=${action.muted}`);
         if (action.solo !== undefined) msParts.push(`solo=${action.solo}`);
         log.push({ trackId: action.trackId, trackLabel: msLabel, description: msParts.join(', ') });
+        accepted.push(action);
+        break;
+      }
+
+      case 'rename_track': {
+        const renameTrack = getTrack(next, action.trackId);
+        const renameSnapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId: action.trackId,
+          prevProps: { name: renameTrack.name },
+          timestamp: Date.now(),
+          description: `AI rename_track on ${action.trackId}`,
+        };
+
+        next = {
+          ...updateTrack(next, action.trackId, { name: action.name }),
+          undoStack: [...next.undoStack, renameSnapshot],
+        };
+
+        const renameLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: renameLabel, description: `renamed to "${action.name}"` });
         accepted.push(action);
         break;
       }
