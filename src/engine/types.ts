@@ -856,6 +856,32 @@ export interface BugReport {
   timestamp: number;
 }
 
+// --- Agency Approval ---
+
+/**
+ * Prefix used by prevalidateAction to distinguish agency-OFF rejections
+ * from other validation errors. The AI layer detects this prefix and
+ * converts the hard block into an approval prompt.
+ */
+export const AGENCY_REJECTION_PREFIX = 'Agency:';
+
+/**
+ * Structured response returned to the AI when an action is blocked
+ * because the target track has agency OFF. Contains the pending action
+ * so the human can review and approve/deny it.
+ */
+export interface AgencyApprovalRequest {
+  blocked: true;
+  reason: 'agency_off';
+  trackId: string;
+  trackLabel: string;
+  /** The action that was blocked, serialised for the AI to see */
+  pendingAction: AIAction;
+  /** ID of the decision raised for the human to approve/deny */
+  decisionId: string;
+  message: string;
+}
+
 // --- Open Decisions ---
 
 export interface OpenDecision {

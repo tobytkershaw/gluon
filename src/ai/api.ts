@@ -1,10 +1,10 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
-import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
+import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
-import { resolveTrackId } from '../engine/track-labels';
+import { resolveTrackId, getTrackLabel } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
@@ -430,6 +430,70 @@ function errorPayload(message: string): Record<string, unknown> {
   return { error: message };
 }
 
+/**
+ * Check whether a rejection string is an agency-OFF block.
+ * If so, return the track ID extracted from the message; otherwise null.
+ */
+export function isAgencyRejection(rejection: string): string | null {
+  if (!rejection.startsWith(AGENCY_REJECTION_PREFIX)) return null;
+  // Format: "Agency: Track <trackId> has agency OFF"
+  const match = rejection.match(/Track\s+(\S+)\s+has agency OFF/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Build a structured agency-approval response and a raise_decision action
+ * instead of a hard error when the AI tries to modify an agency-OFF track.
+ */
+export function buildAgencyApproval(
+  session: Session,
+  blockedAction: AIAction,
+  trackId: string,
+): { actions: AIAction[]; response: Record<string, unknown> } {
+  const track = session.tracks.find(t => t.id === trackId);
+  const label = track ? getTrackLabel(track) : trackId;
+  const decisionId = `agency-approval-${Date.now()}`;
+
+  const raiseAction: AIRaiseDecisionAction = {
+    type: 'raise_decision',
+    decisionId,
+    question: `The AI wants to modify ${label} which has agency OFF. Allow this change?`,
+    context: `Action: ${blockedAction.type}`,
+    options: ['Allow', 'Deny'],
+    trackIds: [trackId],
+  };
+
+  const approval: AgencyApprovalRequest = {
+    blocked: true,
+    reason: 'agency_off',
+    trackId,
+    trackLabel: label,
+    pendingAction: blockedAction,
+    decisionId,
+    message: `Track ${label} has agency OFF. A decision has been raised asking the human to allow this change. Wait for their response before retrying.`,
+  };
+
+  return {
+    actions: [raiseAction],
+    response: approval as unknown as Record<string, unknown>,
+  };
+}
+
+/**
+ * Handle a validation rejection: if it's an agency-OFF block, convert to an
+ * approval prompt instead of a hard error. Returns null if there's no rejection.
+ */
+function handleRejection(
+  rejection: string | null | undefined,
+  session: Session,
+  action: AIAction,
+): { actions: AIAction[]; response: Record<string, unknown> } | null {
+  if (!rejection) return null;
+  const agencyTrackId = isAgencyRejection(rejection);
+  if (agencyTrackId) return buildAgencyApproval(session, action, agencyTrackId);
+  return { actions: [], response: errorPayload(rejection) };
+}
+
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
   /** Render audio offline — no transport or AudioContext needed. Returns WAV Blob. */
@@ -647,7 +711,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return { actions: [], response: errorPayload(rejection) };
+        const rejectionResult = handleRejection(rejection, session, action);
+        if (rejectionResult) return rejectionResult;
 
         const trackId = action.trackId ?? session.activeTrackId;
         const track = session.tracks.find(v => v.id === trackId);
@@ -750,7 +815,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return { actions: [], response: errorPayload(rejection) };
+        const rejectionResult = handleRejection(rejection, session, action);
+        if (rejectionResult) return rejectionResult;
 
         // Compute consequence details from the before/after state
         const sketchTrack = session.tracks.find(v => v.id === action.trackId);
@@ -842,7 +908,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return { actions: [], response: errorPayload(rejection) };
+        const rejectionResult = handleRejection(rejection, session, action);
+        if (rejectionResult) return rejectionResult;
 
         // Summarize operations
         const adds = action.operations.filter(o => o.action === 'add').length;
@@ -881,7 +948,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return { actions: [], response: errorPayload(rejection) };
+        const rejectionResult = handleRejection(rejection, session, action);
+        if (rejectionResult) return rejectionResult;
 
         const resultBpm = action.bpm !== undefined ? Math.max(20, Math.min(300, action.bpm)) : undefined;
         const resultSwing = action.swing !== undefined ? Math.max(0, Math.min(1, action.swing)) : undefined;
@@ -914,7 +982,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return { actions: [], response: errorPayload(rejection) };
+        const rejectionResult = handleRejection(rejection, session, action);
+        if (rejectionResult) return rejectionResult;
 
         return {
           actions: [action],
@@ -979,7 +1048,8 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(action);
-        if (rejection) return { actions: [], response: errorPayload(rejection) };
+        const rejectionResult = handleRejection(rejection, session, action);
+        if (rejectionResult) return rejectionResult;
 
         return {
           actions: [action],
@@ -1018,8 +1088,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addViewRejection = ctx?.validateAction?.(addViewAction);
-            if (addViewRejection) return { actions: [], response: errorPayload(addViewRejection) };
+            const addViewRejection = handleRejection(ctx?.validateAction?.(addViewAction), session, addViewAction);
+            if (addViewRejection) return addViewRejection;
 
             return {
               actions: [addViewAction],
@@ -1045,8 +1115,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeViewRejection = ctx?.validateAction?.(removeViewAction);
-            if (removeViewRejection) return { actions: [], response: errorPayload(removeViewRejection) };
+            const removeViewRejection = handleRejection(ctx?.validateAction?.(removeViewAction), session, removeViewAction);
+            if (removeViewRejection) return removeViewRejection;
 
             return {
               actions: [removeViewAction],
@@ -1094,8 +1164,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addProcRejection = ctx?.validateAction?.(addProcAction);
-            if (addProcRejection) return { actions: [], response: errorPayload(addProcRejection) };
+            const addProcRejection = handleRejection(ctx?.validateAction?.(addProcAction), session, addProcAction);
+            if (addProcRejection) return addProcRejection;
 
             return {
               actions: [addProcAction],
@@ -1122,8 +1192,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeProcRejection = ctx?.validateAction?.(removeProcAction);
-            if (removeProcRejection) return { actions: [], response: errorPayload(removeProcRejection) };
+            const removeProcRejection = handleRejection(ctx?.validateAction?.(removeProcAction), session, removeProcAction);
+            if (removeProcRejection) return removeProcRejection;
 
             return {
               actions: [removeProcAction],
@@ -1156,8 +1226,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const replaceRejection = ctx?.validateAction?.(replaceAction);
-            if (replaceRejection) return { actions: [], response: errorPayload(replaceRejection) };
+            const replaceRejection = handleRejection(ctx?.validateAction?.(replaceAction), session, replaceAction);
+            if (replaceRejection) return replaceRejection;
 
             return {
               actions: [replaceAction],
@@ -1234,8 +1304,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addModRejection = ctx?.validateAction?.(addModAction);
-            if (addModRejection) return { actions: [], response: errorPayload(addModRejection) };
+            const addModRejection = handleRejection(ctx?.validateAction?.(addModAction), session, addModAction);
+            if (addModRejection) return addModRejection;
 
             return {
               actions: [addModAction],
@@ -1262,8 +1332,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeModRejection = ctx?.validateAction?.(removeModAction);
-            if (removeModRejection) return { actions: [], response: errorPayload(removeModRejection) };
+            const removeModRejection = handleRejection(ctx?.validateAction?.(removeModAction), session, removeModAction);
+            if (removeModRejection) return removeModRejection;
 
             return {
               actions: [removeModAction],
@@ -1335,8 +1405,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const connectRejection = ctx?.validateAction?.(connectAction);
-            if (connectRejection) return { actions: [], response: errorPayload(connectRejection) };
+            const connectRejection = handleRejection(ctx?.validateAction?.(connectAction), session, connectAction);
+            if (connectRejection) return connectRejection;
 
             const targetStr = modTarget.kind === 'source'
               ? `source:${modTarget.param}`
@@ -1369,8 +1439,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const disconnectRejection = ctx?.validateAction?.(disconnectAction);
-            if (disconnectRejection) return { actions: [], response: errorPayload(disconnectRejection) };
+            const disconnectRejection = handleRejection(ctx?.validateAction?.(disconnectAction), session, disconnectAction);
+            if (disconnectRejection) return disconnectRejection;
 
             return {
               actions: [disconnectAction],
@@ -1430,8 +1500,8 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const setSurfaceRejection = ctx?.validateAction?.(setSurfaceAction);
-        if (setSurfaceRejection) return { actions: [], response: errorPayload(setSurfaceRejection) };
+        const setSurfaceRejection = handleRejection(ctx?.validateAction?.(setSurfaceAction), session, setSurfaceAction);
+        if (setSurfaceRejection) return setSurfaceRejection;
 
         return {
           actions: [setSurfaceAction],
@@ -1465,8 +1535,8 @@ export class GluonAI {
               description: `pin ${args.moduleId}:${args.controlId}`,
             };
 
-            const pinRejection = ctx?.validateAction?.(pinAction);
-            if (pinRejection) return { actions: [], response: errorPayload(pinRejection) };
+            const pinRejection = handleRejection(ctx?.validateAction?.(pinAction), session, pinAction);
+            if (pinRejection) return pinRejection;
 
             return {
               actions: [pinAction],
@@ -1487,8 +1557,8 @@ export class GluonAI {
               description: `unpin ${args.moduleId}:${args.controlId}`,
             };
 
-            const unpinRejection = ctx?.validateAction?.(unpinAction);
-            if (unpinRejection) return { actions: [], response: errorPayload(unpinRejection) };
+            const unpinRejection = handleRejection(ctx?.validateAction?.(unpinAction), session, unpinAction);
+            if (unpinRejection) return unpinRejection;
 
             return {
               actions: [unpinAction],
@@ -1524,8 +1594,8 @@ export class GluonAI {
           description: `label axes: ${args.x} x ${args.y}`,
         };
 
-        const labelAxesRejection = ctx?.validateAction?.(labelAxesAction);
-        if (labelAxesRejection) return { actions: [], response: errorPayload(labelAxesRejection) };
+        const labelAxesRejection = handleRejection(ctx?.validateAction?.(labelAxesAction), session, labelAxesAction);
+        if (labelAxesRejection) return labelAxesRejection;
 
         return {
           actions: [labelAxesAction],
@@ -1613,9 +1683,9 @@ export class GluonAI {
               level: level as ApprovalLevel,
               reason: args.reason as string,
             };
-            const rejection = ctx?.validateAction?.(markApprovedAction);
-            if (rejection) {
-              errors.push(rejection);
+            const markRejection = handleRejection(ctx?.validateAction?.(markApprovedAction), session, markApprovedAction);
+            if (markRejection) {
+              errors.push(markRejection.response.error as string ?? markRejection.response.message as string ?? 'Rejected');
             } else {
               metaActions.push(markApprovedAction);
               applied.push('approval');
@@ -1850,8 +1920,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addTrackRejection = ctx?.validateAction?.(addTrackAction);
-            if (addTrackRejection) return { actions: [], response: errorPayload(addTrackRejection) };
+            const addTrackRejection = handleRejection(ctx?.validateAction?.(addTrackAction), session, addTrackAction);
+            if (addTrackRejection) return addTrackRejection;
 
             // Project the addition to determine the new track's ordinal position
             const projectedAfterAdd = addTrack(session, kind as TrackKind);
@@ -1886,8 +1956,8 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeTrackRejection = ctx?.validateAction?.(removeTrackAction);
-            if (removeTrackRejection) return { actions: [], response: errorPayload(removeTrackRejection) };
+            const removeTrackRejection = handleRejection(ctx?.validateAction?.(removeTrackAction), session, removeTrackAction);
+            if (removeTrackRejection) return removeTrackRejection;
 
             return {
               actions: [removeTrackAction],
@@ -2231,8 +2301,8 @@ export class GluonAI {
           ...(args.level !== undefined ? { level: args.level as number } : {}),
         };
 
-        const sendRejection = ctx?.validateAction?.(manageSendAction);
-        if (sendRejection) return { actions: [], response: errorPayload(sendRejection) };
+        const sendRejection = handleRejection(ctx?.validateAction?.(manageSendAction), session, manageSendAction);
+        if (sendRejection) return sendRejection;
 
         return {
           actions: [manageSendAction],
@@ -2298,8 +2368,8 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const patternRejection = ctx?.validateAction?.(managePatternAction);
-        if (patternRejection) return { actions: [], response: errorPayload(patternRejection) };
+        const patternRejection = handleRejection(ctx?.validateAction?.(managePatternAction), session, managePatternAction);
+        if (patternRejection) return patternRejection;
 
         return {
           actions: [managePatternAction],
@@ -2359,8 +2429,8 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const seqRejection = ctx?.validateAction?.(manageSequenceAction);
-        if (seqRejection) return { actions: [], response: errorPayload(seqRejection) };
+        const seqRejection = handleRejection(ctx?.validateAction?.(manageSequenceAction), session, manageSequenceAction);
+        if (seqRejection) return seqRejection;
 
         return {
           actions: [manageSequenceAction],

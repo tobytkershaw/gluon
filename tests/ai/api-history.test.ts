@@ -314,19 +314,40 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(actions.filter(a => a.type === 'set_transport')).toHaveLength(0);
   });
 
-  it('validateAction rejection prevents action collection and returns error to model', async () => {
+  it('validateAction agency rejection raises decision instead of hard error', async () => {
     planner.startTurnResults.push({
       textParts: [],
       functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
     });
-    planner.continueTurnResults.push({ textParts: ['That track has agency off, sorry.'], functionCalls: [] });
+    planner.continueTurnResults.push({ textParts: ['I need permission for that track.'], functionCalls: [] });
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => 'Track v0 has agency OFF',
+      validateAction: () => 'Agency: Track v0 has agency OFF',
+    });
+
+    // Move should not be applied
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+    // A raise_decision should be emitted for the human to approve/deny
+    const decisions = actions.filter(a => a.type === 'raise_decision');
+    expect(decisions).toHaveLength(1);
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
+  });
+
+  it('validateAction non-agency rejection returns hard error to model', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
+    });
+    planner.continueTurnResults.push({ textParts: ['That failed.'], functionCalls: [] });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten the kick', {
+      validateAction: () => 'Arbitration: human is holding timbre',
     });
 
     expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
+    expect(actions.filter(a => a.type === 'raise_decision')).toHaveLength(0);
     expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
   });
 

@@ -89,7 +89,7 @@ describe('Processor-targeted move', () => {
         trackId: 'v0', processorId: 'rings-test-1',
       };
       expect(prevalidateAction(s, action, adapter, makeArbitrator()))
-        .toBe('Track v0 has agency OFF');
+        .toContain('agency OFF');
     });
   });
 
