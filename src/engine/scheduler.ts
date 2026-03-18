@@ -3,7 +3,7 @@ import type { Session, SynthParamValues, Track } from './types';
 import { getActivePattern } from './types';
 import type { ScheduledNote, ScheduledParameterEvent } from './sequencer-types';
 import type { MusicalEvent, Pattern, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
-import { getAudibleTracks, resolveEventParams } from './sequencer-helpers';
+import { getSchedulableTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 import { buildRuntimeEventId, PlaybackPlan } from './playback-plan';
@@ -132,7 +132,7 @@ export class Scheduler {
     // wrapping via its cycle mechanism. We only wrap for the UI position.
     let maxPatternLen = 0;
     if (transportMode === 'pattern') {
-      const audibleTracks = getAudibleTracks(session);
+      const audibleTracks = getSchedulableTracks(session);
       for (const t of audibleTracks) {
         if (t.patterns.length > 0) {
           const len = getActivePattern(t).duration;
@@ -144,7 +144,7 @@ export class Scheduler {
     // Song mode: check for end of sequence
     if (transportMode === 'song') {
       let maxSequenceLen = 0;
-      for (const track of getAudibleTracks(session)) {
+      for (const track of getSchedulableTracks(session)) {
         let trackLen = 0;
         for (const ref of track.sequence) {
           const pat = track.patterns.find(p => p.id === ref.patternId);
@@ -214,7 +214,7 @@ export class Scheduler {
       }
     }
 
-    const audibleTracks = getAudibleTracks(session);
+    const audibleTracks = getSchedulableTracks(session);
 
     for (const track of audibleTracks) {
       if (track.patterns.length === 0) continue;

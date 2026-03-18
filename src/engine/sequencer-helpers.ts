@@ -29,6 +29,21 @@ export function getAudibleTracks(session: Session): Track[] {
   return audioTracks.filter(v => !v.muted);
 }
 
+/**
+ * Return tracks the scheduler should compute events for.
+ * Solo is a monitoring concern (gain-based muting in the UI layer),
+ * not a scheduling concern. The scheduler emits events for all
+ * non-muted audio tracks; the gain nodes silence non-soloed tracks
+ * instantly without losing scheduled events.
+ *
+ * This prevents the race between scheduler filtering and gain-based
+ * muting that caused silence during solo and inverted behaviour
+ * after transport restart (issue #769).
+ */
+export function getSchedulableTracks(session: Session): Track[] {
+  return session.tracks.filter(v => getTrackKind(v) === 'audio' && !v.muted);
+}
+
 const AT_TOLERANCE = 0.001;
 
 /**
