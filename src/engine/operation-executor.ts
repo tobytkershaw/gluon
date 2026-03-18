@@ -6,6 +6,14 @@ import type { Arbitrator } from './arbitration';
 import { getTrack, getActivePattern, updateTrack } from './types';
 import { applyMove, applySketch } from './primitives';
 import { rotate, transpose, reverse, duplicate } from './transformations';
+import {
+  humanize,
+  euclidean,
+  ghostNotes,
+  swing as swingTransform,
+  thin,
+  densify,
+} from './musical-helpers';
 import { projectPatternToStepGrid } from './region-projection';
 import { normalizePatternEvents, validatePattern } from './region-helpers';
 import { editPatternEvents, validatePatternEditOps } from './pattern-primitives';
@@ -1154,6 +1162,42 @@ export function executeOperations(
             newDuration = dup.duration;
             break;
           }
+          case 'humanize':
+            newEvents = humanize(region.events, region.duration, {
+              velocityAmount: action.velocity_amount ?? 0.3,
+              timingAmount: action.timing_amount ?? 0.1,
+            });
+            break;
+          case 'euclidean':
+            newEvents = euclidean({
+              hits: action.hits ?? 4,
+              steps: region.duration,
+              rotation: action.rotation ?? 0,
+              velocity: action.velocity ?? 0.8,
+            });
+            break;
+          case 'ghost_notes':
+            newEvents = ghostNotes(region.events, region.duration, {
+              velocity: action.velocity ?? 0.3,
+              probability: action.probability ?? 0.5,
+            });
+            break;
+          case 'swing':
+            newEvents = swingTransform(region.events, region.duration, {
+              amount: action.amount ?? 0.5,
+            });
+            break;
+          case 'thin':
+            newEvents = thin(region.events, {
+              probability: action.probability ?? 0.5,
+            });
+            break;
+          case 'densify':
+            newEvents = densify(region.events, region.duration, {
+              probability: action.probability ?? 0.5,
+              velocity: action.velocity ?? 0.6,
+            });
+            break;
           default:
             rejected.push({ op: action, reason: `Unknown transform operation: ${(action as AITransformAction).operation}` });
             continue;
