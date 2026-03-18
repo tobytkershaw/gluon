@@ -18,6 +18,8 @@ import type { WarpsEngine } from './warps-synth';
 import type { WarpsPatchParams } from './warps-messages';
 import type { ElementsEngine } from './elements-synth';
 import type { ElementsPatchParams } from './elements-messages';
+import type { BeadsEngine } from './beads-synth';
+import type { BeadsPatchParams } from './beads-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -36,7 +38,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine | ElementsEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine | ElementsEngine | BeadsEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -217,6 +219,17 @@ function toElementsPatchParams(params: Record<string, number>): ElementsPatchPar
     damping: params.damping ?? 0.5,
     position: params.position ?? 0.5,
     space: params.space ?? 0.3,
+  };
+}
+
+function toBeadsPatchParams(params: Record<string, number>): BeadsPatchParams {
+  return {
+    time: params.time ?? 0.5,
+    density: params.density ?? 0.5,
+    texture: params.texture ?? 0.5,
+    position: params.position ?? 0.5,
+    pitch: params.pitch ?? 0.5,
+    dry_wet: params['dry-wet'] ?? 0.5,
   };
 }
 
@@ -885,6 +898,9 @@ export class AudioEngine {
       } else if (processorType === 'elements') {
         const { createElementsProcessor } = await import('./create-synth');
         engine = await createElementsProcessor(this.ctx);
+      } else if (processorType === 'beads') {
+        const { createBeadsProcessor } = await import('./create-synth');
+        engine = await createBeadsProcessor(this.ctx);
       } else {
         return;
       }
@@ -958,6 +974,9 @@ export class AudioEngine {
     } else if (proc.type === 'elements') {
       const engine = proc.engine as import('./elements-synth').ElementsEngine;
       engine.setPatch(toElementsPatchParams(params));
+    } else if (proc.type === 'beads') {
+      const engine = proc.engine as import('./beads-synth').BeadsEngine;
+      engine.setPatch(toBeadsPatchParams(params));
     }
   }
 
@@ -986,6 +1005,8 @@ export class AudioEngine {
       (proc.engine as import('./warps-synth').WarpsEngine).setModel(model);
     } else if (proc.type === 'elements') {
       (proc.engine as import('./elements-synth').ElementsEngine).setModel(model);
+    } else if (proc.type === 'beads') {
+      (proc.engine as import('./beads-synth').BeadsEngine).setModel(model);
     }
   }
 

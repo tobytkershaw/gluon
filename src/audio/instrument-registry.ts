@@ -101,6 +101,13 @@ export {
   getElementsModelList,
 } from './instrument-registry-elements';
 
+export {
+  beadsInstrument,
+  getBeadsEngineById,
+  getBeadsEngineByIndex,
+  getBeadsModelList,
+} from './instrument-registry-beads';
+
 // --- Processor registry ---
 
 import { ringsInstrument } from './instrument-registry-rings';
@@ -113,6 +120,7 @@ import { chorusInstrument } from './instrument-registry-chorus';
 import { distortionInstrument } from './instrument-registry-distortion';
 import { warpsInstrument } from './instrument-registry-warps';
 import { elementsInstrument } from './instrument-registry-elements';
+import { beadsInstrument } from './instrument-registry-beads';
 import { tidesInstrument } from './instrument-registry-tides';
 
 const processorInstruments = new Map<string, InstrumentDef>([
@@ -126,6 +134,7 @@ const processorInstruments = new Map<string, InstrumentDef>([
   ['distortion', distortionInstrument],
   ['warps', warpsInstrument],
   ['elements', elementsInstrument],
+  ['beads', beadsInstrument],
 ]);
 
 /** Get the instrument definition for a processor type */
