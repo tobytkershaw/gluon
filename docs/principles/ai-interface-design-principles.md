@@ -194,6 +194,10 @@ The pattern: every tool should structure its parameters so that moving through t
 
 This is the same insight that makes traditional instruments playable: a piano constrains you to 88 pitches in equal temperament. That constraint is why pianists can play music instead of searching an infinite frequency space. But the piano also *expanded* what was possible compared to the human voice — more range, polyphony, dynamics. The key is that it expanded capability while constraining the interface to musical dimensions.
 
+**Constrain the physics, free the aesthetics.** The principle has two layers. Layer 1: constrain the *physics* of sound — masking, clipping, tuning, level management — so the AI cannot accidentally produce acoustic garbage. Tools like `set_scale`, `assign_spectral_slot`, and `shape_timbre` serve this layer. Layer 2: leave the *aesthetics* completely open and deliberately provide tools that enable chaotic, non-linear, surprising behaviour. Polyrhythmic friction (15 vs 16 step grids), atonal textures against tonal harmony, creative misuse of modular routing — great music understands the rules and breaks them creatively.
+
+If you only constrain, you get generic, artless rule-following. If you only free, you get noise. The sweet spot: the AI can't accidentally produce a bad mix, but it can deliberately produce a surprising one. For any new tool, ask two questions: (1) "Does this prevent the AI from producing acoustic garbage?" — physics constraint, good. (2) "Does this prevent the AI from making a surprising creative choice?" — aesthetic constraint, bad, redesign it.
+
 ### 8. Align conceptual and operational truth
 
 One of the easiest ways to make an AI system incoherent is to let the prompt describe a world that the runtime does not actually implement.
