@@ -36,7 +36,7 @@ export function createBusTrack(trackId: string, name?: string): Track {
     engine: '',
     model: -1,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-    agency: 'OFF',
+    agency: 'ON',
     stepGrid: createDefaultStepGrid(16),
     patterns: [defaultPattern],
     sequence: [{ patternId: defaultPattern.id }],
@@ -56,9 +56,11 @@ export function createBusTrack(trackId: string, name?: string): Track {
   };
 }
 
-/** Create the master bus track. */
+/** Create the master bus track. Master bus defaults to agency OFF. */
 function createMasterBus(): Track {
-  return createBusTrack(MASTER_BUS_ID, 'Master');
+  const bus = createBusTrack(MASTER_BUS_ID, 'Master');
+  bus.agency = 'OFF';
+  return bus;
 }
 
 export function createSession(): Session {
