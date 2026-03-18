@@ -313,12 +313,16 @@ function applyLayer(
  *
  * @param gen  Generator definition (base + layers)
  * @param stepsPerBar  Steps per bar (default 16)
+ * @param patternDuration  Optional pattern duration in steps — used to infer
+ *                         bar count when `gen.bars` is not set.
  */
 export function generateFromGenerator(
   gen: PatternGenerator,
   stepsPerBar = 16,
+  patternDuration?: number,
 ): MusicalEvent[] {
-  const bars = gen.bars ?? 1;
+  const bars = gen.bars
+    ?? (patternDuration != null ? Math.max(1, Math.floor(patternDuration / stepsPerBar)) : 1);
   const rng = seededRandom(generatorSeed(gen));
 
   let events = generateBase(gen.base, stepsPerBar, bars, rng);

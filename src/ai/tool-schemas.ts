@@ -241,7 +241,7 @@ const sketchTool: ToolSchema = {
               required: ['type'],
             },
           },
-          bars: { type: 'integer', description: 'Number of bars (default 1).' },
+          bars: { type: 'integer', description: 'Number of bars. Defaults to the track\'s current pattern length if omitted.' },
         },
         required: ['base', 'layers'],
       },

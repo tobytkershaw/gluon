@@ -778,7 +778,12 @@ export class GluonAI {
             return { actions: [], response: errorPayload('Generator requires a base with a type field') };
           }
           const gen: PatternGenerator = { base, layers, bars };
-          resolvedEvents = generateFromGenerator(gen);
+          // Infer bar count from the track's active pattern duration when bars is not explicit
+          const sketchTrackForGen = session.tracks.find(v => v.id === args.trackId);
+          const patternDuration = sketchTrackForGen && sketchTrackForGen.patterns.length > 0
+            ? getActivePattern(sketchTrackForGen).duration
+            : undefined;
+          resolvedEvents = generateFromGenerator(gen, 16, patternDuration);
           generatorUsed = true;
         } else if (typeof args.archetype === 'string') {
           // Archetype lookup
