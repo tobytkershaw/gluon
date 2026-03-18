@@ -789,16 +789,7 @@ export default function App() {
     ensureAudio();
     setSession((s) => {
       if (s.undoStack.length === 0) return s;
-      const topEntry = s.undoStack[s.undoStack.length - 1];
-      const description = topEntry.description ?? 'last action';
-      const undone = applyUndo(s);
-      return {
-        ...undone,
-        messages: [
-          ...undone.messages,
-          { role: 'system' as const, text: `Undid: ${description}`, timestamp: Date.now() },
-        ],
-      };
+      return applyUndo(s);
     });
   }, [ensureAudio]);
 
@@ -809,8 +800,6 @@ export default function App() {
       if (!msg || msg.undoStackIndex == null) return s;
       // Only allow undo when the message's entry is on top of the stack
       if (msg.undoStackIndex !== s.undoStack.length - 1) return s;
-      const topEntry = s.undoStack[s.undoStack.length - 1];
-      const description = topEntry.description ?? 'Gluon action';
       const undone = applyUndo(s);
       // Clear the undoStackIndex on the message so the button disappears
       const updatedMessages = undone.messages.map((m, i) =>
@@ -818,10 +807,7 @@ export default function App() {
       );
       return {
         ...undone,
-        messages: [
-          ...updatedMessages,
-          { role: 'system' as const, text: `Undid: ${description}`, timestamp: Date.now() },
-        ],
+        messages: updatedMessages,
       };
     });
   }, [ensureAudio]);
@@ -830,16 +816,7 @@ export default function App() {
     ensureAudio();
     setSession((s) => {
       if ((s.redoStack ?? []).length === 0) return s;
-      const topEntry = s.redoStack[s.redoStack.length - 1];
-      const description = topEntry.description ?? 'last action';
-      const redone = applyRedo(s);
-      return {
-        ...redone,
-        messages: [
-          ...redone.messages,
-          { role: 'system' as const, text: `Redid: ${description}`, timestamp: Date.now() },
-        ],
-      };
+      return applyRedo(s);
     });
   }, [ensureAudio]);
 
