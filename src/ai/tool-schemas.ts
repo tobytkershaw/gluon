@@ -107,8 +107,7 @@ const sketchTool: ToolSchema = {
               description: '"trigger" for percussion, "note" for melodic, "parameter" for per-step param lock.',
             },
             at: {
-              type: 'number',
-              description: 'Step position (0-based, 16 steps per bar). Supports fractional values for microtiming — e.g. 4.1 places the event slightly after step 4, 3.9 places it slightly before step 4. Use offsets of ±0.05 to ±0.15 for subtle groove.',
+              description: 'Step position (number or string). Accepts either a 0-based step number (e.g. 4, supports fractional values like 4.1 for microtiming) or a "bar.beat.sixteenth" string (e.g. "1.1.1" = step 0, "3.2.1" = step 36, "2.1.3" = step 18). Bar, beat, and sixteenth are all 1-based. Prefer bar.beat.sixteenth for multi-bar patterns — it eliminates mental arithmetic.',
             },
             velocity: {
               type: 'number',
@@ -178,8 +177,7 @@ const editPatternTool: ToolSchema = {
               description: '"add" inserts an event, "remove" deletes it, "modify" changes properties in place.',
             },
             step: {
-              type: 'number',
-              description: 'Step position (0-based) to target. Supports fractional values for microtiming — e.g. 4.1 for slightly late, 3.9 for slightly early. For remove/modify, matches the nearest event within tolerance (0.001).',
+              description: 'Step position (number or string). Accepts either a 0-based step number (e.g. 4, supports fractional values like 4.1 for microtiming) or a "bar.beat.sixteenth" string (e.g. "1.1.1" = step 0, "3.2.1" = step 36). For remove/modify, matches the nearest event within tolerance (0.001). Prefer bar.beat.sixteenth for multi-bar patterns.',
             },
             event: {
               type: 'object',
