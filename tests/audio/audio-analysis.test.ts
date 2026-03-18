@@ -4,6 +4,7 @@ import {
   analyzeDynamics,
   analyzeRhythm,
   analyzeMasking,
+  analyzeDiff,
   computeBandEnergies,
   fft,
   hannWindow,
@@ -474,5 +475,97 @@ describe('analyzeMasking', () => {
 
     const result = analyzeMasking([kick, bass]);
     expect(result.confidence).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Diff analysis
+// ---------------------------------------------------------------------------
+
+describe('analyzeDiff', () => {
+  it('returns all expected top-level keys', () => {
+    const before = sineWave(440, SR, 1.0);
+    const after = sineWave(880, SR, 1.0);
+    const result = analyzeDiff(before, after, SR);
+    expect(result).toHaveProperty('spectral');
+    expect(result).toHaveProperty('dynamics');
+    expect(result).toHaveProperty('rhythm');
+    expect(result).toHaveProperty('summary');
+    expect(result).toHaveProperty('confidence');
+  });
+
+  it('detects pitch increase when frequency doubles', () => {
+    const before = sineWave(220, SR, 1.0);
+    const after = sineWave(440, SR, 1.0);
+    const result = analyzeDiff(before, after, SR);
+    // Fundamental should increase
+    expect(result.spectral.fundamental.delta).toBeGreaterThan(0);
+    expect(result.spectral.fundamental.after).toBeGreaterThan(result.spectral.fundamental.before);
+  });
+
+  it('detects loudness increase when amplitude increases', () => {
+    const before = sineWave(440, SR, 1.0, 0.1);
+    const after = sineWave(440, SR, 1.0, 0.8);
+    const result = analyzeDiff(before, after, SR);
+    // LUFS should increase (louder)
+    expect(result.dynamics.lufs.delta).toBeGreaterThan(0);
+    expect(result.dynamics.rms.delta).toBeGreaterThan(0);
+  });
+
+  it('detects brightness increase when switching to higher frequency', () => {
+    const before = sineWave(200, SR, 1.0);
+    const after = sineWave(4000, SR, 1.0);
+    const result = analyzeDiff(before, after, SR);
+    // Spectral centroid should increase significantly
+    expect(result.spectral.centroid.delta).toBeGreaterThan(0);
+  });
+
+  it('returns no significant differences for identical signals', () => {
+    const signal = sineWave(440, SR, 1.0);
+    const result = analyzeDiff(signal, signal, SR);
+    // Deltas should all be zero or near-zero
+    expect(result.spectral.centroid.delta).toBeCloseTo(0, 1);
+    expect(result.dynamics.lufs.delta).toBeCloseTo(0, 1);
+    expect(result.summary).toBe('No significant differences detected.');
+  });
+
+  it('includes summary with notable changes', () => {
+    const before = sineWave(200, SR, 1.0, 0.1);
+    const after = sineWave(4000, SR, 1.0, 0.8);
+    const result = analyzeDiff(before, after, SR);
+    expect(result.summary).not.toBe('No significant differences detected.');
+    expect(result.summary.length).toBeGreaterThan(0);
+  });
+
+  it('passes through bpm to rhythm analysis', () => {
+    const before = sineWave(440, SR, 2.0);
+    const after = sineWave(440, SR, 2.0);
+    const result = analyzeDiff(before, after, SR, 120);
+    // Should not throw and should return valid result
+    expect(result.confidence).toBeGreaterThan(0);
+  });
+
+  it('handles silent before signal gracefully', () => {
+    const before = new Float32Array(SR); // 1s of silence
+    const after = sineWave(440, SR, 1.0);
+    const result = analyzeDiff(before, after, SR);
+    expect(result).toHaveProperty('summary');
+    // Confidence should be lower due to silent signal
+    expect(result.confidence).toBeLessThan(1);
+  });
+
+  it('metric deltas have correct structure', () => {
+    const before = sineWave(440, SR, 1.0);
+    const after = sineWave(880, SR, 1.0);
+    const result = analyzeDiff(before, after, SR);
+    const delta = result.spectral.centroid;
+    expect(delta).toHaveProperty('before');
+    expect(delta).toHaveProperty('after');
+    expect(delta).toHaveProperty('delta');
+    expect(delta).toHaveProperty('description');
+    expect(typeof delta.before).toBe('number');
+    expect(typeof delta.after).toBe('number');
+    expect(typeof delta.delta).toBe('number');
+    expect(typeof delta.description).toBe('string');
   });
 });

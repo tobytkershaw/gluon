@@ -825,16 +825,21 @@ const renderTool: ToolSchema = {
 const analyzeTool: ToolSchema = {
   name: 'analyze',
   description:
-    'Run deterministic audio analysis on a rendered snapshot. Supports spectral (timbral), dynamics (loudness/range), rhythm (onset/tempo), and masking (cross-track frequency conflicts) in a single call. ' +
+    'Run deterministic audio analysis on a rendered snapshot. Supports spectral (timbral), dynamics (loudness/range), rhythm (onset/tempo), masking (cross-track frequency conflicts), and diff (before/after comparison) in a single call. ' +
     'Use render first to capture a snapshot, then analyze for quantitative measurement. ' +
     'For masking analysis, render each track separately first, then pass all snapshot IDs via snapshotIds. ' +
+    'For diff analysis, pass snapshotId (after) and compareSnapshotId (before) to compare two snapshots. ' +
     'For qualitative AI evaluation, use listen instead.',
   parameters: {
     type: 'object',
     properties: {
       snapshotId: {
         type: 'string',
-        description: 'Snapshot ID from a previous render call. Used for spectral, dynamics, and rhythm analysis.',
+        description: 'Snapshot ID from a previous render call. Used for spectral, dynamics, rhythm, and diff (as the "after" snapshot) analysis.',
+      },
+      compareSnapshotId: {
+        type: 'string',
+        description: 'Snapshot ID for the "before" state in diff analysis. When type includes "diff", both snapshotId (after) and compareSnapshotId (before) are required.',
       },
       snapshotIds: {
         type: 'array',
@@ -845,9 +850,9 @@ const analyzeTool: ToolSchema = {
         type: 'array',
         items: {
           type: 'string',
-          enum: ['spectral', 'dynamics', 'rhythm', 'masking'],
+          enum: ['spectral', 'dynamics', 'rhythm', 'masking', 'diff'],
         },
-        description: 'Analysis types to run. Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing. Masking: cross-track frequency conflict detection (requires snapshotIds).',
+        description: 'Analysis types to run. Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing. Masking: cross-track frequency conflict detection (requires snapshotIds). Diff: before/after comparison with structured deltas (requires snapshotId + compareSnapshotId).',
       },
     },
     required: ['types'],
