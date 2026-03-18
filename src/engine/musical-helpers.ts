@@ -157,48 +157,46 @@ export function euclidean(params: EuclideanParams): MusicalEvent[] {
 }
 
 /**
- * Bjorklund algorithm: distributes `hits` as evenly as possible across `steps`.
+ * Bjorklund algorithm (Toussaint 2005): distributes `hits` as evenly as
+ * possible across `steps` via recursive remainder distribution (analogous
+ * to Euclidean GCD division).
+ *
  * Returns a boolean array where true = hit.
  */
 function bjorklund(hits: number, steps: number): boolean[] {
   if (hits >= steps) return new Array(steps).fill(true);
   if (hits <= 0) return new Array(steps).fill(false);
 
-  let groups: boolean[][] = [];
-  for (let i = 0; i < steps; i++) {
-    groups.push(i < hits ? [true] : [false]);
+  // Start with k groups of [1] (hits) and (n-k) groups of [0] (rests)
+  let front: number[][] = [];
+  let back: number[][] = [];
+  for (let i = 0; i < hits; i++) front.push([1]);
+  for (let i = 0; i < steps - hits; i++) back.push([0]);
+
+  // Recursively distribute the remainder groups into the front groups,
+  // like Euclidean GCD division, until at most one remainder is left.
+  while (back.length > 1) {
+    const distributeCount = Math.min(front.length, back.length);
+    const newFront: number[][] = [];
+    for (let i = 0; i < distributeCount; i++) {
+      newFront.push([...front[i], ...back[i]]);
+    }
+    const newBack: number[][] = [];
+    // Leftover front groups (if front was longer)
+    for (let i = distributeCount; i < front.length; i++) {
+      newBack.push(front[i]);
+    }
+    // Leftover back groups (if back was longer)
+    for (let i = distributeCount; i < back.length; i++) {
+      newBack.push(back[i]);
+    }
+    front = newFront;
+    back = newBack;
   }
 
-  let remain = steps - hits;
-  let count = hits;
-
-  while (remain > 1) {
-    const distribute = Math.min(count, remain);
-    const newGroups: boolean[][] = [];
-    for (let i = 0; i < distribute; i++) {
-      newGroups.push([...groups[i], ...groups[groups.length - 1 - i]]);
-    }
-    // Remaining undistributed groups
-    for (let i = distribute; i < count; i++) {
-      newGroups.push(groups[i]);
-    }
-    groups = newGroups;
-    remain = count - distribute;
-    count = distribute + (count > distribute ? count - distribute : 0);
-    // Recalculate: groups that were combined vs leftover
-    count = groups.length;
-    // Find how many groups have the shorter length
-    const maxLen = groups[0].length;
-    let shortCount = 0;
-    for (let i = groups.length - 1; i >= 0; i--) {
-      if (groups[i].length < maxLen) shortCount++;
-    }
-    remain = shortCount;
-    count = groups.length - shortCount;
-    if (remain <= 1) break;
-  }
-
-  return groups.flat();
+  // Concatenate all groups to form the final pattern
+  const flat = [...front, ...back].flat();
+  return flat.map(v => v === 1);
 }
 
 // ---------------------------------------------------------------------------
