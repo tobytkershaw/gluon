@@ -66,6 +66,13 @@ export {
   getCompressorModelList,
 } from './instrument-registry-compressor';
 
+export {
+  stereoInstrument,
+  getStereoEngineById,
+  getStereoEngineByIndex,
+  getStereoModelList,
+} from './instrument-registry-stereo';
+
 // --- Processor registry ---
 
 import { ringsInstrument } from './instrument-registry-rings';
@@ -73,6 +80,7 @@ import { cloudsInstrument } from './instrument-registry-clouds';
 import { ripplesInstrument } from './instrument-registry-ripples';
 import { eqInstrument } from './instrument-registry-eq';
 import { compressorInstrument } from './instrument-registry-compressor';
+import { stereoInstrument } from './instrument-registry-stereo';
 import { tidesInstrument } from './instrument-registry-tides';
 
 const processorInstruments = new Map<string, InstrumentDef>([
@@ -81,6 +89,7 @@ const processorInstruments = new Map<string, InstrumentDef>([
   ['ripples', ripplesInstrument],
   ['eq', eqInstrument],
   ['compressor', compressorInstrument],
+  ['stereo', stereoInstrument],
 ]);
 
 /** Get the instrument definition for a processor type */

@@ -6,6 +6,7 @@ import {
   ringsInstrument,
   cloudsInstrument,
   compressorInstrument,
+  stereoInstrument,
   tidesInstrument,
   ripplesInstrument,
   eqInstrument,
@@ -27,6 +28,7 @@ const plaitsParamIds = controlIds(plaitsInstrument);
 const ringsParamIds = controlIds(ringsInstrument);
 const cloudsParamIds = controlIds(cloudsInstrument);
 const compressorParamIds = controlIds(compressorInstrument);
+const stereoParamIds = controlIds(stereoInstrument);
 const ripplesParamIds = controlIds(ripplesInstrument);
 const eqParamIds = controlIds(eqInstrument);
 const tidesParamIds = controlIds(tidesInstrument);
@@ -37,6 +39,7 @@ export const REGISTRY_CONTROL_IDS = {
   rings: ringsParamIds,
   clouds: cloudsParamIds,
   compressor: compressorParamIds,
+  stereo: stereoParamIds,
   ripples: ripplesParamIds,
   eq: eqParamIds,
   tides: tidesParamIds,
@@ -54,7 +57,7 @@ const moveTool: ToolSchema = {
         description:
           `The control ID to change. ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}). ` +
+          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
       target: {
