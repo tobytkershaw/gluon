@@ -11,6 +11,9 @@ import type { SaveStatus } from './useProjectLifecycle';
 import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
 import { ChatSidebar } from './ChatSidebar';
+import { ChatMessages } from './ChatMessages';
+import { ChatComposer } from './ChatComposer';
+import { ApiKeyInput } from './ApiKeyInput';
 import { ProjectMenu } from './ProjectMenu';
 import { ViewToggle } from './ViewToggle';
 import { TransportStrip } from './TransportStrip';
@@ -58,6 +61,9 @@ interface Props {
   onChatToggle: () => void;
   chatWidth: number;
   onChatResize: (width: number) => void;
+  // Chat-focused mode
+  chatFocused: boolean;
+  onChatFocusedChange: (focused: boolean) => void;
   // Project
   projectName: string;
   projects: ProjectMeta[];
@@ -138,6 +144,7 @@ export function AppShell({
   reactions, onReaction,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   chatOpen, onChatToggle, chatWidth, onChatResize,
+  chatFocused, onChatFocusedChange,
   projectName, projects, saveError, saveStatus,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -202,6 +209,126 @@ export function AppShell({
     return () => observer.disconnect();
   }, [chatOpen, onChatToggle]);
 
+  const isActive = isThinking || isListening;
+
+  // Chat-focused mode toggle button (used in both layouts)
+  const chatModeToggle = (
+    <button
+      onClick={() => onChatFocusedChange(!chatFocused)}
+      className="group shrink-0 p-1 rounded hover:bg-zinc-800/50 transition-colors"
+      title={chatFocused ? 'Show instruments' : 'Focus chat'}
+    >
+      <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-zinc-500 group-hover:text-violet-400 transition-colors">
+        {chatFocused ? (
+          /* Expand/instrument icon: grid-like layout */
+          <>
+            <rect x="1" y="1" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+            <rect x="9" y="1" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+            <rect x="1" y="9" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+            <rect x="9" y="9" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+          </>
+        ) : (
+          /* Chat/conversation icon: speech bubble */
+          <>
+            <path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 3V3z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            <line x1="5" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+          </>
+        )}
+      </svg>
+    </button>
+  );
+
+  // ── Chat-focused layout ──────────────────────────────────────────────
+  if (chatFocused) {
+    return (
+      <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
+        {/* Minimal top bar: project + transport + mode toggle */}
+        <div className="flex items-center h-9 border-b border-zinc-700/40 shrink-0">
+          <div className="flex-1 flex items-center gap-3 px-3">
+            <ProjectMenu
+              projectName={projectName}
+              projects={projects}
+              saveError={saveError}
+              saveStatus={saveStatus}
+              onRename={onProjectRename}
+              onNew={onProjectNew}
+              onOpen={onProjectOpen}
+              onDuplicate={onProjectDuplicate}
+              onDelete={onProjectDelete}
+              onExport={onProjectExport}
+              onImport={onProjectImport}
+              onExportWav={onExportWav}
+              exportingWav={exportingWav}
+            />
+            <div className="w-px h-4 bg-zinc-800" />
+            <TransportStrip
+              playing={playing}
+              bpm={bpm}
+              swing={swing}
+              recordArmed={recordArmed}
+              globalStep={globalStep}
+              patternLength={patternLength}
+              transportMode={transportMode}
+              loop={loop}
+              onTogglePlay={onTogglePlay}
+              onHardStop={onHardStop}
+              onBpmChange={onBpmChange}
+              onSwingChange={onSwingChange}
+              onToggleRecord={onToggleRecord}
+              metronomeEnabled={metronomeEnabled}
+              metronomeVolume={metronomeVolume}
+              onToggleMetronome={onToggleMetronome}
+              onMetronomeVolumeChange={onMetronomeVolumeChange}
+              onLoopChange={onLoopChange}
+              onTransportModeChange={onTransportModeChange}
+              timeSignatureNumerator={timeSignatureNumerator}
+              timeSignatureDenominator={timeSignatureDenominator}
+              onTimeSignatureChange={onTimeSignatureChange}
+            />
+          </div>
+          <div className="shrink-0 flex items-center gap-1 px-3 border-l border-zinc-800/30">
+            <UndoButton
+              onClick={onUndo}
+              disabled={undoStack.length === 0}
+              description={undoStack.length > 0 ? undoStack[undoStack.length - 1].description : undefined}
+              undoStack={undoStack}
+            />
+            <RedoButton
+              onClick={onRedo}
+              disabled={redoStack.length === 0}
+              description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
+            />
+            <div className="w-px h-4 bg-zinc-800" />
+            {chatModeToggle}
+          </div>
+        </div>
+
+        {/* Full-width chat body */}
+        <div className="flex-1 flex flex-col min-h-0 items-center">
+          <div className="flex flex-col flex-1 min-h-0 w-full" style={{ maxWidth: 800 }}>
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-2.5">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
+              <div className="flex-1" />
+              <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} listenerMode={listenerMode} />
+            </div>
+
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
+            </div>
+
+            {/* Composer */}
+            <div className="shrink-0 border-t border-zinc-800/40 pb-2">
+              <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Instrument-focused layout (original) ─────────────────────────────
   return (
     <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
       {/* Global top bar — split into workstation (left) and collaboration (right) zones */}
@@ -359,8 +486,9 @@ export function AppShell({
           <div className="flex-1" />
           <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
         </div>
-        {/* Chat toggle button */}
+        {/* Chat toggle + mode toggle buttons */}
         <div className="shrink-0 flex items-center px-1 border-l border-zinc-800/30">
+          {chatModeToggle}
           <button
             onClick={onChatToggle}
             className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
@@ -374,7 +502,7 @@ export function AppShell({
               )}
             </svg>
           </button>
-          {chatOpen && (isThinking || isListening) && (
+          {chatOpen && isActive && (
             <span
               className="shrink-0 w-2 h-2 rounded-full bg-violet-400 mr-1"
               style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
