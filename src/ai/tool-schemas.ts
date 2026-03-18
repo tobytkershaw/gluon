@@ -9,6 +9,7 @@ import {
   stereoInstrument,
   chorusInstrument,
   distortionInstrument,
+  warpsInstrument,
   tidesInstrument,
   ripplesInstrument,
   eqInstrument,
@@ -33,6 +34,7 @@ const compressorParamIds = controlIds(compressorInstrument);
 const stereoParamIds = controlIds(stereoInstrument);
 const chorusParamIds = controlIds(chorusInstrument);
 const distortionParamIds = controlIds(distortionInstrument);
+const warpsParamIds = controlIds(warpsInstrument);
 const ripplesParamIds = controlIds(ripplesInstrument);
 const eqParamIds = controlIds(eqInstrument);
 const tidesParamIds = controlIds(tidesInstrument);
@@ -46,6 +48,7 @@ export const REGISTRY_CONTROL_IDS = {
   stereo: stereoParamIds,
   chorus: chorusParamIds,
   distortion: distortionParamIds,
+  warps: warpsParamIds,
   ripples: ripplesParamIds,
   eq: eqParamIds,
   tides: tidesParamIds,
@@ -63,7 +66,7 @@ const moveTool: ToolSchema = {
         description:
           `The control ID to change. ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}). ` +
+          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
       target: {

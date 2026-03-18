@@ -19,6 +19,8 @@ import type { ChorusEngine } from './chorus-synth';
 import { ChorusSynth } from './chorus-synth';
 import type { DistortionEngine } from './distortion-synth';
 import { DistortionSynth } from './distortion-synth';
+import type { WarpsEngine } from './warps-synth';
+import { WarpsSynth } from './warps-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -63,4 +65,8 @@ export async function createChorusProcessor(ctx: AudioContext): Promise<ChorusEn
 
 export async function createDistortionProcessor(ctx: AudioContext): Promise<DistortionEngine> {
   return DistortionSynth.create(ctx);
+}
+
+export async function createWarpsProcessor(ctx: AudioContext): Promise<WarpsEngine> {
+  return WarpsSynth.create(ctx);
 }

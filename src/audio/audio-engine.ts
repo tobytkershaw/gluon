@@ -14,6 +14,8 @@ import type { ChorusEngine } from './chorus-synth';
 import type { ChorusPatchParams } from './chorus-messages';
 import type { DistortionEngine } from './distortion-synth';
 import type { DistortionPatchParams } from './distortion-messages';
+import type { WarpsEngine } from './warps-synth';
+import type { WarpsPatchParams } from './warps-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -32,7 +34,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -187,6 +189,14 @@ function toDistortionPatchParams(params: Record<string, number>): DistortionPatc
     mix: params.mix ?? 1.0,
     bits: params.bits ?? 1.0,
     downsample: params.downsample ?? 0.0,
+  };
+}
+
+function toWarpsPatchParams(params: Record<string, number>): WarpsPatchParams {
+  return {
+    algorithm: params.algorithm ?? 0.0,
+    timbre: params.timbre ?? 0.5,
+    level: params.level ?? 0.5,
   };
 }
 
@@ -849,6 +859,9 @@ export class AudioEngine {
       } else if (processorType === 'distortion') {
         const { createDistortionProcessor } = await import('./create-synth');
         engine = await createDistortionProcessor(this.ctx);
+      } else if (processorType === 'warps') {
+        const { createWarpsProcessor } = await import('./create-synth');
+        engine = await createWarpsProcessor(this.ctx);
       } else {
         return;
       }
@@ -916,6 +929,9 @@ export class AudioEngine {
     } else if (proc.type === 'distortion') {
       const engine = proc.engine as import('./distortion-synth').DistortionEngine;
       engine.setPatch(toDistortionPatchParams(params));
+    } else if (proc.type === 'warps') {
+      const engine = proc.engine as import('./warps-synth').WarpsEngine;
+      engine.setPatch(toWarpsPatchParams(params));
     }
   }
 
@@ -940,6 +956,8 @@ export class AudioEngine {
       (proc.engine as import('./chorus-synth').ChorusEngine).setMode(model);
     } else if (proc.type === 'distortion') {
       (proc.engine as import('./distortion-synth').DistortionEngine).setMode(model);
+    } else if (proc.type === 'warps') {
+      (proc.engine as import('./warps-synth').WarpsEngine).setModel(model);
     }
   }
 
