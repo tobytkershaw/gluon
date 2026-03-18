@@ -7,7 +7,7 @@ import { ProviderError } from '../types';
 import type { ChatMessage } from '../../engine/types';
 import { toGeminiDeclarations } from './schema-converters';
 
-const MODEL = 'gemini-2.5-flash';
+const MODEL = 'gemini-3.1-pro-preview-customtools';
 
 /** Token budget ceiling — stay under the 200K Gemini pricing threshold. */
 const TOKEN_BUDGET = 170_000;
@@ -187,9 +187,10 @@ export class GeminiPlannerProvider implements PlannerProvider {
 
     const textParts: string[] = [];
     const functionCalls: NeutralFunctionCall[] = [];
-    // Opaque parts (e.g. thoughtSignature) that must be echoed back in
-    // history but are neither text nor functionCall.
-    const opaqueParts: Part[] = [];
+    // Raw parts from the model response, preserved exactly as received.
+    // Gemini 3.1+ attaches thoughtSignature properties to functionCall parts;
+    // these must be echoed back verbatim in conversation history.
+    const rawModelParts: Part[] = [];
 
     let truncated = false;
 
@@ -224,6 +225,9 @@ export class GeminiPlannerProvider implements PlannerProvider {
           if (!parts) continue;
 
           for (const part of parts) {
+            // Preserve every raw part for history (includes thoughtSignature etc.)
+            rawModelParts.push(part);
+
             if (part.text && !('thought' in part && part.thought)) {
               // Stream each text chunk immediately
               onStreamText(part.text);
@@ -245,9 +249,6 @@ export class GeminiPlannerProvider implements PlannerProvider {
               });
               // After a function call, the next text (if any) starts a new text part
               currentTextPartIndex = -1;
-            } else if (!part.text) {
-              // Opaque part (e.g. thoughtSignature) — preserve for history
-              opaqueParts.push(part);
             }
           }
         }
@@ -270,7 +271,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
         );
       }
     } else {
-      // Non-streaming path — unchanged behavior
+      // Non-streaming path
       let response;
       try {
         response = await this.ai.models.generateContent(requestConfig);
@@ -301,19 +302,16 @@ export class GeminiPlannerProvider implements PlannerProvider {
         return { textParts: [], functionCalls: [], truncated };
       }
 
+      // Preserve all raw parts verbatim for history (thoughtSignature etc.)
+      rawModelParts.push(...rawContent.parts);
+
       for (const part of rawContent.parts) {
         if (part.text && !('thought' in part && part.thought)) {
           textParts.push(part.text);
-        } else if (!part.text && !part.functionCall) {
-          // Opaque part (e.g. thoughtSignature) — preserve for history
-          opaqueParts.push(part);
-        }
-      }
-
-      if (response.functionCalls) {
-        for (const fc of response.functionCalls) {
+        } else if (part.functionCall) {
+          const fc = part.functionCall;
           functionCalls.push({
-            id: fc.id ?? '',
+            id: (fc as { id?: string }).id ?? '',
             name: fc.name ?? '',
             args: (fc.args ?? {}) as Record<string, unknown>,
           });
@@ -321,17 +319,11 @@ export class GeminiPlannerProvider implements PlannerProvider {
       }
     }
 
-    // Store consolidated model response in pending history.
-    // Use the already-deduplicated textParts and functionCalls rather than
-    // raw streaming chunks. Also preserve opaque parts (e.g. thoughtSignature)
-    // that must be echoed back to the API.
-    const modelParts: Part[] = [
-      ...opaqueParts,
-      ...textParts.map(t => ({ text: t })),
-      ...functionCalls.map(fc => ({ functionCall: { name: fc.name, args: fc.args } })),
-    ];
-    if (modelParts.length > 0) {
-      this.pendingContents.push({ role: 'model', parts: modelParts });
+    // Store raw model parts in pending history exactly as received.
+    // This preserves thoughtSignature and other opaque properties that
+    // Gemini 3.1+ requires to be echoed back for multi-turn function calling.
+    if (rawModelParts.length > 0) {
+      this.pendingContents.push({ role: 'model', parts: rawModelParts });
     }
 
     return { textParts, functionCalls, truncated };

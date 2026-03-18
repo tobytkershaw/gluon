@@ -40,7 +40,7 @@ import type { ScheduledParameterEvent } from '../engine/sequencer-types';
 import { GluonAI } from '../ai/api';
 import type { ListenerMode } from '../ai/api';
 import type { ListenerProvider } from '../ai/types';
-import { OpenAIPlannerProvider } from '../ai/providers/openai-planner';
+import { GeminiPlannerProvider } from '../ai/providers/gemini-planner';
 import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
 import { OpenAIListenerProvider } from '../ai/providers/openai-listener';
 import { Arbitrator } from '../engine/arbitration';
@@ -89,7 +89,7 @@ function createAI(openaiKey: string, geminiKey: string, listenerMode: ListenerMo
   }
 
   return new GluonAI(
-    new OpenAIPlannerProvider(openaiKey),
+    new GeminiPlannerProvider(geminiKey),
     primary,
     listeners,
   );
