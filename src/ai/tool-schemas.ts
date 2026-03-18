@@ -411,7 +411,7 @@ const manageProcessorTool: ToolSchema = {
       },
       moduleType: {
         type: 'string',
-        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor), "compressor" (dynamics compressor with character modes).',
+        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor), "ripples" (Mutable Instruments Ripples analog filter — LP/BP/HP), "eq" (parametric EQ — 4-band and 8-band mixing), "compressor" (dynamics compressor with character modes).',
       },
       processorId: {
         type: 'string',
