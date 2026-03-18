@@ -1,0 +1,151 @@
+// src/audio/instrument-registry-tides.ts
+// Tides modulator instrument definition — extracted from instrument-registry.ts
+import type {
+  ControlKind,
+  SemanticRole,
+  ControlSchema,
+  DisplayMapping,
+  EngineDef,
+  InstrumentDef,
+} from '../engine/canonical-types';
+
+// --- Tides control factory ---
+
+function makeTidesControl(
+  id: string,
+  name: string,
+  semanticRole: SemanticRole,
+  description: string,
+  defaultVal = 0.5,
+  size: 'large' | 'medium' | 'small' = 'large',
+  displayMapping?: DisplayMapping,
+): ControlSchema {
+  return {
+    id,
+    name,
+    kind: 'continuous' as ControlKind,
+    semanticRole,
+    description,
+    readable: true,
+    writable: true,
+    range: { min: 0, max: 1, default: defaultVal },
+    size,
+    binding: {
+      adapterId: 'tides',
+      path: `params.${id}`,
+    },
+    displayMapping,
+  };
+}
+
+function tidesControls(): ControlSchema[] {
+  return [
+    makeTidesControl(
+      'frequency',
+      'Frequency',
+      'pitch',
+      'Rate of the modulation cycle. Low values are slow sweeps, high values are fast oscillation.',
+      0.3,
+      'large',
+      { type: 'log', min: 0.05, max: 100, unit: 'Hz', decimals: 1 },
+    ),
+    makeTidesControl(
+      'shape',
+      'Shape',
+      'texture',
+      'Waveform character. Blends between different waveshapes (sine, triangle, saw, square-like).',
+    ),
+    makeTidesControl(
+      'slope',
+      'Slope',
+      'texture',
+      'Attack/decay symmetry. Low values have fast attack/slow decay, high values have slow attack/fast decay.',
+    ),
+    makeTidesControl(
+      'smoothness',
+      'Smoothness',
+      'brightness',
+      'Waveform smoothing. Low values are sharp/stepped, high values are smooth/rounded.',
+      0.5,
+    ),
+    // --- Extended parameters (via _tides_set_extended) ---
+    makeTidesControl(
+      'shift',
+      'Shift',
+      'texture',
+      'Multi-channel phase spread. Controls the phase offset between output channels.',
+      0.0,
+      'small',
+    ),
+    {
+      id: 'output-mode',
+      name: 'Output Mode',
+      kind: 'discrete' as ControlKind,
+      semanticRole: 'body',
+      description: 'Output signal type: gates (0), amplitude (1), slope/phase (2), frequency (3).',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 3, default: 1 },
+      size: 'small',
+      binding: {
+        adapterId: 'tides',
+        path: 'params.output-mode',
+      },
+    } as ControlSchema,
+    {
+      id: 'range',
+      name: 'Range',
+      kind: 'discrete' as ControlKind,
+      semanticRole: 'pitch',
+      description: 'Operating range: control rate (0) for LFO use, audio rate (1) for oscillator use.',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 1, default: 0 },
+      size: 'small',
+      binding: {
+        adapterId: 'tides',
+        path: 'params.range',
+      },
+    } as ControlSchema,
+  ];
+}
+
+// --- Tides engine definitions ---
+
+const TIDES_ENGINE_DATA: [string, string, string][] = [
+  ['ad', 'AD', 'Attack-decay envelope — one-shot shape triggered by events'],
+  ['looping', 'Looping', 'Free-running LFO — continuous cyclic modulation'],
+  ['ar', 'AR', 'Attack-release envelope — sustained shape with gate control'],
+];
+
+const tidesEngines: EngineDef[] = TIDES_ENGINE_DATA.map(([id, label, description]) => ({
+  id,
+  label,
+  description,
+  controls: tidesControls(),
+}));
+
+// --- Tides instrument definition ---
+
+export const tidesInstrument: InstrumentDef = {
+  type: 'modulator',
+  label: 'Mutable Instruments Tides',
+  adapterId: 'tides',
+  engines: tidesEngines,
+};
+
+const tidesEngineByIdMap = new Map<string, EngineDef>(
+  tidesEngines.map(e => [e.id, e]),
+);
+
+export function getTidesEngineById(engineId: string): EngineDef | undefined {
+  return tidesEngineByIdMap.get(engineId);
+}
+
+export function getTidesEngineByIndex(index: number): EngineDef | undefined {
+  return tidesEngines[index];
+}
+
+export function getTidesModelList(): { index: number; name: string; description: string }[] {
+  return tidesEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
+}
