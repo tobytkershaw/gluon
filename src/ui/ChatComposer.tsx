@@ -67,7 +67,7 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
         <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2">
           <textarea
             {...textareaProps}
-            className="flex-1 bg-transparent text-zinc-900 placeholder:text-zinc-400 outline-none font-mono min-w-0 text-xs overflow-y-auto"
+            className="flex-1 bg-transparent text-zinc-900 placeholder:text-zinc-400 outline-none font-mono min-w-0 text-sm overflow-y-auto"
           />
           <button
             type="submit"
@@ -92,7 +92,7 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
       <div className="flex-1 flex items-end gap-1.5 bg-zinc-800/50 border border-zinc-700/50 rounded-md px-2.5 py-1.5">
         <textarea
           {...textareaProps}
-          className="flex-1 bg-transparent text-zinc-200 placeholder:text-zinc-500 outline-none font-mono min-w-0 text-xs overflow-y-auto"
+          className="flex-1 bg-transparent text-zinc-200 placeholder:text-zinc-500 outline-none font-mono min-w-0 text-sm overflow-y-auto"
         />
         <button
           type="submit"
