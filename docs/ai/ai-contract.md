@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has thirty-three tools, declared as neutral JSON Schema and adapted per provider.
+The AI has thirty-four tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -406,6 +406,18 @@ Move a track's timbre in a musical direction. Translates musical descriptors (da
 | `amount` | number | no | Scale factor (0.0-1.0, default 0.3). Higher values produce more dramatic changes. |
 
 Produces `move` actions for affected parameters. Undoable via the standard move undo path.
+
+#### `assign_spectral_slot`
+
+Assign a track to frequency bands with a priority. Prevents frequency collisions by computing EQ adjustments when multiple tracks share a band. Lower-priority tracks receive gentle attenuation suggestions (2-4 dB).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
+| `bands` | string[] | yes | Frequency bands: `sub` (20-60 Hz), `low` (60-250 Hz), `low_mid` (250-500 Hz), `mid` (500-2000 Hz), `high_mid` (2-6 kHz), `high` (6-12 kHz), `air` (12-20 kHz). |
+| `priority` | integer | yes | Priority (0-10). Higher priority wins shared bands. Kick=10, bass=8, lead=7, pad=3, texture=1. |
+
+Returns slot assignment, any collisions, and suggested EQ adjustments. The AI applies adjustments via `move` or `manage_processor` tools. Proactive counterpart to masking analysis (diagnostic).
 
 #### `explain_chain`
 

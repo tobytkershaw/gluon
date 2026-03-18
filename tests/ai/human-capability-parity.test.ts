@@ -52,7 +52,8 @@ const PARITY_GAP_TOOLS = new Set([
   'apply_chain_recipe',  // LOW: compound tool — humans use individual processor controls instead
   'set_mix_role',        // LOW: compound tool — humans use volume/pan sliders directly
   'apply_modulation',    // LOW: compound tool — humans use individual modulator controls instead
-  'shape_timbre',        // MODERATE: no UI for timbral direction controls (human can move params directly)
+  'shape_timbre',              // MODERATE: no UI for timbral direction controls (human can move params directly)
+  'assign_spectral_slot',      // LOW: compound tool — humans use EQ controls directly
 ]);
 
 describe('Human Capability Parity', () => {
@@ -81,7 +82,7 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale
-    expect(PARITY_GAP_TOOLS.size).toBe(12);
+    expect(PARITY_GAP_TOOLS.size).toBe(13);
   });
 
   it('documents the expected number of AI-only tools', () => {
