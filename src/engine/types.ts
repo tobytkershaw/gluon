@@ -772,6 +772,22 @@ export interface AIAssignSpectralSlotAction {
   priority: number;
 }
 
+export interface AIManageMotifAction {
+  type: 'manage_motif';
+  action: 'register' | 'develop' | 'list' | 'recall';
+  /** For register: extracted motif data. For develop: the developed motif result. */
+  motifId?: string;
+  motifName?: string;
+  /** Source track + step range for register. */
+  trackId?: string;
+  stepRange?: [number, number];
+  /** Development operations for develop action. */
+  operations?: import('./motif-development').DevelopmentOp[];
+  /** Target track for develop action (where to write the result). */
+  targetTrackId?: string;
+  description: string;
+}
+
 export interface AIReportBugAction {
   type: 'report_bug';
   bugId: string;
@@ -801,7 +817,7 @@ export interface AIRenameTrackAction {
   name: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction | AIManageMotifAction;
 
 // --- Reaction History ---
 

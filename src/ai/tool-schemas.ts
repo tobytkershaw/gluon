@@ -1338,6 +1338,81 @@ const assignSpectralSlotTool: ToolSchema = {
   },
 };
 
+const manageMotifTool: ToolSchema = {
+  name: 'manage_motif',
+  description:
+    'Register, recall, develop, or list musical motifs. Motifs are named melodic/rhythmic ideas ' +
+    'that can be developed using classical composition techniques (transpose, invert, retrograde, etc.) ' +
+    'to create structurally coherent variations across a piece.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['register', 'recall', 'develop', 'list'],
+        description:
+          'register — extract events from a track region as a named motif. ' +
+          'recall — retrieve a motif by ID or name. ' +
+          'develop — apply development operations to a motif and write the result to a track. ' +
+          'list — show all registered motifs.',
+      },
+      name: {
+        type: 'string',
+        description: 'Human-readable name for the motif (e.g. "main bass riff", "hat pattern"). Required for register.',
+      },
+      motifId: {
+        type: 'string',
+        description: 'Motif ID for recall/develop. Can also be a motif name (case-insensitive lookup).',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Source track for register (extract events from). Target track for develop (write result to). Ordinal ("Track 1") or internal ID.',
+      },
+      stepRange: {
+        type: 'array',
+        items: { type: 'number' },
+        description: 'Inclusive [start, end] step range for register. Extracts events within this range.',
+      },
+      rootPitch: {
+        type: 'number',
+        description: 'Reference pitch (MIDI 0-127) for transposition. For register, defaults to the lowest note pitch.',
+      },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Freeform tags for categorization (e.g. ["rhythmic", "melodic", "fill"]).',
+      },
+      operations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            op: {
+              type: 'string',
+              enum: ['transpose', 'invert', 'retrograde', 'augment', 'diminish', 'fragment', 'permute', 'ornament', 'thin', 'layer'],
+              description: 'Development operation to apply.',
+            },
+            semitones: { type: 'number', description: 'Semitones for transpose/layer.' },
+            axisPitch: { type: 'number', description: 'Axis pitch for invert (MIDI 0-127).' },
+            factor: { type: 'number', description: 'Time stretch factor for augment/diminish (default 2).' },
+            start: { type: 'number', description: 'Start event index for fragment.' },
+            end: { type: 'number', description: 'End event index for fragment.' },
+            order: { type: 'array', items: { type: 'number' }, description: 'Segment order for permute.' },
+            probability: { type: 'number', description: 'Removal probability for thin (0.0-1.0).' },
+          },
+          required: ['op'],
+        },
+        description: 'Development operations to apply (for develop action). Applied in sequence.',
+      },
+      description: {
+        type: 'string',
+        description: 'Human-readable description of what this operation does.',
+      },
+    },
+    required: ['action'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1373,4 +1448,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   applyModulationTool,
   shapeTimbreTool,
   assignSpectralSlotTool,
+  manageMotifTool,
 ];

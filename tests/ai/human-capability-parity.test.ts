@@ -54,6 +54,7 @@ const PARITY_GAP_TOOLS = new Set([
   'apply_modulation',    // LOW: compound tool — humans use individual modulator controls instead
   'shape_timbre',              // MODERATE: no UI for timbral direction controls (human can move params directly)
   'assign_spectral_slot',      // LOW: compound tool — humans use EQ controls directly
+  'manage_motif',        // MODERATE: no UI for motif registration/development (human can copy/paste patterns)
 ]);
 
 describe('Human Capability Parity', () => {
@@ -82,7 +83,7 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale
-    expect(PARITY_GAP_TOOLS.size).toBe(13);
+    expect(PARITY_GAP_TOOLS.size).toBe(14);
   });
 
   it('documents the expected number of AI-only tools', () => {
