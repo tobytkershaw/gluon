@@ -15,6 +15,8 @@ import type { CompressorEngine } from './compressor-synth';
 import { CompressorSynth } from './compressor-synth';
 import type { StereoEngine } from './stereo-synth';
 import { StereoSynth } from './stereo-synth';
+import type { ChorusEngine } from './chorus-synth';
+import { ChorusSynth } from './chorus-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -51,4 +53,8 @@ export async function createCompressorProcessor(ctx: AudioContext): Promise<Comp
 
 export async function createStereoProcessor(ctx: AudioContext): Promise<StereoEngine> {
   return StereoSynth.create(ctx);
+}
+
+export async function createChorusProcessor(ctx: AudioContext): Promise<ChorusEngine> {
+  return ChorusSynth.create(ctx);
 }

@@ -10,6 +10,8 @@ import type { CompressorEngine } from './compressor-synth';
 import type { CompressorPatchParams } from './compressor-messages';
 import type { StereoEngine } from './stereo-synth';
 import type { StereoPatchParams } from './stereo-messages';
+import type { ChorusEngine } from './chorus-synth';
+import type { ChorusPatchParams } from './chorus-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -28,7 +30,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -163,6 +165,16 @@ function toStereoPatchParams(params: Record<string, number>): StereoPatchParams 
     mid_gain: params.mid_gain ?? 0.5,
     side_gain: params.side_gain ?? 0.5,
     delay: params.delay ?? 0.0,
+  };
+}
+
+function toChorusPatchParams(params: Record<string, number>): ChorusPatchParams {
+  return {
+    rate: params.rate ?? 0.3,
+    depth: params.depth ?? 0.5,
+    feedback: params.feedback ?? 0.0,
+    mix: params.mix ?? 0.5,
+    stereo: params.stereo ?? 0.5,
   };
 }
 
@@ -819,6 +831,9 @@ export class AudioEngine {
       } else if (processorType === 'stereo') {
         const { createStereoProcessor } = await import('./create-synth');
         engine = await createStereoProcessor(this.ctx);
+      } else if (processorType === 'chorus') {
+        const { createChorusProcessor } = await import('./create-synth');
+        engine = await createChorusProcessor(this.ctx);
       } else {
         return;
       }
@@ -880,6 +895,9 @@ export class AudioEngine {
     } else if (proc.type === 'stereo') {
       const engine = proc.engine as import('./stereo-synth').StereoEngine;
       engine.setPatch(toStereoPatchParams(params));
+    } else if (proc.type === 'chorus') {
+      const engine = proc.engine as import('./chorus-synth').ChorusEngine;
+      engine.setPatch(toChorusPatchParams(params));
     }
   }
 
@@ -900,6 +918,8 @@ export class AudioEngine {
       (proc.engine as import('./compressor-synth').CompressorEngine).setMode(model);
     } else if (proc.type === 'stereo') {
       (proc.engine as import('./stereo-synth').StereoEngine).setMode(model);
+    } else if (proc.type === 'chorus') {
+      (proc.engine as import('./chorus-synth').ChorusEngine).setMode(model);
     }
   }
 
