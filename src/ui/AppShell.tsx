@@ -88,9 +88,11 @@ interface Props {
   metronomeVolume: number;
   onToggleMetronome: () => void;
   onMetronomeVolumeChange: (v: number) => void;
-  // Transport mode
+  // Transport mode & loop
   transportMode: import('../engine/sequencer-types').TransportMode;
+  loop: boolean;
   onTransportModeChange: (mode: import('../engine/sequencer-types').TransportMode) => void;
+  onLoopChange: (loop: boolean) => void;
   // Time signature
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
@@ -142,7 +144,7 @@ export function AppShell({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
-  transportMode, onTransportModeChange,
+  transportMode, loop, onTransportModeChange, onLoopChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
   view, onViewChange,
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
@@ -231,6 +233,7 @@ export function AppShell({
             globalStep={globalStep}
             patternLength={patternLength}
             transportMode={transportMode}
+            loop={loop}
             onTogglePlay={onTogglePlay}
             onHardStop={onHardStop}
             onBpmChange={onBpmChange}
@@ -240,6 +243,7 @@ export function AppShell({
             metronomeVolume={metronomeVolume}
             onToggleMetronome={onToggleMetronome}
             onMetronomeVolumeChange={onMetronomeVolumeChange}
+            onLoopChange={onLoopChange}
             onTransportModeChange={onTransportModeChange}
             timeSignatureNumerator={timeSignatureNumerator}
             timeSignatureDenominator={timeSignatureDenominator}

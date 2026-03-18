@@ -1,6 +1,7 @@
 // src/ui/TransportStrip.tsx
 // Compact inline transport controls for the global top bar.
 import { useState, useRef, useEffect } from 'react';
+import type { TransportMode } from '../engine/sequencer-types';
 import { DraggableNumber } from './DraggableNumber';
 
 export interface ABControlsProps {
@@ -66,7 +67,8 @@ interface Props {
   recordArmed: boolean;
   globalStep: number;
   patternLength: number;
-  transportMode: import('../engine/sequencer-types').TransportMode;
+  transportMode: TransportMode;
+  loop: boolean;
   onTogglePlay: () => void;
   onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
@@ -76,7 +78,8 @@ interface Props {
   metronomeVolume: number;
   onToggleMetronome: () => void;
   onMetronomeVolumeChange: (v: number) => void;
-  onTransportModeChange: (mode: import('../engine/sequencer-types').TransportMode) => void;
+  onLoopChange: (loop: boolean) => void;
+  onTransportModeChange: (mode: TransportMode) => void;
   // Time signature
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
@@ -85,10 +88,10 @@ interface Props {
 
 export function TransportStrip({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
-  transportMode,
+  transportMode, loop,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
-  onTransportModeChange,
+  onLoopChange, onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
 }: Props) {
   const beatsPerBar = timeSignatureNumerator || 4;
@@ -96,8 +99,9 @@ export function TransportStrip({
   const bar = Math.floor((currentBeat - 1) / beatsPerBar) + 1;
   const beat = ((currentBeat - 1) % beatsPerBar) + 1;
 
-  // Loop toggle — local UI state. In pattern mode, loop is inherently on.
-  const [loopEnabled, setLoopEnabled] = useState(true);
+  // In pattern mode, loop is inherently on — the button is visually locked.
+  const isPatternMode = transportMode === 'pattern';
+  const loopEnabled = isPatternMode ? true : loop;
 
   // Three visual states: inactive, armed (waiting for play), actively recording
   const activelyRecording = recordArmed && playing;
@@ -152,13 +156,14 @@ export function TransportStrip({
         </button>
         {/* Loop / Cycle toggle */}
         <button
-          onClick={() => setLoopEnabled(!loopEnabled)}
+          onClick={() => { if (!isPatternMode) onLoopChange(!loop); }}
           className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
             loopEnabled
               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
               : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
-          }`}
-          title={loopEnabled ? 'Loop ON — click to disable' : 'Loop OFF — click to enable'}
+          } ${isPatternMode ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={isPatternMode ? 'Loop locked in pattern mode' : loopEnabled ? 'Loop ON — click to disable' : 'Loop OFF — click to enable'}
+          disabled={isPatternMode}
         >
           {/* Loop icon: circular arrows */}
           <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

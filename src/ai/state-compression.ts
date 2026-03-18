@@ -412,6 +412,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       swing: round2(session.transport.swing),
       playing: session.transport.status === 'playing',
       mode: session.transport.mode ?? 'pattern',
+      loop: session.transport.loop ?? true,
       time_signature: `${session.transport.timeSignature?.numerator ?? 4}/${session.transport.timeSignature?.denominator ?? 4}`,
     },
     context: {

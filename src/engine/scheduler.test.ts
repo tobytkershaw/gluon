@@ -309,7 +309,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
       events: [{ kind: 'trigger' as const, at: 0, velocity: 0.8 }],
     };
     const session = makeSession({
-      transport: { status: 'playing', bpm: 120, swing: 0, mode: 'song' },
+      transport: { status: 'playing', bpm: 120, swing: 0, mode: 'song', loop: false },
       tracks: [{
         id: 'v1',
         engine: 'plaits',
@@ -357,6 +357,70 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
     expect(onSequenceEnd).toHaveBeenCalledTimes(1);
     expect(scheduler.isRunning()).toBe(false);
+  });
+
+  it('loops the sequence in song mode when loop is true (default)', () => {
+    const patternA = {
+      id: 'pA',
+      kind: 'pattern' as const,
+      duration: 4,
+      events: [{ kind: 'trigger' as const, at: 0, velocity: 0.8 }],
+    };
+    const session = makeSession({
+      transport: { status: 'playing', bpm: 120, swing: 0, mode: 'song', loop: true },
+      tracks: [{
+        id: 'v1',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        agency: 'ON',
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 4 },
+        patterns: [patternA],
+        sequence: [{ patternId: 'pA' }],
+        surface: {
+          semanticControls: [],
+          pinnedControls: [],
+          xyAxes: { x: 'timbre', y: 'morph' },
+          thumbprint: { type: 'static-color' },
+        },
+      }],
+    });
+
+    let audioTime = 0;
+    const onNote = vi.fn();
+    const onPosition = vi.fn();
+    const onSequenceEnd = vi.fn();
+
+    const scheduler = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      onNote,
+      onPosition,
+      () => ({}),
+      undefined,
+      undefined,
+      onSequenceEnd,
+    );
+
+    scheduler.start(0, 0, 0);
+    // Advance well past the sequence length (4 steps = 0.5s at 120 BPM)
+    // Play through ~3 loops
+    const stepDuration = 0.125;
+    for (let i = 0; i < 16; i++) {
+      audioTime = i * stepDuration;
+      vi.advanceTimersByTime(25);
+    }
+
+    // Should NOT have stopped — loop keeps it running
+    expect(onSequenceEnd).not.toHaveBeenCalled();
+    expect(scheduler.isRunning()).toBe(true);
+    // Should have scheduled notes from multiple loop passes
+    expect(onNote.mock.calls.length).toBeGreaterThan(1);
+
+    scheduler.stop();
   });
 
   it('does not fire onSequenceEnd in pattern mode', () => {

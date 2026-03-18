@@ -153,10 +153,20 @@ export class Scheduler {
         if (trackLen > maxSequenceLen) maxSequenceLen = trackLen;
       }
       if (maxSequenceLen > 0 && globalStep >= maxSequenceLen) {
-        // End of sequence — stop playback
-        this.stop();
-        this.onSequenceEnd?.();
-        return;
+        const loop = session.transport.loop ?? true;
+        if (loop) {
+          // Restart the sequence from the beginning by rewinding startTime
+          const stepDuration2 = 60 / (bpm * 4);
+          this.startTime += maxSequenceLen * stepDuration2;
+          this.cursor -= maxSequenceLen;
+          // Re-derive globalStep after rewind
+          globalStep -= maxSequenceLen;
+        } else {
+          // End of sequence — stop playback
+          this.stop();
+          this.onSequenceEnd?.();
+          return;
+        }
       }
     }
 
