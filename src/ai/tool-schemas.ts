@@ -1313,7 +1313,8 @@ const applyModulationTool: ToolSchema = {
   name: 'apply_modulation',
   description:
     'Apply a pre-configured modulation recipe. Adds a Tides modulator with preset parameters and connects it to the appropriate target. ' +
-    'For recipes that target a processor (e.g. filter sweep), a matching processor must already exist on the track, or provide processorId to target a specific one.',
+    'For recipes that target a processor (e.g. filter sweep), a matching processor must already exist on the track, or provide processorId to target a specific one. ' +
+    'All override parameters are optional — the recipe provides sensible defaults, and any explicit value takes precedence.',
   parameters: {
     type: 'object',
     properties: {
@@ -1329,6 +1330,26 @@ const applyModulationTool: ToolSchema = {
       processorId: {
         type: 'string',
         description: 'Optional: specific processor ID to target for processor-targeted recipes. If omitted, auto-finds the first matching processor type.',
+      },
+      depth: {
+        type: 'number',
+        description: 'Override modulation depth (-1.0 to 1.0). Overrides the recipe default.',
+      },
+      rate: {
+        type: 'number',
+        description: 'Override LFO rate (0.0–1.0, normalized). Maps to Tides frequency param. Overrides the recipe default.',
+      },
+      shape: {
+        type: 'number',
+        description: 'Override waveform shape (0.0–1.0). Blends between waveshapes. Overrides the recipe default.',
+      },
+      smoothness: {
+        type: 'number',
+        description: 'Override waveform smoothness (0.0–1.0). Lower = sharper, higher = smoother. Overrides the recipe default.',
+      },
+      target: {
+        type: 'string',
+        description: 'Override the modulation target control ID (e.g. "cutoff", "frequency", "harmonics"). Overrides the recipe default.',
       },
     },
     required: ['trackId', 'recipe'],

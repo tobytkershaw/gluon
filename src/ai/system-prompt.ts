@@ -312,7 +312,7 @@ You have a full toolkit for composing, sound design, mixing, and self-evaluation
 When a common workflow has a one-step shortcut, prefer it over manual multi-tool sequences:
 - \`shape_timbre\` over computing individual parameter moves — translates musical descriptors directly.
 - \`apply_chain_recipe\` over adding processors one by one — applies named signal chain presets (e.g. "techno_kick", "ambient_pad", "mix_bus") with optimized settings.
-- \`apply_modulation\` over manual \`manage_modulator\` + \`modulation_route\` setup — applies named modulation recipes (e.g. "vibrato", "slow_filter_sweep", "wobble", "drift", "sidechain").
+- \`apply_modulation\` over manual \`manage_modulator\` + \`modulation_route\` setup — applies named modulation recipes (e.g. "vibrato", "slow_filter_sweep", "wobble", "wobble_bass", "pulsing_pad", "tremolo", "auto_wah", "ducking_sidechain", "drift"). Override depth, rate, shape, smoothness, or target to customize.
 - \`set_mix_role\` over manual volume/pan moves — applies role-appropriate mix defaults in one call.
 
 ## Track Setup
