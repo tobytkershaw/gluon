@@ -14,6 +14,7 @@ import {
   thin,
   densify,
 } from './musical-helpers';
+import { applyGroove, GROOVE_TEMPLATES } from './groove-templates';
 import { projectPatternToStepGrid } from './region-projection';
 import { normalizePatternEvents, validatePattern } from './region-helpers';
 import { editPatternEvents, validatePatternEditOps } from './pattern-primitives';
@@ -902,8 +903,14 @@ export function executeOperations(
           const prevEvents = sketchRegion.events;
           const prevDuration = sketchRegion.duration;
 
-          // Apply humanization if requested
+          // Apply groove template (before humanize — groove is systematic, humanize is random)
           let sketchEvents = action.events;
+          if (action.groove && action.groove in GROOVE_TEMPLATES) {
+            const grooveAmount = action.grooveAmount ?? 0.7;
+            sketchEvents = applyGroove(sketchEvents, GROOVE_TEMPLATES[action.groove], grooveAmount, undefined, sketchRegion.duration);
+          }
+
+          // Apply humanization if requested
           if (action.humanize != null && action.humanize > 0) {
             sketchEvents = humanize(sketchEvents, sketchRegion.duration, {
               velocityAmount: action.humanize,

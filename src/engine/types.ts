@@ -497,6 +497,10 @@ export interface AISketchAction {
   events?: CanonicalMusicalEvent[];
   /** Humanize amount (0.0-1.0). When set, applies velocity/timing jitter to events. */
   humanize?: number;
+  /** Groove template name. Applied after note generation, before humanize. */
+  groove?: string;
+  /** Groove intensity 0.0-1.0. Default 0.7. */
+  grooveAmount?: number;
 }
 
 export interface AITransportAction {

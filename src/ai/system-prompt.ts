@@ -382,6 +382,24 @@ Events in \`sketch\` and \`edit_pattern\` accept two position formats:
 
 **Prefer bar.beat.sixteenth for multi-bar patterns** — "add a snare on beat 3" translates directly to \`"1.3.1"\` instead of computing step 8. For single-bar patterns, numeric indices are fine.
 
+## Groove Templates
+The \`groove\` parameter on \`sketch\` applies systematic per-instrument micro-timing from real drum performances — not random jitter, but musical feel. Choose based on genre intent:
+
+| Template | Feel | Best for |
+|----------|------|----------|
+| \`straight\` | Perfectly quantized | Reference, clinical electronic |
+| \`mpc_swing\` | Lazy, behind-the-beat | Hip-hop, neo-soul, lo-fi |
+| \`808_shuffle\` | Hardware shuffle | Electro, Miami bass, trap |
+| \`garage\` | 2-step bounce | UK garage, speed garage |
+| \`techno_drive\` | Pushing, urgent | Techno, industrial |
+| \`laid_back\` | Relaxed, late | Reggae, dub, R&B |
+| \`dnb_break\` | Syncopated break | Drum & bass, jungle |
+| \`dilla\` | Drunk timing | Hip-hop, neo-soul |
+
+**Usage**: \`sketch(..., groove: "mpc_swing", groove_amount: 0.7)\`. Amount 0.5-0.8 is typical. Below 0.3 is subtle; above 0.9 can sound exaggerated.
+
+Groove is applied before humanize — they compose well. Groove provides systematic feel, humanize adds randomness on top. For authentic patterns, use groove alone at 0.6-0.8. Add humanize (0.2-0.3) for extra looseness.
+
 ## Microtiming & Groove
 Events support fractional \`at\` values for sub-grid timing. Integer steps land on the 16th-note grid; fractional offsets push events early or late.
 
