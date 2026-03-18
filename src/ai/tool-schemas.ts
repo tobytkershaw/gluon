@@ -389,6 +389,10 @@ const listenTool: ToolSchema = {
           },
         },
       },
+      rubric: {
+        type: 'boolean',
+        description: 'When true, returns structured scores (groove, clarity, energy, coherence, space) on a 1-5 scale plus actionable suggestions. Use for systematic evaluation rather than open-ended critique.',
+      },
     },
     required: ['question'],
   },
@@ -1271,6 +1275,35 @@ const applyModulationTool: ToolSchema = {
   },
 };
 
+import { getTimbralDirections } from '../engine/timbral-vocabulary';
+
+const shapeTimbreTool: ToolSchema = {
+  name: 'shape_timbre',
+  description:
+    'Move a track\'s timbre in a musical direction. Translates musical descriptors ' +
+    '(darker, brighter, thicker, etc.) to appropriate parameter changes for the active ' +
+    'synthesis model. Applies to the source synth and optionally to processors in the chain.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Track to shape. Use "Track N" (1-indexed) or internal ID.',
+      },
+      direction: {
+        type: 'string',
+        enum: getTimbralDirections(),
+        description: 'Musical direction to move the timbre.',
+      },
+      amount: {
+        type: 'number',
+        description: 'Scale factor (0.0-1.0, default 0.3). Higher values produce more dramatic changes.',
+      },
+    },
+    required: ['trackId', 'direction'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1304,4 +1337,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   applyChainRecipeTool,
   setMixRoleTool,
   applyModulationTool,
+  shapeTimbreTool,
 ];

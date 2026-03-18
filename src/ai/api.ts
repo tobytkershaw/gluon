@@ -34,6 +34,9 @@ import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-
 import { getChainRecipe } from '../engine/chain-recipes';
 import { getMixRole } from '../engine/mix-roles';
 import { getModulationRecipe } from '../engine/modulation-recipes';
+import { resolveTimbralMove, getProcessorTimbralVector } from '../engine/timbral-vocabulary';
+import type { TimbralDirection } from '../engine/timbral-vocabulary';
+import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
 
 /**
  * Lightweight projection of an action onto session state.
@@ -1956,6 +1959,9 @@ export class GluonAI {
           }
         }
 
+        // Rubric: structured evaluation scores
+        const rubric = args.rubric === true;
+
         if (rawCompare) {
           // Comparative listening: render before + after, concatenate, evaluate
           const compareQuestion = (rawCompare.question as string) || question;
@@ -1963,7 +1969,7 @@ export class GluonAI {
           return { actions: [], response: result };
         }
 
-        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds, lens);
+        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds, lens, rubric);
         return { actions: [], response: result };
       }
 
@@ -2653,6 +2659,88 @@ export class GluonAI {
         };
       }
 
+      case 'shape_timbre': {
+        const trackId = (args.trackId as string) ?? session.activeTrackId;
+        const direction = args.direction as TimbralDirection;
+        const amount = typeof args.amount === 'number' ? Math.max(0, Math.min(1, args.amount)) : 0.3;
+
+        if (!direction) {
+          return { actions: [], response: errorPayload('Missing required parameter: direction') };
+        }
+
+        const track = session.tracks.find(t => t.id === trackId);
+        if (!track) {
+          return { actions: [], response: errorPayload(`Unknown track: ${trackId}`) };
+        }
+
+        // Resolve the Plaits engine ID from the track's model index
+        const engineDef = plaitsInstrument.engines[track.model];
+        if (!engineDef) {
+          return { actions: [], response: errorPayload(`Track has no recognized synth engine.`) };
+        }
+        const engineId = engineDef.id;
+
+        // Build move actions for the source synth
+        const sourceDeltas = resolveTimbralMove(engineId, direction, amount);
+        const actions: AIAction[] = [];
+        const appliedParams: string[] = [];
+
+        for (const { param, delta } of sourceDeltas) {
+          const runtimeKey = controlIdToRuntimeParam[param] ?? param;
+          const currentVal = track.params[runtimeKey] ?? 0.5;
+          const newVal = Math.max(0, Math.min(1, currentVal + delta));
+          actions.push({
+            type: 'move',
+            trackId,
+            param,
+            target: { absolute: newVal },
+          } as AIMoveAction);
+          appliedParams.push(`${param}: ${currentVal.toFixed(2)} -> ${newVal.toFixed(2)}`);
+        }
+
+        // Also apply to any processors in the chain
+        const processorResults: string[] = [];
+        for (const proc of track.processors ?? []) {
+          const procVector = getProcessorTimbralVector(proc.type, direction);
+          if (!procVector) continue;
+          for (const [param, baseDelta] of Object.entries(procVector.params)) {
+            const delta = baseDelta * amount;
+            const currentVal = proc.params[param] ?? 0.5;
+            const newVal = Math.max(0, Math.min(1, currentVal + delta));
+            actions.push({
+              type: 'move',
+              trackId,
+              processorId: proc.id,
+              param,
+              target: { absolute: newVal },
+            } as AIMoveAction);
+            processorResults.push(`${proc.type}.${param}: ${currentVal.toFixed(2)} -> ${newVal.toFixed(2)}`);
+          }
+        }
+
+        if (actions.length === 0) {
+          return {
+            actions: [],
+            response: {
+              applied: false,
+              reason: `No timbral mapping for direction "${direction}" on engine "${engineId}".`,
+            },
+          };
+        }
+
+        return {
+          actions,
+          response: {
+            applied: true,
+            engine: engineId,
+            direction,
+            amount,
+            sourceParams: appliedParams,
+            ...(processorResults.length > 0 ? { processorParams: processorResults } : {}),
+          },
+        };
+      }
+
       default:
         return { actions: [], response: { error: `Unknown tool: ${name}` } };
     }
@@ -2665,6 +2753,7 @@ export class GluonAI {
     bars: number = 2,
     trackIds?: string[],
     lens?: ListenLens,
+    rubric: boolean = false,
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -2676,13 +2765,28 @@ export class GluonAI {
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
       const state = compressState(session);
 
+      // Build prompt — append rubric criteria when requested
+      const basePrompt = buildListenPromptWithLens(question, lens);
+      const systemPrompt = rubric ? basePrompt + RUBRIC_CRITERIA : basePrompt;
+
       const critique = await this.evaluateWithListeners({
-        systemPrompt: buildListenPromptWithLens(question, lens),
+        systemPrompt,
         stateJson: JSON.stringify(state),
         question,
         audioData: wavBlob,
         mimeType: 'audio/wav',
       });
+
+      // When rubric mode is active, try to parse structured scores from the response
+      if (rubric) {
+        const parsed = parseRubricResponse(critique);
+        if (parsed) {
+          return { rubric: parsed, ...(lens ? { lens } : {}) };
+        }
+        // Fallback: return the raw critique if parsing fails
+        return { critique, rubricRequested: true, rubricParseFailed: true, ...(lens ? { lens } : {}) };
+      }
+
       return { critique, ...(lens ? { lens } : {}) };
     } catch (error) {
       if (error instanceof ProviderError) {
