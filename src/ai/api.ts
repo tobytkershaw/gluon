@@ -2065,18 +2065,23 @@ export class GluonAI {
             const addTrackRejection = handleRejection(ctx?.validateAction?.(addTrackAction), session, addTrackAction);
             if (addTrackRejection) return addTrackRejection;
 
-            // Project the addition to determine the new track's ordinal position
+            // Project the addition to determine the new track's ordinal position and ID
             const projectedAfterAdd = addTrack(session, kind as TrackKind);
             const newTrackCount = projectedAfterAdd
               ? projectedAfterAdd.tracks.filter(t => getTrackKind(t) !== 'bus').length
               : session.tracks.filter(t => getTrackKind(t) !== 'bus').length + 1;
+            // Find the actual internal ID of the newly added track
+            const newTrackId = projectedAfterAdd
+              ? projectedAfterAdd.tracks[projectedAfterAdd.tracks.length - 1]?.id
+              : undefined;
 
             const addResponse: Record<string, unknown> = {
                 queued: true,
                 kind: addTrackAction.kind,
                 ...(addTrackAction.label ? { label: addTrackAction.label } : {}),
                 trackRef: `Track ${newTrackCount}`,
-                note: `Use "Track ${newTrackCount}" to reference this track in subsequent tool calls this turn.`,
+                ...(newTrackId ? { trackId: newTrackId } : {}),
+                note: `Use "Track ${newTrackCount}" or "${newTrackId ?? `Track ${newTrackCount}`}" to reference this track in subsequent tool calls this turn.`,
               };
 
             // Spectral lint: check if the projected session (after adding the track)
