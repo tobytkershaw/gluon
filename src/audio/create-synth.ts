@@ -11,6 +11,8 @@ import type { EqEngine } from './eq-synth';
 import { EqSynth } from './eq-synth';
 import type { TidesEngine } from './tides-synth';
 import { TidesSynth } from './tides-synth';
+import type { CompressorEngine } from './compressor-synth';
+import { CompressorSynth } from './compressor-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -37,4 +39,8 @@ export async function createEqProcessor(ctx: AudioContext): Promise<EqEngine> {
 
 export async function createTidesModulator(ctx: AudioContext): Promise<TidesEngine> {
   return TidesSynth.create(ctx);
+}
+
+export async function createCompressorProcessor(ctx: AudioContext): Promise<CompressorEngine> {
+  return CompressorSynth.create(ctx);
 }

@@ -5,6 +5,7 @@ import {
   plaitsInstrument,
   ringsInstrument,
   cloudsInstrument,
+  compressorInstrument,
   tidesInstrument,
 } from '../audio/instrument-registry';
 
@@ -23,6 +24,7 @@ function quoted(ids: string[]): string {
 const plaitsParamIds = controlIds(plaitsInstrument);
 const ringsParamIds = controlIds(ringsInstrument);
 const cloudsParamIds = controlIds(cloudsInstrument);
+const compressorParamIds = controlIds(compressorInstrument);
 const tidesParamIds = controlIds(tidesInstrument);
 
 /** Exported for test use — the canonical control ID lists used in tool descriptions. */
@@ -30,6 +32,7 @@ export const REGISTRY_CONTROL_IDS = {
   plaits: plaitsParamIds,
   rings: ringsParamIds,
   clouds: cloudsParamIds,
+  compressor: compressorParamIds,
   tides: tidesParamIds,
 } as const;
 
@@ -45,7 +48,7 @@ const moveTool: ToolSchema = {
         description:
           `The control ID to change. ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}). ` +
+          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Compressor: ${quoted(compressorParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
       target: {
@@ -396,7 +399,7 @@ const manageProcessorTool: ToolSchema = {
       },
       moduleType: {
         type: 'string',
-        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor).',
+        description: 'Required for add and replace. Available: "rings" (Mutable Instruments Rings resonator), "clouds" (Mutable Instruments Clouds granular processor), "compressor" (dynamics compressor with character modes).',
       },
       processorId: {
         type: 'string',
@@ -485,7 +488,7 @@ const modulationRouteTool: ToolSchema = {
         description:
           `Required for connect. The parameter to modulate. ` +
           `Source (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}).`,
+          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Compressor: ${quoted(compressorParamIds)}).`,
       },
       depth: {
         type: 'number',

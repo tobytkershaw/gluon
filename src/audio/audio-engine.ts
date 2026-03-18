@@ -6,6 +6,8 @@ import type { RingsEngine } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
 import type { RipplesEngine } from './ripples-synth';
 import type { EqEngine } from './eq-synth';
+import type { CompressorEngine } from './compressor-synth';
+import type { CompressorPatchParams } from './compressor-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -26,6 +28,7 @@ const VOICES_PER_TRACK = 4;
 
 type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine;
 type ProcessorEngine = RingsEngine | CloudsEngine | EqEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | CompressorEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -137,6 +140,17 @@ function toCloudsExtendedParams(params: Record<string, number>): import('./cloud
     dry_wet: params['dry-wet'] ?? 0.5,
     stereo_spread: params['stereo-spread'] ?? 0.0,
     reverb: params.reverb ?? 0.0,
+  };
+}
+
+function toCompressorPatchParams(params: Record<string, number>): CompressorPatchParams {
+  return {
+    threshold: params.threshold ?? 0.5,
+    ratio: params.ratio ?? 0.3,
+    attack: params.attack ?? 0.3,
+    release: params.release ?? 0.4,
+    makeup: params.makeup ?? 0.0,
+    mix: params.mix ?? 1.0,
   };
 }
 
@@ -787,6 +801,9 @@ export class AudioEngine {
       } else if (processorType === 'eq') {
         const { createEqProcessor } = await import('./create-synth');
         engine = await createEqProcessor(this.ctx);
+      } else if (processorType === 'compressor') {
+        const { createCompressorProcessor } = await import('./create-synth');
+        engine = await createCompressorProcessor(this.ctx);
       } else {
         return;
       }
@@ -842,6 +859,9 @@ export class AudioEngine {
     } else if (proc.type === 'eq') {
       const engine = proc.engine as import('./eq-synth').EqEngine;
       engine.setPatch(toEqPatchParams(params));
+    } else if (proc.type === 'compressor') {
+      const engine = proc.engine as import('./compressor-synth').CompressorEngine;
+      engine.setPatch(toCompressorPatchParams(params));
     }
   }
 
@@ -858,6 +878,8 @@ export class AudioEngine {
       (proc.engine as import('./ripples-synth').RipplesEngine).setMode(model);
     } else if (proc.type === 'eq') {
       (proc.engine as import('./eq-synth').EqEngine).setMode(model);
+    } else if (proc.type === 'compressor') {
+      (proc.engine as import('./compressor-synth').CompressorEngine).setMode(model);
     }
   }
 
