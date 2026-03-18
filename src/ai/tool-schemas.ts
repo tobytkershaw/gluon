@@ -7,6 +7,8 @@ import {
   cloudsInstrument,
   compressorInstrument,
   tidesInstrument,
+  ripplesInstrument,
+  eqInstrument,
 } from '../audio/instrument-registry';
 
 // ---------------------------------------------------------------------------
@@ -25,6 +27,8 @@ const plaitsParamIds = controlIds(plaitsInstrument);
 const ringsParamIds = controlIds(ringsInstrument);
 const cloudsParamIds = controlIds(cloudsInstrument);
 const compressorParamIds = controlIds(compressorInstrument);
+const ripplesParamIds = controlIds(ripplesInstrument);
+const eqParamIds = controlIds(eqInstrument);
 const tidesParamIds = controlIds(tidesInstrument);
 
 /** Exported for test use — the canonical control ID lists used in tool descriptions. */
@@ -33,6 +37,8 @@ export const REGISTRY_CONTROL_IDS = {
   rings: ringsParamIds,
   clouds: cloudsParamIds,
   compressor: compressorParamIds,
+  ripples: ripplesParamIds,
+  eq: eqParamIds,
   tides: tidesParamIds,
 } as const;
 
@@ -48,7 +54,7 @@ const moveTool: ToolSchema = {
         description:
           `The control ID to change. ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Compressor: ${quoted(compressorParamIds)}). ` +
+          `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
       target: {
@@ -500,7 +506,7 @@ const modulationRouteTool: ToolSchema = {
         description:
           `Required for connect. The parameter to modulate. ` +
           `Source (Plaits): ${quoted(plaitsParamIds)}. ` +
-          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Compressor: ${quoted(compressorParamIds)}).`,
+          `Processor: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}).`,
       },
       depth: {
         type: 'number',
