@@ -860,11 +860,15 @@ export default function App() {
   const [isThinking, setIsThinking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [streamingText, setStreamingText] = useState('');
+  const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
+  const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
 
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
     setStreamingText('');
+    setStreamingLogEntries([]);
+    setStreamingRejections([]);
     await ensureAudio();
     // Add human message to session synchronously via ref so askStreaming
     // receives the session with the message already present. Without this,
@@ -908,6 +912,11 @@ export default function App() {
       onToolCall: (name: string, args: Record<string, unknown>) => {
         if (thisRequest !== requestIdRef.current) return;
         collectedToolCalls.push({ name, args });
+      },
+      onActionsExecuted: (report: { log: import('../engine/types').ActionLogEntry[]; rejected: { op: import('../engine/types').AIAction; reason: string }[] }) => {
+        if (thisRequest !== requestIdRef.current) return;
+        if (report.log.length > 0) setStreamingLogEntries(prev => [...prev, ...report.log]);
+        if (report.rejected.length > 0) setStreamingRejections(prev => [...prev, ...report.rejected.map(r => ({ reason: r.reason }))]);
       },
       userSelection,
     };
@@ -983,6 +992,8 @@ export default function App() {
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');
+        setStreamingLogEntries([]);
+        setStreamingRejections([]);
       }
     }
   }, [ensureAudio]);
@@ -2150,6 +2161,8 @@ export default function App() {
       isThinking={isThinking}
       isListening={isListening}
       streamingText={streamingText}
+      streamingLogEntries={streamingLogEntries}
+      streamingRejections={streamingRejections}
       reactions={session.reactionHistory}
       onReaction={handleReaction}
       apiConfigured={apiConfigured}

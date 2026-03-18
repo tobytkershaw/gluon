@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
+import type { ChatMessage, Reaction, UndoEntry, ActionLogEntry } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 import { renderInlineMarkdown } from './inlineMarkdown';
@@ -10,6 +10,10 @@ interface Props {
   isListening?: boolean;
   /** Partial text being streamed from the AI before the full response completes. */
   streamingText?: string;
+  /** Authoritative log entries from executed actions, streamed per-step. */
+  streamingLogEntries?: ActionLogEntry[];
+  /** Rejected actions, streamed per-step. */
+  streamingRejections?: { reason: string }[];
   /** Recorded reactions, keyed by message index. */
   reactions?: Reaction[];
   /** Callback when user clicks approve/reject on an AI message. */
@@ -20,14 +24,14 @@ interface Props {
   onUndoMessage?: (messageIndex: number) => void;
 }
 
-export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', reactions = [], onReaction, undoStack = [], onUndoMessage }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingLogEntries = [], streamingRejections = [], reactions = [], onReaction, undoStack = [], onUndoMessage }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages.length, isThinking, isListening, streamingText]);
+  }, [messages.length, isThinking, isListening, streamingText, streamingLogEntries.length, streamingRejections.length]);
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll p-3 space-y-2">
@@ -121,19 +125,41 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
         <div className="flex gap-2 rounded px-2.5 py-2 bg-zinc-800/20" style={{ animation: 'fade-up 0.15s ease-out' }}>
           <div
             className="w-px shrink-0 rounded-full bg-teal-500/70 mt-0.5"
-            style={{ ...(!streamingText ? { animation: 'pulse-soft 1.5s ease-in-out infinite' } : {}), minHeight: '1rem' }}
+            style={{ ...(!streamingText && streamingLogEntries.length === 0 ? { animation: 'pulse-soft 1.5s ease-in-out infinite' } : {}), minHeight: '1rem' }}
           />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-mono uppercase tracking-[0.2em] mb-1 text-teal-600/80">GLUON</div>
-            {streamingText ? (
+            {streamingText && (
               <div className="text-sm leading-[1.6] break-words text-zinc-300">
                 {renderInlineMarkdown(streamingText)}
-                <span
-                  className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
-                  style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
-                />
+                {streamingLogEntries.length === 0 && (
+                  <span
+                    className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
+                    style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
+                  />
+                )}
               </div>
-            ) : (
+            )}
+            {(streamingLogEntries.length > 0 || streamingRejections.length > 0) && (
+              <div className="mt-1 space-y-px">
+                {streamingLogEntries.map((entry, i) => (
+                  <div key={i} style={{ animation: 'fade-up 0.1s ease-out' }}>
+                    <ActionDiffView entry={entry} />
+                  </div>
+                ))}
+                {streamingRejections.map((r, i) => (
+                  <div key={`rej-${i}`} className="flex items-baseline gap-1.5 text-[11px] font-mono" style={{ animation: 'fade-up 0.1s ease-out' }}>
+                    <span className="text-red-500/70">!</span>
+                    <span className="text-red-400/60">{r.reason}</span>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <ThinkingDots />
+                  <span className="text-[11px] font-mono text-zinc-600">working</span>
+                </div>
+              </div>
+            )}
+            {!streamingText && streamingLogEntries.length === 0 && streamingRejections.length === 0 && (
               <div className="flex items-center gap-1.5">
                 <ThinkingDots />
                 <span className="text-sm font-mono text-zinc-600">
@@ -208,3 +234,4 @@ function ThinkingDots() {
     </div>
   );
 }
+

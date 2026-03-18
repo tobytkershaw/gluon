@@ -695,6 +695,13 @@ export interface AskContext {
   onStreamText?: StreamTextCallback;
   /** Called each time the AI invokes a tool (for transparency display). */
   onToolCall?: ToolCallCallback;
+  /** Called after a step's actions have been executed against real session state.
+   *  The log entries are authoritative — only accepted actions appear here.
+   *  Log entries include ActionDiff data for rich rendering. */
+  onActionsExecuted?: (report: {
+    log: import('../engine/types').ActionLogEntry[];
+    rejected: { op: AIAction; reason: string }[];
+  }) => void;
   /** Current UI selection in the Tracker (if any). Included in compressed state so the AI knows what the human is pointing at. */
   userSelection?: UserSelection;
 }
@@ -834,6 +841,14 @@ export class GluonAI {
           if (execReport.accepted.length > 0 || execReport.log.length > 0) {
             hadVisibleOutput = true;
           }
+
+          // Stream authoritative execution results to UI
+          // Log entries have ActionDiff at runtime (added during execution) even
+          // though ExecutionReportLogEntry doesn't declare it — cast to ActionLogEntry.
+          ctx?.onActionsExecuted?.({
+            log: execReport.log as import('../engine/types').ActionLogEntry[],
+            rejected: execReport.rejected,
+          });
 
           // Group this step's snapshots into one ActionGroupSnapshot
           const stepSayText = roundResult.textParts.join(' ');
