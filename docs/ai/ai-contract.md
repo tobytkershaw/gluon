@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has twenty-eight tools, declared as neutral JSON Schema and adapted per provider.
+The AI has twenty-nine tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -368,6 +368,18 @@ Set or update the current section metadata. Describes what part of the arrangeme
 | `targetDensity` | number | no | Target rhythmic density for this section (0.0-1.0). |
 
 At least one field must be provided. `targetEnergy` and `targetDensity` are clamped to 0.0-1.0.
+
+#### `set_scale`
+
+Set the global scale/key constraint. When set, note pitches in `sketch` and `edit_pattern` are auto-quantized to the nearest in-scale degree. Set `clear: true` for chromatic/atonal work.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `root` | integer | conditional | Root note as pitch class (0=C, 1=C#, ... 11=B). Required unless `clear` is true. |
+| `mode` | string | conditional | Scale mode (major, minor, dorian, phrygian, lydian, mixolydian, aeolian, locrian, harmonic-minor, melodic-minor, pentatonic, minor-pentatonic, blues, chromatic, whole-tone). Required unless `clear` is true. |
+| `clear` | boolean | no | Set to true to clear the scale constraint. When true, `root` and `mode` are ignored. |
+
+Undoable. Produces a `ScaleSnapshot` for undo.
 
 #### `explain_chain`
 

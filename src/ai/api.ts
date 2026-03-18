@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -10,6 +10,7 @@ import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
+import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { humanize as humanizeEvents } from '../engine/musical-helpers';
 import { compressState } from './state-compression';
@@ -366,6 +367,8 @@ function projectAction(session: Session, action: AIAction): Session {
       const merged: SectionMeta = { ...session.section, ...action.section };
       return { ...session, section: merged };
     }
+    case 'set_scale':
+      return { ...session, scale: action.scale };
     case 'say':
     default:
       return session;
@@ -2208,6 +2211,46 @@ export class GluonAI {
           response: {
             applied: true,
             section: { ...session.section, ...sectionUpdate },
+          },
+        };
+      }
+
+      case 'set_scale': {
+        // Clear scale constraint
+        if (args.clear === true) {
+          const clearAction: AISetScaleAction = { type: 'set_scale', scale: null };
+          return {
+            actions: [clearAction],
+            response: { applied: true, scale: null, message: 'Scale constraint cleared — chromatic/atonal mode.' },
+          };
+        }
+
+        // Set scale constraint
+        const root = typeof args.root === 'number' ? Math.round(args.root) : undefined;
+        const mode = typeof args.mode === 'string' ? args.mode as ScaleMode : undefined;
+
+        if (root === undefined || mode === undefined) {
+          return { actions: [], response: errorPayload('Both root (0-11) and mode are required, or set clear: true to remove the scale.') };
+        }
+
+        if (root < 0 || root > 11) {
+          return { actions: [], response: errorPayload(`Invalid root: ${root}. Must be 0-11 (0=C, 1=C#, ... 11=B).`) };
+        }
+
+        if (!SCALE_MODES.includes(mode)) {
+          return { actions: [], response: errorPayload(`Invalid mode: ${mode}. Supported: ${SCALE_MODES.join(', ')}.`) };
+        }
+
+        const scaleConstraint: ScaleConstraint = { root, mode };
+        const setScaleAction: AISetScaleAction = { type: 'set_scale', scale: scaleConstraint };
+
+        return {
+          actions: [setScaleAction],
+          response: {
+            applied: true,
+            scale: scaleConstraint,
+            label: scaleToString(scaleConstraint),
+            notes: scaleNoteNames(scaleConstraint),
           },
         };
       }

@@ -362,7 +362,7 @@ Each turn you receive a JSON state snapshot. Here's what it contains per track:
 - \`surface_pinned\`: pinned raw controls, if any
 - \`sends\`: bus send levels, if routing is configured
 
-Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), and \`section\` (current arrangement section metadata).
+Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), and \`scale\` (global key/scale constraint with note names).
 
 ## Collaboration Signals
 The compressed state includes reaction history, observed patterns, and restraint level. Use these to calibrate your approach:
@@ -380,6 +380,15 @@ The compressed state may include \`intent\` (session-level creative direction) a
 - **set_section**: describe which part of the arrangement you're working in (intro, groove, breakdown, drop) and its target character (energy, density levels 0-1).
 
 Use intent to stay consistent across a session. Use section to calibrate energy and density choices for the current part of the arrangement. When the human says "let's work on the drop" or "make an intro", update the section. When they describe a genre or mood, update the intent.
+
+## Scale/Key Constraint
+The compressed state may include \`scale\` — a global harmonic constraint. When set, **note pitches in \`sketch\` and \`edit_pattern\` are auto-quantized to the nearest in-scale degree**. This prevents accidental dissonance across tracks.
+
+- **set_scale**: set root (0=C to 11=B) and mode (major, minor, dorian, etc.). Call early when the key is established.
+- **set_scale(clear: true)**: remove the constraint for chromatic/atonal work.
+- The compressed state shows the scale label (e.g. "C major") and available note names when a scale is active.
+- Trigger/percussion events are not affected — only note events with MIDI pitches are quantized.
+- Set the scale proactively when the genre or references imply a key. UK garage in F minor? Set it. Atonal noise? Clear it or don't set it.
 
 ## Decisions & Bugs
 - **raise_decision**: flag genuine forks where you need the human's taste (e.g. "darker or brighter chorus?"). Default to making one reversible choice rather than asking, unless the choice would overwrite approved/anchor material or define core style direction.

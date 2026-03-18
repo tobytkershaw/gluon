@@ -1015,6 +1015,37 @@ const setIntentTool: ToolSchema = {
   },
 };
 
+const setScaleTool: ToolSchema = {
+  name: 'set_scale',
+  description:
+    'Set the global scale/key constraint. When set, note pitches in sketch and edit_pattern are auto-quantized to the nearest in-scale degree. ' +
+    'Set to null for chromatic/atonal work. Updates are atomic — the entire scale is replaced.',
+  parameters: {
+    type: 'object',
+    properties: {
+      root: {
+        type: 'integer',
+        description: 'Root note as pitch class: 0=C, 1=C#, 2=D, 3=D#, 4=E, 5=F, 6=F#, 7=G, 8=G#, 9=A, 10=A#, 11=B.',
+      },
+      mode: {
+        type: 'string',
+        enum: [
+          'major', 'minor', 'dorian', 'phrygian', 'lydian',
+          'mixolydian', 'aeolian', 'locrian',
+          'harmonic-minor', 'melodic-minor',
+          'pentatonic', 'minor-pentatonic', 'blues',
+          'chromatic', 'whole-tone',
+        ],
+        description: 'Scale mode.',
+      },
+      clear: {
+        type: 'boolean',
+        description: 'Set to true to clear the scale constraint (chromatic/atonal). When true, root and mode are ignored.',
+      },
+    },
+  },
+};
+
 const setSectionTool: ToolSchema = {
   name: 'set_section',
   description:
@@ -1072,4 +1103,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   reportBugTool,
   setIntentTool,
   setSectionTool,
+  setScaleTool,
 ];

@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, SendSnapshot, BugReport } from './types';
+import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, SendSnapshot, BugReport, ScaleSnapshot } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -22,6 +22,7 @@ import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulator
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef } from './session';
 import { setPatternLength, clearPattern } from './pattern-primitives';
+import { quantizePitch, scaleToString } from './scale';
 
 /**
  * Extract sorted rhythm positions (the `at` values of note and trigger events)
@@ -501,6 +502,10 @@ export function prevalidateAction(
       // No side-effect guards — session metadata, not musical mutation
       return null;
 
+    case 'set_scale':
+      // No side-effect guards — session metadata, not musical mutation
+      return null;
+
     case 'set_mute_solo': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
@@ -906,6 +911,17 @@ export function executeOperations(
             });
           }
 
+          // Auto-quantize note pitches to the session scale when set
+          if (next.scale) {
+            sketchEvents = sketchEvents.map(e => {
+              if (e.kind === 'note' && 'pitch' in e) {
+                const quantized = quantizePitch(e.pitch, next.scale!);
+                if (quantized !== e.pitch) return { ...e, pitch: quantized };
+              }
+              return e;
+            });
+          }
+
           // Build updated region with new events
           const updatedRegion = normalizePatternEvents({
             ...sketchRegion,
@@ -1128,8 +1144,22 @@ export function executeOperations(
 
         const eventsBefore = targetPattern.events.length;
 
+        // Auto-quantize note pitches in add/modify operations when scale is set
+        let editOps = action.operations;
+        if (next.scale) {
+          editOps = editOps.map(op => {
+            if (op.event?.pitch !== undefined) {
+              const quantized = quantizePitch(op.event.pitch, next.scale!);
+              if (quantized !== op.event.pitch) {
+                return { ...op, event: { ...op.event, pitch: quantized } };
+              }
+            }
+            return op;
+          });
+        }
+
         // Apply edits via pattern-primitives (includes undo snapshot)
-        next = editPatternEvents(next, action.trackId, action.patternId, action.operations, action.description);
+        next = editPatternEvents(next, action.trackId, action.patternId, editOps, action.description);
 
         const updatedTrack = getTrack(next, action.trackId);
         const updatedPattern = action.patternId
@@ -1775,6 +1805,21 @@ export function executeOperations(
         next = { ...next, section: merged };
         const sectionName = action.section.name ?? next.section?.name ?? 'unnamed';
         log.push({ trackId: '', trackLabel: 'SESSION', description: `section: ${sectionName}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_scale': {
+        const prevScale = next.scale;
+        const snapshot: ScaleSnapshot = {
+          kind: 'scale',
+          prevScale,
+          timestamp: Date.now(),
+          description: action.scale ? `Set scale: ${scaleToString(action.scale)}` : 'Clear scale constraint',
+        };
+        next = { ...next, scale: action.scale, undoStack: [...next.undoStack, snapshot] };
+        const label = action.scale ? scaleToString(action.scale) : 'chromatic (no constraint)';
+        log.push({ trackId: '', trackLabel: 'SESSION', description: `scale: ${label}` });
         accepted.push(action);
         break;
       }

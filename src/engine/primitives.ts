@@ -215,6 +215,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     });
   }
 
+  if (snapshot.kind === 'scale') {
+    return { ...session, scale: snapshot.prevScale };
+  }
+
   if (snapshot.kind === 'master') {
     return { ...session, master: snapshot.prevMaster };
   }
@@ -495,6 +499,10 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'modulation-routing') {
     const track = getTrack(session, snapshot.trackId);
     return { ...snapshot, prevModulations: [...(track.modulations ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'scale') {
+    return { ...snapshot, prevScale: session.scale, timestamp: now };
   }
 
   if (snapshot.kind === 'master') {
