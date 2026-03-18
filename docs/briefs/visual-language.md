@@ -469,7 +469,7 @@ This work succeeds if:
 
 ## Open Questions
 
-1. **Performance budget.** Real-time colour derivation, motion sync, and ambient relationships cost GPU/CPU cycles. All visual computations must run on requestAnimationFrame, never on the audio thread, with a complexity budget that degrades gracefully.
+1. **Performance budget.** Real-time colour derivation, motion sync, and ambient relationships cost GPU/CPU cycles. All visual computations must run on requestAnimationFrame, never on the audio thread, with a complexity budget that degrades gracefully. **Critical constraint:** metabolic motion (LFO breathing, sidechain ducking, tempo-synced pulse) must NOT drive React state — at 140bpm with multiple tracks, React re-renders will choke the DOM and may cause audio glitches. Instead, pass audio-rate/control-rate data from the AudioWorklet directly to CSS custom properties or a lightweight WebGL layer via SharedArrayBuffer. The AI Score defines the animation *rules*; the audio engine drives the animation *frames*.
 
 2. **Accessibility.** Colour vision deficiency: the Score needs an alternative channel (shape via glyphs, luminance variation, or pattern). Motion sensitivity: reduced-motion mode that preserves information through other means. The glyph system helps here — identity is not colour-only.
 

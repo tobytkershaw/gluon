@@ -173,7 +173,28 @@ Stronger result:
 
 The model is more effective when the environment reports outcomes in a way that supports follow-up decisions.
 
-### 7. Align conceptual and operational truth
+### 7. Constrain to musical dimensions, don't expand to all dimensions
+
+The AI doesn't need more freedom — it needs better constraints. Every tool should shrink the possibility space to a musically meaningful subspace, not expand it.
+
+Unconstrained spaces produce mediocre results because the AI must spend its reasoning budget on thousands of micro-decisions that have nothing to do with musicality. Constrained spaces produce better results because the remaining choices are more likely to be musical.
+
+Examples:
+
+- A scale constraint eliminates wrong notes. The AI doesn't lose creativity — it gains the reason melodies sound like melodies.
+- A groove template replaces infinite micro-timing choices with a handful of feels humans recognize as groovy.
+- A motif system replaces "compose every note from scratch" with "develop 2-3 ideas coherently."
+- A tension curve replaces "manage 20 parameters independently" with "describe an energy arc."
+- Spectral slots replace "EQ every track against every other track" with "declare frequency roles."
+- Reference profiles replace "is this good?" (unbounded) with "how far from the target?" (specific).
+
+The principle is not "don't give the AI new capabilities." Adding a sampler, a new synthesis engine, or a new effect type expands what the AI can create — that's good. The principle is about how each capability *structures its interface*. A sampler should let the AI browse by musical role ("kick samples", "ambient textures") rather than by filename. A new synth should expose musically named macros rather than raw DSP parameters. An effect should have modes named after their character ("tape", "opto") rather than requiring the AI to manually configure attack/release/knee curves from first principles.
+
+The pattern: every tool should structure its parameters so that moving through the space produces musically meaningful variation. The AI's decisions should be "which groove feel?" not "what timing offset on step 7?" — "which compressor character?" not "what attack time in milliseconds?" Raw parameters can still exist for fine control, but the primary interface should be musical dimensions.
+
+This is the same insight that makes traditional instruments playable: a piano constrains you to 88 pitches in equal temperament. That constraint is why pianists can play music instead of searching an infinite frequency space. But the piano also *expanded* what was possible compared to the human voice — more range, polyphony, dynamics. The key is that it expanded capability while constraining the interface to musical dimensions.
+
+### 8. Align conceptual and operational truth
 
 One of the easiest ways to make an AI system incoherent is to let the prompt describe a world that the runtime does not actually implement.
 
