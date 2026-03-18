@@ -140,39 +140,34 @@ describe('euclidean', () => {
     expect(result.length).toBe(3);
   });
 
-  it('distributes hits evenly (3/8)', () => {
+  it('E(3,8) produces standard Bjorklund distribution', () => {
     const result = euclidean({ hits: 3, steps: 8 });
     const positions = result.map(e => e.at);
-    expect(positions.length).toBe(3);
-    // All positions within bounds
-    for (const p of positions) {
-      expect(p).toBeGreaterThanOrEqual(0);
-      expect(p).toBeLessThan(8);
-    }
-    // No duplicate positions
-    expect(new Set(positions).size).toBe(3);
-    // First hit at step 0
-    expect(positions[0]).toBe(0);
+    // Standard Bjorklund E(3,8) = [1,0,0,1,0,0,1,0] → hits at 0, 3, 6
+    expect(positions).toEqual([0, 3, 6]);
   });
 
-  it('4 hits in 16 steps are evenly distributed', () => {
+  it('E(4,16) produces maximally even spacing', () => {
     const result = euclidean({ hits: 4, steps: 16 });
     const positions = result.map(e => e.at);
-    expect(positions.length).toBe(4);
-    // All positions within bounds
-    for (const p of positions) {
-      expect(p).toBeGreaterThanOrEqual(0);
-      expect(p).toBeLessThan(16);
-    }
-    // No duplicate positions
-    expect(new Set(positions).size).toBe(4);
-    // Gaps should all be equal (evenly spaced)
-    const gaps: number[] = [];
-    for (let i = 1; i < positions.length; i++) {
-      gaps.push(positions[i] - positions[i - 1]);
-    }
-    const uniqueGaps = new Set(gaps);
-    expect(uniqueGaps.size).toBe(1); // All gaps equal
+    // Standard Bjorklund E(4,16) = hits at 0, 4, 8, 12
+    expect(positions).toEqual([0, 4, 8, 12]);
+  });
+
+  it('E(5,8) produces standard Bjorklund distribution', () => {
+    const result = euclidean({ hits: 5, steps: 8 });
+    const positions = result.map(e => e.at);
+    // Standard Bjorklund E(5,8) = [1,0,1,1,0,1,1,0] → hits at 0, 2, 3, 5, 6
+    // Wait — E(5,8) complement approach: [1,1,0,1,1,0,1,1] → 0,1,3,4,6 ...
+    // Actually standard: [10110110] → 0, 2, 3, 5, 6
+    expect(positions).toEqual([0, 2, 3, 5, 6]);
+  });
+
+  it('E(5,13) produces standard Bjorklund distribution', () => {
+    const result = euclidean({ hits: 5, steps: 13 });
+    const positions = result.map(e => e.at);
+    // Standard Bjorklund E(5,13) = [1,0,0,1,0,1,0,0,1,0,1,0,0] → 0, 3, 5, 8, 10
+    expect(positions).toEqual([0, 3, 5, 8, 10]);
   });
 
   it('applies rotation', () => {
