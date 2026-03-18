@@ -38,7 +38,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
     );
   }
 
-  const canSubmit = openaiKey.trim() && geminiKey.trim();
+  const canSubmit = openaiKey.trim() || geminiKey.trim();
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-3">
