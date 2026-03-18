@@ -780,3 +780,29 @@ export function getProcessorEngineName(type: string, index: number): string | un
   const inst = processorInstruments.get(type);
   return inst?.engines[index]?.id;
 }
+
+/** Get default parameter values for a processor type at a given model index.
+ *  Returns an empty object if the type or model is unrecognised. */
+export function getProcessorDefaultParams(type: string, modelIndex: number): Record<string, number> {
+  const inst = processorInstruments.get(type);
+  const engine = inst?.engines[modelIndex];
+  if (!engine) return {};
+  const defaults: Record<string, number> = {};
+  for (const c of engine.controls) {
+    defaults[c.id] = c.range?.default ?? 0.5;
+  }
+  return defaults;
+}
+
+/** Get default parameter values for a modulator type at a given model index.
+ *  Returns an empty object if the type or model is unrecognised. */
+export function getModulatorDefaultParams(type: string, modelIndex: number): Record<string, number> {
+  const inst = modulatorInstruments.get(type);
+  const engine = inst?.engines[modelIndex];
+  if (!engine) return {};
+  const defaults: Record<string, number> = {};
+  for (const c of engine.controls) {
+    defaults[c.id] = c.range?.default ?? 0.5;
+  }
+  return defaults;
+}
