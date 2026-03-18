@@ -46,6 +46,7 @@ import { SpectralSlotManager, FREQUENCY_BANDS } from '../engine/spectral-slots';
 import type { FrequencyBand } from '../engine/spectral-slots';
 import type { TimbralDirection } from '../engine/timbral-vocabulary';
 import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
+import { appendSpectralAdvisory } from './spectral-lint';
 
 /**
  * Infer spectral slot priority from a track's musicalRole string.
@@ -1054,14 +1055,19 @@ export class GluonAI {
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
-        return {
-          actions: [action],
-          response: {
+        const setModelResponse: Record<string, unknown> = {
             queued: true,
             trackId: action.trackId,
             model: action.model,
             ...(action.processorId ? { processorId: action.processorId } : {}),
-          },
+          };
+
+        // Spectral lint: changing a track's engine may shift its frequency profile.
+        appendSpectralAdvisory(setModelResponse, session, this.spectralSlots);
+
+        return {
+          actions: [action],
+          response: setModelResponse,
         };
       }
 
@@ -1998,15 +2004,23 @@ export class GluonAI {
               ? projectedAfterAdd.tracks.filter(t => getTrackKind(t) !== 'bus').length
               : session.tracks.filter(t => getTrackKind(t) !== 'bus').length + 1;
 
-            return {
-              actions: [addTrackAction],
-              response: {
+            const addResponse: Record<string, unknown> = {
                 queued: true,
                 kind: addTrackAction.kind,
                 ...(addTrackAction.label ? { label: addTrackAction.label } : {}),
                 trackRef: `Track ${newTrackCount}`,
                 note: `Use "Track ${newTrackCount}" to reference this track in subsequent tool calls this turn.`,
-              },
+              };
+
+            // Spectral lint: check if the projected session (after adding the track)
+            // warrants an advisory about unslotted tracks.
+            if (projectedAfterAdd) {
+              appendSpectralAdvisory(addResponse, projectedAfterAdd, this.spectralSlots);
+            }
+
+            return {
+              actions: [addTrackAction],
+              response: addResponse,
             };
           }
           case 'remove': {

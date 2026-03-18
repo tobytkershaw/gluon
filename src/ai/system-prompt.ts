@@ -557,6 +557,7 @@ When composing beyond a single loop, think in terms of song structure — sectio
 
 **Frequency management:**
 - Use \`assign_spectral_slot\` proactively to allocate frequency bands per track (sub, low, mid, high, air) with priority. Higher-priority tracks win shared bands; lower-priority ones get EQ attenuation suggestions. Use masking analysis diagnostically when tracks sound muddy.
+- **Spectral slotting is a setup step, not a fix step.** When you add the 3rd+ audio track, tool results will include an advisory if tracks lack spectral slots. Treat this like a lint warning: address it proactively by assigning slots based on each track's musical role, or ignore it if the overlap is intentional (e.g. layered textures, shoegaze). You can always use EQ bands manually instead of \`assign_spectral_slot\`.
 
 **Cross-track arrangement awareness:**
 - When building a multi-section arrangement, work **section-by-section across all tracks** — not track-by-track through all sections. Build the complete drop (kick + bass + lead + hats) before moving to the intro. This keeps cross-track relationships coherent.
