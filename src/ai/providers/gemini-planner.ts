@@ -24,6 +24,16 @@ interface ExchangeBoundary {
 interface TokenUsage {
   promptTokens: number;
   outputTokens: number;
+  cachedTokens: number;
+}
+
+/** Fast change-detection hash — NOT cryptographic, just for cache invalidation. */
+function simpleHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash + str.charCodeAt(i)) | 0;
+  }
+  return hash.toString(36);
 }
 
 export class GeminiPlannerProvider implements PlannerProvider {
@@ -35,6 +45,11 @@ export class GeminiPlannerProvider implements PlannerProvider {
   private pendingContents: Content[] = [];
   private exchangeBoundaries: ExchangeBoundary[] = [];
   private lastUsage: TokenUsage | null = null;
+
+  // Context caching (Phase 1b, #785)
+  private cachedContentName: string | null = null;
+  private cachedContentHash: string | null = null;
+  private cacheUnsupported = false;
 
   constructor(apiKey: string) {
     this.ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
@@ -99,6 +114,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
     this.pendingContents = [];
     this.exchangeBoundaries = [];
     this.backoff = { until: 0, delay: 0 };
+    void this.deleteCache();
   }
 
   restoreHistory(messages: ChatMessage[]): void {
@@ -171,18 +187,121 @@ export class GeminiPlannerProvider implements PlannerProvider {
     return this.exchangeBoundaries.length;
   }
 
-  private async generate(systemPrompt: string, tools: ToolSchema[], onStreamText?: StreamTextCallback): Promise<GenerateResult> {
-    if (!this.ai) throw new ProviderError('API not configured.', 'auth');
+  // ---------------------------------------------------------------------------
+  // Context caching (Phase 1b, #785)
+  // ---------------------------------------------------------------------------
 
-    const now = Date.now();
-    if (now < this.backoff.until) {
-      throw new ProviderError('Rate limited — backing off.', 'rate_limited', this.backoff.until - now);
+  /**
+   * Ensure a Gemini cached content resource exists for the current system
+   * prompt + tool declarations. Returns the cache name if available, or null
+   * to fall back to inline config.
+   */
+  private async ensureCache(
+    systemPrompt: string,
+    geminiDeclarations: ReturnType<typeof toGeminiDeclarations>,
+  ): Promise<string | null> {
+    if (this.cacheUnsupported || !this.ai) return null;
+
+    const hash = simpleHash(systemPrompt + JSON.stringify(geminiDeclarations));
+
+    // Cache is still valid and content hasn't changed
+    if (hash === this.cachedContentHash && this.cachedContentName) {
+      return this.cachedContentName;
     }
 
-    const contents = [...this.permanentContents, ...this.pendingContents];
-    const geminiDeclarations = toGeminiDeclarations(tools);
+    // Content changed — delete old cache first
+    if (this.cachedContentName) {
+      await this.deleteCache();
+    }
 
-    const requestConfig = {
+    try {
+      const cache = await this.ai.caches.create({
+        model: MODEL,
+        config: {
+          systemInstruction: systemPrompt,
+          tools: [{ functionDeclarations: geminiDeclarations }],
+          displayName: 'gluon-session',
+          ttl: '600s',
+        },
+      });
+      this.cachedContentName = cache.name ?? null;
+      this.cachedContentHash = hash;
+      return this.cachedContentName;
+    } catch (error) {
+      const status =
+        (error as { status?: number }).status ??
+        (error as { httpStatusCode?: number }).httpStatusCode;
+
+      // Permanent client error (except 429 rate-limit) → disable caching
+      if (status && status >= 400 && status < 500 && status !== 429) {
+        this.cacheUnsupported = true;
+      }
+      // Transient (5xx, network, quota) → fall back for this request only
+      return null;
+    }
+  }
+
+  /**
+   * Best-effort delete of the current cache resource. Captures the name
+   * synchronously, then clears local state before the async delete so
+   * concurrent calls never double-delete.
+   */
+  private async deleteCache(): Promise<void> {
+    const nameToDelete = this.cachedContentName;
+    this.cachedContentName = null;
+    this.cachedContentHash = null;
+
+    if (!nameToDelete || !this.ai) return;
+
+    try {
+      await this.ai.caches.delete({ name: nameToDelete });
+    } catch {
+      // Best-effort — swallow errors (cache may have already expired)
+    }
+  }
+
+  /**
+   * Returns true if the error indicates the cached content resource no longer
+   * exists (expired or deleted). This is NOT a permanent unsupported signal —
+   * just means we need to recreate the cache.
+   */
+  private isStaleCacheError(error: unknown): boolean {
+    const status =
+      (error as { status?: number }).status ??
+      (error as { httpStatusCode?: number }).httpStatusCode;
+    if (status === 404) return true;
+
+    const msg = error instanceof Error ? error.message : String(error);
+    return /cached.*not.found|not.found.*cached/i.test(msg);
+  }
+
+  /**
+   * Build the request config, using cached content when available or falling
+   * back to inline system instruction + tools.
+   */
+  private buildRequestConfig(
+    contents: Content[],
+    systemPrompt: string,
+    geminiDeclarations: ReturnType<typeof toGeminiDeclarations>,
+    cacheName: string | null,
+  ) {
+    if (cacheName) {
+      return {
+        model: MODEL,
+        contents: [...contents],
+        config: {
+          cachedContent: cacheName,
+          maxOutputTokens: 16384,
+          toolConfig: {
+            functionCallingConfig: {
+              mode: FunctionCallingConfigMode.AUTO,
+            },
+          },
+        },
+      };
+    }
+
+    return {
       model: MODEL,
       contents: [...contents],
       config: {
@@ -196,6 +315,23 @@ export class GeminiPlannerProvider implements PlannerProvider {
         },
       },
     };
+  }
+
+  private async generate(systemPrompt: string, tools: ToolSchema[], onStreamText?: StreamTextCallback): Promise<GenerateResult> {
+    if (!this.ai) throw new ProviderError('API not configured.', 'auth');
+
+    const now = Date.now();
+    if (now < this.backoff.until) {
+      throw new ProviderError('Rate limited — backing off.', 'rate_limited', this.backoff.until - now);
+    }
+
+    const contents = [...this.permanentContents, ...this.pendingContents];
+    const geminiDeclarations = toGeminiDeclarations(tools);
+
+    // Try to use cached content for system prompt + tools
+    const cacheName = await this.ensureCache(systemPrompt, geminiDeclarations);
+
+    let requestConfig = this.buildRequestConfig(contents, systemPrompt, geminiDeclarations, cacheName);
 
     const textParts: string[] = [];
     const functionCalls: NeutralFunctionCall[] = [];
@@ -212,7 +348,19 @@ export class GeminiPlannerProvider implements PlannerProvider {
       try {
         stream = await this.ai.models.generateContentStream(requestConfig);
       } catch (error) {
-        throw this.translateError(error);
+        // Stale cache retry — if the cached resource expired, rebuild inline and retry once
+        if (cacheName && this.isStaleCacheError(error)) {
+          this.cachedContentName = null;
+          this.cachedContentHash = null;
+          requestConfig = this.buildRequestConfig(contents, systemPrompt, geminiDeclarations, null);
+          try {
+            stream = await this.ai.models.generateContentStream(requestConfig);
+          } catch (retryError) {
+            throw this.translateError(retryError);
+          }
+        } else {
+          throw this.translateError(error);
+        }
       }
 
       this.backoff = { until: 0, delay: 0 };
@@ -221,7 +369,7 @@ export class GeminiPlannerProvider implements PlannerProvider {
       // Each chunk may contribute to an existing text part or start a new one.
       let currentTextPartIndex = -1;
       let lastFinishReason: string | undefined;
-      let lastUsageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number } | undefined;
+      let lastUsageMetadata: { promptTokenCount?: number; candidatesTokenCount?: number; cachedContentTokenCount?: number } | undefined;
 
       try {
         for await (const chunk of stream) {
@@ -277,9 +425,10 @@ export class GeminiPlannerProvider implements PlannerProvider {
         this.lastUsage = {
           promptTokens: lastUsageMetadata.promptTokenCount ?? 0,
           outputTokens: lastUsageMetadata.candidatesTokenCount ?? 0,
+          cachedTokens: lastUsageMetadata.cachedContentTokenCount ?? 0,
         };
         console.debug(
-          `[gluon-ai] token usage: prompt=${this.lastUsage.promptTokens}, output=${this.lastUsage.outputTokens}`,
+          `[gluon-ai] token usage: prompt=${this.lastUsage.promptTokens}, output=${this.lastUsage.outputTokens}, cached=${this.lastUsage.cachedTokens}`,
         );
       }
     } else {
@@ -288,7 +437,19 @@ export class GeminiPlannerProvider implements PlannerProvider {
       try {
         response = await this.ai.models.generateContent(requestConfig);
       } catch (error) {
-        throw this.translateError(error);
+        // Stale cache retry — if the cached resource expired, rebuild inline and retry once
+        if (cacheName && this.isStaleCacheError(error)) {
+          this.cachedContentName = null;
+          this.cachedContentHash = null;
+          requestConfig = this.buildRequestConfig(contents, systemPrompt, geminiDeclarations, null);
+          try {
+            response = await this.ai.models.generateContent(requestConfig);
+          } catch (retryError) {
+            throw this.translateError(retryError);
+          }
+        } else {
+          throw this.translateError(error);
+        }
       }
 
       this.backoff = { until: 0, delay: 0 };
@@ -298,9 +459,10 @@ export class GeminiPlannerProvider implements PlannerProvider {
         this.lastUsage = {
           promptTokens: response.usageMetadata.promptTokenCount ?? 0,
           outputTokens: response.usageMetadata.candidatesTokenCount ?? 0,
+          cachedTokens: (response.usageMetadata as { cachedContentTokenCount?: number }).cachedContentTokenCount ?? 0,
         };
         console.debug(
-          `[gluon-ai] token usage: prompt=${this.lastUsage.promptTokens}, output=${this.lastUsage.outputTokens}`,
+          `[gluon-ai] token usage: prompt=${this.lastUsage.promptTokens}, output=${this.lastUsage.outputTokens}, cached=${this.lastUsage.cachedTokens}`,
         );
       }
 
