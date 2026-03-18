@@ -177,7 +177,7 @@ Add, remove, replace, or bypass a processor module in a track's signal chain. Ma
 |-----------|------|----------|-------------|
 | `action` | string | yes | `add`, `remove`, `replace`, or `bypass`. |
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
-| `moduleType` | string | no | Required for `add` and `replace`. Available: `rings` (Mutable Instruments Rings resonator), `clouds` (Mutable Instruments Clouds granular processor), `ripples` (Mutable Instruments Ripples analog filter — LP/BP/HP), `eq` (parametric EQ — 4-band and 8-band mixing), `compressor` (dynamics compressor with character modes). |
+| `moduleType` | string | no | Required for `add` and `replace`. Available: `rings` (Mutable Instruments Rings resonator), `clouds` (Mutable Instruments Clouds granular processor), `beads` (Mutable Instruments Beads granular processor), `ripples` (Mutable Instruments Ripples analog filter — LP/BP/HP), `warps` (Mutable Instruments Warps waveshaper/modulator), `elements` (Mutable Instruments Elements modal synthesis), `eq` (parametric EQ — 4-band and 8-band mixing), `compressor` (dynamics compressor with character modes), `stereo` (stereo width/imaging), `chorus` (chorus/ensemble effect), `distortion` (distortion/saturation). |
 | `processorId` | string | no | Required for `remove`, `replace`, and `bypass`. The processor ID to target (visible in project state). |
 | `enabled` | boolean | no | For `bypass`: false to bypass (audio skips it), true to re-enable. For `add`: add in bypassed state. |
 | `description` | string | yes | Short description (e.g. "add Rings resonator for metallic texture"). |
@@ -316,11 +316,14 @@ Set semantic labels for the track's XY pad axes. Does not require agency.
 
 #### `set_track_meta`
 
-Set track metadata: muted, solo, approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.
+Set track metadata: name, volume, pan, muted, solo, approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
+| `name` | string | no | Display name for the track (e.g. "Kick", "Lead Synth"). |
+| `volume` | number | no | Track volume (0.0-1.0, linear gain). |
+| `pan` | number | no | Track pan (-1.0 left to 1.0 right). |
 | `muted` | boolean | no | Set the track muted state. true = muted (silent), false = unmuted. |
 | `solo` | boolean | no | Set the track solo state. true = solo (only this track audible), false = unsolo. |
 | `approval` | string | no | Approval level: `exploratory`, `liked`, `approved`, `anchor`. |
@@ -772,7 +775,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 8. `listen` works regardless of transport state (offline render).
 9. `set_transport` requires at least one of `bpm`, `swing`, `playing`, `timeSignatureNumerator`, or `timeSignatureDenominator`.
 10. `processorId` in `move`, `set_model`, and `manage_processor` (remove/replace/bypass) must reference an existing processor on the target track.
-11. `moduleType` in `manage_processor` (add/replace) must be a registered processor type (`rings`, `clouds`, `ripples`, `eq`, `compressor`).
+11. `moduleType` in `manage_processor` (add/replace) must be a registered processor type (`rings`, `clouds`, `beads`, `ripples`, `warps`, `elements`, `eq`, `compressor`, `stereo`, `chorus`, `distortion`).
 12. `modulatorId` in `move`, `set_model`, and `manage_modulator` (remove) must reference an existing modulator on the target track.
 13. `moduleType` in `manage_modulator` (add) must be a registered modulator type (`tides`).
 14. Max **2 processors** and **2 modulators** per track.
