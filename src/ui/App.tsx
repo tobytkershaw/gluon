@@ -810,19 +810,27 @@ export default function App() {
     ensureAudio();
     setSession((s) => {
       const msg = s.messages[messageIndex];
-      if (!msg || msg.undoStackIndex == null) return s;
-      // Only allow undo when the message's entry is on top of the stack
-      if (msg.undoStackIndex !== s.undoStack.length - 1) return s;
-      const undone = applyUndo(s);
+      if (!msg?.undoStackRange) return s;
+      const { start, end } = msg.undoStackRange;
+      // Only allow undo when the entire turn is contiguous at the top of the stack
+      if (end !== s.undoStack.length - 1) return s;
+
+      let result = s;
+      const count = end - start + 1;
+      for (let i = 0; i < count; i++) {
+        result = applyUndo(result);
+      }
+
+      const topEntry = s.undoStack[end];
+      const description = topEntry?.description ?? 'AI turn';
       const now = Date.now();
-      // Clear the undoStackIndex on the message so the button disappears
-      const updatedMessages = undone.messages.map((m, i) =>
-        i === messageIndex ? { ...m, undoStackIndex: undefined } : m,
+      const updatedMessages = result.messages.map((m, i) =>
+        i === messageIndex ? { ...m, undoStackRange: undefined } : m,
       );
       return {
-        ...undone,
+        ...result,
         recentHumanActions: [
-          ...undone.recentHumanActions,
+          ...result.recentHumanActions,
           { kind: 'undo' as const, description, timestamp: now },
         ].slice(-20),
         messages: updatedMessages,
@@ -960,10 +968,6 @@ export default function App() {
 
       // Push updated session to React for rendering
       setSession(() => updatedSession);
-
-      // Reset streaming text between steps
-      accumulated = '';
-      setStreamingText('');
     };
 
     try {
@@ -974,8 +978,8 @@ export default function App() {
       // Error already handled by GluonAI.handleError
     } finally {
       if (thisRequest === requestIdRef.current) {
-        // Finalize: group undo entries and create ChatMessage
-        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls));
+        // Finalize: create ChatMessage without collapsing — per-step groups are already in place
+        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false));
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');
