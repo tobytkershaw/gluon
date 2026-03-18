@@ -89,6 +89,30 @@ function parseNoteName(s: string): number {
   return midi;
 }
 
+/**
+ * Filter input characters for note name cells.
+ * Only allows characters that can form valid note names: A-G, #, b/B (flat), -, 0-9.
+ */
+function filterNoteInput(s: string): string {
+  return s.replace(/[^A-Ga-g#Bb\-0-9]/g, '');
+}
+
+/**
+ * Filter input characters for velocity cells.
+ * Only allows digits and a decimal point (for 0.0-1.0 range).
+ */
+function filterVelocityInput(s: string): string {
+  return s.replace(/[^0-9.]/g, '');
+}
+
+/**
+ * Filter input characters for duration cells.
+ * Only allows digits and a decimal point.
+ */
+function filterDurationInput(s: string): string {
+  return s.replace(/[^0-9.]/g, '');
+}
+
 function selectorFromEvent(event: MusicalEvent): EventSelector {
   if (event.kind === 'parameter') {
     return { at: event.at, kind: 'parameter', controlId: (event as ParameterEvent).controlId };
@@ -109,6 +133,7 @@ function EditableCell({
   parse,
   cancelEditRef,
   validate,
+  filterInput,
   editRequested,
   placeholder,
   autoCapitalize: autoCapProp,
@@ -123,6 +148,8 @@ function EditableCell({
   cancelEditRef?: MutableRefObject<boolean>;
   /** Optional validation -- returns true if valid. When false, flash red and stay in edit mode. */
   validate?: (s: string) => boolean;
+  /** Optional per-character input filter. Returns the sanitised string (only valid chars). */
+  filterInput?: (s: string) => string;
   /** When this increments, start editing programmatically (from keyboard Enter). */
   editRequested?: number;
   /** Default value to show when editing a placeholder cell (e.g. "C-4" for empty note slots). Text is auto-selected. */
@@ -208,7 +235,11 @@ function EditableCell({
         }`}
         style={autoCapProp ? { textTransform: 'uppercase' } : undefined}
         value={draft}
-        onChange={(e) => setDraft(autoCapProp ? e.target.value.toUpperCase() : e.target.value)}
+        onChange={(e) => {
+          let v = autoCapProp ? e.target.value.toUpperCase() : e.target.value;
+          if (filterInput) v = filterInput(v);
+          setDraft(v);
+        }}
         onFocus={(e) => {
           if (selectAllOnFocus.current) {
             e.currentTarget.select();
@@ -216,6 +247,13 @@ function EditableCell({
           }
         }}
         onBlur={handleBlur}
+        onPaste={filterInput ? (e) => {
+          e.preventDefault();
+          const pasted = e.clipboardData.getData('text');
+          let filtered = autoCapProp ? pasted.toUpperCase() : pasted;
+          filtered = filterInput(filtered);
+          if (filtered) setDraft(filtered);
+        } : undefined}
         onKeyDown={(e) => {
           if (e.key === 'Enter') tryCommit();
           if (e.key === 'Escape') cancel();
@@ -288,6 +326,7 @@ function NoteColumnCell({
             if (trimmed === '' || trimmed === '---') return true; // allow clearing (no-op for empty)
             return !isNaN(parseNoteName(s));
           }}
+          filterInput={filterNoteInput}
           cancelEditRef={cancelEditRef}
           editRequested={isCursor ? editRequested : undefined}
           placeholder="C-4"
@@ -324,6 +363,7 @@ function NoteColumnCell({
             if (trimmed === '' || trimmed === '---') return true; // allow clearing → delete
             return !isNaN(parseNoteName(s));
           }}
+          filterInput={filterNoteInput}
           cancelEditRef={cancelEditRef}
           editRequested={isCursor ? editRequested : undefined}
           autoCapitalize
@@ -522,6 +562,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           value={vel.toFixed(2)}
           onCommit={(v) => onUpdate!(selector, { velocity: Math.max(0, Math.min(1, v)) })}
           validate={validateVelocity}
+          filterInput={filterVelocityInput}
           cancelEditRef={cancelEditRef}
           editRequested={velEditReq}
         />
@@ -534,6 +575,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           value={vel.toFixed(2)}
           onCommit={(v) => onUpdate!(selector, { velocity: Math.max(0, Math.min(1, v)) })}
           validate={validateVelocity}
+          filterInput={filterVelocityInput}
           cancelEditRef={cancelEditRef}
           editRequested={velEditReq}
         />
@@ -549,6 +591,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={dur.toFixed(2)}
           onCommit={(v) => onUpdate!(selector, { duration: Math.max(0.01, v) })}
+          filterInput={filterDurationInput}
           cancelEditRef={cancelEditRef}
           editRequested={durEditReq}
         />
@@ -560,6 +603,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         <EditableCell
           value={gate.toFixed(2)}
           onCommit={(v) => onUpdate!(selector, { gate: Math.max(0.01, v) } as Partial<MusicalEvent>)}
+          filterInput={filterDurationInput}
           cancelEditRef={cancelEditRef}
           editRequested={durEditReq}
         />
