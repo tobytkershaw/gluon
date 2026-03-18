@@ -20,7 +20,7 @@ Change a control parameter value on a track source, processor, or modulator.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `param` | string | yes | Control ID. Track source (Plaits): `frequency`, `harmonics`, `timbre`, `morph`, `timbre-mod-amount`, `fm-amount`, `morph-mod-amount`, `decay`, `lpg-colour`. Processor (Rings): `structure`, `brightness`, `damping`, `position`, `fine-tune`, `internal-exciter`, `polyphony`. Processor (Clouds): `position`, `size`, `pitch`, `density`, `texture`, `dry-wet`, `feedback`, `stereo-spread`, `reverb`, `freeze`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`, `shift`, `output-mode`, `range`. |
+| `param` | string | yes | Control ID. Track source (Plaits): `frequency`, `harmonics`, `timbre`, `morph`, `timbre-mod-amount`, `fm-amount`, `morph-mod-amount`, `decay`, `lpg-colour`. Processor (Rings): `structure`, `brightness`, `damping`, `position`, `fine-tune`, `internal-exciter`, `polyphony`. Processor (Clouds): `position`, `size`, `pitch`, `density`, `texture`, `dry-wet`, `feedback`, `stereo-spread`, `reverb`, `freeze`. Processor (Ripples): `cutoff`, `resonance`, `drive`. Processor (EQ): `low-freq`, `low-gain`, `mid1-freq`, `mid1-gain`, `mid1-q`, `mid2-freq`, `mid2-gain`, `mid2-q`, `high-freq`, `high-gain`. Processor (Compressor): `threshold`, `ratio`, `attack`, `release`, `makeup`, `mix`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`, `shift`, `output-mode`, `range`. |
 | `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
 | `trackId` | string | no | Target track — ordinal ("Track 1") or internal ID ("v0"). Defaults to active track. |
 | `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the track source. |
@@ -36,13 +36,18 @@ Apply a rhythmic or melodic pattern to a track using musical events.
 | `trackId` | string | yes | Target track ID |
 | `description` | string | yes | Short human-readable summary |
 | `events` | array | yes | Sparse list of musical events (see below) |
+| `humanize` | number | no | Humanize amount (0.0–1.0). Adds subtle velocity and timing jitter. 0.3 is a good default. |
+| `groove` | string | no | Groove template: `straight`, `mpc_swing`, `808_shuffle`, `garage`, `techno_drive`, `laid_back`, `dnb_break`, `dilla`. Applies systematic per-instrument micro-timing. |
+| `groove_amount` | number | no | Groove intensity (0.0–1.0, default 0.7). |
 
 **Event kinds:**
-- `trigger` — percussion hit. Fields: `at` (step index, 0-based), `velocity` (0.0–1.0), `accent` (boolean)
+- `trigger` — percussion hit. Fields: `at` (step position), `velocity` (0.0–1.0), `accent` (boolean)
 - `note` — melodic note. Fields: `at`, `pitch` (MIDI 0–127), `velocity`, `duration` (gate length in steps: 0.25 = staccato, 0.5 = normal, 1.0 = legato, 2.0+ = sustained)
 - `parameter` — per-step param lock. Fields: `at`, `controlId` (control name), `value` (0.0–1.0)
 
-Fractional `at` values are supported for microtiming (e.g., `4.3` places an event slightly after step 4).
+**Step addressing:** The `at` field accepts two formats:
+- **Numeric**: 0-based step index (e.g. `0`, `4`, `36`). Fractional values for microtiming (e.g. `4.1`).
+- **Bar.beat.sixteenth string**: `"bar.beat.sixteenth"` where all components are 1-based (e.g. `"1.1.1"` = step 0, `"3.2.1"` = step 36). Prefer this format for multi-bar patterns.
 
 #### `edit_pattern`
 
@@ -74,9 +79,16 @@ Transform an existing pattern structurally rather than rewriting it.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track ID |
-| `operation` | string | yes | `rotate`, `transpose`, `reverse`, or `duplicate` |
-| `steps` | integer | no | For `rotate`: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations. |
-| `semitones` | integer | no | For `transpose`: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations. |
+| `operation` | string | yes | `rotate`, `transpose`, `reverse`, `duplicate`, `humanize`, `euclidean`, `ghost_notes`, `swing`, `thin`, `densify` |
+| `steps` | integer | no | For `rotate`: number of steps to shift (positive=forward, negative=backward). |
+| `semitones` | integer | no | For `transpose`: semitones to shift (positive=up, negative=down). |
+| `velocity_amount` | number | no | For `humanize`: velocity jitter amount (0–1, default 0.3). |
+| `timing_amount` | number | no | For `humanize`: timing jitter amount (0–1, default 0.1). |
+| `hits` | integer | no | For `euclidean`: number of hits to distribute across the pattern length. |
+| `rotation` | integer | no | For `euclidean`: rotation offset (0 to steps-1, default 0). |
+| `velocity` | number | no | For `euclidean`/`ghost_notes`/`densify`: velocity of generated events (0–1). |
+| `probability` | number | no | For `ghost_notes`/`thin`/`densify`: probability (0–1). |
+| `amount` | number | no | For `swing`: swing amount (0–1). 0=straight, 1=maximum triplet feel. |
 | `description` | string | yes | Short description of the transform intent |
 
 ### Observation
@@ -106,12 +118,14 @@ Capture an audio snapshot with explicit scope. Returns a `snapshotId` that can b
 
 #### `analyze`
 
-Run deterministic audio analysis on a rendered snapshot. Supports spectral, dynamics, and rhythm analysis in a single call. Use `render` first to capture a snapshot, then `analyze` for quantitative measurement.
+Run deterministic audio analysis on a rendered snapshot. Supports spectral, dynamics, rhythm, masking, and diff analysis in a single call. Use `render` first to capture a snapshot, then `analyze` for quantitative measurement.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `snapshotId` | string | yes | Snapshot ID from a previous `render` call. |
-| `types` | string[] | yes | Analysis types: `spectral` (centroid, rolloff, flatness, bandwidth, pitch), `dynamics` (LUFS, RMS, peak, crest factor), `rhythm` (tempo estimate, onsets, density, swing). |
+| `snapshotId` | string | conditional | Snapshot ID from a previous `render` call. Used for spectral, dynamics, rhythm, and diff (as the "after" snapshot). |
+| `compareSnapshotId` | string | no | Snapshot ID for the "before" state in diff analysis. Required when `types` includes `diff`. |
+| `snapshotIds` | string[] | no | Multiple snapshot IDs for cross-track masking analysis. Render each track separately, then pass all IDs here. |
+| `types` | string[] | yes | Analysis types: `spectral` (centroid, rolloff, flatness, bandwidth, pitch), `dynamics` (LUFS, RMS, peak, crest factor), `rhythm` (tempo estimate, onsets, density, swing), `masking` (cross-track frequency conflict detection — requires `snapshotIds`), `diff` (before/after comparison with structured deltas — requires `snapshotId` + `compareSnapshotId`). |
 
 ### Transport
 
@@ -150,7 +164,7 @@ Switch the mode of a module. Without `processorId`/`modulatorId`, changes the tr
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track ID |
-| `model` | string | yes | Model/mode ID. Track: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. Clouds: `granular`, `pitch-shifter`, `looping-delay`, `spectral`. Tides: `ad`, `looping`, `ar`. |
+| `model` | string | yes | Model/mode ID. Track: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. Clouds: `granular`, `pitch-shifter`, `looping-delay`, `spectral`. Ripples: `lp2`, `lp4`, `bp2`, `hp2`. EQ: `4band`, `8band`. Compressor: `clean`, `opto`, `bus`, `limit`. Tides: `ad`, `looping`, `ar`. |
 | `processorId` | string | no | Processor ID to target. When provided, switches the processor's mode instead of the track's synthesis engine. |
 | `modulatorId` | string | no | Modulator ID to target. When provided, switches the modulator's mode (e.g. AD, Looping, AR for Tides). |
 
@@ -162,7 +176,7 @@ Add, remove, replace, or bypass a processor module in a track's signal chain. Ma
 |-----------|------|----------|-------------|
 | `action` | string | yes | `add`, `remove`, `replace`, or `bypass`. |
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
-| `moduleType` | string | no | Required for `add` and `replace`. Available: `rings` (Mutable Instruments Rings resonator), `clouds` (Mutable Instruments Clouds granular processor). |
+| `moduleType` | string | no | Required for `add` and `replace`. Available: `rings` (Mutable Instruments Rings resonator), `clouds` (Mutable Instruments Clouds granular processor), `ripples` (Mutable Instruments Ripples analog filter — LP/BP/HP), `eq` (parametric EQ — 4-band and 8-band mixing), `compressor` (dynamics compressor with character modes). |
 | `processorId` | string | no | Required for `remove`, `replace`, and `bypass`. The processor ID to target (visible in project state). |
 | `enabled` | boolean | no | For `bypass`: false to bypass (audio skips it), true to re-enable. For `add`: add in bypassed state. |
 | `description` | string | yes | Short description (e.g. "add Rings resonator for metallic texture"). |
@@ -439,7 +453,7 @@ Each turn, the AI receives compressed session state as JSON:
       "pattern": {
         "length": 16,
         "event_count": 4,
-        "triggers": [0, 4, 8, 12],
+        "triggers": [{ "at": 0, "vel": 1.0 }, { "at": 4, "vel": 0.85 }, { "at": 8, "vel": 0.9 }, { "at": 12, "vel": 0.85 }],
         "notes": [],
         "accents": [0, 8],
         "param_locks": [],
@@ -475,8 +489,10 @@ Each turn, the AI receives compressed session state as JSON:
       "musicalRole": "driving rhythm"
     }
   ],
+  "track_count": 1,
+  "soft_track_cap": 16,
   "activeTrackId": "v0",
-  "transport": { "bpm": 120, "swing": 0.00, "playing": true, "time_signature": "4/4" },
+  "transport": { "bpm": 120, "swing": 0.00, "playing": true, "mode": "pattern", "loop": true, "time_signature": "4/4" },
   "context": { "energy": 0.50, "density": 0.30 },
   "undo_depth": 2,
   "redo_depth": 1,
@@ -498,13 +514,15 @@ Fields:
 - **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`
 - **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
 - **volume** / **pan** — track mix levels (0.0–1.0)
-- **pattern** — canonical event summary with trigger positions, notes, accents, param locks, and density
+- **pattern** — canonical event summary with triggers (`{at, vel}`), notes (`{at, pitch, vel}`), accents, param locks, and density
+- **track_count** — total number of tracks in the session
+- **soft_track_cap** — maximum recommended track count (currently 16)
 - **activeTrackId** — the track the human currently has selected
 - **views** — list of active sequencer views (`kind:id` format)
 - **processors** — processor chain with IDs, types, models, current parameter values, and enabled state
 - **modulators** — modulator modules with IDs, types, current mode names, and parameter values
 - **modulations** — modulation routings with IDs, source modulator, target (e.g. `"source:timbre"` or `"processor:rings-xxx:position"`), and depth
-- **transport** — tempo, swing, playing state, and time signature (e.g. "4/4")
+- **transport** — tempo, swing, playing state, mode (`pattern` or `song`), loop flag, and time signature (e.g. "4/4")
 - **context** — global energy and density (0.0–1.0)
 - **undo_depth** — how many action groups can be undone
 - **redo_depth** — how many action groups can be redone (Cmd+Shift+Z)
@@ -522,6 +540,8 @@ Fields:
 - **sends** — (optional per track) bus send levels
 - **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
+- **scale** — (optional) global key/scale constraint: `root` (pitch class 0–11), `mode`, `label` (e.g. "C major"), `notes` (available note names). `null` when explicitly cleared.
+- **userSelection** — (optional) active Tracker selection: `trackId`, `stepRange` ([start, end]), `eventCount`. Present only when the human has selected events.
 
 ---
 
@@ -574,6 +594,52 @@ Ten controls, all 0.0–1.0 (freeze is boolean):
 | **reverb**        | Built-in reverb amount.                                         |
 | **freeze**        | Freeze the recording buffer (boolean).                          |
 
+### Processor (Ripples)
+
+Three controls, all 0.0–1.0:
+
+| Control        | Meaning                                                      |
+|---------------|--------------------------------------------------------------|
+| **cutoff**     | Filter cutoff frequency. Low = dark, high = open.            |
+| **resonance**  | Filter resonance / Q. At maximum, self-oscillates.           |
+| **drive**      | Input saturation before filtering. Adds warmth and harmonics.|
+
+Modes: `lp2` (12dB/oct low-pass), `lp4` (24dB/oct low-pass, Moog-style), `bp2` (band-pass), `hp2` (high-pass).
+
+### Processor (EQ)
+
+Ten controls, all 0.0–1.0:
+
+| Control        | Meaning                                                      |
+|---------------|--------------------------------------------------------------|
+| **low-freq**   | Low shelf frequency (20–500Hz).                              |
+| **low-gain**   | Low shelf gain. 0.5 = unity (0dB).                           |
+| **mid1-freq**  | Mid band 1 center frequency (100–8kHz).                      |
+| **mid1-gain**  | Mid band 1 gain. 0.5 = unity.                                |
+| **mid1-q**     | Mid band 1 bandwidth. 0 = wide, 1 = narrow.                 |
+| **mid2-freq**  | Mid band 2 center frequency (100–8kHz).                      |
+| **mid2-gain**  | Mid band 2 gain. 0.5 = unity.                                |
+| **mid2-q**     | Mid band 2 bandwidth. 0 = wide, 1 = narrow.                 |
+| **high-freq**  | High shelf frequency (1–20kHz).                              |
+| **high-gain**  | High shelf gain. 0.5 = unity.                                |
+
+Modes: `4band` (low shelf + 2 peaking mids + high shelf), `8band` (low shelf + 6 peaking mids + high shelf).
+
+### Processor (Compressor)
+
+Six controls, all 0.0–1.0:
+
+| Control        | Meaning                                                      |
+|---------------|--------------------------------------------------------------|
+| **threshold**  | Level above which compression begins. 0 = heavy, 1 = none.  |
+| **ratio**      | Compression ratio. Low = gentle, high = aggressive.          |
+| **attack**     | Reaction speed. Low = fast (punchy), high = slow (transient-preserving). |
+| **release**    | Recovery speed. In opto mode this is program-dependent.      |
+| **makeup**     | Output gain compensation.                                     |
+| **mix**        | Dry/wet blend for parallel compression.                       |
+
+Modes: `clean` (transparent VCA), `opto` (LA-2A style), `bus` (SSL glue), `limit` (brickwall limiter).
+
 ### Modulator (Tides)
 
 Seven controls (output-mode and range are discrete, rest 0.0–1.0):
@@ -599,14 +665,14 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 1. All param values are **0.0–1.0**.
 2. `trackId` must reference an existing track — accepts ordinal ("Track 1", "1") or internal ID ("v0"–"v15").
 3. Agency must be **ON** for the target track (programming, structure, and modulation tools). UI curation tools (`manage_view`, `set_surface`, `pin_control`, `label_axes`) do not require agency.
-4. `at` in events is a **0-based step index** (fractional values allowed for microtiming).
+4. `at` in events is a **0-based step index** (fractional values allowed for microtiming) or a **"bar.beat.sixteenth" string** (1-based, e.g. "1.1.1" = step 0).
 5. MIDI pitch in note events is **0–127**.
 6. `duration` in note events must be **> 0** (gate length in steps).
 7. `controlId` in parameter events must be a known control.
 8. `listen` works regardless of transport state (offline render).
 9. `set_transport` requires at least one of `bpm`, `swing`, `playing`, `timeSignatureNumerator`, or `timeSignatureDenominator`.
 10. `processorId` in `move`, `set_model`, and `manage_processor` (remove/replace/bypass) must reference an existing processor on the target track.
-11. `moduleType` in `manage_processor` (add/replace) must be a registered processor type (`rings`, `clouds`).
+11. `moduleType` in `manage_processor` (add/replace) must be a registered processor type (`rings`, `clouds`, `ripples`, `eq`, `compressor`).
 12. `modulatorId` in `move`, `set_model`, and `manage_modulator` (remove) must reference an existing modulator on the target track.
 13. `moduleType` in `manage_modulator` (add) must be a registered modulator type (`tides`).
 14. Max **2 processors** and **2 modulators** per track.

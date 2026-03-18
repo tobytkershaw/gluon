@@ -58,7 +58,7 @@ interface CompressedTrack {
   solo: boolean;
   volume: number;
   pan: number;
-  stepGrid: CompressedPattern;
+  pattern: CompressedPattern;
   regions?: CompressedPattern[];
   activePatternId?: string;
   views: string[];
