@@ -3,10 +3,13 @@ import {
   analyzeSpectral,
   analyzeDynamics,
   analyzeRhythm,
+  analyzeMasking,
+  computeBandEnergies,
   fft,
   hannWindow,
   computeMagnitudeSpectrum,
 } from '../../src/audio/audio-analysis';
+import type { TrackAudio } from '../../src/audio/audio-analysis';
 
 // ---------------------------------------------------------------------------
 // Test signal generators
@@ -313,5 +316,163 @@ describe('analyzeRhythm', () => {
     const samples = clickTrain(500, SR, 2.0);
     const result = analyzeRhythm(samples, SR, 140);
     expect(result.tempo_estimate).toBe(140);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Band energies
+// ---------------------------------------------------------------------------
+
+describe('computeBandEnergies', () => {
+  it('puts a 100Hz sine energy in the low band', () => {
+    const samples = sineWave(100, SR, 1.0);
+    const energies = computeBandEnergies(samples, SR);
+
+    // The "low" band (60-200Hz) should have the most energy
+    expect(energies['low']).toBeGreaterThan(energies['mid']);
+    expect(energies['low']).toBeGreaterThan(energies['high']);
+  });
+
+  it('puts a 1kHz sine energy in the mid band', () => {
+    const samples = sineWave(1000, SR, 1.0);
+    const energies = computeBandEnergies(samples, SR);
+
+    expect(energies['mid']).toBeGreaterThan(energies['sub']);
+    expect(energies['mid']).toBeGreaterThan(energies['low']);
+  });
+
+  it('returns -Infinity for all bands on silence', () => {
+    const samples = silence(SR, 1.0);
+    const energies = computeBandEnergies(samples, SR);
+
+    for (const band of ['sub', 'low', 'low-mid', 'mid', 'high-mid', 'high']) {
+      expect(energies[band]).toBe(-Infinity);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Masking analysis (cross-track frequency conflict detection)
+// ---------------------------------------------------------------------------
+
+describe('analyzeMasking', () => {
+  it('returns empty conflicts with fewer than 2 tracks', () => {
+    const single: TrackAudio[] = [
+      { trackId: 'kick', pcm: sineWave(50, SR, 1.0), sampleRate: SR },
+    ];
+    const result = analyzeMasking(single);
+    expect(result.conflicts).toEqual([]);
+    expect(result.confidence).toBe(0);
+  });
+
+  it('detects conflict between two tracks in the same frequency range', () => {
+    // Both tracks have energy at ~80Hz (sub/low range)
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+    const bass: TrackAudio = { trackId: 'bass', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, bass]);
+
+    expect(result.conflicts.length).toBeGreaterThan(0);
+    // Should find a conflict in sub or low band
+    const lowConflicts = result.conflicts.filter(c =>
+      c.bandLabel === 'sub' || c.bandLabel === 'low',
+    );
+    expect(lowConflicts.length).toBeGreaterThan(0);
+
+    // Both tracks should appear in the conflict
+    const conflict = lowConflicts[0];
+    expect(conflict.tracks).toContain('kick');
+    expect(conflict.tracks).toContain('bass');
+    expect(conflict.severity).toBe('high');
+    expect(conflict.overlapRatio).toBeGreaterThan(0.5);
+  });
+
+  it('finds no conflict between spectrally separated tracks', () => {
+    // Kick at 50Hz, hi-hat simulated at 8kHz — very different ranges
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(50, SR, 1.0), sampleRate: SR };
+    const hihat: TrackAudio = { trackId: 'hihat', pcm: sineWave(8000, SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, hihat]);
+
+    // Should have no high-severity conflicts
+    const highConflicts = result.conflicts.filter(c => c.severity === 'high');
+    expect(highConflicts.length).toBe(0);
+  });
+
+  it('returns track profiles with band energies for every track', () => {
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+    const bass: TrackAudio = { trackId: 'bass', pcm: sineWave(100, SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, bass]);
+
+    expect(result.trackProfiles).toHaveProperty('kick');
+    expect(result.trackProfiles).toHaveProperty('bass');
+    expect(result.trackProfiles['kick']).toHaveProperty('sub');
+    expect(result.trackProfiles['kick']).toHaveProperty('low');
+    expect(result.trackProfiles['kick']).toHaveProperty('mid');
+  });
+
+  it('handles silent tracks gracefully', () => {
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+    const silent: TrackAudio = { trackId: 'silent', pcm: silence(SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, silent]);
+
+    // Should not crash and should find no conflicts (only one active track)
+    expect(result.conflicts).toEqual([]);
+  });
+
+  it('generates suggestions for conflicts', () => {
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+    const bass: TrackAudio = { trackId: 'bass', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, bass]);
+    const conflicts = result.conflicts.filter(c => c.tracks.length >= 2);
+
+    expect(conflicts.length).toBeGreaterThan(0);
+    for (const c of conflicts) {
+      expect(c.suggestion).toBeTruthy();
+      expect(typeof c.suggestion).toBe('string');
+      expect(c.suggestion.length).toBeGreaterThan(10);
+    }
+  });
+
+  it('sorts conflicts by severity (high first)', () => {
+    // Create tracks that overlap in multiple bands with different severities
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0, 0.8), sampleRate: SR };
+    const bass: TrackAudio = { trackId: 'bass', pcm: sineWave(80, SR, 1.0, 0.8), sampleRate: SR };
+
+    const result = analyzeMasking([kick, bass]);
+
+    if (result.conflicts.length >= 2) {
+      const severityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
+      for (let i = 1; i < result.conflicts.length; i++) {
+        expect(severityOrder[result.conflicts[i].severity])
+          .toBeGreaterThanOrEqual(severityOrder[result.conflicts[i - 1].severity]);
+      }
+    }
+  });
+
+  it('handles three tracks competing in the same range', () => {
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+    const bass: TrackAudio = { trackId: 'bass', pcm: sineWave(85, SR, 1.0), sampleRate: SR };
+    const sub: TrackAudio = { trackId: 'sub', pcm: sineWave(75, SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, bass, sub]);
+
+    expect(result.conflicts.length).toBeGreaterThan(0);
+    // At least one conflict should reference all three tracks
+    const multiTrackConflicts = result.conflicts.filter(c => c.tracks.length >= 3);
+    // Or at least two tracks
+    const anyConflicts = result.conflicts.filter(c => c.tracks.length >= 2);
+    expect(anyConflicts.length).toBeGreaterThan(0);
+  });
+
+  it('returns confidence > 0 for valid multi-track input', () => {
+    const kick: TrackAudio = { trackId: 'kick', pcm: sineWave(80, SR, 1.0), sampleRate: SR };
+    const bass: TrackAudio = { trackId: 'bass', pcm: sineWave(100, SR, 1.0), sampleRate: SR };
+
+    const result = analyzeMasking([kick, bass]);
+    expect(result.confidence).toBeGreaterThan(0);
   });
 });

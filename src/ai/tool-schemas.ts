@@ -825,26 +825,32 @@ const renderTool: ToolSchema = {
 const analyzeTool: ToolSchema = {
   name: 'analyze',
   description:
-    'Run deterministic audio analysis on a rendered snapshot. Supports spectral (timbral), dynamics (loudness/range), and rhythm (onset/tempo) in a single call. ' +
+    'Run deterministic audio analysis on a rendered snapshot. Supports spectral (timbral), dynamics (loudness/range), rhythm (onset/tempo), and masking (cross-track frequency conflicts) in a single call. ' +
     'Use render first to capture a snapshot, then analyze for quantitative measurement. ' +
+    'For masking analysis, render each track separately first, then pass all snapshot IDs via snapshotIds. ' +
     'For qualitative AI evaluation, use listen instead.',
   parameters: {
     type: 'object',
     properties: {
       snapshotId: {
         type: 'string',
-        description: 'Snapshot ID from a previous render call.',
+        description: 'Snapshot ID from a previous render call. Used for spectral, dynamics, and rhythm analysis.',
+      },
+      snapshotIds: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Multiple snapshot IDs for cross-track analysis (masking). Render each track separately, then pass all IDs here. Each snapshot must have a single-track scope.',
       },
       types: {
         type: 'array',
         items: {
           type: 'string',
-          enum: ['spectral', 'dynamics', 'rhythm'],
+          enum: ['spectral', 'dynamics', 'rhythm', 'masking'],
         },
-        description: 'Analysis types to run. Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing.',
+        description: 'Analysis types to run. Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing. Masking: cross-track frequency conflict detection (requires snapshotIds).',
       },
     },
-    required: ['snapshotId', 'types'],
+    required: ['types'],
   },
 };
 
