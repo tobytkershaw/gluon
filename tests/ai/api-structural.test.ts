@@ -115,6 +115,8 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { trackId: 'v0', bands: ['sub', 'low'], priority: 8 };
     case 'manage_motif':
       return { action: 'list' };
+    case 'set_tension':
+      return { points: [{ bar: 1, energy: 0.5, density: 0.5 }] };
     default:
       return {};
   }
@@ -196,6 +198,7 @@ describe('API Structural Integrity', () => {
       'apply_chain_recipe', 'set_mix_role', 'apply_modulation',
       'assign_spectral_slot',
       'manage_motif',
+      'set_tension',
     ];
 
     // Analysis-only tools produce no actions (actions: []):

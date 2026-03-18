@@ -55,6 +55,7 @@ const PARITY_GAP_TOOLS = new Set([
   'shape_timbre',              // MODERATE: no UI for timbral direction controls (human can move params directly)
   'assign_spectral_slot',      // LOW: compound tool — humans use EQ controls directly
   'manage_motif',        // MODERATE: no UI for motif registration/development (human can copy/paste patterns)
+  'set_tension',         // MODERATE: no UI for tension curve editing (human uses section metadata)
 ]);
 
 describe('Human Capability Parity', () => {

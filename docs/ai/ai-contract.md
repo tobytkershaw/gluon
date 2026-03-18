@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has thirty-five tools, declared as neutral JSON Schema and adapted per provider.
+The AI has thirty-six tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -395,6 +395,17 @@ Set the global scale/key constraint. When set, note pitches in `sketch` and `edi
 | `clear` | boolean | no | Set to true to clear the scale constraint. When true, `root` and `mode` are ignored. |
 
 Undoable. Produces a `ScaleSnapshot` for undo.
+
+#### `set_tension`
+
+Set the tension/energy curve over the arrangement timeline. Defines an arc of energy and density that the AI uses as a compositional guide. Points are interpolated linearly. The curve is metadata/intent — it does not directly control audio parameters.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `points` | array | yes | Tension curve points. Each has `bar` (1-based), `energy` (0.0-1.0), `density` (0.0-1.0). |
+| `trackMappings` | array | no | Per-track mappings: `trackId`, optional `activationThreshold`, and `params` array of `{param, low, high}`. |
+
+Undoable. Produces a `TensionCurveSnapshot` for undo.
 
 #### `shape_timbre`
 
