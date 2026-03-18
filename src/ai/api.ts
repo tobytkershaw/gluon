@@ -444,6 +444,10 @@ export class GluonAI {
           collectedActions.push({ type: 'say', text });
         }
 
+        if (result.truncated) {
+          collectedActions.push({ type: 'say', text: '(Response was truncated due to length limits.)' });
+        }
+
         if (result.functionCalls.length === 0) break;
 
         const responses: FunctionResponse[] = [];
@@ -2195,7 +2199,7 @@ export class GluonAI {
         case 'auth':
           return [{ type: 'say', text: 'API key invalid or missing permissions.' }];
         case 'server':
-          return [{ type: 'say', text: 'API error — retrying shortly.' }];
+          return [{ type: 'say', text: 'API error — please try again.' }];
         default:
           break;
       }

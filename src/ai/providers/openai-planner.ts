@@ -191,7 +191,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
       instructions: systemPrompt,
       input,
       tools: openaiTools,
-      max_output_tokens: 2048,
+      max_output_tokens: 16384,
       ...(previousId ? { previous_response_id: previousId } : {}),
     };
 
@@ -243,6 +243,9 @@ export class OpenAIPlannerProvider implements PlannerProvider {
         throw new ProviderError('Stream ended without response.completed event.', 'server');
       }
 
+      const truncated = completedResponse.status === 'incomplete'
+        && completedResponse.incomplete_details?.reason === 'max_output_tokens';
+
       this.pendingResponseId = completedResponse.id;
       this.pendingInput = [...this.pendingInput, ...extraInput];
       this.pendingOutputItems.push(...completedResponse.output);
@@ -258,6 +261,8 @@ export class OpenAIPlannerProvider implements PlannerProvider {
           });
         }
       }
+
+      return { textParts, functionCalls, truncated };
     } else {
       // Non-streaming path — unchanged behavior
       let response: Response;
@@ -271,6 +276,10 @@ export class OpenAIPlannerProvider implements PlannerProvider {
       }
 
       this.backoff = { until: 0, delay: 0 };
+
+      const truncated = response.status === 'incomplete'
+        && response.incomplete_details?.reason === 'max_output_tokens';
+
       this.pendingResponseId = response.id;
       this.pendingInput = [...this.pendingInput, ...extraInput];
       this.pendingOutputItems.push(...response.output);
@@ -291,9 +300,9 @@ export class OpenAIPlannerProvider implements PlannerProvider {
           });
         }
       }
-    }
 
-    return { textParts, functionCalls };
+      return { textParts, functionCalls, truncated };
+    }
   }
 
   private translateError(error: unknown): ProviderError {
@@ -314,7 +323,7 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     if (error instanceof OpenAI.InternalServerError) {
       const delay = 10_000;
       this.backoff = { until: Date.now() + delay, delay };
-      return new ProviderError('API error — retrying shortly.', 'server', delay);
+      return new ProviderError('API error — please try again.', 'server', delay);
     }
 
     const msg = error instanceof Error ? error.message : String(error);
