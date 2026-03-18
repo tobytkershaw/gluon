@@ -1,6 +1,6 @@
 // src/ui/TrackerView.tsx
 // Thin shell: full-height Tracker (top bar moved to AppShell)
-import { useState, useCallback, useRef, type MutableRefObject } from 'react';
+import { useState, useCallback, useRef, useMemo, type MutableRefObject } from 'react';
 import type { Session, Track } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
@@ -10,6 +10,7 @@ import { Tracker } from './Tracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
 import { AutomationPanel } from './AutomationPanel';
 import { SequenceEditor } from './SequenceEditor';
+import { usePlayheadPosition } from './usePlayheadPosition';
 
 interface Props {
   session: Session;
@@ -115,18 +116,31 @@ export function TrackerView({
   onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
 }: Props) {
   const activePatternId = getActivePattern(activeTrack).id;
-  // In song mode, only highlight the playhead when the currently-playing pattern
-  // matches the pattern being edited; otherwise pass null (no highlight).
-  const currentStep = (() => {
+  const patternDuration = getActivePattern(activeTrack).duration;
+  const bpm = session.transport.bpm;
+
+  // Compute the raw (fractional) local step for the active pattern.
+  // In song mode, only highlight when the currently-playing pattern matches.
+  const rawLocalStep: number | null = useMemo(() => {
     if (session.transport.mode === 'song') {
       const pos = resolveSequencePosition(globalStep, activeTrack.sequence, activeTrack.patterns);
       if (pos && pos.patternId === activePatternId) {
-        return Math.floor(pos.localStep);
+        return pos.localStep;
       }
       return null; // playing a different pattern
     }
-    return Math.floor(globalStep % getActivePattern(activeTrack).duration);
-  })();
+    return patternDuration > 0 ? globalStep % patternDuration : 0;
+  }, [globalStep, session.transport.mode, activeTrack.sequence, activeTrack.patterns, activePatternId, patternDuration]);
+
+  // Smooth playhead via rAF interpolation (60fps), decoupled from scheduler tick
+  const { playheadStep: smoothStep, playheadFraction } = usePlayheadPosition(
+    rawLocalStep ?? 0,
+    playing && rawLocalStep !== null,
+    bpm,
+    patternDuration,
+  );
+
+  const currentStep = rawLocalStep !== null ? smoothStep : null;
   const activeRegion = activeTrack.patterns.length > 0 ? getActivePattern(activeTrack) : undefined;
   const hasEvents = activeRegion ? activeRegion.events.length > 0 : false;
 
@@ -368,6 +382,7 @@ export function TrackerView({
               <Tracker
                 region={activeRegion}
                 playheadStep={currentStep}
+                playheadFraction={rawLocalStep !== null ? playheadFraction : 0}
                 playing={playing}
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}

@@ -45,8 +45,10 @@ export interface SlotRow {
 
 interface Props {
   region: Pattern;
-  /** Current playhead step, or null when the playhead is in a different pattern (song mode). */
+  /** Current playhead step (integer), or null when the playhead is in a different pattern (song mode). */
   playheadStep: number | null;
+  /** Fractional progress (0-1) within the current playhead step, for smooth visual indicator. */
+  playheadFraction?: number;
   playing: boolean;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
@@ -192,7 +194,7 @@ function getColCount(noteColumns: number, fxColumns: number): number {
   return 1 + noteColumns + 2 + fxColumns;
 }
 
-export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow }: Props) {
+export function Tracker({ region, playheadStep, playheadFraction = 0, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -657,6 +659,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
                 cursorNoteColumn={cursorNoteCol}
                 cursorFxColumn={cursorFxCol}
                 isAtPlayhead={isAtPlayhead}
+                playheadFraction={isAtPlayhead ? playheadFraction : 0}
                 showBeatSeparator={showBeatSep}
                 beatIndex={beatIndex}
                 onUpdate={onUpdate}
