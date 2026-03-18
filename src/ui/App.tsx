@@ -183,6 +183,19 @@ export default function App() {
     const saved = localStorage.getItem('gluon-chat-width');
     return saved ? Number(saved) : 320;
   });
+  // Chat-focused mode: full-width chat layout vs instrument layout.
+  // Default to chat-focused for new/empty sessions, instrument mode for loaded projects with tracks.
+  const [chatFocused, setChatFocused] = useState(() => {
+    const saved = localStorage.getItem('gluon-chat-focused');
+    if (saved === 'true') return true;
+    if (saved === 'false') return false;
+    // No saved preference: default based on whether the session has meaningful content
+    const s = loadSession();
+    if (!s) return true; // fresh session
+    const audioTracks = s.tracks.filter(t => getTrackKind(t) === 'audio');
+    const hasContent = audioTracks.length > 1 || audioTracks.some(t => t.patterns.some(p => p.events.length > 0));
+    return !hasContent;
+  });
   const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
@@ -218,6 +231,7 @@ export default function App() {
   useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
   useEffect(() => { localStorage.setItem('gluon-chat-open', String(chatOpen)); }, [chatOpen]);
   useEffect(() => { localStorage.setItem('gluon-chat-width', String(chatWidth)); }, [chatWidth]);
+  useEffect(() => { localStorage.setItem('gluon-chat-focused', String(chatFocused)); }, [chatFocused]);
 
   useEffect(() => {
     clearQaAudioTrace();
@@ -1158,6 +1172,8 @@ export default function App() {
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
+    // Auto-switch to instrument mode when a track is added while in chat-focused mode
+    setChatFocused(false);
   }, []);
 
   const handleRemoveTrack = useCallback((trackId: string) => {
@@ -2063,6 +2079,8 @@ export default function App() {
       onChatToggle={() => setChatOpen(o => !o)}
       chatWidth={chatWidth}
       onChatResize={setChatWidth}
+      chatFocused={chatFocused}
+      onChatFocusedChange={setChatFocused}
       projectName={project.projectName}
       projects={project.projects}
       saveError={project.saveError}
