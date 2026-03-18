@@ -158,9 +158,19 @@ export class Scheduler {
           // Restart the sequence from the beginning by rewinding startTime
           const stepDuration2 = 60 / (bpm * 4);
           this.startTime += maxSequenceLen * stepDuration2;
-          this.cursor -= maxSequenceLen;
           // Re-derive globalStep after rewind
           globalStep -= maxSequenceLen;
+          // Reset the cursor to globalStep so the scheduling window starts
+          // from the beginning of the rewound sequence.  Without this, the
+          // cursor (which sits ahead of globalStep by the lookahead window)
+          // remains past the start of the sequence after the rewind,
+          // causing events near position 0 to be permanently skipped.
+          this.cursor = globalStep;
+          // Clear the playback plan so events from the new loop iteration
+          // are not blocked by dedup entries from the previous pass.
+          // Song mode uses loopCycle=0 (no pattern-level looping), so
+          // eventIds would be identical across song-level loops.
+          this.playbackPlan.reset(this.generation);
         } else {
           // End of sequence — stop playback
           this.stop();
