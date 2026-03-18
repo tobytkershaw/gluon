@@ -252,6 +252,13 @@ const sketchTool: ToolSchema = {
           'Options: accent_downbeats, accent_backbeat, accent_offbeats, crescendo, decrescendo, ' +
           'ghost_verse, push_pull, swell. Applied after archetype/generator/groove/humanize.',
       },
+      verify: {
+        type: 'boolean',
+        description:
+          'When true, automatically renders audio before and after the edit, runs a diff analysis, ' +
+          'and includes the summary in the tool result. Use when the human asked for a measurable ' +
+          'sonic change (e.g. "make it darker", "add more swing"). Skip for trivial structural edits.',
+      },
     },
     required: ['trackId', 'description'],
   },
@@ -340,6 +347,13 @@ const editPatternTool: ToolSchema = {
       description: {
         type: 'string',
         description: 'Short description of the edit (e.g. "add ghost hit on step 7").',
+      },
+      verify: {
+        type: 'boolean',
+        description:
+          'When true, automatically renders audio before and after the edit, runs a diff analysis, ' +
+          'and includes the summary in the tool result. Use when the human asked for a measurable ' +
+          'sonic change (e.g. "make it darker", "add more swing"). Skip for trivial structural edits.',
       },
     },
     required: ['trackId', 'operations', 'description'],
