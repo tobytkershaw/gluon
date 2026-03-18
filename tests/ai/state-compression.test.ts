@@ -495,3 +495,110 @@ describe('resolveTrackId', () => {
     expect(resolveTrackId('Track 4', session)).toBe(audioTracks[3].id);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Processor/modulator default params in compressed state (#773)
+// ---------------------------------------------------------------------------
+
+describe('Processor default params in compressed state', () => {
+  it('newly-added processor with empty params shows defaults from registry', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.processors = [{
+      id: 'clouds-123',
+      type: 'clouds',
+      model: 0,
+      params: {},
+    }];
+    const result = compressState(session);
+    const proc = result.tracks[0].processors[0];
+    expect(proc.type).toBe('clouds');
+    // Should have default params populated, not empty
+    expect(Object.keys(proc.params).length).toBeGreaterThan(0);
+    // Clouds default params should include position, size, texture, density, dryWet
+    expect(proc.params).toHaveProperty('position');
+    expect(proc.params).toHaveProperty('size');
+    expect(proc.params).toHaveProperty('dry-wet');
+  });
+
+  it('explicit param values override defaults', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.processors = [{
+      id: 'clouds-456',
+      type: 'clouds',
+      model: 0,
+      params: { position: 0.9, size: 0.1 },
+    }];
+    const result = compressState(session);
+    const proc = result.tracks[0].processors[0];
+    expect(proc.params.position).toBe(0.9);
+    expect(proc.params.size).toBe(0.1);
+    // Other params should still be populated with defaults
+    expect(proc.params).toHaveProperty('dry-wet');
+  });
+
+  it('rings processor with empty params shows defaults', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.processors = [{
+      id: 'rings-789',
+      type: 'rings',
+      model: 0,
+      params: {},
+    }];
+    const result = compressState(session);
+    const proc = result.tracks[0].processors[0];
+    expect(Object.keys(proc.params).length).toBeGreaterThan(0);
+    expect(proc.params).toHaveProperty('structure');
+  });
+
+  it('unknown processor type with empty params stays empty', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.processors = [{
+      id: 'unknown-1',
+      type: 'nonexistent' as never,
+      model: 0,
+      params: {},
+    }];
+    const result = compressState(session);
+    const proc = result.tracks[0].processors[0];
+    expect(Object.keys(proc.params).length).toBe(0);
+  });
+});
+
+describe('Modulator default params in compressed state', () => {
+  it('newly-added modulator with empty params shows defaults from registry', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.modulators = [{
+      id: 'tides-123',
+      type: 'tides',
+      model: 1, // default Looping mode
+      params: {},
+    }];
+    const result = compressState(session);
+    const mod = result.tracks[0].modulators[0];
+    expect(mod.type).toBe('tides');
+    expect(Object.keys(mod.params).length).toBeGreaterThan(0);
+    expect(mod.params).toHaveProperty('frequency');
+    expect(mod.params).toHaveProperty('shape');
+  });
+
+  it('explicit modulator param values override defaults', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.modulators = [{
+      id: 'tides-456',
+      type: 'tides',
+      model: 1,
+      params: { frequency: 0.3 },
+    }];
+    const result = compressState(session);
+    const mod = result.tracks[0].modulators[0];
+    expect(mod.params.frequency).toBe(0.3);
+    // Other params should still be populated with defaults
+    expect(mod.params).toHaveProperty('shape');
+  });
+});

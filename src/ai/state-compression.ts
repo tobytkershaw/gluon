@@ -1,7 +1,7 @@
 // src/ai/state-compression.ts
 import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta } from '../engine/types';
 import { getActivePattern } from '../engine/types';
-import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
+import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 
@@ -372,19 +372,27 @@ export function compressState(session: Session, recentPreservationReports?: Pres
         activePatternId: getActivePattern(track).id,
       } : {}),
       views: (track.views ?? []).map(v => `${v.kind}:${v.id}`),
-      processors: (track.processors ?? []).map(p => ({
-        id: p.id,
-        type: p.type,
-        model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
-        params: Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, round2(v)])),
-        ...(p.enabled === false ? { enabled: false } : {}),
-      })),
-      modulators: (track.modulators ?? []).map(m => ({
-        id: m.id,
-        type: m.type,
-        model: getModulatorEngineName(m.type, m.model) ?? String(m.model),
-        params: Object.fromEntries(Object.entries(m.params).map(([k, v]) => [k, round2(v)])),
-      })),
+      processors: (track.processors ?? []).map(p => {
+        const defaults = getProcessorDefaultParams(p.type, p.model);
+        const merged = { ...defaults, ...p.params };
+        return {
+          id: p.id,
+          type: p.type,
+          model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
+          params: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, round2(v)])),
+          ...(p.enabled === false ? { enabled: false } : {}),
+        };
+      }),
+      modulators: (track.modulators ?? []).map(m => {
+        const defaults = getModulatorDefaultParams(m.type, m.model);
+        const merged = { ...defaults, ...m.params };
+        return {
+          id: m.id,
+          type: m.type,
+          model: getModulatorEngineName(m.type, m.model) ?? String(m.model),
+          params: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, round2(v)])),
+        };
+      }),
       modulations: (track.modulations ?? []).map(r => ({
         id: r.id,
         modulatorId: r.modulatorId,
