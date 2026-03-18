@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has twenty-six tools, declared as neutral JSON Schema and adapted per provider.
+The AI has twenty-eight tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -340,6 +340,35 @@ Report a bug or issue encountered during operation. Use sparingly, only for thin
 
 Duplicate detection: reports with identical summaries within the same session are rejected.
 
+### Session Context
+
+#### `set_intent`
+
+Set or update the session-level creative intent. Updates are merged: fields you provide overwrite previous values, fields you omit are preserved. Call early when the direction is clear, and update as the session evolves.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `genre` | string[] | no | Genre tags (e.g. `["dubstep", "hyperdub", "uk bass"]`). |
+| `references` | string[] | no | Artist or track references (e.g. `["Kode9", "Burial"]`). |
+| `mood` | string[] | no | Mood descriptors (e.g. `["dark", "sparse", "roomy"]`). |
+| `avoid` | string[] | no | Things to avoid (e.g. `["busy hats", "four-on-floor"]`). |
+| `currentGoal` | string | no | The current creative objective (e.g. "build a half-step beat"). |
+
+At least one field must be provided.
+
+#### `set_section`
+
+Set or update the current section metadata. Describes what part of the arrangement is being worked on and its target character. Updates are merged: fields you provide overwrite previous values, fields you omit are preserved.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | no | Section name (e.g. "intro", "groove", "breakdown", "drop"). |
+| `intent` | string | no | Section character intent (e.g. "sparse and tense", "peak energy"). |
+| `targetEnergy` | number | no | Target energy level for this section (0.0-1.0). |
+| `targetDensity` | number | no | Target rhythmic density for this section (0.0-1.0). |
+
+At least one field must be provided. `targetEnergy` and `targetDensity` are clamped to 0.0-1.0.
+
 #### `explain_chain`
 
 Generate a musical-language description of a track's signal chain. Read-only — does not modify state.
@@ -479,6 +508,8 @@ Fields:
 - **surface_xy** — (optional per track) XY pad axis labels (e.g. "Brightness x Texture")
 - **surface_pinned** — (optional per track) list of pinned controls (e.g. "source:timbre")
 - **sends** — (optional per track) bus send levels
+- **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
+- **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
 
 ---
 

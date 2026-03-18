@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -116,6 +116,8 @@ export interface CompressedState {
   restraint_level: RestraintLevel;
   open_decisions: CompressedDecision[];
   recent_preservation?: CompressedPreservationReport[];
+  intent?: SessionIntent;
+  section?: SectionMeta;
 }
 
 function round2(n: number): number {
@@ -448,6 +450,8 @@ export function compressState(session: Session, recentPreservationReports?: Pres
     ...(recentPreservationReports && recentPreservationReports.length > 0 ? {
       recent_preservation: recentPreservationReports.map(compressPreservationReport),
     } : {}),
+    ...(session.intent && Object.keys(session.intent).length > 0 ? { intent: session.intent } : {}),
+    ...(session.section && Object.keys(session.section).length > 0 ? { section: session.section } : {}),
   };
 
   return result;

@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AISetIntentAction, AISetSectionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -348,6 +348,14 @@ function projectAction(session: Session, action: AIAction): Session {
       // For projection purposes, return session unchanged — the state will be fully
       // updated during executeOperations.
       return session;
+    case 'set_intent': {
+      const merged: SessionIntent = { ...session.intent, ...action.intent };
+      return { ...session, intent: merged };
+    }
+    case 'set_section': {
+      const merged: SectionMeta = { ...session.section, ...action.section };
+      return { ...session, section: merged };
+    }
     case 'say':
     default:
       return session;
@@ -2088,6 +2096,62 @@ export class GluonAI {
         return {
           actions: [manageSequenceAction],
           response: { queued: true, action: seqSubAction, trackId: seqTrackId },
+        };
+      }
+
+      case 'set_intent': {
+        // Merge provided fields into existing intent
+        const intentUpdate: SessionIntent = {};
+        if (Array.isArray(args.genre)) intentUpdate.genre = args.genre as string[];
+        if (Array.isArray(args.references)) intentUpdate.references = args.references as string[];
+        if (Array.isArray(args.mood)) intentUpdate.mood = args.mood as string[];
+        if (Array.isArray(args.avoid)) intentUpdate.avoid = args.avoid as string[];
+        if (typeof args.currentGoal === 'string') intentUpdate.currentGoal = args.currentGoal;
+
+        if (Object.keys(intentUpdate).length === 0) {
+          return { actions: [], response: errorPayload('At least one intent field required (genre, references, mood, avoid, currentGoal)') };
+        }
+
+        const setIntentAction: AISetIntentAction = {
+          type: 'set_intent',
+          intent: intentUpdate,
+        };
+
+        return {
+          actions: [setIntentAction],
+          response: {
+            applied: true,
+            intent: { ...session.intent, ...intentUpdate },
+          },
+        };
+      }
+
+      case 'set_section': {
+        const sectionUpdate: SectionMeta = {};
+        if (typeof args.name === 'string') sectionUpdate.name = args.name;
+        if (typeof args.intent === 'string') sectionUpdate.intent = args.intent;
+        if (typeof args.targetEnergy === 'number' && Number.isFinite(args.targetEnergy)) {
+          sectionUpdate.targetEnergy = Math.max(0, Math.min(1, args.targetEnergy));
+        }
+        if (typeof args.targetDensity === 'number' && Number.isFinite(args.targetDensity)) {
+          sectionUpdate.targetDensity = Math.max(0, Math.min(1, args.targetDensity));
+        }
+
+        if (Object.keys(sectionUpdate).length === 0) {
+          return { actions: [], response: errorPayload('At least one section field required (name, intent, targetEnergy, targetDensity)') };
+        }
+
+        const setSectionAction: AISetSectionAction = {
+          type: 'set_section',
+          section: sectionUpdate,
+        };
+
+        return {
+          actions: [setSectionAction],
+          response: {
+            applied: true,
+            section: { ...session.section, ...sectionUpdate },
+          },
         };
       }
 

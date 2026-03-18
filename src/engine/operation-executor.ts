@@ -485,6 +485,14 @@ export function prevalidateAction(
       // No side-effect guards needed — report_bug only appends to bugReports
       return null;
 
+    case 'set_intent':
+      // No side-effect guards — session metadata, not musical mutation
+      return null;
+
+    case 'set_section':
+      // No side-effect guards — session metadata, not musical mutation
+      return null;
+
     case 'set_mute_solo': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
@@ -1690,6 +1698,24 @@ export function executeOperations(
         };
         next = { ...next, openDecisions: [...unresolved, newDecision].slice(-20) };
         log.push({ trackId: '', trackLabel: 'DECISION', description: `raised: ${action.question}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_intent': {
+        const merged = { ...next.intent, ...action.intent };
+        next = { ...next, intent: merged };
+        const fields = Object.keys(action.intent).join(', ');
+        log.push({ trackId: '', trackLabel: 'SESSION', description: `intent updated: ${fields}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_section': {
+        const merged = { ...next.section, ...action.section };
+        next = { ...next, section: merged };
+        const sectionName = action.section.name ?? next.section?.name ?? 'unnamed';
+        log.push({ trackId: '', trackLabel: 'SESSION', description: `section: ${sectionName}` });
         accepted.push(action);
         break;
       }
