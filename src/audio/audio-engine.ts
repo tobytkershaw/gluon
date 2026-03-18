@@ -5,6 +5,7 @@ import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
 import type { RipplesEngine } from './ripples-synth';
+import type { EqEngine } from './eq-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -24,6 +25,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 const VOICES_PER_TRACK = 4;
 
 type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | EqEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -113,6 +115,18 @@ function toRipplesPatchParams(params: Record<string, number>): import('./ripples
     cutoff: params.cutoff ?? 0.5,
     resonance: params.resonance ?? 0.0,
     drive: params.drive ?? 0.0,
+function toEqPatchParams(params: Record<string, number>): import('./eq-messages').EqPatchParams {
+  return {
+    low_freq: params['low-freq'] ?? 0.25,
+    low_gain: params['low-gain'] ?? 0.5,
+    mid1_freq: params['mid1-freq'] ?? 0.4,
+    mid1_gain: params['mid1-gain'] ?? 0.5,
+    mid1_q: params['mid1-q'] ?? 0.3,
+    mid2_freq: params['mid2-freq'] ?? 0.6,
+    mid2_gain: params['mid2-gain'] ?? 0.5,
+    mid2_q: params['mid2-q'] ?? 0.3,
+    high_freq: params['high-freq'] ?? 0.75,
+    high_gain: params['high-gain'] ?? 0.5,
   };
 }
 
@@ -770,6 +784,9 @@ export class AudioEngine {
       } else if (processorType === 'ripples') {
         const { createRipplesProcessor } = await import('./create-synth');
         engine = await createRipplesProcessor(this.ctx);
+      } else if (processorType === 'eq') {
+        const { createEqProcessor } = await import('./create-synth');
+        engine = await createEqProcessor(this.ctx);
       } else {
         return;
       }
@@ -822,6 +839,9 @@ export class AudioEngine {
     } else if (proc.type === 'ripples') {
       const engine = proc.engine as import('./ripples-synth').RipplesEngine;
       engine.setPatch(toRipplesPatchParams(params));
+    } else if (proc.type === 'eq') {
+      const engine = proc.engine as import('./eq-synth').EqEngine;
+      engine.setPatch(toEqPatchParams(params));
     }
   }
 
@@ -836,6 +856,8 @@ export class AudioEngine {
       (proc.engine as import('./clouds-synth').CloudsEngine).setMode(model);
     } else if (proc.type === 'ripples') {
       (proc.engine as import('./ripples-synth').RipplesEngine).setMode(model);
+    } else if (proc.type === 'eq') {
+      (proc.engine as import('./eq-synth').EqEngine).setMode(model);
     }
   }
 
