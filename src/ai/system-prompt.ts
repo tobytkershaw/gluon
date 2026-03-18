@@ -362,7 +362,15 @@ Each turn you receive a JSON state snapshot. Here's what it contains per track:
 - \`surface_pinned\`: pinned raw controls, if any
 - \`sends\`: bus send levels, if routing is configured
 
-Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), and \`scale\` (global key/scale constraint with note names).
+Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), and optionally \`userSelection\` (what the human has selected in the Tracker).
+
+## User Selection
+When the human has an active selection in the Tracker view, the compressed state includes \`userSelection\`:
+- \`trackId\`: which track the selection is on
+- \`stepRange\`: \`[start, end]\` inclusive step range
+- \`eventCount\`: number of events within the selection
+
+When present, use the selection to scope your operations. "Make this part crazier" means the selected steps, not the whole pattern. "Double the speed of these notes" means the selected events. When \`userSelection\` is absent, operate on the full pattern as usual.
 
 ## Collaboration Signals
 The compressed state includes reaction history, observed patterns, and restraint level. Use these to calibrate your approach:

@@ -205,6 +205,19 @@ export interface ScaleConstraint {
   mode: ScaleMode;
 }
 
+/**
+ * UI selection context from the Tracker view.
+ * When the human has an active selection, this describes what they're pointing at
+ * so the AI can scope operations to the selection.
+ */
+export interface UserSelection {
+  trackId: string;
+  /** Inclusive step range [start, end] of the selected rows. */
+  stepRange: [number, number];
+  /** Flat indices into the pattern's events array for selected events. */
+  eventIndices: number[];
+}
+
 /** Session-level creative intent — genre, references, mood, constraints. Survives context window rotation. */
 export interface SessionIntent {
   genre?: string[];           // ["dubstep", "hyperdub", "uk bass"]

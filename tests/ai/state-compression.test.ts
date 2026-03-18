@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { compressState } from '../../src/ai/state-compression';
 import { createSession, addTrack, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
-import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session } from '../../src/engine/types';
+import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session, UserSelection } from '../../src/engine/types';
 import { resolveTrackId, getTrackOrdinalLabel } from '../../src/engine/track-labels';
 import { getTrackKind, updateTrack } from '../../src/engine/types';
 
@@ -600,5 +600,62 @@ describe('Modulator default params in compressed state', () => {
     expect(mod.params.frequency).toBe(0.3);
     // Other params should still be populated with defaults
     expect(mod.params).toHaveProperty('shape');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// User selection context (#778)
+// ---------------------------------------------------------------------------
+
+describe('User selection in compressed state', () => {
+  it('userSelection is omitted when not provided', () => {
+    const session = createSession();
+    const result = compressState(session);
+    expect('userSelection' in result).toBe(false);
+  });
+
+  it('userSelection is omitted when undefined', () => {
+    const session = createSession();
+    const result = compressState(session, undefined, undefined);
+    expect('userSelection' in result).toBe(false);
+  });
+
+  it('userSelection is omitted when eventIndices is empty', () => {
+    const session = createSession();
+    const selection: UserSelection = {
+      trackId: 'v0',
+      stepRange: [0, 3],
+      eventIndices: [],
+    };
+    const result = compressState(session, undefined, selection);
+    expect('userSelection' in result).toBe(false);
+  });
+
+  it('userSelection appears when selection has events', () => {
+    const session = createSession();
+    const selection: UserSelection = {
+      trackId: 'v0',
+      stepRange: [4, 8],
+      eventIndices: [2, 3, 4, 5],
+    };
+    const result = compressState(session, undefined, selection);
+    expect(result.userSelection).toBeDefined();
+    expect(result.userSelection!.trackId).toBe('v0');
+    expect(result.userSelection!.stepRange).toEqual([4, 8]);
+    expect(result.userSelection!.eventCount).toBe(4);
+  });
+
+  it('userSelection does not leak raw eventIndices (only eventCount)', () => {
+    const session = createSession();
+    const selection: UserSelection = {
+      trackId: 'v0',
+      stepRange: [0, 15],
+      eventIndices: [0, 1, 2],
+    };
+    const result = compressState(session, undefined, selection);
+    expect(result.userSelection).toBeDefined();
+    // Should have eventCount, not eventIndices
+    expect(result.userSelection).toHaveProperty('eventCount');
+    expect(result.userSelection).not.toHaveProperty('eventIndices');
   });
 });
