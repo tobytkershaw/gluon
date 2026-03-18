@@ -555,43 +555,18 @@ describe('Undo adversarial tests', () => {
       expect(getTrack(session, vid).params.harmonics).toBe(0.5);
     });
 
-    it('exclusive solo creates a group snapshot that undoes atomically', () => {
+    it('exclusive solo does not push to undo stack', () => {
       let session = createSession();
       session = addTrack(session)!;
       session = addTrack(session)!;
 
       const ids = audioTrackIds(session);
+      const stackBefore = session.undoStack.length;
 
-      // Solo track 0 exclusively — should create a group
+      // Solo track 0 exclusively — should NOT push to undo stack
       session = toggleSolo(session, ids[0], true);
       expect(getTrack(session, ids[0]).solo).toBe(true);
-
-      const lastEntry = session.undoStack[session.undoStack.length - 1];
-      expect(lastEntry.kind).toBe('group');
-
-      // Undo should revert all solo changes atomically
-      session = applyUndo(session);
-      expect(getTrack(session, ids[0]).solo).toBe(false);
-    });
-
-    it('ActionGroupSnapshot (exclusive solo) redo restores atomically', () => {
-      let session = createSession();
-      session = addTrack(session)!;
-      session = addTrack(session)!;
-
-      const ids = audioTrackIds(session);
-
-      // Solo track 1 exclusively
-      session = toggleSolo(session, ids[1], true);
-      expect(getTrack(session, ids[1]).solo).toBe(true);
-
-      // Undo exclusive solo
-      session = applyUndo(session);
-      expect(getTrack(session, ids[1]).solo).toBe(false);
-
-      // Redo should restore solo atomically
-      session = applyRedo(session);
-      expect(getTrack(session, ids[1]).solo).toBe(true);
+      expect(session.undoStack.length).toBe(stackBefore);
     });
   });
 
@@ -827,13 +802,13 @@ describe('Undo adversarial tests', () => {
       expect(getTrack(session, vid).name).toBe(prevName);
     });
 
-    it('undo mute toggle restores mute state', () => {
+    it('mute toggle does not push to undo stack', () => {
       let session = createSession();
       const vid = session.activeTrackId;
+      const stackBefore = session.undoStack.length;
       session = toggleMute(session, vid);
       expect(getTrack(session, vid).muted).toBe(true);
-      session = applyUndo(session);
-      expect(getTrack(session, vid).muted).toBe(false);
+      expect(session.undoStack.length).toBe(stackBefore);
     });
 
     it('undo agency change restores previous agency', () => {
@@ -1202,20 +1177,21 @@ describe('Undo round-trip integrity', () => {
     const vid = session.activeTrackId;
 
     // Use non-param operations that round-trip cleanly
+    // (mute/solo are no longer on undo stack, so use BPM + volume + pan)
     session = setTransportBpm(session, 100);
     session = setTrackVolume(session, vid, 0.4);
-    session = toggleMute(session, vid);
+    session = setTrackPan(session, vid, -0.5);
 
     // Undo 2 then redo 2
     session = applyUndo(session);
     session = applyUndo(session);
     expect(session.transport.bpm).toBe(100);
     expect(getTrack(session, vid).volume).toBe(0.8);
-    expect(getTrack(session, vid).muted).toBe(false);
+    expect(getTrack(session, vid).pan).toBe(0);
 
     session = applyRedo(session);
     session = applyRedo(session);
     expect(getTrack(session, vid).volume).toBe(0.4);
-    expect(getTrack(session, vid).muted).toBe(true);
+    expect(getTrack(session, vid).pan).toBe(-0.5);
   });
 });
