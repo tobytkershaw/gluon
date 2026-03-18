@@ -8,6 +8,8 @@ import type { RipplesEngine } from './ripples-synth';
 import type { EqEngine } from './eq-synth';
 import type { CompressorEngine } from './compressor-synth';
 import type { CompressorPatchParams } from './compressor-messages';
+import type { StereoEngine } from './stereo-synth';
+import type { StereoPatchParams } from './stereo-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -26,9 +28,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine;
-type ProcessorEngine = RingsEngine | CloudsEngine | EqEngine;
-type ProcessorEngine = RingsEngine | CloudsEngine | CompressorEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -154,6 +154,15 @@ function toCompressorPatchParams(params: Record<string, number>): CompressorPatc
     release: params.release ?? 0.4,
     makeup: params.makeup ?? 0.0,
     mix: params.mix ?? 1.0,
+  };
+}
+
+function toStereoPatchParams(params: Record<string, number>): StereoPatchParams {
+  return {
+    width: params.width ?? 0.5,
+    mid_gain: params.mid_gain ?? 0.5,
+    side_gain: params.side_gain ?? 0.5,
+    delay: params.delay ?? 0.0,
   };
 }
 
@@ -807,6 +816,9 @@ export class AudioEngine {
       } else if (processorType === 'compressor') {
         const { createCompressorProcessor } = await import('./create-synth');
         engine = await createCompressorProcessor(this.ctx);
+      } else if (processorType === 'stereo') {
+        const { createStereoProcessor } = await import('./create-synth');
+        engine = await createStereoProcessor(this.ctx);
       } else {
         return;
       }
@@ -865,6 +877,9 @@ export class AudioEngine {
     } else if (proc.type === 'compressor') {
       const engine = proc.engine as import('./compressor-synth').CompressorEngine;
       engine.setPatch(toCompressorPatchParams(params));
+    } else if (proc.type === 'stereo') {
+      const engine = proc.engine as import('./stereo-synth').StereoEngine;
+      engine.setPatch(toStereoPatchParams(params));
     }
   }
 
@@ -883,6 +898,8 @@ export class AudioEngine {
       (proc.engine as import('./eq-synth').EqEngine).setMode(model);
     } else if (proc.type === 'compressor') {
       (proc.engine as import('./compressor-synth').CompressorEngine).setMode(model);
+    } else if (proc.type === 'stereo') {
+      (proc.engine as import('./stereo-synth').StereoEngine).setMode(model);
     }
   }
 

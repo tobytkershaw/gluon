@@ -13,6 +13,8 @@ import type { TidesEngine } from './tides-synth';
 import { TidesSynth } from './tides-synth';
 import type { CompressorEngine } from './compressor-synth';
 import { CompressorSynth } from './compressor-synth';
+import type { StereoEngine } from './stereo-synth';
+import { StereoSynth } from './stereo-synth';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -45,4 +47,8 @@ export async function createTidesModulator(ctx: AudioContext): Promise<TidesEngi
 
 export async function createCompressorProcessor(ctx: AudioContext): Promise<CompressorEngine> {
   return CompressorSynth.create(ctx);
+}
+
+export async function createStereoProcessor(ctx: AudioContext): Promise<StereoEngine> {
+  return StereoSynth.create(ctx);
 }
