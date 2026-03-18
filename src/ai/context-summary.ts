@@ -8,7 +8,8 @@ import type { GoogleGenAI } from '@google/genai';
 import type { ChatMessage } from '../engine/types';
 
 const SUMMARY_MODEL = 'gemini-2.0-flash-lite';
-const MAX_OUTPUT_TOKENS = 800;
+// 400 words ≈ 520 tokens; small headroom for formatting variance.
+const MAX_OUTPUT_TOKENS = 550;
 
 const SUMMARY_PROMPT_TEMPLATE = `You are rewriting a compact session memory for a music production AI assistant.
 

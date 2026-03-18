@@ -781,6 +781,10 @@ export class GluonAI {
     const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session, undefined, ctx?.userSelection);
     const contextPrefix = this.planner.consumeConversationContext?.() ?? null;
+    // contextSummary is only populated by summarizeBeforeTrim, which is only
+    // called from trimToTokenBudget when countContextTokens is available.
+    // No risk of double-injection (full history + summary) because the summary
+    // only exists after exchanges have been dropped.
     const contextSummary = this.planner.getContextSummary?.() ?? null;
 
     let contextBlock = '';
@@ -3896,18 +3900,18 @@ export class GluonAI {
       // Each round also summarizes the next-oldest exchange to avoid silent loss.
       let currentKeep = keepCount;
       let fineTuneRounds = 0;
+      // Track the message-index boundary of already-dropped exchanges to avoid
+      // recomputing it each round (reviewer P2: eliminate redundant extraction).
+      let prevDropBoundary = extractOldestExchanges(session.messages, estimatedDrop).length;
       for (let round = 0; round < 5 && tokenCount > budget && currentKeep > 1; round++) {
         currentKeep--;
         fineTuneRounds++;
         if (planner.summarizeBeforeTrim) {
-          // Extract the single next-oldest exchange being dropped
           const totalDropped = exchangeCount - currentKeep;
           const allDropped = extractOldestExchanges(session.messages, totalDropped);
-          // Only the newly dropped exchange (last one in the slice)
-          const prevDropped = exchangeCount - (currentKeep + 1);
-          const newlyDropped = allDropped.slice(
-            prevDropped > 0 ? extractOldestExchanges(session.messages, prevDropped).length : 0,
-          );
+          // Only the newly dropped exchange (tail beyond previous boundary)
+          const newlyDropped = allDropped.slice(prevDropBoundary);
+          prevDropBoundary = allDropped.length;
           await planner.summarizeBeforeTrim(newlyDropped, currentKeep);
         } else {
           planner.trimHistory(currentKeep);

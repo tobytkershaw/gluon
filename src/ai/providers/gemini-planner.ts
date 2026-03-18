@@ -197,13 +197,17 @@ export class GeminiPlannerProvider implements PlannerProvider {
   // ---------------------------------------------------------------------------
 
   async summarizeBeforeTrim(droppedMessages: ChatMessage[], keepCount: number): Promise<void> {
-    if (this.ai && droppedMessages.length > 0) {
-      try {
-        this.contextSummary = await summarizeDroppedExchanges(
-          this.ai, this.contextSummary, droppedMessages,
-        );
-      } catch {
-        // Best-effort — keep existing summary on failure
+    if (droppedMessages.length > 0) {
+      if (this.ai) {
+        try {
+          this.contextSummary = await summarizeDroppedExchanges(
+            this.ai, this.contextSummary, droppedMessages,
+          );
+        } catch {
+          // Best-effort — keep existing summary on failure
+        }
+      } else {
+        console.warn('[gluon-ai] summarizeBeforeTrim: skipping summarization — API not configured');
       }
     }
     this.trimHistory(keepCount);
