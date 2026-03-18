@@ -33,6 +33,8 @@ export async function createCloudsProcessor(ctx: AudioContext): Promise<CloudsEn
 
 export async function createRipplesProcessor(ctx: AudioContext): Promise<RipplesEngine> {
   return RipplesSynth.create(ctx);
+}
+
 export async function createEqProcessor(ctx: AudioContext): Promise<EqEngine> {
   return EqSynth.create(ctx);
 }

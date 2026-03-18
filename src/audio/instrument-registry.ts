@@ -700,12 +700,6 @@ export function getTidesModelList(): { index: number; name: string; description:
 // --- Ripples control factory ---
 
 function makeRipplesControl(
-// --- EQ control factory ---
-
-function makeEqControl(
-// --- Compressor control factory ---
-
-function makeCompressorControl(
   id: string,
   name: string,
   semanticRole: SemanticRole,
@@ -726,8 +720,6 @@ function makeCompressorControl(
     size,
     binding: {
       adapterId: 'ripples',
-      adapterId: 'eq',
-      adapterId: 'compressor',
       path: `params.${id}`,
     },
     displayMapping,
@@ -760,6 +752,39 @@ function ripplesControls(): ControlSchema[] {
       0.0,
       'medium',
       { type: 'percent', min: 0, max: 100, unit: '%', decimals: 0 },
+    ),
+  ];
+}
+
+// --- EQ control factory ---
+
+function makeEqControl(
+  id: string,
+  name: string,
+  semanticRole: SemanticRole,
+  description: string,
+  defaultVal = 0.5,
+  size: 'large' | 'medium' | 'small' = 'large',
+  displayMapping?: DisplayMapping,
+): ControlSchema {
+  return {
+    id,
+    name,
+    kind: 'continuous' as ControlKind,
+    semanticRole,
+    description,
+    readable: true,
+    writable: true,
+    range: { min: 0, max: 1, default: defaultVal },
+    size,
+    binding: {
+      adapterId: 'eq',
+      path: `params.${id}`,
+    },
+    displayMapping,
+  };
+}
+
 function eqControls(): ControlSchema[] {
   return [
     makeEqControl(
@@ -851,6 +876,39 @@ function eqControls(): ControlSchema[] {
       0.5,
       'large',
       { type: 'linear', min: -18, max: 18, unit: 'dB', decimals: 1 },
+    ),
+  ];
+}
+
+// --- Compressor control factory ---
+
+function makeCompressorControl(
+  id: string,
+  name: string,
+  semanticRole: SemanticRole,
+  description: string,
+  defaultVal = 0.5,
+  size: 'large' | 'medium' | 'small' = 'large',
+  displayMapping?: DisplayMapping,
+): ControlSchema {
+  return {
+    id,
+    name,
+    kind: 'continuous' as ControlKind,
+    semanticRole,
+    description,
+    readable: true,
+    writable: true,
+    range: { min: 0, max: 1, default: defaultVal },
+    size,
+    binding: {
+      adapterId: 'compressor',
+      path: `params.${id}`,
+    },
+    displayMapping,
+  };
+}
+
 function compressorControls(): ControlSchema[] {
   return [
     makeCompressorControl(
@@ -949,6 +1007,8 @@ export function getRipplesEngineByIndex(index: number): EngineDef | undefined {
 
 export function getRipplesModelList(): { index: number; name: string; description: string }[] {
   return ripplesEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
+}
+
 // --- EQ engine definitions ---
 
 const EQ_ENGINE_DATA: [string, string, string][] = [
@@ -986,6 +1046,8 @@ export function getEqEngineByIndex(index: number): EngineDef | undefined {
 
 export function getEqModelList(): { index: number; name: string; description: string }[] {
   return eqEngines.map((e, i) => ({ index: i, name: e.label, description: e.description }));
+}
+
 // --- Compressor engine definitions ---
 
 const COMPRESSOR_ENGINE_DATA: [string, string, string][] = [

@@ -283,12 +283,12 @@ describe('GeminiPlannerProvider', () => {
     }
   });
 
-  it('passes gemini-2.5-flash as model', async () => {
+  it('passes gemini-3.1-pro-preview-customtools as model', async () => {
     mockGenerateContent.mockResolvedValueOnce(mockTextResponse('ok'));
     await planner.startTurn({ systemPrompt: 'system', userMessage: 'test', tools: GLUON_TOOLS });
 
     const call = mockGenerateContent.mock.calls[0][0];
-    expect(call.model).toBe('gemini-2.5-flash');
+    expect(call.model).toBe('gemini-3.1-pro-preview-customtools');
   });
 
   it('does not send thinkingConfig', async () => {
@@ -328,7 +328,7 @@ describe('GeminiPlannerProvider', () => {
     expect(tokens).toBe(42_000);
     expect(mockCountTokens).toHaveBeenCalledTimes(1);
     const call = mockCountTokens.mock.calls[0][0];
-    expect(call.model).toBe('gemini-2.5-flash');
+    expect(call.model).toBe('gemini-3.1-pro-preview-customtools');
     expect(call.config.systemInstruction).toBe('system prompt');
   });
 

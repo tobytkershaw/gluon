@@ -118,6 +118,9 @@ function toRipplesPatchParams(params: Record<string, number>): import('./ripples
     cutoff: params.cutoff ?? 0.5,
     resonance: params.resonance ?? 0.0,
     drive: params.drive ?? 0.0,
+  };
+}
+
 function toEqPatchParams(params: Record<string, number>): import('./eq-messages').EqPatchParams {
   return {
     low_freq: params['low-freq'] ?? 0.25,
