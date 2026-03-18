@@ -4,6 +4,7 @@
 // Collapsed: renders nothing (floating composer pill appears in AppShell).
 import { useCallback, useRef } from 'react';
 import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
+import type { ListenerMode } from '../ai/api';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -19,9 +20,10 @@ interface Props {
   undoStack?: UndoEntry[];
   onUndoMessage?: (messageIndex: number) => void;
   apiConfigured: boolean;
-  onApiKey: (openaiKey: string, geminiKey: string) => void;
+  onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
+  listenerMode?: ListenerMode;
   open: boolean;
   width: number;
   onResize: (width: number) => void;
@@ -30,7 +32,7 @@ interface Props {
 export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false, streamingText = '',
   reactions, onReaction, undoStack, onUndoMessage,
-  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey,
+  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   open, width, onResize,
 }: Props) {
   const dragging = useRef(false);
@@ -75,7 +77,7 @@ export function ChatSidebar({
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-violet-900/20">
           <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
           <div className="flex-1" />
-          <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} />
+          <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} listenerMode={listenerMode} />
         </div>
 
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden">

@@ -396,6 +396,8 @@ export interface AskContext {
   onToolCall?: ToolCallCallback;
 }
 
+export type ListenerMode = 'gemini' | 'openai' | 'both';
+
 export class GluonAI {
   private static MAX_EXCHANGES = 12;
   private static MAX_PLANNER_INVOCATIONS = 5;
@@ -403,10 +405,11 @@ export class GluonAI {
   constructor(
     private planner: PlannerProvider,
     private listener: ListenerProvider,
+    private listeners: ListenerProvider[] = [listener],
   ) {}
 
   isConfigured(): boolean {
-    return this.planner.isConfigured() && this.listener.isConfigured();
+    return this.planner.isConfigured() && this.listeners.some(l => l.isConfigured());
   }
 
   async ask(session: Session, humanMessage: string, ctx?: AskContext): Promise<AIAction[]> {
@@ -2182,7 +2185,7 @@ export class GluonAI {
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
       const state = compressState(session);
 
-      const critique = await this.listener.evaluate({
+      const critique = await this.evaluateWithListeners({
         systemPrompt: buildListenPromptWithLens(question, lens),
         stateJson: JSON.stringify(state),
         question,
@@ -2230,7 +2233,7 @@ export class GluonAI {
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
       const state = compressState(session);
 
-      const critique = await this.listener.evaluate({
+      const critique = await this.evaluateWithListeners({
         systemPrompt: buildComparePrompt(question, lens),
         stateJson: JSON.stringify(state),
         question,
@@ -2270,6 +2273,45 @@ export class GluonAI {
     }
     console.error('Gluon AI call failed:', error);
     return [];
+  }
+
+  /**
+   * Run evaluate across all configured listeners.
+   * When multiple listeners are active, runs in parallel and combines results.
+   */
+  private async evaluateWithListeners(opts: {
+    systemPrompt: string;
+    stateJson: string;
+    question: string;
+    audioData: Blob;
+    mimeType: string;
+  }): Promise<string> {
+    const configured = this.listeners.filter(l => l.isConfigured());
+    if (configured.length === 0) {
+      throw new ProviderError('No listener provider configured.', 'auth');
+    }
+
+    if (configured.length === 1) {
+      return configured[0].evaluate(opts);
+    }
+
+    // Multiple listeners — run in parallel, combine results.
+    const results = await Promise.allSettled(
+      configured.map(l => l.evaluate(opts)),
+    );
+
+    const parts: string[] = [];
+    for (let i = 0; i < configured.length; i++) {
+      const result = results[i];
+      const label = configured[i].name.charAt(0).toUpperCase() + configured[i].name.slice(1);
+      if (result.status === 'fulfilled') {
+        parts.push(`**${label} evaluation:**\n${result.value}`);
+      } else {
+        const reason = result.reason instanceof Error ? result.reason.message : String(result.reason);
+        parts.push(`**${label} evaluation:**\n[Error: ${reason}]`);
+      }
+    }
+    return parts.join('\n\n');
   }
 
   clearHistory(): void {

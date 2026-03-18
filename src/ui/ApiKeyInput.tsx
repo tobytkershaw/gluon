@@ -1,15 +1,24 @@
 import { useState } from 'react';
+import type { ListenerMode } from '../ai/api';
 
 interface Props {
-  onSubmit: (openaiKey: string, geminiKey: string) => void;
+  onSubmit: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   isConfigured: boolean;
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
+  listenerMode?: ListenerMode;
 }
 
-export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '' }: Props) {
+const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
+  { value: 'gemini', label: 'Gemini' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'both', label: 'Both (side by side)' },
+];
+
+export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '', listenerMode: currentListenerMode = 'gemini' }: Props) {
   const [openaiKey, setOpenaiKey] = useState(currentOpenaiKey);
   const [geminiKey, setGeminiKey] = useState(currentGeminiKey);
+  const [listener, setListener] = useState<ListenerMode>(currentListenerMode);
   const [expanded, setExpanded] = useState(!isConfigured);
 
   if (isConfigured && !expanded) {
@@ -18,6 +27,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
         onClick={() => {
           setOpenaiKey(currentOpenaiKey);
           setGeminiKey(currentGeminiKey);
+          setListener(currentListenerMode);
           setExpanded(true);
         }}
         className="flex items-center gap-2 px-3 py-2 bg-zinc-900/50 border border-zinc-800/50 rounded-lg text-[11px] font-mono text-zinc-500 hover:border-zinc-700 transition-colors"
@@ -36,7 +46,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
         onSubmit={(e) => {
           e.preventDefault();
           if (canSubmit) {
-            onSubmit(openaiKey.trim(), geminiKey.trim());
+            onSubmit(openaiKey.trim(), geminiKey.trim(), listener);
             setExpanded(false);
           }
         }}
@@ -65,6 +75,20 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
             placeholder="AIza..."
             className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
           />
+        </div>
+        <div>
+          <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
+            Listener Provider
+          </div>
+          <select
+            value={listener}
+            onChange={(e) => setListener(e.target.value as ListenerMode)}
+            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
+          >
+            {LISTENER_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
         <button
           type="submit"
