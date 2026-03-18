@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has thirty-four tools, declared as neutral JSON Schema and adapted per provider.
+The AI has thirty-five tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -419,6 +419,36 @@ Assign a track to frequency bands with a priority. Prevents frequency collisions
 | `priority` | integer | yes | Priority (0-10). Higher priority wins shared bands. Kick=10, bass=8, lead=7, pad=3, texture=1. |
 
 Returns slot assignment, any collisions, and suggested EQ adjustments. The AI applies adjustments via `move` or `manage_processor` tools. Proactive counterpart to masking analysis (diagnostic).
+
+#### `manage_motif`
+
+Register, recall, develop, or list musical motifs. Motifs are named melodic/rhythmic ideas that can be developed using classical composition techniques to create structurally coherent variations.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | yes | `register`, `recall`, `develop`, or `list`. |
+| `name` | string | conditional | Human-readable name for register. |
+| `motifId` | string | conditional | Motif ID or name for recall/develop. |
+| `trackId` | string | conditional | Source track for register, target track for develop. |
+| `stepRange` | array | no | `[start, end]` step range for register. |
+| `rootPitch` | number | no | Reference pitch (MIDI 0-127). Auto-detected if omitted. |
+| `tags` | array | no | Freeform tags (e.g. `["rhythmic", "melodic"]`). |
+| `operations` | array | conditional | Development operations for develop (see below). |
+| `description` | string | no | Human-readable description. |
+
+**Development operations** (for `action: "develop"`):
+- `transpose` — shift pitches by `semitones`
+- `invert` — mirror intervals around `axisPitch` (or rootPitch)
+- `retrograde` — reverse in time
+- `augment` — stretch durations by `factor` (default 2)
+- `diminish` — compress durations by `factor` (default 2)
+- `fragment` — extract events by index range (`start`, `end`)
+- `permute` — reorder segments by `order` array
+- `ornament` — add passing tones between notes
+- `thin` — remove events by `probability` (0.0-1.0)
+- `layer` — stack with transposed copy at `semitones` interval
+
+When `develop` includes a `trackId`, the result is written as a sketch action. Motifs persist for the session lifetime.
 
 #### `explain_chain`
 

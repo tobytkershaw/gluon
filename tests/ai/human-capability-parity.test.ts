@@ -54,6 +54,7 @@ const PARITY_GAP_TOOLS = new Set([
   'apply_modulation',    // LOW: compound tool — humans use individual modulator controls instead
   'shape_timbre',              // MODERATE: no UI for timbral direction controls (human can move params directly)
   'assign_spectral_slot',      // LOW: compound tool — humans use EQ controls directly
+  'manage_motif',              // MODERATE: no UI for motif registration/development (human can copy/paste patterns)
 ]);
 
 describe('Human Capability Parity', () => {

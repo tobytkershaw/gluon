@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -11,6 +11,10 @@ import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
+import { MotifLibrary } from '../engine/motif';
+import type { Motif } from '../engine/motif';
+import { applyDevelopmentOps } from '../engine/motif-development';
+import type { DevelopmentOp } from '../engine/motif-development';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { humanize as humanizeEvents } from '../engine/musical-helpers';
 import { applyGroove, GROOVE_TEMPLATES } from '../engine/groove-templates';
@@ -400,6 +404,9 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'set_scale':
       return { ...session, scale: action.scale };
+    case 'manage_motif':
+      // Motif operations are handled in the tool handler; no session state mutation needed.
+      return session;
     case 'say':
     default:
       return session;
@@ -451,6 +458,9 @@ export class GluonAI {
 
   /** Spectral slot manager — persists across tool calls within a session. */
   private spectralSlots = new SpectralSlotManager();
+
+  /** Session-level motif registry. */
+  readonly motifLibrary = new MotifLibrary();
 
   constructor(
     private planner: PlannerProvider,
@@ -2816,6 +2826,203 @@ export class GluonAI {
             allSlots: this.spectralSlots.getAll(),
           },
         };
+      }
+
+      case 'manage_motif': {
+        const motifAction = args.action as string;
+        if (!motifAction) {
+          return { actions: [], response: errorPayload('Missing required parameter: action') };
+        }
+
+        switch (motifAction) {
+          case 'register': {
+            const name = args.name as string;
+            if (!name) {
+              return { actions: [], response: errorPayload('Missing required parameter: name') };
+            }
+            const trackId = resolveTrackId((args.trackId as string) ?? session.activeTrackId, session);
+            if (!trackId) {
+              return { actions: [], response: errorPayload(`Unknown track: ${args.trackId}`) };
+            }
+            const track = getTrack(session, trackId);
+            const pattern = getActivePattern(track);
+            const stepRange = args.stepRange as [number, number] | undefined;
+
+            let events = [...pattern.events];
+            if (stepRange && stepRange.length === 2) {
+              const [start, end] = stepRange;
+              events = events.filter(e => e.at >= start && e.at <= end);
+            }
+
+            if (events.length === 0) {
+              return { actions: [], response: errorPayload('No events found in the specified range.') };
+            }
+
+            // Auto-detect rootPitch from lowest note if not provided
+            let rootPitch = typeof args.rootPitch === 'number' ? args.rootPitch : undefined;
+            if (rootPitch === undefined) {
+              for (const e of events) {
+                if (e.kind === 'note') {
+                  if (rootPitch === undefined || e.pitch < rootPitch) rootPitch = e.pitch;
+                }
+              }
+            }
+
+            // Calculate duration from events
+            let duration = pattern.duration;
+            if (stepRange && stepRange.length === 2) {
+              duration = stepRange[1] - stepRange[0];
+              // Shift events to be relative to the start of the range
+              const offset = stepRange[0];
+              events = events.map(e => ({ ...e, at: e.at - offset }));
+            }
+
+            const motifId = `motif-${Date.now()}`;
+            const motif: Motif = {
+              id: motifId,
+              name,
+              events,
+              rootPitch,
+              duration,
+              tags: args.tags as string[] | undefined,
+            };
+
+            this.motifLibrary.register(motif);
+
+            const registerAction: AIManageMotifAction = {
+              type: 'manage_motif',
+              action: 'register',
+              motifId,
+              motifName: name,
+              trackId,
+              stepRange,
+              description: args.description as string ?? `Register motif "${name}" from ${trackId}`,
+            };
+
+            return {
+              actions: [registerAction],
+              response: {
+                applied: true,
+                motifId,
+                name,
+                eventCount: events.length,
+                duration,
+                rootPitch,
+                tags: motif.tags,
+              },
+            };
+          }
+
+          case 'recall': {
+            const motifId = args.motifId as string;
+            if (!motifId) {
+              return { actions: [], response: errorPayload('Missing required parameter: motifId') };
+            }
+            let motif = this.motifLibrary.recall(motifId);
+            if (!motif) {
+              motif = this.motifLibrary.findByName(motifId);
+            }
+            if (!motif) {
+              return { actions: [], response: errorPayload(`Motif not found: ${motifId}`) };
+            }
+
+            return {
+              actions: [],
+              response: {
+                motifId: motif.id,
+                name: motif.name,
+                events: motif.events,
+                duration: motif.duration,
+                rootPitch: motif.rootPitch,
+                tags: motif.tags,
+                eventCount: motif.events.length,
+              },
+            };
+          }
+
+          case 'develop': {
+            const motifId = args.motifId as string;
+            if (!motifId) {
+              return { actions: [], response: errorPayload('Missing required parameter: motifId') };
+            }
+            let motif = this.motifLibrary.recall(motifId);
+            if (!motif) {
+              motif = this.motifLibrary.findByName(motifId);
+            }
+            if (!motif) {
+              return { actions: [], response: errorPayload(`Motif not found: ${motifId}`) };
+            }
+            const ops = args.operations as DevelopmentOp[];
+            if (!ops || !Array.isArray(ops) || ops.length === 0) {
+              return { actions: [], response: errorPayload('Missing required parameter: operations (array of development ops)') };
+            }
+
+            const developed = applyDevelopmentOps(motif, ops);
+
+            // If targetTrackId is provided, write the developed motif as a sketch
+            const targetTrackIdRaw = args.trackId as string;
+            const actions: AIAction[] = [];
+            if (targetTrackIdRaw) {
+              const targetTrackId = resolveTrackId(targetTrackIdRaw, session);
+              if (!targetTrackId) {
+                return { actions: [], response: errorPayload(`Unknown target track: ${targetTrackIdRaw}`) };
+              }
+
+              const sketchAction: AISketchAction = {
+                type: 'sketch',
+                trackId: targetTrackId,
+                description: args.description as string ?? `Developed motif "${motif.name}"`,
+                events: developed.events,
+              };
+              actions.push(sketchAction);
+
+              const motifActionObj: AIManageMotifAction = {
+                type: 'manage_motif',
+                action: 'develop',
+                motifId: motif.id,
+                targetTrackId,
+                operations: ops,
+                description: args.description as string ?? `Develop motif "${motif.name}"`,
+              };
+              actions.push(motifActionObj);
+            }
+
+            return {
+              actions,
+              response: {
+                applied: true,
+                sourceMotifId: motif.id,
+                sourceName: motif.name,
+                developedEvents: developed.events,
+                developedDuration: developed.duration,
+                eventCount: developed.events.length,
+                operationsApplied: ops.map(o => o.op),
+                ...(targetTrackIdRaw ? { writtenToTrack: resolveTrackId(targetTrackIdRaw, session) } : {}),
+              },
+            };
+          }
+
+          case 'list': {
+            const motifs = this.motifLibrary.list();
+            return {
+              actions: [],
+              response: {
+                motifs: motifs.map(m => ({
+                  id: m.id,
+                  name: m.name,
+                  eventCount: m.events.length,
+                  duration: m.duration,
+                  rootPitch: m.rootPitch,
+                  tags: m.tags,
+                })),
+                count: motifs.length,
+              },
+            };
+          }
+
+          default:
+            return { actions: [], response: errorPayload(`Unknown manage_motif action: ${motifAction}. Use register, recall, develop, or list.`) };
+        }
       }
 
       default:
