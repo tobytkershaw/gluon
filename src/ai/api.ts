@@ -13,6 +13,8 @@ import { addTrack, removeTrack } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { humanize as humanizeEvents } from '../engine/musical-helpers';
+import { applyGroove, GROOVE_TEMPLATES } from '../engine/groove-templates';
+import type { InstrumentHint } from '../engine/groove-templates';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
@@ -93,8 +95,13 @@ function projectAction(session: Session, action: AIAction): Session {
       const track = getTrack(session, action.trackId);
       if (!action.events || track.patterns.length === 0) return session;
       const activeReg = getActivePattern(track);
-      // Apply humanization if requested
+      // Apply groove template (before humanize)
       let sketchEvents = action.events;
+      if (action.groove && action.groove in GROOVE_TEMPLATES) {
+        const grooveAmount = action.grooveAmount ?? 0.7;
+        sketchEvents = applyGroove(sketchEvents, GROOVE_TEMPLATES[action.groove], grooveAmount, undefined, activeReg.duration);
+      }
+      // Apply humanization if requested
       if (action.humanize != null && action.humanize > 0) {
         sketchEvents = humanizeEvents(sketchEvents, activeReg.duration, {
           velocityAmount: action.humanize,
@@ -659,6 +666,8 @@ export class GluonAI {
           description: args.description as string,
           events: args.events as AISketchAction['events'],
           ...(typeof args.humanize === 'number' ? { humanize: Math.max(0, Math.min(1, args.humanize)) } : {}),
+          ...(typeof args.groove === 'string' && args.groove in GROOVE_TEMPLATES ? { groove: args.groove } : {}),
+          ...(typeof args.groove_amount === 'number' ? { grooveAmount: Math.max(0, Math.min(1, args.groove_amount)) } : {}),
         };
 
         const rejection = ctx?.validateAction?.(action);

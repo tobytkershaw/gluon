@@ -146,6 +146,16 @@ const sketchTool: ToolSchema = {
           'Humanize amount (0.0-1.0). Adds subtle velocity and timing jitter to events so they don\'t sound mechanical. ' +
           '0.3 is a good default for natural feel. Saves a separate transform step.',
       },
+      groove: {
+        type: 'string',
+        description:
+          'Groove template name (straight, mpc_swing, 808_shuffle, garage, techno_drive, laid_back, dnb_break, dilla). ' +
+          'Applies systematic per-instrument micro-timing for authentic feel. Choose based on genre intent.',
+      },
+      groove_amount: {
+        type: 'number',
+        description: 'Groove intensity 0.0-1.0. Default 0.7. Higher values apply stronger timing offsets.',
+      },
     },
     required: ['trackId', 'description', 'events'],
   },
