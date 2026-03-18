@@ -193,4 +193,64 @@ describe('TransportController pause/resume', () => {
     expect(audio.silenceGeneration).toHaveBeenCalled();
     expect(audio.releaseGeneration).not.toHaveBeenCalled();
   });
+
+  it('toggling metronome off during playback immediately silences it', () => {
+    let session = makeSession('stopped');
+    session.transport.metronome = { enabled: true, volume: 0.7 };
+    const audio = makeMockAudio();
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: () => ({}),
+      createScheduler: () => ({
+        start: vi.fn(),
+        stop: vi.fn(),
+        invalidateTrack: vi.fn(),
+      }),
+    });
+
+    // Start playing with metronome enabled
+    session = { ...session, transport: { ...session.transport, status: 'playing', metronome: { enabled: true, volume: 0.7 } } };
+    controller.sync();
+    expect(audio.setMetronomeVolume).toHaveBeenCalledWith(0.7);
+
+    // Toggle metronome off while still playing
+    (audio.silenceMetronome as ReturnType<typeof vi.fn>).mockClear();
+    session = { ...session, transport: { ...session.transport, metronome: { enabled: false, volume: 0.7 } } };
+    controller.sync();
+
+    // Should immediately silence the metronome
+    expect(audio.silenceMetronome).toHaveBeenCalled();
+  });
+
+  it('changing metronome volume during playback updates immediately', () => {
+    let session = makeSession('stopped');
+    session.transport.metronome = { enabled: true, volume: 0.5 };
+    const audio = makeMockAudio();
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: () => ({}),
+      createScheduler: () => ({
+        start: vi.fn(),
+        stop: vi.fn(),
+        invalidateTrack: vi.fn(),
+      }),
+    });
+
+    // Start playing
+    session = { ...session, transport: { ...session.transport, status: 'playing', metronome: { enabled: true, volume: 0.5 } } };
+    controller.sync();
+
+    // Change volume while playing
+    (audio.setMetronomeVolume as ReturnType<typeof vi.fn>).mockClear();
+    session = { ...session, transport: { ...session.transport, metronome: { enabled: true, volume: 0.3 } } };
+    controller.sync();
+
+    expect(audio.setMetronomeVolume).toHaveBeenCalledWith(0.3);
+  });
 });
