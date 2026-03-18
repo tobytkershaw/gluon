@@ -130,7 +130,8 @@ const sketchTool: ToolSchema = {
         description:
           'Sparse list of musical events. Only include steps you want to set. ' +
           'For drums/percussion, use "trigger" events. For melodic tracks, use "note" events with MIDI pitches. ' +
-          'For chords, place multiple "note" events at the same step with different pitches (up to 4 simultaneous notes). ' +
+          'For polyphonic parts (e.g. pads, stabs), place multiple "note" events at the same step with different pitches (up to 4 simultaneous notes). ' +
+          'WARNING: The Chords model (model 6) synthesizes full chords internally from a single root note — do NOT stack multiple notes on Chords tracks. Use single root notes and control voicing via harmonics (chord type) and timbre (inversion). ' +
           'Fractional "at" values enable microtiming — e.g. at:4.1 pushes an event slightly late for groove. Use sparingly for humanization.',
         items: {
           type: 'object',
