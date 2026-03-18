@@ -83,7 +83,9 @@ const moveTool: ToolSchema = {
 const sketchTool: ToolSchema = {
   name: 'sketch',
   description:
-    'Apply a rhythmic/melodic pattern to a track using musical events. Takes effect after this response.',
+    'Apply a rhythmic/melodic pattern to a track using musical events. Takes effect after this response. ' +
+    'IMPORTANT: Events must fit within the current pattern length (default 16 steps = 1 bar). ' +
+    'For multi-bar patterns, call manage_pattern with set_length FIRST to extend the pattern before sketching.',
   parameters: {
     type: 'object',
     properties: {
