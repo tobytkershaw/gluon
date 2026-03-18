@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has twenty-nine tools, declared as neutral JSON Schema and adapted per provider.
+The AI has thirty-two tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -414,6 +414,40 @@ Analyze a track's signal chain for redundant or no-op processors and suggest rem
 | `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
 
 Checks for: bypassed processors, default-valued processors (no knobs moved), duplicate processor types, unrouted modulators. Returns suggestions without modifying session state.
+
+#### `apply_chain_recipe`
+
+Apply a pre-configured signal chain recipe. Clears existing processors and adds the recipe's chain with optimized settings for common musical roles.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID. |
+| `recipe` | string | yes | Recipe name (e.g. "techno_kick", "deep_bass", "ambient_pad", "mix_bus"). |
+
+Compound tool — emits remove_processor, add_processor, set_model, and move actions. Undoable as an action group.
+
+#### `set_mix_role`
+
+Apply a mix role preset to a track. Sets volume and pan to role-appropriate defaults.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID. |
+| `role` | string | yes | Mix role name (e.g. "lead", "pad", "rhythm_foundation", "sub", "texture", "accent"). |
+
+Undoable via `TrackPropertySnapshot`.
+
+#### `apply_modulation`
+
+Apply a pre-configured modulation recipe. Adds a Tides modulator with preset parameters and connects it to the appropriate target.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID. |
+| `recipe` | string | yes | Modulation recipe name (e.g. "vibrato", "slow_filter_sweep", "tremolo", "wobble", "drift"). |
+| `processorId` | string | no | Specific processor ID for processor-targeted recipes. Auto-finds first matching type if omitted. |
+
+Compound tool — emits add_modulator, set_model, move, and connect_modulator actions. Undoable as an action group. For processor-targeted recipes (filter sweeps, wobble), the matching processor must already exist on the track.
 
 ---
 

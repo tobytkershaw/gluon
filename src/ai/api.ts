@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -31,6 +31,9 @@ import type { TrackAudio } from '../audio/audio-analysis';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
+import { getChainRecipe } from '../engine/chain-recipes';
+import { getMixRole } from '../engine/mix-roles';
+import { getModulationRecipe } from '../engine/modulation-recipes';
 
 /**
  * Lightweight projection of an action onto session state.
@@ -375,6 +378,12 @@ function projectAction(session: Session, action: AIAction): Session {
       // For projection purposes, return session unchanged — the state will be fully
       // updated during executeOperations.
       return session;
+    case 'set_track_mix': {
+      const update: Partial<Track> = {};
+      if (action.volume !== undefined) update.volume = Math.max(0, Math.min(1, action.volume));
+      if (action.pan !== undefined) update.pan = Math.max(-1, Math.min(1, action.pan));
+      return updateTrack(session, action.trackId, update);
+    }
     case 'set_intent': {
       const merged: SessionIntent = { ...session.intent, ...action.intent };
       return { ...session, intent: merged };
@@ -1503,18 +1512,33 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
         const hasName = args.name !== undefined;
+        const hasVolume = typeof args.volume === 'number';
+        const hasPan = typeof args.pan === 'number';
         const hasApproval = args.approval !== undefined;
         const hasImportance = args.importance !== undefined;
         const hasRole = args.musicalRole !== undefined;
         const hasMuted = args.muted !== undefined;
         const hasSolo = args.solo !== undefined;
-        if (!hasName && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
-          return { actions: [], response: errorPayload('At least one of name, approval, importance, musicalRole, muted, solo required') };
+        if (!hasName && !hasVolume && !hasPan && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
+          return { actions: [], response: errorPayload('At least one of name, volume, pan, approval, importance, musicalRole, muted, solo required') };
         }
 
         const metaActions: AIAction[] = [];
         const applied: string[] = [];
         const errors: string[] = [];
+
+        // Handle volume/pan
+        if (hasVolume || hasPan) {
+          const trackMix: AISetTrackMixAction = {
+            type: 'set_track_mix',
+            trackId: args.trackId as string,
+            ...(hasVolume ? { volume: Math.max(0, Math.min(1, args.volume as number)) } : {}),
+            ...(hasPan ? { pan: Math.max(-1, Math.min(1, args.pan as number)) } : {}),
+          };
+          metaActions.push(trackMix);
+          if (hasVolume) applied.push('volume');
+          if (hasPan) applied.push('pan');
+        }
 
         // Handle muted/solo
         if (hasMuted || hasSolo) {
@@ -2377,6 +2401,254 @@ export class GluonAI {
             scale: scaleConstraint,
             label: scaleToString(scaleConstraint),
             notes: scaleNoteNames(scaleConstraint),
+          },
+        };
+      }
+
+      case 'apply_chain_recipe': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.recipe !== 'string' || !args.recipe) {
+          return { actions: [], response: errorPayload('Missing required parameter: recipe') };
+        }
+
+        const recipe = getChainRecipe(args.recipe as string);
+        if (!recipe) {
+          return { actions: [], response: errorPayload(`Unknown chain recipe: "${args.recipe}"`) };
+        }
+
+        const recipeTrack = session.tracks.find(v => v.id === args.trackId);
+        if (!recipeTrack) {
+          return { actions: [], response: errorPayload(`Track not found: "${args.trackId}"`) };
+        }
+
+        const recipeActions: AIAction[] = [];
+
+        // Remove existing processors
+        for (const proc of recipeTrack.processors ?? []) {
+          const removeAction: AIRemoveProcessorAction = {
+            type: 'remove_processor',
+            trackId: args.trackId as string,
+            processorId: proc.id,
+            description: `Remove ${proc.type} for chain recipe "${recipe.name}"`,
+          };
+          recipeActions.push(removeAction);
+        }
+
+        // Add recipe processors
+        const addedProcessorIds: string[] = [];
+        const now = Date.now();
+        for (let i = 0; i < recipe.processors.length; i++) {
+          const rp = recipe.processors[i];
+          const procId = `${rp.type}-${now + i}`;
+          addedProcessorIds.push(procId);
+
+          const addAction: AIAddProcessorAction = {
+            type: 'add_processor',
+            trackId: args.trackId as string,
+            moduleType: rp.type,
+            processorId: procId,
+            description: `Add ${rp.type} for chain recipe "${recipe.name}"`,
+          };
+          recipeActions.push(addAction);
+
+          // Set model if not default (0)
+          if (rp.model !== 0) {
+            const setModelAction: AISetModelAction = {
+              type: 'set_model',
+              trackId: args.trackId as string,
+              processorId: procId,
+              model: getProcessorEngineName(rp.type, rp.model) ?? '',
+            };
+            recipeActions.push(setModelAction);
+          }
+
+          // Set params
+          for (const [param, value] of Object.entries(rp.params)) {
+            const moveAction: AIMoveAction = {
+              type: 'move',
+              trackId: args.trackId as string,
+              processorId: procId,
+              param,
+              target: { absolute: value },
+            };
+            recipeActions.push(moveAction);
+          }
+        }
+
+        return {
+          actions: recipeActions,
+          response: {
+            applied: true,
+            trackId: args.trackId,
+            recipe: recipe.name,
+            processorsAdded: addedProcessorIds,
+            description: recipe.description,
+          },
+        };
+      }
+
+      case 'set_mix_role': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.role !== 'string' || !args.role) {
+          return { actions: [], response: errorPayload('Missing required parameter: role') };
+        }
+
+        const mixRole = getMixRole(args.role as string);
+        if (!mixRole) {
+          return { actions: [], response: errorPayload(`Unknown mix role: "${args.role}"`) };
+        }
+
+        const roleTrack = session.tracks.find(v => v.id === args.trackId);
+        if (!roleTrack) {
+          return { actions: [], response: errorPayload(`Track not found: "${args.trackId}"`) };
+        }
+
+        // Convert pan from 0-1 (role format) to -1..1 (track format)
+        const panValue = (mixRole.defaults.pan - 0.5) * 2;
+
+        const trackMixAction: AISetTrackMixAction = {
+          type: 'set_track_mix',
+          trackId: args.trackId as string,
+          volume: mixRole.defaults.volume,
+          pan: panValue,
+        };
+
+        return {
+          actions: [trackMixAction],
+          response: {
+            applied: true,
+            trackId: args.trackId,
+            role: mixRole.name,
+            volume: mixRole.defaults.volume,
+            pan: panValue,
+            description: mixRole.description,
+          },
+        };
+      }
+
+      case 'apply_modulation': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.recipe !== 'string' || !args.recipe) {
+          return { actions: [], response: errorPayload('Missing required parameter: recipe') };
+        }
+
+        const modRecipe = getModulationRecipe(args.recipe as string);
+        if (!modRecipe) {
+          return { actions: [], response: errorPayload(`Unknown modulation recipe: "${args.recipe}"`) };
+        }
+
+        const modTrack = session.tracks.find(v => v.id === args.trackId);
+        if (!modTrack) {
+          return { actions: [], response: errorPayload(`Track not found: "${args.trackId}"`) };
+        }
+
+        // For processor-targeted recipes, find the target processor
+        let targetProcessorId: string | undefined;
+        if (modRecipe.routeTargetType === 'processor') {
+          if (typeof args.processorId === 'string' && args.processorId) {
+            // Use explicitly provided processor ID
+            targetProcessorId = args.processorId as string;
+            const exists = (modTrack.processors ?? []).some(p => p.id === targetProcessorId);
+            if (!exists) {
+              return { actions: [], response: errorPayload(`Processor "${targetProcessorId}" not found on track`) };
+            }
+          } else {
+            // Auto-find first matching processor type
+            const matchingProc = (modTrack.processors ?? []).find(
+              p => p.type === modRecipe.routeTargetProcessorType,
+            );
+            if (!matchingProc) {
+              return {
+                actions: [],
+                response: errorPayload(
+                  `Recipe "${modRecipe.name}" targets a ${modRecipe.routeTargetProcessorType} processor, but none found on this track. Add one first.`,
+                ),
+              };
+            }
+            targetProcessorId = matchingProc.id;
+          }
+        }
+
+        // Validate modulator addition
+        const modValidation = validateModulatorMutation(modTrack, { kind: 'add', type: modRecipe.modulatorType });
+        if (!modValidation.valid) {
+          return { actions: [], response: errorPayload(modValidation.errors[0]) };
+        }
+
+        const modActions: AIAction[] = [];
+        const modNow = Date.now();
+        const modulatorId = `${modRecipe.modulatorType}-${modNow}`;
+        const modulationId = `mod-${modNow}`;
+
+        // Add the modulator
+        const addModAction: AIAddModulatorAction = {
+          type: 'add_modulator',
+          trackId: args.trackId as string,
+          moduleType: modRecipe.modulatorType,
+          modulatorId,
+          description: `Add modulator for recipe "${modRecipe.name}"`,
+        };
+        modActions.push(addModAction);
+
+        // Set model if not default (1 = Looping)
+        if (modRecipe.modulatorModel !== 1) {
+          const modModelName = getModulatorEngineName(modRecipe.modulatorType, modRecipe.modulatorModel);
+          if (modModelName) {
+            modActions.push({
+              type: 'set_model',
+              trackId: args.trackId as string,
+              modulatorId,
+              model: modModelName,
+            } as AISetModelAction);
+          }
+        }
+
+        // Set modulator params
+        for (const [param, value] of Object.entries(modRecipe.modulatorParams)) {
+          modActions.push({
+            type: 'move',
+            trackId: args.trackId as string,
+            modulatorId,
+            param,
+            target: { absolute: value },
+          } as AIMoveAction);
+        }
+
+        // Connect modulation route
+        const modTarget: ModulationTarget = modRecipe.routeTargetType === 'source'
+          ? { kind: 'source', param: modRecipe.routeTarget }
+          : { kind: 'processor', processorId: targetProcessorId!, param: modRecipe.routeTarget };
+
+        const connectAction: AIConnectModulatorAction = {
+          type: 'connect_modulator',
+          trackId: args.trackId as string,
+          modulatorId,
+          target: modTarget,
+          depth: modRecipe.routeDepth,
+          modulationId,
+          description: `Connect modulation for recipe "${modRecipe.name}"`,
+        };
+        modActions.push(connectAction);
+
+        return {
+          actions: modActions,
+          response: {
+            applied: true,
+            trackId: args.trackId,
+            recipe: modRecipe.name,
+            modulatorId,
+            modulationId,
+            target: modRecipe.routeTargetType === 'source'
+              ? `source:${modRecipe.routeTarget}`
+              : `processor:${targetProcessorId}:${modRecipe.routeTarget}`,
+            depth: modRecipe.routeDepth,
+            description: modRecipe.description,
           },
         };
       }

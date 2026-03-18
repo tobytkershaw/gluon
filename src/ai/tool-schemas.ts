@@ -16,6 +16,9 @@ import {
   ripplesInstrument,
   eqInstrument,
 } from '../audio/instrument-registry';
+import { RECIPE_NAMES } from '../engine/chain-recipes';
+import { ROLE_NAMES } from '../engine/mix-roles';
+import { MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
 
 // ---------------------------------------------------------------------------
 // Derive param lists from the instrument registry so descriptions stay in sync
@@ -864,8 +867,8 @@ const manageSequenceTool: ToolSchema = {
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata in a single call: name (rename), muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
-    'Example: set_track_meta(trackId: "Track 1", name: "Kick") or set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
+    'Set track metadata and mix properties in a single call: name (rename), volume, pan, muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
+    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -876,6 +879,14 @@ const setTrackMetaTool: ToolSchema = {
       name: {
         type: 'string',
         description: 'Display name for the track (e.g. "Kick", "Hi-Hat", "Bass", "Reverb Bus").',
+      },
+      volume: {
+        type: 'number',
+        description: 'Track volume (0.0-1.0, linear gain).',
+      },
+      pan: {
+        type: 'number',
+        description: 'Track pan (-1.0 left to 1.0 right, 0.0 center).',
       },
       approval: {
         type: 'string',
@@ -1190,6 +1201,76 @@ const setSectionTool: ToolSchema = {
   },
 };
 
+const applyChainRecipeTool: ToolSchema = {
+  name: 'apply_chain_recipe',
+  description:
+    'Apply a pre-configured signal chain recipe. Clears existing processors and adds the recipe\'s chain with optimized settings. ' +
+    'Use this for quick setup of common mixing/sound design chains instead of manually adding processors one by one.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      recipe: {
+        type: 'string',
+        description: 'Recipe name.',
+        enum: RECIPE_NAMES,
+      },
+    },
+    required: ['trackId', 'recipe'],
+  },
+};
+
+const setMixRoleTool: ToolSchema = {
+  name: 'set_mix_role',
+  description:
+    'Apply a mix role preset to a track. Sets volume and pan to role-appropriate defaults. ' +
+    'Use this to quickly establish mix balance across tracks.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      role: {
+        type: 'string',
+        description: 'Mix role name.',
+        enum: ROLE_NAMES,
+      },
+    },
+    required: ['trackId', 'role'],
+  },
+};
+
+const applyModulationTool: ToolSchema = {
+  name: 'apply_modulation',
+  description:
+    'Apply a pre-configured modulation recipe. Adds a Tides modulator with preset parameters and connects it to the appropriate target. ' +
+    'For recipes that target a processor (e.g. filter sweep), a matching processor must already exist on the track, or provide processorId to target a specific one.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      recipe: {
+        type: 'string',
+        description: 'Modulation recipe name.',
+        enum: MODULATION_RECIPE_NAMES,
+      },
+      processorId: {
+        type: 'string',
+        description: 'Optional: specific processor ID to target for processor-targeted recipes. If omitted, auto-finds the first matching processor type.',
+      },
+    },
+    required: ['trackId', 'recipe'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1220,4 +1301,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setIntentTool,
   setSectionTool,
   setScaleTool,
+  applyChainRecipeTool,
+  setMixRoleTool,
+  applyModulationTool,
 ];

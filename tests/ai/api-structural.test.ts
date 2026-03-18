@@ -189,6 +189,7 @@ describe('API Structural Integrity', () => {
       'manage_send', 'set_master', 'manage_pattern', 'manage_sequence',
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
       'set_intent', 'set_section', 'set_scale',
+      'apply_chain_recipe', 'set_mix_role', 'apply_modulation',
     ];
 
     // Analysis-only tools produce no actions (actions: []):
@@ -206,7 +207,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(29);
+    expect(GLUON_TOOLS.length).toBe(32);
   });
 
   // -----------------------------------------------------------------------

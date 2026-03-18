@@ -514,6 +514,12 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'set_track_mix': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      return null;
+    }
+
     case 'rename_track': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
@@ -1915,6 +1921,38 @@ export function executeOperations(
         if (action.muted !== undefined) msParts.push(`muted=${action.muted}`);
         if (action.solo !== undefined) msParts.push(`solo=${action.solo}`);
         log.push({ trackId: action.trackId, trackLabel: msLabel, description: msParts.join(', ') });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_track_mix': {
+        const mixTrack = getTrack(next, action.trackId);
+        const mixPrevProps: Partial<typeof mixTrack> = {};
+        if (action.volume !== undefined) mixPrevProps.volume = mixTrack.volume;
+        if (action.pan !== undefined) mixPrevProps.pan = mixTrack.pan;
+
+        const mixSnapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId: action.trackId,
+          prevProps: mixPrevProps,
+          timestamp: Date.now(),
+          description: `AI set_track_mix on ${action.trackId}`,
+        };
+
+        const mixUpdate: Partial<typeof mixTrack> = {};
+        if (action.volume !== undefined) mixUpdate.volume = Math.max(0, Math.min(1, action.volume));
+        if (action.pan !== undefined) mixUpdate.pan = Math.max(-1, Math.min(1, action.pan));
+
+        next = {
+          ...updateTrack(next, action.trackId, mixUpdate),
+          undoStack: [...next.undoStack, mixSnapshot],
+        };
+
+        const mixLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        const mixParts: string[] = [];
+        if (action.volume !== undefined) mixParts.push(`volume=${action.volume.toFixed(2)}`);
+        if (action.pan !== undefined) mixParts.push(`pan=${action.pan.toFixed(2)}`);
+        log.push({ trackId: action.trackId, trackLabel: mixLabel, description: mixParts.join(', ') });
         accepted.push(action);
         break;
       }
