@@ -359,6 +359,7 @@ ${processorTypes.size > 0 ? `\n### Active Processor Details\n${generateActivePro
 Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types, 'bypass' to toggle enabled/disabled.
 To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx").
 To switch processor modes, use **set_model** with the processorId parameter (e.g. set_model model="string" processorId="rings-xxx").
+Compressor modes: "clean" (transparent VCA), "opto" (LA-2A style slow release), "bus" (SSL glue), "limit" (brickwall limiter).
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.
 
 ## Modulator Modules

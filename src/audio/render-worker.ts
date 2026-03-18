@@ -205,6 +205,108 @@ function getHeapF32(wasm: { HEAPF32?: Float32Array; memory?: WebAssembly.Memory 
 // ---------------------------------------------------------------------------
 // Per-track rendering
 // ---------------------------------------------------------------------------
+// Offline compressor (pure JS — no WASM needed)
+// ---------------------------------------------------------------------------
+
+interface OfflineCompressorState {
+  mode: number; // 0=clean, 1=opto, 2=bus, 3=limit
+  sampleRate: number;
+  envLevel: number;
+  smoothedGainDb: number;
+  rmsSquaredSum: number;
+}
+
+function createOfflineCompressor(mode: number, sr: number): OfflineCompressorState {
+  return { mode, sampleRate: sr, envLevel: 0, smoothedGainDb: 0, rmsSquaredSum: 0 };
+}
+
+function processOfflineCompressor(
+  state: OfflineCompressorState,
+  params: Record<string, number>,
+  buf: Float32Array,
+  frames: number,
+): void {
+  const threshold = params.threshold ?? 0.5;
+  const ratio = params.ratio ?? 0.3;
+  const attack = params.attack ?? 0.3;
+  const release = params.release ?? 0.4;
+  const makeup = params.makeup ?? 0.0;
+  const mix = params.mix ?? 1.0;
+
+  const threshDb = -60 + threshold * 60;
+  const threshLin = Math.pow(10, threshDb / 20);
+  let ratioVal = 1 + ratio * 19;
+  let attackSec = 0.0001 * Math.pow(1000, attack);
+  const releaseSec = 0.01 * Math.pow(100, release);
+  const makeupGain = Math.pow(10, (makeup * 24) / 20);
+
+  const isOpto = state.mode === 1;
+  const isBus = state.mode === 2;
+  const isLimit = state.mode === 3;
+
+  if (isLimit) { attackSec = 0.0001; ratioVal = 100; }
+  const kneeWidthDb = isBus ? 6 : 0;
+
+  const attackCoeff = 1 - Math.exp(-1 / (attackSec * state.sampleRate));
+  const releaseCoeff = 1 - Math.exp(-1 / (releaseSec * state.sampleRate));
+  const rmsWindowSamples = Math.round(state.sampleRate * 0.01);
+
+  for (let i = 0; i < frames; i++) {
+    const dry = buf[i];
+    let detectorInput: number;
+
+    if (isOpto) {
+      state.rmsSquaredSum += dry * dry;
+      state.rmsSquaredSum -= state.rmsSquaredSum / rmsWindowSamples;
+      detectorInput = Math.sqrt(Math.max(0, state.rmsSquaredSum / rmsWindowSamples));
+    } else {
+      detectorInput = Math.abs(dry);
+    }
+
+    if (detectorInput > state.envLevel) {
+      state.envLevel += attackCoeff * (detectorInput - state.envLevel);
+    } else {
+      let effReleaseCoeff = releaseCoeff;
+      if (isOpto) {
+        const compressionDepth = Math.max(0, state.envLevel - threshLin);
+        const slowFactor = 1 + compressionDepth * 4;
+        effReleaseCoeff = 1 - Math.exp(-1 / (releaseSec * slowFactor * state.sampleRate));
+      }
+      state.envLevel += effReleaseCoeff * (detectorInput - state.envLevel);
+    }
+
+    const envDb = 20 * Math.log10(Math.max(state.envLevel, 1e-12));
+    let gainReductionDb = 0;
+
+    if (kneeWidthDb > 0 && envDb > threshDb - kneeWidthDb / 2 && envDb < threshDb + kneeWidthDb / 2) {
+      const x = envDb - threshDb + kneeWidthDb / 2;
+      gainReductionDb = ((1 / ratioVal - 1) * x * x) / (2 * kneeWidthDb);
+    } else if (envDb > threshDb) {
+      gainReductionDb = (threshDb - envDb) * (1 - 1 / ratioVal);
+    }
+
+    const targetGainDb = gainReductionDb;
+    if (targetGainDb < state.smoothedGainDb) {
+      state.smoothedGainDb += attackCoeff * (targetGainDb - state.smoothedGainDb);
+    } else {
+      state.smoothedGainDb += releaseCoeff * (targetGainDb - state.smoothedGainDb);
+    }
+
+    const gainLin = Math.pow(10, state.smoothedGainDb / 20) * makeupGain;
+    let wet = dry * gainLin;
+
+    if (isOpto) {
+      // Soft clip
+      if (wet > 3) wet = 1;
+      else if (wet < -3) wet = -1;
+      else { const w2 = wet * wet; wet = wet * (27 + w2) / (27 + 9 * w2); }
+    }
+
+    buf[i] = dry * (1 - mix) + wet * mix;
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 async function renderTrack(
   track: RenderTrackSpec,
@@ -228,7 +330,7 @@ async function renderTrack(
   plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
 
   // --- Load and init processors ---
-  interface ProcessorHandle {
+  interface WasmProcessorHandle {
     type: 'rings' | 'clouds';
     wasm: RingsWasm | CloudsWasm;
     handle: number;
@@ -236,6 +338,12 @@ async function renderTrack(
     outPtr: number;
     spec: RenderProcessorSpec;
   }
+  interface CompressorHandle {
+    type: 'compressor';
+    state: OfflineCompressorState;
+    spec: RenderProcessorSpec;
+  }
+  type ProcessorHandle = WasmProcessorHandle | CompressorHandle;
   const procHandles: ProcessorHandle[] = [];
 
   for (const proc of track.processors) {
@@ -270,6 +378,12 @@ async function renderTrack(
       const inPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       const outPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
       procHandles.push({ type: 'clouds', wasm: clouds, handle: cHandle, inPtr, outPtr, spec: proc });
+    } else if (proc.type === 'compressor') {
+      procHandles.push({
+        type: 'compressor',
+        state: createOfflineCompressor(proc.model, sampleRate),
+        spec: proc,
+      });
     }
   }
 
@@ -383,6 +497,8 @@ async function renderTrack(
         cHeap = getHeapF32(clouds);
         const cOutStart = ph.outPtr / Float32Array.BYTES_PER_ELEMENT;
         blockBuf.set(cHeap.subarray(cOutStart, cOutStart + cRendered));
+      } else if (ph.type === 'compressor') {
+        processOfflineCompressor(ph.state, effectiveProcessorParams, blockBuf, framesToRender);
       }
     }
 
@@ -405,6 +521,7 @@ async function renderTrack(
       clouds._free(ph.outPtr);
       clouds._clouds_destroy(ph.handle);
     }
+    // compressor: pure JS, no cleanup needed
   }
   for (const mod of modHandles) {
     mod.wasm._free(mod.outPtr);
