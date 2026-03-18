@@ -4,6 +4,7 @@ import { DEFAULT_PARAMS } from './synth-interface';
 import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';
 import type { CloudsEngine } from './clouds-synth';
+import type { RipplesEngine } from './ripples-synth';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -22,7 +23,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -104,6 +105,14 @@ function toCloudsPatchParams(params: Record<string, number>): CloudsPatchParams 
     size: params.size ?? 0.5,
     density: params.density ?? 0.5,
     feedback: params.feedback ?? 0.5,
+  };
+}
+
+function toRipplesPatchParams(params: Record<string, number>): import('./ripples-messages').RipplesPatchParams {
+  return {
+    cutoff: params.cutoff ?? 0.5,
+    resonance: params.resonance ?? 0.0,
+    drive: params.drive ?? 0.0,
   };
 }
 
@@ -758,6 +767,9 @@ export class AudioEngine {
       } else if (processorType === 'clouds') {
         const { createCloudsProcessor } = await import('./create-synth');
         engine = await createCloudsProcessor(this.ctx);
+      } else if (processorType === 'ripples') {
+        const { createRipplesProcessor } = await import('./create-synth');
+        engine = await createRipplesProcessor(this.ctx);
       } else {
         return;
       }
@@ -807,6 +819,9 @@ export class AudioEngine {
       engine.setPatch(toCloudsPatchParams(params));
       engine.setExtended(toCloudsExtendedParams(params));
       if (params.freeze !== undefined) engine.setFreeze(params.freeze >= 0.5);
+    } else if (proc.type === 'ripples') {
+      const engine = proc.engine as import('./ripples-synth').RipplesEngine;
+      engine.setPatch(toRipplesPatchParams(params));
     }
   }
 
@@ -819,6 +834,8 @@ export class AudioEngine {
       (proc.engine as import('./rings-synth').RingsEngine).setModel(model);
     } else if (proc.type === 'clouds') {
       (proc.engine as import('./clouds-synth').CloudsEngine).setMode(model);
+    } else if (proc.type === 'ripples') {
+      (proc.engine as import('./ripples-synth').RipplesEngine).setMode(model);
     }
   }
 
