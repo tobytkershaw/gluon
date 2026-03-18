@@ -48,6 +48,29 @@ import type { TimbralDirection } from '../engine/timbral-vocabulary';
 import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
 
 /**
+ * Infer spectral slot priority from a track's musicalRole string.
+ * Returns a priority 0-10 based on keyword matching, or 5 (default) if
+ * the role is absent or unrecognized.
+ */
+export function inferSpectralPriorityFromRole(role: string | undefined): number {
+  if (!role) return 5;
+  const lower = role.toLowerCase();
+
+  // Bass/sub — acoustically needs highest frequency priority
+  if (/\b(kick|bass|sub|low)\b/.test(lower)) return 9;
+  // Lead/vocal — prominent melodic content
+  if (/\b(lead|vocal|melody)\b/.test(lower)) return 7;
+  // Rhythm/percussion — mid-high priority
+  if (/\b(hat|snare|drum|percussion|rhythm)\b/.test(lower)) return 6;
+  // Harmony/chords — moderate priority
+  if (/\b(pad|chord|harmony)\b/.test(lower)) return 4;
+  // Texture/ambient — lowest priority
+  if (/\b(texture|ambient|noise|atmosphere|fx)\b/.test(lower)) return 2;
+
+  return 5;
+}
+
+/**
  * Lightweight projection of an action onto session state.
  * No undo entries or messages — just updates the values so later
  * tool calls in the same turn can validate against current state.
@@ -2889,7 +2912,9 @@ export class GluonAI {
           return { actions: [], response: errorPayload(`No valid frequency bands. Available: ${FREQUENCY_BANDS.join(', ')}`) };
         }
 
-        const priority = typeof args.priority === 'number' ? Math.max(0, Math.min(10, Math.round(args.priority))) : 5;
+        const priority = typeof args.priority === 'number'
+          ? Math.max(0, Math.min(10, Math.round(args.priority)))
+          : inferSpectralPriorityFromRole(track.musicalRole);
 
         const slot = this.spectralSlots.assign(trackId, validBands, priority);
         const collisions = this.spectralSlots.detectCollisions();
