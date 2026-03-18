@@ -503,6 +503,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
       tokenPlanner.countContextTokens = vi.fn(async () => { throw new Error('network'); });
       tokenPlanner.getTokenBudget = () => 170_000;
+      tokenPlanner.getExchangeCount = () => 5; // Must be > 0 to enter token counting path
 
       const tokenAI = new GluonAI(tokenPlanner, listener);
       const session = createSession();

@@ -858,10 +858,17 @@ export default function App() {
     setIsThinking(true);
     setStreamingText('');
     await ensureAudio();
-    setSession((s) => ({
-      ...s,
-      messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
-    }));
+    // Add human message to session synchronously via ref so askStreaming
+    // receives the session with the message already present. Without this,
+    // onStep's setSession(() => updatedSession) overwrites the React state
+    // with a snapshot that predates the human message, making it disappear.
+    const humanMsg = { role: 'human' as const, text: message, timestamp: Date.now() };
+    const withHumanMsg = {
+      ...sessionRef.current,
+      messages: [...sessionRef.current.messages, humanMsg],
+    };
+    sessionRef.current = withHumanMsg;
+    setSession(withHumanMsg);
 
     let accumulated = '';
     const collectedToolCalls: ToolCallEntry[] = [];

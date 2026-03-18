@@ -3860,11 +3860,16 @@ export class GluonAI {
     }
 
     const budget = planner.getTokenBudget();
+    const exchangeCount = planner.getExchangeCount?.() ?? 0;
+
+    // Skip token counting on first turn — no history to trim, and countTokens
+    // adds 1-2 API round trips of latency before the user sees anything.
+    if (exchangeCount === 0) return;
+
     const systemPrompt = buildSystemPrompt(session);
 
     try {
       let tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
-      const exchangeCount = planner.getExchangeCount?.() ?? 0;
       console.debug(
         `[gluon-ai] context: ${tokenCount} tokens / ${budget} budget (${Math.round((tokenCount / budget) * 100)}%), ${exchangeCount} exchanges`,
       );
