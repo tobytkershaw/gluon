@@ -12,6 +12,8 @@ import type { StereoEngine } from './stereo-synth';
 import type { StereoPatchParams } from './stereo-messages';
 import type { ChorusEngine } from './chorus-synth';
 import type { ChorusPatchParams } from './chorus-messages';
+import type { DistortionEngine } from './distortion-synth';
+import type { DistortionPatchParams } from './distortion-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -30,7 +32,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -175,6 +177,16 @@ function toChorusPatchParams(params: Record<string, number>): ChorusPatchParams 
     feedback: params.feedback ?? 0.0,
     mix: params.mix ?? 0.5,
     stereo: params.stereo ?? 0.5,
+  };
+}
+
+function toDistortionPatchParams(params: Record<string, number>): DistortionPatchParams {
+  return {
+    drive: params.drive ?? 0.5,
+    tone: params.tone ?? 0.5,
+    mix: params.mix ?? 1.0,
+    bits: params.bits ?? 1.0,
+    downsample: params.downsample ?? 0.0,
   };
 }
 
@@ -834,6 +846,9 @@ export class AudioEngine {
       } else if (processorType === 'chorus') {
         const { createChorusProcessor } = await import('./create-synth');
         engine = await createChorusProcessor(this.ctx);
+      } else if (processorType === 'distortion') {
+        const { createDistortionProcessor } = await import('./create-synth');
+        engine = await createDistortionProcessor(this.ctx);
       } else {
         return;
       }
@@ -898,6 +913,9 @@ export class AudioEngine {
     } else if (proc.type === 'chorus') {
       const engine = proc.engine as import('./chorus-synth').ChorusEngine;
       engine.setPatch(toChorusPatchParams(params));
+    } else if (proc.type === 'distortion') {
+      const engine = proc.engine as import('./distortion-synth').DistortionEngine;
+      engine.setPatch(toDistortionPatchParams(params));
     }
   }
 
@@ -920,6 +938,8 @@ export class AudioEngine {
       (proc.engine as import('./stereo-synth').StereoEngine).setMode(model);
     } else if (proc.type === 'chorus') {
       (proc.engine as import('./chorus-synth').ChorusEngine).setMode(model);
+    } else if (proc.type === 'distortion') {
+      (proc.engine as import('./distortion-synth').DistortionEngine).setMode(model);
     }
   }
 
