@@ -27,7 +27,10 @@ import type { ABSnapshot } from '../engine/session';
 import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
 import { applyParamDirect, applyUndo, applyRedo } from '../engine/primitives';
-import { executeOperations, prevalidateAction } from '../engine/operation-executor';
+import { executeOperations, executeStepActions, finalizeAITurn, prevalidateAction } from '../engine/operation-executor';
+import type { StepExecutionReport } from '../engine/operation-executor';
+import type { OnStepCallback, StepResult, StepExecutor } from '../ai/types';
+import type { ExecutionReportLogEntry } from '../engine/canonical-types';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents, transposeEventsByIndices } from '../engine/event-primitives';
@@ -860,52 +863,118 @@ export default function App() {
       messages: [...s.messages, { role: 'human' as const, text: message, timestamp: Date.now() }],
     }));
 
-    // Accumulate streaming text in a ref so the callback closure always
-    // has the latest value (React state updates are async).
     let accumulated = '';
     const collectedToolCalls: ToolCallEntry[] = [];
+    const allSayTexts: string[] = [];
+    const allLog: ExecutionReportLogEntry[] = [];
+    const undoBaseline = sessionRef.current.undoStack.length;
+
+    // Capture current tracker selection (if any) so the AI knows what the human is pointing at.
+    const sel = trackerSelectionRef.current;
+    const userSelection: UserSelection | undefined = sel
+      ? { trackId: sessionRef.current.activeTrackId, stepRange: sel.stepRange, eventIndices: sel.eventIndices }
+      : undefined;
+
+    const ctx = {
+      listen: {
+        renderOffline: (s: Session, vIds: string[], bars: number) => renderOffline(s, vIds, bars),
+        renderOfflinePcm: (s: Session, vIds: string[], bars: number) => renderOfflinePcm(s, vIds, bars),
+        onListening: setIsListening,
+      },
+      isStale: () => thisRequest !== requestIdRef.current,
+      validateAction: (sess: Session, action: AIAction) => prevalidateAction(
+        sess, action, plaitsAdapter, arbRef.current,
+      ),
+      onStreamText: (chunk: string) => {
+        if (thisRequest !== requestIdRef.current) return;
+        accumulated += chunk;
+        setStreamingText(accumulated);
+      },
+      onToolCall: (name: string, args: Record<string, unknown>) => {
+        if (thisRequest !== requestIdRef.current) return;
+        collectedToolCalls.push({ name, args });
+      },
+      userSelection,
+    };
+
+    // Step executor: GluonAI calls this to execute actions against real state.
+    const stepExecutor: StepExecutor = (sess, actions) => {
+      return executeStepActions(sess, actions, plaitsAdapter, arbRef.current);
+    };
+
+    // Step callback: GluonAI calls this after each step for UI rendering.
+    const onStep: OnStepCallback = (stepResult, updatedSession) => {
+      // Guard: if a new request superseded this one, don't push stale state
+      if (thisRequest !== requestIdRef.current) return;
+
+      // Collect say texts for the final ChatMessage
+      for (const a of stepResult.actions) {
+        if (a.type === 'say') allSayTexts.push(a.text);
+      }
+
+      // Collect log entries
+      if (stepResult.executionReport) {
+        allLog.push(...stepResult.executionReport.log);
+
+        // Start drift animations for accepted moves with `over`
+        for (let i = 0; i < stepResult.executionReport.accepted.length; i++) {
+          const action = stepResult.executionReport.accepted[i];
+          if (action.type === 'move' && action.over) {
+            const vid = action.trackId ?? updatedSession.activeTrackId;
+            const runtimeParam = stepResult.executionReport.resolvedParams.get(i) ?? action.param;
+            const track = getTrack(updatedSession, vid);
+            const currentVal = track.params[runtimeParam] ?? 0;
+            const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+            const targetVal = Math.max(0, Math.min(1, rawTarget));
+            autoRef.current.start(vid, runtimeParam, currentVal, targetVal, action.over, (p, value) => {
+              if (!arbRef.current.canAIAct(vid, p)) return;
+              setSession((s2) => applyParamDirect(s2, vid, p, value));
+            });
+            autoRef.current.startLoop();
+          }
+        }
+
+        // Track activity for touched tracks
+        const now = Date.now();
+        const touchedTracks = new Set<string>();
+        for (const action of stepResult.executionReport.accepted) {
+          if (action.type === 'say' || action.type === 'set_transport') continue;
+          if (!('trackId' in action) || !action.trackId) continue;
+          touchedTracks.add(action.trackId);
+        }
+        if (touchedTracks.size > 0) {
+          setActivityMap(prev => {
+            const next = { ...prev };
+            for (const vid of touchedTracks) next[vid] = now;
+            return next;
+          });
+        }
+      }
+
+      // Push updated session to React for rendering
+      setSession(() => updatedSession);
+
+      // Reset streaming text between steps
+      accumulated = '';
+      setStreamingText('');
+    };
 
     try {
-      // Capture current tracker selection (if any) so the AI knows what the human is pointing at.
-      const sel = trackerSelectionRef.current;
-      const userSelection: UserSelection | undefined = sel
-        ? { trackId: sessionRef.current.activeTrackId, stepRange: sel.stepRange, eventIndices: sel.eventIndices }
-        : undefined;
-
-      const actions = await aiRef.current.ask(sessionRef.current, message, {
-        listen: {
-          renderOffline: (s, vIds, bars) => renderOffline(s, vIds, bars),
-          renderOfflinePcm: (s, vIds, bars) => renderOfflinePcm(s, vIds, bars),
-          onListening: setIsListening,
-        },
-        isStale: () => thisRequest !== requestIdRef.current,
-        validateAction: (action) => prevalidateAction(
-          sessionRef.current, action, plaitsAdapter, arbRef.current,
-        ),
-        onStreamText: (chunk) => {
-          if (thisRequest !== requestIdRef.current) return;
-          accumulated += chunk;
-          setStreamingText(accumulated);
-        },
-        onToolCall: (name, args) => {
-          if (thisRequest !== requestIdRef.current) return;
-          collectedToolCalls.push({ name, args });
-        },
-        userSelection,
-      });
-      if (thisRequest !== requestIdRef.current) return;
-      setStreamingText('');
-      dispatchAIActions(actions, collectedToolCalls);
+      await aiRef.current.askStreaming(
+        sessionRef.current, message, ctx, stepExecutor, onStep,
+      );
     } catch {
-      // Error already handled by GluonAI.handleError — no additional action needed
+      // Error already handled by GluonAI.handleError
     } finally {
       if (thisRequest === requestIdRef.current) {
+        // Finalize: group undo entries and create ChatMessage
+        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls));
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');
       }
     }
-  }, [ensureAudio, dispatchAIActions]);
+  }, [ensureAudio]);
 
   const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected') => {
     setSession((s) => {

@@ -708,6 +708,95 @@ export function generatePreservationReport(
   };
 }
 
+// ---------------------------------------------------------------------------
+// Step-level execution (#945) — shared internal helper + public wrappers
+// ---------------------------------------------------------------------------
+
+/** Lightweight report from step-level execution (no undo grouping, no message). */
+export interface StepExecutionReport {
+  session: Session;
+  accepted: AIAction[];
+  rejected: Array<{ op: AIAction; reason: string }>;
+  log: ExecutionReportLogEntry[];
+  resolvedParams: Map<number, string>;
+  preservationReports: PreservationReport[];
+  /** Say texts collected from 'say' actions in this step. */
+  sayTexts: string[];
+}
+
+/**
+ * Execute a batch of AI actions without undo grouping or ChatMessage creation.
+ * Used by the step-based agentic loop (#945) where grouping and finalization
+ * happen across multiple steps at the end of the turn.
+ */
+export function executeStepActions(
+  session: Session,
+  actions: AIAction[],
+  adapter: SourceAdapter,
+  arbitrator: Arbitrator,
+): StepExecutionReport {
+  return executeActionsInternal(session, actions, adapter, arbitrator);
+}
+
+/**
+ * Finalize an AI turn: collapse undo snapshots above `undoBaseline` into a
+ * single ActionGroupSnapshot and append a ChatMessage with the combined text,
+ * action log, and tool calls. Creates a ChatMessage whenever there is say
+ * text or log entries (even when no undo entries exist).
+ */
+export function finalizeAITurn(
+  session: Session,
+  undoBaseline: number,
+  sayTexts: string[],
+  log: ExecutionReportLogEntry[],
+  toolCalls?: ToolCallEntry[],
+): Session {
+  let next = session;
+
+  // Collapse multiple snapshots into a single undo group
+  const newSnapshots = next.undoStack.slice(undoBaseline);
+  if (newSnapshots.length > 1) {
+    const sayText = sayTexts.join(' ');
+    const trackCount = new Set(log.map(e => e.trackId)).size;
+    const undoDesc = sayText || `AI: ${log.length} changes across ${trackCount} track${trackCount !== 1 ? 's' : ''}`;
+    const flatSnaps: Snapshot[] = [];
+    for (const e of newSnapshots) {
+      if (e.kind === 'group') flatSnaps.push(...e.snapshots);
+      else flatSnaps.push(e);
+    }
+    const group: ActionGroupSnapshot = {
+      kind: 'group',
+      snapshots: flatSnaps,
+      timestamp: Date.now(),
+      description: undoDesc,
+    };
+    next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
+  }
+
+  // Add message
+  const combinedSay = sayTexts.join(' ');
+  if (combinedSay || log.length > 0) {
+    const hasUndoEntries = next.undoStack.length > undoBaseline;
+    next = {
+      ...next,
+      messages: [...next.messages, {
+        role: 'ai' as const,
+        text: combinedSay,
+        timestamp: Date.now(),
+        ...(log.length > 0 ? { actions: log } : {}),
+        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(hasUndoEntries ? { undoStackIndex: next.undoStack.length - 1 } : {}),
+      }],
+    };
+  }
+
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// executeOperations — backward-compatible wrapper
+// ---------------------------------------------------------------------------
+
 export function executeOperations(
   session: Session,
   actions: AIAction[],
@@ -715,6 +804,29 @@ export function executeOperations(
   arbitrator: Arbitrator,
   toolCalls?: ToolCallEntry[],
 ): OperationExecutionReport {
+  const undoBaseline = session.undoStack.length;
+  const result = executeActionsInternal(session, actions, adapter, arbitrator);
+  const finalized = finalizeAITurn(result.session, undoBaseline, result.sayTexts, result.log, toolCalls);
+  return {
+    session: finalized,
+    accepted: result.accepted,
+    rejected: result.rejected,
+    log: result.log,
+    resolvedParams: result.resolvedParams,
+    preservationReports: result.preservationReports,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Internal action execution loop
+// ---------------------------------------------------------------------------
+
+function executeActionsInternal(
+  session: Session,
+  actions: AIAction[],
+  adapter: SourceAdapter,
+  arbitrator: Arbitrator,
+): StepExecutionReport {
   const accepted: AIAction[] = [];
   const rejected: { op: AIAction; reason: string }[] = [];
   const log: ExecutionReportLogEntry[] = [];
@@ -723,7 +835,6 @@ export function executeOperations(
   const preservationReports: PreservationReport[] = [];
 
   let next = session;
-  const undoBaseline = session.undoStack.length;
 
   for (const action of actions) {
     // Early rejection via shared validation (uses `next` so sequential
@@ -2089,47 +2200,5 @@ export function executeOperations(
     }
   }
 
-  // Collapse multiple snapshots into a single undo group.
-  // Flatten nested groups one level deep so that sub-groups pushed by
-  // cascading operations (e.g. remove_processor clearing modulation routes)
-  // are preserved instead of silently dropped.
-  const newSnapshots = next.undoStack.slice(undoBaseline);
-  if (newSnapshots.length > 1) {
-    const sayText = sayTexts.join(' ');
-    const trackCount = new Set(log.map(e => e.trackId)).size;
-    const undoDesc = sayText || `AI: ${log.length} changes across ${trackCount} track${trackCount !== 1 ? 's' : ''}`;
-    const flatSnaps: Snapshot[] = [];
-    for (const e of newSnapshots) {
-      if (e.kind === 'group') flatSnaps.push(...e.snapshots);
-      else flatSnaps.push(e);
-    }
-    const group: ActionGroupSnapshot = {
-      kind: 'group',
-      snapshots: flatSnaps,
-      timestamp: Date.now(),
-      description: undoDesc,
-    };
-    next = { ...next, undoStack: [...next.undoStack.slice(0, undoBaseline), group] };
-  }
-
-  // Add message
-  const combinedSay = sayTexts.join(' ');
-  if (combinedSay || log.length > 0) {
-    // If this AI turn produced undo entries, record the undo stack index
-    // so the UI can offer per-message undo when the entry is on top.
-    const hasUndoEntries = next.undoStack.length > undoBaseline;
-    next = {
-      ...next,
-      messages: [...next.messages, {
-        role: 'ai' as const,
-        text: combinedSay,
-        timestamp: Date.now(),
-        ...(log.length > 0 ? { actions: log } : {}),
-        ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
-        ...(hasUndoEntries ? { undoStackIndex: next.undoStack.length - 1 } : {}),
-      }],
-    };
-  }
-
-  return { session: next, accepted, rejected, log, resolvedParams, preservationReports };
+  return { session: next, accepted, rejected, log, sayTexts, resolvedParams, preservationReports };
 }

@@ -9,6 +9,7 @@ import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport } from '../engine/operation-executor';
+import type { StepExecutionReport } from '../engine/operation-executor';
 import { addTrack, removeTrack } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
 import { MotifLibrary } from '../engine/motif';
@@ -30,8 +31,10 @@ import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
 import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
-import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback } from './types';
+import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback, StepResult, OnStepCallback, StepExecutor } from './types';
 import { ProviderError } from './types';
+import { createCircuitBreaker, recordStep, isBlocked, isRepeatedFailure } from './circuit-breaker';
+import type { StepOutcome } from './circuit-breaker';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff, computeBandEnergies } from '../audio/audio-analysis';
 import type { TrackAudio } from '../audio/audio-analysis';
 import { getProfile, compareToProfile } from '../engine/reference-profiles';
@@ -601,10 +604,12 @@ export interface ListenContext {
 }
 
 /**
- * Pre-validate an action against current session state.
+ * Pre-validate an action against a session state.
  * Returns null if the action will be accepted, or a rejection reason string.
+ * Accepts a session parameter so callers can validate against the correct
+ * working session rather than a potentially stale snapshot.
  */
-export type ActionValidator = (action: AIAction) => string | null;
+export type ActionValidator = (session: Session, action: AIAction) => string | null;
 
 /** Callback fired when the AI invokes a tool during a turn. */
 export type ToolCallCallback = (name: string, args: Record<string, unknown>) => void;
@@ -645,20 +650,73 @@ export class GluonAI {
     return this.planner.isConfigured() && this.listeners.some(l => l.isConfigured());
   }
 
+  /**
+   * Batch ask — backward-compatible wrapper around askStreaming.
+   * Runs the step loop internally, collecting all actions without UI callbacks.
+   * Uses projectAction for mid-turn state visibility (no real execution).
+   */
   async ask(session: Session, humanMessage: string, ctx?: AskContext): Promise<AIAction[]> {
+    // For backward compatibility, ask() uses projectAction instead of real
+    // step execution. This preserves existing behavior for any callers that
+    // don't provide a StepExecutor.
+    let projectedSession = session;
+    const projectionExecutor: StepExecutor = (sess, actions) => {
+      // Project actions onto session without real undo/validation
+      for (const action of actions) {
+        projectedSession = projectAction(projectedSession, action);
+      }
+      return {
+        session: projectedSession,
+        accepted: actions,
+        rejected: [],
+        log: [],
+        sayTexts: [],
+        resolvedParams: new Map(),
+        preservationReports: [],
+      };
+    };
+
+    return this.askStreaming(session, humanMessage, ctx, projectionExecutor);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step-based agentic execution (#945)
+  // ---------------------------------------------------------------------------
+
+  /** Max steps per user request in the streaming loop. */
+  private static MAX_STREAMING_STEPS = 10;
+
+  /**
+   * Step-based agentic execution. Runs the tool-call loop with real state
+   * updates between steps, circuit breaker protection, and optional UI
+   * callbacks for incremental rendering.
+   *
+   * @param session      Initial session state
+   * @param humanMessage The user's message
+   * @param ctx          Ask context (listen, streaming, staleness callbacks)
+   * @param executeActions  Executes actions against real session state
+   * @param onStep       Optional callback for UI rendering after each step
+   */
+  async askStreaming(
+    session: Session,
+    humanMessage: string,
+    ctx: AskContext | undefined,
+    executeActions: StepExecutor,
+    onStep?: OnStepCallback,
+  ): Promise<AIAction[]> {
     await this.trimToTokenBudget(session, ctx);
 
     const systemPrompt = buildSystemPrompt(session);
     const state = compressState(session, undefined, ctx?.userSelection);
-    // If the provider has restored conversation context (e.g. after reload),
-    // prepend it to the first user message so the AI has continuity.
     const contextPrefix = this.planner.consumeConversationContext?.() ?? null;
     const contextBlock = contextPrefix ? `${contextPrefix}\n\n` : '';
     const userMessage = `${contextBlock}Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
-    const collectedActions: AIAction[] = [];
-    let projectedSession = session;
+
+    let workingSession = session;
+    const allActions: AIAction[] = [];
     let hadError = false;
-    let hadModelContent = false;
+    let hadVisibleOutput = false;
+    let breaker = createCircuitBreaker();
 
     try {
       if (ctx?.isStale?.()) {
@@ -666,67 +724,194 @@ export class GluonAI {
         return [];
       }
 
-      // Only stream on the first planner invocation — subsequent continueTurn
-      // calls are tool-call loops where streaming text is less useful and the
-      // callback reference would emit interleaved fragments.
       const onStreamText = ctx?.onStreamText;
+      let stepCount = 0;
 
-      let invocationCount = 1;
-      let result = await this.planner.startTurn({
+      // First step: startTurn
+      let generateResult = await this.planner.startTurn({
         systemPrompt,
         userMessage,
         tools: GLUON_TOOLS,
         onStreamText,
       });
 
-      while (invocationCount <= GluonAI.MAX_PLANNER_INVOCATIONS) {
-        if (result.textParts.length > 0 || result.functionCalls.length > 0) {
-          hadModelContent = true;
-        }
+      while (stepCount < GluonAI.MAX_STREAMING_STEPS) {
+        // Process this round: collect text, execute tool calls
+        const roundResult = await this.processRound(generateResult, workingSession, ctx, breaker);
 
-        for (const text of result.textParts) {
-          collectedActions.push({ type: 'say', text });
-        }
+        // Track visible output
+        if (roundResult.textParts.length > 0) hadVisibleOutput = true;
+        allActions.push(...roundResult.actions);
 
-        if (result.truncated) {
-          collectedActions.push({ type: 'say', text: '(Response was truncated due to length limits.)' });
-        }
-
-        if (result.functionCalls.length === 0) break;
-
-        const responses: FunctionResponse[] = [];
-        for (const fc of result.functionCalls) {
-          ctx?.onToolCall?.(fc.name, fc.args);
-          const execResult = await this.executeFunctionCall(fc, projectedSession, ctx);
-          collectedActions.push(...execResult.actions);
-          responses.push({ id: fc.id, name: fc.name, result: execResult.response });
-          for (const action of execResult.actions) {
-            projectedSession = projectAction(projectedSession, action);
+        // Execute non-say actions against real session state
+        const actionable = roundResult.actions.filter(a => a.type !== 'say');
+        let execReport: StepExecutionReport | null = null;
+        if (actionable.length > 0) {
+          execReport = executeActions(workingSession, actionable);
+          workingSession = execReport.session;
+          if (execReport.accepted.length > 0 || execReport.log.length > 0) {
+            hadVisibleOutput = true;
           }
         }
 
-        invocationCount++;
-        if (invocationCount > GluonAI.MAX_PLANNER_INVOCATIONS || ctx?.isStale?.()) break;
+        // Build immutable step payload and notify UI
+        const stepResult: StepResult = {
+          textParts: roundResult.textParts,
+          actions: roundResult.actions,
+          executionReport: execReport,
+          functionResponses: roundResult.functionResponses,
+          done: roundResult.done,
+          truncated: roundResult.truncated,
+        };
+        onStep?.(stepResult, workingSession);
 
-        result = await this.planner.continueTurn({
+        // Check stale AFTER applying — finalize-partial
+        if (ctx?.isStale?.() || roundResult.done) break;
+
+        // Circuit breaker: record step outcome and check
+        const stepOutcome: StepOutcome = {
+          calls: roundResult.callOutcomes,
+        };
+        breaker = recordStep(breaker, stepOutcome);
+        const breakerCheck = isBlocked(breaker);
+        if (breakerCheck.blocked) {
+          const breakerAction: AIAction = { type: 'say', text: breakerCheck.reason! };
+          allActions.push(breakerAction);
+          hadVisibleOutput = true;
+          // Emit a say-only step so the UI includes the explanation in the chat message
+          onStep?.({
+            textParts: [breakerCheck.reason!],
+            actions: [breakerAction],
+            executionReport: null,
+            functionResponses: [],
+            done: true,
+            truncated: false,
+          }, workingSession);
+          break;
+        }
+
+        stepCount++;
+        if (stepCount >= GluonAI.MAX_STREAMING_STEPS) break;
+
+        // Check stale before making another API call — don't waste a round
+        if (ctx?.isStale?.()) break;
+
+        // Continue to next step
+        generateResult = await this.planner.continueTurn({
           systemPrompt,
           tools: GLUON_TOOLS,
-          functionResponses: responses,
-          // Don't stream on continueTurn — tool loop text would interleave
+          functionResponses: roundResult.functionResponses,
         });
       }
     } catch (error) {
       hadError = true;
-      collectedActions.push(...this.handleError(error));
+      const errorActions = this.handleError(error);
+      allActions.push(...errorActions);
+      // Emit a say-only step so the UI includes the error explanation in the chat message.
+      // Don't set hadVisibleOutput — the error message is shown to the user via onStep,
+      // but it doesn't mean provider history should be committed. Only steps that were
+      // successfully processed count.
+      const errorTexts = errorActions.filter(a => a.type === 'say').map(a => a.type === 'say' ? a.text : '');
+      if (errorTexts.length > 0) {
+        onStep?.({
+          textParts: errorTexts,
+          actions: errorActions,
+          executionReport: null,
+          functionResponses: [],
+          done: true,
+          truncated: false,
+        }, workingSession);
+      }
     }
 
-    if (!ctx?.isStale?.() && !hadError && hadModelContent) {
+    // Finalize provider history. Commit if any visible output was produced,
+    // even if the turn ended with an error — the user saw partial work and
+    // conversation continuity requires the provider to remember what happened.
+    if (hadVisibleOutput) {
       this.planner.commitTurn();
     } else {
       this.planner.discardTurn();
     }
 
-    return collectedActions;
+    return allActions;
+  }
+
+  /**
+   * Process one round of model output: collect text parts, execute tool calls,
+   * build function responses. Returns an immutable result object.
+   */
+  private async processRound(
+    result: import('./types').GenerateResult,
+    session: Session,
+    ctx?: AskContext,
+    breaker?: import('./circuit-breaker').CircuitBreakerState,
+  ): Promise<{
+    textParts: string[];
+    actions: AIAction[];
+    functionResponses: FunctionResponse[];
+    callOutcomes: StepOutcome['calls'];
+    done: boolean;
+    truncated: boolean;
+  }> {
+    const textParts: string[] = [];
+    const actions: AIAction[] = [];
+    const functionResponses: FunctionResponse[] = [];
+    const callOutcomes: StepOutcome['calls'] = [];
+
+    for (const text of result.textParts) {
+      textParts.push(text);
+      actions.push({ type: 'say', text });
+    }
+
+    if (result.truncated) {
+      const truncMsg = '(Response was truncated due to length limits.)';
+      textParts.push(truncMsg);
+      actions.push({ type: 'say', text: truncMsg });
+    }
+
+    // Execute each function call. Within a single round, project each call's
+    // actions onto a running session snapshot so later calls (e.g. listen after
+    // sketch) see the effects of earlier calls in the same round.
+    let roundSession = session;
+    for (const fc of result.functionCalls) {
+      ctx?.onToolCall?.(fc.name, fc.args);
+
+      // Short-circuit repeated failing calls: if the exact same call already
+      // failed, return a synthetic error instead of re-executing.
+      if (breaker && isRepeatedFailure(breaker, fc.name, fc.args)) {
+        const syntheticError = errorPayload(
+          'This operation already failed with these exact arguments. Try a different approach.',
+        );
+        functionResponses.push({ id: fc.id, name: fc.name, result: syntheticError });
+        callOutcomes.push({ name: fc.name, args: fc.args, errored: true });
+        continue;
+      }
+
+      const execResult = await this.executeFunctionCall(fc, roundSession, ctx);
+      actions.push(...execResult.actions);
+      functionResponses.push({ id: fc.id, name: fc.name, result: execResult.response });
+      // Project actions onto the running snapshot for subsequent calls
+      for (const action of execResult.actions) {
+        roundSession = projectAction(roundSession, action);
+      }
+
+      // Track whether this call errored (for circuit breaker).
+      // errorPayload() returns { error: "message string" }, so check for
+      // any truthy `error` field (string or boolean).
+      const errored = execResult.response != null &&
+        typeof execResult.response === 'object' &&
+        'error' in execResult.response && !!execResult.response.error;
+      callOutcomes.push({ name: fc.name, args: fc.args, errored });
+    }
+
+    return {
+      textParts,
+      actions,
+      functionResponses,
+      callOutcomes,
+      done: result.functionCalls.length === 0,
+      truncated: result.truncated ?? false,
+    };
   }
 
   private async executeFunctionCall(
@@ -807,7 +992,7 @@ export class GluonAI {
           ...(args.over ? { over: args.over as number } : {}),
         };
 
-        const rejection = ctx?.validateAction?.(action);
+        const rejection = ctx?.validateAction?.(session, action);
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
@@ -919,7 +1104,7 @@ export class GluonAI {
           ...(typeof args.dynamic === 'string' ? { dynamic: args.dynamic as string } : {}),
         };
 
-        const rejection = ctx?.validateAction?.(action);
+        const rejection = ctx?.validateAction?.(session, action);
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
@@ -1020,7 +1205,7 @@ export class GluonAI {
           ...(args.patternId ? { patternId: args.patternId as string } : {}),
         };
 
-        const rejection = ctx?.validateAction?.(action);
+        const rejection = ctx?.validateAction?.(session, action);
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
@@ -1070,7 +1255,7 @@ export class GluonAI {
           ...(typeof args.timeSignatureDenominator === 'number' ? { timeSignatureDenominator: args.timeSignatureDenominator as number } : {}),
         };
 
-        const rejection = ctx?.validateAction?.(action);
+        const rejection = ctx?.validateAction?.(session, action);
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
@@ -1105,7 +1290,7 @@ export class GluonAI {
           ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
         };
 
-        const rejection = ctx?.validateAction?.(action);
+        const rejection = ctx?.validateAction?.(session, action);
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
@@ -1176,7 +1361,7 @@ export class GluonAI {
           ...(typeof args.amount === 'number' ? { amount: args.amount } : {}),
         };
 
-        const rejection = ctx?.validateAction?.(action);
+        const rejection = ctx?.validateAction?.(session, action);
         const rejectionResult = handleRejection(rejection, session, action);
         if (rejectionResult) return rejectionResult;
 
@@ -1217,7 +1402,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addViewRejection = handleRejection(ctx?.validateAction?.(addViewAction), session, addViewAction);
+            const addViewRejection = handleRejection(ctx?.validateAction?.(session, addViewAction), session, addViewAction);
             if (addViewRejection) return addViewRejection;
 
             return {
@@ -1244,7 +1429,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeViewRejection = handleRejection(ctx?.validateAction?.(removeViewAction), session, removeViewAction);
+            const removeViewRejection = handleRejection(ctx?.validateAction?.(session, removeViewAction), session, removeViewAction);
             if (removeViewRejection) return removeViewRejection;
 
             return {
@@ -1293,7 +1478,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addProcRejection = handleRejection(ctx?.validateAction?.(addProcAction), session, addProcAction);
+            const addProcRejection = handleRejection(ctx?.validateAction?.(session, addProcAction), session, addProcAction);
             if (addProcRejection) return addProcRejection;
 
             // Include the projected chain so the model knows what's already on the track
@@ -1326,7 +1511,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeProcRejection = handleRejection(ctx?.validateAction?.(removeProcAction), session, removeProcAction);
+            const removeProcRejection = handleRejection(ctx?.validateAction?.(session, removeProcAction), session, removeProcAction);
             if (removeProcRejection) return removeProcRejection;
 
             const projectedAfterRemove = projectAction(session, removeProcAction);
@@ -1364,7 +1549,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const replaceRejection = handleRejection(ctx?.validateAction?.(replaceAction), session, replaceAction);
+            const replaceRejection = handleRejection(ctx?.validateAction?.(session, replaceAction), session, replaceAction);
             if (replaceRejection) return replaceRejection;
 
             const projectedAfterReplace = projectAction(session, replaceAction);
@@ -1446,7 +1631,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addModRejection = handleRejection(ctx?.validateAction?.(addModAction), session, addModAction);
+            const addModRejection = handleRejection(ctx?.validateAction?.(session, addModAction), session, addModAction);
             if (addModRejection) return addModRejection;
 
             return {
@@ -1474,7 +1659,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeModRejection = handleRejection(ctx?.validateAction?.(removeModAction), session, removeModAction);
+            const removeModRejection = handleRejection(ctx?.validateAction?.(session, removeModAction), session, removeModAction);
             if (removeModRejection) return removeModRejection;
 
             return {
@@ -1547,7 +1732,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const connectRejection = handleRejection(ctx?.validateAction?.(connectAction), session, connectAction);
+            const connectRejection = handleRejection(ctx?.validateAction?.(session, connectAction), session, connectAction);
             if (connectRejection) return connectRejection;
 
             const targetStr = modTarget.kind === 'source'
@@ -1581,7 +1766,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const disconnectRejection = handleRejection(ctx?.validateAction?.(disconnectAction), session, disconnectAction);
+            const disconnectRejection = handleRejection(ctx?.validateAction?.(session, disconnectAction), session, disconnectAction);
             if (disconnectRejection) return disconnectRejection;
 
             return {
@@ -1642,7 +1827,7 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const setSurfaceRejection = handleRejection(ctx?.validateAction?.(setSurfaceAction), session, setSurfaceAction);
+        const setSurfaceRejection = handleRejection(ctx?.validateAction?.(session, setSurfaceAction), session, setSurfaceAction);
         if (setSurfaceRejection) return setSurfaceRejection;
 
         return {
@@ -1677,7 +1862,7 @@ export class GluonAI {
               description: `pin ${args.moduleId}:${args.controlId}`,
             };
 
-            const pinRejection = handleRejection(ctx?.validateAction?.(pinAction), session, pinAction);
+            const pinRejection = handleRejection(ctx?.validateAction?.(session, pinAction), session, pinAction);
             if (pinRejection) return pinRejection;
 
             return {
@@ -1699,7 +1884,7 @@ export class GluonAI {
               description: `unpin ${args.moduleId}:${args.controlId}`,
             };
 
-            const unpinRejection = handleRejection(ctx?.validateAction?.(unpinAction), session, unpinAction);
+            const unpinRejection = handleRejection(ctx?.validateAction?.(session, unpinAction), session, unpinAction);
             if (unpinRejection) return unpinRejection;
 
             return {
@@ -1736,7 +1921,7 @@ export class GluonAI {
           description: `label axes: ${args.x} x ${args.y}`,
         };
 
-        const labelAxesRejection = handleRejection(ctx?.validateAction?.(labelAxesAction), session, labelAxesAction);
+        const labelAxesRejection = handleRejection(ctx?.validateAction?.(session, labelAxesAction), session, labelAxesAction);
         if (labelAxesRejection) return labelAxesRejection;
 
         return {
@@ -1825,7 +2010,7 @@ export class GluonAI {
               level: level as ApprovalLevel,
               reason: args.reason as string,
             };
-            const markRejection = handleRejection(ctx?.validateAction?.(markApprovedAction), session, markApprovedAction);
+            const markRejection = handleRejection(ctx?.validateAction?.(session, markApprovedAction), session, markApprovedAction);
             if (markRejection) {
               errors.push(markRejection.response.error as string ?? markRejection.response.message as string ?? 'Rejected');
             } else {
@@ -2062,7 +2247,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addTrackRejection = handleRejection(ctx?.validateAction?.(addTrackAction), session, addTrackAction);
+            const addTrackRejection = handleRejection(ctx?.validateAction?.(session, addTrackAction), session, addTrackAction);
             if (addTrackRejection) return addTrackRejection;
 
             // Project the addition to determine the new track's ordinal position and ID
@@ -2111,7 +2296,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeTrackRejection = handleRejection(ctx?.validateAction?.(removeTrackAction), session, removeTrackAction);
+            const removeTrackRejection = handleRejection(ctx?.validateAction?.(session, removeTrackAction), session, removeTrackAction);
             if (removeTrackRejection) return removeTrackRejection;
 
             return {
@@ -2456,7 +2641,7 @@ export class GluonAI {
           ...(args.level !== undefined ? { level: args.level as number } : {}),
         };
 
-        const sendRejection = handleRejection(ctx?.validateAction?.(manageSendAction), session, manageSendAction);
+        const sendRejection = handleRejection(ctx?.validateAction?.(session, manageSendAction), session, manageSendAction);
         if (sendRejection) return sendRejection;
 
         return {
@@ -2523,7 +2708,7 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const patternRejection = handleRejection(ctx?.validateAction?.(managePatternAction), session, managePatternAction);
+        const patternRejection = handleRejection(ctx?.validateAction?.(session, managePatternAction), session, managePatternAction);
         if (patternRejection) return patternRejection;
 
         return {
@@ -2584,7 +2769,7 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const seqRejection = handleRejection(ctx?.validateAction?.(manageSequenceAction), session, manageSequenceAction);
+        const seqRejection = handleRejection(ctx?.validateAction?.(session, manageSequenceAction), session, manageSequenceAction);
         if (seqRejection) return seqRejection;
 
         return {

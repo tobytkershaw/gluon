@@ -197,13 +197,14 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
   });
 
-  it('respects MAX_PLANNER_INVOCATIONS limit', async () => {
-    // Always return function calls — should stop after 5 invocations
+  it('respects MAX_STREAMING_STEPS limit', async () => {
+    // Always return function calls — should stop after MAX_STREAMING_STEPS (10)
     planner.startTurnResults.push({
       textParts: [],
       functionCalls: [{ id: 'c0', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
     });
-    for (let i = 1; i < 5; i++) {
+    // Enqueue enough continue results to exceed the step limit
+    for (let i = 1; i <= 12; i++) {
       planner.continueTurnResults.push({
         textParts: [],
         functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
@@ -213,10 +214,11 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     const session = createSession();
     const actions = await ai.ask(session, 'keep going');
 
-    // 5 invocations total: 1 startTurn + 4 continueTurn
-    expect(actions.filter(a => a.type === 'move')).toHaveLength(5);
+    // MAX_STREAMING_STEPS = 10: processes startTurn + 9 continueTurn rounds
+    // (stepCount increments after each round; loop exits when stepCount === 10)
+    expect(actions.filter(a => a.type === 'move')).toHaveLength(10);
     expect(planner.startTurnCalls).toBe(1);
-    expect(planner.continueTurnCalls).toBe(4);
+    expect(planner.continueTurnCalls).toBe(9);
   });
 
   it('cancellation prevents further API calls', async () => {
@@ -323,7 +325,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => 'Agency: Track v0 has agency OFF',
+      validateAction: (_s, _a) => 'Agency: Track v0 has agency OFF',
     });
 
     // Move should not be applied
@@ -343,7 +345,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => 'Arbitration: human is holding timbre',
+      validateAction: (_s, _a) => 'Arbitration: human is holding timbre',
     });
 
     expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
@@ -360,7 +362,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     const session = createSession();
     const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: () => null,
+      validateAction: (_s, _a) => null,
     });
 
     expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
@@ -517,5 +519,45 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       await ai.ask(session, 'hello');
       expect(planner.trimCalls).toEqual([12]);
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // Circuit breaker: repeated failing call detection
+  // -------------------------------------------------------------------------
+
+  it('short-circuits repeated failing calls across rounds', async () => {
+    // Round 1: move to a non-existent track → fails
+    // Round 2: model retries same call → should get synthetic error, not re-execute
+    // Round 3: model gives up
+    const badCall = { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v99' } };
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [badCall],
+    });
+    // Round 2: model retries the exact same call
+    planner.continueTurnResults.push({
+      textParts: [],
+      functionCalls: [{ ...badCall, id: 'c2' }],
+    });
+    // Round 3: model gives up
+    planner.continueTurnResults.push({
+      textParts: ['That track does not exist.'],
+      functionCalls: [],
+    });
+
+    const session = createSession();
+    const actions = await ai.ask(session, 'brighten track 99');
+
+    // Both rounds should produce function responses (round 1 real error, round 2 synthetic)
+    expect(planner.continueTurnCalls).toBe(2);
+
+    // The second round's function response should contain the "already failed" message
+    const round2Args = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[1][0];
+    const round2Response = round2Args.functionResponses[0].result;
+    expect(round2Response.error).toContain('already failed');
+
+    // Final say should be present
+    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
   });
 });
