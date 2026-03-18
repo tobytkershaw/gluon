@@ -20,7 +20,7 @@ import { projectPatternToStepGrid } from './region-projection';
 import { normalizePatternEvents, validatePattern } from './region-helpers';
 import { editPatternEvents, validatePatternEditOps } from './pattern-primitives';
 import { getTrackLabel } from './track-labels';
-import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema } from '../audio/instrument-registry';
+import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
 import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef } from './session';
 import { setPatternLength, clearPattern } from './pattern-primitives';
@@ -1380,7 +1380,7 @@ export function executeOperations(
           id: action.processorId,
           type: action.moduleType as ProcessorConfig['type'],
           model: 0,
-          params: {},
+          params: getProcessorDefaultParams(action.moduleType, 0),
         };
         const snapshot: ProcessorSnapshot = {
           kind: 'processor',
@@ -1461,7 +1461,7 @@ export function executeOperations(
           id: action.newProcessorId,
           type: action.newModuleType,
           model: 0,
-          params: {},
+          params: getProcessorDefaultParams(action.newModuleType, 0),
         };
         const newProcessors = [...prevProcessors];
         newProcessors[idx] = newProcessor;
@@ -1526,7 +1526,7 @@ export function executeOperations(
           id: action.modulatorId,
           type: action.moduleType,
           model: 1, // default to Looping mode
-          params: {},
+          params: getModulatorDefaultParams(action.moduleType, 1),
         };
         const snapshot: ModulatorSnapshot = {
           kind: 'modulator',
