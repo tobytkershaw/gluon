@@ -999,6 +999,9 @@ export interface ChatMessage {
    *  In streaming path with per-step groups, start..end spans multiple entries.
    *  The "undo this message" button is only available when end === undoStack.length - 1. */
   undoStackRange?: { start: number; end: number };
+  /** Tracks the AI targeted during this turn, with agency state at time of action.
+   *  Populated when the message is finalised so the scope badge persists. */
+  scopeTracks?: Array<{ trackId: string; name: string; agency: Agency }>;
 }
 
 // --- Helpers ---
