@@ -42,6 +42,33 @@ function findParamAt(events: MusicalEvent[], stepIndex: number, controlId: strin
   );
 }
 
+function findMatchingGateEventAt(
+  events: MusicalEvent[],
+  stepIndex: number,
+  match?: PatternEditOp['match'],
+  fallbackType?: 'trigger' | 'note',
+): number {
+  const targetType = match?.type ?? fallbackType;
+
+  if (targetType === 'trigger') {
+    return findTriggerAt(events, stepIndex);
+  }
+
+  if (targetType === 'note') {
+    if (match?.pitch !== undefined) {
+      return events.findIndex(
+        e =>
+          e.kind === 'note' &&
+          sameStep(e.at, stepIndex) &&
+          (e as NoteEvent).pitch === match.pitch,
+      );
+    }
+    return findNoteAt(events, stepIndex);
+  }
+
+  return findGateEventAt(events, stepIndex);
+}
+
 /** Default inverse conversion options for projecting canonical events to step params. */
 const defaultInverseOpts: InverseConversionOptions = {
   canonicalToRuntime: (id: string) => controlIdToRuntimeParam[id] ?? id,
@@ -407,9 +434,7 @@ export function validatePatternEditOps(
 
     if (op.action === 'modify' || op.action === 'remove') {
       // Must have an existing event at this step to modify/remove
-      const hasGateEvent = pattern.events.some(
-        e => (e.kind === 'trigger' || e.kind === 'note') && sameStep(e.at, op.step),
-      );
+      const hasGateEvent = findMatchingGateEventAt(pattern.events, op.step, op.match, op.event?.type) >= 0;
       const hasParamEvent = op.params?.length
         ? op.params.some(p =>
             pattern.events.some(
@@ -543,9 +568,10 @@ export function editPatternEvents(
 
       case 'remove': {
         if (op.event?.type) {
-          // Remove by specific type
-          const kind = op.event.type === 'trigger' ? 'trigger' : 'note';
-          const idx = events.findIndex(e => e.kind === kind && sameStep(e.at, op.step));
+          const idx = findMatchingGateEventAt(events, op.step, op.match, op.event.type);
+          if (idx >= 0) events.splice(idx, 1);
+        } else if (op.match) {
+          const idx = findMatchingGateEventAt(events, op.step, op.match);
           if (idx >= 0) events.splice(idx, 1);
         } else {
           // Remove all gate events (triggers + notes) at this step
@@ -571,8 +597,7 @@ export function editPatternEvents(
       case 'modify': {
         // Modify gate event
         if (op.event) {
-          const kind = op.event.type === 'trigger' ? 'trigger' : 'note';
-          const idx = events.findIndex(e => e.kind === kind && sameStep(e.at, op.step));
+          const idx = findMatchingGateEventAt(events, op.step, op.match, op.event.type);
           if (idx >= 0) {
             const existing = events[idx];
             if (existing.kind === 'trigger') {

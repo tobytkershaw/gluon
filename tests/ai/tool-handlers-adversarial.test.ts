@@ -8,6 +8,7 @@ import { GluonAI } from '../../src/ai/api';
 import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall } from '../../src/ai/types';
 import type { Session, Track } from '../../src/engine/types';
 import { createSession } from '../../src/engine/session';
+import { editPatternEvents } from '../../src/engine/pattern-primitives';
 
 // ---------------------------------------------------------------------------
 // Test infrastructure
@@ -909,6 +910,52 @@ describe('edit_pattern — adversarial', () => {
       operations: [{ action: 'add', step: '1.1.1', kind: 'trigger', velocity: 0.8 }],
     });
     expect(response.applied).toBe(true);
+  });
+
+  it('resolves property selectors to a specific note event', async () => {
+    let session = makeSession();
+    session = editPatternEvents(session, session.tracks[0].id, undefined, [
+      { action: 'add', step: 16.1, event: { type: 'note', pitch: 62, velocity: 0.4, duration: 1 } },
+      { action: 'add', step: 16.3, event: { type: 'note', pitch: 62, velocity: 0.9, duration: 1 } },
+    ], 'seed bar 2 notes');
+
+    const { response, actions } = await callTool(session, 'edit_pattern', {
+      trackId: session.tracks[0].id,
+      description: 'soften the loudest D in bar 2',
+      operations: [{
+        action: 'modify',
+        select: { bar: 2, type: 'note', pitchClass: 'D', velocity: 'max' },
+        event: { type: 'note', velocity: 0.2 },
+      }],
+    });
+
+    expect(response.applied).toBe(true);
+    expect(actions).toHaveLength(1);
+    const action = actions[0] as { operations: Array<{ step: number; match?: { type: string; pitch?: number }; event?: { velocity?: number } }> };
+    expect(action.operations[0].step).toBe(16.3);
+    expect(action.operations[0].match).toEqual({ type: 'note', pitch: 62 });
+    expect(action.operations[0].event?.velocity).toBe(0.2);
+  });
+
+  it('rejects ambiguous property selectors', async () => {
+    let session = makeSession();
+    session = editPatternEvents(session, session.tracks[0].id, undefined, [
+      { action: 'add', step: 16.1, event: { type: 'note', pitch: 62, velocity: 0.7, duration: 1 } },
+      { action: 'add', step: 16.3, event: { type: 'note', pitch: 62, velocity: 0.7, duration: 1 } },
+    ], 'seed duplicate notes');
+
+    const { response, actions } = await callTool(session, 'edit_pattern', {
+      trackId: session.tracks[0].id,
+      description: 'remove a D in bar 2',
+      operations: [{
+        action: 'remove',
+        select: { bar: 2, type: 'note', pitchClass: 'D' },
+        event: { type: 'note' },
+      }],
+    });
+
+    expect(response.error).toMatch(/multiple events/i);
+    expect(actions).toHaveLength(0);
   });
 });
 

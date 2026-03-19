@@ -552,6 +552,10 @@ export interface AITransformAction {
 export interface PatternEditOp {
   action: 'add' | 'remove' | 'modify';
   step: number;
+  match?: {
+    type: 'trigger' | 'note';
+    pitch?: number;      // match an existing note at this step
+  };
   event?: {
     type: 'trigger' | 'note';
     pitch?: number;      // 0-127 for notes

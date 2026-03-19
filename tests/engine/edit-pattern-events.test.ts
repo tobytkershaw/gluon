@@ -160,6 +160,23 @@ describe('editPatternEvents', () => {
       const paramsAt0 = findEventsAt(pattern.events, 0).filter(e => e.kind === 'parameter');
       expect(paramsAt0.length).toBe(0);
     });
+
+    it('removes a specific stacked note by match pitch', () => {
+      let s = createTestSession();
+      s = editPatternEvents(s, 'v1', undefined, [
+        { action: 'add', step: 0, event: { type: 'note', pitch: 60, velocity: 0.5, duration: 1 } },
+        { action: 'add', step: 0, event: { type: 'note', pitch: 67, velocity: 0.9, duration: 1 } },
+      ], 'add dyad');
+
+      s = editPatternEvents(s, 'v1', undefined, [
+        { action: 'remove', step: 0, match: { type: 'note', pitch: 67 }, event: { type: 'note' } },
+      ], 'remove top note');
+
+      const pattern = getActivePattern(getTrack(s, 'v1'));
+      const notesAt0 = findEventsAt(pattern.events, 0).filter(e => e.kind === 'note') as NoteEvent[];
+      expect(notesAt0).toHaveLength(1);
+      expect(notesAt0[0].pitch).toBe(60);
+    });
   });
 
   describe('modify operations', () => {
@@ -220,6 +237,23 @@ describe('editPatternEvents', () => {
       const pattern = getActivePattern(getTrack(s, 'v0'));
       const paramsAt0 = findEventsAt(pattern.events, 0).filter(e => e.kind === 'parameter') as ParameterEvent[];
       expect(paramsAt0[0].value).toBe(0.9);
+    });
+
+    it('modifies a specific stacked note by match pitch', () => {
+      let s = createTestSession();
+      s = editPatternEvents(s, 'v1', undefined, [
+        { action: 'add', step: 0, event: { type: 'note', pitch: 60, velocity: 0.5, duration: 1 } },
+        { action: 'add', step: 0, event: { type: 'note', pitch: 67, velocity: 0.9, duration: 1 } },
+      ], 'add dyad');
+
+      s = editPatternEvents(s, 'v1', undefined, [
+        { action: 'modify', step: 0, match: { type: 'note', pitch: 67 }, event: { type: 'note', velocity: 0.2, pitch: 69 } },
+      ], 'retune top note');
+
+      const pattern = getActivePattern(getTrack(s, 'v1'));
+      const notesAt0 = findEventsAt(pattern.events, 0).filter(e => e.kind === 'note') as NoteEvent[];
+      expect(notesAt0.some(note => note.pitch === 60 && note.velocity === 0.5)).toBe(true);
+      expect(notesAt0.some(note => note.pitch === 69 && note.velocity === 0.2)).toBe(true);
     });
   });
 
@@ -337,6 +371,21 @@ describe('editPatternEvents', () => {
         { action: 'remove', step: 4 },
       ]);
       expect(errors).toEqual([]);
+    });
+
+    it('rejects targeted note removal when the matched pitch does not exist', () => {
+      let s = createTestSession();
+      s = editPatternEvents(s, 'v1', undefined, [
+        { action: 'add', step: 0, event: { type: 'note', pitch: 60, velocity: 0.8, duration: 1 } },
+      ], 'add note');
+
+      const pattern = getActivePattern(getTrack(s, 'v1'));
+      const errors = validatePatternEditOps(pattern, [
+        { action: 'remove', step: 0, match: { type: 'note', pitch: 67 }, event: { type: 'note' } },
+      ]);
+
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0]).toContain('no event');
     });
   });
 

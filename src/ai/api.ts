@@ -2,6 +2,7 @@
 
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
+import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
 import { getEngineById } from '../audio/instrument-registry-plaits';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
@@ -75,6 +76,165 @@ export function inferSpectralPriorityFromRole(role: string | undefined): number 
   if (/\b(texture|ambient|noise|atmosphere|fx)\b/.test(lower)) return 2;
 
   return 5;
+}
+
+type PatternEventSelector = {
+  bar?: number;
+  type?: 'trigger' | 'note' | 'parameter';
+  pitch?: number;
+  pitchClass?: string;
+  velocity?: 'max' | 'min';
+  accent?: boolean;
+  controlId?: string;
+};
+
+type RawPatternEditOp = Omit<PatternEditOp, 'step'> & {
+  step?: number | string;
+  select?: PatternEventSelector;
+};
+
+const PITCH_CLASS_LOOKUP: Record<string, number> = {
+  C: 0,
+  'B#': 0,
+  'C#': 1,
+  DB: 1,
+  D: 2,
+  'D#': 3,
+  EB: 3,
+  E: 4,
+  FB: 4,
+  F: 5,
+  'E#': 5,
+  'F#': 6,
+  GB: 6,
+  G: 7,
+  'G#': 8,
+  AB: 8,
+  A: 9,
+  'A#': 10,
+  BB: 10,
+  B: 11,
+  CB: 11,
+};
+
+function parsePitchClass(value: string): number | null {
+  const normalized = value.trim().toUpperCase().replace(/♯/g, '#').replace(/♭/g, 'B');
+  return PITCH_CLASS_LOOKUP[normalized] ?? null;
+}
+
+function matchesEventSelector(event: MusicalEvent, selector: PatternEventSelector): boolean {
+  if (selector.type && event.kind !== selector.type) return false;
+
+  if (selector.bar !== undefined && Math.floor(event.at / STEPS_PER_BAR) + 1 !== selector.bar) {
+    return false;
+  }
+
+  if (selector.pitch !== undefined) {
+    if (event.kind !== 'note' || (event as NoteEvent).pitch !== selector.pitch) return false;
+  }
+
+  if (selector.pitchClass !== undefined) {
+    const pitchClass = parsePitchClass(selector.pitchClass);
+    if (pitchClass === null) {
+      throw new Error(`Invalid pitchClass "${selector.pitchClass}". Use note names like C, D#, or Bb.`);
+    }
+    if (event.kind !== 'note' || ((event as NoteEvent).pitch % 12 + 12) % 12 !== pitchClass) return false;
+  }
+
+  if (selector.accent !== undefined) {
+    if (event.kind !== 'trigger' || Boolean((event as TriggerEvent).accent) !== selector.accent) return false;
+  }
+
+  if (selector.controlId !== undefined) {
+    if (event.kind !== 'parameter' || (event as ParameterEvent).controlId !== selector.controlId) return false;
+  }
+
+  return true;
+}
+
+function applyVelocitySelector(events: MusicalEvent[], selector: PatternEventSelector): MusicalEvent[] {
+  if (selector.velocity === undefined) return events;
+  const velocityEvents = events.filter(
+    event => event.kind === 'trigger' || event.kind === 'note',
+  ) as Array<TriggerEvent | NoteEvent>;
+  if (velocityEvents.length === 0) {
+    throw new Error('velocity selector only applies to trigger or note events.');
+  }
+  const values = velocityEvents.map(event => event.velocity ?? 0);
+  const targetVelocity = selector.velocity === 'max'
+    ? Math.max(...values)
+    : Math.min(...values);
+  return velocityEvents.filter(event => Math.abs((event.velocity ?? 0) - targetVelocity) < 0.0001);
+}
+
+function resolvePatternEventSelector(
+  pattern: Pattern,
+  selector: PatternEventSelector,
+): { step: number; match?: PatternEditOp['match'] } {
+  let matches = pattern.events.filter(event => matchesEventSelector(event, selector));
+  matches = applyVelocitySelector(matches, selector);
+
+  if (matches.length === 0) {
+    throw new Error('Selector did not match any existing events in the target pattern.');
+  }
+  if (matches.length > 1) {
+    throw new Error('Selector matched multiple events. Add more properties so it resolves to exactly one event.');
+  }
+
+  const event = matches[0];
+  if (event.kind === 'note') {
+    return { step: event.at, match: { type: 'note', pitch: event.pitch } };
+  }
+  if (event.kind === 'trigger') {
+    return { step: event.at, match: { type: 'trigger' } };
+  }
+  return { step: event.at };
+}
+
+function resolvePatternEditOperations(
+  session: Session,
+  trackId: string,
+  patternId: string | undefined,
+  operations: RawPatternEditOp[],
+): PatternEditOp[] {
+  const track = session.tracks.find(candidate => candidate.id === trackId);
+  if (!track) {
+    throw new Error(`Track not found: ${trackId}`);
+  }
+  const pattern = patternId
+    ? track.patterns.find(candidate => candidate.id === patternId)
+    : (track.patterns.length > 0 ? getActivePattern(track) : undefined);
+  if (!pattern) {
+    throw new Error(patternId ? `Pattern not found: ${patternId}` : `Track ${trackId} has no editable pattern.`);
+  }
+
+  return operations.map((op, index) => {
+    const hasStep = op.step !== undefined;
+    const hasSelector = op.select !== undefined;
+
+    if (op.action === 'add' && !hasStep) {
+      throw new Error(`operations[${index}]: add requires step`);
+    }
+    if (hasStep && hasSelector) {
+      throw new Error(`operations[${index}]: provide either step or select, not both`);
+    }
+    if (!hasStep && !hasSelector) {
+      throw new Error(`operations[${index}]: remove/modify require step or select`);
+    }
+    if (hasSelector && op.action === 'add') {
+      throw new Error(`operations[${index}]: add does not support select`);
+    }
+
+    const resolved = hasSelector
+      ? resolvePatternEventSelector(pattern, op.select as PatternEventSelector)
+      : { step: op.step as number, match: op.match };
+
+    return {
+      ...op,
+      step: resolved.step,
+      ...(resolved.match ? { match: resolved.match } : {}),
+    } as PatternEditOp;
+  });
 }
 
 /**
@@ -1339,29 +1499,47 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: operations (must be a non-empty array)') };
         }
 
-        // Resolve bar.beat.sixteenth strings to absolute step numbers before validation
+        const rawOperations = args.operations as RawPatternEditOp[];
+
+        // Resolve bar.beat.sixteenth strings to absolute step numbers before selector matching
         try {
-          resolveEditPatternPositions(args.operations as { step: number | string }[]);
+          resolveEditPatternPositions(
+            rawOperations.filter(
+              (op): op is RawPatternEditOp & { step: number | string } => op.step !== undefined,
+            ),
+          );
         } catch (e) {
           return { actions: [], response: errorPayload((e as Error).message) };
         }
 
         // Validate operation shape
         const validActions = ['add', 'remove', 'modify'];
-        for (let i = 0; i < (args.operations as PatternEditOp[]).length; i++) {
-          const op = (args.operations as PatternEditOp[])[i];
+        for (let i = 0; i < rawOperations.length; i++) {
+          const op = rawOperations[i];
           if (!validActions.includes(op.action)) {
             return { actions: [], response: errorPayload(`operations[${i}]: unknown action "${op.action}". Must be add, remove, or modify`) };
           }
-          if (typeof op.step !== 'number' || op.step < 0) {
+          if (op.step !== undefined && (typeof op.step !== 'number' || op.step < 0)) {
             return { actions: [], response: errorPayload(`operations[${i}]: step must be a non-negative number`) };
           }
+        }
+
+        let resolvedOperations: PatternEditOp[];
+        try {
+          resolvedOperations = resolvePatternEditOperations(
+            session,
+            args.trackId as string,
+            typeof args.patternId === 'string' ? args.patternId : undefined,
+            rawOperations,
+          );
+        } catch (e) {
+          return { actions: [], response: errorPayload((e as Error).message) };
         }
 
         const action: AIEditPatternAction = {
           type: 'edit_pattern',
           trackId: args.trackId as string,
-          operations: args.operations as PatternEditOp[],
+          operations: resolvedOperations,
           description: args.description as string,
           ...(args.patternId ? { patternId: args.patternId as string } : {}),
         };
