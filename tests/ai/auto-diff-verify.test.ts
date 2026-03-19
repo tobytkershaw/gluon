@@ -143,8 +143,8 @@ describe('Auto-diff verification', () => {
     expect(typeof verification.confidence).toBe('number');
     expect(verification.confidence).toBeGreaterThan(0);
 
-    // renderOfflinePcm should have been called twice (before + after)
-    expect(mockRenderPcm).toHaveBeenCalledTimes(2);
+    // renderOfflinePcm called 4 times: 2 from verify (before + after) + 2 from auto-diff
+    expect(mockRenderPcm).toHaveBeenCalledTimes(4);
   });
 
   it('sketch with verify=false does NOT include verification', async () => {
@@ -176,7 +176,8 @@ describe('Auto-diff verification', () => {
     const result = planner.lastFunctionResponses[0].result as Record<string, unknown>;
     expect(result.applied).toBe(true);
     expect(result.verification).toBeUndefined();
-    expect(mockRenderPcm).not.toHaveBeenCalled();
+    // Auto-diff still runs (before + after), but verify is not included in response
+    expect(mockRenderPcm).toHaveBeenCalledTimes(2);
   });
 
   it('sketch without verify param does NOT include verification (opt-in)', async () => {
@@ -207,7 +208,8 @@ describe('Auto-diff verification', () => {
     const result = planner.lastFunctionResponses[0].result as Record<string, unknown>;
     expect(result.applied).toBe(true);
     expect(result.verification).toBeUndefined();
-    expect(mockRenderPcm).not.toHaveBeenCalled();
+    // Auto-diff still runs (before + after)
+    expect(mockRenderPcm).toHaveBeenCalledTimes(2);
   });
 
   it('sketch with verify=true gracefully handles missing renderOfflinePcm', async () => {
@@ -317,8 +319,8 @@ describe('Auto-diff verification', () => {
     expect(typeof verification.summary).toBe('string');
     expect(typeof verification.confidence).toBe('number');
 
-    // renderOfflinePcm should have been called twice (before + after)
-    expect(mockRenderPcm).toHaveBeenCalledTimes(2);
+    // renderOfflinePcm called 4 times: 2 from verify (before + after) + 2 from auto-diff
+    expect(mockRenderPcm).toHaveBeenCalledTimes(4);
   });
 
   it('edit_pattern without verify does NOT include verification', async () => {
@@ -351,6 +353,7 @@ describe('Auto-diff verification', () => {
     const result = planner.lastFunctionResponses[0].result as Record<string, unknown>;
     expect(result.applied).toBe(true);
     expect(result.verification).toBeUndefined();
-    expect(mockRenderPcm).not.toHaveBeenCalled();
+    // Auto-diff still runs (before + after)
+    expect(mockRenderPcm).toHaveBeenCalledTimes(2);
   });
 });

@@ -1064,6 +1064,8 @@ export class GluonAI {
   private countTokensFallbackWarned = false;
   /** Automatic before/after summaries from the most recent accepted AI edit step. */
   private recentAutoDiffs: CompressedAutoDiffSummary[] = [];
+  /** Summaries accumulated during the current turn for next-turn context. */
+  private turnAutoDiffs: CompressedAutoDiffSummary[] = [];
 
   constructor(
     private planner: PlannerProvider,
@@ -1153,6 +1155,7 @@ export class GluonAI {
     executeActions: StepExecutor,
     onStep?: OnStepCallback,
   ): Promise<AIAction[]> {
+    this.turnAutoDiffs = [];
     const state = this.buildCompressedState(session, ctx, ctx?.userSelection);
     const stateJson = JSON.stringify(state);
     await this.trimToTokenBudget(session, humanMessage, stateJson, ctx);
@@ -1311,6 +1314,7 @@ export class GluonAI {
     } else {
       this.planner.discardTurn();
     }
+    this.recentAutoDiffs = this.turnAutoDiffs;
 
     return allActions;
   }
@@ -1375,7 +1379,7 @@ export class GluonAI {
 
     const nextSummaries = summaries.filter((summary): summary is CompressedAutoDiffSummary => summary !== null);
     if (nextSummaries.length > 0) {
-      this.recentAutoDiffs = nextSummaries.slice(-5);
+      this.turnAutoDiffs = nextSummaries.slice(-5);
     }
   }
 

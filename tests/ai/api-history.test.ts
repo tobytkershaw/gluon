@@ -769,6 +769,49 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       expect(tokenPlanner.userMessages[1]).toContain('"summary"');
       expect(tokenPlanner.userMessages[1]).toContain('"confidence"');
     });
+
+    it('does not carry recent auto diff summaries into later turns with no fresh edits', async () => {
+      const tokenPlanner = createMockPlanner();
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+
+      tokenPlanner.startTurnResults.push({
+        textParts: [],
+        functionCalls: [{
+          id: 'sk1',
+          name: 'sketch',
+          args: {
+            trackId,
+            description: 'simple pulse',
+            events: [
+              { kind: 'trigger', at: 0, velocity: 1 },
+            ],
+          },
+        }],
+      });
+      tokenPlanner.continueTurnResults.push({ textParts: ['Done.'], functionCalls: [] });
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      tokenPlanner.startTurnResults.push({ textParts: ['still ok'], functionCalls: [] });
+
+      const renderOfflinePcm = vi.fn(async (): Promise<PcmRenderResult> => {
+        const pcm = new Float32Array(4410);
+        for (let i = 0; i < pcm.length; i++) pcm[i] = 0.2 * Math.sin(2 * Math.PI * 220 * i / 44100);
+        return { pcm, sampleRate: 44100 };
+      });
+
+      await tokenAI.ask(session, 'make it pulse', {
+        listen: {
+          renderOffline: vi.fn(async () => new Blob()),
+          renderOfflinePcm,
+        },
+      });
+      await tokenAI.ask(session, 'what changed?');
+      await tokenAI.ask(session, 'anything else?');
+
+      expect(tokenPlanner.userMessages[1]).toContain('"recentAutoDiffs"');
+      expect(tokenPlanner.userMessages[2]).not.toContain('"recentAutoDiffs"');
+    });
   });
 
   // -------------------------------------------------------------------------

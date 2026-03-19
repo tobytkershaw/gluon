@@ -57,7 +57,10 @@ export function deriveMixWarnings(
       const headroom = Math.max(0, -audioMetrics.master.peak);
       warnings.push({
         type: 'low_headroom',
-        severity: clamp01((LOW_HEADROOM_THRESHOLD_DB - audioMetrics.master.peak) / 3),
+        severity: clamp01(
+          (audioMetrics.master.peak - LOW_HEADROOM_THRESHOLD_DB)
+          / (CLIPPING_THRESHOLD_DB - LOW_HEADROOM_THRESHOLD_DB),
+        ),
         trackId: MASTER_BUS_ID,
         trackLabel: 'Master Bus',
         peak: audioMetrics.master.peak,
@@ -114,22 +117,20 @@ export function deriveMixWarnings(
     });
   }
 
-  if (collisions.length === 0) {
-    const activeAudioTracks = session.tracks.filter(
-      track => getTrackKind(track) === 'audio' && !track.muted,
-    );
-    const unslottedTracks = activeAudioTracks.filter(track => !spectralSlots.get(track.id));
-    if (activeAudioTracks.length >= 3 && unslottedTracks.length > 0) {
-      warnings.push({
-        type: 'masking',
-        severity: clamp01(0.45 + unslottedTracks.length * 0.1),
-        trackIds: unslottedTracks.map(track => track.id),
-        trackLabels: unslottedTracks.map(track => track.name ?? track.id),
-        message:
-          `${activeAudioTracks.length} active audio tracks have no spectral slot coverage for ` +
-          `${unslottedTracks.length} track(s): ${unslottedTracks.map(track => track.name ?? track.id).join(', ')}.`,
-      });
-    }
+  const activeAudioTracks = session.tracks.filter(
+    track => getTrackKind(track) === 'audio' && !track.muted,
+  );
+  const unslottedTracks = activeAudioTracks.filter(track => !spectralSlots.get(track.id));
+  if (activeAudioTracks.length >= 3 && unslottedTracks.length > 0) {
+    warnings.push({
+      type: 'masking',
+      severity: clamp01(0.45 + unslottedTracks.length * 0.1),
+      trackIds: unslottedTracks.map(track => track.id),
+      trackLabels: unslottedTracks.map(track => track.name ?? track.id),
+      message:
+        `${activeAudioTracks.length} active audio tracks have no spectral slot coverage for ` +
+        `${unslottedTracks.length} track(s): ${unslottedTracks.map(track => track.name ?? track.id).join(', ')}.`,
+    });
   }
 
   return warnings;

@@ -629,6 +629,7 @@ export function compressState(
     ...(session.intent && Object.keys(session.intent).length > 0 ? { intent: session.intent } : {}),
     ...(genreReferenceOverlays.length > 0 ? { genre_reference_overlays: genreReferenceOverlays } : {}),
     ...(audioMetrics ? {
+      // Keep freshness handling in runtime state; the AI only needs the measurements.
       audioMetrics: {
         master: audioMetrics.master,
         tracks: audioMetrics.tracks,
