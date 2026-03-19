@@ -83,6 +83,8 @@ export class PlaitsSynth implements SynthEngine {
   private readonly ready: Promise<void>;
   private currentParams: SynthParams | null = null;
   private currentModel = 0;
+  /** Last transport fence for which we explicitly primed the patch. */
+  private lastPrimedFence: number | null = null;
 
   private constructor(ctx: AudioContext, output: AudioNode, wasmBinary: ArrayBuffer) {
     this.node = new AudioWorkletNode(ctx, 'plaits-processor', {
@@ -158,10 +160,11 @@ export class PlaitsSynth implements SynthEngine {
     if (note.baseParams) {
       const differs = (k: string) =>
         Math.abs((note.params[k] ?? 0) - (note.baseParams![k] ?? 0)) > 0.001;
+      const shouldPrimePatch = fence !== undefined && fence !== this.lastPrimedFence;
 
       // Base 4: only send timed set-patch if a base key actually differs
       const hasBaseOverrides = [...BASE_KEYS].some(differs);
-      if (hasBaseOverrides) {
+      if (shouldPrimePatch || hasBaseOverrides) {
         this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
       }
 
@@ -169,7 +172,7 @@ export class PlaitsSynth implements SynthEngine {
       const hasExtendedOverrides = EXTENDED_KEYS.some(
         k => Math.abs((note.params[k] ?? EXTENDED_DEFAULTS[k]) - (note.baseParams![k] ?? EXTENDED_DEFAULTS[k])) > 0.001,
       );
-      if (hasExtendedOverrides) {
+      if (shouldPrimePatch || hasExtendedOverrides) {
         this.post({
           type: 'set-extended',
           extended: {
@@ -182,6 +185,9 @@ export class PlaitsSynth implements SynthEngine {
           time: note.time,
           fence,
         });
+      }
+      if (shouldPrimePatch) {
+        this.lastPrimedFence = fence;
       }
     } else {
       this.post({ type: 'set-patch', patch: note.params, time: note.time, fence });
