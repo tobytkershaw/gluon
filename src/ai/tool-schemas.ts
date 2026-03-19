@@ -970,8 +970,8 @@ const manageSequenceTool: ToolSchema = {
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata and mix properties in a single call: name (rename), volume, pan, muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
-    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", importance: 0.8, musicalRole: "main kick"). Approval requires agency ON and a reason.',
+    'Set track metadata and mix properties in a single call: name (rename), volume, pan, swing (per-track override), muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
+    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", swing: 0.6) for per-track swing. Use inheritSwing: true to revert to global transport swing. Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -990,6 +990,14 @@ const setTrackMetaTool: ToolSchema = {
       pan: {
         type: 'number',
         description: 'Track pan (-1.0 left to 1.0 right, 0.0 center).',
+      },
+      swing: {
+        type: 'number',
+        description: 'Per-track swing override (0.0-1.0, where 0 is straight). Overrides global transport swing for this track only. Use for e.g. straight kick (swing: 0) with swung hats (swing: 0.6). To revert to global transport swing, use inheritSwing: true instead.',
+      },
+      inheritSwing: {
+        type: 'boolean',
+        description: 'Set to true to clear per-track swing override and inherit global transport swing. Mutually exclusive with swing.',
       },
       approval: {
         type: 'string',

@@ -2539,30 +2539,47 @@ export class GluonAI {
         const hasName = args.name !== undefined;
         const hasVolume = typeof args.volume === 'number';
         const hasPan = typeof args.pan === 'number';
+        const hasSwing = args.swing !== undefined || args.inheritSwing === true;
         const hasApproval = args.approval !== undefined;
         const hasImportance = args.importance !== undefined;
         const hasRole = args.musicalRole !== undefined;
         const hasMuted = args.muted !== undefined;
         const hasSolo = args.solo !== undefined;
-        if (!hasName && !hasVolume && !hasPan && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
-          return { actions: [], response: errorPayload('At least one of name, volume, pan, approval, importance, musicalRole, muted, solo required') };
+        if (!hasName && !hasVolume && !hasPan && !hasSwing && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
+          return { actions: [], response: errorPayload('At least one of name, volume, pan, swing, approval, importance, musicalRole, muted, solo required') };
         }
 
         const metaActions: AIAction[] = [];
         const applied: string[] = [];
         const errors: string[] = [];
 
-        // Handle volume/pan
-        if (hasVolume || hasPan) {
-          const trackMix: AISetTrackMixAction = {
-            type: 'set_track_mix',
-            trackId: args.trackId as string,
-            ...(hasVolume ? { volume: Math.max(0, Math.min(1, args.volume as number)) } : {}),
-            ...(hasPan ? { pan: Math.max(-1, Math.min(1, args.pan as number)) } : {}),
-          };
-          metaActions.push(trackMix);
-          if (hasVolume) applied.push('volume');
-          if (hasPan) applied.push('pan');
+        // Handle volume/pan/swing
+        if (hasVolume || hasPan || hasSwing) {
+          let swingValue: number | null | undefined;
+          let swingError = false;
+          if (hasSwing) {
+            if (args.inheritSwing === true) {
+              swingValue = null; // null = inherit global transport swing
+            } else if (typeof args.swing === 'number' && Number.isFinite(args.swing)) {
+              swingValue = Math.max(0, Math.min(1, args.swing));
+            } else {
+              errors.push('swing must be a finite number (0.0-1.0), or use inheritSwing: true to clear');
+              swingError = true;
+            }
+          }
+          if (!swingError) {
+            const trackMix: AISetTrackMixAction = {
+              type: 'set_track_mix',
+              trackId: args.trackId as string,
+              ...(hasVolume ? { volume: Math.max(0, Math.min(1, args.volume as number)) } : {}),
+              ...(hasPan ? { pan: Math.max(-1, Math.min(1, args.pan as number)) } : {}),
+              ...(hasSwing ? { swing: swingValue } : {}),
+            };
+            metaActions.push(trackMix);
+            if (hasVolume) applied.push('volume');
+            if (hasPan) applied.push('pan');
+            if (hasSwing) applied.push('swing');
+          }
         }
 
         // Handle muted/solo

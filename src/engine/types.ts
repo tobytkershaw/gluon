@@ -144,6 +144,9 @@ export interface Track {
   volume: number;
   /** Per-track pan, -1.0 (left) to 1.0 (right), default 0.0 */
   pan: number;
+  /** Per-track swing override (0.0–1.0). When set, overrides global transport swing for this track.
+   *  null or undefined = inherit global transport swing. */
+  swing?: number | null;
   /** Post-fader sends to bus tracks. Default: [] */
   sends?: Send[];
   controlProvenance?: ControlState;
@@ -672,6 +675,7 @@ export interface AISetTrackMixAction {
   trackId: string;
   volume?: number;  // 0.0–1.0
   pan?: number;     // -1.0 to 1.0
+  swing?: number | null;  // 0.0–1.0 per-track override, null = inherit global
 }
 
 export interface AIManageSendAction {

@@ -58,6 +58,7 @@ interface CompressedTrack {
   solo: boolean;
   volume: number;
   pan: number;
+  swing?: number | null;
   pattern: CompressedPattern;
   regions?: CompressedPattern[];
   activePatternId?: string;
@@ -371,6 +372,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       solo: track.solo,
       volume: round2(track.volume),
       pan: round2(track.pan),
+      ...(track.swing != null ? { swing: round2(track.swing) } : {}),
       pattern: compressPattern(track),
       ...(track.patterns.length > 1 ? {
         patterns: track.patterns.map(r => ({

@@ -1291,4 +1291,63 @@ describe('operation-executor adversarial — NaN and Infinity rejection (#892)',
     const track = report.session.tracks.find(v => v.id === 'v0')!;
     expect(track.params.timbre).toBeCloseTo(0);
   });
+
+  // --- Per-track swing ---
+
+  it('set_track_mix applies per-track swing', () => {
+    const session = setupSession();
+    const report = run(session, [
+      { type: 'set_track_mix', trackId: 'v0', swing: 0.6 },
+    ]);
+    expect(report.accepted).toHaveLength(1);
+    const track = report.session.tracks.find(t => t.id === 'v0')!;
+    expect(track.swing).toBeCloseTo(0.6);
+  });
+
+  it('set_track_mix clamps per-track swing to [0, 1]', () => {
+    const session = setupSession();
+    const report = run(session, [
+      { type: 'set_track_mix', trackId: 'v0', swing: 1.5 },
+    ]);
+    expect(report.accepted).toHaveLength(1);
+    const track = report.session.tracks.find(t => t.id === 'v0')!;
+    expect(track.swing).toBeLessThanOrEqual(1);
+    expect(track.swing).toBeGreaterThanOrEqual(0);
+  });
+
+  it('set_track_mix allows null swing to inherit global', () => {
+    let session = setupSession();
+    // First set swing to 0.5
+    const report1 = run(session, [
+      { type: 'set_track_mix', trackId: 'v0', swing: 0.5 },
+    ]);
+    session = report1.session;
+    expect(getTrack(session, 'v0').swing).toBeCloseTo(0.5);
+    // Then set swing to null (inherit global)
+    const report2 = run(session, [
+      { type: 'set_track_mix', trackId: 'v0', swing: null },
+    ]);
+    expect(getTrack(report2.session, 'v0').swing).toBeNull();
+  });
+
+  it('set_track_mix swing is undoable via TrackPropertySnapshot', () => {
+    const session = setupSession();
+    const originalSwing = getTrack(session, 'v0').swing;
+    const report = run(session, [
+      { type: 'set_track_mix', trackId: 'v0', swing: 0.7 },
+    ]);
+    expect(getTrack(report.session, 'v0').swing).toBeCloseTo(0.7);
+    // Undo
+    const undone = applyUndo(report.session);
+    expect(getTrack(undone, 'v0').swing).toBe(originalSwing);
+  });
+
+  it('rejects non-finite per-track swing', () => {
+    const session = setupSession();
+    const report = run(session, [
+      { type: 'set_track_mix', trackId: 'v0', swing: NaN },
+    ]);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('Non-finite');
+  });
 });

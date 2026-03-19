@@ -114,7 +114,7 @@ export class Scheduler {
     if (this.getAudioState?.() === 'suspended') return;
 
     const session = this.getSession();
-    const { bpm, swing } = session.transport;
+    const { bpm, swing: globalSwing } = session.transport;
     const transportMode = session.transport.mode ?? 'pattern';
 
     // Handle BPM change mid-play
@@ -239,6 +239,9 @@ export class Scheduler {
     for (const track of audibleTracks) {
       if (track.patterns.length === 0) continue;
 
+      // Per-track swing: use track override when set, otherwise fall back to global transport swing
+      const effectiveSwing = track.swing != null ? track.swing : globalSwing;
+
       if (transportMode === 'pattern') {
         // Pattern mode: loop the active pattern
         const activePattern = getActivePattern(track);
@@ -252,7 +255,7 @@ export class Scheduler {
           patternLen,
         );
         for (const seg of segments) {
-          this.scheduleSegmentEvents(track, activePattern, events, patternLen, 0, seg, stepDuration, swing);
+          this.scheduleSegmentEvents(track, activePattern, events, patternLen, 0, seg, stepDuration, effectiveSwing);
         }
       } else {
         // Song mode: walk the sequence
@@ -272,7 +275,7 @@ export class Scheduler {
               this.scheduleSegmentEvents(
                 track, pat, pat.events, patternLen, sequenceOffset,
                 { localStart: localCursorStart, localEnd: localLookaheadEnd, loopCycle: 0 },
-                stepDuration, swing,
+                stepDuration, effectiveSwing,
               );
             }
           }

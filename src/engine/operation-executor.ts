@@ -2086,6 +2086,7 @@ function executeActionsInternal(
         const mixPrevProps: Partial<typeof mixTrack> = {};
         if (action.volume !== undefined) mixPrevProps.volume = mixTrack.volume;
         if (action.pan !== undefined) mixPrevProps.pan = mixTrack.pan;
+        if (action.swing !== undefined) mixPrevProps.swing = mixTrack.swing;
 
         const mixSnapshot: TrackPropertySnapshot = {
           kind: 'track-property',
@@ -2104,6 +2105,14 @@ function executeActionsInternal(
           if (!Number.isFinite(action.pan)) { rejected.push({ op: action, reason: `Non-finite track mix value: pan=${action.pan}` }); break; }
           mixUpdate.pan = Math.max(-1, Math.min(1, action.pan));
         }
+        if (action.swing !== undefined) {
+          if (action.swing === null) {
+            mixUpdate.swing = null;
+          } else {
+            if (!Number.isFinite(action.swing)) { rejected.push({ op: action, reason: `Non-finite track mix value: swing=${action.swing}` }); break; }
+            mixUpdate.swing = Math.max(0, Math.min(1, action.swing));
+          }
+        }
 
         next = {
           ...updateTrack(next, action.trackId, mixUpdate),
@@ -2114,6 +2123,7 @@ function executeActionsInternal(
         const mixParts: string[] = [];
         if (action.volume !== undefined) mixParts.push(`volume=${action.volume.toFixed(2)}`);
         if (action.pan !== undefined) mixParts.push(`pan=${action.pan.toFixed(2)}`);
+        if (action.swing !== undefined) mixParts.push(action.swing === null ? 'swing=inherit' : `swing=${action.swing.toFixed(2)}`);
         log.push({ trackId: action.trackId, trackLabel: mixLabel, description: mixParts.join(', ') });
         accepted.push(action);
         break;
