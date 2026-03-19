@@ -13,4 +13,6 @@ export interface ModuleRendererProps {
   onInteractionStart?: () => void;
   /** Gesture end — surface handler diffs and pushes undo */
   onInteractionEnd?: () => void;
+  /** Toggle processor enabled/bypass — goes through session state + undo */
+  onToggleProcessorEnabled?: (processorId: string) => void;
 }

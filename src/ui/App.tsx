@@ -2887,6 +2887,7 @@ export default function App() {
             onAddModule={handleAddSurfaceModule}
             onUpdateModule={handleSurfaceUpdateModule}
             onRemoveModule={handleSurfaceRemoveModule}
+            onToggleProcessorEnabled={handleToggleProcessorEnabled}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (
