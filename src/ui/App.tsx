@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, TrackPropertySnapshot, UserSelection } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, TrackPropertySnapshot, UserSelection, OpenDecision } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -22,6 +22,7 @@ import {
   addPatternRef, removePatternRef, reorderPatternRef,
   captureABSnapshot, restoreABSnapshot,
   setTransportLoop,
+  resolveDecision,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
 import { loadSession } from '../engine/persistence';
@@ -1017,6 +1018,22 @@ export default function App() {
       });
     });
   }, []);
+
+  const handleDecisionRespond = useCallback((decision: OpenDecision, response: string) => {
+    const isAgencyApproval = decision.id.startsWith('agency-approval-');
+    let nextSession = resolveDecision(sessionRef.current, decision.id);
+    if (isAgencyApproval && /^(allow|approve|yes)$/i.test(response) && decision.trackIds) {
+      for (const trackId of decision.trackIds) {
+        nextSession = setAgency(nextSession, trackId, 'ON');
+      }
+    }
+
+    sessionRef.current = nextSession;
+    setSession(() => nextSession);
+
+    const decisionReply = `Decision resolved: ${response}. ${decision.question}`;
+    void handleSend(decisionReply);
+  }, [handleSend]);
 
   const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string, newListenerMode?: ListenerMode) => {
     setOpenaiKey(newOpenaiKey);
@@ -2164,6 +2181,8 @@ export default function App() {
       streamingRejections={streamingRejections}
       reactions={session.reactionHistory}
       onReaction={handleReaction}
+      openDecisions={(session.openDecisions ?? []).filter(d => !d.resolved)}
+      onDecisionRespond={handleDecisionRespond}
       apiConfigured={apiConfigured}
       onApiKey={handleApiKey}
       currentOpenaiKey={openaiKey}

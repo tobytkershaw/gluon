@@ -4,7 +4,7 @@
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
 // When chat collapsed: floating composer pill at bottom-right.
 import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
-import type { Track, ChatMessage, UndoEntry, Reaction } from '../engine/types';
+import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
@@ -23,6 +23,7 @@ import { UndoButton } from './UndoButton';
 import { RedoButton } from './RedoButton';
 import { PeakMeter as PeakMeterFooter } from './MasterStrip';
 import { AudioLoadMeter } from './AudioLoadMeter';
+import { OpenDecisionsPanel } from './OpenDecisionsPanel';
 import type { AudioEngine } from '../audio/audio-engine';
 
 interface Props {
@@ -55,6 +56,8 @@ interface Props {
   streamingRejections?: { reason: string }[];
   reactions?: Reaction[];
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
+  openDecisions?: OpenDecision[];
+  onDecisionRespond?: (decision: OpenDecision, response: string) => void;
   apiConfigured: boolean;
   onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   currentOpenaiKey?: string;
@@ -145,6 +148,7 @@ export function AppShell({
   onAddSend, onRemoveSend, onSetSendLevel,
   messages, onSend, isThinking, isListening, streamingText, streamingLogEntries, streamingRejections,
   reactions, onReaction,
+  openDecisions = [], onDecisionRespond,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   chatOpen, onChatToggle, chatWidth, onChatResize,
   chatFocused, onChatFocusedChange,
@@ -335,6 +339,11 @@ export function AppShell({
             )}
           </div>
         </div>
+        {onDecisionRespond && openDecisions.length > 0 && (
+          <div className="pointer-events-none absolute right-4 top-14 z-20">
+            <OpenDecisionsPanel decisions={openDecisions} onRespond={onDecisionRespond} />
+          </div>
+        )}
       </div>
     );
   }
@@ -469,6 +478,12 @@ export function AppShell({
           onResize={onChatResize}
         />
       </div>
+
+      {onDecisionRespond && openDecisions.length > 0 && (
+        <div className="pointer-events-none absolute right-4 top-14 z-20">
+          <OpenDecisionsPanel decisions={openDecisions} onRespond={onDecisionRespond} />
+        </div>
+      )}
 
       {/* Global footer bar */}
       <div className="flex items-center h-7 border-t border-zinc-700/40 shrink-0">
