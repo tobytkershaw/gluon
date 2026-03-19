@@ -30,7 +30,7 @@ function sortEvents(events: MusicalEvent[]): MusicalEvent[] {
 
 function getSoundEvents(pattern: Pattern): Array<NoteEvent | TriggerEvent> {
   return pattern.events.filter((event): event is NoteEvent | TriggerEvent =>
-    event.kind === 'note' || event.kind === 'trigger',
+    (event.kind === 'note' || event.kind === 'trigger') && (event as NoteEvent | TriggerEvent).velocity !== 0,
   );
 }
 
@@ -53,7 +53,7 @@ function deriveComplementOnsets(sourceOnsets: number[], duration: number): numbe
     const next = i === sourceOnsets.length - 1 ? sourceOnsets[0] + duration : sourceOnsets[i + 1];
     positions.push(round3((current + ((next - current) / 2)) % duration));
   }
-  return Array.from(new Set(positions)).sort((a, b) => a - b);
+  return Array.from(new Set(positions.map(position => round3(position)))).sort((a, b) => a - b);
 }
 
 export function resolveRhythmicRelation(

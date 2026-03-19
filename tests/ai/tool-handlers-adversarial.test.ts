@@ -1632,6 +1632,48 @@ describe('relate — adversarial', () => {
     expect(actions[0]).toMatchObject({ type: 'sketch', trackId: 'v1' });
   });
 
+  it('ignores velocity=0 sentinels when deriving source onsets', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0 },
+      { kind: 'trigger', at: 4, velocity: 1 },
+    ];
+    session.tracks[1].patterns[0].events = [
+      { kind: 'note', at: 1, pitch: 36, velocity: 0.8, duration: 1 },
+    ];
+
+    const { response } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'align',
+      description: 'align to real onsets only',
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.sourceOnsets).toEqual([4]);
+    expect(response.targetOnsets).toEqual([4]);
+  });
+
+  it('rejects rhythmic relations when the source track has no patterns', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[0].patterns = [];
+    session.tracks[1].patterns[0].events = [
+      { kind: 'note', at: 1, pitch: 36, velocity: 0.8, duration: 1 },
+    ];
+
+    const { response, actions } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'align',
+      description: 'bad source',
+    });
+
+    expect(response.error).toMatch(/has no patterns/);
+    expect(actions).toHaveLength(0);
+  });
+
   it('spectral_complement assigns complementary bands to the target', async () => {
     let session = makeSession();
     session = addTrack(session, 'audio') ?? session;

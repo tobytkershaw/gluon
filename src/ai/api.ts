@@ -4449,6 +4449,12 @@ export class GluonAI {
         }
 
         if (relation === 'align' || relation === 'complement') {
+          if (sourceTrack.patterns.length === 0) {
+            return { actions: [], response: errorPayload(`Source track ${sourceTrackId} has no patterns`) };
+          }
+          if (targetTrack.patterns.length === 0) {
+            return { actions: [], response: errorPayload(`Target track ${targetTrackId} has no patterns`) };
+          }
           try {
             const resolved = resolveRhythmicRelation(
               getActivePattern(sourceTrack),
@@ -4548,6 +4554,9 @@ export class GluonAI {
             bands: resolved.targetBands,
             priority,
           };
+          const rejection = ctx?.validateAction?.(session, action);
+          const rejectionResult = handleRejection(rejection, session, action, existingActions);
+          if (rejectionResult) return rejectionResult;
           return {
             actions: [action],
             response: {
