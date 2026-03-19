@@ -13,6 +13,17 @@ Draft — working document for design alignment. Synthesised from:
 - `docs/principles/ai-collaboration-model.md` — collaboration phases, default posture
 - `docs/design-references.md` — NKS, Guitar Rig, Bitwig, Kontakt, Logic Smart Controls
 
+### Scope of this document
+
+This is a north-star vision, not the current AI/runtime contract. It describes where Surface is going, drawing on both implemented and unimplemented concepts from the source documents.
+
+Where this document and the source RFCs differ, the current sources of truth for runtime behaviour remain:
+- `docs/rfcs/ai-curated-surfaces.md` — current `TrackSurface` state shape and AI tool semantics (`set_surface` as semantic-controls-only)
+- `docs/rfcs/view-architecture.md` — module-composition direction (extends `set_surface` to compose modules)
+- `docs/briefs/visual-language.md` — Surface Score and visual identity operations
+
+North-star concepts must not be exposed to the AI or runtime contract until they are implemented and validated. The current `set_surface` tool defines semantic controls; the north-star `set_surface` composes modules. The migration between these is implementation work, not a rename.
+
 ---
 
 ## 1. What Is Surface?
@@ -39,7 +50,7 @@ Opens Gluon. Sees the Stage — compact cards for each track. KICK, BASS, LEAD, 
 
 Grabs the Space knob, turns it up. Clouds mix and size increase together. Rings damping decreases. One gesture, multiple parameters, musically coherent.
 
-Tells the AI "make the lead more aggressive." The AI moves parameters AND updates the Surface — relabels the XY pad to Attack × Brightness, because those are now the dimensions that matter.
+Tells the AI "make the lead more aggressive." The AI moves parameters and updates the **presentation** of the Surface — foregrounding Attack and Brightness in the layout and axis labels, because those are now the dimensions that matter. The underlying semantic mappings (what "Brightness" maps to) stay stable; what changes is which controls are prominent.
 
 Wants to fine-tune Clouds feedback specifically. Opens the Deep View for the Clouds node. Sees every raw parameter. Pins `feedback` to the Surface. Now it's right there next to the macro knobs.
 
@@ -87,7 +98,7 @@ This is a fundamental shift in the collaboration posture. The AI's job is no lon
 
 - The AI should think about which Surface modules to provide alongside any musical action, not just what parameters to set.
 - "Add a hi-hat part" might mean placing a pattern generator module (rather than committing to a specific pattern) so the human can explore.
-- "Make the bass darker" might mean adjusting parameters AND reconfiguring the Surface to foreground the dimensions the human will want to iterate on next.
+- "Make the bass darker" might mean adjusting parameters and re-presenting the Surface so the dimensions the human is likely to iterate on next are foregrounded.
 - The collaboration phases (framing → sketching → guided iteration → expansion → refinement) from `docs/principles/ai-collaboration-model.md` gain a new dimension: Surface modules are how the AI sets up each phase's workspace.
 - The AI should bias toward giving the human interactive controls over a space rather than committing to a single point in that space — especially during sketching and iteration phases.
 
@@ -165,7 +176,7 @@ Surface modules operate at two levels:
 
 - An XY pad where each axis is itself a weighted mapping across four parameters
 - A step grid where each step exposes inline parameter locks specific to this track's chain
-- A morph control that interpolates between two parameter snapshots the AI identified as the endpoints of the useful space
+- A future morph control that could interpolate between two parameter snapshots, if snapshot interpolation becomes a canonical engine concept
 - A filter display whose cutoff knob is actually a macro affecting both the filter frequency and the source brightness
 
 This is the difference between the AI as a **UI configurator** (picks from a menu of modules) and the AI as a **UI designer** (composes interfaces from primitives). Both levels exist. Level 1 is the foundation. Level 2 is where the vision gets genuinely novel.
@@ -183,6 +194,18 @@ If a control concept requires its own logic (a tension arc that maps abstract en
 Why: if a Surface module has its own logic, it creates state that doesn't exist in the canonical model. That means the canonical views (Rack, Patch, Tracker) can't show it, violating the principle that Surface modules defer to canonical views in terms of truthfulness. Every parameter change caused by a Surface interaction must be visible in the canonical views as a real modulation, automation, or parameter value.
 
 This keeps Surface as a pure presentation/interface layer. It also means every interesting "experimental" Surface module is really two things: (1) a new engine concept and (2) a Surface interface to that concept. The engine work comes first; the Surface module follows.
+
+### Readiness rule for Surface modules
+
+Every proposed Surface module should fall into one of three buckets:
+
+| Bucket | Meaning | Examples |
+|--------|---------|----------|
+| **Projection of existing canonical state** | Pure UI over data already present in the model | Knob Group, Step Grid, Piano Roll, Chain Strip, pinned raw controls |
+| **Interface to an existing engine primitive** | UI for a modulation/generator/mapping concept already implemented | Macro Knob (over semantic mappings), XY Pad (bound to existing control targets), Level Meter |
+| **Requires new engine work first** | The UI implies behaviour or state not yet represented canonically | Tension arcs, orbit/path controls, probability fields, snapshot morphing, generative pattern modules (Marbles/Grids) not yet compiled |
+
+If a proposed module lands in the third bucket, the engine concept must be specified and implemented first. The Surface module follows after the underlying concept is canonical, inspectable, and undoable.
 
 ### Growing the vocabulary
 
@@ -245,7 +268,9 @@ Performance Surface is the most novel and least specified part of the vision. It
 
 It builds the instrument panel, not just the sound. When the AI adds Rings to a chain, it also sets up the controls for Rings on the Surface. One gesture — sound and interface together.
 
-The AI also has maximum control over the visual aspects of everything inside the Surface canvas — colour, weight, labelling, arrangement, visual identity. The visual language is part of the curation. A kick drum track should look and feel different from a pad track before the human touches anything.
+The AI also curates the visual character of the Surface — but not by inventing arbitrary styling. Visual identity flows through a constrained vocabulary of primitives (track colour, module weight, edge style, labelling) that the AI selects from, not arbitrary CSS. The implementation mechanism for project- and track-level visual identity is the Surface Score system described in `docs/briefs/visual-language.md`. This document covers which modules exist, how they are arranged, and which controls are foregrounded; the Score system structures the visual language.
+
+The key principle: visual identity is part of the curation, not a separate concern. A kick drum track should look and feel different from a pad track before the human touches anything.
 
 ### Making it easy for the AI to get it right
 
@@ -280,7 +305,7 @@ Traditional instruments require you to already know what matters. Surface tells 
 | `pin` | Surface a raw control | Human repeatedly adjusts same raw param, or asks |
 | `unpin` | Remove a pinned control | Surface cleanup |
 | `label_axes` | Set XY pad axes | Context shift (working on spatial vs timbral qualities) |
-| `set_visual_identity` | Set track colour, weight, visual character | Track creation, role change, timbral shift |
+| `set_track_identity` / `set_surface_score` | Set constrained visual identity through the Score system (see `visual-language.md`) | Track creation, role change, timbral shift, explicit visual request |
 
 ### Trigger discipline
 
@@ -309,7 +334,8 @@ track LEAD (agency: ON)
 
 - **Single-module tracks:** raw controls only. No aggregation needed.
 - **Chain tracks (>6 raw params):** semantic macro knobs that map weighted across modules.
-- **Stability:** mappings defined per-engine-chain configuration, not per-patch. Authored when chain is built, stable until chain structure changes.
+- **Stability:** mappings are defined per-engine-chain configuration, not per-patch. They are authored when the chain is built and remain stable until chain structure changes.
+- **Presentation can change without remapping:** layout, prominence, axis assignment, and which controls are visually foregrounded may change with context or user request. This is not the same as redefining a semantic mapping.
 - **Inspectable:** human can see the weight mapping from Deep View and override it.
 - **AI cannot silently redefine what "Brightness" means.**
 
@@ -335,6 +361,8 @@ track LEAD (agency: ON)
 ---
 
 ## 8. Current Implementation State
+
+The current implementation corresponds to the semantic-surface RFC (`ai-curated-surfaces.md`), not the full module-based north star. This table distinguishes what exists today from what this document proposes.
 
 | Component | Status |
 |-----------|--------|
@@ -380,6 +408,16 @@ track LEAD (agency: ON)
 | 12 | Surface changes in chat vs inline? | Chat messages vs UI notifications on the card |
 | 13 | Human weight editing UX? | Sliders per weight, matrix, or AI-mediated |
 | 14 | Stage: new component or visual upgrade to track sidebar? | Keep simple — the exact form follows from the layout work |
+
+### Recommended directions
+
+To keep implementation coherent, this document recommends:
+
+1. **`set_surface` evolves toward module composition**, but the current semantic-controls contract remains the shipped behaviour until migration is complete. The two contracts coexist during transition.
+2. **Use a constrained slot/grid layout**, not a free-form canvas. Good layouts emerge from good constraints.
+3. **Keep first-surface creation deterministic by default**: registry templates first, AI proposals only for novel chain configurations.
+4. **Adopt both human editing paths over time**: direct manipulation for common operations (drag, resize, rebind), AI-mediated editing for larger reorganisations.
+5. **Treat Deep View as a side panel or inspector layer**, not a destructive mode switch, so trust and context stay continuous with the Surface.
 
 ---
 
