@@ -563,6 +563,7 @@ export function AppShell({
             masterVolume={masterVolume}
             masterStereoAnalysers={stereoAnalysers}
             onMasterVolumeChange={onMasterVolumeChange}
+            variant={view === 'surface' ? 'stage' : 'default'}
           />
           </div>
         </div>

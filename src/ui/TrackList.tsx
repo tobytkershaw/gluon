@@ -5,6 +5,7 @@ import type { Track, TrackKind } from '../engine/types';
 import { getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { getTrackLabel } from '../engine/track-labels';
 import { TrackRow } from './TrackRow';
+import type { TrackRowVariant } from './TrackRow';
 import { TrackLevelMeter } from './TrackLevelMeter';
 import type { AudioEngine } from '../audio/audio-engine';
 
@@ -35,6 +36,8 @@ interface Props {
   /** Master bus stereo analysers for the anchored meter. */
   masterStereoAnalysers?: [AnalyserNode, AnalyserNode] | null;
   onMasterVolumeChange?: (v: number) => void;
+  /** Display variant for track rows. Defaults to 'default'. */
+  variant?: TrackRowVariant;
 }
 
 export function TrackList({
@@ -45,6 +48,7 @@ export function TrackList({
   onAddSend, onRemoveSend, onSetSendLevel,
   maxTracks = 16,
   audioEngine, masterVolume, masterStereoAnalysers, onMasterVolumeChange,
+  variant = 'default',
 }: Props) {
   const canAdd = tracks.length < maxTracks;
 
@@ -69,7 +73,7 @@ export function TrackList({
       {/* Header */}
       <div className="px-3 py-2 border-b border-zinc-800/40 flex items-center justify-between">
         <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-600">
-          Tracks
+          {variant === 'stage' ? 'Stage' : 'Tracks'}
         </span>
         <div className="flex gap-1">
           {onAddTrack && (
@@ -119,6 +123,7 @@ export function TrackList({
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
             onToggleSolo={(additive) => onToggleSolo(track.id, additive)}
+            variant={variant}
 
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
@@ -152,6 +157,7 @@ export function TrackList({
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
             onToggleSolo={(additive) => onToggleSolo(track.id, additive)}
+            variant={variant}
 
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
@@ -178,6 +184,7 @@ export function TrackList({
             onClick={() => onSelectTrack(masterBus.id)}
             onToggleMute={() => onToggleMute(masterBus.id)}
             onToggleSolo={(additive) => onToggleSolo(masterBus.id, additive)}
+            variant={variant}
           />
           {/* Master volume slider + stereo meter */}
           <div className="flex items-center gap-1.5 mt-1 px-1">

@@ -30,6 +30,9 @@ function tierToValue(tier: 0 | 1 | 2): number {
   return [0.2, 0.5, 0.9][tier];
 }
 
+/** Display variant for track rows. 'default' = full sidebar row, 'stage' = compact identity card. */
+export type TrackRowVariant = 'default' | 'stage';
+
 interface Props {
   track: Track;
   label: string;
@@ -58,6 +61,8 @@ interface Props {
   onAddSend?: (busId: string, level?: number) => void;
   onRemoveSend?: (busId: string) => void;
   onSetSendLevel?: (busId: string, level: number) => void;
+  /** Display variant. Defaults to 'default'. */
+  variant?: TrackRowVariant;
 }
 
 export function TrackRow({
@@ -66,6 +71,7 @@ export function TrackRow({
   onClick, onToggleMute, onToggleSolo, onRename, onCycleApproval,
   onRemove, onSetMusicalRole, onSetImportance,
   busTracks, onAddSend, onRemoveSend, onSetSendLevel,
+  variant = 'default',
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -166,6 +172,80 @@ export function TrackRow({
   const approval = track.approval ?? 'exploratory';
   const approvalInfo = APPROVAL_DISPLAY[approval];
 
+  const moduleCount = track.surface.modules.length;
+
+  // ── Stage card variant ──────────────────────────────────────────────
+  if (variant === 'stage') {
+    return (
+      <div
+        role="listitem"
+        aria-selected={isActive}
+        aria-label={label}
+        tabIndex={0}
+        className={`group/card relative px-2.5 py-2 rounded-md cursor-pointer transition-colors outline-none ${
+          isActive
+            ? 'bg-zinc-800 border border-zinc-600'
+            : 'bg-zinc-900/40 hover:bg-zinc-800/50 border border-zinc-800/40'
+        }`}
+        onClick={onClick}
+        onKeyDown={handleRowKeyDown}
+      >
+        {/* Colored accent bar on the left edge */}
+        <div
+          className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full"
+          style={{ backgroundColor: isBus ? (isMasterBus ? '#71717a' : '#52525b') : thumbColor }}
+        />
+
+        {/* Top row: name + mute/solo indicators */}
+        <div className="flex items-center gap-1.5 pl-1.5">
+          <span
+            className={`text-[12px] font-mono uppercase tracking-wider flex-1 truncate leading-tight ${
+              track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : 'text-zinc-400'
+            }`}
+            title={label}
+          >
+            {label}
+          </span>
+
+          {/* Compact mute/solo indicators */}
+          <div className="flex gap-0.5 shrink-0">
+            {track.muted && (
+              <span className="text-[9px] font-mono text-red-400/70 leading-none" title="Muted">M</span>
+            )}
+            {track.solo && (
+              <span className="text-[9px] font-mono text-amber-400/70 leading-none" title="Solo">S</span>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom row: role badge + module count */}
+        <div className="flex items-center gap-1.5 pl-1.5 mt-0.5">
+          {isBus ? (
+            <span className="text-[8px] font-mono uppercase text-zinc-600 tracking-wider leading-none">
+              {isMasterBus ? 'master' : 'bus'}
+            </span>
+          ) : track.musicalRole ? (
+            <span className="text-[9px] font-mono text-zinc-500 truncate leading-none" title={track.musicalRole}>
+              {track.musicalRole}
+            </span>
+          ) : (
+            <span className="text-[9px] font-mono text-zinc-700 leading-none">{'\u2014'}</span>
+          )}
+          <div className="flex-1" />
+          {moduleCount > 0 && (
+            <span
+              className="text-[8px] font-mono text-zinc-600 leading-none"
+              title={`${moduleCount} surface ${moduleCount === 1 ? 'module' : 'modules'}`}
+            >
+              {moduleCount}m
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Default variant ─────────────────────────────────────────────────
   return (
     <div
       ref={rowRef}
