@@ -10,6 +10,7 @@ interface Props {
 }
 
 const tabs: { key: ViewMode; label: string }[] = [
+  { key: 'chat', label: 'Chat' },
   { key: 'surface', label: 'Surface' },
   { key: 'rack', label: 'Rack' },
   { key: 'patch', label: 'Patch' },

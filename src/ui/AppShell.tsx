@@ -1,16 +1,14 @@
 // src/ui/AppShell.tsx
-// Layout shell: Workstation (instrument + tracks) left, AI Collaborator right.
+// Layout shell: view-driven workstation with chat as a first-class tab.
 // Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
-// When chat collapsed: floating composer pill at bottom-right.
-import { useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
+import { useRef, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
 import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
-import { ChatSidebar } from './ChatSidebar';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -63,13 +61,6 @@ interface Props {
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
-  chatOpen: boolean;
-  onChatToggle: () => void;
-  chatWidth: number;
-  onChatResize: (width: number) => void;
-  // Chat-focused mode
-  chatFocused: boolean;
-  onChatFocusedChange: (focused: boolean) => void;
   // Project
   projectName: string;
   projects: ProjectMeta[];
@@ -139,8 +130,6 @@ interface Props {
   children: ReactNode;
 }
 
-const CHAT_COLLAPSE_WIDTH = 1280;
-
 export function AppShell({
   tracks, activeTrackId, expandedTrackIds, activityMap,
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
@@ -150,8 +139,6 @@ export function AppShell({
   reactions, onReaction,
   openDecisions = [], onDecisionRespond,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
-  chatOpen, onChatToggle, chatWidth, onChatResize,
-  chatFocused, onChatFocusedChange,
   projectName, projects, saveError, saveStatus,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -169,88 +156,13 @@ export function AppShell({
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
-  const prevNarrowRef = useRef(false);
-  /** True when the chat was auto-collapsed by the responsive breakpoint (not by the user). */
-  const autoCollapsedRef = useRef(false);
-  /** Guard flag so the manual-toggle detection can ignore resize-triggered changes. */
-  const resizeTogglingRef = useRef(false);
-
-  // Clear autoCollapsed flag when the user manually toggles chat.
-  // We detect "manual" by checking that the toggle didn't come from our ResizeObserver.
-  const prevChatOpenRef = useRef(chatOpen);
-  useEffect(() => {
-    if (chatOpen !== prevChatOpenRef.current) {
-      if (!resizeTogglingRef.current) {
-        autoCollapsedRef.current = false;
-      }
-      prevChatOpenRef.current = chatOpen;
-    }
-  }, [chatOpen]);
-
-  // Responsive: auto-collapse chat when crossing below threshold,
-  // and auto-restore when crossing back above if the collapse was automatic.
-  useEffect(() => {
-    const el = shellRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const isNarrow = entry.contentRect.width < CHAT_COLLAPSE_WIDTH;
-        // Wide -> narrow: auto-collapse if chat is open
-        if (isNarrow && !prevNarrowRef.current && chatOpen) {
-          autoCollapsedRef.current = true;
-          resizeTogglingRef.current = true;
-          onChatToggle();
-          resizeTogglingRef.current = false;
-        }
-        // Narrow -> wide: auto-restore if we auto-collapsed it
-        if (!isNarrow && prevNarrowRef.current && !chatOpen && autoCollapsedRef.current) {
-          autoCollapsedRef.current = false;
-          resizeTogglingRef.current = true;
-          onChatToggle();
-          resizeTogglingRef.current = false;
-        }
-        prevNarrowRef.current = isNarrow;
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [chatOpen, onChatToggle]);
 
   const isActive = isThinking || isListening;
 
-  // Chat-focused mode toggle button (used in both layouts)
-  const chatModeToggle = (
-    <button
-      onClick={() => onChatFocusedChange(!chatFocused)}
-      className="group shrink-0 p-1 rounded hover:bg-zinc-800/50 transition-colors"
-      title={chatFocused ? 'Show instruments' : 'Focus chat'}
-    >
-      <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-zinc-500 group-hover:text-violet-400 transition-colors">
-        {chatFocused ? (
-          /* Expand/instrument icon: grid-like layout */
-          <>
-            <rect x="1" y="1" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <rect x="9" y="1" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <rect x="1" y="9" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
-            <rect x="9" y="9" width="6" height="6" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
-          </>
-        ) : (
-          /* Chat/conversation icon: speech bubble */
-          <>
-            <path d="M2 3a1 1 0 011-1h10a1 1 0 011 1v7a1 1 0 01-1 1H5l-3 3V3z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            <line x1="5" y1="5" x2="11" y2="5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="5" y1="8" x2="9" y2="8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </>
-        )}
-      </svg>
-    </button>
-  );
-
-  // ── Chat-focused layout ──────────────────────────────────────────────
-  if (chatFocused) {
+  // ── Chat view ────────────────────────────────────────────────────────
+  if (view === 'chat') {
     return (
       <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
-        {/* Minimal top bar: project + transport + mode toggle */}
         <div className="flex items-center h-9 border-b border-zinc-700/40 shrink-0">
           <div className="flex-1 flex items-center gap-3 px-3">
             <ProjectMenu
@@ -268,6 +180,8 @@ export function AppShell({
               onExportWav={onExportWav}
               exportingWav={exportingWav}
             />
+            <div className="w-px h-4 bg-zinc-800" />
+            <ViewToggle view={view} onViewChange={onViewChange} cancelEditRef={cancelEditRef} />
             <div className="w-px h-4 bg-zinc-800" />
             <TransportStrip
               playing={playing}
@@ -306,15 +220,11 @@ export function AppShell({
               disabled={redoStack.length === 0}
               description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
             />
-            <div className="w-px h-4 bg-zinc-800" />
-            {chatModeToggle}
           </div>
         </div>
 
-        {/* Full-width chat body */}
         <div className="flex-1 flex flex-col min-h-0 items-center">
           <div className="flex flex-col flex-1 min-h-0 w-full" style={{ maxWidth: 800 }}>
-            {/* Header */}
             <div className="flex items-center gap-2 px-4 py-2.5">
               <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
               <div className="flex-1" />
@@ -329,7 +239,6 @@ export function AppShell({
                   <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
                 </div>
 
-                {/* Composer */}
                 <div className="shrink-0 border-t border-zinc-800/40 pb-2">
                   <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
                 </div>
@@ -455,28 +364,6 @@ export function AppShell({
           />
         </div>
 
-        {/* AI Collaborator */}
-        <ChatSidebar
-          messages={messages}
-          onSend={onSend}
-          isThinking={isThinking}
-          isListening={isListening}
-          streamingText={streamingText}
-          streamingLogEntries={streamingLogEntries}
-          streamingRejections={streamingRejections}
-          reactions={reactions}
-          onReaction={onReaction}
-          undoStack={undoStack}
-          onUndoMessage={onUndoMessage}
-          apiConfigured={apiConfigured}
-          onApiKey={onApiKey}
-          currentOpenaiKey={currentOpenaiKey}
-          currentGeminiKey={currentGeminiKey}
-          listenerMode={listenerMode}
-          open={chatOpen}
-          width={chatWidth}
-          onResize={onChatResize}
-        />
       </div>
 
       {onDecisionRespond && openDecisions.length > 0 && (
@@ -514,33 +401,16 @@ export function AppShell({
           <div className="flex-1" />
           <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
         </div>
-        {/* Chat toggle + mode toggle buttons */}
-        <div className="shrink-0 flex items-center px-1 border-l border-zinc-800/30">
-          {chatModeToggle}
-          <button
-            onClick={onChatToggle}
-            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors"
-            title={chatOpen ? 'Collapse chat (Cmd+/)' : 'Expand chat (Cmd+/)'}
-          >
-            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-violet-400 transition-colors">
-              {chatOpen ? (
-                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              ) : (
-                <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              )}
-            </svg>
-          </button>
-          {chatOpen && isActive && (
+        <div className="shrink-0 flex items-center px-3 border-l border-zinc-800/30">
+          {isActive && (
             <span
-              className="shrink-0 w-2 h-2 rounded-full bg-violet-400 mr-1"
+              className="shrink-0 w-2 h-2 rounded-full bg-violet-400"
               style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
               title={isListening ? 'Listening...' : 'Thinking...'}
             />
           )}
         </div>
       </div>
-
-      {/* Floating composer — hidden when chat collapsed to avoid overlapping the footer */}
     </div>
   );
 }
