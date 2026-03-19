@@ -16,7 +16,7 @@ interface SemanticControlsSectionProps {
 }
 
 /** Resolve a raw param's current value given moduleId + controlId. */
-function resolveRawValue(track: Track, moduleId: string, controlId: string): number {
+export function resolveRawValue(track: Track, moduleId: string, controlId: string): number {
   if (moduleId === 'source') {
     // Source params are stored in track.params via runtime param names.
     // After #392, control IDs match runtime names except frequency→note.
@@ -33,7 +33,7 @@ function resolveRawValue(track: Track, moduleId: string, controlId: string): num
 }
 
 /** Compute the display value of a semantic control as weighted average of raw params. */
-function computeSemanticValue(track: Track, def: SemanticControlDef): number {
+export function computeSemanticValue(track: Track, def: SemanticControlDef): number {
   if (def.weights.length === 0) return 0.5;
   let totalWeight = 0;
   let sum = 0;
