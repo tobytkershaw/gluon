@@ -37,6 +37,28 @@ describe('TrackerRow', () => {
     expect(screen.getByText('---')).toBeTruthy();
   });
 
+  it('uses a solid highlight for the playhead row', () => {
+    const { container } = render(
+      <table>
+        <tbody>
+          <TrackerRow
+            slot={makeSlot({ step: 7 })}
+            maxNoteColumns={1}
+            fxColumns={[]}
+            isAtPlayhead
+            showBeatSeparator={false}
+            beatIndex={1}
+          />
+        </tbody>
+      </table>,
+    );
+
+    const row = container.querySelector('tr');
+    expect(row).toBeTruthy();
+    expect(row?.getAttribute('style')).toBeNull();
+    expect(row?.className).toContain('bg-amber-500/15');
+  });
+
   it('renders a note event and allows editing velocity', () => {
     const onUpdate = vi.fn();
     const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };

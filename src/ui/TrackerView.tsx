@@ -136,7 +136,7 @@ export function TrackerView({
   }, [globalStep, session.transport.mode, activeTrack.sequence, activeTrack.patterns, activePatternId, patternDuration]);
 
   // Smooth playhead via rAF interpolation (60fps), decoupled from scheduler tick
-  const { playheadStep: smoothStep, playheadFraction } = usePlayheadPosition(
+  const { playheadStep: smoothStep } = usePlayheadPosition(
     rawLocalStep ?? 0,
     playing && rawLocalStep !== null,
     bpm,
@@ -385,7 +385,6 @@ export function TrackerView({
               <Tracker
                 region={activeRegion}
                 playheadStep={currentStep}
-                playheadFraction={rawLocalStep !== null ? playheadFraction : 0}
                 playing={playing}
                 onUpdate={onEventUpdate}
                 onDelete={onEventDelete}
