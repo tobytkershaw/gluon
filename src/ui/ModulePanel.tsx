@@ -210,6 +210,26 @@ function ModeSelector({ engines, currentModel, onChange, accentColor }: {
   );
 }
 
+/** Small pin icon button that appears on hover over knobs */
+function PinButton({ isPinned, onClick }: { isPinned: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className={`absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center transition-all z-10 ${
+        isPinned
+          ? 'bg-amber-500/90 text-zinc-900 opacity-100'
+          : 'bg-zinc-700/80 text-zinc-400 opacity-0 group-hover/knob:opacity-100 hover:bg-zinc-600'
+      }`}
+      title={isPinned ? 'Unpin from Surface' : 'Pin to Surface'}
+    >
+      <svg className="w-2.5 h-2.5" viewBox="0 0 16 16" fill={isPinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9.5 2L14 6.5L10.5 10L11 13.5L7.5 10L3 14.5M3 14.5L6.5 7.5L2.5 6L9.5 2" />
+      </svg>
+    </button>
+  );
+}
+
 // --- Main component ---
 
 interface ModulePanelProps {
@@ -239,6 +259,9 @@ interface ModulePanelProps {
   onModulationDepthCommit?: (routeId: string, depth: number) => void;
   // Ramp request (Shift+Click on knobs)
   onRampRequest?: (controlId: string, targetValue: number, durationMs: number) => void;
+  // Pin-to-Surface (Rack view only)
+  onPinControl?: (controlId: string) => void;
+  pinnedControlIds?: Set<string>;
   // Extra bottom content (e.g. routing UI for modulators)
   children?: React.ReactNode;
 }
@@ -251,6 +274,8 @@ export function ModulePanel({
   modulationMap, onModulationClick,
   onModulationDepthChange, onModulationDepthCommit,
   onRampRequest,
+  onPinControl,
+  pinnedControlIds,
   children,
 }: ModulePanelProps) {
   const accent = ACCENT[accentColor];
@@ -381,22 +406,29 @@ export function ModulePanel({
             style={{ maxWidth: largeMaxW }}
           >
             {largeKnobs.map((control) => (
-              <Knob
-                key={control.id}
-                label={control.name}
-                value={control.value}
-                accentColor={accentColor}
-                onChange={(value) => onParamChange(control.id, value)}
-                onPointerDown={onInteractionStart}
-                onPointerUp={onInteractionEnd}
-                size={LARGE_KNOB_SIZE}
-                modulations={modulationMap?.get(control.id)}
-                onModulationClick={onModulationClick}
-                displayMapping={control.displayMapping}
-                onModulationDepthChange={onModulationDepthChange}
-                onModulationDepthCommit={onModulationDepthCommit}
-                onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
-              />
+              <div key={control.id} className="relative group/knob">
+                {onPinControl && (
+                  <PinButton
+                    isPinned={pinnedControlIds?.has(control.id) ?? false}
+                    onClick={() => onPinControl(control.id)}
+                  />
+                )}
+                <Knob
+                  label={control.name}
+                  value={control.value}
+                  accentColor={accentColor}
+                  onChange={(value) => onParamChange(control.id, value)}
+                  onPointerDown={onInteractionStart}
+                  onPointerUp={onInteractionEnd}
+                  size={LARGE_KNOB_SIZE}
+                  modulations={modulationMap?.get(control.id)}
+                  onModulationClick={onModulationClick}
+                  displayMapping={control.displayMapping}
+                  onModulationDepthChange={onModulationDepthChange}
+                  onModulationDepthCommit={onModulationDepthCommit}
+                  onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
+                />
+              </div>
             ))}
           </div>
         )}
@@ -410,19 +442,26 @@ export function ModulePanel({
               style={{ maxWidth: mediumMaxW }}
             >
               {mediumKnobs.map((control) => (
-                <Knob
-                  key={control.id}
-                  label={control.name}
-                  value={control.value}
-                  accentColor={accentColor}
-                  onChange={(value) => onParamChange(control.id, value)}
-                  onPointerDown={onInteractionStart}
-                  onPointerUp={onInteractionEnd}
-                  size={MEDIUM_KNOB_SIZE}
-                  modulations={modulationMap?.get(control.id)}
-                  onModulationClick={onModulationClick}
-                  onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
-                />
+                <div key={control.id} className="relative group/knob">
+                  {onPinControl && (
+                    <PinButton
+                      isPinned={pinnedControlIds?.has(control.id) ?? false}
+                      onClick={() => onPinControl(control.id)}
+                    />
+                  )}
+                  <Knob
+                    label={control.name}
+                    value={control.value}
+                    accentColor={accentColor}
+                    onChange={(value) => onParamChange(control.id, value)}
+                    onPointerDown={onInteractionStart}
+                    onPointerUp={onInteractionEnd}
+                    size={MEDIUM_KNOB_SIZE}
+                    modulations={modulationMap?.get(control.id)}
+                    onModulationClick={onModulationClick}
+                    onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
+                  />
+                </div>
               ))}
             </div>
           </>
@@ -437,19 +476,26 @@ export function ModulePanel({
               style={{ maxWidth: smallMaxW }}
             >
               {smallKnobs.map((control) => (
-                <Knob
-                  key={control.id}
-                  label={control.name}
-                  value={control.value}
-                  accentColor={accentColor}
-                  onChange={(value) => onParamChange(control.id, value)}
-                  onPointerDown={onInteractionStart}
-                  onPointerUp={onInteractionEnd}
-                  size={SMALL_KNOB_SIZE}
-                  modulations={modulationMap?.get(control.id)}
-                  onModulationClick={onModulationClick}
-                  onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
-                />
+                <div key={control.id} className="relative group/knob">
+                  {onPinControl && (
+                    <PinButton
+                      isPinned={pinnedControlIds?.has(control.id) ?? false}
+                      onClick={() => onPinControl(control.id)}
+                    />
+                  )}
+                  <Knob
+                    label={control.name}
+                    value={control.value}
+                    accentColor={accentColor}
+                    onChange={(value) => onParamChange(control.id, value)}
+                    onPointerDown={onInteractionStart}
+                    onPointerUp={onInteractionEnd}
+                    size={SMALL_KNOB_SIZE}
+                    modulations={modulationMap?.get(control.id)}
+                    onModulationClick={onModulationClick}
+                    onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
+                  />
+                </div>
               ))}
             </div>
           </>
