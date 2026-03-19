@@ -5,6 +5,7 @@ import { useRef, useState, useCallback } from 'react';
 import type { DisplayMapping } from '../engine/canonical-types';
 import { formatDisplayValue } from './format-display-value';
 import { DraggableNumber } from './DraggableNumber';
+import { RampPopover } from './RampPopover';
 
 /** Modulation info for a single routing targeting this knob */
 export interface KnobModulationInfo {
@@ -33,6 +34,8 @@ interface KnobProps {
   onModulationDepthChange?: (routeId: string, depth: number) => void;
   /** Called when a modulation depth drag completes */
   onModulationDepthCommit?: (routeId: string, depth: number) => void;
+  /** Called when user requests a timed ramp (Shift+Click) */
+  onRampRequest?: (targetValue: number, durationMs: number) => void;
 }
 
 const DEFAULT_SIZE = 40;
@@ -83,9 +86,11 @@ export function Knob({
   onPointerDown, onPointerUp, size = DEFAULT_SIZE,
   modulations, onModulationClick, displayMapping,
   onModulationDepthChange, onModulationDepthCommit,
+  onRampRequest,
 }: KnobProps) {
   const [hovered, setHovered] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [rampPopoverOpen, setRampPopoverOpen] = useState(false);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startValue = useRef(0);
@@ -100,6 +105,11 @@ export function Knob({
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
+    // Shift+Click opens ramp popover instead of starting drag
+    if (e.shiftKey && onRampRequest) {
+      setRampPopoverOpen(true);
+      return;
+    }
     // Capture on the SVG element itself so drag works even when pointer-down
     // hits a thin stroke or transparent area inside a small knob.
     svgRef.current?.setPointerCapture(e.pointerId);
@@ -108,7 +118,7 @@ export function Knob({
     startY.current = e.clientY;
     startValue.current = value;
     onPointerDown?.();
-  }, [value, onPointerDown]);
+  }, [value, onPointerDown, onRampRequest]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
@@ -134,9 +144,14 @@ export function Knob({
   const containerWidth = Math.max(size + 12, 48);
   const isSmall = size < 40;
 
+  const handleRampStart = useCallback((target: number, durationMs: number) => {
+    setRampPopoverOpen(false);
+    onRampRequest?.(target, durationMs);
+  }, [onRampRequest]);
+
   return (
     <div
-      className="flex flex-col items-center gap-0.5 select-none"
+      className="relative flex flex-col items-center gap-0.5 select-none"
       style={{ width: containerWidth }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -254,6 +269,15 @@ export function Knob({
             ? formatDisplayValue(value, displayMapping)
             : formatDisplayValue(value)}
         </span>
+      )}
+
+      {/* Ramp popover (Shift+Click) */}
+      {rampPopoverOpen && (
+        <RampPopover
+          currentValue={value}
+          onStart={handleRampStart}
+          onCancel={() => setRampPopoverOpen(false)}
+        />
       )}
     </div>
   );

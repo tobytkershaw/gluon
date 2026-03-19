@@ -47,6 +47,8 @@ interface RackViewProps {
   onAddModulator: (type: string) => void;
   // Processor replace
   onReplaceProcessor?: (processorId: string, newModuleType: string) => void;
+  // Ramp request (Shift+Click on knobs)
+  onRampRequest?: (controlId: string, targetValue: number, durationMs: number) => void;
   // Navigation
   onNavigateToPatch?: () => void;
 }
@@ -112,6 +114,7 @@ export function RackView({
   onModulationDepthChange, onModulationDepthCommit, onRemoveModulation,
   onAddProcessor, onAddModulator,
   onReplaceProcessor,
+  onRampRequest,
   onNavigateToPatch,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -171,6 +174,7 @@ export function RackView({
           onModulationClick={onNavigateToPatch}
           onModulationDepthChange={onModulationDepthChange}
           onModulationDepthCommit={onModulationDepthCommit}
+          onRampRequest={onRampRequest}
         />
 
         {/* Processor module panels */}
@@ -201,6 +205,7 @@ export function RackView({
               onModulationClick={onNavigateToPatch}
               onModulationDepthChange={onModulationDepthChange}
               onModulationDepthCommit={onModulationDepthCommit}
+              onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur) : undefined}
             />
           );
         })}

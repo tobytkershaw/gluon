@@ -50,6 +50,8 @@ interface Props {
   // Views
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
+  // Ramp request (Shift+Click on knobs)
+  onRampRequest?: (controlId: string, targetValue: number, durationMs: number) => void;
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;
@@ -73,6 +75,7 @@ export function InstrumentView({
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
+  onRampRequest,
   deepViewModuleId, onOpenDeepView,
   analyser,
 }: Props) {
@@ -120,6 +123,7 @@ export function InstrumentView({
           onClearPattern={onClearPattern}
           onAddView={onAddView}
           onRemoveView={onRemoveView}
+          onRampRequest={onRampRequest}
           deepViewModuleId={deepViewModuleId}
           onOpenDeepView={onOpenDeepView}
           analyser={analyser}

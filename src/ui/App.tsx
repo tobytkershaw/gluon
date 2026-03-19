@@ -886,12 +886,46 @@ export default function App() {
     setSession((s) => setAgency(s, s.activeTrackId, agency));
   }, [ensureAudio]);
 
+  /** Human-initiated timed parameter ramp (Shift+Click on knob). */
+  const handleHumanRamp = useCallback((controlId: string, targetValue: number, durationMs: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
+    const track = getTrack(sessionRef.current, vid);
+    const startValue = track.params[runtimeParam] ?? 0;
+
+    // Push undo snapshot before starting the animation
+    const snapshot: ParamSnapshot = {
+      kind: 'param',
+      trackId: vid,
+      prevValues: { [runtimeParam]: startValue },
+      aiTargetValues: { [runtimeParam]: targetValue },
+      timestamp: Date.now(),
+      description: `Ramp ${controlId} to ${targetValue.toFixed(2)} over ${(durationMs / 1000).toFixed(1)}s`,
+    };
+    setSession((s) => ({ ...s, undoStack: [...s.undoStack, snapshot] }));
+
+    // Start the animation using the same AutomationEngine used for AI drift
+    autoRef.current.start(vid, runtimeParam, startValue, targetValue, durationMs, (p, value) => {
+      setSession((s2) => applyParamDirect(s2, vid, p, value));
+    });
+    autoRef.current.startLoop();
+  }, [ensureAudio]);
+
   const handleUndo = useCallback(() => {
     ensureAudio();
     setSession((s) => {
       if (s.undoStack.length === 0) return s;
       const topEntry = s.undoStack[s.undoStack.length - 1];
       const description = topEntry.description ?? 'last action';
+
+      // Cancel active automations for params being undone (e.g. mid-ramp undo)
+      if (topEntry.kind === 'param') {
+        for (const param of Object.keys(topEntry.prevValues)) {
+          autoRef.current.cancel(topEntry.trackId, param);
+        }
+      }
+
       const undone = applyUndo(s);
       const now = Date.now();
       return {
@@ -2510,6 +2544,7 @@ export default function App() {
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
+            onRampRequest={handleHumanRamp}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
@@ -2542,6 +2577,7 @@ export default function App() {
             onAddProcessor={handleAddProcessor}
             onAddModulator={handleAddModulator}
             onReplaceProcessor={handleReplaceProcessor}
+            onRampRequest={handleHumanRamp}
             onNavigateToPatch={() => setView('patch')}
           />
         )}
