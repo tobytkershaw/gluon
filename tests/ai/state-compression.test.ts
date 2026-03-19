@@ -36,6 +36,52 @@ describe('State Compression (Phase 2)', () => {
     expect(masterTrack!.kind).toBe('bus');
   });
 
+  it('includes sequence automation summaries in compressed track state', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns = [
+      { ...track.patterns[0], id: 'pat-a', duration: 16, events: [] },
+      { ...track.patterns[0], id: 'pat-b', duration: 16, events: [] },
+    ];
+    track.sequence = [
+      { patternId: 'pat-a' },
+      {
+        patternId: 'pat-b',
+        automation: [{ controlId: 'timbre', points: [{ at: 0, value: 0.4 }, { at: 16, value: 0.8 }] }],
+      },
+    ];
+
+    const result = compressState(session);
+    expect(result.tracks[0].sequence).toEqual([
+      { index: 0, patternId: 'pat-a', length: 16 },
+      {
+        index: 1,
+        patternId: 'pat-b',
+        length: 16,
+        automation: [{ controlId: 'timbre', point_count: 2, points: [{ at: 0, value: 0.4 }, { at: 16, value: 0.8 }] }],
+      },
+    ]);
+  });
+
+  it('caps long automation previews while keeping the full point count', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.sequence = [{
+      patternId: track.patterns[0].id,
+      automation: [{
+        controlId: 'timbre',
+        points: Array.from({ length: 12 }, (_, index) => ({ at: index, value: index / 11 })),
+      }],
+    }];
+
+    const result = compressState(session);
+    const lane = result.tracks[0].sequence?.[0]?.automation?.[0];
+    expect(lane?.point_count).toBe(12);
+    expect(lane?.points).toHaveLength(8);
+    expect(lane?.points[0]).toEqual({ at: 0, value: 0 });
+    expect(lane?.points.at(-1)).toEqual({ at: 11, value: 1 });
+  });
+
   it('compresses pattern with note events (empty tracks are pitched by default)', () => {
     let s = createSession();
     const vid = s.tracks[0].id;

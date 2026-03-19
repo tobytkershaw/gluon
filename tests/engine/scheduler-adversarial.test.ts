@@ -588,6 +588,60 @@ describe('Scheduler adversarial tests', () => {
       // Should loop multiple times
       expect(trackNotes.length).toBeGreaterThanOrEqual(4);
     });
+
+    it('song mode emits sequence automation across repeated refs', () => {
+      const vid = session.tracks[0].id;
+      const track = getTrack(session, vid);
+
+      const pattern = {
+        ...track.patterns[0],
+        id: 'pat-a',
+        duration: 8,
+        events: [{ kind: 'note' as const, at: 0, pitch: 60, velocity: 0.8, duration: 1 }] as MusicalEvent[],
+      };
+
+      session = {
+        ...session,
+        transport: { ...session.transport, mode: 'song', loop: false },
+        tracks: session.tracks.map(v =>
+          v.id === vid
+            ? {
+                ...v,
+                patterns: [pattern],
+                sequence: [
+                  {
+                    patternId: 'pat-a',
+                    automation: [{ controlId: 'timbre', points: [{ at: 0, value: 0.2, interpolation: 'linear' }, { at: 8, value: 0.6 }] }],
+                  },
+                  {
+                    patternId: 'pat-a',
+                    automation: [{ controlId: 'timbre', points: [{ at: 0, value: 0.6, interpolation: 'linear' }, { at: 8, value: 0.9 }] }],
+                  },
+                ],
+              }
+            : { ...v, muted: true }
+        ),
+      };
+
+      const parameterEvents: Array<{ trackId: string; controlId: string; value: number; time: number }> = [];
+      const sched = new Scheduler(
+        () => session,
+        () => audioTime,
+        () => 'running' as AudioContextState,
+        (note) => notes.push(note),
+        () => {},
+        () => ({}),
+        (event) => parameterEvents.push(event),
+      );
+
+      sched.start(0);
+      advanceTo(sched, 2.2);
+      sched.stop();
+
+      expect(parameterEvents.some(event => event.controlId === 'timbre' && event.value === 0.2)).toBe(true);
+      expect(parameterEvents.some(event => event.controlId === 'timbre' && event.value === 0.6)).toBe(true);
+      expect(notes.some(note => note.params.timbre === 0.6)).toBe(true);
+    });
   });
 
   // -----------------------------------------------------------------------

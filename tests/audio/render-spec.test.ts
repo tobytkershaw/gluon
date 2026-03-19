@@ -131,4 +131,53 @@ describe('buildRenderSpec', () => {
       },
     ]);
   });
+
+  it('primes note events with sequence automation values at fractional positions', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    const spec = buildRenderSpec({
+      ...session,
+      transport: { ...session.transport, mode: 'song' },
+      tracks: [
+        {
+          ...track,
+          patterns: [{
+            id: 'pat-a',
+            kind: 'pattern' as const,
+            duration: 8,
+            events: [
+              { kind: 'note' as const, at: 4.5, pitch: 60, velocity: 0.8, duration: 1 },
+            ],
+          }],
+          sequence: [{
+            patternId: 'pat-a',
+            automation: [{
+              controlId: 'timbre',
+              points: [
+                { at: 0, value: 0.2, interpolation: 'linear' as const },
+                { at: 8, value: 0.6 },
+              ],
+            }],
+          }],
+        },
+        ...session.tracks.slice(1),
+      ],
+    }, [track.id], 1);
+
+    const eventsAtNoteTime = spec.tracks[0].events.filter(event => Math.abs(event.beatTime - 4.5) < 0.0001);
+    const automationPatch = eventsAtNoteTime.find(event =>
+      event.type === 'set-patch'
+      && event.patch?.timbre !== undefined
+      && event.patch?.harmonics !== undefined
+      && event.patch?.morph !== undefined
+    );
+    expect(automationPatch).toBeDefined();
+    expect(automationPatch).toMatchObject({
+      beatTime: 4.5,
+      type: 'set-patch',
+      patch: { harmonics: 0.5, morph: 0.5 },
+    });
+    expect(automationPatch?.patch?.timbre).toBeCloseTo(0.425, 5);
+    expect(eventsAtNoteTime.some(event => event.type === 'trigger')).toBe(true);
+  });
 });

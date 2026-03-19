@@ -4,11 +4,12 @@
 import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
 import { getActivePattern } from '../engine/types';
-import type { TransportMode } from '../engine/sequencer-types';
+import type { PatternRef, TransportMode } from '../engine/sequencer-types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
-import { getAudibleTracks } from '../engine/sequencer-helpers';
+import { getAudibleTracks, resolveEventParams } from '../engine/sequencer-helpers';
 import { getInterpolatedParams } from '../engine/interpolation';
+import { getSequenceAutomationValuesAt, hasSequenceAutomationPointAt } from '../engine/sequence-automation';
 
 // ---------------------------------------------------------------------------
 // Types — all plain data, safe to postMessage to a Worker
@@ -304,11 +305,11 @@ function collectEvents(track: Track, bars: number, mode: TransportMode): RenderE
     for (const ref of track.sequence) {
       if (offset >= totalSteps) break;
       const pat = track.patterns.find(p => p.id === ref.patternId);
-      if (!pat || pat.events.length === 0 || pat.duration <= 0) {
+      if (!pat || pat.duration <= 0) {
         if (pat) offset += pat.duration;
         continue;
       }
-      emitPatternEvents(events, pat, offset, totalSteps, track.params);
+      emitPatternEvents(events, pat, ref, offset, totalSteps, track.params);
       offset += pat.duration;
     }
   } else {
@@ -317,7 +318,7 @@ function collectEvents(track: Track, bars: number, mode: TransportMode): RenderE
     if (active && active.events.length > 0 && active.duration > 0) {
       let offset = 0;
       while (offset < totalSteps) {
-        emitPatternEvents(events, active, offset, totalSteps, track.params);
+        emitPatternEvents(events, active, undefined, offset, totalSteps, track.params);
         offset += active.duration;
       }
     }
@@ -334,19 +335,124 @@ function collectEvents(track: Track, bars: number, mode: TransportMode): RenderE
 function emitPatternEvents(
   out: RenderEvent[],
   pattern: import('../engine/canonical-types').Pattern,
+  ref: PatternRef | undefined,
   offset: number,
   totalSteps: number,
   baseParams: SynthParamValues,
 ): void {
+  pushSequenceAutomationEvents(out, pattern.events, ref, offset, pattern.duration, totalSteps);
   for (const ev of pattern.events) {
     const beatTime = offset + ev.at;
     if (beatTime >= totalSteps) break; // events are sorted ascending
     if (beatTime >= 0) {
+      if (ev.kind === 'trigger' || ev.kind === 'note') {
+        pushResolvedSequenceAutomationForEvent(out, pattern.events, ref, ev, beatTime, baseParams);
+      }
       pushMusicalEvent(out, ev, beatTime, baseParams);
     }
   }
   // Emit interpolated parameter values at each integer step
   pushInterpolatedEvents(out, pattern.events, offset, pattern.duration, totalSteps);
+}
+
+function pushResolvedSequenceAutomationForEvent(
+  out: RenderEvent[],
+  patternEvents: MusicalEvent[],
+  ref: PatternRef | undefined,
+  event: TriggerEvent | NoteEvent,
+  beatTime: number,
+  baseParams: SynthParamValues,
+): void {
+  const sequenceAutomationValues = getSequenceAutomationValuesAt(ref, event.at);
+  if (Object.keys(sequenceAutomationValues).length === 0) return;
+
+  const automatedBaseParams = {
+    ...baseParams,
+    ...Object.fromEntries(
+      Object.entries(sequenceAutomationValues).map(([controlId, value]) => [
+        controlIdToRuntimeParam[controlId] ?? controlId,
+        value,
+      ]),
+    ),
+  };
+  const resolvedParams = resolveEventParams(
+    patternEvents,
+    event.at,
+    automatedBaseParams,
+    {},
+    (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
+  );
+
+  const patch: Partial<RenderSynthPatch> = {};
+  if (typeof resolvedParams.harmonics === 'number') patch.harmonics = resolvedParams.harmonics;
+  if (typeof resolvedParams.timbre === 'number') patch.timbre = resolvedParams.timbre;
+  if (typeof resolvedParams.morph === 'number') patch.morph = resolvedParams.morph;
+  if (event.kind !== 'note' && typeof resolvedParams.note === 'number') patch.note = resolvedParams.note;
+
+  const extended: Partial<RenderPlaitsExtended> = {};
+  if (typeof resolvedParams.fm_amount === 'number') extended.fm_amount = resolvedParams.fm_amount;
+  if (typeof resolvedParams.timbre_mod_amount === 'number') extended.timbre_mod_amount = resolvedParams.timbre_mod_amount;
+  if (typeof resolvedParams.morph_mod_amount === 'number') extended.morph_mod_amount = resolvedParams.morph_mod_amount;
+  if (typeof resolvedParams.decay === 'number') extended.decay = resolvedParams.decay;
+  if (typeof resolvedParams.lpg_colour === 'number') extended.lpg_colour = resolvedParams.lpg_colour;
+
+  if (Object.keys(patch).length > 0) {
+    out.push({ beatTime, type: 'set-patch', patch });
+  }
+  if (Object.keys(extended).length > 0) {
+    out.push({ beatTime, type: 'set-extended', extended });
+  }
+}
+
+function pushSequenceAutomationEvents(
+  out: RenderEvent[],
+  patternEvents: MusicalEvent[],
+  ref: PatternRef | undefined,
+  regionOffset: number,
+  regionDuration: number,
+  totalSteps: number,
+): void {
+  for (const lane of ref?.automation ?? []) {
+    for (const point of lane.points) {
+      const beatTime = regionOffset + point.at;
+      if (point.at >= regionDuration || beatTime >= totalSteps || beatTime < 0) continue;
+      if (patternEvents.some(event =>
+        event.kind === 'parameter'
+        && (event as ParameterEvent).controlId === lane.controlId
+        && Math.abs(event.at - point.at) < 0.0001
+      )) {
+        continue;
+      }
+      pushMusicalEvent(out, {
+        kind: 'parameter',
+        at: point.at,
+        controlId: lane.controlId,
+        value: point.value,
+      }, beatTime, {} as SynthParamValues);
+    }
+  }
+
+  for (let step = 0; step < regionDuration; step++) {
+    const beatTime = regionOffset + step;
+    if (beatTime >= totalSteps) break;
+    const values = getSequenceAutomationValuesAt(ref, step);
+    for (const [controlId, value] of Object.entries(values)) {
+      if (hasSequenceAutomationPointAt(ref, controlId, step)) continue;
+      if (patternEvents.some(event =>
+        event.kind === 'parameter'
+        && (event as ParameterEvent).controlId === controlId
+        && Math.abs(event.at - step) < 0.0001
+      )) {
+        continue;
+      }
+      pushMusicalEvent(out, {
+        kind: 'parameter',
+        at: step,
+        controlId,
+        value,
+      }, beatTime, {} as SynthParamValues);
+    }
+  }
 }
 
 /**

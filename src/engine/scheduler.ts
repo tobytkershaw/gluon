@@ -1,13 +1,14 @@
 // src/engine/scheduler.ts
 import type { Session, SynthParamValues, Track } from './types';
 import { getActivePattern } from './types';
-import type { ScheduledNote, ScheduledParameterEvent } from './sequencer-types';
+import type { PatternRef, ScheduledNote, ScheduledParameterEvent } from './sequencer-types';
 import type { MusicalEvent, Pattern, TriggerEvent, NoteEvent, ParameterEvent } from './canonical-types';
 import { getSchedulableTracks, resolveEventParams } from './sequencer-helpers';
 import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
 import { buildRuntimeEventId, PlaybackPlan } from './playback-plan';
 import { getInterpolatedParams } from './interpolation';
+import { getSequenceAutomationValuesAt, hasSequenceAutomationPointAt } from './sequence-automation';
 
 const LOOKAHEAD_MS = 25;
 const LOOKAHEAD_SEC = 0.1;
@@ -255,7 +256,7 @@ export class Scheduler {
           patternLen,
         );
         for (const seg of segments) {
-          this.scheduleSegmentEvents(track, activePattern, events, patternLen, 0, seg, stepDuration, effectiveSwing);
+          this.scheduleSegmentEvents(track, activePattern, undefined, events, patternLen, 0, seg, stepDuration, effectiveSwing);
         }
       } else {
         // Song mode: walk the sequence
@@ -271,9 +272,9 @@ export class Scheduler {
           if (patternEnd > this.cursor && sequenceOffset < lookaheadEnd) {
             const localCursorStart = Math.max(0, this.cursor - sequenceOffset);
             const localLookaheadEnd = Math.min(patternLen, lookaheadEnd - sequenceOffset);
-            if (localLookaheadEnd > localCursorStart && pat.events.length > 0) {
+            if (localLookaheadEnd > localCursorStart && (pat.events.length > 0 || (ref.automation?.length ?? 0) > 0)) {
               this.scheduleSegmentEvents(
-                track, pat, pat.events, patternLen, sequenceOffset,
+                track, pat, ref, pat.events, patternLen, sequenceOffset,
                 { localStart: localCursorStart, localEnd: localLookaheadEnd, loopCycle: 0 },
                 stepDuration, effectiveSwing,
               );
@@ -294,6 +295,7 @@ export class Scheduler {
   private scheduleSegmentEvents(
     track: Track,
     pattern: Pattern,
+    ref: PatternRef | undefined,
     events: MusicalEvent[],
     patternLen: number,
     sequenceOffset: number,
@@ -372,11 +374,24 @@ export class Scheduler {
         ? !!((event as TriggerEvent).accent || ((event as TriggerEvent).velocity !== undefined && (event as TriggerEvent).velocity! >= 0.95))
         : (event as NoteEvent).velocity >= 0.95;
 
+      const sequenceAutomationParams = getSequenceAutomationValuesAt(ref, event.at);
+      const automatedBaseParams = Object.keys(sequenceAutomationParams).length > 0
+        ? {
+            ...track.params,
+            ...Object.fromEntries(
+              Object.entries(sequenceAutomationParams).map(([controlId, value]) => [
+                controlIdToRuntimeParam[controlId] ?? controlId,
+                value,
+              ]),
+            ),
+          }
+        : track.params;
+
       const heldParams = this.getHeldParams(track.id);
       const resolvedParams = resolveEventParams(
         events,
         event.at,
-        track.params,
+        automatedBaseParams,
         heldParams,
         (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
       );
@@ -393,7 +408,7 @@ export class Scheduler {
         gateOffTime,
         accent,
         params: resolvedParams,
-        baseParams: track.params,
+        baseParams: automatedBaseParams,
       });
 
       recordQaAudioTrace({
@@ -412,9 +427,62 @@ export class Scheduler {
 
     // Emit interpolated parameter values at each integer step in the window.
     if (this.onParameterEvent) {
+      for (const lane of ref?.automation ?? []) {
+        for (const point of lane.points) {
+          if (point.at < seg.localStart || point.at >= seg.localEnd || point.at >= patternLen) continue;
+          if (events.some(event =>
+            event.kind === 'parameter'
+            && (event as ParameterEvent).controlId === lane.controlId
+            && Math.abs(event.at - point.at) < 0.0001
+          )) {
+            continue;
+          }
+          const absStep = sequenceOffset + seg.loopCycle * patternLen + point.at;
+          const pointBaseTime = this.startTime + absStep * stepDuration;
+          const pointOddInPair = Math.floor(absStep) % 2 === 1;
+          const pointSwingDelay = pointOddInPair ? swing * (stepDuration * 0.75) : 0;
+          const pointId = `${this.generation}:${track.id}:${pattern.id}:${seg.loopCycle}:seq:${lane.controlId}@${point.at}`;
+          if (!this.playbackPlan.admit(pointId, absStep, this.generation, track.id)) {
+            continue;
+          }
+          this.onParameterEvent({
+            trackId: track.id,
+            controlId: lane.controlId,
+            value: point.value,
+            time: pointBaseTime + pointSwingDelay,
+          });
+        }
+      }
+
       const iStart = Math.ceil(seg.localStart);
       const iEnd = Math.floor(seg.localEnd);
       for (let step = iStart; step < iEnd; step++) {
+        const sequenceAutomationValues = getSequenceAutomationValuesAt(ref, step);
+        for (const [controlId, value] of Object.entries(sequenceAutomationValues)) {
+          if (hasSequenceAutomationPointAt(ref, controlId, step)) continue;
+          if (events.some(event =>
+            event.kind === 'parameter'
+            && (event as ParameterEvent).controlId === controlId
+            && Math.abs(event.at - step) < 0.0001
+          )) {
+            continue;
+          }
+          const absStep = sequenceOffset + seg.loopCycle * patternLen + step;
+          const interpBaseTime = this.startTime + absStep * stepDuration;
+          const interpOddInPair = Math.floor(absStep) % 2 === 1;
+          const interpSwingDelay = interpOddInPair ? swing * (stepDuration * 0.75) : 0;
+          const seqInterpId = `${this.generation}:${track.id}:${pattern.id}:${seg.loopCycle}:seq-interp:${controlId}@${step}`;
+          if (!this.playbackPlan.admit(seqInterpId, absStep, this.generation, track.id)) {
+            continue;
+          }
+          this.onParameterEvent({
+            trackId: track.id,
+            controlId,
+            value,
+            time: interpBaseTime + interpSwingDelay,
+          });
+        }
+
         const interpolated = getInterpolatedParams(events, step, patternLen);
         for (const { controlId, value } of interpolated) {
           const revSuffix = trackRevision > 0 ? `:r${trackRevision}` : '';
