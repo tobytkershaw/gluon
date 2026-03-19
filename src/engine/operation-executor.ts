@@ -547,6 +547,18 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'set_sidechain': {
+      const targetTrack = session.tracks.find(v => v.id === action.targetTrackId);
+      if (!targetTrack) return `Track not found: ${action.targetTrackId}`;
+      if (targetTrack.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.targetTrackId} has agency OFF`;
+      if (action.sourceTrackId !== null) {
+        const sourceTrack = session.tracks.find(v => v.id === action.sourceTrackId);
+        if (!sourceTrack) return `Source track not found: ${action.sourceTrackId}`;
+        if (action.sourceTrackId === action.targetTrackId) return `Sidechain source and target must be different tracks`;
+      }
+      return null;
+    }
+
     case 'set_transport':
     case 'set_master':
     case 'say':
@@ -2168,6 +2180,63 @@ function executeActionsInternal(
         next = sendResult;
         const sendLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: sendLabel, description: `send ${action.action}: ${action.trackId} → ${action.busId}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_sidechain': {
+        const targetTrack = getTrack(next, action.targetTrackId);
+        // Find the processor — auto-detect if not specified
+        let procId = action.processorId;
+        const compressors = (targetTrack.processors ?? []).filter(p => p.type === 'compressor');
+        if (!procId) {
+          if (compressors.length === 1) {
+            procId = compressors[0].id;
+          } else if (compressors.length === 0) {
+            rejected.push({ op: action, reason: `No compressor found on track ${action.targetTrackId}` });
+            break;
+          } else {
+            rejected.push({ op: action, reason: `Multiple compressors on track ${action.targetTrackId} — specify processorId` });
+            break;
+          }
+        }
+        const proc = (targetTrack.processors ?? []).find(p => p.id === procId);
+        if (!proc || proc.type !== 'compressor') {
+          rejected.push({ op: action, reason: `Processor ${procId} is not a compressor` });
+          break;
+        }
+
+        const prevSourceId = proc.sidechainSourceId;
+        const newSourceId = action.sourceTrackId ?? undefined;
+
+        const sidechainSnapshot: import('./types').SidechainSnapshot = {
+          kind: 'sidechain',
+          targetTrackId: action.targetTrackId,
+          processorId: procId,
+          prevSourceId,
+          timestamp: Date.now(),
+          description: action.description,
+        };
+
+        // Update the processor config with the new sidechain source
+        const updatedProcessors = (targetTrack.processors ?? []).map(p =>
+          p.id === procId ? { ...p, sidechainSourceId: newSourceId } : p,
+        );
+
+        next = {
+          ...updateTrack(next, action.targetTrackId, { processors: updatedProcessors }),
+          undoStack: [...next.undoStack, sidechainSnapshot],
+        };
+
+        const scLabel = getTrackLabel(getTrack(next, action.targetTrackId)).toUpperCase();
+        const sourceLabel = action.sourceTrackId
+          ? getTrackLabel(getTrack(next, action.sourceTrackId)).toUpperCase()
+          : 'none';
+        log.push({
+          trackId: action.targetTrackId,
+          trackLabel: scLabel,
+          description: `sidechain: ${sourceLabel} → ${scLabel} (${procId})`,
+        });
         accepted.push(action);
         break;
       }

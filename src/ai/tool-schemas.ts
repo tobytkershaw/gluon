@@ -885,6 +885,37 @@ const manageSendTool: ToolSchema = {
   },
 };
 
+const setSidechainTool: ToolSchema = {
+  name: 'set_sidechain',
+  description:
+    'Set up audio sidechaining: route one track\'s audio into a compressor\'s detector on another track. ' +
+    'The compressor reacts to the source track\'s volume while processing the target track\'s audio — classic sidechain compression (e.g. kick ducking a bass). ' +
+    'Set sourceTrackId to null to remove an existing sidechain. ' +
+    'If the target track has exactly one compressor, processorId is auto-detected. If zero compressors exist, add one first with manage_processor. ' +
+    'For simple volume-ducking without real audio routing, use apply_modulation with "ducking_sidechain" recipe instead.',
+  parameters: {
+    type: 'object',
+    properties: {
+      sourceTrackId: {
+        description: 'Source track whose audio drives the compressor\'s detector. Use ordinal label (e.g. "Track 1") or internal ID. Set to null to remove sidechain.',
+      },
+      targetTrackId: {
+        type: 'string',
+        description: 'Target track containing the compressor to sidechain. Use ordinal label or internal ID.',
+      },
+      processorId: {
+        type: 'string',
+        description: 'Optional: specific compressor processor ID. Auto-detected when the target has exactly one compressor.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description (e.g. "sidechain bass to kick for ducking").',
+      },
+    },
+    required: ['sourceTrackId', 'targetTrackId', 'description'],
+  },
+};
+
 const setupReturnBusTool: ToolSchema = {
   name: 'setup_return_bus',
   description:
@@ -1746,6 +1777,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   pinControlTool,
   labelAxesTool,
   manageSendTool,
+  setSidechainTool,
   setupReturnBusTool,
   setMasterTool,
   managePatternTool,

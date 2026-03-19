@@ -86,6 +86,15 @@ interface SendGainSlot {
   sendGain: GainNode;
 }
 
+/** Sidechain routing slot: connects a source track's post-fader output to a compressor's sidechain input. */
+interface SidechainSlot {
+  sourceTrackId: string;
+  targetTrackId: string;
+  processorId: string;
+  /** Gain node tapping the source track's muteGain into the compressor's sidechain input. */
+  tapGain: GainNode;
+}
+
 interface ActiveVoice {
   eventId: string;
   generation: number;
@@ -278,6 +287,8 @@ export class AudioEngine {
   private activeVoices = new Map<string, ActiveVoice>();
   /** Per-track send gain nodes: trackId → SendGainSlot[] */
   private sendSlots: Map<string, SendGainSlot[]> = new Map();
+  /** Sidechain routing: keyed by "targetTrackId:processorId" → source info. */
+  private sidechainSlots: Map<string, SidechainSlot> = new Map();
   /** The master bus track ID, used for routing all track outputs. */
   private masterBusId: string | null = null;
   /** Metronome gain node — connected directly to destination, bypassing tracks/mixer. */
@@ -472,6 +483,11 @@ export class AudioEngine {
     this.modulatorSlots.clear();
     this.modulationRouteSlots.clear();
     this.pendingModulators.clear();
+    // Destroy sidechain gain nodes
+    for (const [, sc] of this.sidechainSlots) {
+      sc.tapGain.disconnect();
+    }
+    this.sidechainSlots.clear();
     // Destroy send gain nodes
     for (const [, slots] of this.sendSlots) {
       for (const s of slots) s.sendGain.disconnect();
@@ -583,6 +599,13 @@ export class AudioEngine {
           return true;
         });
         this.sendSlots.set(otherTrackId, filtered);
+      }
+    }
+    // Clean up sidechain slots involving this track (as source or target)
+    for (const [key, sc] of this.sidechainSlots) {
+      if (sc.sourceTrackId === trackId || sc.targetTrackId === trackId) {
+        sc.tapGain.disconnect();
+        this.sidechainSlots.delete(key);
       }
     }
     // Clean up active voices for this track
@@ -930,6 +953,9 @@ export class AudioEngine {
     // Cancel any in-flight add for this processor
     const key = `${trackId}:${processorId}`;
     this.pendingProcessors.delete(key);
+
+    // Clean up sidechain route if this processor had one
+    this.removeSidechain(trackId, processorId);
 
     const idx = slot.processors.findIndex(p => p.id === processorId);
     if (idx === -1) return;
@@ -1343,6 +1369,67 @@ export class AudioEngine {
       this.sendSlots.set(trackId, result);
     } else {
       this.sendSlots.delete(trackId);
+    }
+  }
+
+  // --- Sidechain routing ---
+
+  /**
+   * Set up a sidechain route: the source track's post-fader audio feeds the
+   * compressor's sidechain (second) input on the target track.
+   */
+  setSidechain(sourceTrackId: string, targetTrackId: string, processorId: string): void {
+    if (!this.ctx) return;
+    const sourceSlot = this.tracks.get(sourceTrackId);
+    const targetSlot = this.tracks.get(targetTrackId);
+    if (!sourceSlot || !targetSlot) return;
+
+    const proc = targetSlot.processors.find(p => p.id === processorId);
+    if (!proc || proc.type !== 'compressor') return;
+
+    const key = `${targetTrackId}:${processorId}`;
+
+    // Remove existing sidechain on this processor if any
+    this.removeSidechainByKey(key);
+
+    // Create a tap from the source track's muteGain to the compressor's sidechain input
+    const tapGain = this.ctx.createGain();
+    tapGain.gain.value = 1.0;
+    sourceSlot.muteGain.connect(tapGain);
+
+    // Connect to the compressor's second input (index 1)
+    const compEngine = proc.engine as import('./compressor-synth').CompressorSynth;
+    tapGain.connect(compEngine.sidechainInputNode, 0, compEngine.sidechainInputIndex);
+
+    this.sidechainSlots.set(key, {
+      sourceTrackId,
+      targetTrackId,
+      processorId,
+      tapGain,
+    });
+  }
+
+  /**
+   * Remove a sidechain route from a compressor processor.
+   */
+  removeSidechain(targetTrackId: string, processorId: string): void {
+    const key = `${targetTrackId}:${processorId}`;
+    this.removeSidechainByKey(key);
+  }
+
+  /**
+   * Get the current sidechain source for a compressor processor, if any.
+   */
+  getSidechain(targetTrackId: string, processorId: string): string | undefined {
+    const key = `${targetTrackId}:${processorId}`;
+    return this.sidechainSlots.get(key)?.sourceTrackId;
+  }
+
+  private removeSidechainByKey(key: string): void {
+    const existing = this.sidechainSlots.get(key);
+    if (existing) {
+      existing.tapGain.disconnect();
+      this.sidechainSlots.delete(key);
     }
   }
 

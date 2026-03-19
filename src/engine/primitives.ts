@@ -247,6 +247,17 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { sends: snapshot.prevSends });
   }
 
+  if (snapshot.kind === 'sidechain') {
+    const track = session.tracks.find(v => v.id === snapshot.targetTrackId);
+    if (!track) return session;
+    const processors = (track.processors ?? []).map(p =>
+      p.id === snapshot.processorId
+        ? { ...p, sidechainSourceId: snapshot.prevSourceId }
+        : p,
+    );
+    return updateTrack(session, snapshot.targetTrackId, { processors });
+  }
+
   if (snapshot.kind === 'track-property') {
     return updateTrack(session, snapshot.trackId, snapshot.prevProps);
   }

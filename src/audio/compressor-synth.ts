@@ -53,7 +53,7 @@ export class CompressorSynth implements CompressorEngine {
 
   private constructor(ctx: AudioContext) {
     this.node = new AudioWorkletNode(ctx, 'compressor-processor', {
-      numberOfInputs: 1,
+      numberOfInputs: 2,
       numberOfOutputs: 1,
       outputChannelCount: [2],
     });
@@ -93,6 +93,16 @@ export class CompressorSynth implements CompressorEngine {
 
   get inputNode(): AudioNode {
     return this.node;
+  }
+
+  /** The second input of the worklet node — connect a sidechain source here. */
+  get sidechainInputNode(): AudioNode {
+    return this.node;
+  }
+
+  /** The input index for sidechain connections (second input of the AudioWorkletNode). */
+  get sidechainInputIndex(): number {
+    return 1;
   }
 
   setMode(mode: number): void {

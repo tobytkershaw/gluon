@@ -64,6 +64,8 @@ export interface RenderProcessorSpec {
   id: string;
   model: number;
   params: Record<string, number>;
+  /** For compressors: the source track ID whose pre-rendered audio feeds the sidechain detector. */
+  sidechainSourceTrackId?: string;
 }
 
 export interface RenderModulatorSpec {
@@ -207,6 +209,7 @@ function buildProcessorSpec(proc: ProcessorConfig): RenderProcessorSpec {
     id: proc.id,
     model: proc.model,
     params: { ...proc.params },
+    ...(proc.sidechainSourceId ? { sidechainSourceTrackId: proc.sidechainSourceId } : {}),
   };
 }
 

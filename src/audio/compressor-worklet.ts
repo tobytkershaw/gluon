@@ -175,6 +175,11 @@ class CompressorProcessor extends AudioWorkletProcessor {
     const inRight = inputs[0]?.[1] ?? inputs[0]?.[0];
     if (!inLeft) return true;
 
+    // Sidechain: if a second input is connected, use it as the detector signal
+    const scLeft = inputs[1]?.[0];
+    const scRight = inputs[1]?.[1] ?? inputs[1]?.[0];
+    const hasSidechain = scLeft !== undefined && scLeft.length > 0;
+
     // Read modulation params
     const modThreshold = parameters['mod-threshold'][0];
     const modRatio = parameters['mod-ratio'][0];
@@ -248,17 +253,20 @@ class CompressorProcessor extends AudioWorkletProcessor {
       const dryR = inRight ? inRight[i] : dryL;
 
       // Mono detection signal (max of abs L/R for peak, average for RMS)
+      // When sidechain is connected, use the sidechain audio as the detector source
+      const detL = hasSidechain ? scLeft[i] : dryL;
+      const detR = hasSidechain ? (scRight ? scRight[i] : detL) : dryR;
       let detectorInput: number;
 
       if (isOpto) {
         // RMS detection
-        const mono = (dryL + dryR) * 0.5;
+        const mono = (detL + detR) * 0.5;
         this.rmsSquaredSum += mono * mono;
         this.rmsSquaredSum -= this.rmsSquaredSum / rmsWindowSamples;
         detectorInput = Math.sqrt(Math.max(0, this.rmsSquaredSum / rmsWindowSamples));
       } else {
         // Peak detection
-        detectorInput = Math.max(Math.abs(dryL), Math.abs(dryR));
+        detectorInput = Math.max(Math.abs(detL), Math.abs(detR));
       }
 
       // Envelope follower (attack/release ballistics)

@@ -415,6 +415,7 @@ When a common workflow has a one-step shortcut, prefer it over manual multi-tool
 - \`apply_modulation\` over manual \`manage_modulator\` + \`modulation_route\` setup — applies named modulation recipes (e.g. "vibrato", "slow_filter_sweep", "wobble", "wobble_bass", "pulsing_pad", "tremolo", "auto_wah", "ducking_sidechain", "drift"). Override depth, rate, shape, smoothness, or target to customize.
 - \`set_mix_role\` over manual volume/pan moves — applies role-appropriate mix defaults in one call.
 - \`setup_return_bus\` over manual bus + processor + send setup — creates a wet return bus and routes a source track to it in one call.
+- \`set_sidechain\` for real audio sidechain compression — routes one track's audio into another track's compressor detector. Classic use: kick ducking a bass. For simpler volume-ducking without real audio routing, \`apply_modulation\` with "ducking_sidechain" recipe is lighter-weight.
 
 ## Plaits Models
 ${generateModelReference()}

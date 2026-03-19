@@ -23,6 +23,8 @@ interface CompressedProcessor {
   model: string;
   params: Record<string, number>;
   enabled?: boolean;
+  /** Sidechain source track ID, when this compressor is sidechained. */
+  sidechainSourceId?: string;
 }
 
 interface CompressedModulator {
@@ -502,6 +504,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
           model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
           params: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, round2(v)])),
           ...(p.enabled === false ? { enabled: false } : {}),
+          ...(p.sidechainSourceId ? { sidechainSourceId: p.sidechainSourceId } : {}),
         };
       }),
       modulators: (track.modulators ?? []).map(m => {
