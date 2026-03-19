@@ -44,13 +44,13 @@ function warpsControls(): ControlSchema[] {
       'algorithm',
       'Algorithm',
       'richness',
-      'Morphs between combination modes: crossfade → fold → ring mod → frequency shift. Sweep through the full range to explore.',
+      'Morphs between combination modes: crossfade → fold → ring mod → frequency shift (Gluon). Hardware Warps continues through XOR → comparator → vocoder, not yet implemented.',
     ),
     makeWarpsControl(
       'timbre',
       'Timbre',
       'texture',
-      'Internal waveshaping and modulation depth. Controls how aggressively the signal is processed within the current algorithm.',
+      'Per-algorithm processing intensity. Crossfade: mix position. Fold: fold amount. Ring mod: gain/clipping. Frequency shift: feedback amount.',
     ),
     // On hardware this knob controls external carrier amplitude or internal oscillator
     // frequency (when internal osc is enabled). In Gluon it controls modulator amplitude.
@@ -68,15 +68,16 @@ function warpsControls(): ControlSchema[] {
 // Official MI Warps has 7 algorithms selected by a continuous knob:
 // 1. Crossfade, 2. Fold (cross-folding), 3. Diode Ring Mod,
 // 4. Digital Ring Mod, 5. XOR, 6. Comparator, 7. Vocoder.
-// In Gluon the algorithm knob (0-1) sweeps through all 7 continuously,
-// so these engine presets are named entry points into the range.
+// Gluon implements 4 of the 7: crossfade, fold, ring mod, and frequency shift
+// (Gluon extension replacing XOR/comparator/vocoder). The algorithm knob (0-1)
+// sweeps through the implemented algorithms continuously.
 // "Ring Mod" covers both diode and digital ring mod regions.
 
 const WARPS_ENGINE_DATA: [string, string, string][] = [
   ['crossfade', 'Crossfade', 'Constant-power crossfade between carrier and modulator'],
-  ['fold', 'Fold', 'Cross-folding — wavefolding for harmonic enrichment'],
+  ['fold', 'Fold', 'Sum carrier + modulator through a wavefolder — harmonic enrichment'],
   ['ring', 'Ring Mod', 'Ring modulation — diode and digital models, metallic textures'],
-  ['frequency_shift', 'Frequency Shift', 'Frequency shifting via Hilbert transform — detuned, dissonant effects'],
+  ['frequency_shift', 'Frequency Shift (Gluon)', 'Frequency shifting via Hilbert transform — detuned, dissonant effects (Gluon extension; hardware Warps has XOR, comparator, and vocoder here instead)'],
 ];
 
 const warpsEngines: EngineDef[] = WARPS_ENGINE_DATA.map(([id, label, description]) => ({

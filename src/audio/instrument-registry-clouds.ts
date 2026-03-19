@@ -150,7 +150,7 @@ function cloudsControls(): ControlSchema[] {
 
 const CLOUDS_ENGINE_DATA: [string, string, string][] = [
   ['granular', 'Granular', 'Classic granular processing — slice and scatter frozen audio'],
-  ['pitch-shifter', 'Pitch Shifter / Time Stretcher', 'Time stretching and pitch shifting with formant preservation'],
+  ['pitch-shifter', 'Pitch Shifter / Time Stretcher', 'Time stretching and pitch shifting via time-domain grain splicing — best for monophonic material'],
   ['looping-delay', 'Looping Delay', 'Looping delay with pitch shifting and feedback'],
   ['spectral', 'Spectral Madness', 'Phase vocoder spectral processing — freeze and warp frequency content'],
 ];

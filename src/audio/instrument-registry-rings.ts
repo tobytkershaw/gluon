@@ -58,7 +58,7 @@ function ringsControls(): ControlSchema[] {
       'damping',
       'Damping',
       'texture',
-      'Decay time of the resonance. Low values ring long, high values decay quickly.',
+      'Decay time of the resonance. Low values decay quickly, high values ring long.',
       'continuous',
       0.7,
     ),

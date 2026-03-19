@@ -31,7 +31,7 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
   'fm': {
     harmonics: 'Frequency ratio between modulator and carrier',
     timbre: 'Modulation index — low = mellow, high = metallic/bell-like',
-    morph: 'Feedback — operator 2 modulating its own phase or operator 1\'s phase',
+    morph: 'Feedback — below center: chaotic (operator 1 phase mod), above center: rough (operator 2 self-phase mod)',
   },
   'grain-formant': {
     harmonics: 'Frequency ratio between formant 1 and 2',
@@ -51,7 +51,7 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
   'chords': {
     harmonics: 'Chord type (sweeps through triads, 7ths, 9ths, etc.)',
     timbre: 'Chord inversion and transposition',
-    morph: 'Waveform selection',
+    morph: 'Waveform — first half: organ/string drawbar combinations, second half: wavetable scanning (16 waveforms)',
     note: 'Synthesizes full chords internally. Send single root notes only — do not stack pitches.',
   },
   'vowel-speech': {
