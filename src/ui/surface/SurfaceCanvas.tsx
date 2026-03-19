@@ -9,6 +9,7 @@ import { MacroKnobModule } from './MacroKnobModule';
 import { XYPadModule } from './XYPadModule';
 import { StepGridModule } from './StepGridModule';
 import { ChainStripModule } from './ChainStripModule';
+import { PianoRollModule } from './PianoRollModule';
 
 interface SurfaceCanvasProps {
   track: Track;
@@ -28,6 +29,7 @@ const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> 
   'xy-pad': XYPadModule,
   'step-grid': StepGridModule,
   'chain-strip': ChainStripModule,
+  'piano-roll': PianoRollModule,
 };
 
 export function SurfaceCanvas({

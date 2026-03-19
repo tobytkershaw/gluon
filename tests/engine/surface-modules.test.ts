@@ -100,15 +100,16 @@ function makeMacroKnob(id: string, weights: { moduleId: string; controlId: strin
 // ---------------------------------------------------------------------------
 
 describe('SurfaceModuleRegistry', () => {
-  it('all five module types are registered', () => {
+  it('all six module types are registered', () => {
     const defs = getAllModuleDefs();
-    expect(defs).toHaveLength(5);
+    expect(defs).toHaveLength(6);
     const types = defs.map(d => d.type);
     expect(types).toContain('knob-group');
     expect(types).toContain('macro-knob');
     expect(types).toContain('xy-pad');
     expect(types).toContain('step-grid');
     expect(types).toContain('chain-strip');
+    expect(types).toContain('piano-roll');
   });
 
   it('getModuleDef returns definition for valid type', () => {

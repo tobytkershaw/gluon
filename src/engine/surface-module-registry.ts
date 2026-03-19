@@ -69,6 +69,15 @@ const moduleDefs: SurfaceModuleDef[] = [
     minSize: { w: 6, h: 2 },
     maxSize: { w: 12, h: 3 },
   },
+  {
+    type: 'piano-roll',
+    name: 'Piano Roll',
+    description: 'Pitch × time note editor bound to region events (melodic content).',
+    requiredBindings: [{ role: 'region', description: 'Region to display/edit note events for' }],
+    defaultSize: { w: 8, h: 4 },
+    minSize: { w: 4, h: 3 },
+    maxSize: { w: 12, h: 6 },
+  },
 ];
 
 const moduleDefMap = new Map<string, SurfaceModuleDef>(
