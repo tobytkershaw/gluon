@@ -2,7 +2,7 @@
 
 What the AI agent needs at inference time to interact with Gluon's canonical musical model.
 
-**Architecture:** The AI uses multi-provider function calling (currently Gemini-only: Gemini 2.5 Pro as planner, Gemini Flash as listener). The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
+**Architecture:** The AI uses a multi-provider, provider-abstracted function-calling layer. The current default stack is Gemini 2.5 Pro as planner and Gemini Flash as listener, but the contract is expressed in neutral tool/state terms so providers can vary underneath it. The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
 
 ---
 
@@ -738,6 +738,7 @@ Fields:
 - **surface_pinned** — (optional per track) list of pinned controls (e.g. "source:timbre")
 - **sends** — (optional per track) bus send levels
 - **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
+- **audioMetrics** — (optional) fresh live analyser measurements captured at request time. Contains `master` plus per-track entries under `tracks`, each with `rms` (dBFS), `peak` (dBFS), `centroid` (Hz spectral centroid), `crest` (dB peak minus RMS), and `onsetDensity` (onsets/second over a short recent window). Present only when metrics are fresh enough to be meaningful.
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
 - **scale** — (optional) global key/scale constraint: `root` (pitch class 0–11), `mode`, `label` (e.g. "C major"), `notes` (available note names). `null` when explicitly cleared.
 - **chord_progression** — (optional) ordered harmonic roadmap: bar-indexed `chord` labels with derived `tones`. `null` when explicitly cleared.

@@ -7,7 +7,7 @@ import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { scaleToString, scaleNoteNames } from '../engine/scale';
 import { getChordToneNames } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
-import type { AudioMetricsSnapshot } from '../audio/live-audio-metrics';
+import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
 
 interface CompressedPattern {
   length: number;
@@ -138,7 +138,7 @@ export interface CompressedState {
   recent_preservation?: CompressedPreservationReport[];
   intent?: SessionIntent;
   genre_reference_overlays?: CompressedGenreReferenceOverlay[];
-  audioMetrics?: AudioMetricsSnapshot;
+  audioMetrics?: CompressedAudioMetrics;
   section?: SectionMeta;
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
   chord_progression?: CompressedChordProgressionEntry[] | null;
@@ -156,6 +156,11 @@ interface CompressedGenreReferenceOverlay {
   spectralCentroidHz: { min: number; max: number };
   frequencyBalance: { band: string; range: string; minDb: number; maxDb: number }[];
   mixNotes: string[];
+}
+
+interface CompressedAudioMetrics {
+  master: AudioMetricFrame;
+  tracks: Record<string, AudioMetricFrame>;
 }
 
 function round2(n: number): number {
@@ -606,7 +611,12 @@ export function compressState(
     } : {}),
     ...(session.intent && Object.keys(session.intent).length > 0 ? { intent: session.intent } : {}),
     ...(genreReferenceOverlays.length > 0 ? { genre_reference_overlays: genreReferenceOverlays } : {}),
-    ...(audioMetrics ? { audioMetrics } : {}),
+    ...(audioMetrics ? {
+      audioMetrics: {
+        master: audioMetrics.master,
+        tracks: audioMetrics.tracks,
+      },
+    } : {}),
     ...(session.section && Object.keys(session.section).length > 0 ? { section: session.section } : {}),
     ...(session.scale !== undefined ? {
       scale: session.scale ? {

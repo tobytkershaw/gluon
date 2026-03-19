@@ -199,7 +199,6 @@ describe('State Compression (Phase 2)', () => {
     });
 
     expect(result.audioMetrics).toEqual({
-      capturedAt: 1234,
       master: { rms: -12.3, peak: -3.2, centroid: 2400, crest: 9.1, onsetDensity: 1.5 },
       tracks: {
         v0: { rms: -18.1, peak: -9.5, centroid: 180, crest: 8.6, onsetDensity: 4.2 },

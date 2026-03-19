@@ -736,6 +736,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       expect(tokenPlanner.userMessages[0]).toContain('"audioMetrics"');
       expect(tokenPlanner.userMessages[0]).toContain('"centroid":2100');
       expect(tokenPlanner.userMessages[0]).toContain('"onsetDensity":3.8');
+      expect(tokenPlanner.userMessages[0]).not.toContain('"capturedAt"');
     });
   });
 

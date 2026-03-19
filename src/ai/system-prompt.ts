@@ -547,7 +547,7 @@ Each turn you receive a JSON state snapshot. Here's what it contains per track:
 - \`surface_pinned\`: pinned raw controls, if any
 - \`sends\`: bus send levels, if routing is configured
 
-Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), \`chord_progression\` (bar-by-bar harmonic roadmap with derived chord tones), optionally \`audioMetrics\` (fresh live loudness/brightness/punch/activity measurements), and optionally \`userSelection\` (what the human has selected in the Tracker).
+Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), \`chord_progression\` (bar-by-bar harmonic roadmap with derived chord tones), optionally \`audioMetrics\` (fresh live analyser measurements: \`rms\`/\`peak\` in dBFS where higher is louder, \`centroid\` in Hz where low is darker and high is brighter, \`crest\` in dB where higher is more transient, \`onsetDensity\` in onsets/second where higher is busier), and optionally \`userSelection\` (what the human has selected in the Tracker).
 
 ## User Selection
 When the human has an active selection in the Tracker view, the compressed state includes \`userSelection\`:
