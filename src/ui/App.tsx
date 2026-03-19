@@ -52,6 +52,7 @@ import { OpenAIListenerProvider } from '../ai/providers/openai-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { InstrumentView } from './InstrumentView';
+import { SurfaceCanvas } from './surface/SurfaceCanvas';
 import { TrackerView } from './TrackerView';
 import { RackView } from './RackView';
 import { PatchView } from './PatchView';
@@ -2613,6 +2614,7 @@ export default function App() {
           />
         )}
         {!isSessionEmpty && view === 'surface' && (
+<<<<<<< HEAD
           <InstrumentView
             session={session}
             activeTrack={activeTrack}
@@ -2659,6 +2661,13 @@ export default function App() {
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
+=======
+          <SurfaceCanvas
+            track={activeTrack}
+            onProcessorParamChange={handleProcessorParamChange}
+            onInteractionStart={() => handleSourceInteractionStart()}
+            onInteractionEnd={() => handleSourceInteractionEnd()}
+>>>>>>> surface/1052-canvas
           />
         )}
         {!isSessionEmpty && view === 'rack' && (

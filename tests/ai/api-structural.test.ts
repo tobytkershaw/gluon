@@ -225,7 +225,11 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
+<<<<<<< HEAD
     expect(GLUON_TOOLS.length).toBe(44);
+=======
+    expect(GLUON_TOOLS.length).toBe(43);
+>>>>>>> surface/1052-canvas
   });
 
   // -----------------------------------------------------------------------

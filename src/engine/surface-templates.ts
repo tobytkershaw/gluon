@@ -10,7 +10,11 @@
  */
 
 import type { SemanticControlDef, TrackSurface, Track, SurfaceModule, PinnedControl, ThumbprintConfig } from './types';
+<<<<<<< HEAD
 import { isValidModuleType, validateModuleBindings } from './surface-module-registry';
+=======
+import { isValidModuleType } from './surface-module-registry';
+>>>>>>> surface/1052-canvas
 
 // ---------------------------------------------------------------------------
 // Chain signature
@@ -383,10 +387,13 @@ export function validateSurface(surface: TrackSurface, track: Track): string | n
       return `Unknown module type: ${mod.type}`;
     }
 
+<<<<<<< HEAD
     // Validate required bindings per registry definition
     const bindingError = validateModuleBindings(mod);
     if (bindingError) return bindingError;
 
+=======
+>>>>>>> surface/1052-canvas
     // Validate macro-knob semantic control config
     if (mod.type === 'macro-knob' && mod.config.semanticControl) {
       const sc = mod.config.semanticControl as SemanticControlDef;

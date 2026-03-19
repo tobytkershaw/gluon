@@ -561,7 +561,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
         ...m,
         bindings: m.bindings.map(b => ({ ...b })),
         position: { ...m.position },
+<<<<<<< HEAD
         config: structuredClone(m.config),
+=======
+        config: { ...m.config },
+>>>>>>> surface/1052-canvas
       })),
     }, timestamp: now };
   }

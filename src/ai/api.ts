@@ -1,6 +1,10 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
+<<<<<<< HEAD
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SurfaceModule, ModuleBinding, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
+=======
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SurfaceModule, ModuleBinding, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
+>>>>>>> surface/1052-canvas
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -521,25 +525,39 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, { surface: newSurface });
     }
     case 'pin': {
+      // Pin adds a knob-group module for the pinned control
       const track = getTrack(session, action.trackId);
       const pinModule: SurfaceModule = {
         type: 'knob-group',
+<<<<<<< HEAD
         id: `pinned-${action.moduleId}-${action.controlId}`,
         label: action.controlId,
         bindings: [{ role: 'control', trackId: action.trackId, target: action.controlId }],
         position: { x: 0, y: 0, w: 2, h: 2 },
         config: { pinned: true, moduleId: action.moduleId },
+=======
+        id: `pin-${action.moduleId}-${action.controlId}`,
+        label: action.controlId,
+        bindings: [{ role: 'control', trackId: action.trackId, target: `${action.moduleId}:${action.controlId}` }],
+        position: { x: 0, y: 0, w: 2, h: 2 },
+        config: { pinned: true },
+>>>>>>> surface/1052-canvas
       };
       const modules = [...track.surface.modules, pinModule];
       return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'unpin': {
       const track = getTrack(session, action.trackId);
+<<<<<<< HEAD
       const pinId = `pinned-${action.moduleId}-${action.controlId}`;
+=======
+      const pinId = `pin-${action.moduleId}-${action.controlId}`;
+>>>>>>> surface/1052-canvas
       const modules = track.surface.modules.filter(m => m.id !== pinId);
       return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'label_axes': {
+<<<<<<< HEAD
       // Label axes updates the xy-pad module bindings — no-op if no xy-pad exists
       // (mirrors prevalidateAction which rejects label_axes without an xy-pad)
       const track = getTrack(session, action.trackId);
@@ -555,6 +573,25 @@ function projectAction(session: Session, action: AIAction): Session {
           ],
         };
       });
+=======
+      // Label axes updates the xy-pad module bindings if one exists, or adds one
+      const track = getTrack(session, action.trackId);
+      const existingXy = track.surface.modules.findIndex(m => m.type === 'xy-pad');
+      const xyModule: SurfaceModule = {
+        type: 'xy-pad',
+        id: 'xy-pad',
+        label: 'XY Pad',
+        bindings: [
+          { role: 'x-axis', trackId: action.trackId, target: action.x },
+          { role: 'y-axis', trackId: action.trackId, target: action.y },
+        ],
+        position: { x: 0, y: 0, w: 4, h: 4 },
+        config: {},
+      };
+      const modules = existingXy >= 0
+        ? track.surface.modules.map((m, i) => i === existingXy ? xyModule : m)
+        : [...track.surface.modules, xyModule];
+>>>>>>> surface/1052-canvas
       return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'set_importance': {
