@@ -138,6 +138,13 @@ describe('PlaitsSynth.scheduleNote — independent base/extended override detect
     expect(body).toMatch(/hasBaseOverrides[\s\S]*?set-patch/);
     expect(body).toMatch(/hasExtendedOverrides[\s\S]*?set-extended/);
   });
+
+  it('primes the patch once per transport fence before the first note', () => {
+    expect(SYNTH_SRC).toContain('lastPrimedFence');
+    expect(SYNTH_SRC).toContain('shouldPrimePatch');
+    expect(SYNTH_SRC).toMatch(/shouldPrimePatch[\s\S]*?set-patch/);
+    expect(SYNTH_SRC).toMatch(/shouldPrimePatch[\s\S]*?set-extended/);
+  });
 });
 
 describe('gluon_plaits.cpp — worklet dirty-check', () => {
