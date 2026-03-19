@@ -128,5 +128,22 @@ describe('Agency approval prompt', () => {
       const responseDecisionId = (result.response as Record<string, unknown>).decisionId;
       expect(decision.decisionId).toBe(responseDecisionId);
     });
+
+    it('reuses an existing agency approval in the same turn', () => {
+      const session = createSession();
+      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
+      const existingDecision = {
+        type: 'raise_decision' as const,
+        decisionId: 'agency-approval-existing',
+        question: 'The AI wants to modify Kick which has agency OFF. Allow this change?',
+        options: ['Allow', 'Deny'],
+        trackIds: ['v0'],
+      };
+
+      const result = buildAgencyApproval(session, action, 'v0', [existingDecision]);
+
+      expect(result.actions).toEqual([]);
+      expect(result.response).toHaveProperty('decisionId', existingDecision.decisionId);
+    });
   });
 });
