@@ -7,6 +7,7 @@ import { PlaceholderModule } from './PlaceholderModule';
 import { KnobGroupModule } from './KnobGroupModule';
 import { MacroKnobModule } from './MacroKnobModule';
 import { XYPadModule } from './XYPadModule';
+import { StepGridModule } from './StepGridModule';
 
 interface SurfaceCanvasProps {
   track: Track;
@@ -24,7 +25,7 @@ const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> 
   'knob-group': KnobGroupModule,
   'macro-knob': MacroKnobModule,
   'xy-pad': XYPadModule,
-  'step-grid': PlaceholderModule,
+  'step-grid': StepGridModule,
   'chain-strip': PlaceholderModule,
 };
 
