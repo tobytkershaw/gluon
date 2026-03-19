@@ -1070,6 +1070,54 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  /** Update a surface module (label, bindings) with undo. */
+  const handleSurfaceUpdateModule = useCallback((updated: SurfaceModule) => {
+    setSession((s) => {
+      const trackId = s.activeTrackId;
+      const track = getTrack(s, trackId);
+      const prevSurface = {
+        ...track.surface,
+        modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
+      };
+      const newModules = track.surface.modules.map(m => m.id === updated.id ? updated : m);
+      const snapshot: SurfaceSnapshot = {
+        kind: 'surface',
+        trackId,
+        prevSurface,
+        timestamp: Date.now(),
+        description: `Update surface module "${updated.label}"`,
+      };
+      return {
+        ...updateTrack(s, trackId, { surface: { ...track.surface, modules: newModules } }),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, []);
+
+  /** Remove a surface module with undo. */
+  const handleSurfaceRemoveModule = useCallback((moduleId: string) => {
+    setSession((s) => {
+      const trackId = s.activeTrackId;
+      const track = getTrack(s, trackId);
+      const prevSurface = {
+        ...track.surface,
+        modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
+      };
+      const newModules = track.surface.modules.filter(m => m.id !== moduleId);
+      const snapshot: SurfaceSnapshot = {
+        kind: 'surface',
+        trackId,
+        prevSurface,
+        timestamp: Date.now(),
+        description: `Remove surface module`,
+      };
+      return {
+        ...updateTrack(s, trackId, { surface: { ...track.surface, modules: newModules } }),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, []);
+
   const handleModelChange = useCallback((model: number) => {
     ensureAudio();
     setSession((s) => setModel(s, s.activeTrackId, model));
@@ -2748,6 +2796,8 @@ export default function App() {
             onInteractionStart={handleSurfaceInteractionStart}
             onInteractionEnd={handleSurfaceInteractionEnd}
             onAddModule={handleAddSurfaceModule}
+            onUpdateModule={handleSurfaceUpdateModule}
+            onRemoveModule={handleSurfaceRemoveModule}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (

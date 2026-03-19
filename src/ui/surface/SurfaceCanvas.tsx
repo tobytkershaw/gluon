@@ -12,6 +12,7 @@ import { ChainStripModule } from './ChainStripModule';
 import { PianoRollModule } from './PianoRollModule';
 import { LevelMeterModule } from './LevelMeterModule';
 import { ModulePicker } from './ModulePicker';
+import { ModuleConfigPanel } from './ModuleConfigPanel';
 
 interface SurfaceCanvasProps {
   track: Track;
@@ -25,6 +26,10 @@ interface SurfaceCanvasProps {
   onInteractionEnd?: () => void;
   /** Called when a module is added via the picker. */
   onAddModule?: (module: SurfaceModule) => void;
+  /** Called when a module is updated (label, bindings). */
+  onUpdateModule?: (updated: SurfaceModule) => void;
+  /** Called when a module is removed. */
+  onRemoveModule?: (moduleId: string) => void;
 }
 
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
@@ -44,10 +49,13 @@ export function SurfaceCanvas({
   onInteractionStart,
   onInteractionEnd,
   onAddModule,
+  onUpdateModule,
+  onRemoveModule,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -61,6 +69,18 @@ export function SurfaceCanvas({
     setContainerWidth(el.clientWidth || 1200);
     return () => observer.disconnect();
   }, []);
+
+  // Clear selection when track changes
+  useEffect(() => {
+    setSelectedModuleId(null);
+  }, [track.id]);
+
+  // Clear selection if the selected module no longer exists
+  useEffect(() => {
+    if (selectedModuleId && !track.surface.modules.some(m => m.id === selectedModuleId)) {
+      setSelectedModuleId(null);
+    }
+  }, [selectedModuleId, track.surface.modules]);
 
   const modules = track.surface.modules;
 
@@ -83,6 +103,43 @@ export function SurfaceCanvas({
   const handleAddModule = useCallback((module: SurfaceModule) => {
     onAddModule?.(module);
   }, [onAddModule]);
+
+  const handleModuleClick = useCallback((moduleId: string, e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'SELECT' ||
+      target.tagName === 'BUTTON' ||
+      target.closest('canvas') ||
+      target.closest('[data-no-select]')
+    ) {
+      return;
+    }
+    setSelectedModuleId((prev) => (prev === moduleId ? null : moduleId));
+  }, []);
+
+  const handleUpdateModule = useCallback(
+    (updated: SurfaceModule) => {
+      onUpdateModule?.(updated);
+    },
+    [onUpdateModule],
+  );
+
+  const handleRemoveModule = useCallback(
+    (moduleId: string) => {
+      setSelectedModuleId(null);
+      onRemoveModule?.(moduleId);
+    },
+    [onRemoveModule],
+  );
+
+  const handleCloseConfig = useCallback(() => {
+    setSelectedModuleId(null);
+  }, []);
+
+  const selectedModule = selectedModuleId
+    ? modules.find((m) => m.id === selectedModuleId) ?? null
+    : null;
 
   const addButton = onAddModule ? (
     <div className="relative">
@@ -123,38 +180,61 @@ export function SurfaceCanvas({
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-auto p-2 relative">
-      <RGL
-        className="layout"
-        layout={layout}
-        cols={12}
-        rowHeight={60}
-        width={containerWidth}
-        isDraggable={true}
-        isResizable={true}
-        onLayoutChange={handleLayoutChange}
-        compactType="vertical"
-        margin={[8, 8] as [number, number]}
-      >
-        {modules.map((mod) => {
-          const Renderer = moduleRenderers[mod.type] ?? PlaceholderModule;
-          return (
-            <div
-              key={mod.id}
-              className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden"
-            >
-              <Renderer
-                module={mod}
-                track={track}
-                onParamChange={onParamChange}
-                onProcessorParamChange={onProcessorParamChange}
-                onInteractionStart={onInteractionStart}
-                onInteractionEnd={onInteractionEnd}
-              />
-            </div>
-          );
-        })}
-      </RGL>
+    <div ref={containerRef} className="flex-1 overflow-auto p-2 flex relative">
+      {/* Grid area */}
+      <div className="flex-1 min-w-0">
+        <RGL
+          className="layout"
+          layout={layout}
+          cols={12}
+          rowHeight={60}
+          width={selectedModule ? containerWidth - 288 : containerWidth}
+          isDraggable={true}
+          isResizable={true}
+          onLayoutChange={handleLayoutChange}
+          compactType="vertical"
+          margin={[8, 8] as [number, number]}
+        >
+          {modules.map((mod) => {
+            const Renderer = moduleRenderers[mod.type] ?? PlaceholderModule;
+            const isSelected = mod.id === selectedModuleId;
+            return (
+              <div
+                key={mod.id}
+                className={`bg-zinc-900 border rounded-lg overflow-hidden cursor-pointer transition-colors ${
+                  isSelected
+                    ? 'border-zinc-500 ring-1 ring-zinc-500/50'
+                    : 'border-zinc-800 hover:border-zinc-700'
+                }`}
+                onClick={(e) => handleModuleClick(mod.id, e)}
+              >
+                <Renderer
+                  module={mod}
+                  track={track}
+                  onParamChange={onParamChange}
+                  onProcessorParamChange={onProcessorParamChange}
+                  onInteractionStart={onInteractionStart}
+                  onInteractionEnd={onInteractionEnd}
+                />
+              </div>
+            );
+          })}
+        </RGL>
+      </div>
+
+      {/* Config panel */}
+      {selectedModule && (
+        <div className="ml-2 flex-shrink-0">
+          <ModuleConfigPanel
+            module={selectedModule}
+            track={track}
+            onUpdateModule={handleUpdateModule}
+            onRemoveModule={handleRemoveModule}
+            onClose={handleCloseConfig}
+          />
+        </div>
+      )}
+
       {addButton}
     </div>
   );
