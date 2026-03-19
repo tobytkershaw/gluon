@@ -35,8 +35,8 @@ type ScheduledEvent =
 // Maximum number of keyframes
 const MAX_KEYFRAMES = 20;
 
-// Smoothing coefficient for ~10ms at 48kHz to avoid clicks during morphing
-const SMOOTH_COEFF = 1 - Math.exp(-1 / (0.010 * 48000));
+// Smoothing time constant in seconds (~10ms to avoid clicks during morphing)
+const SMOOTH_TIME = 0.010;
 
 interface Keyframe {
   pos: number;
@@ -105,7 +105,13 @@ function interpolateKeyframes(keyframes: Keyframe[], pos: number): [number, numb
 class FramesProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors(): Array<{ name: string; defaultValue: number; minValue: number; maxValue: number; automationRate: string }> {
     return [
-      { name: 'min-fence', defaultValue: 0, minValue: 0, maxValue: 1e9, automationRate: 'k-rate' },
+      { name: 'mod-frame',      defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-channel_1',  defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-channel_2',  defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-channel_3',  defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-channel_4',  defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'mod-modulation', defaultValue: 0, minValue: -1, maxValue: 1, automationRate: 'k-rate' },
+      { name: 'min-fence',      defaultValue: 0, minValue: 0,  maxValue: 1e9, automationRate: 'k-rate' },
     ];
   }
 
@@ -230,15 +236,32 @@ class FramesProcessor extends AudioWorkletProcessor {
       this.needsKeyframeUpdate = false;
     }
 
+    // Read modulation params
+    const modFrame     = parameters['mod-frame'][0];
+    const modChannel1  = parameters['mod-channel_1'][0];
+    const modChannel2  = parameters['mod-channel_2'][0];
+    const modChannel3  = parameters['mod-channel_3'][0];
+    const modChannel4  = parameters['mod-channel_4'][0];
+    const modModulation = parameters['mod-modulation'][0];
+
     const p = this.currentPatch;
     const frameCount = inL.length;
-    const smooth = SMOOTH_COEFF;
+    const smooth = 1 - Math.exp(-1 / (SMOOTH_TIME * sampleRate));
+
+    // Compute effective parameters (base + modulation, clamped 0-1)
+    const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+    const effFrame      = clamp01(p.frame + modFrame);
+    const effChannel1   = clamp01(p.channel_1 + modChannel1);
+    const effChannel2   = clamp01(p.channel_2 + modChannel2);
+    const effChannel3   = clamp01(p.channel_3 + modChannel3);
+    const effChannel4   = clamp01(p.channel_4 + modChannel4);
+    const effModulation = clamp01(p.modulation + modModulation);
 
     if (this.mode === MODE_KEYFRAME) {
       // --- Keyframe mode: interpolate based on frame position ---
       // Modulation is an attenuverter: 0.5 = no offset, 0 = -1, 1 = +1
-      const modOffset = (p.modulation - 0.5) * 2.0;
-      const effectiveFrame = Math.max(0, Math.min(1, p.frame + modOffset));
+      const modOffset = (effModulation - 0.5) * 2.0;
+      const effectiveFrame = clamp01(effFrame + modOffset);
 
       const [targetG1, targetG2, targetG3, targetG4] = interpolateKeyframes(this.keyframes, effectiveFrame);
 
@@ -258,7 +281,7 @@ class FramesProcessor extends AudioWorkletProcessor {
     } else {
       // --- Sequencer mode: step through keyframes at a rate derived from frame knob ---
       // frame param = step rate: 0 → 0.05 Hz, 1 → 10 Hz (log scale)
-      const rateHz = 0.05 * Math.pow(200, p.frame);
+      const rateHz = 0.05 * Math.pow(200, effFrame);
       const phaseIncrement = rateHz / sampleRate;
       const numKeyframes = this.keyframes.length;
 
