@@ -46,7 +46,7 @@ export class TransportController {
   private lastStep = 0;
   private trackSeen = new Set<string>();
   private lastHandledTransportCommandId: number | null = null;
-  private parameterEventTimers = new Set<ReturnType<typeof setTimeout>>();
+  private parameterEventTimers = new Map<ReturnType<typeof setTimeout>, string>();
 
   constructor({
     audio,
@@ -81,7 +81,7 @@ export class TransportController {
         if (this.runtime.generation !== generation || this.runtime.status !== 'playing') return;
         onParameterEvent(event);
       }, delayMs);
-      this.parameterEventTimers.add(timer);
+      this.parameterEventTimers.set(timer, event.trackId);
     };
     this.scheduler = createScheduler
       ? createScheduler({
@@ -218,17 +218,19 @@ export class TransportController {
     this.pendingHardStop = true;
   }
 
-  private clearParameterEventTimers(): void {
-    for (const timer of this.parameterEventTimers) {
+  private clearParameterEventTimers(trackId?: string): void {
+    for (const [timer, timerTrackId] of this.parameterEventTimers) {
+      if (trackId && timerTrackId !== trackId) continue;
       clearTimeout(timer);
+      this.parameterEventTimers.delete(timer);
     }
-    this.parameterEventTimers.clear();
   }
 
   syncArrangement(): void {
     const session = this.getSession();
     for (const track of session.tracks) {
       if (track._patternDirty && this.runtime.status === 'playing') {
+        this.clearParameterEventTimers(track.id);
         this.scheduler.invalidateTrack(track.id, this.lastStep);
         recordQaAudioTrace({
           type: 'transport.arrangement-invalidated',
