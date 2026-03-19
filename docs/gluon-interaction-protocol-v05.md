@@ -94,7 +94,7 @@ Chain {
 }
 ```
 
-A simple track has a chain with just a source and no processors. A complex track might be `Plaits(Wavetable) → Rings → Clouds`. The chain determines what parameters exist on the track and how they aggregate into semantic controls.
+A simple track has a chain with just a source and no processors. A complex track might be `Plaits(Wavetable) → Rings → Clouds`. The chain determines what parameters exist on the track and what controls surface modules can bind to.
 
 When the chain changes (a module is added, removed, or replaced), the track's parameter set changes with it. This is a structural change, not a parameter change — it's building the instrument, not playing it.
 
@@ -462,29 +462,45 @@ manage_view {
 
 #### `set_surface`
 
-Define semantic controls for a track's UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters via weighted sums.
+Compose a track's UI surface from modules. Each module has a type, bindings, a grid position, and optional configuration.
 
 ```
 set_surface {
   trackId: TrackID
-  semanticControls: [{
-    name: string              // Human-readable label (e.g. "Warmth")
-    weights: [{
+  modules: [{
+    type: "knob-group" | "macro-knob" | "xy-pad" | "step-grid" | "chain-strip"
+    bindings: [{
       moduleId: string        // "source" or a processor ID
       controlId: ControlID
-      weight: f32             // Must sum to 1.0
-      transform: string?      // "linear" (default), "inverse", "bipolar"
     }]
-    range: { min, max, default }?
+    position: { col: int, row: int, colSpan?: int, rowSpan?: int }
+    config: {                 // Type-specific (optional)
+      label?: string          // For knob-group
+      semanticControl?: {     // For macro-knob
+        name: string
+        weights: [{
+          moduleId: string
+          controlId: ControlID
+          weight: f32          // Must sum to 1.0
+          transform: string?   // "linear" (default), "inverse", "bipolar"
+        }]
+      }
+    }?
   }]
-  xyAxes: { x: string, y: string }?
   description: string
 }
 ```
 
+Module types:
+- **knob-group**: bank of labelled rotary knobs bound to raw or semantic control IDs
+- **macro-knob**: single knob with weighted multi-parameter mapping (physical manifestation of a semantic control)
+- **xy-pad**: 2D control bound to two parameters
+- **step-grid**: TR-style pattern editor
+- **chain-strip**: signal flow overview with bypass toggles
+
 #### `pin_control`
 
-Pin or unpin a raw module control on the track's surface. Max 4 pins per track.
+Pin or unpin a raw module control on the track's surface. Creates or removes a pinned knob-group module with `{ pinned: true }`. Max 4 pins per track.
 
 ```
 pin_control {
@@ -497,7 +513,7 @@ pin_control {
 
 #### `label_axes`
 
-Set semantic labels for the track's XY pad axes.
+Update XY pad axis bindings. **Fails if no xy-pad module exists** on the track's surface — use `set_surface` to add one first.
 
 ```
 label_axes {
@@ -600,7 +616,7 @@ Per track:
 - Controls: hardware-derived parameter values (`timbre`, `harmonics`, `morph`, `frequency`)
 - Pattern summary: event count, trigger positions, note pitches, accent positions, density
 - Views: active sequencer projections
-- Surface: semantic controls, XY axis labels, pinned controls (when configured)
+- Surface: composed modules (knob-group, macro-knob, xy-pad, step-grid, chain-strip) with bindings and positions
 - Status: muted, solo, volume, pan
 - Metadata: importance, musical role
 
@@ -622,7 +638,7 @@ The AI uses hardware-derived control IDs throughout — `timbre`, `harmonics`, `
 
 Gluon's core promise is that you can glue different instruments onto the same AI-legible core. The adapter is where that happens.
 
-Everything above the adapter is canonical: semantic control IDs, normalised 0-1 values, canonical musical events, regions, tracks. This is the world the AI reasons about.
+Everything above the adapter is canonical: control IDs, normalised 0-1 values, canonical musical events, regions, tracks. This is the world the AI reasons about.
 
 Everything below the adapter is native: CC numbers, voltage ranges, VST parameter indices, MIDI channels, sample rates. This is the world of specific hardware and software.
 
@@ -660,7 +676,7 @@ Undo for native modules is exact — restore previous parameter values. Undo for
 
 **Transport and networking.** How messages are serialised. Could be in-process calls, WebSocket, OSC, whatever.
 
-**Surface curation internals.** How semantic control weights are computed, surface module taxonomy, and chain-aware defaults. See the AI-curated surfaces RFC.
+**Surface curation internals.** How surface modules are composed, macro-knob weight computation, and chain-aware defaults. See the AI-curated surfaces RFC and surface north star.
 
 ---
 
