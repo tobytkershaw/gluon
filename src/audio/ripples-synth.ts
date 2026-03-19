@@ -84,6 +84,10 @@ export class RipplesSynth implements ProcessorContract {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentMode = Math.max(0, Math.min(3, model));
     this.post({ type: 'set-mode', mode: this.currentMode });

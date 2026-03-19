@@ -109,6 +109,10 @@ export class RingsSynth implements ProcessorContract {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentModel = Math.max(0, Math.min(5, model));
     this.post({ type: 'set-model', model: this.currentModel });

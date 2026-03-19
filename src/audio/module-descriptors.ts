@@ -20,6 +20,7 @@ function createPassthroughProcessor(ctx: AudioContext): ProcessorContract {
   return {
     role: 'processor' as const,
     inputNode: gain,
+    outputNode: gain,
     setPatch() {},
     setModel() {},
     sendCommand() {},

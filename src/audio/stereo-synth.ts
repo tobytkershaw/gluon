@@ -90,6 +90,10 @@ export class StereoSynth implements ProcessorContract {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentMode = Math.max(0, Math.min(1, model));
     this.post({ type: 'set-mode', mode: this.currentMode });

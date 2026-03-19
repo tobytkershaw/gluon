@@ -92,6 +92,10 @@ export class CompressorSynth implements ProcessorContract {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   /** The second input of the worklet node — connect a sidechain source here. */
   get sidechainInputNode(): AudioNode {
     return this.node;

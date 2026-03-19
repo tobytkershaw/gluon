@@ -633,7 +633,10 @@ export class AudioEngine {
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
         proc.engine.silence(this.generation);
-        proc.engine.sendCommand({ type: 'damp' });
+        const descriptor = moduleDescriptors.get(proc.type);
+        if (descriptor && descriptor.commands.includes('damp')) {
+          proc.engine.sendCommand({ type: 'damp' });
+        }
       }
     }
     // Clear scheduled events in modulators and pause their output
@@ -738,7 +741,7 @@ export class AudioEngine {
 
     this.pendingProcessors.add(key);
     try {
-      const { engine, degraded } = await descriptor.create(this.ctx) as { engine: ProcessorContract; degraded: boolean };
+      const { engine, degraded } = await descriptor.create(this.ctx);
       // After async gap: only insert if still wanted (key not cancelled
       // by removeProcessor) and not already present (dedupe).
       if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
@@ -826,7 +829,7 @@ export class AudioEngine {
     // Disconnect input and all processors, then rewire
     inputNode.disconnect();
     for (const proc of slot.processors) {
-      proc.engine.inputNode.disconnect();
+      proc.engine.outputNode.disconnect();
     }
 
     // Filter to only enabled processors for the active chain
@@ -836,12 +839,12 @@ export class AudioEngine {
       // Direct: input -> chainOutGain (all processors bypassed or none exist)
       inputNode.connect(slot.chainOutGain);
     } else {
-      // Chain: input -> proc[0] -> ... -> proc[n] -> chainOutGain
+      // Chain: input -> proc[0].in, proc[0].out -> proc[1].in, ..., proc[n].out -> chainOutGain
       inputNode.connect(activeProcs[0].engine.inputNode);
       for (let i = 0; i < activeProcs.length - 1; i++) {
-        activeProcs[i].engine.inputNode.connect(activeProcs[i + 1].engine.inputNode);
+        activeProcs[i].engine.outputNode.connect(activeProcs[i + 1].engine.inputNode);
       }
-      activeProcs[activeProcs.length - 1].engine.inputNode.connect(slot.chainOutGain);
+      activeProcs[activeProcs.length - 1].engine.outputNode.connect(slot.chainOutGain);
     }
 
     // Ramp chainOutGain back to 1 after reconnect
@@ -869,7 +872,7 @@ export class AudioEngine {
 
     this.pendingModulators.add(key);
     try {
-      const { engine } = await descriptor.create(this.ctx) as { engine: ModulatorContract; degraded: boolean };
+      const { engine } = await descriptor.create(this.ctx);
 
       // After async gap: only insert if still wanted
       if (!this.pendingModulators.has(key)) {

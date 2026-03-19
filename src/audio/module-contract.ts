@@ -17,6 +17,7 @@ export type ModuleCommand =
 export interface ProcessorContract {
   readonly role: 'processor';
   readonly inputNode: AudioNode;
+  readonly outputNode: AudioNode;
   setPatch(params: Record<string, number>): void;
   setModel(model: number): void;
   sendCommand(command: ModuleCommand): void;
@@ -43,14 +44,25 @@ export interface CreationResult<T> {
   degradedReason?: string;
 }
 
-/** Descriptor for a module type — used by the descriptor registry. */
-export interface ModuleDescriptor {
+/** Descriptor for a processor module type. */
+export interface ProcessorDescriptor {
   type: string;
-  role: 'processor' | 'modulator';
+  role: 'processor';
   commands: ModuleCommand['type'][];
   sidechain?: { inputIndex: number };
-  create(ctx: AudioContext): Promise<CreationResult<ProcessorContract | ModulatorContract>>;
+  create(ctx: AudioContext): Promise<CreationResult<ProcessorContract>>;
 }
+
+/** Descriptor for a modulator module type. */
+export interface ModulatorDescriptor {
+  type: string;
+  role: 'modulator';
+  commands: ModuleCommand['type'][];
+  create(ctx: AudioContext): Promise<CreationResult<ModulatorContract>>;
+}
+
+/** Descriptor for a module type — used by the descriptor registry. */
+export type ModuleDescriptor = ProcessorDescriptor | ModulatorDescriptor;
 
 /** Log unsupported commands in dev mode. */
 export function warnUnsupportedCommand(moduleType: string, command: ModuleCommand): void {
