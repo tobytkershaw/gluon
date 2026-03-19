@@ -50,6 +50,9 @@ interface RackViewProps {
   onReplaceProcessor?: (processorId: string, newModuleType: string) => void;
   // Ramp request (Shift+Click on knobs)
   onRampRequest?: (controlId: string, targetValue: number, durationMs: number, processorId?: string) => void;
+  // Pin-to-Surface
+  onPinControl?: (moduleId: string, controlId: string) => void;
+  pinnedControlIds?: (moduleId: string) => Set<string>;
   // Navigation
   onNavigateToPatch?: () => void;
 }
@@ -117,6 +120,8 @@ export function RackView({
   onAddProcessor, onAddModulator,
   onReplaceProcessor,
   onRampRequest,
+  onPinControl,
+  pinnedControlIds,
   onNavigateToPatch,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -178,6 +183,8 @@ export function RackView({
           onModulationDepthChange={onModulationDepthChange}
           onModulationDepthCommit={onModulationDepthCommit}
           onRampRequest={onRampRequest}
+          onPinControl={onPinControl ? (controlId) => onPinControl('source', controlId) : undefined}
+          pinnedControlIds={pinnedControlIds?.('source')}
         />
 
         {/* Processor module panels */}
@@ -209,6 +216,8 @@ export function RackView({
               onModulationDepthChange={onModulationDepthChange}
               onModulationDepthCommit={onModulationDepthCommit}
               onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur, proc.id) : undefined}
+              onPinControl={onPinControl ? (controlId) => onPinControl(proc.id, controlId) : undefined}
+              pinnedControlIds={pinnedControlIds?.(proc.id)}
             />
           );
         })}

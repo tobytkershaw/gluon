@@ -1118,6 +1118,39 @@ export default function App() {
     });
   }, []);
 
+  /** Pin/unpin a control to/from the Surface view. Toggle behaviour. */
+  const handlePinControl = useCallback((moduleId: string, controlId: string) => {
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const target = moduleId === 'source' ? controlId : `${moduleId}:${controlId}`;
+      const alreadyPinned = track.surface.modules.some(
+        m => m.config.pinned === true && m.bindings.some(b => b.target === target),
+      );
+      const action: AIAction = alreadyPinned
+        ? { type: 'unpin', trackId: vid, moduleId, controlId, description: `Unpin ${controlId}` }
+        : { type: 'pin', trackId: vid, moduleId, controlId, description: `Pin ${controlId}` };
+      const report = executeOperations(s, [action], plaitsAdapter, arbRef.current);
+      return report.session;
+    });
+  }, []);
+
+  /** Compute the set of pinned control IDs for a given module on the active track. */
+  const getPinnedControlIds = useCallback((moduleId: string): Set<string> => {
+    const track = getActiveTrack(sessionRef.current);
+    const pinned = new Set<string>();
+    const prefix = moduleId + ':';
+    for (const m of track.surface.modules) {
+      if (m.config.pinned !== true) continue;
+      for (const b of m.bindings) {
+        if (b.target.startsWith(prefix)) {
+          pinned.add(b.target.slice(prefix.length));
+        }
+      }
+    }
+    return pinned;
+  }, []);
+
   const handleModelChange = useCallback((model: number) => {
     ensureAudio();
     setSession((s) => setModel(s, s.activeTrackId, model));
@@ -2829,6 +2862,8 @@ export default function App() {
             onAddModulator={handleAddModulator}
             onReplaceProcessor={handleReplaceProcessor}
             onRampRequest={handleHumanRamp}
+            onPinControl={handlePinControl}
+            pinnedControlIds={getPinnedControlIds}
             onNavigateToPatch={() => setView('patch')}
           />
         )}
