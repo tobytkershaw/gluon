@@ -66,14 +66,19 @@ interface Props {
   toolCalls: ToolCallEntry[];
 }
 
+/** Tool names that are UI scaffolding and should not appear in the tool call log. */
+const HIDDEN_TOOLS = new Set(['suggest_reactions']);
+
 export function ToolCallsView({ toolCalls }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  if (toolCalls.length === 0) return null;
+  // Filter out UI scaffolding tools before display
+  const visible = toolCalls.filter(tc => !HIDDEN_TOOLS.has(tc.name));
+  if (visible.length === 0) return null;
 
   // Group consecutive calls of the same tool
   const grouped: { name: string; count: number; args: Record<string, unknown> }[] = [];
-  for (const tc of toolCalls) {
+  for (const tc of visible) {
     const last = grouped[grouped.length - 1];
     if (last && last.name === tc.name) {
       last.count++;
@@ -95,7 +100,7 @@ export function ToolCallsView({ toolCalls }: Props) {
           &#9656;
         </span>
         <span>
-          {toolCalls.length} tool call{toolCalls.length !== 1 ? 's' : ''}
+          {visible.length} tool call{visible.length !== 1 ? 's' : ''}
         </span>
       </button>
 

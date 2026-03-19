@@ -12,13 +12,14 @@ const AI_TOOL_NAMES = GLUON_TOOLS.map(t => t.name);
 
 // Tools that are inherently AI-facing and have no meaningful human UI equivalent.
 const AI_ONLY_TOOLS = new Set([
-  'render',         // human presses play and listens
-  'listen',         // multimodal audio evaluation
-  'analyze',        // audio analysis (spectral/dynamics/rhythm)
-  'explain_chain',  // AI-generated chain description
-  'simplify_chain', // AI-generated simplification suggestions
-  'raise_decision', // human types in chat
-  'report_bug',     // human reports bugs through other channels
+  'render',             // human presses play and listens
+  'listen',             // multimodal audio evaluation
+  'analyze',            // audio analysis (spectral/dynamics/rhythm)
+  'explain_chain',      // AI-generated chain description
+  'simplify_chain',     // AI-generated simplification suggestions
+  'raise_decision',     // human types in chat
+  'report_bug',         // human reports bugs through other channels
+  'suggest_reactions',  // AI suggests contextual reaction chips for human to click
 ]);
 
 // Tools that have full UI parity (exposed and editable in at least one canonical view).
@@ -88,7 +89,7 @@ describe('Human Capability Parity', () => {
   });
 
   it('documents the expected number of AI-only tools', () => {
-    expect(AI_ONLY_TOOLS.size).toBe(7);
+    expect(AI_ONLY_TOOLS.size).toBe(8);
   });
 
   it('most musical tools have UI parity', () => {

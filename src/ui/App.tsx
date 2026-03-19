@@ -913,6 +913,7 @@ export default function App() {
     const collectedToolCalls: ToolCallEntry[] = [];
     const allSayTexts: string[] = [];
     const allLog: ExecutionReportLogEntry[] = [];
+    let collectedSuggestedReactions: string[] | undefined;
     const undoBaseline = sessionRef.current.undoStack.length;
 
     // Capture current tracker selection (if any) so the AI knows what the human is pointing at.
@@ -961,6 +962,11 @@ export default function App() {
       // Collect say texts for the final ChatMessage
       for (const a of stepResult.actions) {
         if (a.type === 'say') allSayTexts.push(a.text);
+      }
+
+      // Capture AI-suggested reactions (last step wins if multiple)
+      if (stepResult.suggestedReactions) {
+        collectedSuggestedReactions = stepResult.suggestedReactions;
       }
 
       // Collect log entries
@@ -1015,7 +1021,7 @@ export default function App() {
     } finally {
       if (thisRequest === requestIdRef.current) {
         // Finalize: create ChatMessage without collapsing — per-step groups are already in place
-        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false));
+        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions));
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');
@@ -1025,11 +1031,11 @@ export default function App() {
     }
   }, [ensureAudio]);
 
-  const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected') => {
+  const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => {
     setSession((s) => {
-      // Toggle off if clicking the same verdict again
+      // Toggle off if clicking the same verdict again (only when no rationale — chip clicks always apply)
       const existing = (s.reactionHistory ?? []).find(r => r.actionGroupIndex === messageIndex);
-      if (existing && existing.verdict === verdict) {
+      if (!rationale && existing && existing.verdict === verdict) {
         // Remove the reaction (toggle off)
         return {
           ...s,
@@ -1041,6 +1047,7 @@ export default function App() {
       return addReaction({ ...s, reactionHistory: filtered }, {
         actionGroupIndex: messageIndex,
         verdict,
+        ...(rationale ? { rationale } : {}),
         timestamp: Date.now(),
       });
     });

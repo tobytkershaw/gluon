@@ -246,14 +246,18 @@ interface Props {
   actions: ActionLogEntry[];
   aiText: string;
   onChipSelect: (text: string) => void;
+  /** AI-generated contextual reaction chips (from suggest_reactions tool). */
+  suggestedReactions?: string[];
 }
 
-export function TurnSummaryCard({ actions, aiText, onChipSelect }: Props) {
+export function TurnSummaryCard({ actions, aiText, onChipSelect, suggestedReactions }: Props) {
   const changed = deriveChanged(actions);
   const why = deriveWhy(aiText);
-  const followUps = deriveFollowUps(actions);
+  // When AI provides contextual reactions, use those instead of static follow-ups
+  const hasAISuggestions = suggestedReactions && suggestedReactions.length > 0;
+  const followUps = hasAISuggestions ? [] : deriveFollowUps(actions);
 
-  if (!changed && !why && followUps.length === 0) return null;
+  if (!changed && !why && followUps.length === 0 && !hasAISuggestions) return null;
 
   return (
     <div

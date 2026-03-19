@@ -1002,6 +1002,9 @@ export interface ChatMessage {
   /** Tracks the AI targeted during this turn, with agency state at time of action.
    *  Populated when the message is finalised so the scope badge persists. */
   scopeTracks?: Array<{ trackId: string; name: string; agency: Agency }>;
+  /** AI-suggested contextual reaction chips (e.g. "more tense", "brighter").
+   *  Generated per-turn by the planner via the suggest_reactions tool. */
+  suggestedReactions?: string[];
 }
 
 // --- Helpers ---
