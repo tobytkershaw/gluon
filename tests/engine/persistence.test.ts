@@ -1,12 +1,12 @@
 // tests/engine/persistence.test.ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_PERSISTED_UNDO, restoreSession } from '../../src/engine/persistence';
+import { saveSession, loadSession, clearSavedSession, stripForPersistence, MAX_PERSISTED_UNDO, restoreSession, deduplicateById } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
 import { createDefaultStepGrid } from '../../src/engine/sequencer-helpers';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import { getTrack, MASTER_BUS_ID } from '../../src/engine/types';
-import type { Reaction, OpenDecision } from '../../src/engine/types';
-import type { TriggerEvent } from '../../src/engine/canonical-types';
+import type { Reaction, OpenDecision, Track, ProcessorConfig, ModulatorConfig, ModulationRouting, SurfaceModule, DrumPad, Send, SequencerViewConfig } from '../../src/engine/types';
+import type { TriggerEvent, Pattern } from '../../src/engine/canonical-types';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -729,5 +729,191 @@ describe('persistence', () => {
     const track = getTrack(restored, 'v0');
     expect(track.processors).toHaveLength(2);
     expect(track.processors!.map(p => p.type)).toEqual(['ripples', 'compressor']);
+  });
+
+
+  // --- Duplicate ID deduplication tests (#1155-#1162) ---
+
+  describe('deduplicateById helper', () => {
+    it('keeps first occurrence and drops duplicates', () => {
+      const items = [
+        { id: 'a', value: 1 },
+        { id: 'b', value: 2 },
+        { id: 'a', value: 3 },
+      ];
+      const result = deduplicateById(items, i => i.id, 'test');
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual({ id: 'a', value: 1 });
+      expect(result[1]).toEqual({ id: 'b', value: 2 });
+    });
+
+    it('returns same array content when no duplicates', () => {
+      const items = [{ id: 'x' }, { id: 'y' }];
+      const result = deduplicateById(items, i => i.id, 'test');
+      expect(result).toHaveLength(2);
+    });
+
+    it('handles empty array', () => {
+      expect(deduplicateById([], (i: { id: string }) => i.id, 'test')).toEqual([]);
+    });
+  });
+
+  describe('duplicate ID deduplication on restore', () => {
+    function makeSession(): ReturnType<typeof createSession> {
+      const session = createSession();
+      // Add a message so it's non-default
+      return {
+        ...session,
+        messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      };
+    }
+
+    it('#1155: deduplicates track IDs, keeping first', () => {
+      const session = makeSession();
+      const dupTrack = { ...session.tracks[0], id: session.tracks[0].id };
+      const withDups = {
+        ...session,
+        tracks: [...session.tracks, dupTrack],
+      };
+      const restored = restoreSession(withDups);
+      const trackIds = restored.tracks.map(t => t.id);
+      const uniqueIds = new Set(trackIds);
+      expect(trackIds.length).toBe(uniqueIds.size);
+    });
+
+    it('#1156: deduplicates processor IDs within a track', () => {
+      const session = makeSession();
+      const proc: ProcessorConfig = { id: 'proc-1', type: 'ripples', model: 0, params: {} };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, processors: [proc, { ...proc, params: { cutoff: 0.5 } }] } : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.processors).toHaveLength(1);
+      expect(track.processors![0].params).toEqual({});
+    });
+
+    it('#1156: deduplicates modulator IDs within a track', () => {
+      const session = makeSession();
+      // Use a type that's in the registered modulator types
+      const mod: ModulatorConfig = { id: 'mod-1', type: 'tides', model: 0, params: {} };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, modulators: [mod, { ...mod, params: { attack: 0.5 } }] } : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.modulators).toHaveLength(1);
+    });
+
+    it('#1157: deduplicates drum pad IDs within a drum rack', () => {
+      const session = makeSession();
+      const pad: DrumPad = { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 0, params: {} }, level: 0.8, pan: 0.5 };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, drumRack: { pads: [pad, { ...pad, name: 'Kick 2' }] } } : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.drumRack!.pads).toHaveLength(1);
+      expect(track.drumRack!.pads[0].name).toBe('Kick');
+    });
+
+    it('#1158: deduplicates pattern IDs within a track', () => {
+      const session = makeSession();
+      const track0 = session.tracks[0];
+      const pat = track0.patterns[0];
+      const dupPat: Pattern = { ...pat, name: 'Duplicate' };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [pat, dupPat] } : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, track0.id);
+      expect(track.patterns).toHaveLength(1);
+    });
+
+    it('#1159: deduplicates surface module IDs within a track', () => {
+      const session = makeSession();
+      const mod: SurfaceModule = {
+        type: 'knob-group', id: 'mod-1', label: 'Test',
+        bindings: [], position: { x: 0, y: 0, w: 1, h: 1 }, config: {},
+      };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, surface: { ...t.surface, modules: [mod, { ...mod, label: 'Dup' }] } }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.surface.modules).toHaveLength(1);
+      expect(track.surface.modules[0].label).toBe('Test');
+    });
+
+    it('#1160: deduplicates modulation route IDs within a track', () => {
+      const session = makeSession();
+      const route: ModulationRouting = {
+        id: 'route-1', modulatorId: 'mod-1',
+        target: { kind: 'source', param: 'timbre' }, depth: 0.5,
+      };
+      // Note: modulation routes also get filtered by valid modulator IDs,
+      // so we need a valid modulator to keep them
+      const mod: ModulatorConfig = { id: 'mod-1', type: 'tides', model: 0, params: {} };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, modulators: [mod], modulations: [route, { ...route, depth: 0.8 }] }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.modulations).toHaveLength(1);
+      expect(track.modulations![0].depth).toBe(0.5);
+    });
+
+    it('#1161: deduplicates sends to the same bus', () => {
+      const session = makeSession();
+      const send1: Send = { busId: 'bus-1', level: 0.5 };
+      const send2: Send = { busId: 'bus-1', level: 0.8 };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, sends: [send1, send2] } : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.sends).toHaveLength(1);
+      expect(track.sends![0].level).toBe(0.5);
+    });
+
+    it('#1162: deduplicates sequencer view IDs within a track', () => {
+      const session = makeSession();
+      const view: SequencerViewConfig = { kind: 'step-grid', id: 'view-1' };
+      const withDups = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, views: [view, { ...view, kind: 'piano-roll' as const }] } : t,
+        ),
+      };
+      const restored = restoreSession(withDups);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.views).toHaveLength(1);
+      expect(track.views![0].kind).toBe('step-grid');
+    });
   });
 });

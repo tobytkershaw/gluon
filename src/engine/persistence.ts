@@ -14,6 +14,29 @@ const STORAGE_KEY = 'gluon-session';
 export const CURRENT_VERSION = 6;
 export const MAX_PERSISTED_UNDO = 50;
 
+/**
+ * Remove duplicate entries from an array by a key extractor.
+ * Keeps the first occurrence of each key and warns about dropped duplicates.
+ */
+export function deduplicateById<T>(
+  items: T[],
+  keyFn: (item: T) => string,
+  context: string,
+): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) {
+      console.warn(`[persistence] ${context}: dropping duplicate id "${key}"`);
+      continue;
+    }
+    seen.add(key);
+    result.push(item);
+  }
+  return result;
+}
+
 interface PersistedSession {
   version: number;
   session: Session;
@@ -246,6 +269,53 @@ export function migrateTrack(track: Track): Track {
   );
   surfaced = { ...surfaced, modulators: validModulators, modulations: validModulations };
 
+  // --- Deduplicate per-track collections (#1155-#1162) ---
+  const ctx = `Track ${surfaced.id}`;
+
+  // #1156: processors and modulators
+  if (surfaced.processors) {
+    surfaced = { ...surfaced, processors: deduplicateById(surfaced.processors, p => p.id, `${ctx} processors`) };
+  }
+  surfaced = { ...surfaced, modulators: deduplicateById(surfaced.modulators ?? [], m => m.id, `${ctx} modulators`) };
+
+  // #1160: modulation routes
+  surfaced = { ...surfaced, modulations: deduplicateById(surfaced.modulations ?? [], r => r.id, `${ctx} modulations`) };
+
+  // #1158: patterns
+  surfaced = { ...surfaced, patterns: deduplicateById(surfaced.patterns, p => p.id, `${ctx} patterns`) };
+
+  // #1162: sequencer views
+  if (surfaced.views) {
+    surfaced = { ...surfaced, views: deduplicateById(surfaced.views, v => v.id, `${ctx} views`) };
+  }
+
+  // #1159: surface modules
+  if (surfaced.surface?.modules) {
+    surfaced = {
+      ...surfaced,
+      surface: {
+        ...surfaced.surface,
+        modules: deduplicateById(surfaced.surface.modules, m => m.id, `${ctx} surface modules`),
+      },
+    };
+  }
+
+  // #1157: drum pad IDs
+  if (surfaced.drumRack?.pads) {
+    surfaced = {
+      ...surfaced,
+      drumRack: {
+        ...surfaced.drumRack,
+        pads: deduplicateById(surfaced.drumRack.pads, p => p.id, `${ctx} drum pads`),
+      },
+    };
+  }
+
+  // #1161: duplicate sends to the same bus
+  if (surfaced.sends) {
+    surfaced = { ...surfaced, sends: deduplicateById(surfaced.sends, s => s.busId, `${ctx} sends`) };
+  }
+
   // Always re-project step-grid from patterns (step-grid is derived, never trusted from save)
   return reprojectTrackStepGrid(surfaced, defaultInverseOpts);
 }
@@ -270,7 +340,8 @@ export function saveSession(session: Session): void {
  * and imported project files.
  */
 export function restoreSession(session: Session, persistedVersion: number = CURRENT_VERSION): Session {
-  let migratedTracks = session.tracks.map(migrateTrack);
+  // #1155: deduplicate track IDs (keep first occurrence)
+  let migratedTracks = deduplicateById(session.tracks.map(migrateTrack), t => t.id, 'Session tracks');
 
   // Ensure a master bus exists across all persisted load paths.
   if (!migratedTracks.some(t => t.id === MASTER_BUS_ID)) {
