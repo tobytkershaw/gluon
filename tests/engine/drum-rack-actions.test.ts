@@ -25,7 +25,7 @@ function createTestAdapter(): SourceAdapter {
     applyControlChanges() {},
     mapEvents() { return []; },
     readControlState() { return {}; },
-    readRegions() { return []; },
+    readPatterns() { return []; },
     getControlSchemas() { return []; },
     validateOperation() { return { valid: true }; },
     midiToNormalisedPitch(midi: number) { return midi / 127; },
