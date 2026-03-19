@@ -23,6 +23,8 @@ import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
 import type { TidesPatchParams } from './tides-messages';
+import type { MarblesEngine } from './marbles-synth';
+import type { MarblesPatchParams } from './marbles-messages';
 import type { RingsPatchParams } from './rings-messages';
 import type { CloudsPatchParams } from './clouds-messages';
 import type { PlaitsExtendedParams } from './plaits-messages';
@@ -47,10 +49,12 @@ interface ProcessorSlot {
   enabled: boolean;
 }
 
+type ModulatorEngine = TidesEngine | MarblesEngine;
+
 interface ModulatorSlot {
   id: string;
   type: string;
-  engine: TidesEngine;
+  engine: ModulatorEngine;
   keepAliveGain: GainNode;  // gain=0 → destination (prevents GC)
 }
 
@@ -247,6 +251,17 @@ function toTidesPatchParams(params: Record<string, number>): TidesPatchParams {
     shape: params.shape ?? 0.5,
     slope: params.slope ?? 0.5,
     smoothness: params.smoothness ?? 0.5,
+  };
+}
+
+function toMarblesPatchParams(params: Record<string, number>): MarblesPatchParams {
+  return {
+    rate: params.rate ?? 0.5,
+    spread: params.spread ?? 0.5,
+    bias: params.bias ?? 0.5,
+    steps: params.steps ?? 0.0,
+    deja_vu: params.deja_vu ?? params['deja_vu'] ?? 0.0,
+    length: params.length ?? 0.25,
   };
 }
 
@@ -1128,9 +1143,16 @@ export class AudioEngine {
 
     this.pendingModulators.add(key);
     try {
-      if (modulatorType !== 'tides') return;
-      const { createTidesModulator } = await import('./create-synth');
-      const engine = await createTidesModulator(this.ctx);
+      let engine: ModulatorEngine;
+      if (modulatorType === 'tides') {
+        const { createTidesModulator } = await import('./create-synth');
+        engine = await createTidesModulator(this.ctx);
+      } else if (modulatorType === 'marbles') {
+        const { createMarblesModulator } = await import('./create-synth');
+        engine = await createMarblesModulator(this.ctx);
+      } else {
+        return;
+      }
 
       // After async gap: only insert if still wanted
       if (!this.pendingModulators.has(key)) {
@@ -1187,8 +1209,13 @@ export class AudioEngine {
     if (!slots) return;
     const modSlot = slots.find(s => s.id === modulatorId);
     if (!modSlot) return;
-    modSlot.engine.setPatch(toTidesPatchParams(params));
-    modSlot.engine.setExtended(toTidesExtendedParams(params));
+    if (modSlot.type === 'marbles') {
+      (modSlot.engine as MarblesEngine).setPatch(toMarblesPatchParams(params));
+    } else {
+      // Default: Tides
+      (modSlot.engine as TidesEngine).setPatch(toTidesPatchParams(params));
+      (modSlot.engine as TidesEngine).setExtended(toTidesExtendedParams(params));
+    }
   }
 
   setModulatorModel(trackId: string, modulatorId: string, model: number): void {

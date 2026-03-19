@@ -46,6 +46,13 @@ export {
 } from './instrument-registry-tides';
 
 export {
+  marblesInstrument,
+  getMarblesEngineById,
+  getMarblesEngineByIndex,
+  getMarblesModelList,
+} from './instrument-registry-marbles';
+
+export {
   ripplesInstrument,
   getRipplesEngineById,
   getRipplesEngineByIndex,
@@ -122,6 +129,7 @@ import { warpsInstrument } from './instrument-registry-warps';
 import { elementsInstrument } from './instrument-registry-elements';
 import { beadsInstrument } from './instrument-registry-beads';
 import { tidesInstrument } from './instrument-registry-tides';
+import { marblesInstrument } from './instrument-registry-marbles';
 
 const processorInstruments = new Map<string, InstrumentDef>([
   ['rings', ringsInstrument],
@@ -174,6 +182,7 @@ export function getRegisteredProcessorTypes(): string[] {
 
 const modulatorInstruments = new Map<string, InstrumentDef>([
   ['tides', tidesInstrument],
+  ['marbles', marblesInstrument],
 ]);
 
 /** Get the instrument definition for a modulator type */
