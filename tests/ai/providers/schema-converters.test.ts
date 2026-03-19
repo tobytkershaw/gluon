@@ -6,9 +6,9 @@ import type { ToolSchema } from '../../../src/ai/types';
 import { Type } from '@google/genai';
 
 describe('toGeminiDeclarations', () => {
-  it('converts all 40 tools without error', () => {
+  it('converts all tools without error', () => {
     const declarations = toGeminiDeclarations(GLUON_TOOLS);
-    expect(declarations).toHaveLength(40);
+    expect(declarations).toHaveLength(GLUON_TOOLS.length);
   });
 
   it('preserves tool names and descriptions', () => {
@@ -155,9 +155,9 @@ describe('toGeminiDeclarations', () => {
 });
 
 describe('toOpenAITools', () => {
-  it('converts all 40 tools', () => {
+  it('converts all tools', () => {
     const tools = toOpenAITools(GLUON_TOOLS);
-    expect(tools).toHaveLength(40);
+    expect(tools).toHaveLength(GLUON_TOOLS.length);
   });
 
   it('produces correct envelope format', () => {

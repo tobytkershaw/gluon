@@ -746,17 +746,29 @@ const manageViewTool: ToolSchema = {
 const setSurfaceTool: ToolSchema = {
   name: 'set_surface',
   description:
-    'Define semantic controls for a track\'s UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters. Does not require agency. Takes effect after this response.',
+    'Define semantic controls for a track\'s UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters. Also supports action="auto_map" to expose raw parameters one-to-one without blend math. Does not require agency. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
+      action: {
+        type: 'string',
+        enum: ['define', 'auto_map'],
+        description: 'Optional mode. Omit or use "define" for explicit semantic controls. Use "auto_map" with params to expose raw parameters one-to-one as surface controls.',
+      },
       trackId: {
         type: 'string',
         description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
+      params: {
+        type: 'array',
+        description: 'For action="auto_map": raw source parameter IDs to expose directly as one control each (for example "size", "density", "timbre").',
+        items: {
+          type: 'string',
+        },
+      },
       semanticControls: {
         type: 'array',
-        description: 'Array of semantic control definitions. Each control blends one or more underlying parameters via weighted sums.',
+        description: 'For explicit surface authoring: array of semantic control definitions. Each control blends one or more underlying parameters via weighted sums.',
         items: {
           type: 'object',
           properties: {
@@ -805,7 +817,7 @@ const setSurfaceTool: ToolSchema = {
         description: 'Short description of the surface configuration.',
       },
     },
-    required: ['trackId', 'semanticControls', 'description'],
+    required: ['trackId', 'description'],
   },
 };
 
