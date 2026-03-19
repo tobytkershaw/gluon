@@ -13,6 +13,7 @@ import { StepGridModule } from './StepGridModule';
 import { ChainStripModule } from './ChainStripModule';
 import { PianoRollModule } from './PianoRollModule';
 import { LevelMeterModule } from './LevelMeterModule';
+import { PadGridModule } from './PadGridModule';
 import { ModulePicker } from './ModulePicker';
 import { ModuleConfigPanel } from './ModuleConfigPanel';
 
@@ -44,6 +45,7 @@ const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> 
   'chain-strip': ChainStripModule,
   'piano-roll': PianoRollModule,
   'level-meter': LevelMeterModule,
+  'pad-grid': PadGridModule,
 };
 
 export function SurfaceCanvas({

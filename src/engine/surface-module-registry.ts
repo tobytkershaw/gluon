@@ -87,6 +87,15 @@ const moduleDefs: SurfaceModuleDef[] = [
     minSize: { w: 1, h: 3 },
     maxSize: { w: 3, h: 6 },
   },
+  {
+    type: 'pad-grid',
+    name: 'Pad Grid',
+    description: 'Drum pad grid with trigger, velocity, and per-pad controls.',
+    requiredBindings: [{ role: 'kit', description: 'Drum rack track to bind to' }],
+    defaultSize: { w: 6, h: 4 },
+    minSize: { w: 4, h: 3 },
+    maxSize: { w: 8, h: 6 },
+  },
 ];
 
 const moduleDefMap = new Map<string, SurfaceModuleDef>(

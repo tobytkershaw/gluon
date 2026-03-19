@@ -23,9 +23,10 @@ export interface ChainSurfaceTemplate {
 
 /**
  * Generate a chain signature from a track's engine + processor types.
- * e.g. 'plaits', 'plaits:rings', 'plaits:rings:clouds'
+ * e.g. 'plaits', 'plaits:rings', 'plaits:rings:clouds', 'drum-rack'
  */
 export function getChainSignature(track: Track): string {
+  if (track.drumRack) return 'drum-rack';
   const parts = [track.engine.split('-')[0] === 'analog' ? 'plaits' : 'plaits'];
   for (const proc of track.processors ?? []) {
     parts.push(proc.type);
@@ -286,10 +287,46 @@ const templates: ChainSurfaceTemplate[] = [
   },
 ];
 
+// Drum rack template — pad-grid + step-grid + knob-group
+const drumRackTemplate: ChainSurfaceTemplate = {
+  chainSignature: 'drum-rack',
+  modules: [
+    {
+      type: 'pad-grid',
+      id: 'pad-grid',
+      label: 'Pads',
+      bindings: [{ role: 'kit', trackId: '', target: 'drum-rack' }],
+      position: { x: 0, y: 0, w: 6, h: 4 },
+      config: {},
+    },
+    {
+      type: 'step-grid',
+      id: 'step-grid',
+      label: 'Pattern',
+      bindings: [{ role: 'region', trackId: '', target: 'current' }],
+      position: { x: 6, y: 0, w: 6, h: 3 },
+      config: {},
+    },
+    {
+      type: 'knob-group',
+      id: 'kit-controls',
+      label: 'Kit Controls',
+      bindings: [
+        { role: 'control', trackId: '', target: 'timbre' },
+        { role: 'control', trackId: '', target: 'morph' },
+        { role: 'control', trackId: '', target: 'harmonics' },
+      ],
+      position: { x: 6, y: 3, w: 4, h: 2 },
+      config: {},
+    },
+  ],
+};
+
 /**
  * Look up a template by exact chain signature match.
  */
 export function getTemplateForChain(signature: string): ChainSurfaceTemplate | null {
+  if (signature === 'drum-rack') return drumRackTemplate;
   return templates.find(t => t.chainSignature === signature) ?? null;
 }
 
