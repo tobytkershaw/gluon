@@ -213,6 +213,14 @@ export interface ScaleConstraint {
   mode: ScaleMode;
 }
 
+/** Bar-indexed harmonic cue for chord-aware generation. */
+export interface ChordProgressionEntry {
+  /** 1-based bar index. */
+  bar: number;
+  /** Chord symbol, e.g. "Fm", "Eb", "Db", "C7". */
+  chord: string;
+}
+
 /**
  * UI selection context from the Tracker view.
  * When the human has an active selection, this describes what they're pointing at
@@ -473,7 +481,14 @@ export interface ScaleSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot;
+export interface ChordProgressionSnapshot {
+  kind: 'chord-progression';
+  prevChordProgression: ChordProgressionEntry[] | null | undefined;
+  timestamp: number;
+  description: string;
+}
+
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -803,6 +818,11 @@ export interface AISetScaleAction {
   scale: ScaleConstraint | null;
 }
 
+export interface AISetChordProgressionAction {
+  type: 'set_chord_progression';
+  chordProgression: ChordProgressionEntry[] | null;
+}
+
 export interface AIAssignSpectralSlotAction {
   type: 'assign_spectral_slot';
   trackId: string;
@@ -863,7 +883,7 @@ export interface AIRenameTrackAction {
   name: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
 
 // --- Reaction History ---
 
@@ -982,6 +1002,8 @@ export interface Session {
   section?: SectionMeta;
   /** Global scale/key constraint. When set, sketch pitches are auto-quantized. Null = chromatic/atonal. */
   scale?: ScaleConstraint | null;
+  /** Bar-indexed harmonic cues for chord-aware generation. Null = explicitly cleared. */
+  chordProgression?: ChordProgressionEntry[] | null;
   /** Tension/energy curve over the arrangement timeline. Metadata for AI compositional decisions. */
   tensionCurve?: TensionCurve;
 }

@@ -547,7 +547,7 @@ Each turn you receive a JSON state snapshot. Here's what it contains per track:
 - \`surface_pinned\`: pinned raw controls, if any
 - \`sends\`: bus send levels, if routing is configured
 
-Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), and optionally \`userSelection\` (what the human has selected in the Tracker).
+Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), \`chord_progression\` (bar-by-bar harmonic roadmap with derived chord tones), and optionally \`userSelection\` (what the human has selected in the Tracker).
 
 ## User Selection
 When the human has an active selection in the Tracker view, the compressed state includes \`userSelection\`:
@@ -583,6 +583,14 @@ The compressed state may include \`scale\` — a global harmonic constraint. Whe
 - The compressed state shows the scale label (e.g. "C major") and available note names when a scale is active.
 - Trigger/percussion events are not affected — only note events with MIDI pitches are quantized.
 - Set the scale proactively when the genre or references imply a key. UK garage in F minor? Set it. Atonal noise? Clear it or don't set it.
+
+## Chord Progression
+The compressed state may also include \`chord_progression\` — an ordered list of bar-indexed chords. Each entry includes the bar, the chord symbol, and derived chord tones. Use it when the harmony changes over time instead of assuming one global chord.
+
+- **set_chord_progression**: replace the whole progression with bar/chord entries. Bars are 1-based.
+- **set_chord_progression(clear: true)**: remove the progression when you want no harmonic roadmap.
+- When a progression is present, prefer chord tones for the current bar and use the progression to shape basslines, pads, and motifs across sections.
+- Keep \`scale\` and \`chord_progression\` distinct: scale is the global pitch-class pool, progression is the per-bar harmonic destination.
 
 ## Arrangement Thinking
 When composing beyond a single loop, think in terms of song structure — sections, transitions, energy arcs, and phrasing.

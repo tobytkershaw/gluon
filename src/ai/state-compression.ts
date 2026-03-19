@@ -5,6 +5,7 @@ import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModul
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { scaleToString, scaleNoteNames } from '../engine/scale';
+import { getChordToneNames } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 
 interface CompressedPattern {
@@ -98,6 +99,12 @@ interface CompressedDecision {
   trackIds?: string[];
 }
 
+interface CompressedChordProgressionEntry {
+  bar: number;
+  chord: string;
+  tones: string[];
+}
+
 /** Compressed summary of a preservation report for inclusion in AI state. */
 interface CompressedPreservationReport {
   trackId: string;
@@ -132,6 +139,7 @@ export interface CompressedState {
   genre_reference_overlays?: CompressedGenreReferenceOverlay[];
   section?: SectionMeta;
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
+  chord_progression?: CompressedChordProgressionEntry[] | null;
   userSelection?: CompressedUserSelection;
 }
 
@@ -599,6 +607,13 @@ export function compressState(session: Session, recentPreservationReports?: Pres
         label: scaleToString(session.scale),
         notes: scaleNoteNames(session.scale),
       } : null,
+    } : {}),
+    ...(session.chordProgression !== undefined ? {
+      chord_progression: session.chordProgression ? session.chordProgression.map(entry => ({
+        bar: entry.bar,
+        chord: entry.chord,
+        tones: getChordToneNames(entry.chord),
+      })) : null,
     } : {}),
     ...(userSelection && userSelection.eventIndices.length > 0 ? {
       userSelection: {

@@ -162,6 +162,7 @@ describe('AI Contract alignment with live implementation', () => {
     expect(json).toContain('"pan"');
     expect(json).toContain('"importance"');
     expect(json).toContain('"time_signature"');
+    expect(json).toContain('"chord_progression"');
   });
 
   // ── Multi-provider architecture ─────────────────────────────────────────

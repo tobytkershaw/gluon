@@ -1373,6 +1373,41 @@ const setScaleTool: ToolSchema = {
   },
 };
 
+const setChordProgressionTool: ToolSchema = {
+  name: 'set_chord_progression',
+  description:
+    'Set the chord progression for bar-based harmonic guidance. Replaces the entire progression. ' +
+    'When active, the compressed state exposes the current chord per bar and derived chord tones so sketches and motifs can stay aligned to the harmony. ' +
+    'Set to null or clear it when you want chromatic/atonal work or no harmonic roadmap.',
+  parameters: {
+    type: 'object',
+    properties: {
+      chords: {
+        type: 'array',
+        description: 'Ordered bar-to-chord map. Bar numbers are 1-based. Each entry must have a unique bar.',
+        items: {
+          type: 'object',
+          properties: {
+            bar: {
+              type: 'integer',
+              description: '1-based bar index where this chord begins.',
+            },
+            chord: {
+              type: 'string',
+              description: 'Chord symbol, e.g. "Fm", "Eb", "Db", "C7".',
+            },
+          },
+          required: ['bar', 'chord'],
+        },
+      },
+      clear: {
+        type: 'boolean',
+        description: 'Set to true to clear the chord progression.',
+      },
+    },
+  },
+};
+
 const setSectionTool: ToolSchema = {
   name: 'set_section',
   description:
@@ -1823,6 +1858,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setIntentTool,
   setSectionTool,
   setScaleTool,
+  setChordProgressionTool,
   setTensionTool,
   applyChainRecipeTool,
   setMixRoleTool,

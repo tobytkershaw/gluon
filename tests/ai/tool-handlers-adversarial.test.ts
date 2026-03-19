@@ -1552,6 +1552,39 @@ describe('set_scale — adversarial', () => {
 });
 
 // ---------------------------------------------------------------------------
+// set_chord_progression
+// ---------------------------------------------------------------------------
+
+describe('set_chord_progression — adversarial', () => {
+  it('rejects when neither chords nor clear are provided', async () => {
+    const { response, actions } = await callTool(makeSession(), 'set_chord_progression', {});
+    expect(response.error).toMatch(/chords array/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('rejects empty chords arrays', async () => {
+    const { response, actions } = await callTool(makeSession(), 'set_chord_progression', { chords: [] });
+    expect(response.error).toMatch(/non-empty chords array/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('rejects duplicate bars', async () => {
+    const { response, actions } = await callTool(makeSession(), 'set_chord_progression', {
+      chords: [{ bar: 1, chord: 'Fm' }, { bar: 1, chord: 'Eb' }],
+    });
+    expect(response.error).toMatch(/duplicate chord entry/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('accepts clear: true', async () => {
+    const { response, actions } = await callTool(makeSession(), 'set_chord_progression', { clear: true });
+    expect(response.applied).toBe(true);
+    expect(response.chord_progression).toBeNull();
+    expect(actions.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // set_intent
 // ---------------------------------------------------------------------------
 

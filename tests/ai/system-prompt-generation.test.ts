@@ -169,6 +169,12 @@ describe('dynamic track setup', () => {
     expect(prompt).toContain('manage_sequence');
     expect(prompt).toContain('set_section');
   });
+
+  it('includes chord progression guidance', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('set_chord_progression');
+    expect(prompt).toContain('chord_progression');
+  });
 });
 
 describe('dynamic prompt reference (#777)', () => {
