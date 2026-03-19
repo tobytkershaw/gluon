@@ -1,6 +1,6 @@
 // src/engine/operation-executor.ts
 import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
-import { MASTER_BUS_ID, type PermissionRequest } from './types';
+import { MASTER_BUS_ID } from './types';
 
 /**
  * Prefix used by prevalidateAction to distinguish master-volume permission
@@ -534,7 +534,6 @@ export function prevalidateAction(
     case 'set_portamento': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
       if (action.time !== undefined) {
         if (!Number.isFinite(action.time)) return `Non-finite portamento time: ${action.time}`;
         if (action.time < 0 || action.time > 1) return `Portamento time out of range (0.0-1.0): ${action.time}`;
