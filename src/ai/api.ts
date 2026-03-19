@@ -511,6 +511,7 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, { modulations });
     }
     case 'set_surface': {
+      const track = getTrack(session, action.trackId);
       const newSurface: TrackSurface = {
         ...track.surface,
         modules: action.modules,
