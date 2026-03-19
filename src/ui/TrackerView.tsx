@@ -395,7 +395,7 @@ export function TrackerView({
                   pads={activeTrack.drumRack.pads}
                   playheadStep={currentStep}
                   playing={playing}
-                  stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
+                  stepsPerBeat={4}
                 />
               ) : (
                 <Tracker

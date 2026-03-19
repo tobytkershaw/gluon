@@ -304,21 +304,11 @@ const drumRackTemplate: ChainSurfaceTemplate = {
       id: 'step-grid',
       label: 'Pattern',
       bindings: [{ role: 'region', trackId: '', target: 'current' }],
-      position: { x: 6, y: 0, w: 6, h: 3 },
+      position: { x: 6, y: 0, w: 6, h: 4 },
       config: {},
     },
-    {
-      type: 'knob-group',
-      id: 'kit-controls',
-      label: 'Kit Controls',
-      bindings: [
-        { role: 'control', trackId: '', target: 'timbre' },
-        { role: 'control', trackId: '', target: 'morph' },
-        { role: 'control', trackId: '', target: 'harmonics' },
-      ],
-      position: { x: 6, y: 3, w: 4, h: 2 },
-      config: {},
-    },
+    // TODO: Add per-pad knob-group when pad selection is wired through the surface.
+    // Drum rack tracks don't have top-level source params — params live on individual pads.
   ],
 };
 

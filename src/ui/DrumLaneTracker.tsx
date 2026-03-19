@@ -57,7 +57,7 @@ export function DrumLaneTracker({
   playing,
   stepsPerBeat = 4,
 }: Props) {
-  const stepCount = Math.max(1, Math.ceil(region.duration));
+  const stepCount = Math.max(1, Math.floor(region.duration));
   const padIds = useMemo(() => pads.map(p => p.id), [pads]);
 
   // Extract only trigger events

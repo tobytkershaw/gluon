@@ -27,7 +27,7 @@ export function PadGridModule({ module, track, visualContext, onParamChange, onI
     for (const event of pattern.events) {
       if (event.kind === 'trigger') {
         const te = event as TriggerEvent;
-        if (te.padId) active.add(te.padId);
+        if (te.padId && (te.velocity ?? 0.75) > 0) active.add(te.padId);
       }
     }
     return active;
@@ -38,17 +38,14 @@ export function PadGridModule({ module, track, visualContext, onParamChange, onI
   const rows = Math.max(1, Math.ceil(pads.length / cols));
 
   const handlePadTap = useCallback((padId: string) => {
-    // Visual feedback
+    // Visual feedback only for now
     setActivePadId(padId);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => setActivePadId(null), 150);
-
-    // Fire audition via onParamChange — use a convention of "audition:<padId>"
-    // to signal the audio engine to trigger this pad
-    onInteractionStart?.();
-    onParamChange?.(`audition:${padId}`, 1.0);
-    onInteractionEnd?.();
-  }, [onParamChange, onInteractionStart, onInteractionEnd]);
+    // TODO: Wire tap-to-audition via a dedicated onAuditionPad prop
+    // threaded from SurfaceCanvas through to the audio engine.
+    // The onParamChange path only handles source params, not pad triggers.
+  }, []);
 
   if (pads.length === 0) {
     return (
