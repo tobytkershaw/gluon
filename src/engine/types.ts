@@ -88,6 +88,32 @@ export interface ModulationRouting {
   depth: number;        // -1.0 to 1.0 (bipolar)
 }
 
+// --- Track Visual Identity (constrained primitives for Surface rendering) ---
+
+/** Constrained visual identity primitives for Surface rendering. */
+export interface TrackVisualIdentity {
+  /** Track colour in HSB. Hue 0-360, saturation 0-1, brightness 0-1. */
+  colour: { hue: number; saturation: number; brightness: number };
+  /** Visual weight — how heavy/dense the track feels. 0.0 (featherlight) to 1.0 (heavy). */
+  weight: number;
+  /** Edge treatment style for module borders. */
+  edgeStyle: 'crisp' | 'soft' | 'glow';
+  /** Visual foregrounding — how prominent this track is. 0.0 (recedes) to 1.0 (foregrounded). */
+  prominence: number;
+}
+
+/** Visual context derived from track identity, consumed by Surface module rendering. */
+export interface ModuleVisualContext {
+  /** Track colour from identity */
+  trackColour: { hue: number; saturation: number; brightness: number };
+  /** Visual weight 0-1 */
+  weight: number;
+  /** Edge treatment */
+  edgeStyle: 'crisp' | 'soft' | 'glow';
+  /** Prominence 0-1 */
+  prominence: number;
+}
+
 // --- Track Surface (Layer model for UI, Steps 5+ activate semantic controls) ---
 
 export type SemanticTransform = 'linear' | 'inverse' | 'bipolar';
@@ -184,6 +210,8 @@ export interface Track {
   modulators?: ModulatorConfig[];
   /** Modulation routings (modulator → target param). */
   modulations?: ModulationRouting[];
+  /** Visual identity for Surface rendering. AI-set, human-overridable. */
+  visualIdentity?: TrackVisualIdentity;
   /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
   surface: TrackSurface;
   /** Approval level for the track's current material. Default: 'exploratory'. */

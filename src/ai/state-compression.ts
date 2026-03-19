@@ -569,6 +569,16 @@ export function compressState(
           return `${m.type}[${m.label}]`;
         }),
       } : {}),
+      ...(track.visualIdentity ? {
+        identity: {
+          hue: Math.round(track.visualIdentity.colour.hue),
+          sat: round2(track.visualIdentity.colour.saturation),
+          bright: round2(track.visualIdentity.colour.brightness),
+          weight: round2(track.visualIdentity.weight),
+          edge: track.visualIdentity.edgeStyle,
+          prom: round2(track.visualIdentity.prominence),
+        },
+      } : {}),
       ...(track.importance != null ? { importance: round2(track.importance) } : {}),
       ...(track.musicalRole ? { musicalRole: track.musicalRole } : {}),
       ...(track.sends && track.sends.length > 0 ? {
