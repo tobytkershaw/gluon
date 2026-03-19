@@ -9,7 +9,8 @@
  * that are resolved to actual track module IDs at application time.
  */
 
-import type { SemanticControlDef, TrackSurface, Track } from './types';
+import type { SemanticControlDef, TrackSurface, Track, SurfaceModule, PinnedControl, ThumbprintConfig } from './types';
+import { isValidModuleType } from './surface-module-registry';
 
 // ---------------------------------------------------------------------------
 // Chain signature
@@ -17,8 +18,7 @@ import type { SemanticControlDef, TrackSurface, Track } from './types';
 
 export interface ChainSurfaceTemplate {
   chainSignature: string;
-  semanticControls: SemanticControlDef[];
-  xyAxes: { x: string; y: string };
+  modules: SurfaceModule[];
 }
 
 /**
@@ -38,114 +38,251 @@ export function getChainSignature(track: Track): string {
 // ---------------------------------------------------------------------------
 
 const templates: ChainSurfaceTemplate[] = [
-  // Single module — no semantic controls (raw params suffice)
+  // Single module — raw knobs + step grid
   {
     chainSignature: 'plaits',
-    semanticControls: [],
-    xyAxes: { x: 'timbre', y: 'morph' },
+    modules: [
+      {
+        type: 'knob-group',
+        id: 'raw-controls',
+        label: 'Controls',
+        bindings: [
+          { role: 'control', trackId: '', target: 'timbre' },
+          { role: 'control', trackId: '', target: 'morph' },
+          { role: 'control', trackId: '', target: 'harmonics' },
+        ],
+        position: { x: 0, y: 0, w: 4, h: 2 },
+        config: {},
+      },
+      {
+        type: 'step-grid',
+        id: 'step-grid',
+        label: 'Pattern',
+        bindings: [{ role: 'region', trackId: '', target: 'current' }],
+        position: { x: 0, y: 2, w: 12, h: 3 },
+        config: {},
+      },
+    ],
   },
 
-  // Plaits + Rings — 2 semantic controls
+  // Plaits + Rings — Brightness + Resonance macro knobs + XY + Step Grid
   {
     chainSignature: 'plaits:rings',
-    semanticControls: [
+    modules: [
       {
+        type: 'macro-knob',
         id: 'brightness',
-        name: 'Brightness',
-        semanticRole: 'brightness',
-        description: 'Combined timbral brightness across source and resonator',
-        weights: [
-          { moduleId: 'source', controlId: 'timbre', weight: 0.5, transform: 'linear' },
-          { moduleId: 'processor-0', controlId: 'brightness', weight: 0.5, transform: 'linear' },
-        ],
-        range: { min: 0, max: 1, default: 0.5 },
+        label: 'Brightness',
+        bindings: [{ role: 'control', trackId: '', target: 'brightness' }],
+        position: { x: 0, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'brightness',
+            name: 'Brightness',
+            semanticRole: 'brightness',
+            description: 'Combined timbral brightness across source and resonator',
+            weights: [
+              { moduleId: 'source', controlId: 'timbre', weight: 0.5, transform: 'linear' },
+              { moduleId: 'processor-0', controlId: 'brightness', weight: 0.5, transform: 'linear' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
       },
       {
+        type: 'macro-knob',
         id: 'resonance',
-        name: 'Resonance',
-        semanticRole: null,
-        description: 'Resonator character — structure vs damping',
-        weights: [
-          { moduleId: 'processor-0', controlId: 'structure', weight: 0.6, transform: 'linear' },
-          { moduleId: 'processor-0', controlId: 'damping', weight: 0.4, transform: 'inverse' },
+        label: 'Resonance',
+        bindings: [{ role: 'control', trackId: '', target: 'resonance' }],
+        position: { x: 2, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'resonance',
+            name: 'Resonance',
+            semanticRole: null,
+            description: 'Resonator character — structure vs damping',
+            weights: [
+              { moduleId: 'processor-0', controlId: 'structure', weight: 0.6, transform: 'linear' },
+              { moduleId: 'processor-0', controlId: 'damping', weight: 0.4, transform: 'inverse' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
+      },
+      {
+        type: 'xy-pad',
+        id: 'xy-pad',
+        label: 'XY Pad',
+        bindings: [
+          { role: 'x-axis', trackId: '', target: 'brightness' },
+          { role: 'y-axis', trackId: '', target: 'resonance' },
         ],
-        range: { min: 0, max: 1, default: 0.5 },
+        position: { x: 4, y: 0, w: 4, h: 4 },
+        config: {},
+      },
+      {
+        type: 'step-grid',
+        id: 'step-grid',
+        label: 'Pattern',
+        bindings: [{ role: 'region', trackId: '', target: 'current' }],
+        position: { x: 0, y: 4, w: 12, h: 3 },
+        config: {},
       },
     ],
-    xyAxes: { x: 'brightness', y: 'resonance' },
   },
 
-  // Plaits + Clouds — 2 semantic controls
+  // Plaits + Clouds — Brightness + Space macro knobs + XY + Step Grid
   {
     chainSignature: 'plaits:clouds',
-    semanticControls: [
+    modules: [
       {
+        type: 'macro-knob',
         id: 'brightness',
-        name: 'Brightness',
-        semanticRole: 'brightness',
-        description: 'Timbral brightness balanced against granular feedback',
-        weights: [
-          { moduleId: 'source', controlId: 'timbre', weight: 0.6, transform: 'linear' },
-          { moduleId: 'processor-0', controlId: 'feedback', weight: 0.4, transform: 'inverse' },
-        ],
-        range: { min: 0, max: 1, default: 0.5 },
+        label: 'Brightness',
+        bindings: [{ role: 'control', trackId: '', target: 'brightness' }],
+        position: { x: 0, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'brightness',
+            name: 'Brightness',
+            semanticRole: 'brightness',
+            description: 'Timbral brightness balanced against granular feedback',
+            weights: [
+              { moduleId: 'source', controlId: 'timbre', weight: 0.6, transform: 'linear' },
+              { moduleId: 'processor-0', controlId: 'feedback', weight: 0.4, transform: 'inverse' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
       },
       {
+        type: 'macro-knob',
         id: 'space',
-        name: 'Space',
-        semanticRole: null,
-        description: 'Spatial depth — granular density and buffer size',
-        weights: [
-          { moduleId: 'processor-0', controlId: 'size', weight: 0.5, transform: 'linear' },
-          { moduleId: 'processor-0', controlId: 'density', weight: 0.5, transform: 'linear' },
+        label: 'Space',
+        bindings: [{ role: 'control', trackId: '', target: 'space' }],
+        position: { x: 2, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'space',
+            name: 'Space',
+            semanticRole: null,
+            description: 'Spatial depth — granular density and buffer size',
+            weights: [
+              { moduleId: 'processor-0', controlId: 'size', weight: 0.5, transform: 'linear' },
+              { moduleId: 'processor-0', controlId: 'density', weight: 0.5, transform: 'linear' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
+      },
+      {
+        type: 'xy-pad',
+        id: 'xy-pad',
+        label: 'XY Pad',
+        bindings: [
+          { role: 'x-axis', trackId: '', target: 'brightness' },
+          { role: 'y-axis', trackId: '', target: 'space' },
         ],
-        range: { min: 0, max: 1, default: 0.5 },
+        position: { x: 4, y: 0, w: 4, h: 4 },
+        config: {},
+      },
+      {
+        type: 'step-grid',
+        id: 'step-grid',
+        label: 'Pattern',
+        bindings: [{ role: 'region', trackId: '', target: 'current' }],
+        position: { x: 0, y: 4, w: 12, h: 3 },
+        config: {},
       },
     ],
-    xyAxes: { x: 'brightness', y: 'space' },
   },
 
-  // Plaits + Rings + Clouds — 3 semantic controls
+  // Plaits + Rings + Clouds — Brightness + Space + Resonance macro knobs + XY + Step Grid
   {
     chainSignature: 'plaits:rings:clouds',
-    semanticControls: [
+    modules: [
       {
+        type: 'macro-knob',
         id: 'brightness',
-        name: 'Brightness',
-        semanticRole: 'brightness',
-        description: 'Combined brightness across source, resonator, and granular processor',
-        weights: [
-          { moduleId: 'source', controlId: 'timbre', weight: 0.4, transform: 'linear' },
-          { moduleId: 'processor-0', controlId: 'brightness', weight: 0.3, transform: 'linear' },
-          { moduleId: 'processor-1', controlId: 'feedback', weight: 0.3, transform: 'inverse' },
-        ],
-        range: { min: 0, max: 1, default: 0.5 },
+        label: 'Brightness',
+        bindings: [{ role: 'control', trackId: '', target: 'brightness' }],
+        position: { x: 0, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'brightness',
+            name: 'Brightness',
+            semanticRole: 'brightness',
+            description: 'Combined brightness across source, resonator, and granular processor',
+            weights: [
+              { moduleId: 'source', controlId: 'timbre', weight: 0.4, transform: 'linear' },
+              { moduleId: 'processor-0', controlId: 'brightness', weight: 0.3, transform: 'linear' },
+              { moduleId: 'processor-1', controlId: 'feedback', weight: 0.3, transform: 'inverse' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
       },
       {
+        type: 'macro-knob',
         id: 'space',
-        name: 'Space',
-        semanticRole: null,
-        description: 'Spatial depth from granular processing',
-        weights: [
-          { moduleId: 'processor-1', controlId: 'size', weight: 0.5, transform: 'linear' },
-          { moduleId: 'processor-1', controlId: 'density', weight: 0.3, transform: 'linear' },
-          { moduleId: 'processor-1', controlId: 'position', weight: 0.2, transform: 'linear' },
-        ],
-        range: { min: 0, max: 1, default: 0.5 },
+        label: 'Space',
+        bindings: [{ role: 'control', trackId: '', target: 'space' }],
+        position: { x: 2, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'space',
+            name: 'Space',
+            semanticRole: null,
+            description: 'Spatial depth from granular processing',
+            weights: [
+              { moduleId: 'processor-1', controlId: 'size', weight: 0.5, transform: 'linear' },
+              { moduleId: 'processor-1', controlId: 'density', weight: 0.3, transform: 'linear' },
+              { moduleId: 'processor-1', controlId: 'position', weight: 0.2, transform: 'linear' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
       },
       {
+        type: 'macro-knob',
         id: 'resonance',
-        name: 'Resonance',
-        semanticRole: null,
-        description: 'Resonator character — structure vs damping',
-        weights: [
-          { moduleId: 'processor-0', controlId: 'structure', weight: 0.5, transform: 'linear' },
-          { moduleId: 'processor-0', controlId: 'damping', weight: 0.5, transform: 'inverse' },
+        label: 'Resonance',
+        bindings: [{ role: 'control', trackId: '', target: 'resonance' }],
+        position: { x: 4, y: 0, w: 2, h: 2 },
+        config: {
+          semanticControl: {
+            id: 'resonance',
+            name: 'Resonance',
+            semanticRole: null,
+            description: 'Resonator character — structure vs damping',
+            weights: [
+              { moduleId: 'processor-0', controlId: 'structure', weight: 0.5, transform: 'linear' },
+              { moduleId: 'processor-0', controlId: 'damping', weight: 0.5, transform: 'inverse' },
+            ],
+            range: { min: 0, max: 1, default: 0.5 },
+          },
+        },
+      },
+      {
+        type: 'xy-pad',
+        id: 'xy-pad',
+        label: 'XY Pad',
+        bindings: [
+          { role: 'x-axis', trackId: '', target: 'brightness' },
+          { role: 'y-axis', trackId: '', target: 'space' },
         ],
-        range: { min: 0, max: 1, default: 0.5 },
+        position: { x: 6, y: 0, w: 4, h: 4 },
+        config: {},
+      },
+      {
+        type: 'step-grid',
+        id: 'step-grid',
+        label: 'Pattern',
+        bindings: [{ role: 'region', trackId: '', target: 'current' }],
+        position: { x: 0, y: 4, w: 12, h: 3 },
+        config: {},
       },
     ],
-    xyAxes: { x: 'brightness', y: 'space' },
   },
 ];
 
@@ -176,16 +313,27 @@ function resolveModuleId(genericId: string, track: Track): string {
 }
 
 /**
- * Resolve all generic moduleIds in a semantic control def to actual track module IDs.
+ * Resolve all generic moduleIds in a SurfaceModule's config to actual track module IDs.
+ * For macro-knob modules, resolves the semantic control weight moduleIds.
  */
-function resolveSemanticControl(def: SemanticControlDef, track: Track): SemanticControlDef {
-  return {
-    ...def,
-    weights: def.weights.map(w => ({
-      ...w,
-      moduleId: resolveModuleId(w.moduleId, track),
-    })),
-  };
+function resolveModule(module: SurfaceModule, track: Track): SurfaceModule {
+  if (module.type === 'macro-knob' && module.config.semanticControl) {
+    const sc = module.config.semanticControl as SemanticControlDef;
+    return {
+      ...module,
+      config: {
+        ...module.config,
+        semanticControl: {
+          ...sc,
+          weights: sc.weights.map(w => ({
+            ...w,
+            moduleId: resolveModuleId(w.moduleId, track),
+          })),
+        },
+      },
+    };
+  }
+  return module;
 }
 
 // ---------------------------------------------------------------------------
@@ -194,25 +342,23 @@ function resolveSemanticControl(def: SemanticControlDef, track: Track): Semantic
 
 /**
  * Apply a surface template to a track, resolving generic module references.
- * Returns a new TrackSurface, or null if no template matches.
+ * Returns a new TrackSurface, or null if no template matches or surface wouldn't change.
  */
 export function applySurfaceTemplate(track: Track): TrackSurface | null {
   const signature = getChainSignature(track);
   const template = getTemplateForChain(signature);
   if (!template) return null;
 
-  const resolvedControls = template.semanticControls.map(sc => resolveSemanticControl(sc, track));
+  const resolvedModules = template.modules.map(m => resolveModule(m, track));
 
   // Skip if the surface wouldn't actually change
-  const currentIds = track.surface.semanticControls.map(sc => sc.id).join(',');
-  const newIds = resolvedControls.map(sc => sc.id).join(',');
-  const axesMatch = track.surface.xyAxes.x === template.xyAxes.x && track.surface.xyAxes.y === template.xyAxes.y;
-  if (currentIds === newIds && axesMatch) return null;
+  const currentIds = track.surface.modules.map(m => m.id).join(',');
+  const newIds = resolvedModules.map(m => m.id).join(',');
+  if (currentIds === newIds) return null;
 
   return {
     ...track.surface,
-    semanticControls: resolvedControls,
-    xyAxes: template.xyAxes,
+    modules: resolvedModules,
   };
 }
 
@@ -232,28 +378,96 @@ export function validateSurface(surface: TrackSurface, track: Track): string | n
     validModuleIds.add(proc.id);
   }
 
-  for (const sc of surface.semanticControls) {
-    if (sc.weights.length === 0) {
-      return `Semantic control '${sc.id}' has no weights`;
+  for (const mod of surface.modules) {
+    if (!isValidModuleType(mod.type)) {
+      return `Unknown module type: ${mod.type}`;
     }
 
-    const weightSum = sc.weights.reduce((sum, w) => sum + w.weight, 0);
-    if (Math.abs(weightSum - 1.0) > WEIGHT_SUM_TOLERANCE) {
-      return `Semantic control '${sc.id}' weights sum to ${weightSum.toFixed(3)}, expected 1.0`;
-    }
-
-    for (const w of sc.weights) {
-      if (!validModuleIds.has(w.moduleId)) {
-        return `Semantic control '${sc.id}' references unknown module '${w.moduleId}'`;
+    // Validate macro-knob semantic control config
+    if (mod.type === 'macro-knob' && mod.config.semanticControl) {
+      const sc = mod.config.semanticControl as SemanticControlDef;
+      if (!sc.weights || sc.weights.length === 0) {
+        return `Macro knob '${mod.id}' has no weights`;
+      }
+      const weightSum = sc.weights.reduce((sum, w) => sum + w.weight, 0);
+      if (Math.abs(weightSum - 1.0) > WEIGHT_SUM_TOLERANCE) {
+        return `Macro knob '${mod.id}' weights sum to ${weightSum.toFixed(3)}, expected 1.0`;
+      }
+      for (const w of sc.weights) {
+        if (!validModuleIds.has(w.moduleId)) {
+          return `Macro knob '${mod.id}' references unknown module '${w.moduleId}'`;
+        }
       }
     }
   }
 
-  for (const pin of surface.pinnedControls) {
-    if (!validModuleIds.has(pin.moduleId)) {
-      return `Pinned control references unknown module '${pin.moduleId}'`;
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Legacy surface migration (Layer 0c)
+// ---------------------------------------------------------------------------
+
+/**
+ * Migrate a legacy TrackSurface (with semanticControls/pinnedControls/xyAxes)
+ * to the new module-based format. Called during session hydration.
+ */
+export function migrateLegacySurface(legacy: Record<string, unknown>, trackId: string): TrackSurface {
+  const modules: SurfaceModule[] = [];
+  let nextY = 0;
+
+  // Convert semantic controls -> Macro Knob modules
+  const semanticControls = legacy.semanticControls as SemanticControlDef[] | undefined;
+  if (semanticControls && semanticControls.length > 0) {
+    for (let i = 0; i < semanticControls.length; i++) {
+      const sc = semanticControls[i];
+      modules.push({
+        type: 'macro-knob',
+        id: sc.id,
+        label: sc.name,
+        bindings: [{ role: 'control', trackId, target: sc.id }],
+        position: { x: i * 2, y: 0, w: 2, h: 2 },
+        config: { semanticControl: sc },
+      });
+    }
+    nextY = 2;
+  }
+
+  // Convert xyAxes -> XY Pad module (only if axes were set and non-empty)
+  const xyAxes = legacy.xyAxes as { x: string; y: string } | undefined;
+  if (xyAxes && (xyAxes.x || xyAxes.y)) {
+    modules.push({
+      type: 'xy-pad',
+      id: 'xy-pad',
+      label: 'XY Pad',
+      bindings: [
+        { role: 'x-axis', trackId, target: xyAxes.x || 'timbre' },
+        { role: 'y-axis', trackId, target: xyAxes.y || 'morph' },
+      ],
+      position: { x: semanticControls ? semanticControls.length * 2 : 0, y: 0, w: 4, h: 4 },
+      config: {},
+    });
+    nextY = Math.max(nextY, 4);
+  }
+
+  // Convert pinned controls -> Knob Group modules with { pinned: true }
+  const pinnedControls = legacy.pinnedControls as PinnedControl[] | undefined;
+  if (pinnedControls && pinnedControls.length > 0) {
+    for (let i = 0; i < pinnedControls.length; i++) {
+      const pin = pinnedControls[i];
+      modules.push({
+        type: 'knob-group',
+        id: `pinned-${pin.moduleId}-${pin.controlId}`,
+        label: `${pin.controlId}`,
+        bindings: [{ role: 'control', trackId, target: `${pin.moduleId}:${pin.controlId}` }],
+        position: { x: i * 2, y: nextY, w: 2, h: 2 },
+        config: { pinned: true },
+      });
     }
   }
 
-  return null;
+  return {
+    modules,
+    thumbprint: (legacy.thumbprint as ThumbprintConfig) ?? { type: 'static-color' },
+  };
 }
