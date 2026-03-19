@@ -62,7 +62,7 @@ Grabs the Darkness macro, sweeps it down. Every track responds — filters close
 
 ### The musician who doesn't trust the AI's surface
 
-Clicks on a macro knob and inspects what "Brightness" actually does — a popover shows "Plaits timbre × 0.6, Rings brightness × 0.3, Clouds feedback × 0.1". Or switches to Rack view. Full ground truth. Every knob for every module. No abstraction. No AI opinion. From Rack, they can pin raw controls to the Surface, or ignore Surface entirely and work in the canonical views.
+Switches to Rack view. Full ground truth. Every knob for every module. No abstraction. No AI opinion. Inspects what "Brightness" actually maps to — sees the weight breakdown across modules. Pins raw controls to the Surface, or ignores Surface entirely and works in the canonical views.
 
 ### The musician with a bare Plaits track (no chain)
 
@@ -114,7 +114,7 @@ The canonical views feel like engineering tools — precise, complete, honest. S
 
 **The Performance Surface** feels like standing at the mixing desk. Everything is in reach. You're not editing individual instruments — you're shaping the whole piece. Faders, macros, relationships between tracks.
 
-**The canonical views** are always one tab away. Rack shows every parameter. Patch shows every connection. Tracker shows every event. No abstraction, no AI opinion. If you want to see exactly what a macro knob is doing, click it for the inspector popover. If you want the full picture, switch to Rack. The friction of switching tabs is intentional — it reinforces that canonical views are where you go for truth, and Surface is where you go for the curated abstraction.
+**The canonical views** are always one tab away. Rack shows every parameter. Patch shows every connection. Tracker shows every event. No abstraction, no AI opinion. If you want to see exactly what a macro knob is doing, switch to Rack. The friction of switching tabs is intentional — it reinforces that canonical views are where you go for truth, and Surface is where you go for the curated abstraction.
 
 **The visual language** is not decoration — it's information. The kick track is visually heavy and deep-coloured. The hi-hats are thin and ghostly. When the AI acts, you see signal propagation. When the music builds, the visual density increases. Different projects feel visually distinct. The AI selects from constrained visual primitives (track colour, module weight, edge style, labelling) through the Surface Score system — it doesn't write arbitrary CSS. But visual differentiation between tracks is part of the curation, not a layer on top of it. A Surface that looks the same for every track is failing at its job of communicating what each sound is.
 
@@ -145,7 +145,7 @@ Plus:
 
 There is no "Deep View" layer within Surface. When the human needs full parameter access, they switch to the canonical views (Rack, Patch, Tracker). This keeps the conceptual separation clean: Surface is the curated abstraction, canonical views are the ground truth. Putting a raw-parameter inspector inside Surface would duplicate what Rack already does and blur the distinction.
 
-**Pin-to-surface** is a cross-tab action. From Rack, the human can pin any raw control to the Surface. From Surface, the human can inspect a macro knob's weight mapping via the inline inspector popover (SemanticInspector). The AI's `pin` tool also works cross-tab.
+**Pin-to-surface** is a cross-tab action. From Rack, the human can pin any raw control to the Surface. The AI's `pin` tool also works cross-tab. Diagnostic information (weight mappings, transform types, raw parameter values) lives in Rack, not on Surface — Surface stays clean and musically focused.
 
 ### Layer interactions
 
@@ -333,7 +333,7 @@ track LEAD (agency: ON)
 - **Chain tracks (>6 raw params):** semantic macro knobs that map weighted across modules.
 - **Stability:** mappings are defined per-engine-chain configuration, not per-patch. They are authored when the chain is built and remain stable until chain structure changes.
 - **Presentation can change without remapping:** layout, prominence, axis assignment, and which controls are visually foregrounded may change with context or user request. This is not the same as redefining a semantic mapping.
-- **Inspectable:** human can see the weight mapping via the inline inspector popover on Surface, or by switching to Rack for full parameter access.
+- **Inspectable:** human can see the weight mapping by switching to Rack, where diagnostic information (weights, transforms, raw values) lives.
 - **AI cannot silently redefine what "Brightness" means.**
 
 ---
