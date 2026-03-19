@@ -327,6 +327,7 @@ export class AudioEngine {
       // Disconnect from mixer, reconnect to master bus input
       slot.muteGain.disconnect();
       slot.muteGain.connect(masterSlot.busInput);
+      slot.muteGain.connect(slot.analyser); // restore metering tap
     }
   }
 

@@ -416,6 +416,7 @@ async function renderTrack(
 
   // --- Render loop (sub-block precision) ---
   for (let frame = 0; frame < totalFrames; frame += BLOCK_SIZE) {
+    blockBuf.fill(0);
     const framesToRender = Math.min(BLOCK_SIZE, totalFrames - frame);
     const blockBeatEnd = (frame + framesToRender) / framesPerStep;
 
