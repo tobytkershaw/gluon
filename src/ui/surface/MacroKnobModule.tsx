@@ -5,7 +5,7 @@
 import { useCallback } from 'react';
 import type { SemanticControlDef } from '../../engine/types';
 import { Knob } from '../Knob';
-import { computeSemanticValue, computeSemanticRawUpdates } from '../SemanticControlsSection';
+import { computeSemanticValue, computeSemanticRawUpdates } from './semantic-utils';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 
 /**

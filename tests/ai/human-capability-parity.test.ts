@@ -154,9 +154,9 @@ describe('Human Capability Parity', () => {
     expect(mod.StepGrid).toBeDefined();
   });
 
-  it('SemanticControlsSection is exported (semantic knob display)', async () => {
-    const mod = await import('../../src/ui/SemanticControlsSection');
-    expect(mod.SemanticControlsSection).toBeDefined();
+  it('semantic-utils exports computeSemanticValue (semantic knob display)', async () => {
+    const mod = await import('../../src/ui/surface/semantic-utils');
+    expect(mod.computeSemanticValue).toBeDefined();
   });
 
   it('DraggableNumber is exported (modulation depth editing)', async () => {
