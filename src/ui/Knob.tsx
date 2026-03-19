@@ -85,6 +85,7 @@ export function Knob({
   onModulationDepthChange, onModulationDepthCommit,
 }: KnobProps) {
   const [hovered, setHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const dragging = useRef(false);
   const startY = useRef(0);
   const startValue = useRef(0);
@@ -103,6 +104,7 @@ export function Knob({
     // hits a thin stroke or transparent area inside a small knob.
     svgRef.current?.setPointerCapture(e.pointerId);
     dragging.current = true;
+    setIsDragging(true);
     startY.current = e.clientY;
     startValue.current = value;
     onPointerDown?.();
@@ -119,6 +121,7 @@ export function Knob({
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (!dragging.current) return;
     dragging.current = false;
+    setIsDragging(false);
     svgRef.current?.releasePointerCapture(e.pointerId);
     onPointerUp?.();
   }, [onPointerUp]);
@@ -247,7 +250,7 @@ export function Knob({
         </div>
       ) : (
         <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[8px]' : 'text-[10px]'}`}>
-          {(hovered || dragging.current) && displayMapping
+          {(hovered || isDragging) && displayMapping
             ? formatDisplayValue(value, displayMapping)
             : formatDisplayValue(value)}
         </span>
