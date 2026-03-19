@@ -196,6 +196,8 @@ interface ModulePanelProps {
   onModelChange?: (model: number) => void;
   // Remove button (processors/modulators only)
   onRemove?: () => void;
+  // Replace/swap button (processors only)
+  onReplace?: () => void;
   // Bypass toggle (processors only)
   enabled?: boolean;
   onToggleEnabled?: () => void;
@@ -212,7 +214,7 @@ interface ModulePanelProps {
 export function ModulePanel({
   label, accentColor, controls,
   onParamChange, onInteractionStart, onInteractionEnd,
-  isHighlighted, engines, currentModel, onModelChange, onRemove,
+  isHighlighted, engines, currentModel, onModelChange, onRemove, onReplace,
   enabled, onToggleEnabled,
   modulationMap, onModulationClick,
   onModulationDepthChange, onModulationDepthCommit,
@@ -305,7 +307,19 @@ export function ModulePanel({
           )}
           <span className={`text-[11px] font-medium truncate ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
         </div>
-        {/* Module removal: select panel (click) then press Delete/Backspace */}
+        {/* Swap button (processors only) */}
+        {onReplace && (
+          <button
+            type="button"
+            onClick={onReplace}
+            className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+            title="Swap processor"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 16 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 5h14M11 1l4 4-4 4M15 11H1M5 15l-4-4 4-4" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Body */}

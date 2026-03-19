@@ -14,6 +14,10 @@ interface ModuleBrowserProps {
   onAddProcessor: (type: string) => void;
   onAddModulator: (type: string) => void;
   onClose: () => void;
+  // Replace mode (optional)
+  replaceProcessorId?: string;
+  replaceProcessorType?: string;
+  onReplaceProcessor?: (newType: string) => void;
 }
 
 const MAX_PROCESSORS = 2;
@@ -34,7 +38,11 @@ export function ModuleBrowser({
   onAddProcessor,
   onAddModulator,
   onClose,
+  replaceProcessorId,
+  replaceProcessorType,
+  onReplaceProcessor,
 }: ModuleBrowserProps) {
+  const isReplaceMode = !!replaceProcessorId && !!onReplaceProcessor;
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape key
@@ -70,7 +78,7 @@ export function ModuleBrowser({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <span className="text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-            Add Module
+            {isReplaceMode ? 'Swap Processor' : 'Add Module'}
           </span>
           <button
             onClick={onClose}
@@ -97,6 +105,7 @@ export function ModuleBrowser({
                 const inst = getProcessorInstrument(type);
                 if (!inst) return null;
                 const shortName = inst.label.replace('Mutable Instruments ', '');
+                const isSameType = isReplaceMode && type === replaceProcessorType;
                 return (
                   <ModuleCard
                     key={type}
@@ -104,10 +113,14 @@ export function ModuleBrowser({
                     description={MODULE_DESCRIPTIONS[type] ?? ''}
                     engines={inst.engines.map((e) => e.label)}
                     accentColor="sky"
-                    disabled={processorsAtMax}
+                    disabled={isSameType || (!isReplaceMode && processorsAtMax)}
                     onClick={() => {
-                      onAddProcessor(type);
-                      onClose();
+                      if (isReplaceMode) {
+                        onReplaceProcessor!(type);
+                      } else {
+                        onAddProcessor(type);
+                        onClose();
+                      }
                     }}
                   />
                 );
@@ -115,8 +128,8 @@ export function ModuleBrowser({
             </div>
           </section>
 
-          {/* Modulators section */}
-          <section>
+          {/* Modulators section (hidden in replace mode) */}
+          {!isReplaceMode && <section>
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-mono uppercase tracking-wider text-violet-400">
                 Modulators
@@ -146,7 +159,7 @@ export function ModuleBrowser({
                 );
               })}
             </div>
-          </section>
+          </section>}
         </div>
       </div>
 
