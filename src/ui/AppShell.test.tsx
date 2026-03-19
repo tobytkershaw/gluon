@@ -26,6 +26,7 @@ function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): App
     onAddTrack: noop,
     onRemoveTrack: noop,
     onSetMusicalRole: noop,
+    onSetImportance: noop,
     onAddSend: noop,
     onRemoveSend: noop,
     onSetSendLevel: noop,

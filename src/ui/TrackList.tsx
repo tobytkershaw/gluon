@@ -24,6 +24,7 @@ interface Props {
   onAddTrack?: (kind?: TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
   onSetMusicalRole?: (trackId: string, role: string) => void;
+  onSetImportance?: (trackId: string, importance: number) => void;
   onAddSend?: (trackId: string, busId: string, level?: number) => void;
   onRemoveSend?: (trackId: string, busId: string) => void;
   onSetSendLevel?: (trackId: string, busId: string, level: number) => void;
@@ -41,7 +42,7 @@ export function TrackList({
   tracks, activeTrackId, expandedTrackIds, activityMap,
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency,
   onRenameTrack, onCycleApproval,
-  onAddTrack, onRemoveTrack, onSetMusicalRole,
+  onAddTrack, onRemoveTrack, onSetMusicalRole, onSetImportance,
   onAddSend, onRemoveSend, onSetSendLevel,
   maxTracks = 16,
   audioEngine, masterVolume, masterStereoAnalysers, onMasterVolumeChange,
@@ -124,6 +125,7 @@ export function TrackList({
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
             onRemove={onRemoveTrack && canRemoveAudio ? () => onRemoveTrack(track.id) : undefined}
             onSetMusicalRole={onSetMusicalRole ? (r) => onSetMusicalRole(track.id, r) : undefined}
+            onSetImportance={onSetImportance ? (v) => onSetImportance(track.id, v) : undefined}
             busTracks={allBusTracks}
             onAddSend={onAddSend ? (busId, level) => onAddSend(track.id, busId, level) : undefined}
             onRemoveSend={onRemoveSend ? (busId) => onRemoveSend(track.id, busId) : undefined}

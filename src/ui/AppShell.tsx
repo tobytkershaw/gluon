@@ -43,6 +43,7 @@ interface Props {
   onAddTrack?: (kind?: import('../engine/types').TrackKind) => void;
   onRemoveTrack?: (trackId: string) => void;
   onSetMusicalRole?: (trackId: string, role: string) => void;
+  onSetImportance?: (trackId: string, importance: number) => void;
   // Send routing
   onAddSend?: (trackId: string, busId: string, level?: number) => void;
   onRemoveSend?: (trackId: string, busId: string) => void;
@@ -162,7 +163,7 @@ function getLatestFollowUpChips(messages: ChatMessage[]): FollowUpChip[] {
 export function AppShell({
   tracks, activeTrackId, expandedTrackIds, activityMap,
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
-  onAddTrack, onRemoveTrack, onSetMusicalRole,
+  onAddTrack, onRemoveTrack, onSetMusicalRole, onSetImportance,
   onAddSend, onRemoveSend, onSetSendLevel,
   runtimeDegradation,
   messages, onSend, isThinking, isListening, streamingText, streamingLogEntries, streamingRejections,
@@ -513,6 +514,7 @@ export function AppShell({
             onAddTrack={onAddTrack}
             onRemoveTrack={onRemoveTrack}
             onSetMusicalRole={onSetMusicalRole}
+            onSetImportance={onSetImportance}
             onAddSend={onAddSend}
             onRemoveSend={onRemoveSend}
             onSetSendLevel={onSetSendLevel}
