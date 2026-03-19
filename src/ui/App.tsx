@@ -171,7 +171,10 @@ export default function App() {
   }, [project.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [audioStarted, setAudioStarted] = useState(false);
-  const [apiConfigured, setApiConfigured] = useState(() => aiRef.current.isConfigured());
+  const [plannerConfigured, setPlannerConfigured] = useState(() => aiRef.current.isPlannerConfigured());
+  const [listenerConfigured, setListenerConfigured] = useState(() => aiRef.current.isListenerConfigured());
+  // Legacy alias — planner gates chat availability
+  const apiConfigured = plannerConfigured;
   const [globalStep, setGlobalStep] = useState(0);
   const globalStepRef = useRef(0);
   /** Cursor step position in the tracker (region-local). */
@@ -977,6 +980,7 @@ export default function App() {
   }, [audioStarted]);
 
   const handleSend = useCallback(async (message: string) => {
+    if (!aiRef.current.isPlannerConfigured()) return;
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
     setStreamingText('');
@@ -1175,7 +1179,8 @@ export default function App() {
     if (sessionRef.current.messages.length > 0) {
       aiRef.current.restoreHistory(sessionRef.current.messages);
     }
-    setApiConfigured(aiRef.current.isConfigured());
+    setPlannerConfigured(aiRef.current.isPlannerConfigured());
+    setListenerConfigured(aiRef.current.isListenerConfigured());
   }, [listenerMode]);
 
   const handleTogglePlay = useCallback(async () => {
@@ -2388,6 +2393,7 @@ export default function App() {
       openDecisions={(session.openDecisions ?? []).filter(d => !d.resolved)}
       onDecisionRespond={handleDecisionRespond}
       apiConfigured={apiConfigured}
+      listenerConfigured={listenerConfigured}
       onApiKey={handleApiKey}
       currentOpenaiKey={openaiKey}
       currentGeminiKey={geminiKey}

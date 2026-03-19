@@ -173,4 +173,30 @@ describe('AppShell smoke render', () => {
     expect(screen.getByText('Audio degraded')).toBeTruthy();
     expect(screen.getByText('Audio runtime degraded: Plaits init failed, falling back to WebAudioSynth.')).toBeTruthy();
   });
+
+  it('shows degraded-mode banner when planner is not configured (chat view)', () => {
+    render(<AppShell {...buildProps('chat', { apiConfigured: false })} />);
+    expect(screen.getByTestId('degraded-banner')).toBeTruthy();
+    expect(screen.getByTestId('degraded-banner').textContent).toContain('manual mode');
+  });
+
+  it('shows degraded-mode banner when planner is not configured (sidebar)', () => {
+    render(<AppShell {...buildProps('surface', { apiConfigured: false, chatOpen: true })} />);
+    expect(screen.getByTestId('degraded-banner')).toBeTruthy();
+  });
+
+  it('does not show degraded-mode banner when planner is configured', () => {
+    render(<AppShell {...buildProps('chat', { apiConfigured: true })} />);
+    expect(screen.queryByTestId('degraded-banner')).toBeNull();
+  });
+
+  it('shows model status indicator', () => {
+    render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: true })} />);
+    expect(screen.getByTestId('model-status-label').textContent).toBe('AI Connected');
+  });
+
+  it('shows "no audio eval" when listener is unconfigured', () => {
+    render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: false })} />);
+    expect(screen.getByTestId('model-status-label').textContent).toContain('no audio eval');
+  });
 });

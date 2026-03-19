@@ -194,6 +194,19 @@ export type OnStepCallback = (
 ) => void;
 
 // ---------------------------------------------------------------------------
+// Model layer status (graceful degradation, #8)
+// ---------------------------------------------------------------------------
+
+export type ModelLayerStatus = 'available' | 'disabled' | 'error';
+
+export interface ModelStatus {
+  planner: ModelLayerStatus;
+  listener: ModelLayerStatus;
+  plannerError?: string;
+  listenerError?: string;
+}
+
+// ---------------------------------------------------------------------------
 // Listener interface
 // ---------------------------------------------------------------------------
 

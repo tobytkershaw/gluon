@@ -11,6 +11,7 @@ import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
 import { ApiKeySetup } from './ApiKeySetup';
+import { ModelStatusIndicator } from './ModelStatusIndicator';
 
 interface Props {
   messages: ChatMessage[];
@@ -27,6 +28,7 @@ interface Props {
   tracks?: Track[];
   sessionMessages?: ChatMessage[];
   apiConfigured: boolean;
+  listenerConfigured?: boolean;
   onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
@@ -43,7 +45,7 @@ export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false, streamingText = '', streamingLogEntries, streamingRejections,
   reactions, onReaction, undoStack, onUndoMessage,
   tracks, sessionMessages,
-  apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
+  apiConfigured, listenerConfigured = false, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   open, width, onResize,
   composerRef, lastHumanMessage, followUpChips = [],
 }: Props) {
@@ -89,10 +91,17 @@ export function ChatSidebar({
         <div className="flex items-center gap-2 px-4 py-2.5 border-b border-violet-900/20">
           <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
           <div className="flex-1" />
+          <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} />
           {apiConfigured && (
             <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} listenerMode={listenerMode} />
           )}
         </div>
+
+        {!apiConfigured && (
+          <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-[11px] leading-5 text-amber-200/80" data-testid="degraded-banner">
+            Gluon is running in manual mode. Add an API key to enable AI collaboration.
+          </div>
+        )}
 
         {apiConfigured ? (
           <>
