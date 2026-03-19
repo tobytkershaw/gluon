@@ -414,6 +414,15 @@ export function validateSurface(surface: TrackSurface, track: Track): string | n
     const bindingError = validateModuleBindings(mod);
     if (bindingError) return bindingError;
 
+    // #1154: Cross-track bindings are architecturally unsupported — the Surface
+    // renderer only has the owning track's context. Bindings must target the
+    // owning track (matching trackId, or '' which means "owning track").
+    for (const binding of mod.bindings) {
+      if (binding.trackId !== '' && binding.trackId !== track.id) {
+        return `Module '${mod.id}' binding targets track '${binding.trackId}' but surface belongs to track '${track.id}' (cross-track bindings are not supported)`;
+      }
+    }
+
     // Validate macro-knob semantic control config
     if (mod.type === 'macro-knob' && mod.config.semanticControl) {
       const sc = mod.config.semanticControl as SemanticControlDef;

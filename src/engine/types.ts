@@ -174,7 +174,11 @@ export interface PinnedControl {
 
 export interface ModuleBinding {
   role: string;           // module-defined binding role (e.g., 'control', 'x-axis', 'region')
-  trackId: string;        // which track this binding targets
+  // Which track this binding targets — currently constrained to the owning track's ID.
+  // Cross-track bindings are reserved for future use; the Surface renderer only receives
+  // a single track context so cross-track targets cannot be realized at runtime.
+  // Empty string ('') is treated as "owning track" for template bindings resolved at apply time.
+  trackId: string;
   target: string;         // controlId, regionId, or semantic reference
 }
 

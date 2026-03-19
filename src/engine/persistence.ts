@@ -300,6 +300,28 @@ export function migrateTrack(track: Track): Track {
     };
   }
 
+  // #1154: fix cross-track binding trackIds — the Surface renderer only supports
+  // the owning track, so coerce any mismatched trackIds to the owning track's ID.
+  if (surfaced.surface?.modules) {
+    const fixedModules = surfaced.surface.modules.map(mod => {
+      const needsFix = mod.bindings.some(b => b.trackId !== '' && b.trackId !== surfaced.id);
+      if (!needsFix) return mod;
+      console.warn(`[persistence] ${ctx}: fixing cross-track binding trackIds in module '${mod.id}'`);
+      return {
+        ...mod,
+        bindings: mod.bindings.map(b =>
+          b.trackId !== '' && b.trackId !== surfaced.id
+            ? { ...b, trackId: surfaced.id }
+            : b,
+        ),
+      };
+    });
+    surfaced = {
+      ...surfaced,
+      surface: { ...surfaced.surface, modules: fixedModules },
+    };
+  }
+
   // #1157: drum pad IDs
   if (surfaced.drumRack?.pads) {
     surfaced = {
