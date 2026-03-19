@@ -16,8 +16,6 @@ interface Props {
   /** Which FX column the cursor is on (null = not on an FX column). */
   cursorFxColumn?: number | null;
   isAtPlayhead: boolean;
-  /** Fractional progress (0-1) within this step when at the playhead, for smooth visual indicator. */
-  playheadFraction?: number;
   showBeatSeparator: boolean;
   /** Which beat this row belongs to (0-based), for alternating beat tints. */
   beatIndex: number;
@@ -455,7 +453,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
   function TrackerRow({
     slot, maxNoteColumns, fxColumns,
     cursorNoteColumn, cursorFxColumn,
-    isAtPlayhead, playheadFraction = 0, showBeatSeparator, beatIndex,
+    isAtPlayhead, showBeatSeparator, beatIndex,
     onUpdate, onDelete, onAddParamEvent, onAddNote,
     cancelEditRef,
     isCursorRow, cursorColumnType, editRequestCounter,
@@ -620,15 +618,12 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         className={`
           group text-[11px] font-mono leading-5 relative ${rowColor}
           ${isSelected ? 'bg-indigo-500/25' : ''}
+          ${isAtPlayhead ? 'bg-amber-500/15' : ''}
           ${isAtPlayhead ? 'border-l-2 border-l-amber-400' : ''}
           ${isCursorRow && !isAtPlayhead && !isSelected ? 'bg-sky-500/10' : ''}
           ${!isAtPlayhead && !isCursorRow && !isSelected ? `hover:bg-zinc-800/30 ${beatTint}` : ''}
           ${showBeatSeparator ? 'border-t-2 border-zinc-500/50' : ''}
         `}
-        style={isAtPlayhead ? {
-          // Smooth gradient background: filled portion shows playhead progress
-          background: `linear-gradient(to right, rgba(245, 158, 11, 0.2) ${playheadFraction * 100}%, rgba(245, 158, 11, 0.08) ${playheadFraction * 100}%)`,
-        } : undefined}
         onClick={(e) => onRowClick?.(e.shiftKey)}
         onDoubleClick={() => onRowDoubleClick?.()}
       >
