@@ -1519,6 +1519,8 @@ const suggestReactionsTool: ToolSchema = {
       reactions: {
         type: 'array',
         items: { type: 'string' },
+        minItems: 2,
+        maxItems: 5,
         description: 'Short musical direction labels (2-5 items, max 20 chars each).',
       },
     },

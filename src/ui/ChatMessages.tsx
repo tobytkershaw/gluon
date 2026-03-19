@@ -172,17 +172,17 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                   suggestedReactions={msg.suggestedReactions}
                 />
               )}
-              {hasActions && (onReaction || canUndo) && (
+              {(hasActions && (onReaction || canUndo)) || (msg.suggestedReactions && msg.suggestedReactions.length > 0) ? (
                 <ReactionControls
                   messageIndex={i}
                   currentVerdict={reaction?.verdict}
-                  onReaction={onReaction}
-                  onUndoMessage={onUndoMessage}
-                  canUndo={canUndo}
+                  onReaction={hasActions ? onReaction : undefined}
+                  onUndoMessage={hasActions ? onUndoMessage : undefined}
+                  canUndo={hasActions && canUndo}
                   suggestedReactions={msg.suggestedReactions}
                   onStarterSelect={onStarterSelect}
                 />
-              )}
+              ) : null}
             </div>
           </div>
         );
