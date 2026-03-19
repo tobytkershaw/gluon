@@ -228,7 +228,7 @@ export class TransportController {
   syncArrangement(): void {
     const session = this.getSession();
     for (const track of session.tracks) {
-      if (track._patternDirty && this.trackSeen.has(track.id) && this.runtime.status === 'playing') {
+      if (track._patternDirty && this.runtime.status === 'playing') {
         this.scheduler.invalidateTrack(track.id, this.lastStep);
         recordQaAudioTrace({
           type: 'transport.arrangement-invalidated',
