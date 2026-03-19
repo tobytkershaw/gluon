@@ -117,6 +117,8 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { chords: [{ bar: 1, chord: 'Fm' }] };
     case 'assign_spectral_slot':
       return { trackId: 'v0', bands: ['sub', 'low'], priority: 8 };
+    case 'relate':
+      return { sourceTrackId: 'v0', targetTrackId: 'v1', relation: 'align', description: 'align bass to kick' };
     case 'manage_motif':
       return { action: 'list' };
     case 'save_patch':
@@ -204,7 +206,7 @@ describe('API Structural Integrity', () => {
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
       'set_intent', 'set_section', 'set_scale', 'set_chord_progression', 'set_tension', 'shape_timbre',
       'apply_chain_recipe', 'set_mix_role', 'apply_modulation',
-      'assign_spectral_slot',
+      'assign_spectral_slot', 'relate',
       'manage_motif',
       'load_patch',
       'apply_arrangement_archetype',
@@ -225,7 +227,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(44);
+    expect(GLUON_TOOLS.length).toBe(45);
   });
 
   // -----------------------------------------------------------------------

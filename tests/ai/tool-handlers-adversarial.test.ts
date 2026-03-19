@@ -7,7 +7,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { GluonAI } from '../../src/ai/api';
 import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema, NeutralFunctionCall } from '../../src/ai/types';
 import type { Session, Track } from '../../src/engine/types';
-import { createSession } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { editPatternEvents } from '../../src/engine/pattern-primitives';
 
 // ---------------------------------------------------------------------------
@@ -1573,6 +1573,124 @@ describe('set_chord_progression — adversarial', () => {
     expect(response.applied).toBe(true);
     expect(response.chord_progression).toBeNull();
     expect(actions.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// relate
+// ---------------------------------------------------------------------------
+
+describe('relate — adversarial', () => {
+  it('rejects identical source and target tracks', async () => {
+    const { response, actions } = await callTool(makeSession(), 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v0',
+      relation: 'align',
+      description: 'bad self relation',
+    });
+    expect(response.error).toMatch(/different tracks/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('requires dimension for contrast relations', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[1].name = 'T2';
+    const { response, actions } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'increase_contrast',
+      description: 'separate them',
+    });
+    expect(response.error).toMatch(/dimension/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('align reshapes the target pattern to source onsets', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[1].name = 'Bass';
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 1 },
+      { kind: 'trigger', at: 4, velocity: 1 },
+    ];
+    session.tracks[1].patterns[0].events = [
+      { kind: 'note', at: 1, pitch: 36, velocity: 0.8, duration: 1 },
+      { kind: 'note', at: 5, pitch: 38, velocity: 0.7, duration: 1 },
+    ];
+
+    const { response, actions } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'align',
+      description: 'align bass to kick',
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.targetOnsets).toEqual([0, 4]);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ type: 'sketch', trackId: 'v1' });
+  });
+
+  it('ignores velocity=0 sentinels when deriving source onsets', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[0].patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0 },
+      { kind: 'trigger', at: 4, velocity: 1 },
+    ];
+    session.tracks[1].patterns[0].events = [
+      { kind: 'note', at: 1, pitch: 36, velocity: 0.8, duration: 1 },
+    ];
+
+    const { response } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'align',
+      description: 'align to real onsets only',
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.sourceOnsets).toEqual([4]);
+    expect(response.targetOnsets).toEqual([4]);
+  });
+
+  it('rejects rhythmic relations when the source track has no patterns', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[0].patterns = [];
+    session.tracks[1].patterns[0].events = [
+      { kind: 'note', at: 1, pitch: 36, velocity: 0.8, duration: 1 },
+    ];
+
+    const { response, actions } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'align',
+      description: 'bad source',
+    });
+
+    expect(response.error).toMatch(/has no patterns/);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('spectral_complement assigns complementary bands to the target', async () => {
+    let session = makeSession();
+    session = addTrack(session, 'audio') ?? session;
+    session.tracks[1].name = 'Lead';
+    session.tracks[1].musicalRole = 'bright lead';
+
+    const { response, actions } = await callTool(session, 'relate', {
+      sourceTrackId: 'v0',
+      targetTrackId: 'v1',
+      relation: 'spectral_complement',
+      description: 'separate lead from kick',
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.targetBands).toBeDefined();
+    expect(actions).toHaveLength(1);
+    expect(actions[0]).toMatchObject({ type: 'assign_spectral_slot', trackId: 'v1' });
   });
 });
 

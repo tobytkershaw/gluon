@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-four tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-five tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -453,6 +453,21 @@ Assign a track to frequency bands with a priority. Prevents frequency collisions
 | `priority` | integer | yes | Priority (0-10). Higher priority wins shared bands. Kick=10, bass=8, lead=7, pad=3, texture=1. |
 
 Returns slot assignment, any collisions, and suggested EQ adjustments. The AI applies adjustments via `move` or `manage_processor` tools. Proactive counterpart to masking analysis (diagnostic).
+
+#### `relate`
+
+Resolve a musical relationship from a source track onto a target track. The source is read as reference; the target is changed. Current relations: rhythmic `align` / `complement`, timbral `increase_contrast` / `decrease_contrast`, and `spectral_complement`.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sourceTrackId` | string | yes | Reference track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
+| `targetTrackId` | string | yes | Track to modify relative to the source. |
+| `relation` | string | yes | One of `align`, `complement`, `increase_contrast`, `decrease_contrast`, `spectral_complement`. |
+| `dimension` | string | conditional | Required for contrast relations. One of `brightness` or `thickness`. |
+| `amount` | number | no | Optional intensity (0.0-1.0) for contrast relations. Default 0.3. |
+| `description` | string | yes | Short description of the relationship intent. |
+
+Resolves to ordinary underlying edits (`sketch`, `move`, or `assign_spectral_slot`) so the result stays editable and undoable.
 
 #### `manage_motif`
 
