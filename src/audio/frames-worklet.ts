@@ -24,7 +24,7 @@ interface FramesPatch {
 
 // Mode indices
 const MODE_KEYFRAME = 0;
-const MODE_SEQUENCER = 1;
+const _MODE_SEQUENCER = 1;
 
 type ScheduledEvent =
   | { type: 'set-mode'; time?: number; seq: number; fence?: number; mode: number }
@@ -251,10 +251,10 @@ class FramesProcessor extends AudioWorkletProcessor {
     // Compute effective parameters (base + modulation, clamped 0-1)
     const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
     const effFrame      = clamp01(p.frame + modFrame);
-    const effChannel1   = clamp01(p.channel_1 + modChannel1);
-    const effChannel2   = clamp01(p.channel_2 + modChannel2);
-    const effChannel3   = clamp01(p.channel_3 + modChannel3);
-    const effChannel4   = clamp01(p.channel_4 + modChannel4);
+    const _effChannel1   = clamp01(p.channel_1 + modChannel1);
+    const _effChannel2   = clamp01(p.channel_2 + modChannel2);
+    const _effChannel3   = clamp01(p.channel_3 + modChannel3);
+    const _effChannel4   = clamp01(p.channel_4 + modChannel4);
     const effModulation = clamp01(p.modulation + modModulation);
 
     if (this.mode === MODE_KEYFRAME) {

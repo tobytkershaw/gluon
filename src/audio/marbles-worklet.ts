@@ -270,7 +270,7 @@ class MarblesProcessor extends AudioWorkletProcessor {
    * - 0.0 to 0.5: increasing probability of replaying past values (0.5 = locked loop)
    * - 0.5 to 1.0: random permutations within the stored loop
    */
-  private processDejaVu(freshValue: number, bufferIndex: number): number {
+  private processDejaVu(freshValue: number, _bufferIndex: number): number {
     const dv = this.smoothDejaVu;
     const len = this.getLoopLength();
 

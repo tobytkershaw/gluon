@@ -189,8 +189,8 @@ export default function App() {
   const [exportingWav, setExportingWav] = useState(false);
   /** Tracks whether we've pushed an undo snapshot for the current recording session. */
   const recordingSnapshotPushed = useRef(false);
-  const [selectedStep, setSelectedStep] = useState<number | null>(null);
-  const [stepPage, setStepPage] = useState(0);
+  const [selectedStep, _setSelectedStep] = useState<number | null>(null);
+  const [_stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('gluon-view');
     if (saved === 'chat' || saved === 'surface' || saved === 'tracker' || saved === 'rack' || saved === 'patch') {
@@ -214,10 +214,10 @@ export default function App() {
     const saved = localStorage.getItem('gluon-chat-width');
     return saved ? Number(saved) : 320;
   });
-  const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
-  const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
+  const [_selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
+  const [_selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
-  const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
+  const [_deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
   const [audioDegradedMessage, setAudioDegradedMessage] = useState<string | null>(null);
   // A/B comparison state
   const [abSnapshot, setAbSnapshot] = useState<ABSnapshot | null>(null);
@@ -1871,12 +1871,12 @@ export default function App() {
     setSession((s) => setMaster(s, { pan: p }));
   }, [ensureAudio]);
 
-  const handleStepToggle = useCallback((stepIndex: number) => {
+  const _handleStepToggle = useCallback((stepIndex: number) => {
     ensureAudio();
     setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
-  const handleStepAccent = useCallback((stepIndex: number) => {
+  const _handleStepAccent = useCallback((stepIndex: number) => {
     ensureAudio();
     setSession((s) => toggleStepAccent(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
@@ -1978,11 +1978,11 @@ export default function App() {
     setSession((s) => clearSequenceAutomation(s, s.activeTrackId, controlId));
   }, []);
 
-  const handleAddView = useCallback((kind: SequencerViewKind) => {
+  const _handleAddView = useCallback((kind: SequencerViewKind) => {
     setSession((s) => addView(s, s.activeTrackId, kind));
   }, []);
 
-  const handleRemoveView = useCallback((viewId: string) => {
+  const _handleRemoveView = useCallback((viewId: string) => {
     setSession((s) => removeView(s, s.activeTrackId, viewId));
   }, []);
 
@@ -2436,7 +2436,7 @@ export default function App() {
     prevProcessorParams: Map<string, Record<string, number>>;
   } | null>(null);
 
-  const handleSemanticInteractionStart = useCallback((def: SemanticControlDef) => {
+  const _handleSemanticInteractionStart = useCallback((def: SemanticControlDef) => {
     const s = sessionRef.current;
     const track = getActiveTrack(s);
     // Capture prev values for all params this semantic control touches
@@ -2467,7 +2467,7 @@ export default function App() {
     };
   }, []);
 
-  const handleSemanticInteractionEnd = useCallback((_def: SemanticControlDef) => {
+  const _handleSemanticInteractionEnd = useCallback((_def: SemanticControlDef) => {
     const captured = semanticUndoRef.current;
     if (!captured) return;
     semanticUndoRef.current = null;
@@ -2532,7 +2532,7 @@ export default function App() {
     });
   }, []);
 
-  const handleSemanticChange = useCallback((def: SemanticControlDef, knobValue: number) => {
+  const _handleSemanticChange = useCallback((def: SemanticControlDef, knobValue: number) => {
     ensureAudio();
     const vid = sessionRef.current.activeTrackId;
 
