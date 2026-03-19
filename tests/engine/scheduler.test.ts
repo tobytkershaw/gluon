@@ -815,4 +815,125 @@ describe('Scheduler', () => {
       expect(clicks[4].accent).toBe(true);  // step 16 = downbeat of bar 2
     }
   });
+
+  // --- Per-track swing ---
+
+  it('uses per-track swing when set, overriding global transport swing', () => {
+    // Global swing = 0, per-track swing = 0.5
+    session = { ...session, transport: { ...session.transport, swing: 0 } };
+    const vid = session.tracks[0].id;
+    session = {
+      ...session,
+      tracks: session.tracks.map(t =>
+        t.id === vid ? { ...t, swing: 0.5 } : t,
+      ),
+    };
+    // Gate steps 0 and 1
+    session = toggleStepGate(session, vid, 0);
+    session = toggleStepGate(session, vid, 1);
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.5;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    // Step 0 = even, no swing delay. Step 1 = odd, per-track swing applies.
+    const step0Notes = notes.filter(n => n.time < 0.13);
+    const step1Notes = notes.filter(n => n.time >= 0.13);
+    expect(step0Notes.length).toBeGreaterThanOrEqual(1);
+    expect(step1Notes.length).toBeGreaterThanOrEqual(1);
+    // Step 1 should be delayed by swing (0.5 * 0.125 * 0.75 = 0.046875)
+    const stepDuration = 0.125;
+    const expectedStep1 = stepDuration + 0.5 * (stepDuration * 0.75);
+    expect(step1Notes[0].time).toBeCloseTo(expectedStep1, 3);
+  });
+
+  it('falls back to global transport swing when track swing is undefined', () => {
+    // Global swing = 0.5, track swing = undefined (default)
+    session = { ...session, transport: { ...session.transport, swing: 0.5 } };
+    const vid = session.tracks[0].id;
+    // Ensure track.swing is undefined (default)
+    expect(session.tracks[0].swing).toBeUndefined();
+    session = toggleStepGate(session, vid, 0);
+    session = toggleStepGate(session, vid, 1);
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.5;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    const step1Notes = notes.filter(n => n.time >= 0.13);
+    expect(step1Notes.length).toBeGreaterThanOrEqual(1);
+    const stepDuration = 0.125;
+    const expectedStep1 = stepDuration + 0.5 * (stepDuration * 0.75);
+    expect(step1Notes[0].time).toBeCloseTo(expectedStep1, 3);
+  });
+
+  it('falls back to global transport swing when track swing is null', () => {
+    // Global swing = 0.5, track swing = null (explicit inherit)
+    session = { ...session, transport: { ...session.transport, swing: 0.5 } };
+    const vid = session.tracks[0].id;
+    session = {
+      ...session,
+      tracks: session.tracks.map(t =>
+        t.id === vid ? { ...t, swing: null } : t,
+      ),
+    };
+    session = toggleStepGate(session, vid, 0);
+    session = toggleStepGate(session, vid, 1);
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.5;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    const step1Notes = notes.filter(n => n.time >= 0.13);
+    expect(step1Notes.length).toBeGreaterThanOrEqual(1);
+    const stepDuration = 0.125;
+    const expectedStep1 = stepDuration + 0.5 * (stepDuration * 0.75);
+    expect(step1Notes[0].time).toBeCloseTo(expectedStep1, 3);
+  });
+
+  it('allows straight kick with swung hats via per-track swing', () => {
+    // Two tracks: track 1 (straight, swing=0), track 2 (swung, swing=0.5)
+    // Global swing = 0.3 (should be overridden by per-track values)
+    session = { ...session, transport: { ...session.transport, swing: 0.3 } };
+    session = addTrack(session);
+    const track1Id = session.tracks[0].id;
+    const track2Id = session.tracks[1].id;
+    session = {
+      ...session,
+      tracks: session.tracks.map(t => {
+        if (t.id === track1Id) return { ...t, swing: 0 };
+        if (t.id === track2Id) return { ...t, swing: 0.5 };
+        return t;
+      }),
+    };
+    // Gate step 1 on both tracks (odd position = swing target)
+    session = toggleStepGate(session, track1Id, 1);
+    session = toggleStepGate(session, track2Id, 1);
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.5;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    const track1Notes = notes.filter(n => n.trackId === track1Id);
+    const track2Notes = notes.filter(n => n.trackId === track2Id);
+    expect(track1Notes.length).toBeGreaterThanOrEqual(1);
+    expect(track2Notes.length).toBeGreaterThanOrEqual(1);
+
+    const stepDuration = 0.125;
+    // Track 1 (swing=0): step 1 at base time, no delay
+    expect(track1Notes[0].time).toBeCloseTo(stepDuration, 3);
+    // Track 2 (swing=0.5): step 1 delayed
+    const expectedSwung = stepDuration + 0.5 * (stepDuration * 0.75);
+    expect(track2Notes[0].time).toBeCloseTo(expectedSwung, 3);
+    // Track 2 should be later than track 1
+    expect(track2Notes[0].time).toBeGreaterThan(track1Notes[0].time);
+  });
 });
