@@ -30,6 +30,17 @@ export function getAudibleTracks(session: Session): Track[] {
 }
 
 /**
+ * Return whether a track should currently be audible in the live mixer.
+ * Solo overrides mute: once any track is soloed, only soloed tracks stay audible.
+ */
+export function isTrackAudibleInMixer(tracks: Track[], trackId: string): boolean {
+  const track = tracks.find(v => v.id === trackId);
+  if (!track) return false;
+  const anySoloed = tracks.some(v => v.solo);
+  return anySoloed ? track.solo : !track.muted;
+}
+
+/**
  * Return tracks the scheduler should compute events for.
  * Solo is a monitoring concern (gain-based muting in the UI layer),
  * not a scheduling concern. The scheduler emits events for all
