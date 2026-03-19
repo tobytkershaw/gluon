@@ -525,12 +525,20 @@ export function compressState(session: Session, recentPreservationReports?: Pres
           : `processor:${r.target.processorId}:${r.target.param}`,
         depth: round2(r.depth),
       })),
-      ...(track.surface.semanticControls.length > 0 ? {
-        surface_semantic: track.surface.semanticControls.map(sc => sc.name),
-        surface_xy: `${track.surface.xyAxes.x} x ${track.surface.xyAxes.y}`,
-      } : {}),
-      ...(track.surface.pinnedControls.length > 0 ? {
-        surface_pinned: track.surface.pinnedControls.map(p => `${p.moduleId}:${p.controlId}`),
+      ...(track.surface.modules.length > 0 ? {
+        surface_modules: track.surface.modules.map(m => {
+          const suffix = m.config.pinned ? ' (pinned)' : '';
+          if (m.type === 'macro-knob') return `MacroKnob[${m.label}]${suffix}`;
+          if (m.type === 'knob-group') return `KnobGroup[${m.bindings.map(b => b.target).join(', ')}]${suffix}`;
+          if (m.type === 'xy-pad') {
+            const xBinding = m.bindings.find(b => b.role === 'x-axis');
+            const yBinding = m.bindings.find(b => b.role === 'y-axis');
+            return `XYPad[${xBinding?.target ?? '?'}×${yBinding?.target ?? '?'}]`;
+          }
+          if (m.type === 'step-grid') return 'StepGrid';
+          if (m.type === 'chain-strip') return 'ChainStrip';
+          return `${m.type}[${m.label}]`;
+        }),
       } : {}),
       ...(track.importance != null ? { importance: round2(track.importance) } : {}),
       ...(track.musicalRole ? { musicalRole: track.musicalRole } : {}),
