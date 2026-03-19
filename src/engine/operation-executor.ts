@@ -780,6 +780,7 @@ export function finalizeAITurn(
   log: ExecutionReportLogEntry[],
   toolCalls?: ToolCallEntry[],
   collapse = true,
+  suggestedReactions?: string[],
 ): Session {
   let next = session;
 
@@ -818,6 +819,7 @@ export function finalizeAITurn(
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
         ...(hasUndoEntries ? { undoStackRange: { start: undoBaseline, end: next.undoStack.length - 1 } } : {}),
         ...(scopeTracks ? { scopeTracks } : {}),
+        ...(suggestedReactions && suggestedReactions.length > 0 ? { suggestedReactions } : {}),
       }],
     };
   }

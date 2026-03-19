@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has thirty-six tools, declared as neutral JSON Schema and adapted per provider.
+The AI has thirty-seven tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -517,6 +517,16 @@ Apply a pre-configured modulation recipe. Adds a Tides modulator with preset par
 | `processorId` | string | no | Specific processor ID for processor-targeted recipes. Auto-finds first matching type if omitted. |
 
 Compound tool — emits add_modulator, set_model, move, and connect_modulator actions. Undoable as an action group. For processor-targeted recipes (filter sweeps, wobble), the matching processor must already exist on the track.
+
+#### `suggest_reactions`
+
+Suggest 2-5 contextual musical reaction chips for the human to click. Call once at the end of your response, after all other actions. Chips appear alongside the static approve/reject/undo controls. Read-only — does not modify session state.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `reactions` | array | yes | Short musical direction labels, 2-5 items, max 20 chars each (e.g. "more tense", "brighter", "keep groove"). |
+
+Clicking a chip records an `approved` verdict with the chip text as rationale, and sends the chip as a follow-up message. This gives the human quick one-click ways to direct iteration.
 
 ---
 

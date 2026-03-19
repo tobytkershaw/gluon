@@ -1506,6 +1506,26 @@ const manageMotifTool: ToolSchema = {
   },
 };
 
+const suggestReactionsTool: ToolSchema = {
+  name: 'suggest_reactions',
+  description:
+    'Suggest 2-5 contextual musical reaction chips for the human to click. ' +
+    'Call once at the end of your response, after all other actions. ' +
+    'Chips should be short musical directions like "more tense", "less busy", "keep groove", "brighter", "darker". ' +
+    'They appear alongside the static approve/reject/undo controls.',
+  parameters: {
+    type: 'object',
+    properties: {
+      reactions: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Short musical direction labels (2-5 items, max 20 chars each).',
+      },
+    },
+    required: ['reactions'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1543,4 +1563,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   shapeTimbreTool,
   assignSpectralSlotTool,
   manageMotifTool,
+  suggestReactionsTool,
 ];

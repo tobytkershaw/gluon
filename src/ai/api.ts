@@ -880,6 +880,7 @@ export class GluonAI {
           functionResponses: roundResult.functionResponses,
           done: roundResult.done,
           truncated: roundResult.truncated,
+          ...(roundResult.suggestedReactions ? { suggestedReactions: roundResult.suggestedReactions } : {}),
         };
         onStep?.(stepResult, workingSession);
 
@@ -972,11 +973,13 @@ export class GluonAI {
     callOutcomes: StepOutcome['calls'];
     done: boolean;
     truncated: boolean;
+    suggestedReactions?: string[];
   }> {
     const textParts: string[] = [];
     const actions: AIAction[] = [];
     const functionResponses: FunctionResponse[] = [];
     const callOutcomes: StepOutcome['calls'] = [];
+    let suggestedReactions: string[] | undefined;
 
     for (const text of result.textParts) {
       textParts.push(text);
@@ -1023,6 +1026,12 @@ export class GluonAI {
       const execResult = await this.executeFunctionCall(fc, roundSession, ctx, [...turnActions, ...actions]);
       actions.push(...execResult.actions);
       functionResponses.push({ id: fc.id, name: fc.name, result: execResult.response });
+
+      // Capture suggested reactions from the suggest_reactions tool
+      if (fc.name === 'suggest_reactions' && execResult.response && Array.isArray(execResult.response.reactions)) {
+        suggestedReactions = execResult.response.reactions as string[];
+      }
+
       // Project actions onto the running snapshot for subsequent calls
       for (const action of execResult.actions) {
         roundSession = projectAction(roundSession, action);
@@ -1044,6 +1053,7 @@ export class GluonAI {
       callOutcomes,
       done: result.functionCalls.length === 0,
       truncated: result.truncated ?? false,
+      ...(suggestedReactions ? { suggestedReactions } : {}),
     };
   }
 
@@ -3818,6 +3828,19 @@ export class GluonAI {
             trackMappingCount: resultCurve.trackMappings.length,
             curve: resultCurve,
           },
+        };
+      }
+
+      case 'suggest_reactions': {
+        const raw = Array.isArray(args.reactions) ? args.reactions : [];
+        // Validate and sanitize: short strings only, cap at 5
+        const reactions = raw
+          .filter((r): r is string => typeof r === 'string' && r.length > 0)
+          .map(r => r.slice(0, 20))
+          .slice(0, 5);
+        return {
+          actions: [],
+          response: { applied: true, reactions },
         };
       }
 

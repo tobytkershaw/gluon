@@ -179,6 +179,8 @@ export interface StepResult {
   done: boolean;
   /** True if the model response was truncated due to length limits. */
   truncated: boolean;
+  /** AI-suggested contextual reaction chips from this step (via suggest_reactions tool). */
+  suggestedReactions?: string[];
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry, Agency } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
@@ -80,7 +80,7 @@ interface Props {
   /** Recorded reactions, keyed by message index. */
   reactions?: Reaction[];
   /** Callback when user clicks approve/reject on an AI message. */
-  onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
+  onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => void;
   /** Current undo stack, used to determine which AI messages can be undone. */
   undoStack?: UndoEntry[];
   /** Callback when user clicks the undo button on an AI message. */
@@ -169,31 +169,19 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                   actions={msg.actions!}
                   aiText={msg.text}
                   onChipSelect={onStarterSelect}
+                  suggestedReactions={msg.suggestedReactions}
                 />
               )}
               {hasActions && (onReaction || canUndo) && (
-                <div className="flex items-center gap-1 mt-1.5">
-                  {onUndoMessage && canUndo && (
-                    <button
-                      onClick={() => onUndoMessage(i)}
-                      className="flex items-center justify-center w-5 h-5 rounded transition-colors text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
-                      title="Undo this change"
-                    >
-                      <svg viewBox="0 0 16 16" className="w-3 h-3" fill="currentColor">
-                        <path d="M2.5 1a.5.5 0 0 1 .5.5V4h2.5a5.5 5.5 0 1 1 0 11H4a.5.5 0 0 1 0-1h1.5a4.5 4.5 0 1 0 0-9H3v2.5a.5.5 0 0 1-.854.354l-2-2a.5.5 0 0 1 0-.708l2-2A.5.5 0 0 1 2.5 1z" />
-                      </svg>
-                    </button>
-                  )}
-                  {onReaction && (
-                    <>
-                      <ReactionButtons
-                        messageIndex={i}
-                        currentVerdict={reaction?.verdict}
-                        onReaction={onReaction}
-                      />
-                    </>
-                  )}
-                </div>
+                <ReactionControls
+                  messageIndex={i}
+                  currentVerdict={reaction?.verdict}
+                  onReaction={onReaction}
+                  onUndoMessage={onUndoMessage}
+                  canUndo={canUndo}
+                  suggestedReactions={msg.suggestedReactions}
+                  onStarterSelect={onStarterSelect}
+                />
               )}
             </div>
           </div>
@@ -258,6 +246,90 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
   );
 }
 
+/**
+ * Combined reaction controls: undo, approve/reject, and AI-suggested musical chips.
+ * Chips collapse to a minimal row and expand on hover.
+ * Clicking a chip records an 'approved' verdict with the chip text as rationale,
+ * and also sends the chip as a follow-up message.
+ */
+function ReactionControls({
+  messageIndex,
+  currentVerdict,
+  onReaction,
+  onUndoMessage,
+  canUndo,
+  suggestedReactions,
+  onStarterSelect,
+}: {
+  messageIndex: number;
+  currentVerdict?: 'approved' | 'rejected' | 'neutral';
+  onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => void;
+  onUndoMessage?: (messageIndex: number) => void;
+  canUndo: boolean;
+  suggestedReactions?: string[];
+  onStarterSelect?: (prompt: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasChips = suggestedReactions && suggestedReactions.length > 0;
+
+  const handleChipClick = (chip: string) => {
+    // Record approved verdict with chip text as rationale
+    onReaction?.(messageIndex, 'approved', chip);
+    // Also send as follow-up message
+    onStarterSelect?.(chip);
+  };
+
+  return (
+    <div
+      className="mt-1.5"
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
+    >
+      <div className="flex items-center gap-1">
+        {onUndoMessage && canUndo && (
+          <button
+            onClick={() => onUndoMessage(messageIndex)}
+            className="flex items-center justify-center w-5 h-5 rounded transition-colors text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
+            title="Undo this change"
+          >
+            <svg viewBox="0 0 16 16" className="w-3 h-3" fill="currentColor">
+              <path d="M2.5 1a.5.5 0 0 1 .5.5V4h2.5a5.5 5.5 0 1 1 0 11H4a.5.5 0 0 1 0-1h1.5a4.5 4.5 0 1 0 0-9H3v2.5a.5.5 0 0 1-.854.354l-2-2a.5.5 0 0 1 0-.708l2-2A.5.5 0 0 1 2.5 1z" />
+            </svg>
+          </button>
+        )}
+        {onReaction && (
+          <ReactionButtons
+            messageIndex={messageIndex}
+            currentVerdict={currentVerdict}
+            onReaction={onReaction}
+          />
+        )}
+        {hasChips && !expanded && (
+          <span className="text-[10px] font-mono text-zinc-700 ml-1 select-none">
+            {suggestedReactions.length} suggestions
+          </span>
+        )}
+      </div>
+      {hasChips && expanded && (
+        <div
+          className="flex flex-wrap gap-1.5 mt-1.5"
+          style={{ animation: 'fade-up 0.15s ease-out' }}
+        >
+          {suggestedReactions.map((chip) => (
+            <button
+              key={chip}
+              onClick={() => handleChipClick(chip)}
+              className="px-2.5 py-1 rounded-full text-[11px] text-zinc-500 border border-teal-800/40 hover:border-teal-600/60 hover:text-teal-300 hover:bg-teal-900/20 transition-colors cursor-pointer"
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReactionButtons({
   messageIndex,
   currentVerdict,
@@ -265,7 +337,7 @@ function ReactionButtons({
 }: {
   messageIndex: number;
   currentVerdict?: 'approved' | 'rejected' | 'neutral';
-  onReaction: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
+  onReaction: (messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => void;
 }) {
   const isApproved = currentVerdict === 'approved';
   const isRejected = currentVerdict === 'rejected';
@@ -318,4 +390,3 @@ function ThinkingDots() {
     </div>
   );
 }
-
