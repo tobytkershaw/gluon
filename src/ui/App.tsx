@@ -1336,12 +1336,15 @@ export default function App() {
         timestamp: Date.now(),
         description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
       };
-      const next = setTrackImportance(s, trackId, undefined, role);
+      // Default importance to 0.5 if unset — AI's set_track_meta requires importance before musicalRole
+      const importance = track.importance ?? 0.5;
+      const next = setTrackImportance(s, trackId, importance, role);
       return { ...next, undoStack: [...next.undoStack, snapshot] };
     });
   }, []);
 
   const handleSetImportance = useCallback((trackId: string, importance: number) => {
+    arbRef.current.humanTouched(trackId, 'importance', importance, 'meta');
     setSession((s) => {
       const track = s.tracks.find(t => t.id === trackId);
       if (!track) return s;
