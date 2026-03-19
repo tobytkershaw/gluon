@@ -65,6 +65,7 @@ import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 import { computeSemanticRawUpdates } from './SemanticControlsSection';
 import { useTransportController } from './useTransportController';
 import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
+import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from '../audio/runtime-events';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -112,8 +113,10 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
 
 export function appendAudioRuntimeDegradationMessage(prev: string | null, message: string): string {
   if (!prev) return `Audio runtime degraded: ${message}`;
-  if (prev.includes(message)) return prev;
-  return `${prev}; ${message}`;
+  const [prefix, ...existingMessages] = prev.split('; ');
+  const seen = new Set(existingMessages);
+  if (seen.has(message)) return prev;
+  return `${prefix}; ${[...existingMessages, message].join('; ')}`;
 }
 
 export default function App() {
@@ -251,12 +254,12 @@ export default function App() {
 
   useEffect(() => {
     const handleAudioDegraded = (event: Event) => {
-      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      const detail = (event as CustomEvent<AudioDegradedDetail>).detail;
       if (detail?.message) reportAudioDegradation(detail.message);
     };
 
-    window.addEventListener('gluon-audio-degraded', handleAudioDegraded as EventListener);
-    return () => window.removeEventListener('gluon-audio-degraded', handleAudioDegraded as EventListener);
+    window.addEventListener(AUDIO_DEGRADED_EVENT, handleAudioDegraded as EventListener);
+    return () => window.removeEventListener(AUDIO_DEGRADED_EVENT, handleAudioDegraded as EventListener);
   }, [reportAudioDegradation]);
 
   const ensureAudio = useCallback(async () => {
@@ -931,7 +934,10 @@ export default function App() {
     setStreamingText('');
     setStreamingLogEntries([]);
     setStreamingRejections([]);
-    await ensureAudio();
+    if (!await ensureAudio()) {
+      setIsThinking(false);
+      return;
+    }
     // Add human message to session synchronously via ref so askStreaming
     // receives the session with the message already present. Without this,
     // onStep's setSession(() => updatedSession) overwrites the React state
@@ -1123,7 +1129,7 @@ export default function App() {
   }, [listenerMode]);
 
   const handleTogglePlay = useCallback(async () => {
-    await ensureAudio();
+    if (!await ensureAudio()) return;
     // Resume AudioContext if browser auto-suspended it after idle.
     // Must happen during user gesture to satisfy autoplay policy.
     await audioRef.current.resume();
@@ -1131,7 +1137,7 @@ export default function App() {
   }, [ensureAudio]);
 
   const handlePlayFromCursor = useCallback(async () => {
-    await ensureAudio();
+    if (!await ensureAudio()) return;
     await audioRef.current.resume();
     const cursorStep = trackerCursorStepRef.current;
     // Always start playing from cursor (TransportController handles restart if already playing)

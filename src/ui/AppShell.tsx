@@ -375,12 +375,6 @@ export function AppShell({
               )}
             </div>
 
-            {hasRuntimeDegradation && (
-              <div className="mx-4 mb-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-5 text-amber-100">
-                <span className="uppercase tracking-[0.18em] text-amber-300/70">Audio degraded</span>
-                <span className="ml-2">{runtimeDegradation}</span>
-              </div>
-            )}
             {apiConfigured ? (
               <>
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden">

@@ -25,6 +25,7 @@ import type { ElementsEngine } from './elements-synth';
 import { ElementsSynth } from './elements-synth';
 import type { BeadsEngine } from './beads-synth';
 import { BeadsSynth } from './beads-synth';
+import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from './runtime-events';
 
 export async function createPreferredSynth(ctx: AudioContext, output: AudioNode): Promise<SynthEngine> {
   try {
@@ -33,7 +34,7 @@ export async function createPreferredSynth(ctx: AudioContext, output: AudioNode)
     const message = 'Plaits init failed, falling back to WebAudioSynth.';
     console.warn(message, error);
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('gluon-audio-degraded', {
+      window.dispatchEvent(new CustomEvent<AudioDegradedDetail>(AUDIO_DEGRADED_EVENT, {
         detail: {
           message,
           source: 'synth-fallback',

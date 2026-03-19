@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AUDIO_DEGRADED_EVENT } from '../../src/audio/runtime-events';
 
 const createMock = vi.fn();
 const fallbackCtor = vi.fn();
@@ -39,7 +40,7 @@ describe('createPreferredSynth', () => {
       return fallback;
     });
     const degradedListener = vi.fn();
-    window.addEventListener('gluon-audio-degraded', degradedListener as EventListener);
+    window.addEventListener(AUDIO_DEGRADED_EVENT, degradedListener as EventListener);
 
     const { createPreferredSynth } = await import('../../src/audio/create-synth');
 
@@ -54,6 +55,6 @@ describe('createPreferredSynth', () => {
       source: 'synth-fallback',
     });
 
-    window.removeEventListener('gluon-audio-degraded', degradedListener as EventListener);
+    window.removeEventListener(AUDIO_DEGRADED_EVENT, degradedListener as EventListener);
   });
 });
