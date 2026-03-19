@@ -490,7 +490,7 @@ export function AppShell({
             <span
               className="shrink-0 w-2 h-2 rounded-full bg-violet-400"
               style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-              title={isListening ? 'Listening...' : 'Thinking...'}
+              title={isListening ? 'Listening \u2014 evaluating audio' : (streamingLogEntries && streamingLogEntries.length > 0 ? `Applying ${streamingLogEntries.length} ${streamingLogEntries.length === 1 ? 'change' : 'changes'}` : 'Thinking\u2026')}
             />
           )}
         </div>

@@ -5,6 +5,21 @@ import { ToolCallsView } from './ToolCallsView';
 import { PromptStarters } from './PromptStarters';
 import { renderInlineMarkdown } from './inlineMarkdown';
 
+/**
+ * Derive a collaboration phase label from authoritative streaming state.
+ * Pure function — easy to test without rendering.
+ */
+export function getPhaseLabel(
+  isThinking: boolean,
+  isListening: boolean,
+  logEntryCount: number,
+): string | null {
+  if (isListening) return 'Listening \u2014 evaluating audio';
+  if (logEntryCount > 0) return `Applying ${logEntryCount} ${logEntryCount === 1 ? 'change' : 'changes'}`;
+  if (isThinking) return 'Thinking\u2026';
+  return null;
+}
+
 interface Props {
   messages: ChatMessage[];
   isThinking?: boolean;
@@ -162,7 +177,9 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                 ))}
                 <div className="flex items-center gap-1.5 mt-1">
                   <ThinkingDots />
-                  <span className="text-[11px] font-mono text-zinc-600">working</span>
+                  <span className="text-[11px] font-mono text-zinc-600">
+                    {getPhaseLabel(isThinking, isListening, streamingLogEntries.length) ?? 'working'}
+                  </span>
                 </div>
               </div>
             )}
@@ -170,7 +187,7 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               <div className="flex items-center gap-1.5">
                 <ThinkingDots />
                 <span className="text-sm font-mono text-zinc-600">
-                  {isListening ? 'listening' : 'thinking'}
+                  {getPhaseLabel(isThinking, isListening, 0) ?? 'thinking'}
                 </span>
               </div>
             )}
