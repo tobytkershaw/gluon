@@ -6,7 +6,7 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import { clearSnapshots } from '../audio/snapshot-store';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -14,8 +14,8 @@ import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
   createSession, setApproval, updateTrackParams, setModel,
-  setActiveTrack, toggleTrackExpanded, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
-  renameTrack, setMaster, setTrackVolume, setTrackPan,
+  setActiveTrack, toggleTrackExpanded, toggleMute, toggleSolo, setTransportBpm, setTransportBpmNoUndo, setTransportSwing, setTransportSwingNoUndo, playTransport, pauseTransport, stopTransport,
+  renameTrack, setMaster, setMasterNoUndo, setTrackVolume, setTrackVolumeNoUndo, setTrackPan, setTrackPanNoUndo,
   addTrack, removeTrack,
   addSend, removeSend, setSendLevel,
   toggleMetronome, setMetronomeVolume,
@@ -1814,15 +1814,66 @@ export default function App() {
     });
   }, []);
 
+  // --- Track mix strip gesture-level undo ---
+  const mixStripUndoRef = useRef<{
+    trackId: string;
+    prevVolume: number;
+    prevPan: number;
+  } | null>(null);
+
   const handleChangeVolume = useCallback((trackId: string, value: number) => {
     ensureAudio();
-    setSession((s) => setTrackVolume(s, trackId, value));
+    // During a gesture, suppress per-frame undo snapshots
+    if (mixStripUndoRef.current) {
+      setSession((s) => setTrackVolumeNoUndo(s, trackId, value));
+    } else {
+      setSession((s) => setTrackVolume(s, trackId, value));
+    }
   }, [ensureAudio]);
 
   const handleChangePan = useCallback((trackId: string, value: number) => {
     ensureAudio();
-    setSession((s) => setTrackPan(s, trackId, value));
+    if (mixStripUndoRef.current) {
+      setSession((s) => setTrackPanNoUndo(s, trackId, value));
+    } else {
+      setSession((s) => setTrackPan(s, trackId, value));
+    }
   }, [ensureAudio]);
+
+  const handleMixStripInteractionStart = useCallback(() => {
+    const s = sessionRef.current;
+    const track = getActiveTrack(s);
+    mixStripUndoRef.current = {
+      trackId: s.activeTrackId,
+      prevVolume: track.volume,
+      prevPan: track.pan,
+    };
+  }, []);
+
+  const handleMixStripInteractionEnd = useCallback(() => {
+    const captured = mixStripUndoRef.current;
+    if (!captured) return;
+    mixStripUndoRef.current = null;
+    setSession((s) => {
+      const track = s.tracks.find(t => t.id === captured.trackId);
+      if (!track) return s;
+      // Check if anything actually changed
+      const volChanged = Math.abs(track.volume - captured.prevVolume) > 0.001;
+      const panChanged = Math.abs(track.pan - captured.prevPan) > 0.001;
+      if (!volChanged && !panChanged) return s;
+      const prevProps: Partial<import('../engine/types').Track> = {};
+      if (volChanged) prevProps.volume = captured.prevVolume;
+      if (panChanged) prevProps.pan = captured.prevPan;
+      const snapshot: TrackPropertySnapshot = {
+        kind: 'track-property',
+        trackId: captured.trackId,
+        prevProps,
+        timestamp: Date.now(),
+        description: `Mix strip: ${[volChanged && 'volume', panChanged && 'pan'].filter(Boolean).join(', ')}`,
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
 
   const handleAddTrack = useCallback((kind?: import('../engine/types').TrackKind) => {
     setSession((s) => {
@@ -1861,15 +1912,75 @@ export default function App() {
     setSession((s) => setSendLevel(s, trackId, busId, level));
   }, []);
 
+  // --- Master strip gesture-level undo ---
+  const masterStripUndoRef = useRef<{
+    prevVolume: number;
+    prevPan: number;
+  } | null>(null);
+
   const handleMasterVolumeChange = useCallback((v: number) => {
     ensureAudio();
-    setSession((s) => setMaster(s, { volume: v }));
+    if (masterStripUndoRef.current) {
+      setSession((s) => setMasterNoUndo(s, { volume: v }));
+    } else {
+      setSession((s) => setMaster(s, { volume: v }));
+    }
   }, [ensureAudio]);
 
   const handleMasterPanChange = useCallback((p: number) => {
     ensureAudio();
-    setSession((s) => setMaster(s, { pan: p }));
+    if (masterStripUndoRef.current) {
+      setSession((s) => setMasterNoUndo(s, { pan: p }));
+    } else {
+      setSession((s) => setMaster(s, { pan: p }));
+    }
   }, [ensureAudio]);
+
+  const handleMasterInteractionStart = useCallback(() => {
+    const s = sessionRef.current;
+    masterStripUndoRef.current = {
+      prevVolume: s.master.volume,
+      prevPan: s.master.pan,
+    };
+  }, []);
+
+  const handleMasterInteractionEnd = useCallback(() => {
+    const captured = masterStripUndoRef.current;
+    if (!captured) return;
+    masterStripUndoRef.current = null;
+    setSession((s) => {
+      const volChanged = Math.abs(s.master.volume - captured.prevVolume) > 0.001;
+      const panChanged = Math.abs(s.master.pan - captured.prevPan) > 0.001;
+      if (!volChanged && !panChanged) return s;
+      const snapshot: MasterSnapshot = {
+        kind: 'master',
+        prevMaster: { volume: captured.prevVolume, pan: captured.prevPan },
+        timestamp: Date.now(),
+        description: `Master: ${[volChanged && 'volume', panChanged && 'pan'].filter(Boolean).join(', ')}`,
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
+
+  // --- Transport (BPM/swing) gesture-level undo ---
+  // DraggableNumber calls onChange per frame (no undo) and onCommit once at drag end.
+  // We capture pre-gesture transport state on the first onChange and push the snapshot on commit.
+  const transportPreGestureRef = useRef<import('../engine/types').Transport | null>(null);
+
+  const handleTransportCommit = useCallback((_field: 'bpm' | 'swing', _value: number) => {
+    const captured = transportPreGestureRef.current;
+    if (!captured) return;
+    transportPreGestureRef.current = null;
+    setSession((s) => {
+      const snapshot: TransportSnapshot = {
+        kind: 'transport',
+        prevTransport: captured,
+        timestamp: Date.now(),
+        description: _field === 'bpm' ? `Set BPM` : `Set swing`,
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
 
   const _handleStepToggle = useCallback((stepIndex: number) => {
     ensureAudio();
@@ -2826,8 +2937,22 @@ export default function App() {
       patternLength={getActivePattern(activeTrack).duration}
       onTogglePlay={handleTogglePlay}
       onHardStop={handleHardStop}
-      onBpmChange={(bpm) => { ensureAudio(); setSession(s => setTransportBpm(s, bpm)); }}
-      onSwingChange={(swing) => { ensureAudio(); setSession(s => setTransportSwing(s, swing)); }}
+      onBpmChange={(bpm) => {
+        ensureAudio();
+        if (!transportPreGestureRef.current) {
+          transportPreGestureRef.current = { ...sessionRef.current.transport };
+        }
+        setSession(s => setTransportBpmNoUndo(s, bpm));
+      }}
+      onBpmCommit={(bpm) => { handleTransportCommit('bpm', bpm); }}
+      onSwingChange={(swing) => {
+        ensureAudio();
+        if (!transportPreGestureRef.current) {
+          transportPreGestureRef.current = { ...sessionRef.current.transport };
+        }
+        setSession(s => setTransportSwingNoUndo(s, swing));
+      }}
+      onSwingCommit={(swing) => { handleTransportCommit('swing', swing); }}
       onToggleRecord={handleToggleRecord}
       metronomeEnabled={session.transport.metronome.enabled}
       metronomeVolume={session.transport.metronome.volume}
@@ -2856,6 +2981,8 @@ export default function App() {
       audioEngine={audioStarted ? audioRef.current : null}
       onMasterVolumeChange={handleMasterVolumeChange}
       onMasterPanChange={handleMasterPanChange}
+      onMasterInteractionStart={handleMasterInteractionStart}
+      onMasterInteractionEnd={handleMasterInteractionEnd}
       abActive={abActive}
       onAbCapture={handleAbCapture}
       onAbToggle={handleAbToggle}
@@ -2865,6 +2992,8 @@ export default function App() {
           activeTrack={activeTrack}
           onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
           onChangePan={(v) => handleChangePan(activeTrack.id, v)}
+          onInteractionStart={handleMixStripInteractionStart}
+          onInteractionEnd={handleMixStripInteractionEnd}
         />
         {isSessionEmpty && (
           <EmptyState

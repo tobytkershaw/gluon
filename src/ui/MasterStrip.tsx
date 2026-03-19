@@ -11,6 +11,8 @@ interface Props {
   stereoAnalysers: [AnalyserNode, AnalyserNode] | null;
   onVolumeChange: (v: number) => void;
   onPanChange: (p: number) => void;
+  onInteractionStart?: () => void;
+  onInteractionEnd?: () => void;
 }
 
 const METER_WIDTH = 20;   // total width: two bars + gap
@@ -128,7 +130,7 @@ export function PeakMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode,
   );
 }
 
-export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers, onVolumeChange, onPanChange }: Props) {
+export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers, onVolumeChange, onPanChange, onInteractionStart, onInteractionEnd }: Props) {
   // Pan is -1..1, Knob expects 0..1. Map 0.5 = center.
   const panKnobValue = (pan + 1) / 2;
 
@@ -153,6 +155,8 @@ export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers,
           label="Vol"
           accentColor="zinc"
           onChange={onVolumeChange}
+          onPointerDown={onInteractionStart}
+          onPointerUp={onInteractionEnd}
           size={22}
         />
       </div>
@@ -170,6 +174,8 @@ export function MasterStrip({ volume, pan, analyser: _analyser, stereoAnalysers,
           label="Pan"
           accentColor="zinc"
           onChange={handlePanKnobChange}
+          onPointerDown={onInteractionStart}
+          onPointerUp={onInteractionEnd}
           size={22}
         />
       </div>

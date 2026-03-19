@@ -36,6 +36,8 @@ interface Props {
   /** Master bus stereo analysers for the anchored meter. */
   masterStereoAnalysers?: [AnalyserNode, AnalyserNode] | null;
   onMasterVolumeChange?: (v: number) => void;
+  onMasterInteractionStart?: () => void;
+  onMasterInteractionEnd?: () => void;
   /** Display variant for track rows. Defaults to 'default'. */
   variant?: TrackRowVariant;
 }
@@ -48,6 +50,7 @@ export function TrackList({
   onAddSend, onRemoveSend, onSetSendLevel,
   maxTracks = 16,
   audioEngine, masterVolume, masterStereoAnalysers, onMasterVolumeChange,
+  onMasterInteractionStart, onMasterInteractionEnd,
   variant = 'default',
 }: Props) {
   const canAdd = tracks.length < maxTracks;
@@ -196,6 +199,8 @@ export function TrackList({
               step={0.01}
               value={masterVolume ?? 0.8}
               onChange={handleVolumeInput}
+              onPointerDown={onMasterInteractionStart}
+              onPointerUp={onMasterInteractionEnd}
               onClick={(e) => e.stopPropagation()}
               className="master-volume-slider flex-1 h-1 cursor-pointer"
               title={`Master volume: ${Math.round((masterVolume ?? 0.8) * 100)}%`}

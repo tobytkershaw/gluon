@@ -72,7 +72,9 @@ interface Props {
   onTogglePlay: () => void;
   onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
+  onBpmCommit?: (bpm: number) => void;
   onSwingChange: (swing: number) => void;
+  onSwingCommit?: (swing: number) => void;
   onToggleRecord: () => void;
   metronomeEnabled: boolean;
   metronomeVolume: number;
@@ -89,7 +91,7 @@ interface Props {
 export function TransportStrip({
   playing, bpm, swing, recordArmed, globalStep, patternLength: _patternLength,
   transportMode, loop,
-  onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
+  onTogglePlay, onHardStop, onBpmChange, onBpmCommit, onSwingChange, onSwingCommit, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   onLoopChange, onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
@@ -217,6 +219,7 @@ export function TransportStrip({
             editDecimals={1}
             className="!text-lg text-zinc-100 hover:text-amber-400 transition-colors font-semibold"
             onChange={onBpmChange}
+            onCommit={onBpmCommit}
           />
           <span className="!text-[11px] uppercase tracking-wider text-zinc-600 ml-0.5 font-normal">bpm</span>
         </div>
@@ -239,6 +242,7 @@ export function TransportStrip({
           suffix="%"
           className="text-zinc-400 hover:text-amber-400 transition-colors"
           onChange={(pct) => onSwingChange(pct / 100)}
+          onCommit={onSwingCommit ? (pct) => onSwingCommit(pct / 100) : undefined}
         />
       </div>
 

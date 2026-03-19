@@ -99,7 +99,9 @@ interface Props {
   onTogglePlay: () => void;
   onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
+  onBpmCommit?: (bpm: number) => void;
   onSwingChange: (swing: number) => void;
+  onSwingCommit?: (swing: number) => void;
   onToggleRecord: () => void;
   // Metronome
   metronomeEnabled: boolean;
@@ -140,6 +142,8 @@ interface Props {
   audioEngine?: AudioEngine | null;
   onMasterVolumeChange: (v: number) => void;
   onMasterPanChange: (p: number) => void;
+  onMasterInteractionStart?: () => void;
+  onMasterInteractionEnd?: () => void;
   // Main content
   children: ReactNode;
 }
@@ -182,7 +186,7 @@ export function AppShell({
   onProjectDelete, onProjectExport, onProjectImport,
   onExportWav, exportingWav,
   playing, bpm, swing, recordArmed, globalStep, patternLength,
-  onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
+  onTogglePlay, onHardStop, onBpmChange, onBpmCommit, onSwingChange, onSwingCommit, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   transportMode, loop, onTransportModeChange, onLoopChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
@@ -190,7 +194,7 @@ export function AppShell({
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
   abActive, onAbCapture, onAbToggle, onAbClear,
-  masterVolume, masterPan: _masterPan, analyser: _analyser, stereoAnalysers, audioContext, audioEngine, onMasterVolumeChange, onMasterPanChange: _onMasterPanChange,
+  masterVolume, masterPan: _masterPan, analyser: _analyser, stereoAnalysers, audioContext, audioEngine, onMasterVolumeChange, onMasterPanChange: _onMasterPanChange, onMasterInteractionStart, onMasterInteractionEnd,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -487,7 +491,9 @@ export function AppShell({
             onTogglePlay={onTogglePlay}
             onHardStop={onHardStop}
             onBpmChange={onBpmChange}
+            onBpmCommit={onBpmCommit}
             onSwingChange={onSwingChange}
+            onSwingCommit={onSwingCommit}
             onToggleRecord={onToggleRecord}
             metronomeEnabled={metronomeEnabled}
             metronomeVolume={metronomeVolume}
@@ -563,6 +569,8 @@ export function AppShell({
             masterVolume={masterVolume}
             masterStereoAnalysers={stereoAnalysers}
             onMasterVolumeChange={onMasterVolumeChange}
+            onMasterInteractionStart={onMasterInteractionStart}
+            onMasterInteractionEnd={onMasterInteractionEnd}
             variant={view === 'surface' ? 'stage' : 'default'}
           />
           </div>
