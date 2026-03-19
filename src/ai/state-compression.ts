@@ -5,6 +5,7 @@ import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModul
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { scaleToString, scaleNoteNames } from '../engine/scale';
+import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 
 interface CompressedPattern {
   length: number;
@@ -125,9 +126,23 @@ export interface CompressedState {
   open_decisions: CompressedDecision[];
   recent_preservation?: CompressedPreservationReport[];
   intent?: SessionIntent;
+  genre_reference_overlays?: CompressedGenreReferenceOverlay[];
   section?: SectionMeta;
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
   userSelection?: CompressedUserSelection;
+}
+
+interface CompressedGenreReferenceOverlay {
+  genre: string;
+  profileId: string;
+  label: string;
+  description: string;
+  lufs: { min: number; max: number };
+  dynamicRange: { min: number; max: number };
+  crestFactor: { min: number; max: number };
+  spectralCentroidHz: { min: number; max: number };
+  frequencyBalance: { band: string; range: string; minDb: number; maxDb: number }[];
+  mixNotes: string[];
 }
 
 function round2(n: number): number {
@@ -349,10 +364,104 @@ function compressPreservationReport(report: PreservationReport): CompressedPrese
   };
 }
 
+interface GenreReferenceOverlaySpec {
+  aliases: string[];
+  profileId: string;
+  spectralCentroidHz: { min: number; max: number };
+  mixNotes: string[];
+}
+
+const GENRE_REFERENCE_OVERLAY_SPECS: GenreReferenceOverlaySpec[] = [
+  {
+    aliases: ['dark techno', 'industrial techno', 'techno_dark'],
+    profileId: 'techno_dark',
+    spectralCentroidHz: { min: 900, max: 2200 },
+    mixNotes: ['Prioritize kick and sub weight', 'Keep highs controlled and slightly recessed'],
+  },
+  {
+    aliases: ['techno', 'minimal techno', 'minimal', 'techno_minimal'],
+    profileId: 'techno_minimal',
+    spectralCentroidHz: { min: 1200, max: 3000 },
+    mixNotes: ['Keep low end firm but not overloaded', 'Leave space for crisp hats and percussion detail'],
+  },
+  {
+    aliases: ['deep house', 'house', 'house_deep'],
+    profileId: 'house_deep',
+    spectralCentroidHz: { min: 1500, max: 3500 },
+    mixNotes: ['Warm low mids are part of the sound', 'Highs should feel smooth rather than sharp'],
+  },
+  {
+    aliases: ['ambient', 'drone'],
+    profileId: 'ambient',
+    spectralCentroidHz: { min: 1800, max: 5000 },
+    mixNotes: ['Favor wide spectral spread over kick dominance', 'Preserve headroom and dynamic movement'],
+  },
+  {
+    aliases: ['dnb', 'drum and bass', 'drum & bass', 'jungle'],
+    profileId: 'dnb',
+    spectralCentroidHz: { min: 2200, max: 5500 },
+    mixNotes: ['Sub should stay powerful and stable', 'Let snare presence and top-end attack cut through'],
+  },
+  {
+    aliases: ['hiphop', 'hip-hop', 'rap', 'trap'],
+    profileId: 'hiphop',
+    spectralCentroidHz: { min: 1200, max: 3200 },
+    mixNotes: ['Low end should feel heavy but controlled', 'Protect vocal or lead midrange clarity'],
+  },
+];
+
+function normalizeGenreTag(genre: string): string {
+  return genre.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function findGenreReferenceSpec(genre: string): GenreReferenceOverlaySpec | undefined {
+  const normalized = normalizeGenreTag(genre);
+  return GENRE_REFERENCE_OVERLAY_SPECS.find(spec => spec.aliases.includes(normalized));
+}
+
+function compressGenreReferenceOverlay(genre: string, profile: ReferenceProfile, spec: GenreReferenceOverlaySpec): CompressedGenreReferenceOverlay {
+  return {
+    genre,
+    profileId: profile.id,
+    label: profile.label,
+    description: profile.description,
+    lufs: { min: profile.dynamics.lufsMin, max: profile.dynamics.lufsMax },
+    dynamicRange: { min: profile.dynamics.dynamicRangeMin, max: profile.dynamics.dynamicRangeMax },
+    crestFactor: { min: profile.dynamics.crestFactorMin, max: profile.dynamics.crestFactorMax },
+    spectralCentroidHz: spec.spectralCentroidHz,
+    frequencyBalance: profile.bands.map(band => ({
+      band: band.band,
+      range: band.range,
+      minDb: band.minDb,
+      maxDb: band.maxDb,
+    })),
+    mixNotes: spec.mixNotes,
+  };
+}
+
+function deriveGenreReferenceOverlays(intent?: SessionIntent): CompressedGenreReferenceOverlay[] {
+  if (!intent?.genre || intent.genre.length === 0) return [];
+
+  const overlays: CompressedGenreReferenceOverlay[] = [];
+  const seenProfiles = new Set<string>();
+
+  for (const genre of intent.genre) {
+    const spec = findGenreReferenceSpec(genre);
+    if (!spec || seenProfiles.has(spec.profileId)) continue;
+    const profile = getProfile(spec.profileId);
+    if (!profile) continue;
+    overlays.push(compressGenreReferenceOverlay(genre, profile, spec));
+    seenProfiles.add(spec.profileId);
+  }
+
+  return overlays;
+}
+
 export function compressState(session: Session, recentPreservationReports?: PreservationReport[], userSelection?: UserSelection): CompressedState {
   const now = Date.now();
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
+  const genreReferenceOverlays = deriveGenreReferenceOverlays(session.intent);
   const result: CompressedState = {
     tracks: session.tracks.map(track => ({
       id: track.id,
@@ -476,6 +585,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
       recent_preservation: recentPreservationReports.map(compressPreservationReport),
     } : {}),
     ...(session.intent && Object.keys(session.intent).length > 0 ? { intent: session.intent } : {}),
+    ...(genreReferenceOverlays.length > 0 ? { genre_reference_overlays: genreReferenceOverlays } : {}),
     ...(session.section && Object.keys(session.section).length > 0 ? { section: session.section } : {}),
     ...(session.scale !== undefined ? {
       scale: session.scale ? {
