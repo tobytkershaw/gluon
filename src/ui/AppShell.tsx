@@ -2,7 +2,7 @@
 // Layout shell: view-driven workstation with chat as a first-class tab.
 // Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
-import { useRef, type ReactNode, type MutableRefObject } from 'react';
+import { useEffect, useRef, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
