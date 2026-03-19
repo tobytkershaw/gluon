@@ -2,7 +2,8 @@
 
 import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
-import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName } from '../audio/instrument-registry';
+import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
+import { getEngineById } from '../audio/instrument-registry-plaits';
 import { validateChainMutation, validateModulatorMutation } from '../engine/chain-validation';
 import { resolveTrackId, getTrackLabel, getTrackOrdinalLabel } from '../engine/track-labels';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -1158,16 +1159,21 @@ export class GluonAI {
                 (now - ha.timestamp) < HUMAN_TOUCH_WINDOW_MS,
         );
 
+        const moveTrackLabel = track?.name ?? trackId;
+        const clamped = resultValue !== rawTarget;
+
         return {
           actions: [action],
           response: {
             applied: true,
             param: action.param,
             trackId,
+            trackLabel: moveTrackLabel,
             ...(action.processorId ? { processorId: action.processorId } : {}),
             ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
             from: Math.round(currentVal * 100) / 100,
             to: Math.round(resultValue * 100) / 100,
+            ...(clamped ? { clamped: true, requestedValue: Math.round(rawTarget * 100) / 100 } : {}),
             ...(recentHumanTouch ? { recentHumanTouch: true } : {}),
           },
         };
@@ -1283,16 +1289,23 @@ export class GluonAI {
           verificationResult = await runAutoDiffVerification(session, afterSession, action.trackId, ctx);
         }
 
+        // Compute resulting state for model context
+        const resultingEventCount = newEvents.length;
+        const activePatternForSketch = sketchTrack && sketchTrack.patterns.length > 0 ? getActivePattern(sketchTrack) : undefined;
+        const patternLength = activePatternForSketch?.duration;
+
         return {
           actions: [action],
           response: {
             applied: true,
             trackId: action.trackId,
             description: action.description,
+            resultingEventCount,
             eventsAdded,
             eventsRemoved,
             eventsModified,
             rhythmChanged,
+            ...(patternLength !== undefined ? { patternLength } : {}),
             ...(hasApprovalLock ? { approvalLevel: approval } : {}),
             ...(preservationReport ? { preservation: preservationReport } : {}),
             ...(generatorUsed ? { source: 'generator' } : {}),
@@ -1357,6 +1370,14 @@ export class GluonAI {
           editVerificationResult = await runAutoDiffVerification(session, afterSession, action.trackId, ctx);
         }
 
+        // Compute resulting state for model context
+        const editTrack = session.tracks.find(v => v.id === action.trackId);
+        const editPattern = editTrack && editTrack.patterns.length > 0
+          ? (action.patternId ? editTrack.patterns.find(p => p.id === action.patternId) : getActivePattern(editTrack))
+          : undefined;
+        const editResultingEventCount = editPattern ? editPattern.events.length + adds - removes : undefined;
+        const editPatternLength = editPattern?.duration;
+
         return {
           actions: [action],
           response: {
@@ -1366,6 +1387,8 @@ export class GluonAI {
             added: adds,
             removed: removes,
             modified: modifies,
+            ...(editResultingEventCount !== undefined ? { resultingEventCount: editResultingEventCount } : {}),
+            ...(editPatternLength !== undefined ? { patternLength: editPatternLength } : {}),
             ...(editVerificationResult ?? {}),
           },
         };
@@ -1398,6 +1421,14 @@ export class GluonAI {
         const resultBpm = action.bpm !== undefined ? Math.max(20, Math.min(300, action.bpm)) : undefined;
         const resultSwing = action.swing !== undefined ? Math.max(0, Math.min(1, action.swing)) : undefined;
 
+        // Compute full resulting transport state for model context
+        const resultingTransport = {
+          bpm: resultBpm ?? session.transport.bpm,
+          swing: resultSwing !== undefined ? Math.round(resultSwing * 100) / 100 : session.transport.swing,
+          mode: action.mode ?? session.transport.mode ?? 'pattern',
+          status: hasPlaying ? (action.playing ? 'playing' : 'stopped') : session.transport.status,
+        };
+
         return {
           actions: [action],
           response: {
@@ -1406,6 +1437,7 @@ export class GluonAI {
             ...(resultSwing !== undefined ? { swing: Math.round(resultSwing * 100) / 100 } : {}),
             ...(action.mode ? { mode: action.mode } : {}),
             ...(hasPlaying ? { playing: action.playing } : {}),
+            currentTransport: resultingTransport,
           },
         };
       }
@@ -1430,11 +1462,29 @@ export class GluonAI {
         const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
+        // Resolve available parameters for the new model
+        let modelParams: string[] | undefined;
+        if (action.processorId) {
+          const procTrack = session.tracks.find(v => v.id === action.trackId);
+          const proc = (procTrack?.processors ?? []).find(p => p.id === action.processorId);
+          if (proc) modelParams = getProcessorControlIds(proc.type);
+        } else if (action.modulatorId) {
+          const modTrack = session.tracks.find(v => v.id === action.trackId);
+          const mod = (modTrack?.modulators ?? []).find(m => m.id === action.modulatorId);
+          if (mod) modelParams = getModulatorControlIds(mod.type);
+        } else {
+          // Track source engine — resolve from engine registry
+          const engineDef = getEngineById(action.model);
+          if (engineDef) modelParams = engineDef.controls.map(c => c.id);
+        }
+
         const setModelResponse: Record<string, unknown> = {
             queued: true,
             trackId: action.trackId,
             model: action.model,
             ...(action.processorId ? { processorId: action.processorId } : {}),
+            ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
+            ...(modelParams ? { availableParams: modelParams } : {}),
           };
 
         // Spectral lint: changing a track's engine may shift its frequency profile.
@@ -1778,6 +1828,10 @@ export class GluonAI {
             const addModRejection = handleRejection(ctx?.validateAction?.(session, addModAction), session, addModAction, existingActions);
             if (addModRejection) return addModRejection;
 
+            // Include projected modulator list for model context
+            const projectedAfterModAdd = projectAction(session, addModAction);
+            const modulatorsAfterAdd = projectedAfterModAdd.tracks.find(v => v.id === addModAction.trackId)?.modulators ?? [];
+
             return {
               actions: [addModAction],
               response: {
@@ -1785,6 +1839,7 @@ export class GluonAI {
                 trackId: addModAction.trackId,
                 moduleType: addModAction.moduleType,
                 modulatorId: assignedModulatorId,
+                currentModulators: modulatorsAfterAdd.map(m => ({ id: m.id, type: m.type })),
               },
             };
           }
@@ -1806,12 +1861,17 @@ export class GluonAI {
             const removeModRejection = handleRejection(ctx?.validateAction?.(session, removeModAction), session, removeModAction, existingActions);
             if (removeModRejection) return removeModRejection;
 
+            // Include projected modulator list after removal for model context
+            const projectedAfterModRemove = projectAction(session, removeModAction);
+            const modulatorsAfterRemove = projectedAfterModRemove.tracks.find(v => v.id === removeModAction.trackId)?.modulators ?? [];
+
             return {
               actions: [removeModAction],
               response: {
                 queued: true,
                 trackId: removeModAction.trackId,
                 modulatorId: removeModAction.modulatorId,
+                remainingModulators: modulatorsAfterRemove.map(m => ({ id: m.id, type: m.type })),
               },
             };
           }
@@ -1883,6 +1943,10 @@ export class GluonAI {
               ? `source:${modTarget.param}`
               : `processor:${modTarget.processorId}:${modTarget.param}`;
 
+            // Include projected modulation routes for model context
+            const projectedAfterConnect = projectAction(session, connectAction);
+            const routesAfterConnect = projectedAfterConnect.tracks.find(v => v.id === connectAction.trackId)?.modulations ?? [];
+
             return {
               actions: [connectAction],
               response: {
@@ -1892,6 +1956,14 @@ export class GluonAI {
                 ...(existingRoute ? { previousDepth: existingRoute.depth } : {}),
                 target: targetStr,
                 depth: args.depth,
+                currentRoutes: routesAfterConnect.map(r => ({
+                  id: r.id,
+                  modulatorId: r.modulatorId,
+                  target: r.target.kind === 'source'
+                    ? `source:${r.target.param}`
+                    : `processor:${r.target.processorId}:${r.target.param}`,
+                  depth: r.depth,
+                })),
               },
             };
           }
@@ -1913,12 +1985,24 @@ export class GluonAI {
             const disconnectRejection = handleRejection(ctx?.validateAction?.(session, disconnectAction), session, disconnectAction, existingActions);
             if (disconnectRejection) return disconnectRejection;
 
+            // Include projected modulation routes after disconnection for model context
+            const projectedAfterDisconnect = projectAction(session, disconnectAction);
+            const routesAfterDisconnect = projectedAfterDisconnect.tracks.find(v => v.id === disconnectAction.trackId)?.modulations ?? [];
+
             return {
               actions: [disconnectAction],
               response: {
                 queued: true,
                 trackId: disconnectAction.trackId,
                 modulationId: disconnectAction.modulationId,
+                remainingRoutes: routesAfterDisconnect.map(r => ({
+                  id: r.id,
+                  modulatorId: r.modulatorId,
+                  target: r.target.kind === 'source'
+                    ? `source:${r.target.param}`
+                    : `processor:${r.target.processorId}:${r.target.param}`,
+                  depth: r.depth,
+                })),
               },
             };
           }
@@ -2442,11 +2526,18 @@ export class GluonAI {
             const removeTrackRejection = handleRejection(ctx?.validateAction?.(session, removeTrackAction), session, removeTrackAction, existingActions);
             if (removeTrackRejection) return removeTrackRejection;
 
+            // Compute remaining tracks after removal for model context
+            const remainingTracks = session.tracks
+              .filter(t => t.id !== removeTrackAction.trackId)
+              .map(t => ({ id: t.id, name: t.name ?? t.id, kind: getTrackKind(t) }));
+
             return {
               actions: [removeTrackAction],
               response: {
                 applied: true,
                 trackId: removeTrackAction.trackId,
+                remainingTrackCount: remainingTracks.length,
+                remainingTracks,
               },
             };
           }
@@ -2857,12 +2948,24 @@ export class GluonAI {
         const patternRejection = handleRejection(ctx?.validateAction?.(session, managePatternAction), session, managePatternAction, existingActions);
         if (patternRejection) return patternRejection;
 
+        // Compute resulting pattern metadata for model context
+        const projectedAfterPattern = projectAction(session, managePatternAction);
+        const patternTrack = projectedAfterPattern.tracks.find(v => v.id === patternTrackId);
+        const patternList = patternTrack?.patterns.map(p => ({
+          id: p.id,
+          name: p.name,
+          length: p.duration,
+          eventCount: p.events.length,
+        })) ?? [];
+
         return {
           actions: [managePatternAction],
           response: {
             queued: true,
             action: patternSubAction,
             trackId: patternTrackId,
+            patterns: patternList,
+            ...(patternTrack?.activePatternId ? { activePatternId: patternTrack.activePatternId } : {}),
             ...(patternSubAction === 'add' || patternSubAction === 'duplicate'
               ? { note: 'The new pattern will be available immediately. Continue with further edits this turn.' }
               : {}),
@@ -2918,9 +3021,22 @@ export class GluonAI {
         const seqRejection = handleRejection(ctx?.validateAction?.(session, manageSequenceAction), session, manageSequenceAction, existingActions);
         if (seqRejection) return seqRejection;
 
+        // Compute resulting sequence for model context
+        const projectedAfterSeq = projectAction(session, manageSequenceAction);
+        const seqTrack = projectedAfterSeq.tracks.find(v => v.id === seqTrackId);
+        const currentSequence = seqTrack?.sequence.map((ref, i) => ({
+          index: i,
+          patternId: ref.patternId,
+        })) ?? [];
+
         return {
           actions: [manageSequenceAction],
-          response: { queued: true, action: seqSubAction, trackId: seqTrackId },
+          response: {
+            queued: true,
+            action: seqSubAction,
+            trackId: seqTrackId,
+            currentSequence,
+          },
         };
       }
 
