@@ -38,6 +38,8 @@ Replace the blank chat with 4–6 contextual prompt chips that adapt to project 
 
 Chips are visible when the composer is empty and there is no pending AI turn. They adapt to project state each time they appear — not just on first load. After the user sends any message, chips hide until the composer is empty again and the AI turn completes. This means resume-specific starters can appear in a session that already has messages.
 
+**Chip authoring:** Starters are static templates selected by client-side logic — no model call, no latency. The selection function inspects project state (track count, track names, message history) and picks from a curated pool. The pool lives in the codebase and can be tuned over time.
+
 **Touches:** `ChatMessages.tsx`, `ChatComposer.tsx`
 
 ### 2. Collaboration phase labels
@@ -78,6 +80,8 @@ Next: [more weight] [less motion] [A/B compare] [undo]
 
 The follow-up chips are the highest-value part — they turn the collaboration loop into a one-click cycle instead of requiring the user to re-articulate intent every turn.
 
+**Chip authoring:** Follow-up chips are AI-generated — they need to be contextual to what just happened. They come as a structured field in the planner's response (`suggestedFollowUps: string[]`), alongside text and tool calls. The "Changed" and "Why" lines can be derived client-side from the action log and AI text, but the follow-up suggestions require model intelligence.
+
 **Touches:** `ChatMessages.tsx`, AI planner (to suggest follow-ups), `ActionDiffView.tsx`
 
 ### 4. Musical reaction controls
@@ -96,6 +100,8 @@ Extend approve/reject with domain-specific quick reactions. The existing verdict
 **Invariant:** Every reaction must record a canonical `verdict` (`approved` | `rejected` | `neutral`) and optional `rationale` in the existing `Reaction` type. Quick chips map to `approved` verdict with the chip text as rationale (e.g. verdict: `approved`, rationale: "more tense"). This preserves the taste-learning signal that state compression and restraint derivation depend on.
 
 The reaction chips double as follow-up messages — clicking "more tense" sends it as the next user message with the reaction context attached.
+
+**Chip authoring:** The contextual musical chips are AI-generated per turn, same mechanism as follow-up chips — a structured field in the planner's response (`suggestedReactions: string[]`). The always-available controls (approve, reject, undo, free-text) are static UI.
 
 **Touches:** `ChatMessages.tsx` (reaction UI), reaction type definitions in `types.ts`, verify `state-compression.ts` continues to receive verdict+rationale
 
@@ -149,6 +155,20 @@ Musicians often have one hand on a controller. Support:
 6. **Keyboard workflow** — polish pass, low urgency
 
 Items 1–3 are the core. Items 4–7 are valuable but can follow independently.
+
+---
+
+## Chip dismissability
+
+All chips (starters, follow-ups, reactions) are accelerators, not gates. The composer is always available — you can type whatever you want regardless of what chips are shown. Chips never block input or change the interaction model.
+
+For power users who find chips visually noisy:
+
+- **Starter chips** fade out once the session has a few turns of history (the user has demonstrated they know what to ask)
+- **Follow-up and reaction chips** collapse to a minimal row that expands on hover after a short delay
+- **No settings toggle needed at launch** — ship visible, observe whether anyone finds them noisy, add collapse/hide preference later if needed
+
+The principle: chips lower the floor without lowering the ceiling. If you want full control, type. If you want guidance, click.
 
 ---
 
