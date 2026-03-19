@@ -119,10 +119,25 @@ export interface PinnedControl {
   controlId: string;
 }
 
+// --- Surface Module system (replaces semantic-controls-only surface) ---
+
+export interface ModuleBinding {
+  role: string;           // module-defined binding role (e.g., 'control', 'x-axis', 'region')
+  trackId: string;        // which track this binding targets
+  target: string;         // controlId, regionId, or semantic reference
+}
+
+export interface SurfaceModule {
+  type: string;           // module type from registry (e.g., 'knob-group', 'macro-knob', 'xy-pad')
+  id: string;             // unique instance ID
+  label: string;          // human-readable label
+  bindings: ModuleBinding[];
+  position: { x: number; y: number; w: number; h: number }; // grid placement
+  config: Record<string, unknown>; // module-type-specific configuration
+}
+
 export interface TrackSurface {
-  semanticControls: SemanticControlDef[];
-  pinnedControls: PinnedControl[];
-  xyAxes: { x: string; y: string };
+  modules: SurfaceModule[];
   thumbprint: ThumbprintConfig;
 }
 
@@ -736,8 +751,7 @@ export interface AIManageSequenceAction {
 export interface AISetSurfaceAction {
   type: 'set_surface';
   trackId: string;
-  semanticControls: SemanticControlDef[];
-  xyAxes?: { x: string; y: string };
+  modules: SurfaceModule[];
   description: string;
 }
 
