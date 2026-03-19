@@ -1010,6 +1010,8 @@ export class GluonAI {
   /** In-memory cache of user-saved patches (loaded from IndexedDB on first access). */
   private _userPatches: Patch[] = [];
   private _userPatchesLoaded = false;
+  /** Avoid repeating token-count fallback warnings every turn. */
+  private countTokensFallbackWarned = false;
 
   constructor(
     private planner: PlannerProvider,
@@ -4814,7 +4816,10 @@ export class GluonAI {
       }
     } catch (error) {
       // If countTokens fails (e.g. network issue), fall back to exchange cap
-      console.warn('[gluon-ai] countTokens failed, falling back to exchange cap:', error);
+      if (!this.countTokensFallbackWarned) {
+        this.countTokensFallbackWarned = true;
+        console.warn('[gluon-ai] countTokens failed, falling back to exchange cap:', error);
+      }
       planner.trimHistory(GluonAI.FALLBACK_MAX_EXCHANGES);
     }
   }

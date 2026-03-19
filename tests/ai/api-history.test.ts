@@ -594,6 +594,28 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       expect(tokenPlanner.trimCalls).toEqual([12]);
     });
 
+    it('warns only once when countContextTokens keeps failing', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+      tokenPlanner.countContextTokens = vi.fn(async () => { throw new Error('network'); });
+      tokenPlanner.getTokenBudget = () => 170_000;
+      tokenPlanner.getExchangeCount = () => 5;
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+
+      try {
+        await tokenAI.ask(session, 'hello');
+        tokenPlanner.startTurnResults.push({ textParts: ['ok again'], functionCalls: [] });
+        await tokenAI.ask(session, 'hello again');
+
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it('falls back to exchange cap for providers without countContextTokens', async () => {
       // The default mock planner has no countContextTokens — this is the existing test
       planner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
