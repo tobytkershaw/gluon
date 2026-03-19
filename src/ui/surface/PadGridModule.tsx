@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import type { TriggerEvent } from '../../engine/canonical-types';
 import { getActivePattern } from '../../engine/types';
@@ -45,6 +45,13 @@ export function PadGridModule({ module, track, visualContext, onParamChange: _on
     // TODO: Wire tap-to-audition via a dedicated onAuditionPad prop
     // threaded from SurfaceCanvas through to the audio engine.
     // The onParamChange path only handles source params, not pad triggers.
+  }, []);
+
+  // Clean up timeout on unmount to avoid setting state on an unmounted component
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, []);
 
   if (pads.length === 0) {

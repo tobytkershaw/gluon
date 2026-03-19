@@ -59,7 +59,7 @@ export function AutomationLane({
   height = 100,
 }: Props) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragAt, setDragAt] = useState<number | null>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [svgWidth, setSvgWidth] = useState(400);
 
@@ -202,8 +202,8 @@ export function AutomationLane({
         // Right-click or Alt+click: remove breakpoint
         onRemoveBreakpoint(breakpoints[hitIdx].at);
       } else {
-        // Start drag
-        setDragIndex(hitIdx);
+        // Start drag — store the breakpoint's `at` value as identity
+        setDragAt(breakpoints[hitIdx].at);
       }
     } else if (e.button === 0) {
       // Click on empty space: add breakpoint
@@ -217,25 +217,27 @@ export function AutomationLane({
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const { x, y } = getSvgPoint(e);
 
-    if (dragIndex !== null) {
-      const bp = breakpoints[dragIndex];
+    if (dragAt !== null) {
+      const bp = breakpoints.find(b => b.at === dragAt);
       if (!bp) return;
       const newBeat = xToBeat(x);
       const newValue = yToValue(y);
       onMoveBreakpoint(bp.at, newBeat, newValue);
+      // Update dragAt to track the breakpoint's new position
+      setDragAt(newBeat);
     } else {
       // Hover detection
       const hitIdx = findBreakpointAtPoint(x, y);
       setHoverIndex(hitIdx);
     }
-  }, [getSvgPoint, dragIndex, breakpoints, xToBeat, yToValue, onMoveBreakpoint, findBreakpointAtPoint]);
+  }, [getSvgPoint, dragAt, breakpoints, xToBeat, yToValue, onMoveBreakpoint, findBreakpointAtPoint]);
 
   const handleMouseUp = useCallback(() => {
-    setDragIndex(null);
+    setDragAt(null);
   }, []);
 
   const handleMouseLeave = useCallback(() => {
-    setDragIndex(null);
+    setDragAt(null);
     setHoverIndex(null);
   }, []);
 
@@ -363,7 +365,7 @@ export function AutomationLane({
           const cx = beatToX(bp.at);
           const cy = valueToY(bp.value);
           const isHovered = hoverIndex === idx;
-          const isDragging = dragIndex === idx;
+          const isDragging = dragAt !== null && bp.at === dragAt;
           const isActive = isHovered || isDragging;
 
           // Interpolation mode indicator shape
