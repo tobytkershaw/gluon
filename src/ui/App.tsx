@@ -35,7 +35,7 @@ import { executeOperations, executeStepActions, finalizeAITurn, prevalidateActio
 import type { OnStepCallback, StepExecutor } from '../ai/types';
 import type { ExecutionReportLogEntry } from '../engine/canonical-types';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
-import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { runtimeParamToControlId, controlIdToRuntimeParam, getProcessorDefaultParams } from '../audio/instrument-registry';
 import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents, transposeEventsByIndices } from '../engine/event-primitives';
 import { rotateRegion, transposeRegion, reverseRegion, duplicateRegionEvents } from '../engine/transform-operations';
 import type { EventSelector } from '../engine/event-primitives';
@@ -2200,7 +2200,7 @@ export default function App() {
         id: crypto.randomUUID(),
         type: newModuleType,
         model: 0,
-        params: {} as Record<string, number>,
+        params: getProcessorDefaultParams(newModuleType, 0),
       };
       const newProcessors = [...processors];
       newProcessors[idx] = newProcessor;
