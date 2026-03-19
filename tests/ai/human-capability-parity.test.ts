@@ -20,6 +20,7 @@ const AI_ONLY_TOOLS = new Set([
   'raise_decision',     // human types in chat
   'report_bug',         // human reports bugs through other channels
   'suggest_reactions',  // AI suggests contextual reaction chips for human to click
+  'list_patches',       // AI lists available patches — human browses via UI (future)
 ]);
 
 // Tools that have full UI parity (exposed and editable in at least one canonical view).
@@ -57,6 +58,8 @@ const PARITY_GAP_TOOLS = new Set([
   'assign_spectral_slot',      // LOW: compound tool — humans use EQ controls directly
   'manage_motif',        // MODERATE: no UI for motif registration/development (human can copy/paste patterns)
   'set_tension',         // MODERATE: no UI for tension curve (metadata for AI compositional decisions)
+  'save_patch',          // LOW: compound tool — human can manually note down settings (future: UI patch browser)
+  'load_patch',          // LOW: compound tool — human can manually set params (future: UI patch browser)
 ]);
 
 describe('Human Capability Parity', () => {
@@ -85,11 +88,11 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale
-    expect(PARITY_GAP_TOOLS.size).toBe(15);
+    expect(PARITY_GAP_TOOLS.size).toBe(17);
   });
 
   it('documents the expected number of AI-only tools', () => {
-    expect(AI_ONLY_TOOLS.size).toBe(8);
+    expect(AI_ONLY_TOOLS.size).toBe(9);
   });
 
   it('most musical tools have UI parity', () => {

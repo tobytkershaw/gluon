@@ -115,6 +115,12 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { trackId: 'v0', bands: ['sub', 'low'], priority: 8 };
     case 'manage_motif':
       return { action: 'list' };
+    case 'save_patch':
+      return { trackId: 'v0', name: 'Test Patch' };
+    case 'load_patch':
+      return { trackId: 'v0', patch: 'Deep Sub Kick' };
+    case 'list_patches':
+      return {};
     default:
       return {};
   }
@@ -196,10 +202,11 @@ describe('API Structural Integrity', () => {
       'apply_chain_recipe', 'set_mix_role', 'apply_modulation',
       'assign_spectral_slot',
       'manage_motif',
+      'load_patch',
     ];
 
     // Analysis-only / non-mutating tools produce no actions (actions: []):
-    const analysisOnlyTools = ['listen', 'render', 'analyze', 'explain_chain', 'simplify_chain', 'suggest_reactions'];
+    const analysisOnlyTools = ['listen', 'render', 'analyze', 'explain_chain', 'simplify_chain', 'suggest_reactions', 'save_patch', 'list_patches'];
 
     // Together they should cover all GLUON_TOOLS
     const allCovered = [...actionProducingTools, ...analysisOnlyTools].sort();
@@ -213,7 +220,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(37);
+    expect(GLUON_TOOLS.length).toBe(40);
   });
 
   // -----------------------------------------------------------------------

@@ -17,6 +17,7 @@ import {
   eqInstrument,
 } from '../audio/instrument-registry';
 import { RECIPE_NAMES } from '../engine/chain-recipes';
+import { BUILT_IN_PATCH_NAMES } from '../engine/patch-library';
 import { ROLE_NAMES } from '../engine/mix-roles';
 import { MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
 import { FREQUENCY_BANDS } from '../engine/spectral-slots';
@@ -1543,6 +1544,70 @@ const manageMotifTool: ToolSchema = {
   },
 };
 
+const savePatchTool: ToolSchema = {
+  name: 'save_patch',
+  description:
+    'Save the current track\'s sound configuration (synthesis model + params + processor chain + modulators + routings) as a named patch. ' +
+    'Does NOT save pattern data, track identity, or mix settings. Use to capture a sound for reuse later or on other tracks.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Source track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      name: {
+        type: 'string',
+        description: 'Name for the patch (e.g. "Warm Techno Bass", "Snappy Snare").',
+      },
+      tags: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Tags for categorization. Role: kick, snare, bass, pad, lead, hat, fx. Character: deep, bright, dark, warm, aggressive, crisp, metallic.',
+      },
+    },
+    required: ['trackId', 'name'],
+  },
+};
+
+const loadPatchTool: ToolSchema = {
+  name: 'load_patch',
+  description:
+    'Load a saved patch onto a track. Replaces the track\'s sound configuration (engine, params, processors, modulators, routings) ' +
+    'while preserving pattern data, track identity, agency, and mix settings. Undoable. ' +
+    `Built-in patches: ${BUILT_IN_PATCH_NAMES.map(n => `"${n}"`).join(', ')}. ` +
+    'User-saved patches are also available by name or ID.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      patch: {
+        type: 'string',
+        description: 'Patch name or ID. Case-insensitive name matching for built-in and user patches.',
+      },
+    },
+    required: ['trackId', 'patch'],
+  },
+};
+
+const listPatchesTool: ToolSchema = {
+  name: 'list_patches',
+  description:
+    'List available patches (built-in and user-saved). Optionally filter by tag.',
+  parameters: {
+    type: 'object',
+    properties: {
+      tag: {
+        type: 'string',
+        description: 'Filter by tag (e.g. "kick", "bass", "pad", "bright", "dark"). Case-insensitive.',
+      },
+    },
+  },
+};
+
 const suggestReactionsTool: ToolSchema = {
   name: 'suggest_reactions',
   description:
@@ -1602,5 +1667,8 @@ export const GLUON_TOOLS: ToolSchema[] = [
   shapeTimbreTool,
   assignSpectralSlotTool,
   manageMotifTool,
+  savePatchTool,
+  loadPatchTool,
+  listPatchesTool,
   suggestReactionsTool,
 ];

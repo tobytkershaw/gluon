@@ -45,6 +45,8 @@ import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-st
 import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
 import { getChainRecipe, RECIPE_NAMES as CHAIN_RECIPE_NAMES } from '../engine/chain-recipes';
+import { savePatch, applyPatch, findPatch, getAllPatches, listPatches, BUILT_IN_PATCHES } from '../engine/patch-library';
+import type { Patch } from '../engine/patch-library';
 import { getMixRole, ROLE_NAMES as MIX_ROLE_NAMES } from '../engine/mix-roles';
 import { resolveModulationRecipe, MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
 import type { ModulationRecipeOverrides } from '../engine/modulation-recipes';
@@ -1004,6 +1006,10 @@ export class GluonAI {
 
   /** Session-level motif registry. */
   readonly motifLibrary = new MotifLibrary();
+
+  /** In-memory cache of user-saved patches (loaded from IndexedDB on first access). */
+  private _userPatches: Patch[] = [];
+  private _userPatchesLoaded = false;
 
   constructor(
     private planner: PlannerProvider,
@@ -4120,6 +4126,294 @@ export class GluonAI {
             pointCount: resultCurve.points.length,
             trackMappingCount: resultCurve.trackMappings.length,
             curve: resultCurve,
+          },
+        };
+      }
+
+      case 'save_patch': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.name !== 'string' || !args.name.trim()) {
+          return { actions: [], response: errorPayload('Missing required parameter: name') };
+        }
+
+        const saveTrack = session.tracks.find(v => v.id === args.trackId);
+        if (!saveTrack) {
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+        }
+
+        const tags = Array.isArray(args.tags)
+          ? args.tags.filter((t): t is string => typeof t === 'string' && t.length > 0)
+          : undefined;
+
+        const patch = savePatch(saveTrack, (args.name as string).trim(), tags);
+
+        // Add to in-memory cache
+        this._userPatches.push(patch);
+
+        // Persist to IndexedDB (fire-and-forget — doesn't block the tool response)
+        import('../engine/patch-library').then(m => m.persistPatch(patch)).catch(err => {
+          console.warn('[gluon-ai] Failed to persist patch to IndexedDB:', err);
+        });
+
+        return {
+          actions: [],
+          response: {
+            saved: true,
+            patchId: patch.id,
+            name: patch.name,
+            tags: patch.tags,
+            engine: patch.engine,
+            model: patch.model,
+            processorCount: patch.processors?.length ?? 0,
+            modulatorCount: patch.modulators?.length ?? 0,
+          },
+        };
+      }
+
+      case 'load_patch': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.patch !== 'string' || !args.patch.trim()) {
+          return { actions: [], response: errorPayload('Missing required parameter: patch (name or ID)') };
+        }
+
+        const loadTrack = session.tracks.find(v => v.id === args.trackId);
+        if (!loadTrack) {
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+        }
+
+        // Lazy-load user patches from IndexedDB on first access
+        if (!this._userPatchesLoaded) {
+          try {
+            const m = await import('../engine/patch-library');
+            this._userPatches = await m.loadUserPatches();
+          } catch {
+            // IndexedDB not available (e.g. test environment) — continue with empty cache
+          }
+          this._userPatchesLoaded = true;
+        }
+
+        const allPatches = getAllPatches(this._userPatches);
+        const patch = findPatch(allPatches, (args.patch as string).trim());
+        if (!patch) {
+          return { actions: [], response: enrichedError(`Patch not found: "${args.patch}"`, {
+            hint: 'Use list_patches to see available patches.',
+            builtIn: BUILT_IN_PATCHES.map(p => p.name),
+            userCount: this._userPatches.length,
+          }) };
+        }
+
+        // Build actions to apply the patch. We use a composite set of actions:
+        // 1. Remove existing processors/modulators/modulations
+        // 2. Set model
+        // 3. Set params
+        // 4. Add new processors with params
+        // 5. Add new modulators with modulation routings
+        const loadActions: AIAction[] = [];
+        const trackId = args.trackId as string;
+
+        // Remove existing modulations first (before removing modulators)
+        for (const mod of loadTrack.modulations ?? []) {
+          const disconnectAction: AIDisconnectModulatorAction = {
+            type: 'disconnect_modulator',
+            trackId,
+            modulationId: mod.id,
+            description: `Remove modulation for patch "${patch.name}"`,
+          };
+          loadActions.push(disconnectAction);
+        }
+
+        // Remove existing modulators
+        for (const mod of loadTrack.modulators ?? []) {
+          const removeModAction: AIRemoveModulatorAction = {
+            type: 'remove_modulator',
+            trackId,
+            modulatorId: mod.id,
+            description: `Remove modulator for patch "${patch.name}"`,
+          };
+          loadActions.push(removeModAction);
+        }
+
+        // Remove existing processors
+        for (const proc of loadTrack.processors ?? []) {
+          const removeAction: AIRemoveProcessorAction = {
+            type: 'remove_processor',
+            trackId,
+            processorId: proc.id,
+            description: `Remove ${proc.type} for patch "${patch.name}"`,
+          };
+          loadActions.push(removeAction);
+        }
+
+        // Set model
+        const modelEngine = plaitsInstrument.engines[patch.model];
+        if (modelEngine) {
+          const setModelAction: AISetModelAction = {
+            type: 'set_model',
+            trackId,
+            model: modelEngine.id,
+          };
+          loadActions.push(setModelAction);
+        }
+
+        // Set source params
+        for (const [param, value] of Object.entries(patch.params)) {
+          const moveAction: AIMoveAction = {
+            type: 'move',
+            trackId,
+            param,
+            target: { absolute: value },
+          };
+          loadActions.push(moveAction);
+        }
+
+        // Add processors
+        const now = Date.now();
+        const procIdMap = new Map<string, string>();
+        for (let i = 0; i < (patch.processors?.length ?? 0); i++) {
+          const rp = patch.processors![i];
+          const procId = `${rp.type}-${now + i}`;
+          procIdMap.set(rp.id, procId);
+
+          const addAction: AIAddProcessorAction = {
+            type: 'add_processor',
+            trackId,
+            moduleType: rp.type,
+            processorId: procId,
+            description: `Add ${rp.type} for patch "${patch.name}"`,
+          };
+          loadActions.push(addAction);
+
+          // Set processor model if not default (0)
+          if (rp.model !== 0) {
+            const procModelName = getProcessorEngineName(rp.type, rp.model);
+            if (procModelName) {
+              const setProcModel: AISetModelAction = {
+                type: 'set_model',
+                trackId,
+                processorId: procId,
+                model: procModelName,
+              };
+              loadActions.push(setProcModel);
+            }
+          }
+
+          // Set processor params
+          for (const [param, value] of Object.entries(rp.params)) {
+            const moveAction: AIMoveAction = {
+              type: 'move',
+              trackId,
+              processorId: procId,
+              param,
+              target: { absolute: value },
+            };
+            loadActions.push(moveAction);
+          }
+        }
+
+        // Add modulators
+        const modIdMap = new Map<string, string>();
+        for (let i = 0; i < (patch.modulators?.length ?? 0); i++) {
+          const rm = patch.modulators![i];
+          const modId = `${rm.type}-${now + 100 + i}`;
+          modIdMap.set(rm.id, modId);
+
+          const addModAction: AIAddModulatorAction = {
+            type: 'add_modulator',
+            trackId,
+            moduleType: rm.type,
+            modulatorId: modId,
+            description: `Add ${rm.type} modulator for patch "${patch.name}"`,
+          };
+          loadActions.push(addModAction);
+
+          // Set modulator model
+          if (rm.model !== 0) {
+            const modModelName = getModulatorEngineName(rm.type, rm.model);
+            if (modModelName) {
+              const setModModel: AISetModelAction = {
+                type: 'set_model',
+                trackId,
+                modulatorId: modId,
+                model: modModelName,
+              };
+              loadActions.push(setModModel);
+            }
+          }
+
+          // Set modulator params
+          for (const [param, value] of Object.entries(rm.params)) {
+            const moveAction: AIMoveAction = {
+              type: 'move',
+              trackId,
+              modulatorId: modId,
+              param,
+              target: { absolute: value },
+            };
+            loadActions.push(moveAction);
+          }
+        }
+
+        // Connect modulation routings
+        for (let i = 0; i < (patch.modulations?.length ?? 0); i++) {
+          const routing = patch.modulations![i];
+          const newModulatorId = modIdMap.get(routing.modulatorId) ?? routing.modulatorId;
+          const newTarget = { ...routing.target } as ModulationTarget;
+          if (newTarget.kind === 'processor' && procIdMap.has(newTarget.processorId)) {
+            newTarget.processorId = procIdMap.get(newTarget.processorId)!;
+          }
+
+          const connectAction: AIConnectModulatorAction = {
+            type: 'connect_modulator',
+            trackId,
+            modulatorId: newModulatorId,
+            target: newTarget,
+            depth: routing.depth,
+            modulationId: `mod-route-${now + 200 + i}`,
+            description: `Connect modulation for patch "${patch.name}"`,
+          };
+          loadActions.push(connectAction);
+        }
+
+        return {
+          actions: loadActions,
+          response: {
+            applied: true,
+            trackId,
+            patchName: patch.name,
+            patchId: patch.id,
+            builtIn: patch.builtIn ?? false,
+            actionsGenerated: loadActions.length,
+          },
+        };
+      }
+
+      case 'list_patches': {
+        // Lazy-load user patches from IndexedDB on first access
+        if (!this._userPatchesLoaded) {
+          try {
+            const m = await import('../engine/patch-library');
+            this._userPatches = await m.loadUserPatches();
+          } catch {
+            // IndexedDB not available (e.g. test environment) — continue with empty cache
+          }
+          this._userPatchesLoaded = true;
+        }
+
+        const allPatches = getAllPatches(this._userPatches);
+        const tagFilter = typeof args.tag === 'string' ? args.tag : undefined;
+        const patchList = listPatches(allPatches, tagFilter);
+
+        return {
+          actions: [],
+          response: {
+            patches: patchList,
+            total: patchList.length,
+            builtInCount: BUILT_IN_PATCHES.length,
+            userCount: this._userPatches.length,
           },
         };
       }
