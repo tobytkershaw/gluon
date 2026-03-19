@@ -205,6 +205,7 @@ describe('API Structural Integrity', () => {
       'assign_spectral_slot',
       'manage_motif',
       'load_patch',
+      'apply_arrangement_archetype',
     ];
 
     // Analysis-only / non-mutating tools produce no actions (actions: []):

@@ -568,6 +568,18 @@ Create a return bus with a wet-capable processor and route a source track to it 
 
 Compound tool — emits add_track, add_processor, set_model (optional), move (wet), and manage_send actions. Undoable as an action group.
 
+#### `apply_arrangement_archetype`
+
+Apply a genre-aware arrangement template to a track. Creates patterns for each section (intro, build, drop, breakdown, outro) with appropriate density and energy, then sketches events into each pattern.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `archetype` | string | yes | Arrangement template name (e.g. "techno_64bar", "house_32bar", "dnb_64bar", "ambient_32bar"). |
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID. |
+| `description` | string | yes | Short description of the arrangement intent. |
+
+Compound tool — emits manage_pattern (add, set_length, rename) and sketch actions for each section. Use `manage_sequence` afterward to arrange patterns into a song order, and `set_transport` mode: "song" to play through the arrangement. Undoable as an action group.
+
 #### `list_patches`
 
 List available patches (built-in and user-saved). Optionally filter by tag.

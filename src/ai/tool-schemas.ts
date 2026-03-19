@@ -21,6 +21,7 @@ import { BUILT_IN_PATCH_NAMES } from '../engine/patch-library';
 import { ROLE_NAMES } from '../engine/mix-roles';
 import { MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
 import { FREQUENCY_BANDS } from '../engine/spectral-slots';
+import { ARRANGEMENT_ARCHETYPE_NAMES } from '../engine/arrangement-archetypes';
 
 // ---------------------------------------------------------------------------
 // Derive param lists from the instrument registry so descriptions stay in sync
@@ -1761,6 +1762,35 @@ const suggestReactionsTool: ToolSchema = {
   },
 };
 
+const applyArrangementArchetypeTool: ToolSchema = {
+  name: 'apply_arrangement_archetype',
+  description:
+    'Apply a genre-aware arrangement template to a track. Creates patterns for each section ' +
+    '(intro, build, drop, breakdown, outro) with appropriate density and energy, assembles ' +
+    'them into a sequence, and optionally sets a matching tension curve. ' +
+    'This is a compound tool — it decomposes into manage_pattern + sketch + manage_sequence actions, ' +
+    'all grouped as a single undoable step. Use this to quickly scaffold a full song structure on a track.',
+  parameters: {
+    type: 'object',
+    properties: {
+      archetype: {
+        type: 'string',
+        description: 'Arrangement template name.',
+        enum: ARRANGEMENT_ARCHETYPE_NAMES,
+      },
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the arrangement intent (e.g. "64-bar techno kick arrangement").',
+      },
+    },
+    required: ['archetype', 'trackId', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1804,4 +1834,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   loadPatchTool,
   listPatchesTool,
   suggestReactionsTool,
+  applyArrangementArchetypeTool,
 ];

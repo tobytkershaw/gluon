@@ -62,6 +62,7 @@ const PARITY_GAP_TOOLS = new Set([
   'load_patch',          // LOW: compound tool — human can manually set params (future: UI patch browser)
   'set_sidechain',       // MODERATE: no UI for sidechain routing (human can use ducking_sidechain modulation recipe as alternative)
   'setup_return_bus',    // LOW: compound tool — humans use individual track/processor/send controls instead
+  'apply_arrangement_archetype', // LOW: compound tool — humans use manage_pattern + sketch + manage_sequence directly
 ]);
 
 describe('Human Capability Parity', () => {

@@ -416,6 +416,7 @@ When a common workflow has a one-step shortcut, prefer it over manual multi-tool
 - \`set_mix_role\` over manual volume/pan moves — applies role-appropriate mix defaults in one call.
 - \`setup_return_bus\` over manual bus + processor + send setup — creates a wet return bus and routes a source track to it in one call.
 - \`set_sidechain\` for real audio sidechain compression — routes one track's audio into another track's compressor detector. Classic use: kick ducking a bass. For simpler volume-ducking without real audio routing, \`apply_modulation\` with "ducking_sidechain" recipe is lighter-weight.
+- \`apply_arrangement_archetype\` over manually creating patterns for each section — applies a genre-aware arrangement template (e.g. "techno_64bar", "house_32bar", "dnb_64bar", "ambient_32bar") that creates patterns for intro, build, drop, breakdown, and outro with appropriate density and energy levels. After applying, use \`manage_sequence\` to assemble the section order and \`set_transport\` mode: "song" to play through the arrangement.
 
 ## Plaits Models
 ${generateModelReference()}
