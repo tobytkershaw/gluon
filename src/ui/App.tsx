@@ -51,6 +51,7 @@ import { OpenAIListenerProvider } from '../ai/providers/openai-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { InstrumentView } from './InstrumentView';
+import { SurfaceCanvas } from './surface/SurfaceCanvas';
 import { TrackerView } from './TrackerView';
 import { RackView } from './RackView';
 import { PatchView } from './PatchView';
@@ -2396,50 +2397,11 @@ export default function App() {
           />
         )}
         {!isSessionEmpty && view === 'surface' && (
-          <InstrumentView
-            session={session}
-            activeTrack={activeTrack}
-            playing={session.transport.status !== 'stopped'}
-            globalStep={globalStep}
-            onParamChange={handleParamChange}
-            onInteractionStart={handleSourceInteractionStart}
-            onInteractionEnd={handleSourceInteractionEnd}
-            onModelChange={handleModelChange}
-            onAgencyChange={handleAgencyChange}
-            onNoteChange={handleNoteChange}
-            onHarmonicsChange={handleHarmonicsChange}
-            onExtendedSourceParamChange={handleExtendedSourceParamChange}
-            selectedProcessorId={selectedProcessorId}
-            onSelectProcessor={setSelectedProcessorId}
+          <SurfaceCanvas
+            track={activeTrack}
             onProcessorParamChange={handleProcessorParamChange}
-            onProcessorInteractionStart={handleProcessorInteractionStart}
-            onProcessorInteractionEnd={handleProcessorInteractionEnd}
-            onProcessorModelChange={handleProcessorModelChange}
-            onRemoveProcessor={handleRemoveProcessor}
-            onToggleProcessorEnabled={handleToggleProcessorEnabled}
-            selectedModulatorId={selectedModulatorId}
-            onSelectModulator={setSelectedModulatorId}
-            onModulatorParamChange={handleModulatorParamChange}
-            onModulatorInteractionStart={handleModulatorInteractionStart}
-            onModulatorInteractionEnd={handleModulatorInteractionEnd}
-            onModulatorModelChange={handleModulatorModelChange}
-            onRemoveModulator={handleRemoveModulator}
-            onSemanticChange={handleSemanticChange}
-            onSemanticInteractionStart={handleSemanticInteractionStart}
-            onSemanticInteractionEnd={handleSemanticInteractionEnd}
-            onAddView={handleAddView}
-            onRemoveView={handleRemoveView}
-            stepPage={stepPage}
-            onStepToggle={handleStepToggle}
-            onStepAccent={handleStepAccent}
-            selectedStep={selectedStep}
-            onStepSelect={setSelectedStep}
-            onPatternLength={handlePatternLength}
-            onPageChange={setStepPage}
-            onClearPattern={handleClearPattern}
-            deepViewModuleId={deepViewModuleId}
-            onOpenDeepView={setDeepViewModuleId}
-            analyser={audioRef.current.getAnalyser()}
+            onInteractionStart={() => handleSourceInteractionStart()}
+            onInteractionEnd={() => handleSourceInteractionEnd()}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (
