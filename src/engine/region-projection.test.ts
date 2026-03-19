@@ -16,9 +16,7 @@ function makeTrack(pattern: Pattern): Track {
     patterns: [pattern],
     sequence: [{ patternId: pattern.id }],
     surface: {
-      semanticControls: [],
-      pinnedControls: [],
-      xyAxes: { x: 'timbre', y: 'morph' },
+      modules: [],
       thumbprint: { type: 'static-color' },
     },
     volume: 0.8,
@@ -83,9 +81,7 @@ describe('region-projection', () => {
       patterns: [],
       sequence: [],
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
       volume: 0.8,

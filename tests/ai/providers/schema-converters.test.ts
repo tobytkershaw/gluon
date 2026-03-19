@@ -69,13 +69,13 @@ describe('toGeminiDeclarations', () => {
     expect(eventsProp.items!.required).toEqual(['kind', 'at']);
   });
 
-  it('converts deeply nested objects (set_surface semantic controls)', () => {
+  it('converts deeply nested objects (set_surface modules)', () => {
     const [surfaceDecl] = toGeminiDeclarations(GLUON_TOOLS.filter(t => t.name === 'set_surface'));
-    const scProp = surfaceDecl.parameters!.properties!.semanticControls;
-    expect(scProp.type).toBe(Type.ARRAY);
-    const itemProps = scProp.items!.properties!;
-    expect(itemProps.weights.type).toBe(Type.ARRAY);
-    expect(itemProps.weights.items!.properties!.moduleId.type).toBe(Type.STRING);
+    const modulesProp = surfaceDecl.parameters!.properties!.modules;
+    expect(modulesProp.type).toBe(Type.ARRAY);
+    const itemProps = modulesProp.items!.properties!;
+    expect(itemProps.bindings.type).toBe(Type.ARRAY);
+    expect(itemProps.bindings.items!.properties!.role.type).toBe(Type.STRING);
   });
 
   it('throws for oneOf', () => {

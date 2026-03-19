@@ -468,58 +468,50 @@ describe('sketch — adversarial', () => {
 // ---------------------------------------------------------------------------
 
 describe('set_surface — adversarial', () => {
-  it('rejects define mode without semanticControls', async () => {
+  it('rejects set_surface without modules', async () => {
     const session = makeSession();
     const { response, actions } = await callTool(session, 'set_surface', {
       trackId: session.tracks[0].id,
       description: 'test',
     });
 
-    expect(response.error).toMatch(/semanticControls/i);
+    expect(response.error).toMatch(/modules/i);
     expect(actions).toHaveLength(0);
   });
 
-  it('rejects auto_map without params', async () => {
+  it('accepts valid modules array and returns correct action structure', async () => {
     const session = makeSession();
     const { response, actions } = await callTool(session, 'set_surface', {
       trackId: session.tracks[0].id,
-      action: 'auto_map',
-      description: 'test',
-    });
-
-    expect(response.error).toMatch(/auto_map requires params/i);
-    expect(actions).toHaveLength(0);
-  });
-
-  it('accepts auto_map and compiles params into one-to-one semantic controls', async () => {
-    const session = makeSession();
-    const { response, actions } = await callTool(session, 'set_surface', {
-      trackId: session.tracks[0].id,
-      action: 'auto_map',
-      params: ['timbre', 'morph'],
-      xyAxes: { x: 'timbre', y: 'morph' },
-      description: 'direct performance surface',
+      modules: [
+        {
+          type: 'knob-group',
+          id: 'controls',
+          label: 'Controls',
+          bindings: [{ role: 'control', target: 'timbre' }],
+          position: { x: 0, y: 0, w: 4, h: 2 },
+          config: {},
+        },
+      ],
+      description: 'test surface',
     });
 
     expect(response.applied).toBe(true);
-    expect(response.mode).toBe('auto_map');
-    expect(response.controlCount).toBe(2);
+    expect(response.moduleCount).toBe(1);
+    expect(response.moduleTypes).toEqual(['knob-group']);
     expect(actions).toHaveLength(1);
     expect(actions[0]).toMatchObject({
       type: 'set_surface',
       trackId: session.tracks[0].id,
-      description: 'direct performance surface',
-      xyAxes: { x: 'timbre', y: 'morph' },
-      semanticControls: [
+      description: 'test surface',
+      modules: [
         {
-          id: 'timbre',
-          name: 'timbre',
-          weights: [{ moduleId: 'source', controlId: 'timbre', weight: 1, transform: 'linear' }],
-        },
-        {
-          id: 'morph',
-          name: 'morph',
-          weights: [{ moduleId: 'source', controlId: 'morph', weight: 1, transform: 'linear' }],
+          type: 'knob-group',
+          id: 'controls',
+          label: 'Controls',
+          bindings: [{ role: 'control', trackId: session.tracks[0].id, target: 'timbre' }],
+          position: { x: 0, y: 0, w: 4, h: 2 },
+          config: {},
         },
       ],
     });

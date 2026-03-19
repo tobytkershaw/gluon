@@ -37,9 +37,7 @@ function makeSession(overrides?: Partial<Session>): Session {
         events: [],
       }],
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
     }],
@@ -1257,9 +1255,7 @@ describe('Multi-track scheduling', () => {
         events: [{ kind: 'trigger', at: 0, velocity: 0.8 }],
       }],
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
     } as Track);

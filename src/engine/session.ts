@@ -47,9 +47,7 @@ export function createBusTrack(trackId: string, name?: string): Track {
     pan: 0.0,
     sends: [],
     surface: {
-      semanticControls: [],
-      pinnedControls: [],
-      xyAxes: { x: 'timbre', y: 'morph' },
+      modules: [],
       thumbprint: { type: 'static-color' },
     },
     approval: 'exploratory',
@@ -138,9 +136,7 @@ export function createEmptyTrack(trackId: string): Track {
     pan: 0.0,
     controlProvenance: {},
     surface: {
-      semanticControls: [],
-      pinnedControls: [],
-      xyAxes: { x: 'timbre', y: 'morph' },
+      modules: [],
       thumbprint: { type: 'static-color' },
     },
     approval: 'exploratory',
@@ -982,14 +978,12 @@ function deepCopyTrack(track: Track): Track {
     sends: track.sends?.map(s => ({ ...s })),
     surface: {
       ...track.surface,
-      semanticControls: track.surface.semanticControls.map(sc => ({
-        ...sc,
-        weights: sc.weights.map(w => ({ ...w })),
-        range: { ...sc.range },
+      modules: track.surface.modules.map(m => ({
+        ...m,
+        bindings: m.bindings.map(b => ({ ...b })),
+        position: { ...m.position },
+        config: structuredClone(m.config),
       })),
-      pinnedControls: track.surface.pinnedControls.map(pc => ({ ...pc })),
-      xyAxes: { ...track.surface.xyAxes },
-      thumbprint: { ...track.surface.thumbprint },
     },
     controlProvenance: track.controlProvenance ? { ...track.controlProvenance } : undefined,
     views: track.views?.map(v => ({ ...v })),

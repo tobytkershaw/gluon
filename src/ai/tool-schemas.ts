@@ -268,33 +268,10 @@ const sketchTool: ToolSchema = {
           '"random_walk" (range + stepSize), "steps" (values[] + stepsPerValue), ' +
           '"envelope" (attack + hold + release + range). ' +
           'Period is in steps (16 = one bar in 4/4). Range is [min, max] normalized 0.0-1.0. ' +
-          'Example: { "cutoff": { "shape": "triangle", "period": 16, "range": [0.2, 0.8] } }',
-        additionalProperties: {
-          type: 'object',
-          properties: {
-            shape: {
-              type: 'string',
-              enum: ['ramp_up', 'ramp_down', 'triangle', 'sine', 'square', 'random_walk', 'steps', 'envelope'],
-              description: 'Shape type.',
-            },
-            period: { type: 'number', description: 'Period in steps (e.g. 16 = one bar). Used by ramp_up, ramp_down, triangle, sine, square.' },
-            range: {
-              type: 'array',
-              items: { type: 'number' },
-              minItems: 2,
-              maxItems: 2,
-              description: 'Value range [min, max], normalized 0.0-1.0.',
-            },
-            phase: { type: 'number', description: 'Phase offset 0.0-1.0 for sine shape. Default 0.' },
-            stepSize: { type: 'number', description: 'Max per-step delta for random_walk.' },
-            values: { type: 'array', items: { type: 'number' }, description: 'Explicit values for steps shape.' },
-            stepsPerValue: { type: 'number', description: 'Steps per value for steps shape.' },
-            attack: { type: 'number', description: 'Attack time in steps for envelope.' },
-            hold: { type: 'number', description: 'Hold time in steps for envelope.' },
-            release: { type: 'number', description: 'Release time in steps for envelope.' },
-          },
-          required: ['shape'],
-        },
+          'Example: { "cutoff": { "shape": "triangle", "period": 16, "range": [0.2, 0.8] } }. ' +
+          'Each value object requires "shape" and may include: period (number), range ([min,max]), ' +
+          'phase (number, sine only), stepSize (number, random_walk), values (number[], steps), ' +
+          'stepsPerValue (number, steps), attack/hold/release (number, envelope).',
       },
       verify: {
         type: 'boolean',
@@ -747,78 +724,76 @@ const manageViewTool: ToolSchema = {
 const setSurfaceTool: ToolSchema = {
   name: 'set_surface',
   description:
-    'Define semantic controls for a track\'s UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters. Also supports action="auto_map" to expose raw parameters one-to-one without blend math. Does not require agency. Takes effect after this response.',
+    'Compose a track\'s UI surface from modules. Modules are composable UI building blocks — knob groups, macro knobs, XY pads, step grids, chain strips. Does not require agency. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
-      action: {
-        type: 'string',
-        enum: ['define', 'auto_map'],
-        description: 'Optional mode. Omit or use "define" for explicit semantic controls. Use "auto_map" with params to expose raw parameters one-to-one as surface controls.',
-      },
       trackId: {
         type: 'string',
         description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
       },
-      params: {
+      modules: {
         type: 'array',
-        description: 'For action="auto_map": raw source parameter IDs to expose directly as one control each (for example "size", "density", "timbre").',
-        items: {
-          type: 'string',
-        },
-      },
-      semanticControls: {
-        type: 'array',
-        description: 'For explicit surface authoring: array of semantic control definitions. Each control blends one or more underlying parameters via weighted sums.',
+        description: 'Array of surface modules to compose. Each module has a type, bindings to track data, grid position, and optional config.',
         items: {
           type: 'object',
           properties: {
-            name: {
+            type: {
               type: 'string',
-              description: 'Human-readable label for the control (e.g. "Warmth", "Attack").',
+              enum: ['knob-group', 'macro-knob', 'xy-pad', 'step-grid', 'chain-strip'],
+              description: 'Module type.',
             },
-            weights: {
+            id: {
+              type: 'string',
+              description: 'Unique ID for this module instance (e.g. "brightness", "xy-pad", "step-grid").',
+            },
+            label: {
+              type: 'string',
+              description: 'Human-readable label shown on the module.',
+            },
+            bindings: {
               type: 'array',
-              description: 'Weighted parameter mappings. Weights must sum to 1.0.',
+              description: 'Data bindings connecting the module to track state.',
               items: {
                 type: 'object',
                 properties: {
-                  moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
-                  controlId: { type: 'string', description: 'The parameter to blend (e.g. "timbre", "structure").' },
-                  weight: { type: 'number', description: 'Blend weight (0.0-1.0). All weights in one control must sum to 1.0.' },
-                  transform: { type: 'string', description: 'Transform: "linear" (default), "inverse", or "bipolar".' },
+                  role: {
+                    type: 'string',
+                    description: 'Binding role: "control" for knobs, "x-axis"/"y-axis" for XY pad, "region" for step grid, "chain" for chain strip.',
+                  },
+                  target: {
+                    type: 'string',
+                    description: 'Target identifier — controlId (e.g. "timbre"), semantic ref (e.g. "brightness"), regionId, etc.',
+                  },
                 },
-                required: ['moduleId', 'controlId', 'weight'],
+                required: ['role', 'target'],
               },
             },
-            range: {
+            position: {
               type: 'object',
-              description: 'Optional value range override.',
+              description: 'Grid placement (12-column grid).',
               properties: {
-                min: { type: 'number' },
-                max: { type: 'number' },
-                default: { type: 'number' },
+                x: { type: 'number', description: 'Column (0-11).' },
+                y: { type: 'number', description: 'Row.' },
+                w: { type: 'number', description: 'Width in columns.' },
+                h: { type: 'number', description: 'Height in rows.' },
               },
+              required: ['x', 'y', 'w', 'h'],
+            },
+            config: {
+              type: 'object',
+              description: 'Module-specific config. For macro-knob: { semanticControl: { name, weights: [{ moduleId, controlId, weight, transform }], range } }. For knob-group with pinning: { pinned: true }.',
             },
           },
-          required: ['name', 'weights'],
+          required: ['type', 'id', 'label', 'bindings'],
         },
-      },
-      xyAxes: {
-        type: 'object',
-        description: 'Optional axis labels for the XY pad.',
-        properties: {
-          x: { type: 'string', description: 'X-axis semantic label.' },
-          y: { type: 'string', description: 'Y-axis semantic label.' },
-        },
-        required: ['x', 'y'],
       },
       description: {
         type: 'string',
         description: 'Short description of the surface configuration.',
       },
     },
-    required: ['trackId', 'description'],
+    required: ['trackId', 'modules', 'description'],
   },
 };
 
