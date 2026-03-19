@@ -23,7 +23,6 @@ import type {
   ScaleMode,
   TrackKind,
   ProcessorConfig,
-  SynthParamValues,
 } from '../src/engine/types.js';
 import {
   getTrack,
@@ -36,9 +35,7 @@ import { createSession, createBusTrack } from '../src/engine/session.js';
 import type { MusicalEvent } from '../src/engine/canonical-types.js';
 import { createDefaultPattern } from '../src/engine/region-helpers.js';
 import { createDefaultStepGrid } from '../src/engine/sequencer-helpers.js';
-import { projectPatternToStepGrid } from '../src/engine/region-projection.js';
 import { getEngineById, getProcessorEngineByName } from '../src/audio/instrument-registry.js';
-import { getTrackLabel } from '../src/engine/track-labels.js';
 
 // ---------------------------------------------------------------------------
 // In-memory session state
@@ -88,16 +85,6 @@ function resolveTrackId(ref?: string): string {
   if (byName) return byName.id;
   return ref; // Let it fail at getTrack level
 }
-
-// ---------------------------------------------------------------------------
-// Audio-dependent tools that we skip
-// ---------------------------------------------------------------------------
-
-const AUDIO_TOOLS = new Set([
-  'listen',
-  'render',
-  'analyze',
-]);
 
 // ---------------------------------------------------------------------------
 // Tool handlers
@@ -654,7 +641,7 @@ function handleSetMaster(args: Record<string, unknown>): ToolResult {
 
 function handleSetTrackMeta(args: Record<string, unknown>): ToolResult {
   const trackId = resolveTrackId(args.trackId as string);
-  const track = getTrack(session, trackId);
+  getTrack(session, trackId); // validate track exists
   const updates: Partial<Track> = {};
   if (args.name !== undefined) updates.name = args.name as string;
   if (args.volume !== undefined) updates.volume = args.volume as number;
