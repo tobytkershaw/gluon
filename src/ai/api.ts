@@ -1012,8 +1012,8 @@ export function inferBarsFromPatterns(session: Session, trackIds?: string[]): nu
  */
 function handleRejection(
   rejection: string | null | undefined,
-  _session: Session,
-  _action: AIAction,
+  session: Session,
+  action: AIAction,
   _existingActions: AIAction[] = [],
 ): { actions: AIAction[]; response: Record<string, unknown> } | null {
   if (!rejection) return null;
@@ -1721,7 +1721,7 @@ export class GluonAI {
           ? action.target.absolute
           : currentVal + (action.target as { relative: number }).relative;
         if (!Number.isFinite(rawTarget)) {
-          return { result: `Error: non-finite parameter value (${rawTarget}) for ${action.param}`, session, actions: [] };
+          return { actions: [], response: errorPayload(`Error: non-finite parameter value (${rawTarget}) for ${action.param}`) };
         }
         const resultValue = Math.max(0, Math.min(1, rawTarget));
 
@@ -2397,6 +2397,9 @@ export class GluonAI {
               enabled: bypassEnabled,
               description: args.description as string,
             };
+
+            const bypassRejection = handleRejection(ctx?.validateAction?.(session, bypassAction), session, bypassAction, existingActions);
+            if (bypassRejection) return bypassRejection;
 
             return {
               actions: [bypassAction],
