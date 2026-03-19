@@ -732,6 +732,7 @@ Fields:
 - **surface_modules** — (optional per track) list of surface module types and labels (e.g. "knob-group:Timbre", "macro-knob:Warmth", "xy-pad") when set_surface has been used
 - **sends** — (optional per track) bus send levels
 - **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
+- **audioMetrics** — (optional) fresh live analyser measurements captured at request time. Contains `master` plus per-track entries under `tracks`, each with `rms` (dBFS), `peak` (dBFS), `centroid` (Hz spectral centroid), `crest` (dB peak minus RMS), and `onsetDensity` (onsets/second over a short recent window). Present only when metrics are fresh enough to be meaningful.
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
 - **scale** — (optional) global key/scale constraint: `root` (pitch class 0–11), `mode`, `label` (e.g. "C major"), `notes` (available note names). `null` when explicitly cleared.
 - **userSelection** — (optional) active Tracker selection: `trackId`, `stepRange` ([start, end]), `eventCount`. Present only when the human has selected events.
