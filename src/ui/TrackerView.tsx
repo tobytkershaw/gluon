@@ -8,6 +8,7 @@ import type { EventSelector } from '../engine/event-primitives';
 import type { SequenceAutomationPoint } from '../engine/sequencer-types';
 import { resolveSequencePosition } from '../engine/sequence-helpers';
 import { Tracker } from './Tracker';
+import { DrumLaneTracker } from './DrumLaneTracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
 import { AutomationPanel } from './AutomationPanel';
 import { SequenceEditor } from './SequenceEditor';
@@ -388,26 +389,36 @@ export function TrackerView({
           {/* Full-height tracker scroll container */}
           <div className="flex-1 min-h-0 overflow-y-auto rounded border border-zinc-800/50 bg-zinc-900/40">
             {activeRegion ? (
-              <Tracker
-                region={activeRegion}
-                playheadStep={currentStep}
-                playing={playing}
-                onUpdate={onEventUpdate}
-                onDelete={onEventDelete}
-                onAddNote={onEventAdd ? handleAddNote : undefined}
-                onAddParamEvent={onEventAdd ? (at, controlId, value) => {
-                  onEventAdd(at, { kind: 'parameter', at, controlId, value });
-                } : undefined}
-                cancelEditRef={cancelEditRef}
-                onDeleteByIndices={onDeleteByIndices}
-                onPasteEvents={onPasteEvents}
-                onTransposeByIndices={onTransposeByIndices}
-                onCursorStepChange={onCursorStepChange}
-                onNotePreview={onNotePreview}
-                onPlayFromRow={onPlayFromRow}
-                onSelectionChange={onSelectionChange}
-                stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
-              />
+              activeTrack.drumRack && activeTrack.drumRack.pads.length > 0 ? (
+                <DrumLaneTracker
+                  region={activeRegion}
+                  pads={activeTrack.drumRack.pads}
+                  playheadStep={currentStep}
+                  playing={playing}
+                  stepsPerBeat={4}
+                />
+              ) : (
+                <Tracker
+                  region={activeRegion}
+                  playheadStep={currentStep}
+                  playing={playing}
+                  onUpdate={onEventUpdate}
+                  onDelete={onEventDelete}
+                  onAddNote={onEventAdd ? handleAddNote : undefined}
+                  onAddParamEvent={onEventAdd ? (at, controlId, value) => {
+                    onEventAdd(at, { kind: 'parameter', at, controlId, value });
+                  } : undefined}
+                  cancelEditRef={cancelEditRef}
+                  onDeleteByIndices={onDeleteByIndices}
+                  onPasteEvents={onPasteEvents}
+                  onTransposeByIndices={onTransposeByIndices}
+                  onCursorStepChange={onCursorStepChange}
+                  onNotePreview={onNotePreview}
+                  onPlayFromRow={onPlayFromRow}
+                  onSelectionChange={onSelectionChange}
+                  stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
+                />
+              )
             ) : (
               <div className="px-4 py-8 text-center text-[11px] text-zinc-600 italic">
                 No patterns

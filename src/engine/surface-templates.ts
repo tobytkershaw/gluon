@@ -23,9 +23,10 @@ export interface ChainSurfaceTemplate {
 
 /**
  * Generate a chain signature from a track's engine + processor types.
- * e.g. 'plaits', 'plaits:rings', 'plaits:rings:clouds'
+ * e.g. 'plaits', 'plaits:rings', 'plaits:rings:clouds', 'drum-rack'
  */
 export function getChainSignature(track: Track): string {
+  if (track.drumRack) return 'drum-rack';
   const parts = [track.engine.split('-')[0] === 'analog' ? 'plaits' : 'plaits'];
   for (const proc of track.processors ?? []) {
     parts.push(proc.type);
@@ -286,10 +287,36 @@ const templates: ChainSurfaceTemplate[] = [
   },
 ];
 
+// Drum rack template — pad-grid + step-grid + knob-group
+const drumRackTemplate: ChainSurfaceTemplate = {
+  chainSignature: 'drum-rack',
+  modules: [
+    {
+      type: 'pad-grid',
+      id: 'pad-grid',
+      label: 'Pads',
+      bindings: [{ role: 'kit', trackId: '', target: 'drum-rack' }],
+      position: { x: 0, y: 0, w: 6, h: 4 },
+      config: {},
+    },
+    {
+      type: 'step-grid',
+      id: 'step-grid',
+      label: 'Pattern',
+      bindings: [{ role: 'region', trackId: '', target: 'current' }],
+      position: { x: 6, y: 0, w: 6, h: 4 },
+      config: {},
+    },
+    // TODO: Add per-pad knob-group when pad selection is wired through the surface.
+    // Drum rack tracks don't have top-level source params — params live on individual pads.
+  ],
+};
+
 /**
  * Look up a template by exact chain signature match.
  */
 export function getTemplateForChain(signature: string): ChainSurfaceTemplate | null {
+  if (signature === 'drum-rack') return drumRackTemplate;
   return templates.find(t => t.chainSignature === signature) ?? null;
 }
 
