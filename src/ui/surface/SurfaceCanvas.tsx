@@ -10,10 +10,15 @@ import { XYPadModule } from './XYPadModule';
 
 interface SurfaceCanvasProps {
   track: Track;
+  /** Called for source param changes — (controlId, value) */
   onParamChange?: (controlId: string, value: number) => void;
   onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
+  /** Source interaction start (for arbitration/undo) */
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
+  /** Processor interaction start — captures pre-state for single-gesture undo */
+  onProcessorInteractionStart?: (processorId: string) => void;
+  onProcessorInteractionEnd?: (processorId: string) => void;
 }
 
 // Module type -> renderer component mapping.
@@ -33,6 +38,8 @@ export function SurfaceCanvas({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
+  onProcessorInteractionStart,
+  onProcessorInteractionEnd,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -107,6 +114,8 @@ export function SurfaceCanvas({
                 onProcessorParamChange={onProcessorParamChange}
                 onInteractionStart={onInteractionStart}
                 onInteractionEnd={onInteractionEnd}
+                onProcessorInteractionStart={onProcessorInteractionStart}
+                onProcessorInteractionEnd={onProcessorInteractionEnd}
               />
             </div>
           );

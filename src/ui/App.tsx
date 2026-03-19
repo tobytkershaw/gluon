@@ -2616,10 +2616,12 @@ export default function App() {
         {!isSessionEmpty && view === 'surface' && (
           <SurfaceCanvas
             track={activeTrack}
-            onParamChange={handleParamChange}
+            onParamChange={handleExtendedSourceParamChange}
             onProcessorParamChange={handleProcessorParamChange}
             onInteractionStart={() => handleSourceInteractionStart()}
             onInteractionEnd={() => handleSourceInteractionEnd()}
+            onProcessorInteractionStart={handleProcessorInteractionStart}
+            onProcessorInteractionEnd={handleProcessorInteractionEnd}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (

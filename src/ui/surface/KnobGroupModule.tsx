@@ -1,16 +1,7 @@
 import { useCallback } from 'react';
 import type { SurfaceModule, Track } from '../../engine/types';
 import { Knob } from '../Knob';
-
-/** Props shared by all module renderers in the Surface view. */
-interface KnobGroupModuleProps {
-  module: SurfaceModule;
-  track: Track;
-  onParamChange?: (controlId: string, value: number) => void;
-  onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-}
+import type { ModuleRendererProps } from './ModuleRendererProps';
 
 /** Parse a binding target into moduleId + controlId.
  *  Simple names like 'timbre' → { moduleId: 'source', controlId: 'timbre' }
@@ -45,7 +36,9 @@ export function KnobGroupModule({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
-}: KnobGroupModuleProps) {
+  onProcessorInteractionStart,
+  onProcessorInteractionEnd,
+}: ModuleRendererProps) {
   const controlBindings = module.bindings.filter(b => b.role === 'control');
   const isPinned = module.config.pinned === true;
 
@@ -59,6 +52,30 @@ export function KnobGroupModule({
       }
     },
     [onParamChange, onProcessorParamChange],
+  );
+
+  const handlePointerDown = useCallback(
+    (target: string) => {
+      const { moduleId } = parseTarget(target);
+      if (moduleId === 'source') {
+        onInteractionStart?.();
+      } else {
+        onProcessorInteractionStart?.(moduleId);
+      }
+    },
+    [onInteractionStart, onProcessorInteractionStart],
+  );
+
+  const handlePointerUp = useCallback(
+    (target: string) => {
+      const { moduleId } = parseTarget(target);
+      if (moduleId === 'source') {
+        onInteractionEnd?.();
+      } else {
+        onProcessorInteractionEnd?.(moduleId);
+      }
+    },
+    [onInteractionEnd, onProcessorInteractionEnd],
   );
 
   return (
@@ -87,8 +104,8 @@ export function KnobGroupModule({
               label={controlId}
               accentColor="zinc"
               onChange={v => handleChange(binding.target, v)}
-              onPointerDown={onInteractionStart}
-              onPointerUp={onInteractionEnd}
+              onPointerDown={() => handlePointerDown(binding.target)}
+              onPointerUp={() => handlePointerUp(binding.target)}
               size={36}
             />
           );

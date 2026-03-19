@@ -1,14 +1,6 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
-import type { SurfaceModule, Track } from '../../engine/types';
-
-interface XYPadModuleProps {
-  module: SurfaceModule;
-  track: Track;
-  onParamChange?: (controlId: string, value: number) => void;
-  onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
-  onInteractionStart?: () => void;
-  onInteractionEnd?: () => void;
-}
+import type { Track } from '../../engine/types';
+import type { ModuleRendererProps } from './ModuleRendererProps';
 
 /** Parse a binding target into moduleId + controlId */
 function parseTarget(target: string): { moduleId: string; controlId: string } {
@@ -55,7 +47,9 @@ export function XYPadModule({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
-}: XYPadModuleProps) {
+  onProcessorInteractionStart,
+  onProcessorInteractionEnd,
+}: ModuleRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -181,16 +175,25 @@ export function XYPadModule({
     };
   };
 
+  // Collect unique processor IDs from both axes for interaction handling
+  const xParsed = parseTarget(xTarget);
+  const yParsed = parseTarget(yTarget);
+  const touchesSource = xParsed.moduleId === 'source' || yParsed.moduleId === 'source';
+  const processorIds = [...new Set(
+    [xParsed, yParsed].filter(p => p.moduleId !== 'source').map(p => p.moduleId),
+  )];
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       dragging.current = true;
-      onInteractionStart?.();
+      if (touchesSource) onInteractionStart?.();
+      for (const procId of processorIds) onProcessorInteractionStart?.(procId);
       canvasRef.current!.setPointerCapture(e.pointerId);
       const { x, y } = posFromPointer(e);
       dispatchChange(xTarget, x, onParamChange, onProcessorParamChange);
       dispatchChange(yTarget, y, onParamChange, onProcessorParamChange);
     },
-    [xTarget, yTarget, onParamChange, onProcessorParamChange, onInteractionStart],
+    [xTarget, yTarget, onParamChange, onProcessorParamChange, touchesSource, processorIds, onInteractionStart, onProcessorInteractionStart],
   );
 
   const handlePointerMove = useCallback(
@@ -205,8 +208,9 @@ export function XYPadModule({
 
   const handlePointerUp = useCallback(() => {
     dragging.current = false;
-    onInteractionEnd?.();
-  }, [onInteractionEnd]);
+    if (touchesSource) onInteractionEnd?.();
+    for (const procId of processorIds) onProcessorInteractionEnd?.(procId);
+  }, [touchesSource, processorIds, onInteractionEnd, onProcessorInteractionEnd]);
 
   return (
     <div ref={containerRef} className="h-full flex flex-col p-1">
