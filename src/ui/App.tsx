@@ -63,6 +63,7 @@ import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 import { computeSemanticRawUpdates } from './SemanticControlsSection';
 import { useTransportController } from './useTransportController';
+import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -374,10 +375,8 @@ export default function App() {
   // Sync mute/solo state
   useEffect(() => {
     if (!audioStarted) return;
-    const anySoloed = session.tracks.some(v => v.solo);
     for (const track of session.tracks) {
-      const audible = anySoloed ? track.solo : !track.muted;
-      audioRef.current.muteTrack(track.id, !audible);
+      audioRef.current.muteTrack(track.id, !isTrackAudibleInMixer(session.tracks, track.id));
     }
   }, [session.tracks, audioStarted]);
 
