@@ -510,6 +510,12 @@ Surface tools compose the track's UI surface from modules (view-layer operations
 - **label_axes**: update XY pad axis bindings. **Fails if no xy-pad module exists** — use set_surface to add one first.
 Only call set_surface when the human asks, or after a chain mutation when the surface references stale modules. When setting up a surface, think about what controls serve the current musical context — set up the right controls for the task, not just parameters.
 
+## Visual Identity
+- **set_track_identity**: set per-track visual identity (colour, weight, edgeStyle, prominence) for the Surface view. All properties optional — set any subset.
+- **When to set**: on track creation, when changing a track's musical role, after significant timbral shifts, or when the human asks.
+- **Match visual properties to musical role**: bass/sub = heavy weight + deep colour, leads = prominent + bright, textures/pads = soft edges + low prominence, percussion = crisp edges.
+- **Don't update on every parameter tweak** — only when the track's character fundamentally changes.
+
 ## Audio Tools
 - **render** captures a snapshot → returns snapshotId. Cheap, use freely.
 - **analyze**(snapshotId, types: ['spectral', 'dynamics', 'rhythm']) runs deterministic measurement. Can request multiple types in one call.
