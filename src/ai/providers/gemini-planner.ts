@@ -9,6 +9,7 @@ import { toGeminiDeclarations } from './schema-converters';
 import { summarizeDroppedExchanges } from '../context-summary';
 
 const MODEL = 'gemini-3.1-pro-preview-customtools';
+const CACHE_TTL = '3600s';
 
 /** Token budget ceiling — stay under the 200K Gemini pricing threshold. */
 const TOKEN_BUDGET = 170_000;
@@ -250,8 +251,13 @@ export class GeminiPlannerProvider implements PlannerProvider {
         config: {
           systemInstruction: systemPrompt,
           tools: [{ functionDeclarations: geminiDeclarations }],
+          toolConfig: {
+            functionCallingConfig: {
+              mode: FunctionCallingConfigMode.AUTO,
+            },
+          },
           displayName: 'gluon-session',
-          ttl: '600s',
+          ttl: CACHE_TTL,
         },
       });
       this.cachedContentName = cache.name ?? null;
