@@ -103,5 +103,18 @@ export function resolveTrackId(ref: string, session: Session): string | null {
     if (master) return master.id;
   }
 
+  // Fallback: if the ref looks like a track ID (e.g. "v1") but didn't match any
+  // existing track, treat the numeric suffix as a 0-based audio track index.
+  // This catches the common AI mistake of guessing "v1" for the second track
+  // when the actual ID is different (e.g. after tracks have been added/removed).
+  const vIdMatch = ref.match(/^v(\d+)$/);
+  if (vIdMatch) {
+    const index = parseInt(vIdMatch[1], 10);
+    const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+    if (index >= 0 && index < audioTracks.length) {
+      return audioTracks[index].id;
+    }
+  }
+
   return null;
 }

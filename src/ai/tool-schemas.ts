@@ -1040,7 +1040,7 @@ const simplifyChainTool: ToolSchema = {
 const manageTrackTool: ToolSchema = {
   name: 'manage_track',
   description:
-    'Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Takes effect after this response.',
+    'Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Takes effect after this response. When adding, the response returns the new track\'s trackId — use that exact ID (or the trackRef label) in subsequent calls. Do not guess IDs.',
   parameters: {
     type: 'object',
     properties: {

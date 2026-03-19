@@ -494,6 +494,41 @@ describe('resolveTrackId', () => {
     expect(resolveTrackId('Track 1', session)).toBe(audioTracks[0].id);
     expect(resolveTrackId('Track 4', session)).toBe(audioTracks[3].id);
   });
+
+  // --- vN fallback (#939) ---
+
+  it('falls back vN pattern to Nth audio track when ID does not exist', () => {
+    // Simulate a session where track IDs are UUIDs, not v0/v1/v2
+    let session = createSession();
+    session = addTrack(session)!;
+    session = addTrack(session)!;
+    // Rename IDs to simulate non-sequential IDs (e.g. after delete+re-add)
+    const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+    audioTracks[0].id = 'uuid-aaa';
+    audioTracks[1].id = 'uuid-bbb';
+    audioTracks[2].id = 'uuid-ccc';
+    // "v0" doesn't exist, so fallback maps v0 → 1st audio track
+    expect(resolveTrackId('v0', session)).toBe('uuid-aaa');
+    expect(resolveTrackId('v1', session)).toBe('uuid-bbb');
+    expect(resolveTrackId('v2', session)).toBe('uuid-ccc');
+  });
+
+  it('vN fallback returns null for out-of-range index', () => {
+    let session = createSession();
+    // Session has 1 audio track (v0). Rename it so v0 doesn't match directly.
+    const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+    audioTracks[0].id = 'uuid-only';
+    // v0 should resolve (index 0, 1 track exists)
+    expect(resolveTrackId('v0', session)).toBe('uuid-only');
+    // v1 should not resolve (only 1 audio track)
+    expect(resolveTrackId('v1', session)).toBeNull();
+  });
+
+  it('prefers direct ID match over vN fallback', () => {
+    // When "v1" IS a real track ID, it should resolve directly, not via fallback
+    const session = createMultiTrackSession();
+    expect(resolveTrackId('v1', session)).toBe('v1');
+  });
 });
 
 // ---------------------------------------------------------------------------
