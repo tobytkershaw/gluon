@@ -13,7 +13,44 @@ const TYPE_MAP: Record<string, string> = {
   array: Type.ARRAY,
 };
 
-const UNSUPPORTED_KEYS = ['oneOf', 'anyOf', 'additionalProperties', 'nullable'] as const;
+const UNSUPPORTED_KEYS = ['anyOf', 'additionalProperties', 'nullable'] as const;
+
+/**
+ * Flatten a `oneOf` into a single Gemini-compatible type.
+ * Strategy: if all branches are primitive types, pick `string` (most permissive —
+ * numbers and booleans can round-trip through strings). Preserves the original
+ * description if present on the parent schema.
+ */
+function flattenOneOf(branches: JsonSchema[], description: string | undefined, path: string): Schema {
+  if (branches.length === 0) {
+    throw new Error(`oneOf at ${path} has no branches — invalid schema.`);
+  }
+
+  // Collect the unique types from all branches
+  const types = new Set(branches.map(b => b.type).filter(Boolean));
+
+  // If every branch is a simple type (no nested objects/arrays), flatten to string
+  const hasComplex = branches.some(b => b.type === 'object' || b.type === 'array');
+  if (hasComplex) {
+    throw new Error(
+      `Cannot flatten oneOf with complex types (object/array) at ${path}. ` +
+      `Simplify the schema or remove the oneOf.`,
+    );
+  }
+
+  const result: Schema = { type: Type.STRING as Schema['type'] };
+
+  // If all branches share the same single type, use that type instead
+  if (types.size === 1) {
+    const only = [...types][0]!;
+    const mapped = TYPE_MAP[only];
+    if (mapped) result.type = mapped as Schema['type'];
+  }
+
+  if (description) result.description = description;
+
+  return result;
+}
 
 function convertSchema(schema: JsonSchema, path: string): Schema {
   for (const key of UNSUPPORTED_KEYS) {
@@ -23,6 +60,11 @@ function convertSchema(schema: JsonSchema, path: string): Schema {
         `Gemini's function declaration format does not support this feature.`,
       );
     }
+  }
+
+  // Handle oneOf by flattening to a single compatible type
+  if (schema.oneOf) {
+    return flattenOneOf(schema.oneOf, schema.description, path);
   }
 
   const result: Schema = {};

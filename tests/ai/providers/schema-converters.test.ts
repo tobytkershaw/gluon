@@ -78,19 +78,71 @@ describe('toGeminiDeclarations', () => {
     expect(itemProps.bindings.items!.properties!.role.type).toBe(Type.STRING);
   });
 
-  it('throws for oneOf', () => {
+  it('flattens oneOf to string type', () => {
     const tools: ToolSchema[] = [{
-      name: 'bad',
-      description: 'bad tool',
+      name: 'test',
+      description: 'test tool',
       parameters: {
         type: 'object',
         properties: {
-          x: { oneOf: [{ type: 'string' }, { type: 'number' }] },
+          x: {
+            oneOf: [{ type: 'string' }, { type: 'number' }],
+            description: 'a union field',
+          },
         },
       },
     }];
 
-    expect(() => toGeminiDeclarations(tools)).toThrow(/oneOf.*bad\.x/);
+    const [decl] = toGeminiDeclarations(tools);
+    const xProp = decl.parameters!.properties!.x;
+    expect(xProp.type).toBe(Type.STRING);
+    expect(xProp.description).toBe('a union field');
+  });
+
+  it('flattens oneOf with single type to that type', () => {
+    const tools: ToolSchema[] = [{
+      name: 'test',
+      description: 'test tool',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { oneOf: [{ type: 'number' }, { type: 'number' }] },
+        },
+      },
+    }];
+
+    const [decl] = toGeminiDeclarations(tools);
+    expect(decl.parameters!.properties!.x.type).toBe(Type.NUMBER);
+  });
+
+  it('throws for oneOf with complex types', () => {
+    const tools: ToolSchema[] = [{
+      name: 'test',
+      description: 'test tool',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { oneOf: [{ type: 'object', properties: {} }] },
+        },
+      },
+    }];
+
+    expect(() => toGeminiDeclarations(tools)).toThrow(/Cannot flatten oneOf.*complex types.*test\.x/);
+  });
+
+  it('throws for empty oneOf', () => {
+    const tools: ToolSchema[] = [{
+      name: 'test',
+      description: 'test tool',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { oneOf: [] },
+        },
+      },
+    }];
+
+    expect(() => toGeminiDeclarations(tools)).toThrow(/oneOf at test\.x has no branches/);
   });
 
   it('throws for anyOf', () => {
