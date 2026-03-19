@@ -34,7 +34,7 @@ import { GLUON_TOOLS } from './tool-schemas';
 import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback, StepResult, OnStepCallback, StepExecutor } from './types';
 import { ProviderError } from './types';
 import { extractOldestExchanges } from './context-summary';
-import { createCircuitBreaker, recordStep, isBlocked, isRepeatedFailure } from './circuit-breaker';
+import { createCircuitBreaker, recordStep, isBlocked, isRepeatedFailure, isRepeatedSuccess } from './circuit-breaker';
 import type { StepOutcome } from './circuit-breaker';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff, computeBandEnergies } from '../audio/audio-analysis';
 import type { TrackAudio } from '../audio/audio-analysis';
@@ -994,6 +994,19 @@ export class GluonAI {
           'This operation already failed with these exact arguments. Try a different approach.',
         );
         functionResponses.push({ id: fc.id, name: fc.name, result: syntheticError });
+        callOutcomes.push({ name: fc.name, args: fc.args, errored: true });
+        continue;
+      }
+
+      // Short-circuit repeated successful mutation calls: if the exact same
+      // call already succeeded, return a warning instead of re-executing.
+      // Prevents add/remove loops where the model doesn't realize an operation
+      // already completed (see #918).
+      if (breaker && isRepeatedSuccess(breaker, fc.name, fc.args)) {
+        const duplicateWarning = errorPayload(
+          'This operation was already completed with these exact arguments earlier in this turn. Skipping to avoid a redundant loop.',
+        );
+        functionResponses.push({ id: fc.id, name: fc.name, result: duplicateWarning });
         callOutcomes.push({ name: fc.name, args: fc.args, errored: true });
         continue;
       }

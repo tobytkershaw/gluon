@@ -5,6 +5,7 @@ import {
   recordStep,
   isBlocked,
   isRepeatedFailure,
+  isRepeatedSuccess,
   callHash,
 } from '../../src/ai/circuit-breaker';
 
@@ -157,5 +158,83 @@ describe('circuit breaker', () => {
 
     // Successful calls are not tracked as failures
     expect(isRepeatedFailure(breaker, 'move', { param: 'timbre', target: 0.5 })).toBe(false);
+  });
+
+  // --- Repeated success detection (issue #918) ---
+
+  it('detects repeated successful mutation calls', () => {
+    let breaker = createCircuitBreaker();
+
+    // Not a repeat yet
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'add', trackId: 'v0', moduleType: 'eq' })).toBe(false);
+
+    // Record a successful processor add
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'processor', args: { action: 'add', trackId: 'v0', moduleType: 'eq' }, errored: false }],
+    });
+
+    // Same call is now a repeated success
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'add', trackId: 'v0', moduleType: 'eq' })).toBe(true);
+
+    // Different args — not a repeat
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'add', trackId: 'v0', moduleType: 'compressor' })).toBe(false);
+
+    // Different tool name — not a repeat
+    expect(isRepeatedSuccess(breaker, 'modulator', { action: 'add', trackId: 'v0', moduleType: 'eq' })).toBe(false);
+  });
+
+  it('does not flag read-only tools as repeated successes', () => {
+    let breaker = createCircuitBreaker();
+
+    // Record a successful listen call
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'listen', args: { trackIds: ['v0'] }, errored: false }],
+    });
+
+    // Read-only tools should never be flagged
+    expect(isRepeatedSuccess(breaker, 'listen', { trackIds: ['v0'] })).toBe(false);
+  });
+
+  it('does not flag read-only tools as repeated successes (render)', () => {
+    let breaker = createCircuitBreaker();
+
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'render', args: { scope: 'v0' }, errored: false }],
+    });
+
+    expect(isRepeatedSuccess(breaker, 'render', { scope: 'v0' })).toBe(false);
+  });
+
+  it('does not flag failed calls as repeated successes', () => {
+    let breaker = createCircuitBreaker();
+
+    // Record a failed call
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'processor', args: { action: 'add', trackId: 'v0', moduleType: 'eq' }, errored: true }],
+    });
+
+    // Failed calls should not appear in the success set
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'add', trackId: 'v0', moduleType: 'eq' })).toBe(false);
+  });
+
+  it('tracks both add and remove processor calls independently', () => {
+    let breaker = createCircuitBreaker();
+
+    // Record successful add
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'processor', args: { action: 'add', trackId: 'v0', moduleType: 'eq' }, errored: false }],
+    });
+
+    // Record successful remove (different args)
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'processor', args: { action: 'remove', trackId: 'v0', processorId: 'eq-123' }, errored: false }],
+    });
+
+    // Both should be detected as repeated if called again
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'add', trackId: 'v0', moduleType: 'eq' })).toBe(true);
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'remove', trackId: 'v0', processorId: 'eq-123' })).toBe(true);
+
+    // But not with different args
+    expect(isRepeatedSuccess(breaker, 'processor', { action: 'add', trackId: 'v0', moduleType: 'compressor' })).toBe(false);
   });
 });
