@@ -11,7 +11,7 @@ import { getAccentRgba } from './visual-utils';
  * as horizontal bars on a pitch (Y) vs time (X) grid. Velocity maps to color
  * intensity (amber tones). Auto-zooms to the pitch range present in the data.
  */
-export function PianoRollModule({ module: _module, track, visualContext }: ModuleRendererProps) {
+export function PianoRollModule({ module, track, visualContext }: ModuleRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
@@ -25,8 +25,12 @@ export function PianoRollModule({ module: _module, track, visualContext }: Modul
     return () => observer.disconnect();
   }, []);
 
-  // Extract note events from active pattern
-  const pattern = track.patterns.length > 0 ? getActivePattern(track) : null;
+  // Resolve pattern from region binding, falling back to active pattern
+  const regionBinding = module.bindings.find(b => b.role === 'region');
+  const boundPattern = regionBinding
+    ? track.patterns.find(p => p.id === regionBinding.target) ?? null
+    : null;
+  const pattern = boundPattern ?? (track.patterns.length > 0 ? getActivePattern(track) : null);
   const notes: NoteEvent[] = pattern
     ? (pattern.events.filter(e => e.kind === 'note') as NoteEvent[])
     : [];

@@ -12,9 +12,12 @@ import { getAccentColor } from './visual-utils';
  */
 export function StepGridModule({ module, track, visualContext }: ModuleRendererProps) {
   const accent = getAccentColor(visualContext);
-  // Find pattern to display
-  const hasPatterns = track.patterns.length > 0;
-  const pattern = hasPatterns ? getActivePattern(track) : null;
+  // Resolve pattern from region binding, falling back to active pattern
+  const regionBinding = module.bindings.find(b => b.role === 'region');
+  const boundPattern = regionBinding
+    ? track.patterns.find(p => p.id === regionBinding.target) ?? null
+    : null;
+  const pattern = boundPattern ?? (track.patterns.length > 0 ? getActivePattern(track) : null);
 
   if (!pattern) {
     return (
