@@ -10,7 +10,7 @@ import { getProfile, type ReferenceProfile } from '../engine/reference-profiles'
 import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
 import type { MixWarning } from './mix-warnings';
 import type { TriggerEvent } from '../engine/canonical-types';
-import { eventsToKit, formatLegend, velocityToGridChar, DEFAULT_LEGEND } from '../engine/drum-grid';
+import { eventsToGrid, eventsToKit, formatLegend, velocityToGridChar, DEFAULT_LEGEND } from '../engine/drum-grid';
 
 interface CompressedPattern {
   length: number;
@@ -350,7 +350,7 @@ function buildDetailMap(
 
     const entry: Record<string, number> = {};
     if (velDeviation) entry.vel = round2(vel);
-    if (Math.abs(offset) >= 0.01) entry.offset = offset > 0 ? round2(offset) : round2(offset);
+    if (Math.abs(offset) >= 0.01) entry.offset = round2(offset);
     if (Object.keys(entry).length > 0) detail[key] = entry;
   }
 
@@ -371,7 +371,7 @@ function compressDrumRackPattern(track: Track): CompressedDrumRackPattern {
       length: region?.duration ?? track.stepGrid.length,
       bars: Math.ceil((region?.duration ?? track.stepGrid.length) / stepsPerBar),
       steps: region?.duration ?? track.stepGrid.length,
-      lanes: Object.fromEntries(padIds.map(id => [id, '.'.repeat(region?.duration ?? track.stepGrid.length)])),
+      lanes: Object.fromEntries(padIds.map(id => [id, eventsToGrid([], region?.duration ?? track.stepGrid.length, stepsPerBar)])),
       legend: formatLegend(),
       density: 0,
       event_count: 0,
