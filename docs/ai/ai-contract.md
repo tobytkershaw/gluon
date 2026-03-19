@@ -810,7 +810,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 1. All param values are **0.0–1.0**.
 2. `trackId` must reference an existing track — accepts ordinal ("Track 1", "1") or internal ID ("v0"–"v15").
-3. Agency must be **ON** for the target track (programming, structure, and modulation tools). UI curation tools (`manage_view`, `set_surface`, `pin_control`, `label_axes`) do not require agency. When agency is OFF, the action is hard-rejected with an error message (e.g. `"Agency gate: Track v0 has agency OFF"`). The AI should not attempt to modify tracks with agency OFF.
+3. Agency must be **ON** for the target track (programming, structure, and modulation tools). UI curation tools (`manage_view`, `set_surface`, `pin_control`, `label_axes`) do not require agency. When agency is OFF, the system raises a decision prompt asking the human to approve or deny the change. The AI receives a structured `{ blocked: true, reason: "agency_off", decisionId }` response and should wait for the human's decision before retrying. **Planned (#926):** The binary agency gate will evolve into granular permission gates with claim/protect semantics and a default blacklist.
 4. `at` in events is a **0-based step index** (fractional values allowed for microtiming) or a **"bar.beat.sixteenth" string** (1-based, e.g. "1.1.1" = step 0).
 5. MIDI pitch in note events is **0–127**.
 6. `duration` in note events must be **> 0** (gate length in steps).

@@ -118,9 +118,9 @@ For native modules (Plaits compiled to WASM), the adapter is a thin mapping laye
 
 The adapter is what makes Gluon's promise real: the AI reasons about semantic parameters and canonical events, and the adapter handles everything below that boundary. A Eurorack Rings module and a WASM Rings module present the same interface to the AI. The human's Elektron Digitone and a software FM synth both look like "a track with parameters" from the protocol's perspective.
 
-### Agency
+### Permission Gates
 
-What the AI is allowed to do to a track. Set per-track by the human.
+What the AI is allowed to modify. Currently a per-track binary gate (agency OFF/ON), set by the human.
 
 ```
 enum Agency {
@@ -129,7 +129,11 @@ enum Agency {
 }
 ```
 
-Agency gates **programming** and **structure** operations. It does not gate **observation** (listen, render, analyze) or **UI curation** (manage_view, set_surface, pin_control, label_axes). OFF means "don't change my sound or my instrument," not "don't help me look at this track."
+Permission gates control **programming** and **structure** operations. They do not gate **observation** (listen, render, analyze) or **UI curation** (manage_view, set_surface, pin_control, label_axes). OFF means "don't change my sound or my instrument," not "don't help me look at this track."
+
+When a gate blocks an action, the system raises a **permission request** (decision prompt) rather than hard-rejecting. The AI receives `{ blocked: true, reason: "agency_off", decisionId }` and waits for the human to approve or deny. This allows the AI to propose changes to protected material without silently modifying it.
+
+**Planned evolution (#926):** The binary per-track gate will be replaced by a granular permission system with claim/protect semantics. The human can claim individual tracks, parameters, or modules. A default blacklist protects critical items (e.g. master bus volume). The permission-request flow remains — the AI can always propose, the human decides.
 
 ### Transport
 
@@ -240,7 +244,7 @@ Reverse the most recent action or action group. If the AI made a coordinated cha
 
 All AI actions are in response to a human `ask`. The AI never acts unsolicited.
 
-The AI's actions fall into five categories. The categories matter because they have different rules about agency, approval, and what they affect.
+The AI's actions fall into five categories. The categories matter because they have different rules about permission gates, approval, and what they affect.
 
 ### Program
 
