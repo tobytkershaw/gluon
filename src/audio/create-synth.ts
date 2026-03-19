@@ -30,7 +30,16 @@ export async function createPreferredSynth(ctx: AudioContext, output: AudioNode)
   try {
     return await PlaitsSynth.create(ctx, output);
   } catch (error) {
-    console.warn('Plaits init failed, falling back to WebAudioSynth.', error);
+    const message = 'Plaits init failed, falling back to WebAudioSynth.';
+    console.warn(message, error);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gluon-audio-degraded', {
+        detail: {
+          message,
+          source: 'synth-fallback',
+        },
+      }));
+    }
     return new WebAudioSynth(ctx, output);
   }
 }

@@ -110,6 +110,12 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
   return true;
 }
 
+export function appendAudioRuntimeDegradationMessage(prev: string | null, message: string): string {
+  if (!prev) return `Audio runtime degraded: ${message}`;
+  if (prev.includes(message)) return prev;
+  return `${prev}; ${message}`;
+}
+
 export default function App() {
   const audioRef = useRef(new AudioEngine());
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY ?? '');
@@ -202,6 +208,7 @@ export default function App() {
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
   const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
+  const [audioDegradedMessage, setAudioDegradedMessage] = useState<string | null>(null);
   // A/B comparison state
   const [abSnapshot, setAbSnapshot] = useState<ABSnapshot | null>(null);
   const [abActive, setAbActive] = useState<'a' | 'b' | null>(null);
@@ -238,27 +245,49 @@ export default function App() {
     clearQaAudioTrace();
   }, []);
 
+  const reportAudioDegradation = useCallback((message: string) => {
+    setAudioDegradedMessage(prev => appendAudioRuntimeDegradationMessage(prev, message));
+  }, []);
+
+  useEffect(() => {
+    const handleAudioDegraded = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string }>).detail;
+      if (detail?.message) reportAudioDegradation(detail.message);
+    };
+
+    window.addEventListener('gluon-audio-degraded', handleAudioDegraded as EventListener);
+    return () => window.removeEventListener('gluon-audio-degraded', handleAudioDegraded as EventListener);
+  }, [reportAudioDegradation]);
+
   const ensureAudio = useCallback(async () => {
-    if (audioStarted) return;
-    const s = sessionRef.current;
-    const audioTrackIds = s.tracks.filter(t => getTrackKind(t) === 'audio').map(t => t.id);
-    const busTrackIds = s.tracks.filter(t => getTrackKind(t) === 'bus').map(t => t.id);
-    const masterBusId = s.tracks.find(t => t.id === MASTER_BUS_ID) ? MASTER_BUS_ID : undefined;
-    await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId);
-    for (const track of s.tracks) {
-      if (track.model !== -1 && getTrackKind(track) === 'audio') {
-        audioRef.current.setTrackModel(track.id, track.model);
-        audioRef.current.setTrackParams(track.id, track.params);
+    if (audioStarted) return true;
+    try {
+      const s = sessionRef.current;
+      const audioTrackIds = s.tracks.filter(t => getTrackKind(t) === 'audio').map(t => t.id);
+      const busTrackIds = s.tracks.filter(t => getTrackKind(t) === 'bus').map(t => t.id);
+      const masterBusId = s.tracks.find(t => t.id === MASTER_BUS_ID) ? MASTER_BUS_ID : undefined;
+      await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId);
+      for (const track of s.tracks) {
+        if (track.model !== -1 && getTrackKind(track) === 'audio') {
+          audioRef.current.setTrackModel(track.id, track.model);
+          audioRef.current.setTrackParams(track.id, track.params);
+        }
       }
-    }
-    // Sync initial sends
-    for (const track of s.tracks) {
-      if (track.sends && track.sends.length > 0) {
-        audioRef.current.syncSends(track.id, track.sends);
+      // Sync initial sends
+      for (const track of s.tracks) {
+        if (track.sends && track.sends.length > 0) {
+          audioRef.current.syncSends(track.id, track.sends);
+        }
       }
+      setAudioStarted(true);
+      return true;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      reportAudioDegradation(`audio startup failed: ${reason}`);
+      console.error('Audio startup failed:', error);
+      return false;
     }
-    setAudioStarted(true);
-  }, [audioStarted]);
+  }, [audioStarted, reportAudioDegradation]);
 
   const handleTransportPositionChange = useCallback((step: number) => {
     globalStepRef.current = step;
@@ -434,6 +463,9 @@ export default function App() {
             audio.setProcessorModel(track.id, sp.id, fresh.model);
             audio.setProcessorPatch(track.id, sp.id, fresh.params);
             prevProcessorStateRef.current.set(pKey, { model: fresh.model, params: { ...fresh.params }, enabled: fresh.enabled !== false });
+          }).catch((error) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            reportAudioDegradation(`processor load failed for ${sp.type} (${sp.id}): ${reason}`);
           });
         } else {
           // #142: dirty-check before syncing existing processors
@@ -513,6 +545,9 @@ export default function App() {
             prevModulatorStateRef.current.set(mKey, { model: fresh.model, params: { ...fresh.params } });
             // Connect routes after modulator WASM loads (fixes race condition)
             syncRoutes(track.id);
+          }).catch((error) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            reportAudioDegradation(`modulator load failed for ${sm.type} (${sm.id}): ${reason}`);
           });
         } else {
           // #142: dirty-check before syncing existing modulators
@@ -2209,6 +2244,7 @@ export default function App() {
       onAddSend={handleAddSend}
       onRemoveSend={handleRemoveSend}
       onSetSendLevel={handleSetSendLevel}
+      runtimeDegradation={audioDegradedMessage}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}

@@ -29,6 +29,7 @@ function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): App
     onAddSend: noop,
     onRemoveSend: noop,
     onSetSendLevel: noop,
+    runtimeDegradation: null,
     messages: [],
     onSend: noop,
     isThinking: false,
@@ -163,5 +164,12 @@ describe('AppShell smoke render', () => {
       const instrument = screen.getByText('instrument body').closest('[data-shortcut-scope="instrument"]') as HTMLElement;
       expect(document.activeElement).toBe(instrument);
     });
+  });
+
+  it('shows the audio degradation banner when provided', () => {
+    render(<AppShell {...buildProps('surface')} runtimeDegradation="Audio runtime degraded: Plaits init failed, falling back to WebAudioSynth." />);
+
+    expect(screen.getByText('Audio degraded')).toBeTruthy();
+    expect(screen.getByText('Audio runtime degraded: Plaits init failed, falling back to WebAudioSynth.')).toBeTruthy();
   });
 });
