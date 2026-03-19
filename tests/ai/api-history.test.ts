@@ -199,15 +199,17 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
   it('respects MAX_STREAMING_STEPS limit', async () => {
     // Always return function calls — should stop after MAX_STREAMING_STEPS (10)
+    // Use different target values each time so the circuit breaker doesn't
+    // short-circuit them as duplicate successful calls (see #918).
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'c0', name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
+      functionCalls: [{ id: 'c0', name: 'move', args: { param: 'timbre', target: { absolute: 0.0 } } }],
     });
     // Enqueue enough continue results to exceed the step limit
     for (let i = 1; i <= 12; i++) {
       planner.continueTurnResults.push({
         textParts: [],
-        functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'timbre', target: { absolute: 0.5 } } }],
+        functionCalls: [{ id: `c${i}`, name: 'move', args: { param: 'timbre', target: { absolute: i / 20 } } }],
       });
     }
 

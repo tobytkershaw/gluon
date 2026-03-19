@@ -2,6 +2,7 @@
 //
 // Detects and blocks:
 // - Repeated identical failing tool calls (same name + args hash)
+// - Repeated identical successful mutation calls (same name + args hash)
 // - Consecutive all-failure steps (model stuck in error loop)
 // - Total call count exceeding budget
 
@@ -25,9 +26,16 @@ const DEFAULT_CONFIG: CircuitBreakerConfig = {
 // State
 // ---------------------------------------------------------------------------
 
+/** Tools that are read-only / observational — safe to call repeatedly with same args. */
+const READ_ONLY_TOOLS = new Set([
+  'listen', 'render', 'spectral', 'dynamics', 'rhythm', 'audio_diff',
+]);
+
 export interface CircuitBreakerState {
   /** Hashes of calls that returned errors. */
   failedCallHashes: Set<string>;
+  /** Hashes of successful mutation calls (non-read-only tools). */
+  successfulCallHashes: Set<string>;
   /** Number of consecutive steps where every call errored. */
   consecutiveAllFailSteps: number;
   /** Total tool calls executed so far. */
@@ -59,6 +67,7 @@ export function createCircuitBreaker(
 ): CircuitBreakerState {
   return {
     failedCallHashes: new Set(),
+    successfulCallHashes: new Set(),
     consecutiveAllFailSteps: 0,
     totalCalls: 0,
     config: { ...DEFAULT_CONFIG, ...config },
@@ -83,6 +92,7 @@ export function recordStep(
   outcome: StepOutcome,
 ): CircuitBreakerState {
   const failedCallHashes = new Set(state.failedCallHashes);
+  const successfulCallHashes = new Set(state.successfulCallHashes);
   let allFailed = outcome.calls.length > 0; // vacuously false if no calls
 
   for (const call of outcome.calls) {
@@ -90,12 +100,17 @@ export function recordStep(
       failedCallHashes.add(callHash(call.name, call.args));
     } else {
       allFailed = false;
+      // Track successful mutation calls so we can detect duplicate invocations
+      if (!READ_ONLY_TOOLS.has(call.name)) {
+        successfulCallHashes.add(callHash(call.name, call.args));
+      }
     }
   }
 
   return {
     ...state,
     failedCallHashes,
+    successfulCallHashes,
     consecutiveAllFailSteps: allFailed
       ? state.consecutiveAllFailSteps + 1
       : 0,
@@ -113,6 +128,21 @@ export function isRepeatedFailure(
   args: Record<string, unknown>,
 ): boolean {
   return state.failedCallHashes.has(callHash(name, args));
+}
+
+/**
+ * Check whether a mutation tool call already succeeded with these exact args.
+ * Used to short-circuit redundant add/remove loops where the model doesn't
+ * realize an operation already completed (e.g. adding a processor that's
+ * already on the track). Read-only tools are never flagged.
+ */
+export function isRepeatedSuccess(
+  state: CircuitBreakerState,
+  name: string,
+  args: Record<string, unknown>,
+): boolean {
+  if (READ_ONLY_TOOLS.has(name)) return false;
+  return state.successfulCallHashes.has(callHash(name, args));
 }
 
 export interface BreakerVerdict {
