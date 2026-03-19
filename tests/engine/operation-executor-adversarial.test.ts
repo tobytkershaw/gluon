@@ -594,6 +594,16 @@ describe('Operation executor adversarial tests', () => {
     it('allows non-musical ops on agency-OFF tracks (views, surface, importance)', () => {
       let session = createSession();
       session = setAgency(session, 'v0', 'OFF');
+      // Add an XY Pad module so label_axes can succeed
+      const track = getTrack(session, 'v0');
+      session = updateTrack(session, 'v0', {
+        surface: {
+          ...track.surface,
+          modules: [
+            { type: 'xy-pad', id: 'xy-1', label: 'XY', bindings: [], position: { x: 0, y: 0, w: 4, h: 4 }, config: {} },
+          ],
+        },
+      });
 
       const nonMusicalActions: AIAction[] = [
         { type: 'add_view', trackId: 'v0', viewKind: 'step-grid', description: 'test' },
@@ -808,14 +818,18 @@ describe('Operation executor adversarial tests', () => {
 
     it('rejects pin beyond max pinned controls limit', () => {
       let session = setupSession();
-      // Pre-populate 4 pins (the max)
+      // Pre-populate 4 pinned modules (the max)
       const track = getTrack(session, 'v0');
-      const pinnedControls = Array.from({ length: 4 }, (_, i) => ({
-        moduleId: 'source',
-        controlId: `ctrl-${i}`,
+      const pinnedModules = Array.from({ length: 4 }, (_, i) => ({
+        type: 'knob-group',
+        id: `pinned-source-ctrl-${i}`,
+        label: `ctrl-${i}`,
+        bindings: [{ role: 'control', trackId: 'v0', target: `source:ctrl-${i}` }],
+        position: { x: 0, y: 0, w: 2, h: 2 },
+        config: { pinned: true },
       }));
       session = updateTrack(session, 'v0', {
-        surface: { ...track.surface, pinnedControls },
+        surface: { ...track.surface, modules: pinnedModules },
       });
 
       const report = run(session, [
