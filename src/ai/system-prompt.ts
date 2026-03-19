@@ -17,7 +17,7 @@ import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, g
  * Verified against official Plaits documentation:
  * https://pichenettes.github.io/mutable-instruments-documentation/modules/plaits/manual/
  */
-const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string; morph: string; note?: string }> = {
+const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string; morph: string; note?: string; frequency?: string }> = {
   'virtual-analog': {
     harmonics: 'Detuning between the two waves',
     timbre: 'Variable square — narrow pulse to full square to hardsync formants',
@@ -88,16 +88,19 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     harmonics: 'Attack sharpness and amount of overdrive',
     timbre: 'Brightness',
     morph: 'Decay time',
+    frequency: 'Fundamental pitch. Deep sub-kick: 0.15–0.25 (~40–60Hz). Punchy mid-kick: 0.30–0.40. High tom-like: 0.45+. Below 0.10 is subsonic — inaudible on most speakers.',
   },
   'analog-snare': {
     harmonics: 'Balance of harmonic and noisy components',
     timbre: 'Balance between different modes of the drum',
     morph: 'Decay time',
+    frequency: 'Body pitch. Tight snare: 0.35–0.45. Deep snare: 0.20–0.30. Very low values produce toms.',
   },
   'analog-hi-hat': {
     harmonics: 'Balance of metallic and filtered noise',
     timbre: 'High-pass filter cutoff',
     morph: 'Decay time',
+    frequency: 'Fundamental pitch. Typical hi-hat: 0.55–0.75. Lower values sound more like a ride or cymbal wash.',
   },
 };
 
@@ -125,7 +128,7 @@ function generateActiveModelReference(activeModelIds: Set<number>): string {
       return `**${m.index}: ${m.name}**
   - harmonics: ${semantics.harmonics}
   - timbre: ${semantics.timbre}
-  - morph: ${semantics.morph}${semantics.note ? `\n  ⚠️ ${semantics.note}` : ''}`;
+  - morph: ${semantics.morph}${semantics.frequency ? `\n  - frequency: ${semantics.frequency}` : ''}${semantics.note ? `\n  ⚠️ ${semantics.note}` : ''}`;
     });
   return lines.join('\n');
 }
@@ -481,6 +484,8 @@ Only call set_surface when the human asks, or after a chain mutation when the su
 - **listen** sends audio to an evaluator for qualitative AI judgment (costs tokens). Renders 2 bars by default (\`bars\` 1-16). Pass \`trackIds\` to isolate. Pass \`lens\` ("low-end", "rhythm", "harmony", "texture", "dynamics", "full-mix") to focus. Pass \`compare: { beforeSessionIndex, question }\` for before/after qualitative evaluation.
 - **When to use which**: use \`analyze\` for hard data ("are these frequencies masking?", "did the LUFS go up?"). Use \`listen\` for subjective, qualitative questions ("does this groove feel right?", "is the reverb too muddy?"). Default to \`analyze\` — it's cheaper and deterministic.
 - After completing a musical step, check your work before continuing. Choose the lightest verification that answers the question: symbolic inspection for event placement, render + analyze for measurable changes (spectral, dynamics, diff), and listen only for subjective qualities that measurement can't capture. Don't skip verification on unfamiliar models or unpredictable changes — a bad sound left unchecked wastes the human's time.
+
+**If a parameter change doesn't produce the expected result, check whether your target value was wrong before suspecting a bug.** A move that applies successfully but sounds wrong usually means the value needs adjusting, not that the system failed. Use the frequency ranges in the model reference to sanity-check your choices. Before filing a bug with \`report_bug\`, verify the issue isn't a misunderstanding of the parameter space.
 
 ## Verification Workflow
 After non-trivial edits, verify. Each layer answers a different question — use the cheapest one that works:
