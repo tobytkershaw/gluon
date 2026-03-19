@@ -1153,7 +1153,7 @@ export default function App() {
   }, []);
 
   // Note preview: short audition when hovering or cursor-selecting tracker note cells
-  const { previewNote, cancelPreview } = useNotePreview(audioRef, activeTrack);
+  const { previewNote, cancelPreview } = useNotePreview(audioRef, activeTrack, session.transport.status);
   const handleNotePreview = useCallback((pitch: number | null) => {
     if (pitch !== null) {
       previewNote(pitch);
