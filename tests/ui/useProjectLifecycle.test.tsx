@@ -2,6 +2,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSession } from '../../src/engine/session';
 import { useProjectLifecycle } from '../../src/ui/useProjectLifecycle';
+import { CURRENT_VERSION, stripForPersistence } from '../../src/engine/persistence';
 
 const storeMocks = vi.hoisted(() => ({
   listProjects: vi.fn(),
@@ -24,7 +25,6 @@ const {
   deleteProject,
   renameProject,
   duplicateProject,
-  exportProject,
   importProject,
   migrateLegacySession,
 } = storeMocks;
@@ -63,7 +63,6 @@ describe('useProjectLifecycle', () => {
     listProjects.mockResolvedValue([]);
     saveProject.mockResolvedValue(undefined);
     renameProject.mockResolvedValue(undefined);
-    exportProject.mockResolvedValue('{}');
     importProject.mockResolvedValue({ id: 'imported', name: 'Imported' });
   });
 
@@ -260,5 +259,48 @@ describe('useProjectLifecycle', () => {
 
     expect(result.current.projectId).toBe('p1');
     expect(result.current.projectActionError).toBe('Project missing could not be loaded.');
+  });
+
+  it('exports the in-memory session even when persistence is degraded', async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    const anchor = {
+      click: vi.fn(),
+      href: '',
+      download: '',
+    } as unknown as HTMLAnchorElement;
+    const createObjectURL = vi.fn(() => 'blob:gluon');
+    const revokeObjectURL = vi.fn();
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'a') return anchor;
+      return originalCreateElement(tagName);
+    });
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+
+    listProjects.mockRejectedValue(new Error('IndexedDB down'));
+    createProject.mockRejectedValue(new Error('IndexedDB down'));
+    migrateLegacySession.mockRejectedValue(new Error('IndexedDB down'));
+
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.saveError).toBe(true));
+
+    await act(async () => {
+      await result.current.exportActiveProject();
+    });
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const json = await blob.text();
+    expect(JSON.parse(json)).toEqual({
+      format: 'gluon-project',
+      version: CURRENT_VERSION,
+      name: 'Untitled',
+      exportedAt: expect.any(Number),
+      session: stripForPersistence(session),
+    });
+    expect(anchor.click).toHaveBeenCalledOnce();
+
+    createElementSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

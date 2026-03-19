@@ -19,6 +19,7 @@ describe('ProjectMenu', () => {
         onDelete={noop}
         onExport={noop}
         onImport={noop}
+        onExportWav={vi.fn()}
       />,
     );
 
@@ -27,6 +28,8 @@ describe('ProjectMenu', () => {
     expect(screen.getByText(/working in memory/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: /new project/i }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByRole('button', { name: /delete project/i }).hasAttribute('disabled')).toBe(true);
+    expect(screen.getByRole('button', { name: /export \.gluon/i }).hasAttribute('disabled')).toBe(false);
+    expect(screen.getByRole('button', { name: /export wav/i }).hasAttribute('disabled')).toBe(false);
   });
 
   it('surfaces project action errors inline', () => {
@@ -50,5 +53,30 @@ describe('ProjectMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: /Test Project/ }));
 
     expect(screen.getByText('Failed to load project missing.')).toBeTruthy();
+  });
+
+  it('keeps export available in degraded mode', () => {
+    const onExport = vi.fn(() => true);
+
+    render(
+      <ProjectMenu
+        projectName="Test Project"
+        projects={[]}
+        saveError
+        saveStatus="error"
+        onRename={noop}
+        onNew={noop}
+        onOpen={noop}
+        onDuplicate={noop}
+        onDelete={noop}
+        onExport={onExport}
+        onImport={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Test Project/ }));
+    fireEvent.click(screen.getByRole('button', { name: /export \.gluon/i }));
+
+    expect(onExport).toHaveBeenCalledOnce();
   });
 });

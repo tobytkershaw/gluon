@@ -54,7 +54,7 @@ export function ProjectMenu({
 
   useEffect(() => { setEditValue(projectName); }, [projectName]);
 
-  const projectActionsUnavailable = saveError;
+  const persistenceActionsUnavailable = saveError;
 
   const commitRename = async () => {
     const name = editValue.trim();
@@ -69,7 +69,7 @@ export function ProjectMenu({
   };
 
   const handleAction = async (action: () => Promise<boolean> | boolean, closeOnSuccess = true) => {
-    if (projectActionsUnavailable) return false;
+    if (persistenceActionsUnavailable) return false;
     const ok = await action();
     if (ok !== false && closeOnSuccess) {
       setOpen(false);
@@ -78,17 +78,14 @@ export function ProjectMenu({
   };
 
   const handleImportClick = () => {
-    if (projectActionsUnavailable) return;
+    if (persistenceActionsUnavailable) return;
     fileRef.current?.click();
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const ok = await handleAction(() => onImport(file));
-      if (ok) {
-        setOpen(false);
-      }
+      await handleAction(() => onImport(file));
     }
     e.target.value = '';
   };
@@ -113,11 +110,11 @@ export function ProjectMenu({
           className="absolute top-full left-0 mt-1 w-64 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-2xl shadow-black/50 z-50 overflow-hidden"
           style={{ animation: 'fade-up 0.1s ease-out' }}
         >
-          {(projectActionsUnavailable || projectActionError) && (
+          {(persistenceActionsUnavailable || projectActionError) && (
             <div className="px-3 py-2 border-b border-zinc-800/60 space-y-1">
-              {projectActionsUnavailable && (
+              {persistenceActionsUnavailable && (
                 <div className="text-[11px] font-mono text-amber-400/90">
-                  Working in memory: project actions are unavailable until IndexedDB recovers.
+                  Working in memory: save/open/import/duplicate/delete are unavailable until IndexedDB recovers. Export remains available for rescue.
                 </div>
               )}
               {projectActionError && (
@@ -145,7 +142,7 @@ export function ProjectMenu({
                 onClick={() => setEditing(true)}
                 className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 transition-colors w-full text-left truncate"
                 title="Click to rename"
-                disabled={projectActionsUnavailable}
+                disabled={persistenceActionsUnavailable}
               >
                 {projectName}
               </button>
@@ -153,10 +150,10 @@ export function ProjectMenu({
           </div>
 
           <div className="py-1">
-            <MenuItem label="New project" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onNew())} />
-            <MenuItem label="Duplicate" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onDuplicate())} />
-            <MenuItem label="Export .gluon" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onExport())} />
-            <MenuItem label="Import .gluon" disabled={projectActionsUnavailable} onClick={handleImportClick} />
+            <MenuItem label="New project" disabled={persistenceActionsUnavailable} onClick={() => handleAction(() => onNew())} />
+            <MenuItem label="Duplicate" disabled={persistenceActionsUnavailable} onClick={() => handleAction(() => onDuplicate())} />
+            <MenuItem label="Export .gluon" onClick={() => { void onExport(); setOpen(false); }} />
+            <MenuItem label="Import .gluon" disabled={persistenceActionsUnavailable} onClick={handleImportClick} />
             <input ref={fileRef} type="file" accept=".gluon,.json" className="hidden" onChange={handleFileChange} />
             {onExportWav && (
               <>
@@ -164,7 +161,7 @@ export function ProjectMenu({
                 {!wavBarPicker ? (
                   <MenuItem
                     label={exportingWav ? 'Exporting...' : 'Export WAV'}
-                    disabled={projectActionsUnavailable}
+                    disabled={false}
                     onClick={() => { if (!exportingWav) setWavBarPicker(true); }}
                   />
                 ) : (
@@ -186,7 +183,7 @@ export function ProjectMenu({
               </>
             )}
             <div className="border-t border-zinc-800/60 my-1" />
-            <MenuItem label="Delete project" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onDelete())} danger />
+            <MenuItem label="Delete project" disabled={persistenceActionsUnavailable} onClick={() => handleAction(() => onDelete())} danger />
           </div>
 
           {projects.length > 1 && (
@@ -200,7 +197,7 @@ export function ProjectMenu({
                   <button
                     key={p.id}
                     onClick={() => { void handleAction(() => onOpen(p.id)); }}
-                    disabled={projectActionsUnavailable}
+                    disabled={persistenceActionsUnavailable}
                     className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-800/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span className="text-[11px] font-mono text-zinc-400 truncate flex-1">{p.name}</span>

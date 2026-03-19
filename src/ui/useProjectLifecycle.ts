@@ -6,11 +6,11 @@ import { createSession } from '../engine/session';
 import {
   listProjects, loadProject, saveProject, createProject as createProjectInDB,
   deleteProject as deleteProjectInDB, renameProject as renameProjectInDB,
-  duplicateProject as duplicateProjectInDB, exportProject as exportProjectInDB,
+  duplicateProject as duplicateProjectInDB,
   importProject as importProjectInDB, migrateLegacySession,
   type ProjectMeta,
 } from '../engine/project-store';
-import { restoreSession } from '../engine/persistence';
+import { CURRENT_VERSION, restoreSession, stripForPersistence } from '../engine/persistence';
 
 const ACTIVE_KEY = 'gluon-active-project';
 const AUTOSAVE_DELAY = 500;
@@ -246,6 +246,7 @@ export function useProjectLifecycle(
 
   const renameActiveProjectAction = useCallback(async (name: string) => {
     if (!projectIdRef.current) return false;
+    const previousName = projectNameRef.current;
     try {
       setProjectName(name);
       await renameProjectInDB(projectIdRef.current, name);
@@ -253,6 +254,7 @@ export function useProjectLifecycle(
       await refreshProjects();
       return true;
     } catch (err) {
+      setProjectName(previousName);
       setActionError('Failed to rename the project.', err);
       return false;
     }
@@ -268,7 +270,7 @@ export function useProjectLifecycle(
       setActionError('Failed to duplicate the project.', err);
       return false;
     }
-  }, [loadProjectById, persistCurrentProjectIfNeeded]);
+  }, [loadProjectById, persistCurrentProjectIfNeeded, setActionError]);
 
   const deleteActiveProjectAction = useCallback(async () => {
     if (!projectIdRef.current) return false;
@@ -287,7 +289,14 @@ export function useProjectLifecycle(
     localStorage.removeItem(ACTIVE_KEY);
 
     // Switch to most recent remaining, or create new
-    const remaining = await listProjects();
+    let remaining: ProjectMeta[];
+    try {
+      remaining = await listProjects();
+    } catch (err) {
+      loadingRef.current = false;
+      setActionError('Project deleted, but failed to refresh the remaining project list.', err);
+      return false;
+    }
     if (remaining.length > 0) {
       return loadProjectById(remaining[0].id);
     } else {
@@ -315,10 +324,14 @@ export function useProjectLifecycle(
   }, [setActionError, setSession, loadProjectById, refreshProjects]);
 
   const exportActiveProjectAction = useCallback(async () => {
-    if (!projectIdRef.current) return false;
-    if (!(await persistCurrentProjectIfNeeded())) return false;
     try {
-      const json = await exportProjectInDB(projectIdRef.current);
+      const json = JSON.stringify({
+        format: 'gluon-project',
+        version: CURRENT_VERSION,
+        name: projectNameRef.current,
+        exportedAt: Date.now(),
+        session: stripForPersistence(sessionRef.current),
+      }, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -332,7 +345,7 @@ export function useProjectLifecycle(
       setActionError('Failed to export the project.', err);
       return false;
     }
-  }, [persistCurrentProjectIfNeeded, setActionError]);
+  }, [setActionError]);
 
   const importProjectAction = useCallback(async (file: File) => {
     try {
