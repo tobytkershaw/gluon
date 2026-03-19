@@ -74,18 +74,37 @@ export function SemanticKnob({
     }
   }, [onClick]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 0.1 : 0.01;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      onChange(Math.min(1, value + step));
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      onChange(Math.max(0, value - step));
+    }
+  }, [onChange, value]);
+
   const size = (KNOB_RADIUS + STROKE_WIDTH) * 2;
 
   return (
     <div className="flex flex-col items-center gap-1 select-none cursor-pointer" style={{ width: 56 }}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <svg
         width={size}
         height={size}
-        className="touch-none"
+        className="touch-none outline-none focus:ring-1 focus:ring-emerald-400/50 rounded-full"
+        tabIndex={0}
+        role="slider"
+        aria-label={name}
+        aria-valuemin={0}
+        aria-valuemax={1}
+        aria-valuenow={Math.round(value * 100) / 100}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
       >
         {/* Track arc (background) */}
         <path

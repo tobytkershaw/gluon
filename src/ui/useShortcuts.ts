@@ -61,6 +61,8 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: `${mod}4`, label: 'Patch view', section: 'view' },
   { key: `${mod}5`, label: 'Tracker view', section: 'view' },
   { key: 'Tab', label: 'Cycle views', section: 'view' },
+  { key: 'F6', label: 'Cycle focus between regions', section: 'view' },
+  { key: 'Shift+F6', label: 'Cycle focus (reverse)', section: 'view' },
   { key: `${mod}?`, label: 'Shortcuts reference', section: 'view' },
   // Mixing
   { key: 'M', label: 'Mute active track', section: 'mixing' },

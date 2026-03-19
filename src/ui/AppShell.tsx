@@ -258,6 +258,10 @@ export function AppShell({
     instrumentRef.current?.focus({ preventScroll: true });
   }, [onViewChange, view]);
 
+  // Section-jump refs for F6 cycling between major UI regions
+  const transportRef = useRef<HTMLDivElement>(null);
+  const trackListRef = useRef<HTMLDivElement>(null);
+
   const handleShellKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
     const isMod = e.metaKey || e.ctrlKey;
     const activeElement = document.activeElement as HTMLElement | null;
@@ -272,6 +276,29 @@ export function AppShell({
     if (e.key === 'Escape' && (view === 'chat' || isChatComposer)) {
       e.preventDefault();
       focusInstrument();
+      return;
+    }
+
+    // F6 cycles focus between major UI regions: transport → tracks → instrument → chat
+    if (e.key === 'F6') {
+      e.preventDefault();
+      const regions = [
+        transportRef.current,
+        trackListRef.current,
+        instrumentRef.current,
+      ].filter(Boolean) as HTMLElement[];
+
+      // Find which region currently has focus
+      const currentIndex = regions.findIndex(r => r.contains(activeElement));
+      const nextIndex = (currentIndex + (e.shiftKey ? -1 + regions.length : 1)) % regions.length;
+      const target = regions[nextIndex];
+      // Focus the first focusable child or the region itself
+      const focusable = target?.querySelector<HTMLElement>('button, [tabindex="0"], input, select, textarea');
+      if (focusable) {
+        focusable.focus();
+      } else {
+        target?.focus();
+      }
     }
   }, [focusComposer, focusInstrument, view]);
 
@@ -427,7 +454,7 @@ export function AppShell({
   return (
     <div ref={shellRef} onKeyDownCapture={handleShellKeyDown} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
       {/* Global top bar — split into workstation (left) and collaboration (right) zones */}
-      <div className="flex items-center h-9 border-b border-zinc-700/40 shrink-0">
+      <div ref={transportRef} className="flex items-center h-9 border-b border-zinc-700/40 shrink-0" role="toolbar" aria-label="Top bar">
         {/* Left zone: workstation controls */}
         <div className="flex-1 flex items-center gap-3 px-3">
           <ProjectMenu
@@ -509,10 +536,11 @@ export function AppShell({
         {/* Workstation: instrument + track list */}
         <div className="flex-1 flex min-h-0">
           {/* Main content (instrument view) */}
-          <div ref={instrumentRef} tabIndex={-1} data-shortcut-scope="instrument" className="flex-1 min-w-0 flex flex-col outline-none">
+          <div ref={instrumentRef} tabIndex={-1} role="main" aria-label="Instrument view" data-shortcut-scope="instrument" className="flex-1 min-w-0 flex flex-col outline-none">
             {children}
           </div>
           {/* Track sidebar */}
+          <div ref={trackListRef} role="region" aria-label="Track list">
           <TrackList
             tracks={tracks}
             activeTrackId={activeTrackId}
@@ -537,6 +565,7 @@ export function AppShell({
             masterStereoAnalysers={stereoAnalysers}
             onMasterVolumeChange={onMasterVolumeChange}
           />
+          </div>
         </div>
 
         <ChatSidebar

@@ -44,6 +44,18 @@ export function MiniKnob({ value, min = 0, max = 1, accentColor, title, onChange
 
   const norm = (value - min) / (max - min);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const range = max - min;
+    const step = e.shiftKey ? range * 0.1 : range * 0.01;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      onChange(Math.min(max, value + step));
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      onChange(Math.max(min, value - step));
+    }
+  }, [onChange, value, min, max]);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -74,10 +86,17 @@ export function MiniKnob({ value, min = 0, max = 1, accentColor, title, onChange
     <svg
       width={SIZE}
       height={SIZE}
-      className="touch-none cursor-pointer shrink-0"
+      className="touch-none cursor-pointer shrink-0 outline-none focus:ring-1 focus:ring-amber-400/50 rounded-full"
+      tabIndex={0}
+      role="slider"
+      aria-label={title ?? 'Knob'}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={Math.round(value * 100) / 100}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onKeyDown={handleKeyDown}
     >
       <title>{title}</title>
       {/* Background arc */}

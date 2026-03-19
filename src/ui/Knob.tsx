@@ -149,6 +149,17 @@ export function Knob({
     onRampRequest?.(target, durationMs);
   }, [onRampRequest]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 0.1 : 0.01;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
+      e.preventDefault();
+      onChange(Math.min(1, value + step));
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      onChange(Math.max(0, value - step));
+    }
+  }, [onChange, value]);
+
   return (
     <div
       className="relative flex flex-col items-center gap-0.5 select-none"
@@ -162,14 +173,22 @@ export function Knob({
       </span>
 
       {/* SVG knob */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <svg
         ref={svgRef}
         width={size}
         height={size}
-        className="touch-none cursor-pointer"
+        className="touch-none cursor-pointer outline-none focus:ring-1 focus:ring-amber-400/50 rounded-full"
+        tabIndex={0}
+        role="slider"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={1}
+        aria-valuenow={Math.round(value * 100) / 100}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onKeyDown={handleKeyDown}
       >
         {/* Invisible hit target — ensures pointer events register on the full knob area,
             not just the thin arc strokes. Critical for small (32px) knobs. */}
