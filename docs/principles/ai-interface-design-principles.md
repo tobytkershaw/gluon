@@ -131,7 +131,7 @@ State should be optimized for reasoning, not for mirroring every internal implem
 
 ### 4. Put constraints in the environment, not only in prose
 
-If the AI cannot touch a voice with agency OFF, that should be reflected in the state and enforced by execution.
+If the AI cannot touch a track with agency OFF, that should be reflected in the state and enforced by execution.
 
 If transport changes are allowed, that should be a real tool.
 
@@ -238,7 +238,7 @@ Treating the model as an agent does not weaken the human's authority. It depends
 Gluon's model of collaboration requires:
 
 - the AI acts when asked
-- per-voice agency is respected
+- per-track agency is respected
 - human touch wins in conflicts
 - AI actions are inspectable
 - AI actions are undoable

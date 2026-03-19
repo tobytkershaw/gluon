@@ -26,12 +26,15 @@ Every AI-facing tool should have a corresponding human-facing surface:
 
 | AI capability | Human surface | Status |
 |---|---|---|
-| Sketch a pattern | Step grid + tracker editing | Partial (#155) |
-| Set voice parameters | Parameter space (XY pad, sliders) | Done |
-| Add/remove processors | Patch view | Planned (#157) |
-| Create modulation routes | Patch view | Planned (#157) |
-| Set modulation depth | Patch view or inline control | Planned |
-| Change voice model | Model selector | Done |
+| Sketch a pattern | Step grid + tracker editing | Done |
+| Set track parameters | Parameter space (XY pad, sliders) | Done |
+| Add/remove processors | Rack view (chain strip) | Done |
+| Create modulation routes | Rack view (modulator panel) | Done |
+| Set modulation depth | Rack view (inline control) | Done |
+| Change track model | Model selector | Done |
 | Set BPM / swing | Transport bar | Done |
+| Add/remove tracks | Track sidebar | Done |
+| Mute / solo / agency | Track sidebar buttons | Done |
+| Manage sends | Rack view | Done |
 
 The human surface doesn't need to be identical to the AI's tool interface — it should be idiomatic for direct manipulation. The AI works through structured operations; the human works through visual controls and direct editing.

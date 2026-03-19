@@ -24,7 +24,7 @@ The current contract is strong at low-level editing: move a parameter, sketch a 
 - reasoning about project phase
 - preserving approved ideas during later edits
 - operating at phrase or loop-structure level
-- understanding voice roles and structural intent directly
+- understanding track roles and structural intent directly
 - distinguishing exploratory material from established material
 - moving cleanly between musical abstraction levels
 
@@ -53,11 +53,11 @@ Each turn, the model should receive structured state with multiple layers.
 
 ### 1. Control layer
 
-The raw and exact layer. Includes: voices, engine/model identifiers, parameters, transport, event data, parameter locks, routing and mute/solo state, agency state.
+The raw and exact layer. Includes: tracks, engine/model identifiers, parameters, transport, event data, parameter locks, routing and mute/solo state, agency state.
 
-### 2. Voice layer
+### 2. Track layer
 
-Musically legible summary of each voice:
+Musically legible summary of each track:
 
 - role: kick, bass, lead, pad, texture, percussion, utility
 - register: low, mid, high, wide
@@ -67,14 +67,14 @@ Musically legible summary of each voice:
 - foreground vs support
 - status: exploratory, liked, approved, anchor (see [preservation-contracts.md](../rfcs/preservation-contracts.md))
 
-Each voice should also expose **importance metadata** — why the voice matters and what must survive edits:
+Each track should also expose **importance metadata** — why the track matters and what must survive edits:
 
-- function: what role this voice plays in the overall piece (e.g. "core identity carrier", "textural bed", "rhythmic anchor")
-- must_preserve: specific aspects that define this voice's identity (e.g. "descending contour", "sub weight", "bar-4 anticipation")
+- function: what role this track plays in the overall piece (e.g. "core identity carrier", "textural bed", "rhythmic anchor")
+- must_preserve: specific aspects that define this track's identity (e.g. "descending contour", "sub weight", "bar-4 anticipation")
 - may_change: aspects explicitly open for modification (e.g. "surface texture", "stereo width")
-- risk_if_changed: what the piece loses if this voice is altered carelessly (e.g. "drop loses heaviness", "groove loses momentum")
+- risk_if_changed: what the piece loses if this track is altered carelessly (e.g. "drop loses heaviness", "groove loses momentum")
 
-This reduces guesswork when the model edits voices that interact with approved material.
+This reduces guesswork when the model edits tracks that interact with approved material.
 
 ### 3. Pattern and phrase layer
 
@@ -149,7 +149,7 @@ Illustrative shape only:
       "variation_points_bars": [4, 8, 16]
     }
   },
-  "voices": [
+  "tracks": [
     {
       "id": "v0",
       "engine_model": "analog_bass_drum",
@@ -158,7 +158,7 @@ Illustrative shape only:
         "params": { "brightness": 0.28, "richness": 0.31, "texture": 0.18, "pitch": 0.34 },
         "mute": false, "solo": false
       },
-      "voice_summary": {
+      "track_summary": {
         "role": "kick",
         "register": "low",
         "timbre": ["dry", "dark", "punchy"],
@@ -195,7 +195,7 @@ Multiple action layers, all first-class. Higher-level tools do not replace lower
 
 ### 1. Micro layer
 
-Exact, local control: move a parameter, add/remove a note or trigger, add a parameter lock, adjust transport, mute/solo/route a voice.
+Exact, local control: move a parameter, add/remove a note or trigger, add a parameter lock, adjust transport, mute/solo/route a track.
 
 ### 2. Pattern layer
 
@@ -219,11 +219,11 @@ Tools grouped by musical purpose.
 
 ### A. Inspect and collaborate
 
-Help the model reason before acting: `listen(question)`, `compare(candidateIds, question)`, `summarize_voice(trackId)`, `ask_clarifying(question)`.
+Help the model reason before acting: `listen(question)`, `compare(candidateIds, question)`, `explain_chain(trackId)`, `ask_clarifying(question)`.
 
 ### B. Micro edit
 
-Exact control: `move_param(...)`, `edit_events(...)`, `set_transport(...)`, `set_voice_state(...)`. Close to the current contract.
+Exact control: `move(...)`, `edit_pattern(...)`, `set_transport(...)`, `set_track_meta(...)`. Close to the current contract.
 
 ### C. Pattern edit
 
@@ -239,9 +239,9 @@ Especially important for loop-native structure.
 
 ### E. Collaboration and memory
 
-Staged human-AI work rather than direct sound changes: `mark_approved(...)`, `mark_rejected(...)`, `set_project_phase(...)`, `preserve_material(...)`, `name_structure_role(...)`.
+Staged human-AI work rather than direct sound changes: `set_track_meta(approval: ...)`, `set_intent(...)`, `set_section(...)`, `set_tension(...)`, `raise_decision(...)`.
 
-These help the model remember what must survive later edits.
+Partially landed: `set_track_meta` covers approval levels and importance. `set_intent` and `set_section` cover project phase and direction. Preservation constraints are enforced by the approval system. Remaining gap: explicit `preserve_material(...)` and `name_structure_role(...)` tools for fine-grained preservation annotations.
 
 ---
 
@@ -307,7 +307,7 @@ When evaluating, the listener should focus on specific dimensions relevant to th
 - groove stability and swing feel
 - variation salience (can you hear the difference?)
 - energy progression
-- frequency masking between voices
+- frequency masking between tracks
 
 ### When to listen
 
@@ -430,9 +430,9 @@ The AI's working environment exists at three levels. Each is documented, each is
 
 | Layer | What it is | Document | Status |
 |-------|-----------|----------|--------|
-| **Current contract** | The tools, state format, and validation rules the AI operates with today. 10 tools, 4-voice Plaits/Rings, canonical events, semantic controls. | [ai-contract.md](./ai-contract.md) | Implemented |
+| **Current contract** | The tools, state format, and validation rules the AI operates with today. ~40 tools, up to 16 tracks, multiple Plaits engines and processor/modulator types, canonical events, semantic controls. | [ai-contract.md](./ai-contract.md) | Implemented |
 | **Canonical model** | The data model that all current and future tools operate on. Voices, regions, events, control schemas, adapters, provenance. Defines the stable internal vocabulary. | [canonical-musical-model.md](../rfcs/canonical-musical-model.md) | Partially implemented (regions, events, provenance landed; adapters, full schema in progress) |
-| **Musical environment** (this document) | The target environment where the AI reasons about project phase, voice roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — not yet implemented |
+| **Musical environment** (this document) | The target environment where the AI reasons about project phase, track roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — not yet implemented |
 
 The current contract is what the AI sees today. The canonical model is the platform being built underneath it. This document is where the environment is headed once the canonical model is stable.
 
@@ -442,11 +442,9 @@ Each layer subsumes the one below it: the musical environment will be expressed 
 
 ## Migration Strategy
 
-Connected to project milestones:
+Status as of Finalization phase (M0–M6 complete):
 
-1. **Now (current contract):** Keep micro tools intact. These work.
-2. **M4:** Expand state to include voice summaries, phase, approvals, and recent human reactions. Add pattern-level preservation and variation tools. **Preservation semantics (`mark_approved`, `preserve_material`) must land before or alongside phrase-level editing tools** — otherwise the AI has the power to make large edits but no mechanism to protect established material.
-3. **M5:** Add phrase and loop-evolution tools once the engine can represent the resulting material cleanly. Structural memory at this point should already be in place from M4.
+Much of what was planned for M4 and M5 has landed: the current contract includes approval levels, preservation constraints, reaction history, restraint guidance, pattern management, sequence management, motif development, and arrangement tools. The remaining gap is phrase-level editing (extend a 4-bar idea into 16 bars, create controlled variation cycles) and the full track-layer summaries described above. These are post-Finalization work.
 
 ---
 

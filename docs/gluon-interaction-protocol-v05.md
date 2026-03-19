@@ -34,28 +34,31 @@ The top-level container. One session is one working project.
 
 ```
 Session {
-  tracks: [Voice]
+  tracks: [Track]
   transport: Transport
   undo_stack: [Snapshot]
   messages: [ChatMessage]
 }
 ```
 
-### Voice
+### Track
 
-A thing that makes sound. A voice is a signal chain of one or more modules, with normalised parameters, sequencing content, and optional UI configuration.
+A thing that makes sound (`audio`) or routes signal (`bus`). A track has a signal chain of one or more modules, with normalised parameters, sequencing content, and optional UI configuration.
 
 ```
-Voice {
-  id: VoiceID
+Track {
+  id: TrackID
+  kind: "audio" | "bus"            // Audio tracks produce sound; bus tracks receive via sends
   chain: Chain                     // Signal path through modules
   params: Map<ControlID, f32>     // Normalised 0.0-1.0, semantic names
   agency: Agency
   regions: [Region]                // Sequencing content (source of truth)
-  pattern: Pattern                 // Derived step-grid cache (never authoritative)
+  patterns: [Pattern]              // Named patterns with events
+  sequence: [PatternRef]           // Arrangement order for song-mode playback
   views: [SequencerViewConfig]     // Active sequencer projections
   modulators: [ModulatorConfig]    // LFO/envelope modules (e.g. Tides)
   modulations: [ModulationRouting] // Modulator → param routings
+  sends: [Send]                    // Post-fader sends to bus tracks
   muted: bool
   solo: bool
 }
@@ -65,7 +68,7 @@ Parameters use hardware-derived control IDs (`timbre`, `harmonics`, `morph`, `fr
 
 ### Module
 
-A sound source or sound processor. Modules are the building blocks that get glued together into voices.
+A sound source or sound processor. Modules are the building blocks that get glued together into tracks.
 
 ```
 Module {
@@ -82,7 +85,7 @@ The protocol doesn't care what a module actually is — it could be a compiled D
 
 ### Chain
 
-The signal path through a voice's modules. Source first, then processors in order.
+The signal path through a track's modules. Source first, then processors in order.
 
 ```
 Chain {
@@ -91,9 +94,9 @@ Chain {
 }
 ```
 
-A simple voice has a chain with just a source and no processors. A complex voice might be `Plaits(Wavetable) → Rings → Clouds`. The chain determines what parameters exist on the voice and how they aggregate into semantic controls.
+A simple track has a chain with just a source and no processors. A complex track might be `Plaits(Wavetable) → Rings → Clouds`. The chain determines what parameters exist on the track and how they aggregate into semantic controls.
 
-When the chain changes (a module is added, removed, or replaced), the voice's parameter set changes with it. This is a structural change, not a parameter change — it's building the instrument, not playing it.
+When the chain changes (a module is added, removed, or replaced), the track's parameter set changes with it. This is a structural change, not a parameter change — it's building the instrument, not playing it.
 
 ### Adapter
 
@@ -113,24 +116,24 @@ Adapter {
 
 For native modules (Plaits compiled to WASM), the adapter is a thin mapping layer. For external hardware, it's a MIDI/OSC/CV bridge with a device profile. For a DAW integration, it might be an Ableton Link or VST host adapter.
 
-The adapter is what makes Gluon's promise real: the AI reasons about semantic parameters and canonical events, and the adapter handles everything below that boundary. A Eurorack Rings module and a WASM Rings module present the same interface to the AI. The human's Elektron Digitone and a software FM synth both look like "a voice with parameters" from the protocol's perspective.
+The adapter is what makes Gluon's promise real: the AI reasons about semantic parameters and canonical events, and the adapter handles everything below that boundary. A Eurorack Rings module and a WASM Rings module present the same interface to the AI. The human's Elektron Digitone and a software FM synth both look like "a track with parameters" from the protocol's perspective.
 
 ### Agency
 
-What the AI is allowed to do to a voice. Set per-voice by the human.
+What the AI is allowed to do to a track. Set per-track by the human.
 
 ```
 enum Agency {
-  OFF    // AI may not modify this voice. May still observe it.
-  ON     // AI may modify this voice when asked by the human.
+  OFF    // AI may not modify this track. May still observe it.
+  ON     // AI may modify this track when asked by the human.
 }
 ```
 
-Agency gates **programming** and **structure** operations. It does not gate **observation** (listen, render, analyze) or **UI curation** (manage_view, set_surface, pin_control, label_axes). OFF means "don't change my sound or my instrument," not "don't help me look at this voice."
+Agency gates **programming** and **structure** operations. It does not gate **observation** (listen, render, analyze) or **UI curation** (manage_view, set_surface, pin_control, label_axes). OFF means "don't change my sound or my instrument," not "don't help me look at this track."
 
 ### Transport
 
-Global playback state shared across all voices.
+Global playback state shared across all tracks.
 
 ```
 Transport {
@@ -156,7 +159,7 @@ Region {
 }
 ```
 
-Currently each voice has one region. Multi-region composition is deferred.
+Currently each track has one region. Multi-region composition is deferred.
 
 ### MusicalEvent
 
@@ -190,7 +193,7 @@ Events are sparse — only positions with activity are represented. Fractional `
 
 ### SequencerView
 
-A UI projection over a voice's region. Views are presentation state — they change what the human sees, not what the instrument plays.
+A UI projection over a track's region. Views are presentation state — they change what the human sees, not what the instrument plays.
 
 ```
 SequencerViewConfig {
@@ -220,7 +223,7 @@ Talk to the AI in natural language:
 
 - "Give me a four-on-the-floor kick pattern"
 - "Make the bass darker and more sub-heavy"
-- "Add Rings to the lead voice"
+- "Add Rings to the lead track"
 - "Patch the LFO into the filter cutoff"
 - "Listen to the mix — is the kick cutting through?"
 - "Show me the kick pattern in a step grid"
@@ -229,7 +232,7 @@ The AI reads the full project state and responds with structured changes.
 
 ### `undo`
 
-Reverse the most recent action or action group. If the AI made a coordinated change across three voices, undo reverses all three at once. Multiple undos walk back through the stack.
+Reverse the most recent action or action group. If the AI made a coordinated change across three tracks, undo reverses all three at once. Multiple undos walk back through the stack.
 
 ---
 
@@ -241,17 +244,17 @@ The AI's actions fall into five categories. The categories matter because they h
 
 ### Program
 
-Set up what the instrument plays and how it sounds — patterns, parameters, transformations. **Requires voice agency ON.** Immediately audible. Undoable.
+Set up what the instrument plays and how it sounds — patterns, parameters, transformations. **Requires track agency ON.** Immediately audible. Undoable.
 
 #### `move`
 
-Change a control parameter on a voice.
+Change a control parameter on a track.
 
 ```
 move {
   param: ControlID
   target: { absolute: f32 } | { relative: f32 }
-  trackId: VoiceID?          // Defaults to active voice
+  trackId: TrackID?          // Defaults to active track
   over: ms?                  // Smooth transition duration
 }
 ```
@@ -262,7 +265,7 @@ Write a rhythmic or melodic pattern as canonical musical events.
 
 ```
 sketch {
-  trackId: VoiceID
+  trackId: TrackID
   description: string
   events: [MusicalEvent]     // Sparse event list
 }
@@ -276,7 +279,7 @@ Structurally modify an existing pattern without rewriting it.
 
 ```
 transform {
-  trackId: VoiceID
+  trackId: TrackID
   operation: "rotate" | "transpose" | "reverse" | "duplicate"
   steps: int?                // For rotate (positive=forward, negative=backward)
   semitones: int?            // For transpose (positive=up, negative=down)
@@ -286,15 +289,15 @@ transform {
 
 ### Structure
 
-Change what the instrument is — its modules, signal chain, and configuration. **Requires voice agency ON.** Changes the instrument's topology, not just its current state. Undoable.
+Change what the instrument is — its modules, signal chain, and configuration. **Requires track agency ON.** Changes the instrument's topology, not just its current state. Undoable.
 
 #### `set_model`
 
-Change the mode of a module. Without `processorId`/`modulatorId`, changes the voice synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode.
+Change the mode of a module. Without `processorId`/`modulatorId`, changes the track synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode.
 
 ```
 set_model {
-  trackId: VoiceID
+  trackId: TrackID
   model: EngineID
   processorId: ProcessorID?    // Target a processor's mode
   modulatorId: ModulatorID?    // Target a modulator's mode
@@ -303,12 +306,12 @@ set_model {
 
 #### `manage_processor`
 
-Add, remove, replace, or bypass a processor module in a voice's chain. Max 2 per voice.
+Add, remove, replace, or bypass a processor module in a track's chain. Max 2 per track.
 
 ```
 manage_processor {
   action: "add" | "remove" | "replace" | "bypass"
-  trackId: VoiceID
+  trackId: TrackID
   moduleType: ModuleType?      // Required for add/replace. "rings", "clouds"
   processorId: ProcessorID?    // Required for remove/replace/bypass
   enabled: bool?               // For bypass: false=bypass, true=re-enable
@@ -320,12 +323,12 @@ Returns `{ processorId }` (add) or `{ newProcessorId }` (replace) for same-turn 
 
 #### `manage_modulator`
 
-Add or remove a modulator module (LFO/envelope) on a voice. Max 2 per voice. Use `modulation_route` to wire it to parameters.
+Add or remove a modulator module (LFO/envelope) on a track. Max 2 per track. Use `modulation_route` to wire it to parameters.
 
 ```
 manage_modulator {
   action: "add" | "remove"
-  trackId: VoiceID
+  trackId: TrackID
   moduleType: ModuleType?      // Required for add. "tides"
   modulatorId: ModulatorID?    // Required for remove
   description: string
@@ -341,7 +344,7 @@ Connect or disconnect a modulation routing. Idempotent — calling connect with 
 ```
 modulation_route {
   action: "connect" | "disconnect"
-  trackId: VoiceID
+  trackId: TrackID
   modulatorId: ModulatorID?    // Required for connect
   modulationId: ModulationID?  // Required for disconnect
   targetKind: "source" | "processor"?  // Required for connect
@@ -354,14 +357,16 @@ modulation_route {
 
 Returns `{ modulationId }` for same-turn disconnect. Human sets center, modulation adds around it. Multiple routings to the same param sum additively.
 
-#### `create_voice` (future)
+#### `manage_track`
 
-Add a new voice to the session.
+Add or remove a track from the session. Adding does not require agency. Removing requires agency ON.
 
 ```
-create_voice {
-  source: ModuleType         // Initial source module
-  label: string              // "KICK", "PAD", etc.
+manage_track {
+  action: "add" | "remove"
+  kind: "audio" | "bus"?     // Required for add
+  trackId: TrackID?          // Required for remove
+  label: string?             // Optional display name
   description: string
 }
 ```
@@ -370,7 +375,7 @@ Structure operations trigger downstream effects: adding a module changes the ava
 
 ### Transport
 
-Global playback control. **No agency gate** — transport is shared, not per-voice. Undoable.
+Global playback control. **No agency gate** — transport is shared, not per-track. Undoable.
 
 #### `set_transport`
 
@@ -397,7 +402,7 @@ Render audio offline and evaluate how it sounds. Works whether or not the transp
 ```
 listen {
   question: string       // "How does the kick sound?", "Is the mix balanced?"
-  trackIds: [VoiceID]?   // Render specific tracks in isolation. Default: all unmuted.
+  trackIds: [TrackID]?   // Render specific tracks in isolation. Default: all unmuted.
   bars: int?             // Number of bars to render (1-16, default 2)
   lens: string?          // Focus: "full-mix", "low-end", "rhythm", "harmony", "texture", "dynamics"
   compare: {             // Optional before/after comparison
@@ -415,7 +420,7 @@ Capture an audio snapshot with explicit scope. Returns a `snapshotId` for use wi
 
 ```
 render {
-  scope: VoiceID | [VoiceID]?   // Track(s) to render. Omit for full mix.
+  scope: TrackID | [TrackID]?   // Track(s) to render. Omit for full mix.
   bars: int?                     // Duration in bars (1-16, default 2)
 }
 ```
@@ -435,16 +440,16 @@ Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, pe
 
 ### UI Curation
 
-Changes to what the human sees, not what the instrument plays. **No agency gate** — the AI should be able to help the human inspect any voice regardless of agency. No sound change. Undoable. Persistent.
+Changes to what the human sees, not what the instrument plays. **No agency gate** — the AI should be able to help the human inspect any track regardless of agency. No sound change. Undoable. Persistent.
 
 #### `manage_view`
 
-Add or remove a sequencer view on a voice.
+Add or remove a sequencer view on a track.
 
 ```
 manage_view {
   action: "add" | "remove"
-  trackId: VoiceID
+  trackId: TrackID
   viewKind: SequencerViewKind?  // Required for add. "step-grid"
   viewId: string?               // Required for remove
   description: string
@@ -453,11 +458,11 @@ manage_view {
 
 #### `set_surface`
 
-Define semantic controls for a voice's UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters via weighted sums.
+Define semantic controls for a track's UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters via weighted sums.
 
 ```
 set_surface {
-  trackId: VoiceID
+  trackId: TrackID
   semanticControls: [{
     name: string              // Human-readable label (e.g. "Warmth")
     weights: [{
@@ -475,12 +480,12 @@ set_surface {
 
 #### `pin_control`
 
-Pin or unpin a raw module control on the voice's surface. Max 4 pins per track.
+Pin or unpin a raw module control on the track's surface. Max 4 pins per track.
 
 ```
 pin_control {
   action: "pin" | "unpin"
-  trackId: VoiceID
+  trackId: TrackID
   moduleId: string        // "source" or a processor ID
   controlId: ControlID
 }
@@ -488,11 +493,11 @@ pin_control {
 
 #### `label_axes`
 
-Set semantic labels for the voice's XY pad axes.
+Set semantic labels for the track's XY pad axes.
 
 ```
 label_axes {
-  trackId: VoiceID
+  trackId: TrackID
   x: string               // e.g. "Brightness"
   y: string               // e.g. "Texture"
 }
@@ -508,7 +513,7 @@ Set track metadata: approval level, importance, and/or musical role. At least on
 
 ```
 set_track_meta {
-  trackId: VoiceID
+  trackId: TrackID
   approval: "exploratory" | "liked" | "approved" | "anchor"?
   importance: f32?         // 0.0-1.0, mix priority
   musicalRole: string?     // e.g. "driving rhythm"
@@ -527,7 +532,7 @@ raise_decision {
   question: string
   context: string?
   options: [string]?
-  trackIds: [VoiceID]?
+  trackIds: [TrackID]?
 }
 ```
 
@@ -557,7 +562,7 @@ Talk back to the human. Explain what you did, answer questions, describe what yo
 
 When the AI makes a coordinated change across multiple parameters or voices, those individual actions are bundled into an action group. An action group is the unit of undo: one undo reverses the whole group.
 
-The AI should group actions when they are musically related. "Make it darker" might touch controls on three voices — that's one undo group.
+The AI should group actions when they are musically related. "Make it darker" might touch controls on three tracks — that's one undo group.
 
 UI curation actions (manage_view, set_surface, pin_control, label_axes) are grouped with other operations from the same AI response into a single undo entry, following the standard action group pattern.
 
@@ -565,9 +570,9 @@ UI curation actions (manage_view, set_surface, pin_control, label_axes) are grou
 
 ## Arbitration
 
-When human and AI both want to control the same parameter, the human wins. Always. Instantly.
+When human and AI both want to control the same parameter, the human wins. Always.
 
-If the human touches a parameter, the AI's value is overwritten. If the human undoes while the AI's changes are being applied, the changes are cancelled.
+The runtime uses a cooldown-based arbitration system. When the human touches a parameter, AI actions targeting that track are blocked for a short cooldown period (default 500ms). While the human is actively interacting with a track (e.g. dragging a slider), all AI actions on that track are suppressed until the interaction ends and the cooldown expires. This prevents the AI from fighting the human's hands without requiring frame-level collision detection.
 
 ---
 
@@ -583,7 +588,7 @@ The AI can make multiple changes in a single response (moving parameters, sketch
 
 The AI receives a compressed, semantically-named representation of the session. This is optimised for reasoning, not for mirroring internals.
 
-Per voice:
+Per track:
 - Identity: id, label, agency state, approval level
 - Chain: source module and processors, in signal order
 - Modulators: LFO/envelope modules with current parameters and mode
@@ -613,7 +618,7 @@ The AI uses hardware-derived control IDs throughout — `timbre`, `harmonics`, `
 
 Gluon's core promise is that you can glue different instruments onto the same AI-legible core. The adapter is where that happens.
 
-Everything above the adapter is canonical: semantic control IDs, normalised 0-1 values, canonical musical events, regions, voices. This is the world the AI reasons about.
+Everything above the adapter is canonical: semantic control IDs, normalised 0-1 values, canonical musical events, regions, tracks. This is the world the AI reasons about.
 
 Everything below the adapter is native: CC numbers, voltage ranges, VST parameter indices, MIDI channels, sample rates. This is the world of specific hardware and software.
 
@@ -622,7 +627,7 @@ The adapter translates bidirectionally:
 - **Canonical → native**: the AI moves `brightness` to 0.7 → the adapter sends CC 74 value 89 on MIDI channel 1
 - **Native → canonical**: the human turns a hardware knob → the adapter reports that `brightness` changed to 0.65
 
-This boundary is what makes the protocol instrument-agnostic. The AI doesn't need to know whether it's programming a WASM DSP module, a Eurorack rack, or an Ableton track. It sees voices with parameters. The adapter handles the rest.
+This boundary is what makes the protocol instrument-agnostic. The AI doesn't need to know whether it's programming a WASM DSP module, a Eurorack rack, or an Ableton track. It sees tracks with parameters. The adapter handles the rest.
 
 ### What adapters exist for
 
@@ -631,7 +636,7 @@ This boundary is what makes the protocol instrument-agnostic. The AI doesn't nee
 - **DAW integration** (Ableton, Bitwig): host adapter for track/clip/device control
 - **External instruments** (anything with MIDI): generic MIDI profile with CC mappings
 
-A hardware voice and a native voice look the same to the AI. That's the point.
+A hardware track and a native track look the same to the AI. That's the point.
 
 ### Undo across the adapter boundary
 
@@ -657,7 +662,7 @@ Undo for native modules is exact — restore previous parameter values. Undo for
 
 ## The Whole Thing on One Page
 
-A Gluon session has **voices** (things that make sound). Each voice is a **chain** of **modules** (sources, processors, and modulators) with **agency** (OFF / ON), **regions** (canonical sequencing content), **modulation routings** (LFO/envelope connections to parameters), and optional **views** (UI projections over that content). **Adapters** bridge between the canonical model and native instruments — hardware, software, or anything with parameters.
+A Gluon session has **tracks** (things that make sound or route signal). Each track has a **chain** of **modules** (sources, processors, and modulators) with **agency** (OFF / ON), **patterns** (named containers of musical events), **modulation routings** (LFO/envelope connections to parameters), and optional **views** (UI projections over that content). **Adapters** bridge between the canonical model and native instruments — hardware, software, or anything with parameters.
 
 The human **plays** (direct manipulation), **asks** (natural language), and **undoes**.
 
@@ -675,6 +680,6 @@ The AI's tools fall into five categories:
 
 Plus **say** — talk back to the human.
 
-Every AI action is applied immediately and is undoable. The AI only acts when asked, and only modifies voices with agency ON (except observation and UI curation). When human and AI collide on the same parameter, the human wins. Always. Instantly.
+Every AI action is applied immediately and is undoable. The AI only acts when asked, and only modifies tracks with agency ON (except observation and UI curation). When human and AI collide on the same parameter, the human wins. Always. Instantly.
 
 That's Gluon: the Claude Code of music, built around an AI-legible musical core that you can glue any instrument onto.
