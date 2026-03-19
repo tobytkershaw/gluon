@@ -7,7 +7,7 @@ import { getActivePattern } from '../engine/types';
 import type { PatternRef, TransportMode } from '../engine/sequencer-types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
-import { getAudibleTracks } from '../engine/sequencer-helpers';
+import { getAudibleTracks, resolveEventParams } from '../engine/sequencer-helpers';
 import { getInterpolatedParams } from '../engine/interpolation';
 import { getSequenceAutomationValuesAt, hasSequenceAutomationPointAt } from '../engine/sequence-automation';
 
@@ -345,11 +345,63 @@ function emitPatternEvents(
     const beatTime = offset + ev.at;
     if (beatTime >= totalSteps) break; // events are sorted ascending
     if (beatTime >= 0) {
+      if (ev.kind === 'trigger' || ev.kind === 'note') {
+        pushResolvedSequenceAutomationForEvent(out, pattern.events, ref, ev, beatTime, baseParams);
+      }
       pushMusicalEvent(out, ev, beatTime, baseParams);
     }
   }
   // Emit interpolated parameter values at each integer step
   pushInterpolatedEvents(out, pattern.events, offset, pattern.duration, totalSteps);
+}
+
+function pushResolvedSequenceAutomationForEvent(
+  out: RenderEvent[],
+  patternEvents: MusicalEvent[],
+  ref: PatternRef | undefined,
+  event: TriggerEvent | NoteEvent,
+  beatTime: number,
+  baseParams: SynthParamValues,
+): void {
+  const sequenceAutomationValues = getSequenceAutomationValuesAt(ref, event.at);
+  if (Object.keys(sequenceAutomationValues).length === 0) return;
+
+  const automatedBaseParams = {
+    ...baseParams,
+    ...Object.fromEntries(
+      Object.entries(sequenceAutomationValues).map(([controlId, value]) => [
+        controlIdToRuntimeParam[controlId] ?? controlId,
+        value,
+      ]),
+    ),
+  };
+  const resolvedParams = resolveEventParams(
+    patternEvents,
+    event.at,
+    automatedBaseParams,
+    {},
+    (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
+  );
+
+  const patch: Partial<RenderSynthPatch> = {};
+  if (typeof resolvedParams.harmonics === 'number') patch.harmonics = resolvedParams.harmonics;
+  if (typeof resolvedParams.timbre === 'number') patch.timbre = resolvedParams.timbre;
+  if (typeof resolvedParams.morph === 'number') patch.morph = resolvedParams.morph;
+  if (event.kind !== 'note' && typeof resolvedParams.note === 'number') patch.note = resolvedParams.note;
+
+  const extended: Partial<RenderPlaitsExtended> = {};
+  if (typeof resolvedParams.fm_amount === 'number') extended.fm_amount = resolvedParams.fm_amount;
+  if (typeof resolvedParams.timbre_mod_amount === 'number') extended.timbre_mod_amount = resolvedParams.timbre_mod_amount;
+  if (typeof resolvedParams.morph_mod_amount === 'number') extended.morph_mod_amount = resolvedParams.morph_mod_amount;
+  if (typeof resolvedParams.decay === 'number') extended.decay = resolvedParams.decay;
+  if (typeof resolvedParams.lpg_colour === 'number') extended.lpg_colour = resolvedParams.lpg_colour;
+
+  if (Object.keys(patch).length > 0) {
+    out.push({ beatTime, type: 'set-patch', patch });
+  }
+  if (Object.keys(extended).length > 0) {
+    out.push({ beatTime, type: 'set-extended', extended });
+  }
 }
 
 function pushSequenceAutomationEvents(

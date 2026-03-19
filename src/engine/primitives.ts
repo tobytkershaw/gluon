@@ -10,6 +10,20 @@ import { stepsToEvents } from './event-conversion';
 import { normalizePatternEvents } from './region-helpers';
 import { runtimeParamToControlId } from '../audio/instrument-registry';
 
+function cloneSequenceSnapshot(
+  sequence: NonNullable<import('./types').Track['sequence']>,
+): NonNullable<import('./types').Track['sequence']> {
+  return sequence.map(ref => ({
+    ...ref,
+    ...(ref.automation ? {
+      automation: ref.automation.map(lane => ({
+        ...lane,
+        points: lane.points.map(point => ({ ...point })),
+      })),
+    } : {}),
+  }));
+}
+
 /**
  * Clamp a parameter value to [0, 1]. Returns null for non-finite values
  * (NaN, Infinity, -Infinity) so the caller can reject the operation. (#892)
@@ -269,7 +283,7 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'sequence-edit') {
-    return updateTrack(session, snapshot.trackId, { sequence: snapshot.prevSequence, _patternDirty: true });
+    return updateTrack(session, snapshot.trackId, { sequence: cloneSequenceSnapshot(snapshot.prevSequence), _patternDirty: true });
   }
 
   if (snapshot.kind === 'ab-restore') {
@@ -591,7 +605,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'sequence-edit') {
     const track = session.tracks.find(v => v.id === snapshot.trackId);
     if (!track) return { ...snapshot, timestamp: now };
-    return { ...snapshot, prevSequence: [...track.sequence], timestamp: now };
+    return { ...snapshot, prevSequence: cloneSequenceSnapshot(track.sequence), timestamp: now };
   }
 
   if (snapshot.kind === 'ab-restore') {

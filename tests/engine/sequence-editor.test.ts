@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { createSession, addPattern, addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation } from '../../src/engine/session';
 import { getTrack } from '../../src/engine/types';
-import { applyUndo } from '../../src/engine/primitives';
+import { applyUndo, applyRedo } from '../../src/engine/primitives';
 
 function setupSession() {
   // Create session with one track, add a second pattern so we have two
@@ -219,6 +219,24 @@ describe('sequence automation', () => {
     const undone = applyUndo(session);
 
     expect(getTrack(undone, trackId).sequence).toEqual(prevSequence);
+  });
+
+  it('redo restores nested automation lanes after undo', () => {
+    let session = createSession();
+    const trackId = session.activeTrackId;
+    session = addPattern(session, trackId)!;
+    session = setSequenceAutomation(session, trackId, 'morph', [
+      { at: 0, value: 0.1, interpolation: 'linear' },
+      { at: 12, value: 0.4 },
+      { at: 20, value: 0.7, interpolation: 'curve', tension: 0.5 },
+      { at: 32, value: 0.9 },
+    ]);
+    const expectedSequence = structuredClone(getTrack(session, trackId).sequence);
+
+    const undone = applyUndo(session);
+    const redone = applyRedo(undone);
+
+    expect(getTrack(redone, trackId).sequence).toEqual(expectedSequence);
   });
 
   it('clears sequence automation for a control without touching other refs', () => {

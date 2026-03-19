@@ -22,7 +22,7 @@ import {
   addReaction, setTrackImportance,
   addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack,
   setTimeSignature, setTransportMode,
-  addPatternRef, removePatternRef, reorderPatternRef,
+  addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation,
   captureABSnapshot, restoreABSnapshot,
   setTransportLoop,
   resolveDecision,
@@ -42,7 +42,7 @@ import type { EventSelector } from '../engine/event-primitives';
 import type { MusicalEvent } from '../engine/canonical-types';
 import { addView, removeView } from '../engine/view-primitives';
 import type { SequencerViewKind } from '../engine/types';
-import type { ScheduledParameterEvent } from '../engine/sequencer-types';
+import type { ScheduledParameterEvent, SequenceAutomationPoint } from '../engine/sequencer-types';
 import { GluonAI } from '../ai/api';
 import type { ListenerMode } from '../ai/api';
 import type { ListenerProvider } from '../ai/types';
@@ -1922,6 +1922,14 @@ export default function App() {
     setSession((s) => reorderPatternRef(s, s.activeTrackId, fromIndex, toIndex));
   }, []);
 
+  const handleSetSequenceAutomation = useCallback((controlId: string, points: SequenceAutomationPoint[]) => {
+    setSession((s) => setSequenceAutomation(s, s.activeTrackId, controlId, points));
+  }, []);
+
+  const handleClearSequenceAutomation = useCallback((controlId: string) => {
+    setSession((s) => clearSequenceAutomation(s, s.activeTrackId, controlId));
+  }, []);
+
   const handleAddView = useCallback((kind: SequencerViewKind) => {
     setSession((s) => addView(s, s.activeTrackId, kind));
   }, []);
@@ -2911,6 +2919,8 @@ export default function App() {
             onAddPatternRef={handleAddPatternRef}
             onRemovePatternRef={handleRemovePatternRef}
             onReorderPatternRef={handleReorderPatternRef}
+            onSetSequenceAutomation={handleSetSequenceAutomation}
+            onClearSequenceAutomation={handleClearSequenceAutomation}
           />
         )}
     </AppShell>

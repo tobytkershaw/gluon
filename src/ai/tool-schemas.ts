@@ -1027,6 +1027,7 @@ const manageSequenceTool: ToolSchema = {
           type: 'object',
           properties: {
             at: {
+              oneOf: [{ type: 'number' }, { type: 'string' }],
               description: 'Song position as a 0-based step number or "bar.beat.sixteenth" string. Unlike sketch, this is relative to the full track sequence in song mode.',
             },
             value: {

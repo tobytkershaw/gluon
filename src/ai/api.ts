@@ -3915,7 +3915,9 @@ export class GluonAI {
           if (typeof args.controlId !== 'string' || !args.controlId) {
             return { actions: [], response: errorPayload(`action=${seqSubAction} requires controlId`) };
           }
-          const validControlIds = new Set(plaitsInstrument.engines[0]?.controls.map(control => control.id) ?? []);
+          const validControlIds = new Set(
+            plaitsInstrument.engines.flatMap(engine => engine.controls.map(control => control.id)),
+          );
           if (!validControlIds.has(args.controlId as string)) {
             return { actions: [], response: errorPayload(`Unsupported sequence automation controlId: ${String(args.controlId)}`) };
           }

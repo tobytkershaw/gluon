@@ -5,6 +5,7 @@ import type { Session, Track } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import type { MusicalEvent, NoteEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
+import type { SequenceAutomationPoint } from '../engine/sequencer-types';
 import { resolveSequencePosition } from '../engine/sequence-helpers';
 import { Tracker } from './Tracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
@@ -58,6 +59,8 @@ interface Props {
   onAddPatternRef?: (patternId: string) => void;
   onRemovePatternRef?: (sequenceIndex: number) => void;
   onReorderPatternRef?: (fromIndex: number, toIndex: number) => void;
+  onSetSequenceAutomation?: (controlId: string, points: SequenceAutomationPoint[]) => void;
+  onClearSequenceAutomation?: (controlId: string) => void;
 }
 
 // --- Inline number input for Rotate/Transpose ---
@@ -117,6 +120,7 @@ export function TrackerView({
   onPlayFromRow,
   onSelectionChange,
   onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
+  onSetSequenceAutomation, onClearSequenceAutomation,
 }: Props) {
   const activePatternId = getActivePattern(activeTrack).id;
   const patternDuration = getActivePattern(activeTrack).duration;
@@ -376,6 +380,8 @@ export function TrackerView({
               onAddPatternRef={onAddPatternRef}
               onRemovePatternRef={onRemovePatternRef}
               onReorderPatternRef={onReorderPatternRef}
+              onSetSequenceAutomation={onSetSequenceAutomation}
+              onClearSequenceAutomation={onClearSequenceAutomation}
             />
           )}
 

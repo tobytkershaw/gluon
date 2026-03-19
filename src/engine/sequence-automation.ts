@@ -198,6 +198,6 @@ export function hasSequenceAutomationPointAt(
 ): boolean {
   return Boolean(ref?.automation?.some(lane =>
     lane.controlId === controlId
-    && lane.points.some(point => Math.abs(point.at - localAt) < 0.0001 && point.at < Number.POSITIVE_INFINITY)
+    && lane.points.some(point => Math.abs(point.at - localAt) < 0.0001)
   ));
 }

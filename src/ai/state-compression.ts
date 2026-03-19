@@ -71,6 +71,7 @@ interface CompressedTrack {
     length: number;
     automation?: Array<{
       controlId: string;
+      point_count: number;
       points: Array<{ at: number; value: number }>;
     }>;
   }>;
@@ -180,6 +181,8 @@ export interface CompressedAutoDiffSummary {
   confidence: number;
 }
 
+const AUTOMATION_POINT_PREVIEW_LIMIT = 8;
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -187,6 +190,15 @@ function round2(n: number): number {
 function modelName(model: number): string {
   const name = getModelName(model);
   return name.toLowerCase().replace(/[\s/]+/g, '_');
+}
+
+function sampleAutomationPoints<T>(points: T[], limit: number): T[] {
+  if (points.length <= limit) return points;
+  const indices = new Set<number>();
+  for (let i = 0; i < limit; i++) {
+    indices.add(Math.round((i * (points.length - 1)) / (limit - 1)));
+  }
+  return [...indices].sort((a, b) => a - b).map(index => points[index]);
 }
 
 function compressPattern(track: Track): CompressedPattern {
@@ -532,7 +544,8 @@ export function compressState(
           ...(ref.automation && ref.automation.length > 0 ? {
             automation: ref.automation.map(lane => ({
               controlId: lane.controlId,
-              points: lane.points.map(point => ({
+              point_count: lane.points.length,
+              points: sampleAutomationPoints(lane.points, AUTOMATION_POINT_PREVIEW_LIMIT).map(point => ({
                 at: round2(point.at),
                 value: round2(point.value),
               })),

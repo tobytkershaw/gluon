@@ -5,7 +5,7 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import type { Track } from '../engine/types';
 import type { Pattern } from '../engine/canonical-types';
-import type { PatternRef } from '../engine/sequencer-types';
+import type { PatternRef, SequenceAutomationPoint } from '../engine/sequencer-types';
 import { resolveSequencePosition } from '../engine/sequence-helpers';
 
 interface Props {
@@ -19,6 +19,69 @@ interface Props {
   onAddPatternRef: (patternId: string) => void;
   onRemovePatternRef: (sequenceIndex: number) => void;
   onReorderPatternRef: (fromIndex: number, toIndex: number) => void;
+  onSetSequenceAutomation?: (controlId: string, points: SequenceAutomationPoint[]) => void;
+  onClearSequenceAutomation?: (controlId: string) => void;
+}
+
+function parseAutomationPosition(value: string): number {
+  const trimmed = value.trim();
+  if (!trimmed) throw new Error('Missing automation point position.');
+  const numeric = Number(trimmed);
+  if (Number.isFinite(numeric)) return numeric;
+
+  const parts = trimmed.split('.');
+  if (parts.length !== 3) {
+    throw new Error(`Invalid position "${trimmed}". Use a step number or "bar.beat.sixteenth".`);
+  }
+
+  const [barStr, beatStr, sixteenthStr] = parts;
+  const bar = Number(barStr);
+  const beat = Number(beatStr);
+  const sixteenth = Number(sixteenthStr);
+  if (!Number.isInteger(bar) || bar < 1) throw new Error(`Invalid bar "${barStr}" in "${trimmed}".`);
+  if (!Number.isInteger(beat) || beat < 1 || beat > 4) throw new Error(`Invalid beat "${beatStr}" in "${trimmed}".`);
+  if (!Number.isFinite(sixteenth) || sixteenth < 1 || sixteenth > 4) {
+    throw new Error(`Invalid sixteenth "${sixteenthStr}" in "${trimmed}".`);
+  }
+
+  return (bar - 1) * 16 + (beat - 1) * 4 + (sixteenth - 1);
+}
+
+function parseSequenceAutomationInput(input: string): SequenceAutomationPoint[] {
+  return input
+    .split(',')
+    .map(chunk => chunk.trim())
+    .filter(Boolean)
+    .map((chunk, index) => {
+      const [rawAt, rawValue, rawInterpolation, rawTension] = chunk.split(':').map(part => part.trim());
+      if (!rawAt || !rawValue) {
+        throw new Error(`Point ${index + 1} must use "at:value[:interpolation[:tension]]".`);
+      }
+      const value = Number(rawValue);
+      if (!Number.isFinite(value)) {
+        throw new Error(`Point ${index + 1} has invalid value "${rawValue}".`);
+      }
+
+      const point: SequenceAutomationPoint = {
+        at: parseAutomationPosition(rawAt),
+        value: Math.max(0, Math.min(1, value)),
+      };
+      if (rawInterpolation) {
+        if (rawInterpolation !== 'step' && rawInterpolation !== 'linear' && rawInterpolation !== 'curve') {
+          throw new Error(`Point ${index + 1} has invalid interpolation "${rawInterpolation}".`);
+        }
+        point.interpolation = rawInterpolation;
+      }
+      if (rawTension) {
+        const tension = Number(rawTension);
+        if (!Number.isFinite(tension)) {
+          throw new Error(`Point ${index + 1} has invalid tension "${rawTension}".`);
+        }
+        point.tension = Math.max(-1, Math.min(1, tension));
+      }
+      return point;
+    })
+    .sort((a, b) => a.at - b.at);
 }
 
 function getPatternLabel(patterns: Pattern[], ref: PatternRef): string {
@@ -43,6 +106,7 @@ function usePatternUsageCounts(sequence: PatternRef[]): Map<string, number> {
 export function SequenceEditor({
   track, globalStep, playing, isSongMode,
   onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
+  onSetSequenceAutomation, onClearSequenceAutomation,
 }: Props) {
   // Resolve which sequence slot is currently playing
   const activeSequenceIndex = useMemo(() => {
@@ -135,6 +199,31 @@ export function SequenceEditor({
     // Simpler: just add — the user can reorder. This is the common pattern.
     setSelectedSlot(track.sequence.length); // select the new entry
   }, [selectedSlot, track.sequence, onAddPatternRef]);
+
+  const handleSetAutomation = useCallback(() => {
+    if (!onSetSequenceAutomation) return;
+    const controlId = window.prompt('Sequence automation control ID (for example: timbre, harmonics, morph, frequency)');
+    if (!controlId) return;
+    const rawPoints = window.prompt(
+      'Automation points as "at:value[:interpolation[:tension]]", comma-separated. Example: 1.1.1:0.2:linear, 2.1.1:0.8'
+    );
+    if (!rawPoints) return;
+
+    try {
+      const points = parseSequenceAutomationInput(rawPoints);
+      if (points.length === 0) throw new Error('Enter at least one automation point.');
+      onSetSequenceAutomation(controlId.trim(), points);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Invalid automation points.');
+    }
+  }, [onSetSequenceAutomation]);
+
+  const handleClearAutomation = useCallback(() => {
+    if (!onClearSequenceAutomation) return;
+    const controlId = window.prompt('Clear sequence automation for which control ID?');
+    if (!controlId) return;
+    onClearSequenceAutomation(controlId.trim());
+  }, [onClearSequenceAutomation]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -252,6 +341,24 @@ export function SequenceEditor({
           title="Duplicate selected slot"
         >
           Dup
+        </button>
+
+        <button
+          className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700/50 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 disabled:opacity-30 disabled:cursor-default transition-colors"
+          onClick={handleSetAutomation}
+          disabled={!onSetSequenceAutomation}
+          title="Write song-level automation for a source control"
+        >
+          Auto
+        </button>
+
+        <button
+          className="text-[10px] px-1.5 py-0.5 rounded border border-zinc-700/50 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 disabled:opacity-30 disabled:cursor-default transition-colors"
+          onClick={handleClearAutomation}
+          disabled={!onClearSequenceAutomation}
+          title="Clear song-level automation for a source control"
+        >
+          Clr Auto
         </button>
 
         {/* Remove selected slot */}
