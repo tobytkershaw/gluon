@@ -511,7 +511,6 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, { modulations });
     }
     case 'set_surface': {
-      const track = getTrack(session, action.trackId);
       const newSurface: TrackSurface = {
         ...track.surface,
         modules: action.modules,
@@ -519,14 +518,15 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, { surface: newSurface });
     }
     case 'pin': {
+      // Pin adds a knob-group module for the pinned control
       const track = getTrack(session, action.trackId);
       const pinModule: SurfaceModule = {
         type: 'knob-group',
         id: `pin-${action.moduleId}-${action.controlId}`,
         label: action.controlId,
-        bindings: [{ role: 'control', trackId: action.trackId, target: action.controlId }],
+        bindings: [{ role: 'control', trackId: action.trackId, target: `${action.moduleId}:${action.controlId}` }],
         position: { x: 0, y: 0, w: 2, h: 2 },
-        config: { pinned: true, moduleId: action.moduleId },
+        config: { pinned: true },
       };
       const modules = [...track.surface.modules, pinModule];
       return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
@@ -538,8 +538,24 @@ function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'label_axes': {
+      // Label axes updates the xy-pad module bindings if one exists, or adds one
       const track = getTrack(session, action.trackId);
-      return updateTrack(session, action.trackId, { surface: { ...track.surface, xyAxes: { x: action.x, y: action.y } } });
+      const existingXy = track.surface.modules.findIndex(m => m.type === 'xy-pad');
+      const xyModule: SurfaceModule = {
+        type: 'xy-pad',
+        id: 'xy-pad',
+        label: 'XY Pad',
+        bindings: [
+          { role: 'x-axis', trackId: action.trackId, target: action.x },
+          { role: 'y-axis', trackId: action.trackId, target: action.y },
+        ],
+        position: { x: 0, y: 0, w: 4, h: 4 },
+        config: {},
+      };
+      const modules = existingXy >= 0
+        ? track.surface.modules.map((m, i) => i === existingXy ? xyModule : m)
+        : [...track.surface.modules, xyModule];
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'set_importance': {
       if (!Number.isFinite(action.importance)) return session; // reject non-finite (#892)

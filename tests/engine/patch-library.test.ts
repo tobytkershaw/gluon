@@ -31,9 +31,7 @@ function makeTrack(overrides: Partial<Track> = {}): Track {
     volume: 0.8,
     pan: 0.0,
     surface: {
-      semanticControls: [],
-      pinnedControls: [],
-      xyAxes: { x: '', y: '' },
+      modules: [],
       thumbprint: { type: 'static-color' },
     },
     ...overrides,

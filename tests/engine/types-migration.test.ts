@@ -21,9 +21,7 @@ describe('Phase 2 type shapes', () => {
       volume: 0.8,
       pan: 0.0,
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
     };

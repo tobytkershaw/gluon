@@ -53,9 +53,7 @@ function makeSession(overrides?: Partial<Session>): Session {
         events: [triggerEvent],
       }],
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
     }],

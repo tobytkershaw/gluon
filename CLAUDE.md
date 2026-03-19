@@ -110,6 +110,8 @@ Work flows continuously — no wave branches, no batch-and-review cycles.
 
 **Why this matters:** We have had incidents where Codex review work switched the branch in the main checkout mid-session, causing commits to land on wrong branches and modified files to contaminate unrelated work. Worktrees prevent this entirely.
 
+**Never nest worktrees.** Don't use `isolation: "worktree"` on planning agents (they only read, not write). Only use it on implementation agents. If a planning agent already created a worktree, don't dispatch the implementation agent from within it — dispatch fresh from the main conversation. Nested paths like `.claude/worktrees/agent-X/.claude/worktrees/agent-Y` cause git issues.
+
 ### Branching
 - `main` is the integration branch — never commit directly during parallel work
 - One task per branch, one agent per branch

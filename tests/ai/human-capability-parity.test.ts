@@ -91,7 +91,7 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale
-    expect(PARITY_GAP_TOOLS.size).toBe(19);
+    expect(PARITY_GAP_TOOLS.size).toBe(20);
   });
 
   it('documents the expected number of AI-only tools', () => {
