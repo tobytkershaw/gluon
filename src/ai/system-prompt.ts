@@ -151,10 +151,12 @@ function generateTrackSetup(session: Session): string {
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const trackLines = session.tracks.map(v => {
     const ordinalLabel = getTrackOrdinalLabel(v, audioTracks, busTracks);
-    const engine = getEngineByIndex(v.model);
-    const engineLabel = engine?.label ?? `Model ${v.model}`;
-    const engineId = engine?.id ?? '';
-    const classification = isPercussion(engineId) ? 'percussion' : 'melodic';
+    const isDrumRack = v.engine === 'drum-rack' && v.drumRack;
+    const engine = isDrumRack ? undefined : getEngineByIndex(v.model);
+    const engineLabel = isDrumRack ? 'Drum Rack' : (engine?.label ?? `Model ${v.model}`);
+    const engineId = isDrumRack ? 'drum-rack' : (engine?.id ?? '');
+    const classification = isDrumRack ? 'percussion' : (isPercussion(engineId) ? 'percussion' : 'melodic');
+    const padSuffix = isDrumRack ? `, ${v.drumRack!.pads.length} pads` : '';
     const procs = (v.processors ?? []).map(p => `${p.type}(${p.id})`).join(', ');
     const chainSuffix = procs ? ` → [${procs}]` : '';
     const mods = (v.modulators ?? []).map(m => {
@@ -169,7 +171,7 @@ function generateTrackSetup(session: Session): string {
       return routings ? `${m.type}(${modeName}) → ${routings}` : `${m.type}(${modeName})`;
     }).join(', ');
     const modSuffix = mods ? ` | mod: [${mods}]` : '';
-    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification})${chainSuffix}${modSuffix}`;
+    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification}${padSuffix})${chainSuffix}${modSuffix}`;
   }).join('\n');
 
   return `${session.tracks.length} tracks (use "Track N" or internal ID in tool calls):
@@ -230,6 +232,12 @@ export function extractActiveModules(session: Session): {
   const modulatorTypes = new Set<string>();
   for (const track of session.tracks) {
     if (track.model >= 0) modelIds.add(track.model);
+    // Include drum rack pad models in active module set
+    if (track.engine === 'drum-rack' && track.drumRack) {
+      for (const pad of track.drumRack.pads) {
+        if (pad.source.model >= 0) modelIds.add(pad.source.model);
+      }
+    }
     for (const p of track.processors ?? []) processorTypes.add(p.type);
     for (const m of track.modulators ?? []) modulatorTypes.add(m.type);
   }
@@ -550,6 +558,15 @@ Each turn you receive a JSON state snapshot. Here's what it contains per track:
 - \`musicalRole\`: brief description (e.g. "driving rhythm"), if set
 - \`surface_modules\`: list of surface module types and labels (e.g. "knob-group:Timbre", "macro-knob:Warmth", "xy-pad"), if configured
 - \`sends\`: bus send levels, if routing is configured
+
+### Drum Rack Tracks
+Drum rack tracks (\`model: "drum-rack"\`) use a different compression format. Instead of \`params\` and a flat trigger/note pattern, they have:
+- \`pads\`: array of pad metadata — \`{ id, model, level, pan, chokeGroup? }\`
+- \`pattern.lanes\`: per-pad grid strings (e.g. \`"x...o...|x..o...."\`)
+- \`pattern.legend\`: character meanings (e.g. \`"x=accent o=hit g=ghost h=soft H=loud O=open .=rest |=bar"\`)
+- \`pattern.detail\`: (optional) per-event overrides keyed as \`"padId@bar.beat.sixteenth"\` (e.g. \`{ "hat@2.4.3": { offset: 0.05 } }\`)
+
+Grid notation: each character is one 16th-note step. \`x\`=accent, \`o\`=normal hit, \`g\`=ghost, \`h\`=soft, \`H\`=loud, \`O\`=open, \`.\`=rest, \`|\`=bar line (visual separator). The \`sketch\` tool accepts the same grid format via the \`kit\` parameter.
 
 Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), \`chord_progression\` (bar-by-bar harmonic roadmap with derived chord tones), optionally \`audioMetrics\` (fresh live analyser measurements: \`rms\`/\`peak\` in dBFS where higher is louder, \`centroid\` in Hz where low is darker and high is brighter, \`crest\` in dB where higher is more transient, \`onsetDensity\` in onsets/second where higher is busier), optionally \`mixWarnings\` (continuous mix-health warnings such as clipping, low headroom, over-compression, or masking risk), optionally \`recentAutoDiffs\` (automatic before/after summaries from the last accepted AI edit step), and optionally \`userSelection\` (what the human has selected in the Tracker).
 

@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -9,6 +9,8 @@ import { getChordToneNames } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
 import type { MixWarning } from './mix-warnings';
+import type { TriggerEvent } from '../engine/canonical-types';
+import { eventsToKit, formatLegend, velocityToGridChar, DEFAULT_LEGEND } from '../engine/drum-grid';
 
 interface CompressedPattern {
   length: number;
@@ -18,6 +20,27 @@ interface CompressedPattern {
   accents: number[];
   param_locks: { at: number; params: Record<string, number> }[];
   density: number;
+}
+
+/** Compressed drum pad metadata for AI state. */
+interface CompressedDrumPad {
+  id: string;
+  model: string;
+  level: number;
+  pan: string;    // "C", "L20", "R45" etc.
+  chokeGroup?: number;
+}
+
+/** Compressed drum rack pattern — stacked grid lanes with legend and optional detail map. */
+interface CompressedDrumRackPattern {
+  length: number;
+  bars: number;
+  steps: number;
+  lanes: Record<string, string>;   // padId → grid string
+  detail?: Record<string, Record<string, number>>;  // "padId@bar.beat.sixteenth" → { vel?, offset? }
+  legend: string;
+  density: number;
+  event_count: number;
 }
 
 interface CompressedProcessor {
@@ -64,7 +87,9 @@ interface CompressedTrack {
   volume: number;
   pan: number;
   swing?: number | null;
-  pattern: CompressedPattern;
+  pattern: CompressedPattern | CompressedDrumRackPattern;
+  /** Drum rack pad metadata — present only for drum-rack tracks. */
+  pads?: CompressedDrumPad[];
   sequence?: Array<{
     index: number;
     patternId: string;
@@ -255,6 +280,122 @@ function compressPattern(track: Track): CompressedPattern {
     accents,
     param_locks,
     density,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Drum rack compression helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Format pan as a human-readable string: "C", "L20", "R45".
+ * Pan is 0.0 (full left) to 1.0 (full right), 0.5 = center.
+ */
+function formatPan(pan: number): string {
+  if (Math.abs(pan - 0.5) < 0.01) return 'C';
+  if (pan < 0.5) {
+    const pct = Math.round((0.5 - pan) * 200);
+    return `L${pct}`;
+  }
+  const pct = Math.round((pan - 0.5) * 200);
+  return `R${pct}`;
+}
+
+/**
+ * Compress a single drum pad's metadata for AI state.
+ */
+function compressDrumPad(pad: DrumPad): CompressedDrumPad {
+  return {
+    id: pad.id,
+    model: modelName(pad.source.model),
+    level: round2(pad.level),
+    pan: formatPan(pad.pan),
+    ...(pad.chokeGroup != null ? { chokeGroup: pad.chokeGroup } : {}),
+  };
+}
+
+/**
+ * Build a detail map for events that deviate from the grid category's default velocity,
+ * or have micro-timing offsets (fractional `at` values).
+ *
+ * Keys are "padId@bar.beat.sixteenth", values override velocity and/or offset.
+ */
+function buildDetailMap(
+  events: TriggerEvent[],
+  stepsPerBar: number,
+): Record<string, Record<string, number>> | undefined {
+  const detail: Record<string, Record<string, number>> = {};
+
+  for (const event of events) {
+    if (!event.padId) continue;
+    const vel = event.velocity ?? 0.75;
+    if (vel === 0) continue;
+
+    const step = Math.floor(event.at);
+    const offset = round2(event.at - step);
+
+    // Check if velocity deviates from the grid category's default
+    const gridChar = velocityToGridChar(vel);
+    const defaultVel = DEFAULT_LEGEND[gridChar]?.velocity ?? vel;
+    const velDeviation = Math.abs(vel - defaultVel) > 0.05;
+
+    if (!velDeviation && Math.abs(offset) < 0.01) continue;
+
+    // Convert step to bar.beat.sixteenth (1-based)
+    const bar = Math.floor(step / stepsPerBar) + 1;
+    const withinBar = step % stepsPerBar;
+    const beat = Math.floor(withinBar / 4) + 1;
+    const sixteenth = (withinBar % 4) + 1;
+    const key = `${event.padId}@${bar}.${beat}.${sixteenth}`;
+
+    const entry: Record<string, number> = {};
+    if (velDeviation) entry.vel = round2(vel);
+    if (Math.abs(offset) >= 0.01) entry.offset = offset > 0 ? round2(offset) : round2(offset);
+    if (Object.keys(entry).length > 0) detail[key] = entry;
+  }
+
+  return Object.keys(detail).length > 0 ? detail : undefined;
+}
+
+/**
+ * Compress a drum rack track's active pattern into stacked grid lanes.
+ */
+function compressDrumRackPattern(track: Track): CompressedDrumRackPattern {
+  const region = track.patterns.length > 0 ? getActivePattern(track) : undefined;
+  const pads = track.drumRack?.pads ?? [];
+  const padIds = pads.map(p => p.id);
+  const stepsPerBar = 16; // 4/4 at 16th resolution
+
+  if (!region || pads.length === 0) {
+    return {
+      length: region?.duration ?? track.stepGrid.length,
+      bars: Math.ceil((region?.duration ?? track.stepGrid.length) / stepsPerBar),
+      steps: region?.duration ?? track.stepGrid.length,
+      lanes: Object.fromEntries(padIds.map(id => [id, '.'.repeat(region?.duration ?? track.stepGrid.length)])),
+      legend: formatLegend(),
+      density: 0,
+      event_count: 0,
+    };
+  }
+
+  const triggerEvents = region.events.filter(
+    (e): e is TriggerEvent => e.kind === 'trigger'
+  );
+  const lanes = eventsToKit(triggerEvents, padIds, region.duration, stepsPerBar);
+  const detail = buildDetailMap(triggerEvents, stepsPerBar);
+
+  const soundEventCount = triggerEvents.filter(e => (e.velocity ?? 0.75) !== 0).length;
+  const density = region.duration > 0 ? round2(soundEventCount / region.duration) : 0;
+
+  return {
+    length: region.duration,
+    bars: Math.ceil(region.duration / stepsPerBar),
+    steps: region.duration,
+    lanes,
+    ...(detail ? { detail } : {}),
+    legend: formatLegend(),
+    density,
+    event_count: region.events.length,
   };
 }
 
@@ -517,24 +658,31 @@ export function compressState(
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const genreReferenceOverlays = deriveGenreReferenceOverlays(session.intent);
   const result: CompressedState = {
-    tracks: session.tracks.map(track => ({
+    tracks: session.tracks.map(track => {
+      const isDrumRack = track.engine === 'drum-rack' && track.drumRack;
+      return {
       id: track.id,
       label: getTrackOrdinalLabel(track, audioTracks, busTracks),
       ...(track.kind === 'bus' ? { kind: 'bus' as const } : {}),
-      model: modelName(track.model),
-      params: {
-        timbre: round2(track.params.timbre),
-        harmonics: round2(track.params.harmonics),
-        morph: round2(track.params.morph),
-        frequency: round2(track.params.note),
-      },
+      model: isDrumRack ? 'drum-rack' : modelName(track.model),
+      ...(isDrumRack ? {} : {
+        params: {
+          timbre: round2(track.params.timbre),
+          harmonics: round2(track.params.harmonics),
+          morph: round2(track.params.morph),
+          frequency: round2(track.params.note),
+        },
+      }),
+      ...(isDrumRack ? {
+        pads: track.drumRack!.pads.map(compressDrumPad),
+      } : {}),
       approval: track.approval ?? 'exploratory',
       muted: track.muted,
       solo: track.solo,
       volume: round2(track.volume),
       pan: round2(track.pan),
       ...(track.swing != null ? { swing: round2(track.swing) } : {}),
-      pattern: compressPattern(track),
+      pattern: isDrumRack ? compressDrumRackPattern(track) : compressPattern(track),
       sequence: track.sequence.map((ref, index) => {
         const pattern = track.patterns.find(candidate => candidate.id === ref.patternId);
         return {
@@ -623,7 +771,8 @@ export function compressState(
       ...(track.sends && track.sends.length > 0 ? {
         sends: track.sends.map(s => ({ busId: s.busId, level: round2(s.level) })),
       } : {}),
-    })),
+    };
+    }),
     track_count: session.tracks.length,
     soft_track_cap: 16,
     activeTrackId: session.activeTrackId,

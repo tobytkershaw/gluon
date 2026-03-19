@@ -740,7 +740,8 @@ Fields:
 - **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`
 - **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
 - **volume** / **pan** — track mix levels (0.0–1.0)
-- **pattern** — canonical event summary with triggers (`{at, vel}`), notes (`{at, pitch, vel}`), accents, param locks, and density
+- **pattern** — canonical event summary with triggers (`{at, vel}`), notes (`{at, pitch, vel}`), accents, param locks, and density. For drum rack tracks, pattern uses stacked grid lane format instead (see below).
+- **pads** — (drum rack tracks only) array of pad metadata: `{ id, model, level, pan, chokeGroup? }`
 - **sequence** — ordered song-mode pattern refs with `index`, `patternId`, `length`, and optional sequence-level automation summaries per ref
 - **track_count** — total number of tracks in the session
 - **soft_track_cap** — maximum recommended track count (currently 16)
@@ -770,6 +771,18 @@ Fields:
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
 - **scale** — (optional) global key/scale constraint: `root` (pitch class 0–11), `mode`, `label` (e.g. "C major"), `notes` (available note names). `null` when explicitly cleared.
 - **userSelection** — (optional) active Tracker selection: `trackId`, `stepRange` ([start, end]), `eventCount`. Present only when the human has selected events.
+
+### Drum Rack Track State
+
+Drum rack tracks (`model: "drum-rack"`) use a different compression format. Instead of `params` and a flat trigger/note pattern, they have:
+
+- **pads** — array of pad metadata: `{ id, model, level, pan, chokeGroup? }`. Pan is formatted as `"C"` (center), `"L20"` (20% left), `"R45"` (45% right).
+- **pattern.lanes** — per-pad grid strings (e.g. `{ "kick": "x...o...|x..o....", "snare": ".x.....x|.x.....x" }`)
+- **pattern.legend** — character meanings: `x`=accent, `o`=hit, `g`=ghost, `h`=soft, `H`=loud, `O`=open, `.`=rest, `|`=bar line
+- **pattern.detail** — (optional) per-event overrides keyed as `"padId@bar.beat.sixteenth"` (e.g. `{ "hat@2.4.3": { "vel": 0.42, "offset": 0.05 } }`)
+- **pattern.density** — overall event density
+
+The `sketch` tool accepts the same grid format via the `kit` parameter for drum rack tracks.
 
 ---
 
