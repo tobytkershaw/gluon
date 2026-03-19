@@ -30,7 +30,8 @@ type ScheduledEvent =
   | { type: 'set-mode'; time?: number; seq: number; fence?: number; mode: number }
   | { type: 'set-patch'; time?: number; seq: number; fence?: number; patch: CompressorPatch }
   | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
-  | { type: 'destroy'; time?: undefined; seq: number; fence?: number };
+  | { type: 'destroy'; time?: undefined; seq: number; fence?: number }
+  | { type: 'sidechain'; time?: undefined; seq: number; fence?: number; enabled: boolean };
 
 // --- DSP helpers ---
 
@@ -113,6 +114,7 @@ class CompressorProcessor extends AudioWorkletProcessor {
   private seq = 0;
   private destroyed = false;
   private minFence = 0;
+  private sidechainEnabled = false;
 
   // Envelope follower state
   private envLevel = 0; // current envelope level in linear
@@ -158,6 +160,9 @@ class CompressorProcessor extends AudioWorkletProcessor {
         this.destroyed = true;
         this.queue = [];
         break;
+      case 'sidechain':
+        this.sidechainEnabled = event.enabled;
+        break;
     }
   }
 
@@ -175,10 +180,12 @@ class CompressorProcessor extends AudioWorkletProcessor {
     const inRight = inputs[0]?.[1] ?? inputs[0]?.[0];
     if (!inLeft) return true;
 
-    // Sidechain: if a second input is connected, use it as the detector signal
+    // Sidechain: use port-message flag to determine if sidechain is active.
+    // Web Audio sends silent buffers for unconnected inputs, so buffer presence
+    // is unreliable for detecting whether a sidechain source is connected.
     const scLeft = inputs[1]?.[0];
     const scRight = inputs[1]?.[1] ?? inputs[1]?.[0];
-    const hasSidechain = scLeft !== undefined && scLeft.length > 0;
+    const hasSidechain = this.sidechainEnabled && scLeft !== undefined && scLeft.length > 0;
 
     // Read modulation params
     const modThreshold = parameters['mod-threshold'][0];

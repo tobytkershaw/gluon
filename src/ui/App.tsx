@@ -231,6 +231,7 @@ export default function App() {
   const prevTrackStateRef = useRef<Map<string, { model: number; params?: Record<string, number> }>>(new Map());
   const prevProcessorStateRef = useRef<Map<string, { model: number; params: Record<string, number>; enabled?: boolean }>>(new Map());
   const prevModulatorStateRef = useRef<Map<string, { model: number; params: Record<string, number> }>>(new Map());
+  const prevSidechainStateRef = useRef<Map<string, string | undefined>>(new Map());
 
   // Capture param + region state at interaction start for undo
   const interactionUndoRef = useRef<{
@@ -424,6 +425,35 @@ export default function App() {
     if (!audioStarted) return;
     for (const track of session.tracks) {
       audioRef.current.syncSends(track.id, track.sends ?? []);
+    }
+  }, [session.tracks, audioStarted]);
+
+  // Sync sidechain routing to audio engine
+  useEffect(() => {
+    if (!audioStarted) return;
+    const audio = audioRef.current;
+    for (const track of session.tracks) {
+      for (const proc of track.processors ?? []) {
+        if (proc.type !== 'compressor') continue;
+        const key = `${track.id}:${proc.id}`;
+        const prev = prevSidechainStateRef.current.get(key);
+        const current = proc.sidechainSourceId;
+        if (prev !== current) {
+          if (current) {
+            audio.setSidechain(current, track.id, proc.id);
+          } else {
+            audio.removeSidechain(track.id, proc.id);
+          }
+          prevSidechainStateRef.current.set(key, current);
+        }
+      }
+      // Prune stale cache entries for removed processors
+      const prefix = `${track.id}:`;
+      for (const k of prevSidechainStateRef.current.keys()) {
+        if (k.startsWith(prefix) && !(track.processors ?? []).some(p => k === `${track.id}:${p.id}`)) {
+          prevSidechainStateRef.current.delete(k);
+        }
+      }
     }
   }, [session.tracks, audioStarted]);
 

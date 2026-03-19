@@ -555,6 +555,28 @@ export function prevalidateAction(
         const sourceTrack = session.tracks.find(v => v.id === action.sourceTrackId);
         if (!sourceTrack) return `Source track not found: ${action.sourceTrackId}`;
         if (action.sourceTrackId === action.targetTrackId) return `Sidechain source and target must be different tracks`;
+        // Multi-hop cycle detection: walk from sourceTrackId following sidechain links
+        // to see if we can reach targetTrackId (which would create a cycle)
+        const visited = new Set<string>();
+        let current = action.sourceTrackId;
+        while (current && !visited.has(current)) {
+          visited.add(current);
+          const t = session.tracks.find(v => v.id === current);
+          if (!t) break;
+          // Find sidechain sources pointing at this track (i.e. this track's compressors
+          // use some other track as sidechain source — follow that chain)
+          let next: string | undefined;
+          for (const p of t.processors ?? []) {
+            if (p.type === 'compressor' && p.sidechainSourceId) {
+              if (p.sidechainSourceId === action.targetTrackId) {
+                return `Circular sidechain routing detected`;
+              }
+              // Continue walking from the sidechain source
+              next = p.sidechainSourceId;
+            }
+          }
+          current = next!;
+        }
       }
       return null;
     }

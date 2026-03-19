@@ -28,11 +28,17 @@ export interface CompressorDestroyMessage {
   type: 'destroy';
 }
 
+export interface CompressorSidechainMessage {
+  type: 'sidechain';
+  enabled: boolean;
+}
+
 export type CompressorProcessorCommand =
   | CompressorPatchMessage
   | CompressorModeMessage
   | CompressorClearScheduledMessage
-  | CompressorDestroyMessage;
+  | CompressorDestroyMessage
+  | CompressorSidechainMessage;
 
 export interface CompressorProcessorReady {
   type: 'ready';

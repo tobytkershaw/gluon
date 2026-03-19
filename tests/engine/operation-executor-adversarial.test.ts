@@ -1032,6 +1032,172 @@ describe('Operation executor adversarial tests', () => {
   });
 
   // -------------------------------------------------------------------------
+  // 22a. Sidechain adversarial operations
+  // -------------------------------------------------------------------------
+
+  describe('sidechain adversarial operations', () => {
+    it('rejects self-loop sidechain', () => {
+      let session = setupSession();
+      session = addProcessorToTrack(session, 'v0', {
+        id: 'comp-1',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+      });
+      const result = prevalidateAction(
+        session,
+        { type: 'set_sidechain', targetTrackId: 'v0', sourceTrackId: 'v0', description: 'self-loop' },
+        adapter,
+        new Arbitrator(),
+      );
+      expect(result).not.toBeNull();
+      expect(result).toContain('different tracks');
+    });
+
+    it('rejects circular sidechain routing (A→B→A cycle)', () => {
+      let session = setupSession();
+      // Add a second audio track
+      const added = addTrack(session, 'audio');
+      expect(added).not.toBeNull();
+      session = added!;
+      const trackB = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!;
+      session = setAgency(session, trackB.id, 'ON');
+
+      // Add compressor on v0 with sidechain from trackB
+      session = addProcessorToTrack(session, 'v0', {
+        id: 'comp-v0',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+        sidechainSourceId: trackB.id,
+      });
+
+      // Add compressor on trackB — trying to set sidechain from v0 should be rejected (cycle)
+      session = addProcessorToTrack(session, trackB.id, {
+        id: 'comp-b',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+      });
+
+      const result = prevalidateAction(
+        session,
+        { type: 'set_sidechain', targetTrackId: trackB.id, sourceTrackId: 'v0', description: 'cycle' },
+        adapter,
+        new Arbitrator(),
+      );
+      expect(result).not.toBeNull();
+      expect(result).toContain('Circular sidechain routing detected');
+    });
+
+    it('rejects circular sidechain routing (A→B→C→A three-hop cycle)', () => {
+      let session = setupSession();
+      // Add two more audio tracks
+      const added1 = addTrack(session, 'audio');
+      expect(added1).not.toBeNull();
+      session = added1!;
+      const trackB = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!;
+      session = setAgency(session, trackB.id, 'ON');
+
+      const added2 = addTrack(session, 'audio');
+      expect(added2).not.toBeNull();
+      session = added2!;
+      const trackC = session.tracks.find(t => t.id !== 'v0' && t.id !== trackB.id && t.kind !== 'bus')!;
+      session = setAgency(session, trackC.id, 'ON');
+
+      // v0 has compressor with sidechain from trackB
+      session = addProcessorToTrack(session, 'v0', {
+        id: 'comp-v0',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+        sidechainSourceId: trackB.id,
+      });
+
+      // trackB has compressor with sidechain from trackC
+      session = addProcessorToTrack(session, trackB.id, {
+        id: 'comp-b',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+        sidechainSourceId: trackC.id,
+      });
+
+      // trackC has compressor — trying to set sidechain from v0 creates A→B→C→A cycle
+      session = addProcessorToTrack(session, trackC.id, {
+        id: 'comp-c',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+      });
+
+      const result = prevalidateAction(
+        session,
+        { type: 'set_sidechain', targetTrackId: trackC.id, sourceTrackId: 'v0', description: 'three-hop cycle' },
+        adapter,
+        new Arbitrator(),
+      );
+      expect(result).not.toBeNull();
+      expect(result).toContain('Circular sidechain routing detected');
+    });
+
+    it('allows valid non-circular sidechain routing', () => {
+      let session = setupSession();
+      const added = addTrack(session, 'audio');
+      expect(added).not.toBeNull();
+      session = added!;
+      const trackB = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!;
+      session = setAgency(session, trackB.id, 'ON');
+
+      session = addProcessorToTrack(session, trackB.id, {
+        id: 'comp-b',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+      });
+
+      const result = prevalidateAction(
+        session,
+        { type: 'set_sidechain', targetTrackId: trackB.id, sourceTrackId: 'v0', description: 'valid' },
+        adapter,
+        new Arbitrator(),
+      );
+      expect(result).toBeNull();
+    });
+
+    it('rejects sidechain targeting non-existent source track', () => {
+      let session = setupSession();
+      session = addProcessorToTrack(session, 'v0', {
+        id: 'comp-1',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.5, ratio: 0.3, attack: 0.3, release: 0.4, makeup: 0, mix: 1 },
+      });
+      const result = prevalidateAction(
+        session,
+        { type: 'set_sidechain', targetTrackId: 'v0', sourceTrackId: 'ghost-track', description: 'test' },
+        adapter,
+        new Arbitrator(),
+      );
+      expect(result).not.toBeNull();
+      expect(result).toContain('Source track not found');
+    });
+
+    it('rejects sidechain on agency-OFF track', () => {
+      let session = createSession();
+      session = setAgency(session, 'v0', 'OFF');
+      const result = prevalidateAction(
+        session,
+        { type: 'set_sidechain', targetTrackId: 'v0', sourceTrackId: null, description: 'test' },
+        adapter,
+        new Arbitrator(),
+      );
+      expect(result).not.toBeNull();
+      expect(result).toContain('agency OFF');
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // 22. Drift (timed) move on processor/modulator should be rejected
   // -------------------------------------------------------------------------
 

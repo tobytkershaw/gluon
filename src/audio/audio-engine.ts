@@ -1400,6 +1400,7 @@ export class AudioEngine {
     // Connect to the compressor's second input (index 1)
     const compEngine = proc.engine as import('./compressor-synth').CompressorSynth;
     tapGain.connect(compEngine.sidechainInputNode, 0, compEngine.sidechainInputIndex);
+    compEngine.setSidechainEnabled(true);
 
     this.sidechainSlots.set(key, {
       sourceTrackId,
@@ -1429,6 +1430,13 @@ export class AudioEngine {
     const existing = this.sidechainSlots.get(key);
     if (existing) {
       existing.tapGain.disconnect();
+      // Notify the worklet that the sidechain is disconnected
+      const targetSlot = this.tracks.get(existing.targetTrackId);
+      const proc = targetSlot?.processors.find(p => p.id === existing.processorId);
+      if (proc && proc.type === 'compressor') {
+        const compEngine = proc.engine as import('./compressor-synth').CompressorSynth;
+        compEngine.setSidechainEnabled(false);
+      }
       this.sidechainSlots.delete(key);
     }
   }

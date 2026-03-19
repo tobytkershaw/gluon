@@ -105,6 +105,11 @@ export class CompressorSynth implements CompressorEngine {
     return 1;
   }
 
+  /** Notify the worklet that a sidechain source is connected or disconnected. */
+  setSidechainEnabled(enabled: boolean): void {
+    this.post({ type: 'sidechain', enabled });
+  }
+
   setMode(mode: number): void {
     this.currentMode = Math.max(0, Math.min(3, mode));
     this.post({ type: 'set-mode', mode: this.currentMode });

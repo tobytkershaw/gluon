@@ -250,11 +250,13 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   if (snapshot.kind === 'sidechain') {
     const track = session.tracks.find(v => v.id === snapshot.targetTrackId);
     if (!track) return session;
-    const processors = (track.processors ?? []).map(p =>
-      p.id === snapshot.processorId
-        ? { ...p, sidechainSourceId: snapshot.prevSourceId }
-        : p,
-    );
+    const processors = (track.processors ?? []).map(p => {
+      if (p.id !== snapshot.processorId) return p;
+      const { sidechainSourceId: _, ...rest } = p;
+      return snapshot.prevSourceId !== undefined
+        ? { ...rest, sidechainSourceId: snapshot.prevSourceId }
+        : rest;
+    });
     return updateTrack(session, snapshot.targetTrackId, { processors });
   }
 
