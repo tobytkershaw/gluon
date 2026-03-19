@@ -26,9 +26,7 @@ function makeSession(events: (TriggerEvent | NoteEvent | ParameterEvent)[], dura
       muted: false,
       solo: false,
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
     }],

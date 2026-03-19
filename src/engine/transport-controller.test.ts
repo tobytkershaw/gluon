@@ -572,7 +572,7 @@ describe('TransportController', () => {
         solo: false,
         stepGrid: { steps: [], length: 16 },
         patterns: [region],
-        surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
       }],
     };
     const scheduler = {
@@ -720,7 +720,7 @@ describe('TransportController', () => {
         solo: false,
         stepGrid: { steps: [], length: 16 },
         patterns: [region],
-        surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
       }],
     };
     const scheduler = {
@@ -816,7 +816,7 @@ describe('TransportController', () => {
       solo: false,
       stepGrid: { steps: [], length: 16 },
       patterns: [region],
-      surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
       _patternDirty: true,
     });
 
@@ -844,7 +844,7 @@ describe('TransportController', () => {
         solo: false,
         stepGrid: { steps: [], length: 16 },
         patterns: [region],
-        surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
       }],
     };
     let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
