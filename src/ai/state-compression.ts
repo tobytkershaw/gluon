@@ -7,6 +7,7 @@ import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { scaleToString, scaleNoteNames } from '../engine/scale';
 import { getChordToneNames } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
+import type { AudioMetricsSnapshot } from '../audio/live-audio-metrics';
 
 interface CompressedPattern {
   length: number;
@@ -137,6 +138,7 @@ export interface CompressedState {
   recent_preservation?: CompressedPreservationReport[];
   intent?: SessionIntent;
   genre_reference_overlays?: CompressedGenreReferenceOverlay[];
+  audioMetrics?: AudioMetricsSnapshot;
   section?: SectionMeta;
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
   chord_progression?: CompressedChordProgressionEntry[] | null;
@@ -468,7 +470,12 @@ function deriveGenreReferenceOverlays(intent?: SessionIntent): CompressedGenreRe
   return overlays;
 }
 
-export function compressState(session: Session, recentPreservationReports?: PreservationReport[], userSelection?: UserSelection): CompressedState {
+export function compressState(
+  session: Session,
+  recentPreservationReports?: PreservationReport[],
+  userSelection?: UserSelection,
+  audioMetrics?: AudioMetricsSnapshot,
+): CompressedState {
   const now = Date.now();
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
@@ -599,6 +606,7 @@ export function compressState(session: Session, recentPreservationReports?: Pres
     } : {}),
     ...(session.intent && Object.keys(session.intent).length > 0 ? { intent: session.intent } : {}),
     ...(genreReferenceOverlays.length > 0 ? { genre_reference_overlays: genreReferenceOverlays } : {}),
+    ...(audioMetrics ? { audioMetrics } : {}),
     ...(session.section && Object.keys(session.section).length > 0 ? { section: session.section } : {}),
     ...(session.scale !== undefined ? {
       scale: session.scale ? {

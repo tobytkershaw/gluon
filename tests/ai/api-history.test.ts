@@ -715,6 +715,28 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
       expect(tokenPlanner.userMessages[0]).not.toContain('Session memory');
     });
+
+    it('includes live audio metrics in the AI state when provided', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      await tokenAI.ask(session, 'mix check', {
+        audioMetrics: {
+          capturedAt: 1234,
+          master: { rms: -10.2, peak: -2.5, centroid: 2100, crest: 7.7, onsetDensity: 1.2 },
+          tracks: {
+            v0: { rms: -16.4, peak: -7.1, centroid: 190, crest: 9.3, onsetDensity: 3.8 },
+          },
+        },
+      });
+
+      expect(tokenPlanner.userMessages).toHaveLength(1);
+      expect(tokenPlanner.userMessages[0]).toContain('"audioMetrics"');
+      expect(tokenPlanner.userMessages[0]).toContain('"centroid":2100');
+      expect(tokenPlanner.userMessages[0]).toContain('"onsetDensity":3.8');
+    });
   });
 
   // -------------------------------------------------------------------------

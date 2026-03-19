@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
+import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import { clearSnapshots } from '../audio/snapshot-store';
 import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, UserSelection, OpenDecision } from '../engine/types';
@@ -122,6 +123,7 @@ export function appendAudioRuntimeDegradationMessage(prev: string | null, messag
 
 export default function App() {
   const audioRef = useRef(new AudioEngine());
+  const audioMetricsRef = useRef(new LiveAudioMetricsStore());
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY ?? '');
   const [geminiKey, setGeminiKey] = useState(import.meta.env.VITE_GOOGLE_API_KEY ?? '');
   const [listenerMode, setListenerMode] = useState<ListenerMode>('gemini');
@@ -959,6 +961,21 @@ export default function App() {
   const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
   const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
 
+  useEffect(() => {
+    if (!audioStarted) {
+      audioMetricsRef.current.clear();
+      return;
+    }
+
+    const sample = () => {
+      audioMetricsRef.current.sample(sessionRef.current, audioRef.current);
+    };
+
+    sample();
+    const intervalId = window.setInterval(sample, 250);
+    return () => window.clearInterval(intervalId);
+  }, [audioStarted]);
+
   const handleSend = useCallback(async (message: string) => {
     const thisRequest = ++requestIdRef.current;
     setIsThinking(true);
@@ -1024,6 +1041,7 @@ export default function App() {
         if (report.rejected.length > 0) setStreamingRejections(prev => [...prev, ...report.rejected.map(r => ({ reason: r.reason }))]);
       },
       userSelection,
+      audioMetrics: audioMetricsRef.current.getSnapshot(sessionRef.current.transport.status === 'playing'),
     };
 
     // Step executor: GluonAI calls this to execute actions against real state.
