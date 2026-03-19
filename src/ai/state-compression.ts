@@ -161,7 +161,7 @@ export interface CompressedState {
   track_count: number;
   soft_track_cap: number;
   activeTrackId: string;
-  transport: { bpm: number; swing: number; playing: boolean; mode: string; time_signature: string };
+  transport: { bpm: number; swing: number; playing: boolean; mode: string; time_signature: string; loop?: boolean };
   context: { energy: number; density: number };
   undo_depth: number;
   redo_depth: number;

@@ -1852,8 +1852,28 @@ export class GluonAI {
         const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
-        // Compute consequence details from the before/after state
+        // Kit-based sketches (drum rack): events are generated from the kit at execution time,
+        // so action.events is undefined and event delta computation would be misleading.
         const sketchTrack = session.tracks.find(v => v.id === action.trackId);
+        const isKitSketch = action.kit && sketchTrack?.engine === 'drum-rack';
+
+        if (isKitSketch) {
+          return {
+            actions: [action],
+            response: {
+              applied: true,
+              trackId: action.trackId,
+              description: action.description,
+              kitApplied: true,
+              kitLanes: Object.keys(action.kit!),
+              ...(generatorUsed ? { source: 'generator' } : {}),
+              ...(archetypeUsed ? { source: 'archetype', archetype: args.archetype } : {}),
+              ...(action.dynamic ? { dynamic: action.dynamic } : {}),
+            },
+          };
+        }
+
+        // Compute consequence details from the before/after state
         const prevEvents = sketchTrack && sketchTrack.patterns.length > 0 ? getActivePattern(sketchTrack).events : [];
         const newEvents = action.events ?? [];
         const eventsAdded = Math.max(0, newEvents.length - prevEvents.length);
