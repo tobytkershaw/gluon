@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AUDIO_DEGRADED_EVENT } from '../../src/audio/runtime-events';
 
 const createMock = vi.fn();
 const fallbackCtor = vi.fn();
@@ -38,6 +39,8 @@ describe('createPreferredSynth', () => {
     fallbackCtor.mockImplementation(function MockWebAudioSynth() {
       return fallback;
     });
+    const degradedListener = vi.fn();
+    window.addEventListener(AUDIO_DEGRADED_EVENT, degradedListener as EventListener);
 
     const { createPreferredSynth } = await import('../../src/audio/create-synth');
 
@@ -45,5 +48,13 @@ describe('createPreferredSynth', () => {
 
     expect(result).toBe(fallback);
     expect(fallbackCtor).toHaveBeenCalledOnce();
+    expect(degradedListener).toHaveBeenCalledTimes(1);
+    const event = degradedListener.mock.calls[0][0] as CustomEvent<{ message: string; source: string }>;
+    expect(event.detail).toMatchObject({
+      message: 'Plaits init failed, falling back to WebAudioSynth.',
+      source: 'synth-fallback',
+    });
+
+    window.removeEventListener(AUDIO_DEGRADED_EVENT, degradedListener as EventListener);
   });
 });

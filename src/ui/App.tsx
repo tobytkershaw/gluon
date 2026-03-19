@@ -65,6 +65,7 @@ import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 import { computeSemanticRawUpdates } from './SemanticControlsSection';
 import { useTransportController } from './useTransportController';
 import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
+import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from '../audio/runtime-events';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -108,6 +109,14 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
     if (a[k] !== b[k]) return false;
   }
   return true;
+}
+
+export function appendAudioRuntimeDegradationMessage(prev: string | null, message: string): string {
+  if (!prev) return `Audio runtime degraded: ${message}`;
+  const [prefix, ...existingMessages] = prev.split('; ');
+  const seen = new Set(existingMessages);
+  if (seen.has(message)) return prev;
+  return `${prefix}; ${[...existingMessages, message].join('; ')}`;
 }
 
 export default function App() {
@@ -202,6 +211,7 @@ export default function App() {
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
   const [deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
+  const [audioDegradedMessage, setAudioDegradedMessage] = useState<string | null>(null);
   // A/B comparison state
   const [abSnapshot, setAbSnapshot] = useState<ABSnapshot | null>(null);
   const [abActive, setAbActive] = useState<'a' | 'b' | null>(null);
@@ -238,27 +248,49 @@ export default function App() {
     clearQaAudioTrace();
   }, []);
 
+  const reportAudioDegradation = useCallback((message: string) => {
+    setAudioDegradedMessage(prev => appendAudioRuntimeDegradationMessage(prev, message));
+  }, []);
+
+  useEffect(() => {
+    const handleAudioDegraded = (event: Event) => {
+      const detail = (event as CustomEvent<AudioDegradedDetail>).detail;
+      if (detail?.message) reportAudioDegradation(detail.message);
+    };
+
+    window.addEventListener(AUDIO_DEGRADED_EVENT, handleAudioDegraded as EventListener);
+    return () => window.removeEventListener(AUDIO_DEGRADED_EVENT, handleAudioDegraded as EventListener);
+  }, [reportAudioDegradation]);
+
   const ensureAudio = useCallback(async () => {
-    if (audioStarted) return;
-    const s = sessionRef.current;
-    const audioTrackIds = s.tracks.filter(t => getTrackKind(t) === 'audio').map(t => t.id);
-    const busTrackIds = s.tracks.filter(t => getTrackKind(t) === 'bus').map(t => t.id);
-    const masterBusId = s.tracks.find(t => t.id === MASTER_BUS_ID) ? MASTER_BUS_ID : undefined;
-    await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId);
-    for (const track of s.tracks) {
-      if (track.model !== -1 && getTrackKind(track) === 'audio') {
-        audioRef.current.setTrackModel(track.id, track.model);
-        audioRef.current.setTrackParams(track.id, track.params);
+    if (audioStarted) return true;
+    try {
+      const s = sessionRef.current;
+      const audioTrackIds = s.tracks.filter(t => getTrackKind(t) === 'audio').map(t => t.id);
+      const busTrackIds = s.tracks.filter(t => getTrackKind(t) === 'bus').map(t => t.id);
+      const masterBusId = s.tracks.find(t => t.id === MASTER_BUS_ID) ? MASTER_BUS_ID : undefined;
+      await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId);
+      for (const track of s.tracks) {
+        if (track.model !== -1 && getTrackKind(track) === 'audio') {
+          audioRef.current.setTrackModel(track.id, track.model);
+          audioRef.current.setTrackParams(track.id, track.params);
+        }
       }
-    }
-    // Sync initial sends
-    for (const track of s.tracks) {
-      if (track.sends && track.sends.length > 0) {
-        audioRef.current.syncSends(track.id, track.sends);
+      // Sync initial sends
+      for (const track of s.tracks) {
+        if (track.sends && track.sends.length > 0) {
+          audioRef.current.syncSends(track.id, track.sends);
+        }
       }
+      setAudioStarted(true);
+      return true;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      reportAudioDegradation(`audio startup failed: ${reason}`);
+      console.error('Audio startup failed:', error);
+      return false;
     }
-    setAudioStarted(true);
-  }, [audioStarted]);
+  }, [audioStarted, reportAudioDegradation]);
 
   const handleTransportPositionChange = useCallback((step: number) => {
     globalStepRef.current = step;
@@ -434,6 +466,9 @@ export default function App() {
             audio.setProcessorModel(track.id, sp.id, fresh.model);
             audio.setProcessorPatch(track.id, sp.id, fresh.params);
             prevProcessorStateRef.current.set(pKey, { model: fresh.model, params: { ...fresh.params }, enabled: fresh.enabled !== false });
+          }).catch((error) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            reportAudioDegradation(`processor load failed for ${sp.type} (${sp.id}): ${reason}`);
           });
         } else {
           // #142: dirty-check before syncing existing processors
@@ -513,6 +548,9 @@ export default function App() {
             prevModulatorStateRef.current.set(mKey, { model: fresh.model, params: { ...fresh.params } });
             // Connect routes after modulator WASM loads (fixes race condition)
             syncRoutes(track.id);
+          }).catch((error) => {
+            const reason = error instanceof Error ? error.message : String(error);
+            reportAudioDegradation(`modulator load failed for ${sm.type} (${sm.id}): ${reason}`);
           });
         } else {
           // #142: dirty-check before syncing existing modulators
@@ -896,7 +934,10 @@ export default function App() {
     setStreamingText('');
     setStreamingLogEntries([]);
     setStreamingRejections([]);
-    await ensureAudio();
+    if (!await ensureAudio()) {
+      setIsThinking(false);
+      return;
+    }
     // Add human message to session synchronously via ref so askStreaming
     // receives the session with the message already present. Without this,
     // onStep's setSession(() => updatedSession) overwrites the React state
@@ -1088,7 +1129,7 @@ export default function App() {
   }, [listenerMode]);
 
   const handleTogglePlay = useCallback(async () => {
-    await ensureAudio();
+    if (!await ensureAudio()) return;
     // Resume AudioContext if browser auto-suspended it after idle.
     // Must happen during user gesture to satisfy autoplay policy.
     await audioRef.current.resume();
@@ -1096,7 +1137,7 @@ export default function App() {
   }, [ensureAudio]);
 
   const handlePlayFromCursor = useCallback(async () => {
-    await ensureAudio();
+    if (!await ensureAudio()) return;
     await audioRef.current.resume();
     const cursorStep = trackerCursorStepRef.current;
     // Always start playing from cursor (TransportController handles restart if already playing)
@@ -2209,6 +2250,7 @@ export default function App() {
       onAddSend={handleAddSend}
       onRemoveSend={handleRemoveSend}
       onSetSendLevel={handleSetSendLevel}
+      runtimeDegradation={audioDegradedMessage}
       messages={session.messages}
       onSend={handleSend}
       isThinking={isThinking}

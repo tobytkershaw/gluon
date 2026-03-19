@@ -47,6 +47,7 @@ interface Props {
   onAddSend?: (trackId: string, busId: string, level?: number) => void;
   onRemoveSend?: (trackId: string, busId: string) => void;
   onSetSendLevel?: (trackId: string, busId: string, level: number) => void;
+  runtimeDegradation?: string | null;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -162,6 +163,7 @@ export function AppShell({
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetMusicalRole,
   onAddSend, onRemoveSend, onSetSendLevel,
+  runtimeDegradation,
   messages, onSend, isThinking, isListening, streamingText, streamingLogEntries, streamingRejections,
   reactions, onReaction,
   openDecisions = [], onDecisionRespond,
@@ -195,6 +197,7 @@ export function AppShell({
   const lastNonChatViewRef = useRef<ViewMode>(view === 'chat' ? 'surface' : view);
 
   const isActive = isThinking || isListening;
+  const hasRuntimeDegradation = Boolean(runtimeDegradation);
   const lastHumanMessage = useMemo(() => getLastHumanMessage(messages), [messages]);
   const followUpChips = useMemo(() => getLatestFollowUpChips(messages), [messages]);
 
@@ -475,6 +478,13 @@ export function AppShell({
           />
         </div>
       </div>
+
+      {hasRuntimeDegradation && (
+        <div className="shrink-0 border-b border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-[11px] leading-5 text-amber-100">
+          <span className="uppercase tracking-[0.18em] text-amber-300/70">Audio degraded</span>
+          <span className="ml-2">{runtimeDegradation}</span>
+        </div>
+      )}
 
       {/* Body row */}
       <div className="flex-1 flex min-h-0">
