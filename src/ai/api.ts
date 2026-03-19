@@ -33,7 +33,7 @@ import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
 import type { ListenLens } from './listen-prompt';
 import { GLUON_TOOLS } from './tool-schemas';
-import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback, StepResult, OnStepCallback, StepExecutor } from './types';
+import type { PlannerProvider, ListenerProvider, NeutralFunctionCall, FunctionResponse, StreamTextCallback, StepResult, OnStepCallback, StepExecutor, ModelStatus } from './types';
 import { ProviderError } from './types';
 import { extractOldestExchanges } from './context-summary';
 import { createCircuitBreaker, recordStep, isBlocked, isRepeatedFailure, isRepeatedSuccess } from './circuit-breaker';
@@ -1105,8 +1105,32 @@ export class GluonAI {
     private listeners: ListenerProvider[] = [listener],
   ) {}
 
+  /** Returns true when the planner model is configured (gates chat). */
+  isPlannerConfigured(): boolean {
+    return this.planner.isConfigured();
+  }
+
+  /** Returns true when at least one listener model is configured. */
+  isListenerConfigured(): boolean {
+    return this.listeners.some(l => l.isConfigured());
+  }
+
+  /**
+   * Legacy check — returns true when planner is configured.
+   * Chat requires a planner; listener is optional (degrades gracefully).
+   */
   isConfigured(): boolean {
-    return this.planner.isConfigured() && this.listeners.some(l => l.isConfigured());
+    return this.isPlannerConfigured();
+  }
+
+  /** Snapshot of current model layer status for UI display. */
+  getModelStatus(): ModelStatus {
+    const plannerOk = this.planner.isConfigured();
+    const listenerOk = this.listeners.some(l => l.isConfigured());
+    return {
+      planner: plannerOk ? 'available' : 'disabled',
+      listener: listenerOk ? 'available' : 'disabled',
+    };
   }
 
   /**
@@ -5200,7 +5224,7 @@ export class GluonAI {
   }): Promise<string> {
     const configured = this.listeners.filter(l => l.isConfigured());
     if (configured.length === 0) {
-      throw new ProviderError('No listener provider configured.', 'auth');
+      throw new ProviderError('Audio evaluation unavailable — no listener model configured.', 'auth');
     }
 
     if (configured.length === 1) {

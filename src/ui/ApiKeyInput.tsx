@@ -7,6 +7,8 @@ interface Props {
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
+  plannerStatus?: 'available' | 'disabled';
+  listenerStatus?: 'available' | 'disabled';
 }
 
 const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
@@ -15,7 +17,7 @@ const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
   { value: 'both', label: 'Both (side by side)' },
 ];
 
-export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '', listenerMode: currentListenerMode = 'gemini' }: Props) {
+export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '', listenerMode: currentListenerMode = 'gemini', plannerStatus, listenerStatus }: Props) {
   const [openaiKey, setOpenaiKey] = useState(currentOpenaiKey);
   const [geminiKey, setGeminiKey] = useState(currentGeminiKey);
   const [listener, setListener] = useState<ListenerMode>(currentListenerMode);
@@ -90,6 +92,18 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
             ))}
           </select>
         </div>
+        {(plannerStatus || listenerStatus) && (
+          <div className="flex gap-3 text-[10px] text-zinc-500" data-testid="per-model-status">
+            <span className="flex items-center gap-1">
+              <span className={`w-1 h-1 rounded-full ${plannerStatus === 'available' ? 'bg-teal-500' : 'bg-zinc-600'}`} />
+              Planner: {plannerStatus === 'available' ? 'connected' : 'off'}
+            </span>
+            <span className="flex items-center gap-1">
+              <span className={`w-1 h-1 rounded-full ${listenerStatus === 'available' ? 'bg-teal-500' : 'bg-zinc-600'}`} />
+              Listener: {listenerStatus === 'available' ? 'connected' : 'off'}
+            </span>
+          </div>
+        )}
         <button
           type="submit"
           disabled={!canSubmit}

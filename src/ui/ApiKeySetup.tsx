@@ -6,6 +6,7 @@ import type { ListenerMode } from '../ai/api';
 
 interface Props {
   onSubmit: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
+  onContinueWithoutAI?: () => void;
 }
 
 type ProviderTab = 'gemini' | 'openai';
@@ -25,7 +26,7 @@ const PROVIDER_INFO: Record<ProviderTab, { name: string; label: string; placehol
   },
 };
 
-export function ApiKeySetup({ onSubmit }: Props) {
+export function ApiKeySetup({ onSubmit, onContinueWithoutAI }: Props) {
   const [activeTab, setActiveTab] = useState<ProviderTab>('gemini');
   const [geminiKey, setGeminiKey] = useState('');
   const [openaiKey, setOpenaiKey] = useState('');
@@ -128,6 +129,17 @@ export function ApiKeySetup({ onSubmit }: Props) {
               {submitting ? 'Connecting...' : 'Start making music'}
             </button>
           </form>
+
+          {onContinueWithoutAI && (
+            <button
+              type="button"
+              onClick={onContinueWithoutAI}
+              className="w-full text-[11px] text-zinc-600 hover:text-zinc-400 py-1.5 transition-colors"
+              data-testid="continue-without-ai"
+            >
+              Continue without AI
+            </button>
+          )}
         </div>
 
         {/* Supported providers note */}
