@@ -244,7 +244,7 @@ describe('Elements: official parameter audit', () => {
 describe('Warps: official parameter audit', () => {
   it('4 engine presets cover the continuous algorithm knob range', () => {
     const ids = warpsInstrument.engines.map(e => e.id);
-    expect(ids).toEqual(['crossfade', 'fold', 'ring', 'frequency_shift']);
+    expect(ids).toEqual(['crossfade', 'fold', 'ring', 'vocoder']);
   });
 
   it('control order matches hardware: Algorithm, Timbre, Level', () => {
@@ -266,7 +266,7 @@ describe('Warps: official parameter audit', () => {
 describe('Beads: official parameter audit', () => {
   it('3 modes match official quality/processing modes', () => {
     const ids = beadsInstrument.engines.map(e => e.id);
-    expect(ids).toEqual(['granular', 'delay', 'reverb']);
+    expect(ids).toEqual(['granular', 'delay', 'wavetable-synth']);
   });
 
   it('control order matches hardware faceplate: Density, Time, Pitch, Position, Shape, then Dry/Wet', () => {

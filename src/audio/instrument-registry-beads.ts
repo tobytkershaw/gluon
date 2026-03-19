@@ -48,13 +48,13 @@ function beadsControls(): ControlSchema[] {
       'density',
       'Density',
       'density',
-      'Grain density and overlap. Low values produce sparse grains, high values create thick clouds. In delay mode controls time subdivision.',
+      'Grain density and overlap in granular mode. In delay mode it changes delay-time subdivision and rhythmic density.',
     ),
     makeBeadsControl(
       'time',
       'Time',
       'decay',
-      'Buffer read position — scrubs from most recent to oldest captured audio. In delay mode selects delay time.',
+      'How far back in the buffer to read. Low values stay near the present, high values reach further into recorded history. In delay mode this sets delay time.',
     ),
     makeBeadsControl(
       'pitch',
@@ -64,9 +64,9 @@ function beadsControls(): ControlSchema[] {
     ),
     makeBeadsControl(
       'position',
-      'Position',
+      'Size',
       'texture',
-      'Where in the recording buffer to read. Scrubs through captured audio.',
+      'Gluon `position` maps to the Beads SIZE control. It sets grain/window duration; at maximum values the processor moves toward delay behavior.',
     ),
     // Hardware label: SHAPE. Control ID kept as 'texture' for backward compatibility.
     makeBeadsControl(
@@ -93,8 +93,8 @@ function beadsControls(): ControlSchema[] {
 
 const BEADS_ENGINE_DATA: [string, string, string][] = [
   ['granular', 'Granular', 'Granular processing — real-time grain cloud, improved Clouds algorithm'],
-  ['delay', 'Delay', 'Delay line — feedback, filtering, and pitch shifting'],
-  ['reverb', 'Reverb', 'Reverb processing — lush diffuse decay (Gluon extension; on hardware, reverb is an always-on output effect, not a separate mode)'],
+  ['delay', 'Delay', 'Delay state reached when the size window is maximized — pitch shifting, feedback, and filtering on the same core engine'],
+  ['wavetable-synth', 'Wavetable Synth', 'Internal wavetable synth state used when there is no input signal'],
 ];
 
 const beadsEngines: EngineDef[] = BEADS_ENGINE_DATA.map(([id, label, description]) => ({

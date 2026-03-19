@@ -137,6 +137,15 @@ const processorInstruments = new Map<string, InstrumentDef>([
   ['beads', beadsInstrument],
 ]);
 
+const processorEngineAliases: Record<string, Record<string, string>> = {
+  beads: {
+    reverb: 'wavetable-synth',
+  },
+  warps: {
+    frequency_shift: 'vocoder',
+  },
+};
+
 /** Get the instrument definition for a processor type */
 export function getProcessorInstrument(type: string): InstrumentDef | undefined {
   return processorInstruments.get(type);
@@ -203,7 +212,8 @@ export function getModulatorEngineName(type: string, index: number): string | un
 export function getProcessorEngineByName(type: string, name: string): { index: number; engine: EngineDef } | undefined {
   const inst = processorInstruments.get(type);
   if (!inst) return undefined;
-  const index = inst.engines.findIndex(e => e.id === name);
+  const canonicalName = processorEngineAliases[type]?.[name] ?? name;
+  const index = inst.engines.findIndex(e => e.id === canonicalName);
   if (index < 0) return undefined;
   return { index, engine: inst.engines[index] };
 }
