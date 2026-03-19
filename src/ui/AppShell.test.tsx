@@ -1,14 +1,16 @@
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createSession } from '../engine/session';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import { AppShell } from './AppShell';
+type AppShellProps = Parameters<typeof AppShell>[0];
 
 const session = createSession();
 const noop = () => {};
 
-function buildProps(view: ViewMode) {
+function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): AppShellProps {
   return {
     tracks: session.tracks,
     activeTrackId: session.activeTrackId,
@@ -98,6 +100,7 @@ function buildProps(view: ViewMode) {
     onMasterVolumeChange: noop,
     onMasterPanChange: noop,
     children: <div>instrument body</div>,
+    ...overrides,
   };
 }
 
@@ -120,8 +123,45 @@ describe('AppShell smoke render', () => {
   it.each<ViewMode>(['chat', 'surface'])('renders %s view without console errors', (view) => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    render(<AppShell {...buildProps(view)} />);
+    render(<AppShell {...buildProps(view, { apiConfigured: true })} />);
 
     expect(consoleError).not.toHaveBeenCalled();
+  });
+
+  it('focuses the composer from Cmd+L and opens chat if needed', async () => {
+    function Harness() {
+      const [chatOpen, setChatOpen] = useState(false);
+      return (
+        <AppShell
+          {...buildProps('surface', {
+            apiConfigured: true,
+            chatOpen,
+            onChatToggle: () => setChatOpen(o => !o),
+          })}
+        />
+      );
+    }
+
+    render(<Harness />);
+
+    const instrument = screen.getByText('instrument body').closest('[data-shortcut-scope="instrument"]') as HTMLElement;
+    instrument.focus();
+    fireEvent.keyDown(instrument, { key: 'l', metaKey: true });
+
+    const textarea = await screen.findByRole('textbox');
+    await waitFor(() => expect(document.activeElement).toBe(textarea));
+  });
+
+  it('returns focus to the instrument view on Escape', async () => {
+    render(<AppShell {...buildProps('surface', { apiConfigured: true, chatOpen: true })} />);
+
+    const textarea = screen.getByRole('textbox');
+    textarea.focus();
+    fireEvent.keyDown(textarea, { key: 'Escape' });
+
+    await waitFor(() => {
+      const instrument = screen.getByText('instrument body').closest('[data-shortcut-scope="instrument"]') as HTMLElement;
+      expect(document.activeElement).toBe(instrument);
+    });
   });
 });
