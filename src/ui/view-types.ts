@@ -1,2 +1,2 @@
 // src/ui/view-types.ts
-export type ViewMode = 'surface' | 'rack' | 'patch' | 'tracker';
+export type ViewMode = 'chat' | 'surface' | 'rack' | 'patch' | 'tracker';

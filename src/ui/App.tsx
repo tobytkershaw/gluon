@@ -177,29 +177,18 @@ export default function App() {
   const [stepPage, setStepPage] = useState(0);
   const [view, setView] = useState<ViewMode>(() => {
     const saved = localStorage.getItem('gluon-view');
-    if (saved === 'tracker' || saved === 'rack' || saved === 'patch') return saved;
-    return 'surface'; // default; also migrates legacy 'control' value
-  });
-  const [chatOpen, setChatOpen] = useState(() => {
-    const saved = localStorage.getItem('gluon-chat-open');
-    return saved !== 'false'; // default open
-  });
-  const [chatWidth, setChatWidth] = useState(() => {
-    const saved = localStorage.getItem('gluon-chat-width');
-    return saved ? Number(saved) : 320;
-  });
-  // Chat-focused mode: full-width chat layout vs instrument layout.
-  // Default to chat-focused for new/empty sessions, instrument mode for loaded projects with tracks.
-  const [chatFocused, setChatFocused] = useState(() => {
-    const saved = localStorage.getItem('gluon-chat-focused');
-    if (saved === 'true') return true;
-    if (saved === 'false') return false;
-    // No saved preference: default based on whether the session has meaningful content
+    if (saved === 'chat' || saved === 'surface' || saved === 'tracker' || saved === 'rack' || saved === 'patch') {
+      return saved;
+    }
+    const savedChatFocused = localStorage.getItem('gluon-chat-focused');
+    if (savedChatFocused === 'true') return 'chat';
+    if (savedChatFocused === 'false') return 'surface';
+    // No saved preference: default to chat for fresh sessions, surface otherwise.
     const s = loadSession();
-    if (!s) return true; // fresh session
+    if (!s) return 'chat';
     const audioTracks = s.tracks.filter(t => getTrackKind(t) === 'audio');
     const hasContent = audioTracks.length > 1 || audioTracks.some(t => t.patterns.some(p => p.events.length > 0));
-    return !hasContent;
+    return hasContent ? 'surface' : 'chat';
   });
   const [selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
@@ -234,9 +223,6 @@ export default function App() {
 
   // Persist view and chat state to localStorage
   useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
-  useEffect(() => { localStorage.setItem('gluon-chat-open', String(chatOpen)); }, [chatOpen]);
-  useEffect(() => { localStorage.setItem('gluon-chat-width', String(chatWidth)); }, [chatWidth]);
-  useEffect(() => { localStorage.setItem('gluon-chat-focused', String(chatFocused)); }, [chatFocused]);
 
   useEffect(() => {
     clearQaAudioTrace();
@@ -1281,8 +1267,7 @@ export default function App() {
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
-    // Auto-switch to instrument mode when a track is added while in chat-focused mode
-    setChatFocused(false);
+    setView((current) => (current === 'chat' ? 'surface' : current));
   }, []);
 
   const handleRemoveTrack = useCallback((trackId: string) => {
@@ -2122,7 +2107,6 @@ export default function App() {
     onBpmNudge: handleBpmNudge,
     onToggleTransportMode: () => setSession(s => setTransportMode(s, (s.transport.mode ?? 'pattern') === 'pattern' ? 'song' : 'pattern')),
     setView,
-    setChatOpen,
   });
 
   // Keyboard piano: map computer keys to musical notes for real-time audition
@@ -2188,12 +2172,6 @@ export default function App() {
       currentOpenaiKey={openaiKey}
       currentGeminiKey={geminiKey}
       listenerMode={listenerMode}
-      chatOpen={chatOpen}
-      onChatToggle={() => setChatOpen(o => !o)}
-      chatWidth={chatWidth}
-      onChatResize={setChatWidth}
-      chatFocused={chatFocused}
-      onChatFocusedChange={setChatFocused}
       projectName={project.projectName}
       projects={project.projects}
       saveError={project.saveError}
@@ -2258,9 +2236,10 @@ export default function App() {
         {isSessionEmpty && (
           <EmptyState
             onAddTrack={() => handleAddTrack()}
-            onSendPrompt={handleSend}
-            chatOpen={chatOpen}
-            onOpenChat={() => setChatOpen(true)}
+            onSendPrompt={(prompt) => {
+              setView('chat');
+              void handleSend(prompt);
+            }}
             onDismiss={() => setWelcomeDismissed(true)}
           />
         )}

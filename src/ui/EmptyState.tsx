@@ -6,8 +6,6 @@
 interface Props {
   onAddTrack: () => void;
   onSendPrompt: (prompt: string) => void;
-  chatOpen: boolean;
-  onOpenChat: () => void;
   onDismiss?: () => void;
 }
 
@@ -17,9 +15,8 @@ const QUICK_STARTS = [
   'Set up a pad with slow modulation',
 ];
 
-export function EmptyState({ onAddTrack, onSendPrompt, chatOpen, onOpenChat, onDismiss }: Props) {
+export function EmptyState({ onAddTrack, onSendPrompt, onDismiss }: Props) {
   const handleQuickStart = (prompt: string) => {
-    if (!chatOpen) onOpenChat();
     onSendPrompt(prompt);
   };
 

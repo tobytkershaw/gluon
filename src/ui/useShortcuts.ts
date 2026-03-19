@@ -17,7 +17,6 @@ interface ShortcutActions {
   onBpmNudge: (delta: number) => void;
   onToggleTransportMode?: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
-  setChatOpen: (updater: boolean | ((prev: boolean) => boolean)) => void;
 }
 
 export function isEditable(): boolean {
@@ -56,10 +55,11 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: 'Shift+[', label: 'BPM -10', section: 'transport' },
   { key: 'L', label: 'Pattern / Song mode', section: 'transport' },
   // View
-  { key: `${mod}1`, label: 'Surface view', section: 'view' },
-  { key: `${mod}2`, label: 'Rack view', section: 'view' },
-  { key: `${mod}3`, label: 'Patch view', section: 'view' },
-  { key: `${mod}4`, label: 'Tracker view', section: 'view' },
+  { key: `${mod}1`, label: 'Chat view', section: 'view' },
+  { key: `${mod}2`, label: 'Surface view', section: 'view' },
+  { key: `${mod}3`, label: 'Rack view', section: 'view' },
+  { key: `${mod}4`, label: 'Patch view', section: 'view' },
+  { key: `${mod}5`, label: 'Tracker view', section: 'view' },
   { key: 'Tab', label: 'Cycle views', section: 'view' },
   { key: `${mod}?`, label: 'Shortcuts reference', section: 'view' },
   // Mixing
@@ -83,7 +83,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: `${mod}Shift+\u2191/\u2193`, label: 'Transpose selection', section: 'tracker' },
   { key: 'Delete', label: 'Remove event(s)', section: 'tracker' },
   // Chat
-  { key: `${mod}/`, label: 'Toggle chat sidebar', section: 'chat' },
+  { key: `${mod}/`, label: 'Jump to chat view', section: 'chat' },
   { key: 'Enter', label: 'Send message', section: 'chat' },
   // Keyboard Piano
   { key: 'Z–M', label: 'Lower octave (white keys)', section: 'piano' },
@@ -96,7 +96,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 export function useShortcuts({
   onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
   onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
-  onToggleTransportMode, setView, setChatOpen,
+  onToggleTransportMode, setView,
 }: ShortcutActions) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const toggleShortcuts = useCallback(() => setShowShortcuts(o => !o), []);
@@ -122,38 +122,43 @@ export function useShortcuts({
         setShowShortcuts(o => !o);
         return;
       }
-      // Cmd+1–4 for view switching
+      // Cmd+1–5 for view switching
       if (isMod && e.key === '1' && !isEditable()) {
         e.preventDefault();
-        setView('surface');
+        setView('chat');
         return;
       }
       if (isMod && e.key === '2' && !isEditable()) {
         e.preventDefault();
-        setView('rack');
+        setView('surface');
         return;
       }
       if (isMod && e.key === '3' && !isEditable()) {
         e.preventDefault();
-        setView('patch');
+        setView('rack');
         return;
       }
       if (isMod && e.key === '4' && !isEditable()) {
         e.preventDefault();
+        setView('patch');
+        return;
+      }
+      if (isMod && e.key === '5' && !isEditable()) {
+        e.preventDefault();
         setView('tracker');
         return;
       }
-      // Cmd+/ toggles chat sidebar
+      // Cmd+/ jumps to the chat tab
       if (isMod && e.key === '/' && !isEditable()) {
         e.preventDefault();
-        setChatOpen((o: boolean) => !o);
+        setView('chat');
         return;
       }
-      // Tab cycles views: surface → rack → patch → tracker → surface
+      // Tab cycles views: chat → surface → rack → patch → tracker → chat
       // Skip when tracker is focused (tracker uses Tab for column cycling)
       if (e.key === 'Tab' && !isEditable() && !isTrackerFocused()) {
         e.preventDefault();
-        const order: ViewMode[] = ['surface', 'rack', 'patch', 'tracker'];
+        const order: ViewMode[] = ['chat', 'surface', 'rack', 'patch', 'tracker'];
         setView((v: ViewMode) => order[(order.indexOf(v) + 1) % order.length]);
         return;
       }
@@ -238,7 +243,7 @@ export function useShortcuts({
     return () => window.removeEventListener('keydown', handler);
   }, [onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
       onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
-      onToggleTransportMode, setView, setChatOpen]);
+      onToggleTransportMode, setView]);
 
   return { showShortcuts, toggleShortcuts };
 }
