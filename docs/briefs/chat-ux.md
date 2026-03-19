@@ -36,7 +36,7 @@ Replace the blank chat with 4–6 contextual prompt chips that adapt to project 
 **Tracks exist:** "Make the hats looser", "Listen and tell me what clashes", "Give me two directions for the bass"
 **Mid-session resume:** "Remind me where we left off", "What's the current mix state?"
 
-Chips send a pre-formed message on click. They disappear after the first user message.
+Chips are visible when the composer is empty and there is no pending AI turn. They adapt to project state each time they appear — not just on first load. After the user sends any message, chips hide until the composer is empty again and the AI turn completes. This means resume-specific starters can appear in a session that already has messages.
 
 **Touches:** `ChatMessages.tsx`, `ChatComposer.tsx`
 
@@ -52,11 +52,15 @@ Replace generic status text ("thinking", "listening", "working") with explicit p
 | Applying | AI is executing validated actions | "Applying 3 changes" |
 | Waiting | AI has finished and is offering choices | "Your turn" |
 
-The phase label comes from the AI layer (planner knows which phase it's in). Fallback to current generic labels if the planner doesn't signal a phase.
+**Phase source must be authoritative.** Labels like "Applying 3 changes" or "Listening — bass solo, bars 1–4" assert operational state — they must come from the orchestrator or step executor, not from planner narration. The planner may suggest a *collaboration phase* label (Framing, Sketching, etc.) as non-authoritative metadata, but operational labels (Applying, Listening) must be emitted by the execution layer based on actual tool dispatch and completion events.
 
-**Touches:** `ChatMessages.tsx`, AI planner system prompt, potentially new `phase` field on streaming callbacks
+Before #945 lands, only operational labels derivable from existing streaming callbacks are safe to show (e.g. "Listening" when `isListening` is true, action count from `streamingLogEntries`). Planner-narrated phases should wait for #945's decomposed step execution, which makes phases structurally explicit.
 
-**Dependency:** Benefits from #945's decomposed step execution, which would make phases structurally explicit rather than inferred.
+Fallback to current generic labels when no authoritative signal is available.
+
+**Touches:** `ChatMessages.tsx`, orchestrator/step executor (post-#945), potentially new `phase` field on streaming callbacks
+
+**Dependency:** Requires #945 for full phase labels. Operational labels (Applying N, Listening) can ship before #945 using existing streaming state.
 
 ### 3. Per-turn summary card ("what happened / what next")
 
@@ -78,19 +82,22 @@ The follow-up chips are the highest-value part — they turn the collaboration l
 
 ### 4. Musical reaction controls
 
-Replace binary approve/reject with domain-specific quick reactions:
+Extend approve/reject with domain-specific quick reactions. The existing verdict+rationale model must be preserved — state compression and restraint derivation depend on canonical `approved`/`rejected` verdicts.
 
 **Quick chips (contextual, AI-suggested):**
 "more tense", "less busy", "keep groove", "undo timbre only", "brighter", "darker"
 
 **Always available:**
 - Approve (keep everything)
-- Undo (revert entire turn)
+- Reject (revert entire turn — maps to `rejected` verdict)
+- Undo (revert without recording a taste signal)
 - Free-text annotation
+
+**Invariant:** Every reaction must record a canonical `verdict` (`approved` | `rejected` | `neutral`) and optional `rationale` in the existing `Reaction` type. Quick chips map to `approved` verdict with the chip text as rationale (e.g. verdict: `approved`, rationale: "more tense"). This preserves the taste-learning signal that state compression and restraint derivation depend on.
 
 The reaction chips double as follow-up messages — clicking "more tense" sends it as the next user message with the reaction context attached.
 
-**Touches:** `ChatMessages.tsx` (reaction UI), reaction type definitions in `types.ts`
+**Touches:** `ChatMessages.tsx` (reaction UI), reaction type definitions in `types.ts`, verify `state-compression.ts` continues to receive verdict+rationale
 
 ### 5. Scope and agency badges
 
@@ -112,7 +119,7 @@ When the AI renders and evaluates audio, show it as a meaningful musical event:
 
 - Inline waveform thumbnail of the rendered audio
 - Play button so the user can hear exactly what the AI heard
-- The AI's evaluation summary (from Gemini listener) shown alongside
+- The listener's evaluation summary shown alongside (provider-agnostic — the collaboration model requires that provider choice remains an implementation detail; provider name may appear as secondary metadata but must not be part of the UI concept)
 - Before/after comparison if the AI rendered a diff
 
 This closes the biggest feedback gap in the collaboration loop — the user can verify the AI's hearing.
