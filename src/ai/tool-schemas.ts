@@ -76,6 +76,7 @@ const moveTool: ToolSchema = {
         type: 'string',
         description:
           `The control ID to change. ` +
+          `Track mix aliases: "volume", "pan". ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
           `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}; Elements: ${quoted(elementsParamIds)}; Beads: ${quoted(beadsParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
