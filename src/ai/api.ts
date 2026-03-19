@@ -712,6 +712,8 @@ export interface AskContext {
   }) => void;
   /** Current UI selection in the Tracker (if any). Included in compressed state so the AI knows what the human is pointing at. */
   userSelection?: UserSelection;
+  /** Called when the AI completes a listen event, so the UI can capture the audio for human playback. */
+  onListenEvent?: (event: import('../engine/types').ListenEvent) => void;
 }
 
 export type ListenerMode = 'gemini' | 'openai' | 'both';
@@ -2647,11 +2649,11 @@ export class GluonAI {
         if (rawCompare) {
           // Comparative listening: render before + after, concatenate, evaluate
           const compareQuestion = (rawCompare.question as string) || question;
-          const result = await this.compareHandler(compareQuestion, session, ctx?.listen, bars, trackIds, lens);
+          const result = await this.compareHandler(compareQuestion, session, ctx?.listen, bars, trackIds, lens, ctx?.onListenEvent);
           return { actions: [], response: result };
         }
 
-        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds, lens, rubric);
+        const result = await this.listenHandler(question, session, ctx?.listen, bars, trackIds, lens, rubric, ctx?.onListenEvent);
         return { actions: [], response: result };
       }
 
@@ -3857,6 +3859,7 @@ export class GluonAI {
     trackIds?: string[],
     lens?: ListenLens,
     rubric: boolean = false,
+    onListenEvent?: (event: import('../engine/types').ListenEvent) => void,
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -3879,6 +3882,28 @@ export class GluonAI {
         audioData: wavBlob,
         mimeType: 'audio/wav',
       });
+
+      // Emit listen event for inline playback in chat
+      if (onListenEvent) {
+        const audioUrl = URL.createObjectURL(wavBlob);
+        const scopeLabel = trackIds
+          ? trackIds.map(id => {
+              const t = session.tracks.find(v => v.id === id);
+              return t?.name ?? id;
+            }).join(', ')
+          : 'full mix';
+        const evaluationText = rubric
+          ? undefined
+          : (typeof critique === 'string' ? critique : undefined);
+        onListenEvent({
+          audioUrl,
+          duration: bars * (4 * 60 / (session.transport.bpm ?? 120)),
+          evaluation: evaluationText,
+          isDiff: false,
+          label: lens ?? undefined,
+          scope: scopeLabel,
+        });
+      }
 
       // When rubric mode is active, try to parse structured scores from the response
       if (rubric) {
@@ -3916,6 +3941,7 @@ export class GluonAI {
     bars: number = 2,
     trackIds?: string[],
     lens?: ListenLens,
+    onListenEvent?: (event: import('../engine/types').ListenEvent) => void,
   ): Promise<Record<string, unknown>> {
     if (!listen) {
       return { error: 'Listen not available.' };
@@ -3938,6 +3964,26 @@ export class GluonAI {
         audioData: wavBlob,
         mimeType: 'audio/wav',
       });
+
+      // Emit listen event for inline playback in chat
+      if (onListenEvent) {
+        const audioUrl = URL.createObjectURL(wavBlob);
+        const scopeLabel = trackIds
+          ? trackIds.map(id => {
+              const t = session.tracks.find(v => v.id === id);
+              return t?.name ?? id;
+            }).join(', ')
+          : 'full mix';
+        onListenEvent({
+          audioUrl,
+          duration: bars * (4 * 60 / (session.transport.bpm ?? 120)),
+          evaluation: typeof critique === 'string' ? critique : undefined,
+          isDiff: true,
+          label: lens ?? 'compare',
+          scope: scopeLabel,
+        });
+      }
+
       return {
         critique,
         mode: 'compare',

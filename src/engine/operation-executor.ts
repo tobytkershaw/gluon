@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, TrackPropertySnapshot, SendSnapshot, BugReport, ScaleSnapshot } from './types';
+import type { Session, AIAction, AITransformAction, AIEditPatternAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, SendSnapshot, BugReport, ScaleSnapshot } from './types';
 import { AGENCY_REJECTION_PREFIX } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
@@ -781,6 +781,7 @@ export function finalizeAITurn(
   toolCalls?: ToolCallEntry[],
   collapse = true,
   suggestedReactions?: string[],
+  listenEvents?: ListenEvent[],
 ): Session {
   let next = session;
 
@@ -794,7 +795,7 @@ export function finalizeAITurn(
 
   // Add message
   const combinedSay = sayTexts.join(' ');
-  if (combinedSay || log.length > 0) {
+  if (combinedSay || log.length > 0 || (listenEvents && listenEvents.length > 0)) {
     const hasUndoEntries = next.undoStack.length > undoBaseline;
     // Derive scope tracks from log entries — deduplicate by trackId
     const scopeMap = new Map<string, { trackId: string; name: string; agency: import('./types').Agency }>();
@@ -817,6 +818,7 @@ export function finalizeAITurn(
         timestamp: Date.now(),
         ...(log.length > 0 ? { actions: log } : {}),
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(listenEvents && listenEvents.length > 0 ? { listenEvents } : {}),
         ...(hasUndoEntries ? { undoStackRange: { start: undoBaseline, end: next.undoStack.length - 1 } } : {}),
         ...(scopeTracks ? { scopeTracks } : {}),
         ...(suggestedReactions && suggestedReactions.length > 0 ? { suggestedReactions } : {}),

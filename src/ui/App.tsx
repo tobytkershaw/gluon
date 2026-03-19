@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, TrackPropertySnapshot, UserSelection, OpenDecision } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, UserSelection, OpenDecision } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -911,6 +911,7 @@ export default function App() {
 
     let accumulated = '';
     const collectedToolCalls: ToolCallEntry[] = [];
+    const collectedListenEvents: ListenEvent[] = [];
     const allSayTexts: string[] = [];
     const allLog: ExecutionReportLogEntry[] = [];
     let collectedSuggestedReactions: string[] | undefined;
@@ -940,6 +941,10 @@ export default function App() {
       onToolCall: (name: string, args: Record<string, unknown>) => {
         if (thisRequest !== requestIdRef.current) return;
         collectedToolCalls.push({ name, args });
+      },
+      onListenEvent: (event: ListenEvent) => {
+        if (thisRequest !== requestIdRef.current) return;
+        collectedListenEvents.push(event);
       },
       onActionsExecuted: (report: { log: import('../engine/types').ActionLogEntry[]; rejected: { op: import('../engine/types').AIAction; reason: string }[] }) => {
         if (thisRequest !== requestIdRef.current) return;
@@ -1021,7 +1026,7 @@ export default function App() {
     } finally {
       if (thisRequest === requestIdRef.current) {
         // Finalize: create ChatMessage without collapsing — per-step groups are already in place
-        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions));
+        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions, collectedListenEvents));
         setIsThinking(false);
         setIsListening(false);
         setStreamingText('');

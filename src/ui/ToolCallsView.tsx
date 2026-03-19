@@ -62,18 +62,27 @@ function argsSummary(name: string, args: Record<string, unknown>): string | null
   }
 }
 
-interface Props {
-  toolCalls: ToolCallEntry[];
-}
+/** Tool names that are promoted to first-class listen events in the chat.
+ *  Only 'listen' produces ListenEvent cards — render/analyze don't, so keep them visible. */
+const LISTEN_TOOL_NAMES = new Set(['listen']);
 
 /** Tool names that are UI scaffolding and should not appear in the tool call log. */
 const HIDDEN_TOOLS = new Set(['suggest_reactions']);
 
-export function ToolCallsView({ toolCalls }: Props) {
+interface Props {
+  toolCalls: ToolCallEntry[];
+  /** When true, listen calls are filtered out (promoted to ListenEventView). */
+  hasListenEvents?: boolean;
+}
+
+export function ToolCallsView({ toolCalls, hasListenEvents = false }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  // Filter out UI scaffolding tools before display
-  const visible = toolCalls.filter(tc => !HIDDEN_TOOLS.has(tc.name));
+  // Filter out UI scaffolding tools and promoted listen tools
+  const visible = toolCalls.filter(tc =>
+    !HIDDEN_TOOLS.has(tc.name) &&
+    !(hasListenEvents && LISTEN_TOOL_NAMES.has(tc.name))
+  );
   if (visible.length === 0) return null;
 
   // Group consecutive calls of the same tool

@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry, Agency } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
+import { ListenEventView } from './ListenEventView';
 import { PromptStarters } from './PromptStarters';
 import { TurnSummaryCard } from './TurnSummaryCard';
 import { renderInlineMarkdown } from './inlineMarkdown';
@@ -162,7 +163,10 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                 </div>
               )}
               {msg.toolCalls && msg.toolCalls.length > 0 && (
-                <ToolCallsView toolCalls={msg.toolCalls} />
+                <ToolCallsView toolCalls={msg.toolCalls} hasListenEvents={!!msg.listenEvents?.length} />
+              )}
+              {msg.listenEvents && msg.listenEvents.length > 0 && (
+                <ListenEventView events={msg.listenEvents} />
               )}
               {hasActions && onStarterSelect && (
                 <TurnSummaryCard
