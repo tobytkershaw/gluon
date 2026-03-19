@@ -166,4 +166,10 @@ describe('gluon_plaits.cpp — worklet dirty-check', () => {
     expect(body).toContain('_plaits_set_patch');
     expect(body).not.toContain('_plaits_set_modulation');
   });
+
+  it('re-applies timed set-patch events with the note modulation term', () => {
+    expect(WORKLET_SRC).toContain(
+      'this.applyPatchWithModulation(modTimbre, modHarmonics, modMorph, modNote);',
+    );
+  });
 });

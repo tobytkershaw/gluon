@@ -332,7 +332,7 @@ class PlaitsProcessor extends AudioWorkletProcessor {
         this.applyEvent(event);
         // Re-apply modulation after any event that changes the patch
         if (event.type === 'set-patch') {
-          this.applyPatchWithModulation(modTimbre, modHarmonics, modMorph);
+          this.applyPatchWithModulation(modTimbre, modHarmonics, modMorph, modNote);
         }
       }
     }
