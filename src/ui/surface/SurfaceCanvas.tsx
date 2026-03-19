@@ -10,20 +10,16 @@ import { XYPadModule } from './XYPadModule';
 
 interface SurfaceCanvasProps {
   track: Track;
-  /** Called for source param changes — (controlId, value) */
+  /** Called for source param changes — (controlId, value). No per-frame undo. */
   onParamChange?: (controlId: string, value: number) => void;
+  /** Called for processor param changes. No per-frame undo. */
   onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
-  /** Source interaction start (for arbitration/undo) */
+  /** Gesture start — captures all source + processor state for single-gesture undo. */
   onInteractionStart?: () => void;
+  /** Gesture end — diffs and pushes one grouped undo entry. */
   onInteractionEnd?: () => void;
-  /** Processor interaction start — captures pre-state for single-gesture undo */
-  onProcessorInteractionStart?: (processorId: string) => void;
-  onProcessorInteractionEnd?: (processorId: string) => void;
 }
 
-// Module type -> renderer component mapping.
-// Starts with PlaceholderModule for all types.
-// Individual renderers will replace these as #1053-#1055 land.
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
   'knob-group': KnobGroupModule,
   'macro-knob': MacroKnobModule,
@@ -38,8 +34,6 @@ export function SurfaceCanvas({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
-  onProcessorInteractionStart,
-  onProcessorInteractionEnd,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -53,7 +47,6 @@ export function SurfaceCanvas({
       }
     });
     observer.observe(el);
-    // Set initial width
     setContainerWidth(el.clientWidth || 1200);
     return () => observer.disconnect();
   }, []);
@@ -74,7 +67,6 @@ export function SurfaceCanvas({
 
   const handleLayoutChange = useCallback((_newLayout: RGL.Layout[]) => {
     // Future: dispatch layout update to state.
-    // For now, layout changes are visual-only (not persisted).
   }, []);
 
   if (modules.length === 0) {
@@ -114,8 +106,6 @@ export function SurfaceCanvas({
                 onProcessorParamChange={onProcessorParamChange}
                 onInteractionStart={onInteractionStart}
                 onInteractionEnd={onInteractionEnd}
-                onProcessorInteractionStart={onProcessorInteractionStart}
-                onProcessorInteractionEnd={onProcessorInteractionEnd}
               />
             </div>
           );

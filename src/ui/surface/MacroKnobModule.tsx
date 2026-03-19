@@ -2,12 +2,17 @@
 // Macro Knob module renderer for the Surface view.
 // A single knob with weighted multi-parameter mapping — what semantic controls
 // become in the module system.
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import type { SemanticControlDef } from '../../engine/types';
 import { Knob } from '../Knob';
 import { computeSemanticValue, computeSemanticRawUpdates } from '../SemanticControlsSection';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 
+/**
+ * MacroKnobModule — single knob that fans out to weighted raw params.
+ * Interaction start/end is handled uniformly by the surface gesture handler,
+ * which captures all source + processor state for single-gesture undo.
+ */
 export function MacroKnobModule({
   module,
   track,
@@ -15,20 +20,8 @@ export function MacroKnobModule({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
-  onProcessorInteractionStart,
-  onProcessorInteractionEnd,
 }: ModuleRendererProps) {
   const semanticControl = module.config.semanticControl as SemanticControlDef | undefined;
-
-  // Unique processor IDs referenced by this macro knob's weights
-  const processorIds = useMemo(() => {
-    if (!semanticControl) return [];
-    return [...new Set(
-      semanticControl.weights
-        .filter(w => w.moduleId !== 'source')
-        .map(w => w.moduleId),
-    )];
-  }, [semanticControl]);
 
   if (!semanticControl) {
     return (
@@ -38,7 +31,6 @@ export function MacroKnobModule({
     );
   }
 
-  // Compute current display value from weighted raw params
   const displayValue = computeSemanticValue(track, semanticControl);
 
   const handleChange = useCallback(
@@ -55,26 +47,6 @@ export function MacroKnobModule({
     [track, semanticControl, onParamChange, onProcessorParamChange],
   );
 
-  const handlePointerDown = useCallback(() => {
-    // Start interaction for source params
-    if (semanticControl?.weights.some(w => w.moduleId === 'source')) {
-      onInteractionStart?.();
-    }
-    // Start interaction for each affected processor
-    for (const procId of processorIds) {
-      onProcessorInteractionStart?.(procId);
-    }
-  }, [semanticControl, processorIds, onInteractionStart, onProcessorInteractionStart]);
-
-  const handlePointerUp = useCallback(() => {
-    if (semanticControl?.weights.some(w => w.moduleId === 'source')) {
-      onInteractionEnd?.();
-    }
-    for (const procId of processorIds) {
-      onProcessorInteractionEnd?.(procId);
-    }
-  }, [semanticControl, processorIds, onInteractionEnd, onProcessorInteractionEnd]);
-
   return (
     <div className="h-full flex flex-col items-center justify-center p-2">
       <Knob
@@ -82,8 +54,8 @@ export function MacroKnobModule({
         label={semanticControl.name}
         accentColor="amber"
         onChange={handleChange}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
+        onPointerDown={onInteractionStart}
+        onPointerUp={onInteractionEnd}
         size={48}
       />
       {semanticControl.description && (

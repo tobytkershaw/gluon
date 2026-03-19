@@ -47,8 +47,6 @@ export function XYPadModule({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
-  onProcessorInteractionStart,
-  onProcessorInteractionEnd,
 }: ModuleRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -175,25 +173,16 @@ export function XYPadModule({
     };
   };
 
-  // Collect unique processor IDs from both axes for interaction handling
-  const xParsed = parseTarget(xTarget);
-  const yParsed = parseTarget(yTarget);
-  const touchesSource = xParsed.moduleId === 'source' || yParsed.moduleId === 'source';
-  const processorIds = [...new Set(
-    [xParsed, yParsed].filter(p => p.moduleId !== 'source').map(p => p.moduleId),
-  )];
-
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       dragging.current = true;
-      if (touchesSource) onInteractionStart?.();
-      for (const procId of processorIds) onProcessorInteractionStart?.(procId);
+      onInteractionStart?.();
       canvasRef.current!.setPointerCapture(e.pointerId);
       const { x, y } = posFromPointer(e);
       dispatchChange(xTarget, x, onParamChange, onProcessorParamChange);
       dispatchChange(yTarget, y, onParamChange, onProcessorParamChange);
     },
-    [xTarget, yTarget, onParamChange, onProcessorParamChange, touchesSource, processorIds, onInteractionStart, onProcessorInteractionStart],
+    [xTarget, yTarget, onParamChange, onProcessorParamChange, onInteractionStart],
   );
 
   const handlePointerMove = useCallback(
@@ -208,9 +197,8 @@ export function XYPadModule({
 
   const handlePointerUp = useCallback(() => {
     dragging.current = false;
-    if (touchesSource) onInteractionEnd?.();
-    for (const procId of processorIds) onProcessorInteractionEnd?.(procId);
-  }, [touchesSource, processorIds, onInteractionEnd, onProcessorInteractionEnd]);
+    onInteractionEnd?.();
+  }, [onInteractionEnd]);
 
   return (
     <div ref={containerRef} className="h-full flex flex-col p-1">

@@ -1,12 +1,9 @@
 import { useCallback } from 'react';
-import type { SurfaceModule, Track } from '../../engine/types';
+import type { Track } from '../../engine/types';
 import { Knob } from '../Knob';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 
-/** Parse a binding target into moduleId + controlId.
- *  Simple names like 'timbre' → { moduleId: 'source', controlId: 'timbre' }
- *  Compound names like 'proc-rings:brightness' → { moduleId: 'proc-rings', controlId: 'brightness' }
- */
+/** Parse a binding target into moduleId + controlId. */
 function parseTarget(target: string): { moduleId: string; controlId: string } {
   const colonIdx = target.indexOf(':');
   if (colonIdx >= 0) {
@@ -27,7 +24,8 @@ function resolveValue(track: Track, target: string): number {
 
 /**
  * KnobGroupModule — renders N labelled rotary knobs bound to control IDs.
- * Simplest Surface module type: a row of knobs with optional pinned indicator.
+ * Interaction start/end is handled uniformly by the surface gesture handler,
+ * which captures all source + processor state for single-gesture undo.
  */
 export function KnobGroupModule({
   module,
@@ -36,8 +34,6 @@ export function KnobGroupModule({
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
-  onProcessorInteractionStart,
-  onProcessorInteractionEnd,
 }: ModuleRendererProps) {
   const controlBindings = module.bindings.filter(b => b.role === 'control');
   const isPinned = module.config.pinned === true;
@@ -54,33 +50,8 @@ export function KnobGroupModule({
     [onParamChange, onProcessorParamChange],
   );
 
-  const handlePointerDown = useCallback(
-    (target: string) => {
-      const { moduleId } = parseTarget(target);
-      if (moduleId === 'source') {
-        onInteractionStart?.();
-      } else {
-        onProcessorInteractionStart?.(moduleId);
-      }
-    },
-    [onInteractionStart, onProcessorInteractionStart],
-  );
-
-  const handlePointerUp = useCallback(
-    (target: string) => {
-      const { moduleId } = parseTarget(target);
-      if (moduleId === 'source') {
-        onInteractionEnd?.();
-      } else {
-        onProcessorInteractionEnd?.(moduleId);
-      }
-    },
-    [onInteractionEnd, onProcessorInteractionEnd],
-  );
-
   return (
     <div className="h-full flex flex-col p-2">
-      {/* Module header */}
       <div className="flex items-center gap-1 mb-2">
         <span className="text-xs text-zinc-400 font-medium truncate">
           {module.label}
@@ -91,8 +62,6 @@ export function KnobGroupModule({
           </span>
         )}
       </div>
-
-      {/* Knobs row */}
       <div className="flex-1 flex items-center justify-center gap-3 flex-wrap">
         {controlBindings.map(binding => {
           const value = resolveValue(track, binding.target);
@@ -104,8 +73,8 @@ export function KnobGroupModule({
               label={controlId}
               accentColor="zinc"
               onChange={v => handleChange(binding.target, v)}
-              onPointerDown={() => handlePointerDown(binding.target)}
-              onPointerUp={() => handlePointerUp(binding.target)}
+              onPointerDown={onInteractionStart}
+              onPointerUp={onInteractionEnd}
               size={36}
             />
           );

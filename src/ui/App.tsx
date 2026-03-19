@@ -926,6 +926,121 @@ export default function App() {
     }
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // Surface interaction handlers — capture all source + processor state for
+  // single-gesture undo. Used by SurfaceCanvas instead of the XY-pad-specific
+  // source handlers or the single-processor processor handlers.
+  // ---------------------------------------------------------------------------
+
+  const surfaceUndoRef = useRef<{
+    trackId: string;
+    prevSourceParams: Record<string, number>;
+    prevProcessors: { id: string; params: Record<string, number> }[];
+  } | null>(null);
+
+  const handleSurfaceInteractionStart = useCallback(() => {
+    const s = sessionRef.current;
+    const track = getActiveTrack(s);
+    arbRef.current.humanInteractionStart(s.activeTrackId);
+    surfaceUndoRef.current = {
+      trackId: s.activeTrackId,
+      prevSourceParams: { ...track.params },
+      prevProcessors: (track.processors ?? []).map(p => ({
+        id: p.id,
+        params: { ...p.params },
+      })),
+    };
+  }, []);
+
+  const handleSurfaceInteractionEnd = useCallback(() => {
+    arbRef.current.humanInteractionEnd();
+    const captured = surfaceUndoRef.current;
+    if (!captured) return;
+    surfaceUndoRef.current = null;
+
+    setSession((s) => {
+      const track = getTrack(s, captured.trackId);
+      const snapshots: Snapshot[] = [];
+
+      // Check source params
+      const changedSource: Record<string, number> = {};
+      for (const [param, prevValue] of Object.entries(captured.prevSourceParams)) {
+        const cur = track.params[param] ?? 0;
+        if (Math.abs(cur - prevValue) > 0.001) {
+          changedSource[param] = cur;
+        }
+      }
+      if (Object.keys(changedSource).length > 0) {
+        snapshots.push({
+          kind: 'param',
+          trackId: captured.trackId,
+          prevValues: captured.prevSourceParams,
+          aiTargetValues: changedSource,
+          timestamp: Date.now(),
+          description: `Surface param change: ${Object.keys(changedSource).join(', ')}`,
+        } as ParamSnapshot);
+      }
+
+      // Check each processor
+      for (const prevProc of captured.prevProcessors) {
+        const curProc = (track.processors ?? []).find(p => p.id === prevProc.id);
+        if (!curProc) continue;
+        const allKeys = new Set([...Object.keys(prevProc.params), ...Object.keys(curProc.params)]);
+        const changed = [...allKeys].some(
+          k => Math.abs((curProc.params[k] ?? 0) - (prevProc.params[k] ?? 0)) > 0.001,
+        );
+        if (changed) {
+          snapshots.push({
+            kind: 'processor-state',
+            trackId: captured.trackId,
+            processorId: prevProc.id,
+            prevParams: prevProc.params,
+            prevModel: curProc.model,
+            timestamp: Date.now(),
+            description: 'Surface processor param change',
+          } as ProcessorStateSnapshot);
+        }
+      }
+
+      if (snapshots.length === 0) return s;
+      if (snapshots.length === 1) {
+        return { ...s, undoStack: [...s.undoStack, snapshots[0]] };
+      }
+      const group: ActionGroupSnapshot = {
+        kind: 'group',
+        snapshots,
+        timestamp: Date.now(),
+        description: 'Surface control gesture',
+      };
+      return { ...s, undoStack: [...s.undoStack, group] };
+    });
+  }, []);
+
+  /** Source param change without per-frame undo — used during surface drags
+   *  where handleSurfaceInteractionEnd batches undo for the whole gesture. */
+  const handleSurfaceSourceParamChange = useCallback((runtimeParam: string, value: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    autoRef.current.cancel(vid, runtimeParam);
+    arbRef.current.humanTouched(vid, runtimeParam, value, 'source');
+    setSession((s) => updateTrackParams(s, vid, { [runtimeParam]: value }, true, plaitsAdapter));
+  }, [ensureAudio]);
+
+  /** Processor param change without per-frame undo — used during surface drags. */
+  const handleSurfaceProcessorParamChange = useCallback((processorId: string, param: string, value: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    arbRef.current.humanTouched(vid, `${processorId}:${param}`, value, 'processor');
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      const processors = (track.processors ?? []).map(p => {
+        if (p.id !== processorId) return p;
+        return { ...p, params: { ...p.params, [param]: Math.max(0, Math.min(1, value)) } };
+      });
+      return updateTrack(s, vid, { processors });
+    });
+  }, [ensureAudio]);
+
   const handleModelChange = useCallback((model: number) => {
     ensureAudio();
     setSession((s) => setModel(s, s.activeTrackId, model));
@@ -2616,12 +2731,10 @@ export default function App() {
         {!isSessionEmpty && view === 'surface' && (
           <SurfaceCanvas
             track={activeTrack}
-            onParamChange={handleExtendedSourceParamChange}
-            onProcessorParamChange={handleProcessorParamChange}
-            onInteractionStart={() => handleSourceInteractionStart()}
-            onInteractionEnd={() => handleSourceInteractionEnd()}
-            onProcessorInteractionStart={handleProcessorInteractionStart}
-            onProcessorInteractionEnd={handleProcessorInteractionEnd}
+            onParamChange={handleSurfaceSourceParamChange}
+            onProcessorParamChange={handleSurfaceProcessorParamChange}
+            onInteractionStart={handleSurfaceInteractionStart}
+            onInteractionEnd={handleSurfaceInteractionEnd}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (
