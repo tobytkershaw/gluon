@@ -322,48 +322,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(actions.filter(a => a.type === 'set_transport')).toHaveLength(0);
   });
 
-  it('validateAction agency rejection raises decision instead of hard error', async () => {
-    planner.startTurnResults.push({
-      textParts: [],
-      functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],
-    });
-    planner.continueTurnResults.push({ textParts: ['I need permission for that track.'], functionCalls: [] });
-
-    const session = createSession();
-    const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: (_s, _a) => 'Agency: Track v0 has agency OFF',
-    });
-
-    // Move should not be applied
-    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
-    // A raise_decision should be emitted for the human to approve/deny
-    const decisions = actions.filter(a => a.type === 'raise_decision');
-    expect(decisions).toHaveLength(1);
-    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
-  });
-
-  it('deduplicates identical agency approvals within one turn', async () => {
-    planner.startTurnResults.push({
-      textParts: [],
-      functionCalls: [
-        { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } },
-        { id: 'c2', name: 'move', args: { param: 'morph', target: { absolute: 0.6 }, trackId: 'v0' } },
-      ],
-    });
-    planner.continueTurnResults.push({ textParts: ['I need permission for that track.'], functionCalls: [] });
-
-    const session = createSession();
-    const actions = await ai.ask(session, 'brighten the kick', {
-      validateAction: (_s, _a) => 'Agency: Track v0 has agency OFF',
-    });
-
-    const decisions = actions.filter(a => a.type === 'raise_decision');
-    expect(decisions).toHaveLength(1);
-    expect(actions.filter(a => a.type === 'move')).toHaveLength(0);
-    expect(actions.filter(a => a.type === 'say')).toHaveLength(1);
-  });
-
-  it('validateAction non-agency rejection returns hard error to model', async () => {
+  it('validateAction rejection returns hard error to model', async () => {
     planner.startTurnResults.push({
       textParts: [],
       functionCalls: [{ id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } }],

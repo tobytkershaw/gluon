@@ -97,22 +97,7 @@ describe('replace_processor', () => {
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toMatch(/invalid|unknown/i);
     });
 
-    it('rejects when agency is OFF', () => {
-      const session = sessionWithRings();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
-      };
-      const action: AIAction = {
-        type: 'replace_processor',
-        trackId: 'v0',
-        processorId: 'rings-test-1',
-        newModuleType: 'clouds',
-        newProcessorId: 'clouds-replace-x',
-        description: 'swap',
-      };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toMatch(/agency/i);
-    });
+    // Agency enforcement removed in #926.
   });
 
   describe('execution', () => {

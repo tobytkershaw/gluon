@@ -13,7 +13,7 @@ import { normalizePatternEvents } from '../engine/region-helpers';
 import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
-  createSession, setAgency, setApproval, updateTrackParams, setModel,
+  createSession, setApproval, updateTrackParams, setModel,
   setActiveTrack, toggleTrackExpanded, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster, setTrackVolume, setTrackPan,
   addTrack, removeTrack,
@@ -930,11 +930,6 @@ export default function App() {
     setSession((s) => setModel(s, s.activeTrackId, model));
   }, [ensureAudio]);
 
-  const handleAgencyChange = useCallback((agency: 'OFF' | 'ON') => {
-    ensureAudio();
-    setSession((s) => setAgency(s, s.activeTrackId, agency));
-  }, [ensureAudio]);
-
   /** Human-initiated timed parameter ramp (Shift+Click on knob). */
   const handleHumanRamp = useCallback((controlId: string, targetValue: number, durationMs: number, processorId?: string) => {
     ensureAudio();
@@ -1009,6 +1004,7 @@ export default function App() {
     });
     autoRef.current.startLoop();
   }, [ensureAudio]);
+
 
   const handleUndo = useCallback(() => {
     ensureAudio();
@@ -1286,13 +1282,7 @@ export default function App() {
   }, []);
 
   const handleDecisionRespond = useCallback((decision: OpenDecision, response: string) => {
-    const isAgencyApproval = decision.id.startsWith('agency-approval-');
-    let nextSession = resolveDecision(sessionRef.current, decision.id);
-    if (isAgencyApproval && /^(allow|approve|yes)$/i.test(response) && decision.trackIds) {
-      for (const trackId of decision.trackIds) {
-        nextSession = setAgency(nextSession, trackId, 'ON');
-      }
-    }
+    const nextSession = resolveDecision(sessionRef.current, decision.id);
 
     sessionRef.current = nextSession;
     setSession(() => nextSession);
@@ -2492,13 +2482,6 @@ export default function App() {
       onToggleMute={handleToggleMute}
       onToggleSolo={handleToggleSolo}
       onRenameTrack={handleRenameTrack}
-      onToggleAgency={(trackId) => {
-        setSession(s => {
-          const track = s.tracks.find(v => v.id === trackId);
-          if (!track) return s;
-          return setAgency(s, trackId, track.agency === 'OFF' ? 'ON' : 'OFF');
-        });
-      }}
       onCycleApproval={(trackId) => {
         const cycle: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
         setSession(s => {
@@ -2622,7 +2605,6 @@ export default function App() {
             onInteractionStart={handleSourceInteractionStart}
             onInteractionEnd={handleSourceInteractionEnd}
             onModelChange={handleModelChange}
-            onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
             onExtendedSourceParamChange={handleExtendedSourceParamChange}

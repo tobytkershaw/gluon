@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, GLUON_SYSTEM_PROMPT, extractActiveModules } from '../../src/ai/system-prompt';
-import { createSession, addTrack, setAgency } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { updateTrack } from '../../src/engine/types';
 import type { Session, ProcessorConfig, ModulatorConfig } from '../../src/engine/types';
 
@@ -64,7 +64,7 @@ describe('system prompt generation', () => {
 
   it('contains behaviour rules', () => {
     const prompt = defaultPrompt();
-    expect(prompt).toContain('agency');
+    expect(prompt).toContain('permission');
     expect(prompt).toContain('undo');
   });
 
@@ -96,17 +96,11 @@ describe('dynamic track setup', () => {
     expect(prompt).toContain('Virtual Analog (melodic)');
   });
 
-  it('reflects agency OFF in prompt', () => {
-    let session = createLegacySession();
-    session = setAgency(session, 'v1', 'OFF');
-    const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('Track 2 (VA) [id: v1]: Virtual Analog (melodic) — agency OFF');
-  });
-
-  it('reflects agency ON in prompt', () => {
+  it('track setup no longer includes agency', () => {
     const session = createLegacySession();
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('Track 1 (Kick) [id: v0]: Analog Bass Drum (percussion) — agency ON');
+    expect(prompt).not.toContain('agency ON');
+    expect(prompt).not.toContain('agency OFF');
   });
 
   it('shows correct model name for each track with ordinal labels', () => {

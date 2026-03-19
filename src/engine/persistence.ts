@@ -56,7 +56,7 @@ function isNonDefault(session: Session): boolean {
     const v = session.tracks[i];
     const d = defaults.tracks[i];
     if (!v || !d) continue;
-    if (v.agency !== d.agency) return true;
+    // agency field removed in #926 — skip comparison
     if (v.model !== d.model) return true;
     if (v.muted !== d.muted || v.solo !== d.solo) return true;
     if (v.volume !== d.volume || v.pan !== d.pan) return true;

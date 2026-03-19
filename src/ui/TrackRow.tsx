@@ -48,7 +48,6 @@ interface Props {
   onClick: () => void;
   onToggleMute: () => void;
   onToggleSolo: (additive?: boolean) => void;
-  onToggleAgency?: () => void;
   onRename?: (name: string) => void;
   onCycleApproval?: () => void;
   onRemove?: () => void;
@@ -64,7 +63,7 @@ interface Props {
 export function TrackRow({
   track, label, isActive, isExpanded, onToggleExpand, isBus, isMasterBus, analyser,
   activityTimestamp,
-  onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
+  onClick, onToggleMute, onToggleSolo, onRename, onCycleApproval,
   onRemove, onSetMusicalRole, onSetImportance,
   busTracks, onAddSend, onRemoveSend, onSetSendLevel,
 }: Props) {
@@ -249,21 +248,6 @@ export function TrackRow({
           >
             {label}
           </span>
-        )}
-
-        {/* Agency indicator — distinct from thumbprint: clickable text badge */}
-        {onToggleAgency && (
-          <button
-            onClick={(e) => { e.stopPropagation(); onToggleAgency(); }}
-            title={track.agency === 'OFF' ? 'Gluon agency — protected from Gluon edits (click to allow)' : 'Gluon agency — Gluon may modify this track (click to protect)'}
-            className={`shrink-0 text-[9px] font-mono font-bold uppercase leading-none px-0.5 rounded cursor-pointer transition-colors ${
-              track.agency === 'ON'
-                ? 'bg-teal-400/20 text-teal-400 hover:bg-teal-400/30'
-                : 'bg-zinc-700/30 text-zinc-600 hover:bg-zinc-700/50'
-            }`}
-          >
-            AI
-          </button>
         )}
 
         {/* M / S / Approval buttons */}

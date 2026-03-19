@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
 import { applySketch, applyUndo } from '../../src/engine/primitives';
-import { createSession, setAgency } from '../../src/engine/session';
+import { createSession } from '../../src/engine/session';
 import { getTrack } from '../../src/engine/types';
 import type { AIAction } from '../../src/engine/types';
 import { Arbitrator } from '../../src/engine/arbitration';
@@ -36,7 +36,7 @@ describe('Pattern Undo', () => {
 
   it('RegionSnapshot revert restores events and re-projects pattern', () => {
     let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
+
 
     // AI sketch via events → creates RegionSnapshot
     const actions: AIAction[] = [{
@@ -74,7 +74,7 @@ describe('Pattern Undo', () => {
 
   it('mixed undo stack: PatternSnapshot followed by RegionSnapshot', () => {
     let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
+
 
     // Legacy sketch (PatternSnapshot)
     session = applySketch(session, 'v0', 'legacy kick', {
@@ -115,7 +115,7 @@ describe('Pattern Undo', () => {
 
   it('AI sketch after human edit: human edit persists through undo', () => {
     let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
+
 
     // AI canonical sketch
     const actions: AIAction[] = [{
@@ -135,7 +135,7 @@ describe('Pattern Undo', () => {
 
   it('grouped actions with RegionSnapshot undo correctly', () => {
     let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
+
 
     // Multi-action: move + sketch → grouped
     const actions: AIAction[] = [

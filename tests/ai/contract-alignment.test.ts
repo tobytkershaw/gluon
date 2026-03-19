@@ -167,7 +167,7 @@ describe('AI Contract alignment with live implementation', () => {
 
   // ── Multi-provider architecture ─────────────────────────────────────────
   it('contract describes multi-provider architecture', () => {
-    expect(contractText).toContain('multi-provider');
+    expect(contractText).toContain('provider-abstracted');
     expect(contractText).not.toMatch(/The AI uses Gemini native function calling/);
   });
 

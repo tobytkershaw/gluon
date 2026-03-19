@@ -8,21 +8,14 @@ interface Props {
   onSelectTrack: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
   onToggleSolo: (trackId: string, additive?: boolean) => void;
-  onToggleAgency?: (trackId: string) => void;
   compact?: boolean;
 }
 
-const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
-  OFF: { label: '\u{1F512}', color: 'text-amber-400' },
-  ON:  { label: '',   color: '' },
-};
-
-export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, compact }: Props) {
+export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMute, onToggleSolo, compact }: Props) {
   return (
     <div className="flex gap-1">
       {tracks.map((track) => {
         const isActive = track.id === activeTrackId;
-        const badge = AGENCY_BADGE[track.agency] ?? AGENCY_BADGE.OFF;
         const label = getTrackLabel(track).toUpperCase();
 
         if (compact) {
@@ -55,19 +48,6 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               >
                 S
               </button>
-              {onToggleAgency && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggleAgency(track.id); }}
-                  title={track.agency === 'OFF' ? 'Gluon: Protected' : 'Gluon: Editable'}
-                  className={`text-[11px] px-0.5 rounded ${
-                    track.agency === 'OFF'
-                      ? 'bg-amber-500/20 text-amber-400'
-                      : 'text-zinc-600 hover:text-zinc-400'
-                  }`}
-                >
-                  C
-                </button>
-              )}
             </div>
           );
         }
@@ -86,7 +66,6 @@ export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMu
               <span className={`text-xs font-medium tracking-wider ${isActive ? 'text-zinc-200' : 'text-zinc-500'}`}>
                 {label}
               </span>
-              <span className={`text-[11px] ${badge.color}`}>{badge.label}</span>
             </div>
             <div className="flex gap-1">
               <button

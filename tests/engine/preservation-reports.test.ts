@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { executeOperations, generatePreservationReport } from '../../src/engine/operation-executor';
-import { createSession, setAgency, setApproval } from '../../src/engine/session';
+import { createSession, setApproval } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter, MusicalEvent } from '../../src/engine/canonical-types';
 import type { AIAction, PreservationReport } from '../../src/engine/types';
@@ -33,7 +33,6 @@ describe('PreservationReport generation', () => {
 
   function setupSessionWithEvents(approval: 'exploratory' | 'liked' | 'approved' | 'anchor', events: MusicalEvent[]) {
     let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
     if (approval !== 'exploratory') {
       session = setApproval(session, 'v0', approval);
     }

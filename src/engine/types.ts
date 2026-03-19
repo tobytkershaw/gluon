@@ -4,8 +4,6 @@ import type { ControlState, Pattern, MusicalEvent as CanonicalMusicalEvent, Sema
 import type { TensionCurve, TensionPoint, TrackTensionMapping } from './tension-curve';
 import type { ParamShapes } from './param-shapes';
 
-export type Agency = 'OFF' | 'ON';
-
 /** Discriminates audio tracks (sound sources) from bus tracks (send/return mixing). */
 export type TrackKind = 'audio' | 'bus';
 
@@ -150,7 +148,8 @@ export interface Track {
   engine: string;
   model: number;
   params: SynthParamValues;
-  agency: Agency;
+  /** @deprecated Agency field removed in #926. Kept temporarily for persistence migration. */
+  agency?: 'OFF' | 'ON';
   /** Derived step-grid cache — always re-projected from patterns, never mutated directly. */
   stepGrid: StepGrid;
   /** Canonical pattern containers (content, no position). */
@@ -463,7 +462,7 @@ export interface PatternCrudSnapshot {
   description: string;
 }
 
-/** Snapshot for discrete track-level property changes (mute, solo, volume, pan, name, agency). */
+/** Snapshot for discrete track-level property changes (mute, solo, volume, pan, name). */
 export interface TrackPropertySnapshot {
   kind: 'track-property';
   trackId: string;
@@ -938,30 +937,17 @@ export interface BugReport {
   timestamp: number;
 }
 
-// --- Agency Approval ---
+// --- Permission Requests ---
 
 /**
- * Prefix used by prevalidateAction to distinguish agency-OFF rejections
- * from other validation errors. The AI layer detects this prefix and
- * converts the hard block into an approval prompt.
+ * Permission request returned when the AI tries to change a protected
+ * parameter (e.g. master bus volume). The operation is deferred until
+ * the human approves or denies it.
  */
-export const AGENCY_REJECTION_PREFIX = 'Agency:';
-
-/**
- * Structured response returned to the AI when an action is blocked
- * because the target track has agency OFF. Contains the pending action
- * so the human can review and approve/deny it.
- */
-export interface AgencyApprovalRequest {
-  blocked: true;
-  reason: 'agency_off';
-  trackId: string;
-  trackLabel: string;
-  /** The action that was blocked, serialised for the AI to see */
-  pendingAction: AIAction;
-  /** ID of the decision raised for the human to approve/deny */
-  decisionId: string;
-  message: string;
+export interface PermissionRequest {
+  id: string;
+  description: string;
+  operation: AIAction;
 }
 
 // --- Open Decisions ---
@@ -1100,9 +1086,9 @@ export interface ChatMessage {
    *  In streaming path with per-step groups, start..end spans multiple entries.
    *  The "undo this message" button is only available when end === undoStack.length - 1. */
   undoStackRange?: { start: number; end: number };
-  /** Tracks the AI targeted during this turn, with agency state at time of action.
+  /** Tracks the AI targeted during this turn.
    *  Populated when the message is finalised so the scope badge persists. */
-  scopeTracks?: Array<{ trackId: string; name: string; agency: Agency }>;
+  scopeTracks?: Array<{ trackId: string; name: string }>;
   /** AI-suggested contextual reaction chips (e.g. "more tense", "brighter").
    *  Generated per-turn by the planner via the suggest_reactions tool. */
   suggestedReactions?: string[];

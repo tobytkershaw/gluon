@@ -155,7 +155,6 @@ function generateTrackSetup(session: Session): string {
     const engineLabel = engine?.label ?? `Model ${v.model}`;
     const engineId = engine?.id ?? '';
     const classification = isPercussion(engineId) ? 'percussion' : 'melodic';
-    const agency = v.agency === 'ON' ? 'agency ON' : 'agency OFF';
     const procs = (v.processors ?? []).map(p => `${p.type}(${p.id})`).join(', ');
     const chainSuffix = procs ? ` → [${procs}]` : '';
     const mods = (v.modulators ?? []).map(m => {
@@ -170,7 +169,7 @@ function generateTrackSetup(session: Session): string {
       return routings ? `${m.type}(${modeName}) → ${routings}` : `${m.type}(${modeName})`;
     }).join(', ');
     const modSuffix = mods ? ` | mod: [${mods}]` : '';
-    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification}) — ${agency}${chainSuffix}${modSuffix}`;
+    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification})${chainSuffix}${modSuffix}`;
   }).join('\n');
 
   return `${session.tracks.length} tracks (use "Track N" or internal ID in tool calls):
@@ -206,7 +205,7 @@ Shortcuts: Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 
 **Shortcuts**: Space = play/stop, Cmd+Z = undo, Cmd+1/2 = Control/Tracker view, Tab = cycle views, Cmd+/ = toggle chat.
 
-**Track Sidebar**: Click track to select. Buttons: M = mute, S = solo, AI = toggle AI agency (teal when ON, grey when OFF/protected).
+**Track Sidebar**: Click track to select. Buttons: M = mute, S = solo.
 
 **Control View**: Chain strip (source → processors → modulators, click to focus). Sliders (0.0-1.0). Mode selector. XY pad. Step grid (when pattern exists).
 
@@ -214,7 +213,7 @@ Shortcuts: Mac defaults (Ctrl replaces Cmd on Windows/Linux).
 
 **Project**: Click project name for menu (rename, new, duplicate, delete, export, import).
 
-**Common Workflows**: Ask AI to sketch patterns, add processors/modulators. Click the AI button to protect a track. Cmd+Z undoes everything.`;
+**Common Workflows**: Ask AI to sketch patterns, add processors/modulators. Cmd+Z undoes everything.`;
 }
 
 /**
@@ -305,7 +304,7 @@ You are Gluon, a self-configuring intelligent instrument for human-AI music coll
 
 **Parity.** Any control you have over the music, the human has too. Any control the human has, you have too. Anything that affects the music is visible to both. You share the same undo stack.
 
-**Agency** gates which tracks you may modify (ON or OFF). Changing agency requires human approval.
+**Master volume/pan** changes require human permission (a permission toast appears for approval).
 
 **The human's views:** Chat (conversation), Tracker (event grid), Rack (module faceplates), Patch (signal chain graph), Surface (AI-curated controls — coming soon).
 
@@ -365,7 +364,6 @@ When a track's musical role becomes clear, rename it to match (e.g. "Kick", "Hat
 
 After making structural pattern edits (sketch, edit_pattern, transform), verify the resulting events match your intent. Inspect the event positions — don't narrate from the edit request, check the actual result. "Sounds better" is not the same as "matches the intended structure."
 
-Agency OFF means protected — never modify those tracks or buses, even for utility/mix changes.
 Changes are applied after each step — you always work against the real, current project state.
 Refer to tracks by display name ("Track 1", "Kick"), never internal IDs.
 
@@ -383,7 +381,7 @@ Each track has an \`approval\` level (editability) and optional \`importance\` (
 
 **Importance** (0.0-1.0) is advisory — high means be more careful, low means experiment freely. Set it with **set_track_meta** when you understand a track's role.
 
-Setting approval requires a \`reason\` and agency ON. If approval fails, other fields (importance, musicalRole) still apply.
+Setting approval requires a \`reason\`. If approval fails, other fields (importance, musicalRole) still apply.
 
 ## Track Setup
 ${generateTrackSetup(session)}
@@ -398,7 +396,7 @@ You have a full toolkit for composing, sound design, mixing, and self-evaluation
 - **Surface & metadata**: \`set_surface\` composes a track's UI surface from modules (knob-group, macro-knob, xy-pad, step-grid, chain-strip). \`pin_control\` pins raw controls as knob-group modules. \`set_track_meta\` sets name, approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
 - **Bus routing**: to add shared reverb/delay: (1) \`manage_track\` add bus, (2) \`manage_processor\` add Clouds/Beads on the bus, (3) \`manage_send\` to route audio tracks to the bus with a send level.
 - **Collaborate**: \`raise_decision\` flags subjective choices for the human. \`report_bug\` flags genuine issues.
-- **Views**: \`manage_view\` adds/removes sequencer views (e.g. step-grid) on tracks. No agency required.
+- **Views**: \`manage_view\` adds/removes sequencer views (e.g. step-grid) on tracks.
 
 ## Tool Tier Discipline
 Choose the right tool for the scope of the change:
@@ -505,7 +503,7 @@ Events support fractional \`at\` values for sub-grid timing. Integer steps land 
 - Use \`edit_pattern\` for surgical microtiming adjustments on individual events.
 
 ## Surface Tools
-Surface tools compose the track's UI surface from modules. These are **view-layer operations** — no agency required.
+Surface tools compose the track's UI surface from modules (view-layer operations).
 - **set_surface**: compose a surface from modules. Module types: knob-group (labelled knobs bound to controls), macro-knob (single knob with weighted multi-param mapping), xy-pad (2D control bound to two params), step-grid (TR-style pattern editor), chain-strip (signal flow with bypass toggles). Each module has bindings, grid position, and optional config. For macro-knob, config contains semanticControl with weights (must sum to 1.0).
 - **pin_control**(action: 'pin'|'unpin'): pin or unpin a raw control on the surface (max 4 per track). Creates/removes a pinned knob-group module.
 - **label_axes**: update XY pad axis bindings. **Fails if no xy-pad module exists** — use set_surface to add one first.
@@ -644,9 +642,9 @@ Do not use for subjective preferences, feature requests, or expected limitations
 /** @deprecated Use buildSystemPrompt(session) instead */
 export const GLUON_SYSTEM_PROMPT = buildSystemPrompt({
   tracks: [
-    { id: 'v0', model: 13, agency: 'ON' },
-    { id: 'v1', model: 0, agency: 'ON' },
-    { id: 'v2', model: 2, agency: 'ON' },
-    { id: 'v3', model: 4, agency: 'ON' },
+    { id: 'v0', model: 13 },
+    { id: 'v1', model: 0 },
+    { id: 'v2', model: 2 },
+    { id: 'v3', model: 4 },
   ],
 } as Session);

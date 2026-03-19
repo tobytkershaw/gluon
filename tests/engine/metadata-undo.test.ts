@@ -5,7 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
 import { applyUndo } from '../../src/engine/primitives';
-import { createSession, setAgency, setTrackImportance } from '../../src/engine/session';
+import { createSession, setTrackImportance } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { AIAction, Snapshot, ActionGroupSnapshot, TrackPropertySnapshot } from '../../src/engine/types';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
@@ -45,9 +45,7 @@ function makeArbitrator() {
 }
 
 function setupSession() {
-  let session = createSession();
-  session = setAgency(session, 'v0', 'ON');
-  return session;
+  return createSession();
 }
 
 /** Helper: extract flat snapshots from an undo entry (handles groups). */

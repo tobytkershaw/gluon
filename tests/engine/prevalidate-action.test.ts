@@ -80,62 +80,37 @@ describe('prevalidateAction', () => {
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Track not found: v99');
     });
 
-    it('rejects move on track with agency OFF', () => {
-      const session = createSession();
-      // Ensure v0 has agency OFF
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
-      };
-      const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toContain('agency OFF');
-    });
+    // Agency enforcement removed in #926.
 
     it('rejects move with unknown control', () => {
       const session = createSession();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
-      };
       const action: AIAction = { type: 'move', param: 'nonexistent_param', target: { absolute: 0.5 }, trackId: 'v0' };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBe('Unknown control: nonexistent_param');
+      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Unknown control: nonexistent_param');
     });
 
     it('rejects move when arbitrator blocks', () => {
       const session = createSession();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
-      };
       const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
-      const result = prevalidateAction(s, action, adapter, makeArbitrator(false));
+      const result = prevalidateAction(session, action, adapter, makeArbitrator(false));
       expect(result).toContain('Arbitration');
       expect(result).toContain('timbre');
     });
 
     it('accepts canonical controlId (timbre)', () => {
       const session = createSession();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
-      };
       const action: AIAction = { type: 'move', param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBeNull();
+      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBeNull();
     });
   });
 
   describe('sketch', () => {
-    it('returns null for valid sketch on ON track', () => {
+    it('returns null for valid sketch', () => {
       const session = createSession();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'ON' as const } : v),
-      };
       const action: AIAction = {
         type: 'sketch', trackId: 'v0', description: 'kick',
         events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
       };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toBeNull();
+      expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBeNull();
     });
 
     it('rejects sketch on non-existent track', () => {
@@ -145,19 +120,6 @@ describe('prevalidateAction', () => {
         events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
       };
       expect(prevalidateAction(session, action, adapter, makeArbitrator())).toBe('Track not found: v99');
-    });
-
-    it('rejects sketch on track with agency OFF', () => {
-      const session = createSession();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
-      };
-      const action: AIAction = {
-        type: 'sketch', trackId: 'v0', description: 'kick',
-        events: [{ kind: 'trigger' as const, at: 0, velocity: 1 }],
-      };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator())).toContain('agency OFF');
     });
   });
 

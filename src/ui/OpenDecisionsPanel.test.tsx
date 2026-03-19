@@ -10,7 +10,7 @@ describe('OpenDecisionsPanel', () => {
       <OpenDecisionsPanel
         decisions={[
           {
-            id: 'agency-approval-1',
+            id: 'decision-1',
             question: 'Allow the AI to modify the master bus?',
             context: 'Action: set_master',
             options: ['Allow', 'Deny'],
@@ -28,7 +28,7 @@ describe('OpenDecisionsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
 
     expect(onRespond).toHaveBeenCalledTimes(1);
-    expect(onRespond.mock.calls[0][0].id).toBe('agency-approval-1');
+    expect(onRespond.mock.calls[0][0].id).toBe('decision-1');
     expect(onRespond.mock.calls[0][1]).toBe('Allow');
   });
 });

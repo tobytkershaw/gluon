@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
-import { createSession, addTrack, setAgency } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 import type { AIAction } from '../../src/engine/types';
@@ -36,22 +36,10 @@ describe('operation-executor', () => {
   const adapter = createTestAdapter();
 
   function setupSession() {
-    let session = createSession();
-    session = setAgency(session, 'v0', 'ON');
-    return session;
+    return createSession();
   }
 
-  it('rejects move on agency-OFF track', () => {
-    let session = createSession();
-    session = setAgency(session, 'v0', 'OFF');
-    const actions: AIAction[] = [{ type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.8 } }];
-    const report = executeOperations(session, actions, adapter, new Arbitrator());
-    expect(report.rejected).toHaveLength(1);
-    expect(report.rejected[0].reason).toContain('agency OFF');
-    expect(report.accepted).toHaveLength(0);
-  });
-
-  it('applies move on agency-ON track', () => {
+  it('applies move on any track (agency removed)', () => {
     const session = setupSession();
     const actions: AIAction[] = [{ type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.8 } }];
     const report = executeOperations(session, actions, adapter, new Arbitrator());
@@ -129,7 +117,7 @@ describe('operation-executor', () => {
     expect(report.log[0].trackId).toBe('v0');
   });
 
-  it('applies sketch on agency-ON track', () => {
+  it('applies sketch on track (agency removed)', () => {
     const session = setupSession();
     const actions: AIAction[] = [{
       type: 'sketch',
@@ -145,18 +133,15 @@ describe('operation-executor', () => {
   });
 
   it('mixes accepted and rejected in same batch', () => {
-    let session = createSession();
-    session = addTrack(session)!;
-    session = setAgency(session, 'v1', 'OFF');
+    const session = setupSession();
     const actions: AIAction[] = [
       { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.8 } },
-      { type: 'move', trackId: 'v1', param: 'timbre', target: { absolute: 0.8 } },
+      { type: 'move', trackId: 'v99', param: 'timbre', target: { absolute: 0.8 } },
     ];
     const report = executeOperations(session, actions, adapter, new Arbitrator());
     expect(report.accepted).toHaveLength(1);
     expect(report.rejected).toHaveLength(1);
     expect(report.session.tracks.find(v => v.id === 'v0')!.params.timbre).toBeCloseTo(0.8);
-    expect(report.session.tracks.find(v => v.id === 'v1')!.params.timbre).toBeCloseTo(0.5);
   });
 
   it('adds chat message with say text and action log', () => {
@@ -315,7 +300,6 @@ describe('operation-executor', () => {
   describe('transform actions', () => {
     function setupWithEvents() {
       let session = createSession();
-      session = setAgency(session, 'v0', 'ON');
       // Write trigger events to v0's region
       const track = session.tracks.find(v => v.id === 'v0')!;
       const region = { ...track.patterns[0], events: [
@@ -362,20 +346,7 @@ describe('operation-executor', () => {
       expect(ats).toEqual([0, 8, 12]);
     });
 
-    it('transform on agency-OFF track is rejected', () => {
-      let session = createSession();
-      session = setAgency(session, 'v0', 'OFF');
-      const actions: AIAction[] = [{
-        type: 'transform',
-        trackId: 'v0',
-        operation: 'reverse',
-        description: 'should fail',
-      }];
-      const report = executeOperations(session, actions, adapter, new Arbitrator());
-      expect(report.rejected).toHaveLength(1);
-      expect(report.rejected[0].reason).toContain('agency OFF');
-      expect(report.accepted).toHaveLength(0);
-    });
+    // Agency enforcement removed in #926 — transforms execute freely on all tracks.
 
     it('undo reverts transform cleanly', () => {
       const session = setupWithEvents();
