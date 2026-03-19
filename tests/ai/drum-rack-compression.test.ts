@@ -391,9 +391,9 @@ describe('Drum Rack State Compression', () => {
       expect(track.params).toBeDefined();
       expect(track.pads).toBeUndefined();
 
-      // Pattern should have standard format
-      expect(track.pattern).toHaveProperty('triggers');
-      expect(track.pattern).toHaveProperty('notes');
+      // Pattern should have standard format (not drum rack lanes)
+      expect(track.pattern).toHaveProperty('event_count');
+      expect(track.pattern).toHaveProperty('density');
       expect(track.pattern).not.toHaveProperty('lanes');
     });
   });

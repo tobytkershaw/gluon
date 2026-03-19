@@ -32,6 +32,31 @@ export const SCALE_MODES = Object.keys(SCALE_INTERVALS) as ScaleMode[];
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 /**
+ * Convert a MIDI pitch number (0-127) to a note name string (e.g. 60 → "C4").
+ * Uses standard MIDI octave numbering where middle C (60) = C4.
+ */
+export function midiToNoteName(midi: number): string {
+  const octave = Math.floor(midi / 12) - 1;
+  const note = NOTE_NAMES[midi % 12];
+  return `${note}${octave}`;
+}
+
+/**
+ * Convert a note name string (e.g. "C4", "F#3") back to a MIDI pitch number.
+ * Returns undefined if the string is not a valid note name.
+ */
+export function noteNameToMidi(name: string): number | undefined {
+  const match = name.match(/^([A-Ga-g]#?)(-?\d+)$/);
+  if (!match) return undefined;
+  const notePart = match[1].toUpperCase();
+  const octave = parseInt(match[2], 10);
+  const noteIndex = NOTE_NAMES.indexOf(notePart);
+  if (noteIndex < 0) return undefined;
+  const midi = (octave + 1) * 12 + noteIndex;
+  return midi >= 0 && midi <= 127 ? midi : undefined;
+}
+
+/**
  * Get the pitch classes (0-11) that belong to a given scale.
  * Returns a sorted Set for fast membership testing.
  */

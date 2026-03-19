@@ -94,7 +94,7 @@ describe('State Compression (Phase 2)', () => {
     // Empty tracks (model -1) are treated as pitched, producing NoteEvents
     expect(result.tracks[0].pattern.notes).toHaveLength(4);
     expect(result.tracks[0].pattern.event_count).toBe(4);
-    expect(result.tracks[0].pattern.triggers).toEqual([]);
+    expect('triggers' in result.tracks[0].pattern).toBe(false);
     expect(result.tracks[0].pattern.density).toBeGreaterThan(0);
   });
 
@@ -122,8 +122,24 @@ describe('State Compression (Phase 2)', () => {
   it('uses semantic param names for track params', () => {
     const session = createSession();
     const result = compressState(session);
-    const paramKeys = Object.keys(result.tracks[0].params);
+    const paramKeys = Object.keys(result.tracks[0].params!);
     expect(paramKeys).toEqual(['timbre', 'harmonics', 'morph', 'frequency']);
+  });
+
+  it('bus tracks do not have params key (#1102)', () => {
+    const session = createSession();
+    const result = compressState(session);
+    const masterTrack = result.tracks.find(t => t.id === 'master-bus');
+    expect(masterTrack).toBeDefined();
+    expect('params' in masterTrack!).toBe(false);
+  });
+
+  it('sequence is omitted when empty (#1105)', () => {
+    const session = createSession();
+    // Clear the sequence on the first track
+    session.tracks[0].sequence = [];
+    const result = compressState(session);
+    expect('sequence' in result.tracks[0]).toBe(false);
   });
 
   it('preserves structured recent human actions', () => {
@@ -159,10 +175,10 @@ describe('State Compression (Phase 2)', () => {
     const result = compressState(session);
     const pattern = result.tracks[0].pattern;
     expect(pattern.event_count).toBe(0);
-    expect(pattern.triggers).toEqual([]);
-    expect(pattern.notes).toEqual([]);
-    expect(pattern.accents).toEqual([]);
-    expect(pattern.param_locks).toEqual([]);
+    expect('triggers' in pattern).toBe(false);
+    expect('notes' in pattern).toBe(false);
+    expect('accents' in pattern).toBe(false);
+    expect('param_locks' in pattern).toBe(false);
     expect(pattern.density).toBe(0);
   });
 
@@ -210,8 +226,8 @@ describe('State Compression (Phase 2)', () => {
     const result = compressState(session);
     const pattern = result.tracks[0].pattern;
     expect(pattern.notes).toEqual([
-      { at: 0, pitch: 60, vel: 0.8 },
-      { at: 2.5, pitch: 72, vel: 0.99 },
+      { at: 0, pitch: 'C4', vel: 0.8 },
+      { at: 2.5, pitch: 'C5', vel: 0.99, dur: 0.5 },
     ]);
     expect(pattern.event_count).toBe(2);
     // High velocity note should appear in accents
@@ -231,7 +247,7 @@ describe('State Compression (Phase 2)', () => {
     const result = compressState(session);
     const pattern = result.tracks[0].pattern;
     expect(pattern.triggers).toEqual([{ at: 0.33, vel: 0.7 }, { at: 1.67, vel: 0.9 }]);
-    expect(pattern.notes).toEqual([{ at: 3.25, pitch: 48, vel: 0.6 }]);
+    expect(pattern.notes).toEqual([{ at: 3.25, pitch: 'C3', vel: 0.6, dur: 0.5 }]);
   });
 
   it('includes live audio metrics when provided', () => {
@@ -645,7 +661,7 @@ describe('resolveTrackId', () => {
 // ---------------------------------------------------------------------------
 
 describe('Processor default params in compressed state', () => {
-  it('newly-added processor with empty params shows defaults from registry', () => {
+  it('newly-added processor with empty params emits empty params (all at default)', () => {
     const session = createSession();
     const track = session.tracks[0];
     track.processors = [{
@@ -657,15 +673,11 @@ describe('Processor default params in compressed state', () => {
     const result = compressState(session);
     const proc = result.tracks[0].processors[0];
     expect(proc.type).toBe('clouds');
-    // Should have default params populated, not empty
-    expect(Object.keys(proc.params).length).toBeGreaterThan(0);
-    // Clouds default params should include position, size, texture, density, dryWet
-    expect(proc.params).toHaveProperty('position');
-    expect(proc.params).toHaveProperty('size');
-    expect(proc.params).toHaveProperty('dry-wet');
+    // All params are at default, so nothing should be emitted
+    expect(Object.keys(proc.params).length).toBe(0);
   });
 
-  it('explicit param values override defaults', () => {
+  it('only non-default param values are emitted', () => {
     const session = createSession();
     const track = session.tracks[0];
     track.processors = [{
@@ -678,11 +690,11 @@ describe('Processor default params in compressed state', () => {
     const proc = result.tracks[0].processors[0];
     expect(proc.params.position).toBe(0.9);
     expect(proc.params.size).toBe(0.1);
-    // Other params should still be populated with defaults
-    expect(proc.params).toHaveProperty('dry-wet');
+    // Default params should NOT be included
+    expect(proc.params).not.toHaveProperty('dry-wet');
   });
 
-  it('rings processor with empty params shows defaults', () => {
+  it('rings processor with empty params emits empty params', () => {
     const session = createSession();
     const track = session.tracks[0];
     track.processors = [{
@@ -693,8 +705,7 @@ describe('Processor default params in compressed state', () => {
     }];
     const result = compressState(session);
     const proc = result.tracks[0].processors[0];
-    expect(Object.keys(proc.params).length).toBeGreaterThan(0);
-    expect(proc.params).toHaveProperty('structure');
+    expect(Object.keys(proc.params).length).toBe(0);
   });
 
   it('unknown processor type with empty params stays empty', () => {
@@ -713,7 +724,7 @@ describe('Processor default params in compressed state', () => {
 });
 
 describe('Modulator default params in compressed state', () => {
-  it('newly-added modulator with empty params shows defaults from registry', () => {
+  it('newly-added modulator with empty params emits empty params (all at default)', () => {
     const session = createSession();
     const track = session.tracks[0];
     track.modulators = [{
@@ -725,25 +736,24 @@ describe('Modulator default params in compressed state', () => {
     const result = compressState(session);
     const mod = result.tracks[0].modulators[0];
     expect(mod.type).toBe('tides');
-    expect(Object.keys(mod.params).length).toBeGreaterThan(0);
-    expect(mod.params).toHaveProperty('frequency');
-    expect(mod.params).toHaveProperty('shape');
+    // All params are at default, so nothing should be emitted
+    expect(Object.keys(mod.params).length).toBe(0);
   });
 
-  it('explicit modulator param values override defaults', () => {
+  it('only non-default modulator param values are emitted', () => {
     const session = createSession();
     const track = session.tracks[0];
     track.modulators = [{
       id: 'tides-456',
       type: 'tides',
       model: 1,
-      params: { frequency: 0.3 },
+      params: { frequency: 0.7 },
     }];
     const result = compressState(session);
     const mod = result.tracks[0].modulators[0];
-    expect(mod.params.frequency).toBe(0.3);
-    // Other params should still be populated with defaults
-    expect(mod.params).toHaveProperty('shape');
+    expect(mod.params.frequency).toBe(0.7);
+    // Default params should NOT be included
+    expect(mod.params).not.toHaveProperty('shape');
   });
 });
 
