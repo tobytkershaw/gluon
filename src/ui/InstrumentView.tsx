@@ -51,7 +51,7 @@ interface Props {
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
   // Ramp request (Shift+Click on knobs)
-  onRampRequest?: (controlId: string, targetValue: number, durationMs: number) => void;
+  onRampRequest?: (controlId: string, targetValue: number, durationMs: number, processorId?: string) => void;
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;

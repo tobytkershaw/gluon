@@ -48,7 +48,7 @@ interface RackViewProps {
   // Processor replace
   onReplaceProcessor?: (processorId: string, newModuleType: string) => void;
   // Ramp request (Shift+Click on knobs)
-  onRampRequest?: (controlId: string, targetValue: number, durationMs: number) => void;
+  onRampRequest?: (controlId: string, targetValue: number, durationMs: number, processorId?: string) => void;
   // Navigation
   onNavigateToPatch?: () => void;
 }
@@ -205,7 +205,7 @@ export function RackView({
               onModulationClick={onNavigateToPatch}
               onModulationDepthChange={onModulationDepthChange}
               onModulationDepthCommit={onModulationDepthCommit}
-              onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur) : undefined}
+              onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur, proc.id) : undefined}
             />
           );
         })}

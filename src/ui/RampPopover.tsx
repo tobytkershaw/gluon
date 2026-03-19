@@ -29,12 +29,8 @@ export function RampPopover({ currentValue, onStart, onCancel }: RampPopoverProp
         onCancel();
       }
     };
-    // Delay to avoid immediately closing from the Shift+Click that opened it
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handler);
-    }, 0);
+    document.addEventListener('mousedown', handler);
     return () => {
-      clearTimeout(timer);
       document.removeEventListener('mousedown', handler);
     };
   }, [onCancel]);
@@ -61,6 +57,7 @@ export function RampPopover({ currentValue, onStart, onCancel }: RampPopoverProp
       className="absolute top-full left-1/2 -translate-x-1/2 mt-1 z-50 bg-zinc-900 border border-zinc-700 rounded-lg p-2.5 shadow-xl"
       style={{ minWidth: 140 }}
       data-testid="ramp-popover"
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {/* Current value (read-only) */}
       <div className="flex items-center justify-between gap-2 mb-1.5">
