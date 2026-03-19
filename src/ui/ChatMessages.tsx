@@ -148,11 +148,12 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               {msg.scopeTracks && msg.scopeTracks.length > 0 && (
                 <ScopeBadge scopeTracks={msg.scopeTracks} />
               )}
-              {msg.text && (
+              {/* Non-AI text renders inline (before actions); AI text renders after tool calls so the summary/yield is visible last */}
+              {msg.text && msg.role !== 'ai' && (
                 <div className={`text-sm leading-[1.6] break-words ${
-                  msg.role === 'ai' ? 'text-zinc-300' : msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
+                  msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
                 }`}>
-                  {msg.role === 'ai' ? renderInlineMarkdown(msg.text) : msg.text}
+                  {msg.text}
                 </div>
               )}
               {msg.actions && msg.actions.length > 0 && (
@@ -167,6 +168,11 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               )}
               {msg.listenEvents && msg.listenEvents.length > 0 && (
                 <ListenEventView events={msg.listenEvents} />
+              )}
+              {msg.text && msg.role === 'ai' && (
+                <div className="text-sm leading-[1.6] break-words text-zinc-300 mt-2">
+                  {renderInlineMarkdown(msg.text)}
+                </div>
               )}
               {hasActions && onStarterSelect && (
                 <TurnSummaryCard
@@ -203,15 +209,14 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
             {streamingLogEntries.length > 0 && (
               <ScopeBadge scopeTracks={deriveScopeTracks(streamingLogEntries, tracks)} />
             )}
-            {streamingText && (
+            {/* When no actions yet, show text inline (initial thinking text) */}
+            {streamingText && streamingLogEntries.length === 0 && (
               <div className="text-sm leading-[1.6] break-words text-zinc-300">
                 {renderInlineMarkdown(streamingText)}
-                {streamingLogEntries.length === 0 && (
-                  <span
-                    className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
-                    style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
-                  />
-                )}
+                <span
+                  className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
+                  style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
+                />
               </div>
             )}
             {(streamingLogEntries.length > 0 || streamingRejections.length > 0) && (
@@ -233,6 +238,16 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                     {getPhaseLabel(isThinking, isListening, streamingLogEntries.length) ?? 'working'}
                   </span>
                 </div>
+              </div>
+            )}
+            {/* When actions are present, show text after them so the summary/yield is last */}
+            {streamingText && streamingLogEntries.length > 0 && (
+              <div className="text-sm leading-[1.6] break-words text-zinc-300 mt-2">
+                {renderInlineMarkdown(streamingText)}
+                <span
+                  className="inline-block w-1.5 h-3 ml-0.5 bg-teal-500/60 rounded-sm align-text-bottom"
+                  style={{ animation: 'pulse-soft 0.8s ease-in-out infinite' }}
+                />
               </div>
             )}
             {!streamingText && streamingLogEntries.length === 0 && streamingRejections.length === 0 && (
