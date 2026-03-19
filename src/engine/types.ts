@@ -66,6 +66,9 @@ export interface ProcessorConfig {
   /** Whether this processor is active in the signal chain. Default: true (enabled).
    *  When false, audio bypasses this processor entirely. */
   enabled?: boolean;
+  /** Track ID of the sidechain source. When set, this compressor uses that track's
+   *  audio as its detector input instead of its own input signal. */
+  sidechainSourceId?: string;
 }
 
 export interface ModulatorConfig {
@@ -404,6 +407,15 @@ export interface SendSnapshot {
   description: string;
 }
 
+export interface SidechainSnapshot {
+  kind: 'sidechain';
+  targetTrackId: string;
+  processorId: string;
+  prevSourceId: string | undefined;
+  timestamp: number;
+  description: string;
+}
+
 export interface PatternCrudSnapshot {
   kind: 'pattern-crud';
   trackId: string;
@@ -461,7 +473,7 @@ export interface ScaleSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot;
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -690,6 +702,17 @@ export interface AIManageSendAction {
   level?: number;  // 0.0–1.0
 }
 
+export interface AISetSidechainAction {
+  type: 'set_sidechain';
+  /** Source track whose audio feeds the compressor's detector. Use null/undefined to remove. */
+  sourceTrackId: string | null;
+  /** Target track containing the compressor. */
+  targetTrackId: string;
+  /** Specific compressor processor ID. When omitted, auto-detects. */
+  processorId?: string;
+  description: string;
+}
+
 export interface AIManagePatternAction {
   type: 'manage_pattern';
   action: 'add' | 'remove' | 'duplicate' | 'rename' | 'set_active' | 'set_length' | 'clear';
@@ -840,7 +863,7 @@ export interface AIRenameTrackAction {
   name: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
 
 // --- Reaction History ---
 

@@ -220,11 +220,18 @@ function createOfflineCompressor(mode: number, sr: number): OfflineCompressorSta
   return { mode, sampleRate: sr, envLevel: 0, smoothedGainDb: 0, rmsSquaredSum: 0 };
 }
 
+/**
+ * Process the offline compressor with an optional sidechain detector buffer.
+ * When sidechainBuf is provided, the compressor uses it as the detector signal
+ * instead of the main input buffer.
+ */
 function processOfflineCompressor(
   state: OfflineCompressorState,
   params: Record<string, number>,
   buf: Float32Array,
   frames: number,
+  sidechainBuf?: Float32Array,
+  sidechainOffset?: number,
 ): void {
   const threshold = params.threshold ?? 0.5;
   const ratio = params.ratio ?? 0.3;
@@ -251,16 +258,20 @@ function processOfflineCompressor(
   const releaseCoeff = 1 - Math.exp(-1 / (releaseSec * state.sampleRate));
   const rmsWindowSamples = Math.round(state.sampleRate * 0.01);
 
+  const scOff = sidechainOffset ?? 0;
+
   for (let i = 0; i < frames; i++) {
     const dry = buf[i];
+    // Use sidechain buffer for detection when available, else use own signal
+    const detSample = sidechainBuf ? (sidechainBuf[scOff + i] ?? 0) : dry;
     let detectorInput: number;
 
     if (isOpto) {
-      state.rmsSquaredSum += dry * dry;
+      state.rmsSquaredSum += detSample * detSample;
       state.rmsSquaredSum -= state.rmsSquaredSum / rmsWindowSamples;
       detectorInput = Math.sqrt(Math.max(0, state.rmsSquaredSum / rmsWindowSamples));
     } else {
-      detectorInput = Math.abs(dry);
+      detectorInput = Math.abs(detSample);
     }
 
     if (detectorInput > state.envLevel) {
@@ -313,6 +324,8 @@ async function renderTrack(
   sampleRate: number,
   bpm: number,
   totalSteps: number,
+  /** Pre-rendered PCM buffers for sidechain sources, keyed by source track ID. */
+  sidechainBuffers?: Map<string, Float32Array>,
 ): Promise<Float32Array> {
   const framesPerStep = (60 / bpm) * sampleRate / 4; // one 16th note
   const totalFrames = Math.ceil(totalSteps * framesPerStep);
@@ -498,7 +511,9 @@ async function renderTrack(
         const cOutStart = ph.outPtr / Float32Array.BYTES_PER_ELEMENT;
         blockBuf.set(cHeap.subarray(cOutStart, cOutStart + cRendered));
       } else if (ph.type === 'compressor') {
-        processOfflineCompressor(ph.state, effectiveProcessorParams, blockBuf, framesToRender);
+        const scSourceId = ph.spec.sidechainSourceTrackId;
+        const scBuf = scSourceId && sidechainBuffers ? sidechainBuffers.get(scSourceId) : undefined;
+        processOfflineCompressor(ph.state, effectiveProcessorParams, blockBuf, framesToRender, scBuf, frame);
       }
     }
 
@@ -604,6 +619,66 @@ function applyEvent(
 // Worker message handler
 // ---------------------------------------------------------------------------
 
+/**
+ * Topological sort of tracks based on sidechain dependencies.
+ * Returns track indices in an order where sidechain source tracks render before targets.
+ */
+function topologicalSortTracks(tracks: RenderTrackSpec[]): number[] {
+  const idToIndex = new Map<string, number>();
+  for (let i = 0; i < tracks.length; i++) {
+    idToIndex.set(tracks[i].id, i);
+  }
+
+  // Build adjacency: sourceIndex → [targetIndices]
+  const deps = new Map<number, number[]>(); // targetIndex → [sourceIndices it depends on]
+  for (let i = 0; i < tracks.length; i++) {
+    const trackDeps: number[] = [];
+    for (const proc of tracks[i].processors) {
+      if (proc.sidechainSourceTrackId) {
+        const srcIdx = idToIndex.get(proc.sidechainSourceTrackId);
+        if (srcIdx !== undefined) {
+          trackDeps.push(srcIdx);
+        }
+      }
+    }
+    if (trackDeps.length > 0) deps.set(i, trackDeps);
+  }
+
+  // Kahn's algorithm
+  const inDegree = new Array(tracks.length).fill(0);
+  for (const [target, sources] of deps) {
+    // target depends on sources — but inDegree counts how many things must come before
+    inDegree[target] = sources.length;
+  }
+
+  const queue: number[] = [];
+  for (let i = 0; i < tracks.length; i++) {
+    if (inDegree[i] === 0) queue.push(i);
+  }
+
+  const order: number[] = [];
+  while (queue.length > 0) {
+    const idx = queue.shift()!;
+    order.push(idx);
+    // Check if any track depends on this one
+    for (const [target, sources] of deps) {
+      if (sources.includes(idx)) {
+        inDegree[target]--;
+        if (inDegree[target] === 0) queue.push(target);
+      }
+    }
+  }
+
+  // If cycle detected, append remaining tracks (shouldn't happen due to validation)
+  if (order.length < tracks.length) {
+    for (let i = 0; i < tracks.length; i++) {
+      if (!order.includes(i)) order.push(i);
+    }
+  }
+
+  return order;
+}
+
 self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
   const { spec, stereo: wantStereo } = event.data;
 
@@ -611,9 +686,17 @@ self.onmessage = async (event: MessageEvent<RenderWorkerRequest>) => {
     const stepsPerBar = 16;
     const totalSteps = spec.bars * stepsPerBar;
 
-    const trackOutputs = await Promise.all(
-      spec.tracks.map(track => renderTrack(track, spec.sampleRate, spec.bpm, totalSteps)),
-    );
+    // Render tracks in topological order so sidechain sources are available
+    const renderOrder = topologicalSortTracks(spec.tracks);
+    const renderedPcm = new Map<string, Float32Array>();
+    const trackOutputs: Float32Array[] = new Array(spec.tracks.length);
+
+    for (const idx of renderOrder) {
+      const track = spec.tracks[idx];
+      const pcm = await renderTrack(track, spec.sampleRate, spec.bpm, totalSteps, renderedPcm);
+      renderedPcm.set(track.id, pcm);
+      trackOutputs[idx] = pcm;
+    }
     // Apply per-track volume and pan before mixing
     const trackStereo = trackOutputs.map((pcm, i) => {
       const trackSpec = spec.tracks[i];

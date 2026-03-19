@@ -602,6 +602,16 @@ function projectAction(session: Session, action: AIAction): Session {
       }
       return session;
     }
+    case 'set_sidechain': {
+      const targetTrack = session.tracks.find(t => t.id === action.targetTrackId);
+      if (!targetTrack) return session;
+      const processors = (targetTrack.processors ?? []).map(p => {
+        if (action.processorId && p.id !== action.processorId) return p;
+        if (!action.processorId && p.type !== 'compressor') return p;
+        return { ...p, sidechainSourceId: action.sourceTrackId ?? undefined };
+      });
+      return updateTrack(session, action.targetTrackId, { processors });
+    }
     case 'manage_pattern':
     case 'manage_sequence':
       // These are complex operations executed by session.ts helpers at execution time.
@@ -3312,6 +3322,99 @@ export class GluonAI {
         return {
           actions: [manageSendAction],
           response: { queued: true, action: sendSubAction, trackId: sendTrackId, busId: sendBusId },
+        };
+      }
+
+      case 'set_sidechain': {
+        if (typeof args.targetTrackId !== 'string' || !args.targetTrackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: targetTrackId') };
+        }
+        if (typeof args.description !== 'string' || !args.description) {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+
+        // sourceTrackId can be null (to remove), or a string
+        const rawSourceId = args.sourceTrackId;
+        let resolvedSourceId: string | null = null;
+        if (rawSourceId !== null && rawSourceId !== undefined) {
+          if (typeof rawSourceId !== 'string') {
+            return { actions: [], response: errorPayload('sourceTrackId must be a string or null') };
+          }
+          resolvedSourceId = resolveTrackId(rawSourceId, session);
+          if (!resolvedSourceId) {
+            return { actions: [], response: trackNotFoundError(String(rawSourceId), session) };
+          }
+        }
+
+        const resolvedTargetId = resolveTrackId(args.targetTrackId as string, session);
+        if (!resolvedTargetId) {
+          return { actions: [], response: trackNotFoundError(String(args.targetTrackId), session) };
+        }
+
+        // Validate source and target are different
+        if (resolvedSourceId !== null && resolvedSourceId === resolvedTargetId) {
+          return { actions: [], response: enrichedError('Sidechain source and target must be different tracks.', {
+            hint: 'A compressor cannot sidechain from itself.',
+          }) };
+        }
+
+        // Simple cycle detection: walk from source's sidechain sources back to see if target appears
+        if (resolvedSourceId !== null) {
+          const visited = new Set<string>();
+          let current: string | null = resolvedSourceId;
+          while (current) {
+            if (current === resolvedTargetId) {
+              return { actions: [], response: enrichedError('Sidechain routing would create a cycle.', {
+                hint: 'Track A sidechaining to B which sidechains back to A is not allowed.',
+              }) };
+            }
+            if (visited.has(current)) break;
+            visited.add(current);
+            // Check if this track has a compressor that sidechains from somewhere
+            const checkTrack = session.tracks.find(t => t.id === current);
+            if (!checkTrack) break;
+            const scProc = (checkTrack.processors ?? []).find(p => p.type === 'compressor' && p.sidechainSourceId);
+            current = scProc?.sidechainSourceId ?? null;
+          }
+        }
+
+        // Auto-detect compressor if processorId not provided
+        let scProcessorId = args.processorId as string | undefined;
+        if (!scProcessorId && resolvedSourceId !== null) {
+          const targetTrack = session.tracks.find(t => t.id === resolvedTargetId);
+          const compressors = (targetTrack?.processors ?? []).filter(p => p.type === 'compressor');
+          if (compressors.length === 0) {
+            return { actions: [], response: enrichedError(`No compressor found on target track. Add one first with manage_processor.`, {
+              hint: 'Use manage_processor to add a compressor before setting up sidechain.',
+            }) };
+          }
+          if (compressors.length > 1) {
+            return { actions: [], response: enrichedError(`Multiple compressors on target track — specify processorId.`, {
+              hint: `Available compressor IDs: ${compressors.map(p => p.id).join(', ')}`,
+            }) };
+          }
+          scProcessorId = compressors[0].id;
+        }
+
+        const sidechainAction: import('../engine/types').AISetSidechainAction = {
+          type: 'set_sidechain',
+          sourceTrackId: resolvedSourceId,
+          targetTrackId: resolvedTargetId,
+          ...(scProcessorId ? { processorId: scProcessorId } : {}),
+          description: args.description as string,
+        };
+
+        const scRejection = handleRejection(ctx?.validateAction?.(session, sidechainAction), session, sidechainAction, existingActions);
+        if (scRejection) return scRejection;
+
+        return {
+          actions: [sidechainAction],
+          response: {
+            queued: true,
+            sourceTrackId: resolvedSourceId,
+            targetTrackId: resolvedTargetId,
+            processorId: scProcessorId,
+          },
         };
       }
 

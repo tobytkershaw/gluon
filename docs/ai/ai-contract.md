@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-two tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -224,6 +224,17 @@ Add, remove, or set the level of a post-fader send from a track to a bus track.
 | `trackId` | string | yes | Source track — ordinal ("Track 1") or internal ID ("v0"). |
 | `busId` | string | yes | Target bus track ID (e.g. "bus-v3" or "master-bus"). |
 | `level` | number | no | Send level (0.0-1.0). Required for `add` and `set_level`. |
+
+#### `set_sidechain`
+
+Set up audio sidechain compression: route one track's audio into a compressor's detector on another track. The compressor reacts to the source track's volume while processing the target track's audio. Set sourceTrackId to null to remove an existing sidechain.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sourceTrackId` | string or null | yes | Source track whose audio drives the detector. Null to remove. |
+| `targetTrackId` | string | yes | Target track containing the compressor. |
+| `processorId` | string | no | Compressor processor ID. Auto-detected when the target has exactly one compressor. |
+| `description` | string | yes | Short description of the routing intent. |
 
 #### `set_master`
 
