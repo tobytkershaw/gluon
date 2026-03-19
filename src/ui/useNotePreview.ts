@@ -4,6 +4,7 @@ import { useCallback, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { AudioEngine } from '../audio/audio-engine';
 import type { Track } from '../engine/types';
+import type { Transport } from '../engine/sequencer-types';
 import { midiToNote } from '../audio/synth-interface';
 
 /** Duration (seconds) of a preview note. Short enough to be non-intrusive. */
@@ -20,6 +21,7 @@ const DEBOUNCE_MS = 50;
 export function useNotePreview(
   audioRef: RefObject<AudioEngine>,
   activeTrack: Track | null,
+  transportStatus: Transport['status'] = 'stopped',
 ) {
   const lastPreviewTime = useRef(0);
   const lastPreviewPitch = useRef<number | null>(null);
@@ -27,6 +29,9 @@ export function useNotePreview(
   const previewNote = useCallback((pitch: number) => {
     const audio = audioRef.current;
     if (!audio?.isRunning || !activeTrack) return;
+
+    // Suppress preview during playback to avoid corrupting playing voice state (#1007)
+    if (transportStatus === 'playing') return;
 
     // Debounce: skip if the same pitch was just previewed
     const now = Date.now();
@@ -44,7 +49,7 @@ export function useNotePreview(
       accent: false,
       params: { ...activeTrack.params, note: midiToNote(pitch) },
     });
-  }, [audioRef, activeTrack]);
+  }, [audioRef, activeTrack, transportStatus]);
 
   const cancelPreview = useCallback(() => {
     const audio = audioRef.current;
