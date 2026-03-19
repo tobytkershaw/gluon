@@ -293,18 +293,17 @@ Add or remove a sequencer view on a track.
 
 #### `set_surface`
 
-Define semantic controls for a track's UI surface. Semantic controls are virtual knobs that blend multiple underlying parameters. Does not require agency.
+Compose a track's UI surface from modules. Each module has a type, bindings to controls, a grid position, and optional configuration. Does not require agency.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
-| `semanticControls` | array | yes | Array of semantic control definitions. Each has `name` (label), `weights` (array of `{ moduleId, controlId, weight, transform? }`), and optional `range`. Weights must sum to 1.0. |
-| `xyAxes` | object | no | Optional XY pad axis labels: `{ x, y }`. |
+| `modules` | array | yes | Array of surface module definitions. Each has `type` (one of `knob-group`, `macro-knob`, `xy-pad`, `step-grid`, `chain-strip`), `bindings` (array of `{ moduleId, controlId }` — what controls the module exposes), `position` (`{ col, row, colSpan?, rowSpan? }` on the surface grid), and optional `config` (type-specific settings). For `macro-knob`, config contains `semanticControl` with `name` (label) and `weights` (array of `{ moduleId, controlId, weight, transform? }` — weights must sum to 1.0). For `knob-group`, config contains `label` (group name). |
 | `description` | string | yes | Short description of the surface configuration. |
 
 #### `pin_control`
 
-Pin or unpin a raw module control on the track's surface. Max 4 pins per track. Does not require agency.
+Pin or unpin a raw module control on the track's surface. Creates or removes a pinned knob-group module. Max 4 pins per track. Does not require agency.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -315,7 +314,7 @@ Pin or unpin a raw module control on the track's surface. Max 4 pins per track. 
 
 #### `label_axes`
 
-Set semantic labels for the track's XY pad axes. Does not require agency.
+Update XY pad axis bindings. **Fails if no xy-pad module exists** on the track's surface — use `set_surface` to add one first. Does not require agency.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -719,9 +718,7 @@ Fields:
 - **recent_preservation** — (optional) preservation reports from recent edits to approved/anchor tracks
 - **importance** — (optional per track) advisory mix priority (0.0–1.0)
 - **musicalRole** — (optional per track) brief description of the track's musical role
-- **surface_semantic** — (optional per track) list of semantic control names when set_surface has been used
-- **surface_xy** — (optional per track) XY pad axis labels (e.g. "Brightness x Texture")
-- **surface_pinned** — (optional per track) list of pinned controls (e.g. "source:timbre")
+- **surface_modules** — (optional per track) list of surface module types and labels (e.g. "knob-group:Timbre", "macro-knob:Warmth", "xy-pad") when set_surface has been used
 - **sends** — (optional per track) bus send levels
 - **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.

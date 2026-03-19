@@ -395,7 +395,7 @@ You have a full toolkit for composing, sound design, mixing, and self-evaluation
 - **Sound design**: \`set_model\` switches synthesis engines. \`manage_processor\` adds/removes signal chain modules (Rings, Clouds, Beads). \`manage_modulator\` + \`modulation_route\` adds LFOs/envelopes routed to any parameter. \`shape_timbre\` moves a track's sound in a musical direction ("darker", "brighter", "thicker") without manual parameter lookup.
 - **Mix**: \`move\` adjusts any parameter (source, processor, modulator) with optional smooth transitions. \`set_transport\` controls tempo, swing, time signature, and play/stop. \`set_master\` sets master bus volume/pan independently of per-track levels — use it for overall loudness, not individual balance. \`manage_send\` routes tracks to bus tracks (reverb, delay) via post-fader sends. \`set_mix_role\` applies role-based volume/pan presets (lead, pad, sub, rhythm_foundation, texture, accent).
 - **Listen & evaluate**: \`render\` captures audio snapshots (cheap). \`analyze\` runs spectral/dynamics/rhythm/diff measurement. \`listen\` sends audio to an evaluator for qualitative judgment. **\`analyze\` with type \`'diff'\`** compares two snapshots quantitatively — render before, edit, render after, diff. **\`listen\` with \`compare\`** renders before/after audio for qualitative AI evaluation.
-- **Surface & metadata**: \`set_surface\` defines semantic controls (virtual knobs blending parameters) or can \`auto_map\` raw parameters one-to-one for a simpler surface. \`pin_control\` pins raw controls. \`set_track_meta\` sets name, approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
+- **Surface & metadata**: \`set_surface\` composes a track's UI surface from modules (knob-group, macro-knob, xy-pad, step-grid, chain-strip). \`pin_control\` pins raw controls as knob-group modules. \`set_track_meta\` sets name, approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
 - **Bus routing**: to add shared reverb/delay: (1) \`manage_track\` add bus, (2) \`manage_processor\` add Clouds/Beads on the bus, (3) \`manage_send\` to route audio tracks to the bus with a send level.
 - **Collaborate**: \`raise_decision\` flags subjective choices for the human. \`report_bug\` flags genuine issues.
 - **Views**: \`manage_view\` adds/removes sequencer views (e.g. step-grid) on tracks. No agency required.
@@ -421,7 +421,7 @@ When a common workflow has a one-step shortcut, prefer it over manual multi-tool
 ## Plaits Models
 ${generateModelReference()}
 
-## Parameter Space (semantic controls)
+## Parameter Space
 ${generateParameterSection()}
 
 ## Processor Modules
@@ -505,11 +505,11 @@ Events support fractional \`at\` values for sub-grid timing. Integer steps land 
 - Use \`edit_pattern\` for surgical microtiming adjustments on individual events.
 
 ## Surface Tools
-Surface tools configure the track's UI surface. These are **view-layer operations** — no agency required.
-- **set_surface**: define semantic controls (virtual knobs) or use \`action: "auto_map"\` with \`params\` to expose raw parameters directly. For explicit semantic controls, weights must sum to 1.0.
-- **pin_control**(action: 'pin'|'unpin'): pin or unpin a raw control on the surface (max 4 per track).
-- **label_axes**: set XY pad labels.
-Only call set_surface when the human asks, or after a chain mutation when the surface references stale modules.
+Surface tools compose the track's UI surface from modules. These are **view-layer operations** — no agency required.
+- **set_surface**: compose a surface from modules. Module types: knob-group (labelled knobs bound to controls), macro-knob (single knob with weighted multi-param mapping), xy-pad (2D control bound to two params), step-grid (TR-style pattern editor), chain-strip (signal flow with bypass toggles). Each module has bindings, grid position, and optional config. For macro-knob, config contains semanticControl with weights (must sum to 1.0).
+- **pin_control**(action: 'pin'|'unpin'): pin or unpin a raw control on the surface (max 4 per track). Creates/removes a pinned knob-group module.
+- **label_axes**: update XY pad axis bindings. **Fails if no xy-pad module exists** — use set_surface to add one first.
+Only call set_surface when the human asks, or after a chain mutation when the surface references stale modules. When setting up a surface, think about what controls serve the current musical context — set up the right controls for the task, not just parameters.
 
 ## Audio Tools
 - **render** captures a snapshot → returns snapshotId. Cheap, use freely.
@@ -543,8 +543,7 @@ Each turn you receive a JSON state snapshot. Here's what it contains per track:
 - \`approval\`: editability level (exploratory / liked / approved / anchor)
 - \`importance\`: mix priority (0.0-1.0), if set
 - \`musicalRole\`: brief description (e.g. "driving rhythm"), if set
-- \`surface_semantic\`: names of semantic controls, if configured
-- \`surface_pinned\`: pinned raw controls, if any
+- \`surface_modules\`: list of surface module types and labels (e.g. "knob-group:Timbre", "macro-knob:Warmth", "xy-pad"), if configured
 - \`sends\`: bus send levels, if routing is configured
 
 Top-level state includes: transport (bpm, swing, time signature), undo/redo depth, recent human actions, reaction history, observed patterns, restraint level, \`intent\` (session creative direction), \`section\` (current arrangement section metadata), \`scale\` (global key/scale constraint with note names), and optionally \`userSelection\` (what the human has selected in the Tracker).
