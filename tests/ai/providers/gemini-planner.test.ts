@@ -36,6 +36,18 @@ vi.mock('@google/genai', () => {
   };
 });
 
+// Mock schema-converters so GLUON_TOOLS don't trigger "oneOf" validation errors
+vi.mock('../../../src/ai/providers/schema-converters', () => ({
+  toGeminiDeclarations: (tools: Array<{ name: string }>) =>
+    tools.map(t => ({ name: t.name, description: 'mock', parameters: {} })),
+}));
+
+// Mock context-summary so summarizeBeforeTrim doesn't make real API calls
+const mockSummarizeDroppedExchanges = vi.fn();
+vi.mock('../../../src/ai/context-summary', () => ({
+  summarizeDroppedExchanges: (...args: unknown[]) => mockSummarizeDroppedExchanges(...args),
+}));
+
 import { GeminiPlannerProvider } from '../../../src/ai/providers/gemini-planner';
 import { GLUON_TOOLS } from '../../../src/ai/tool-schemas';
 
@@ -63,6 +75,7 @@ describe('GeminiPlannerProvider', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSummarizeDroppedExchanges.mockReset();
     planner = new GeminiPlannerProvider('test-key');
   });
 
@@ -624,10 +637,8 @@ describe('GeminiPlannerProvider', () => {
     }
     expect(planner.getExchangeCount()).toBe(3);
 
-    // Mock the summarization call (summarizeDroppedExchanges uses generateContent)
-    mockGenerateContent.mockResolvedValueOnce({
-      candidates: [{ content: { role: 'model', parts: [{ text: 'Track 1 is a kick drum' }] } }],
-    });
+    // Mock the summarization call
+    mockSummarizeDroppedExchanges.mockResolvedValueOnce('Track 1 is a kick drum');
 
     const droppedMessages = [
       { role: 'human' as const, text: 'make a kick', timestamp: 1 },
@@ -648,16 +659,14 @@ describe('GeminiPlannerProvider', () => {
     }
 
     // First summarization succeeds
-    mockGenerateContent.mockResolvedValueOnce({
-      candidates: [{ content: { role: 'model', parts: [{ text: 'existing summary' }] } }],
-    });
+    mockSummarizeDroppedExchanges.mockResolvedValueOnce('existing summary');
     await planner.summarizeBeforeTrim(
       [{ role: 'human', text: 'hi', timestamp: 1 }], 1,
     );
     expect(planner.getContextSummary()).toBe('existing summary');
 
     // Second summarization fails — summary should persist
-    mockGenerateContent.mockRejectedValueOnce(new Error('network'));
+    mockSummarizeDroppedExchanges.mockRejectedValueOnce(new Error('network'));
     await planner.summarizeBeforeTrim(
       [{ role: 'human', text: 'bye', timestamp: 2 }], 1,
     );
@@ -669,9 +678,7 @@ describe('GeminiPlannerProvider', () => {
     await planner.startTurn({ systemPrompt: 's', userMessage: 'msg', tools: [] });
     planner.commitTurn();
 
-    mockGenerateContent.mockResolvedValueOnce({
-      candidates: [{ content: { role: 'model', parts: [{ text: 'summary' }] } }],
-    });
+    mockSummarizeDroppedExchanges.mockResolvedValueOnce('summary');
     await planner.summarizeBeforeTrim(
       [{ role: 'human', text: 'hi', timestamp: 1 }], 0,
     );
