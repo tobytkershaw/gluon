@@ -12,7 +12,7 @@ import { getAccentColor } from './visual-utils';
  * - Activity indicator (lit when a trigger exists in the active pattern)
  * - Tap to audition (fires the pad's source via onParamChange)
  */
-export function PadGridModule({ module, track, visualContext, onParamChange, onInteractionStart, onInteractionEnd }: ModuleRendererProps) {
+export function PadGridModule({ module, track, visualContext, onParamChange: _onParamChange, onInteractionStart: _onInteractionStart, onInteractionEnd: _onInteractionEnd }: ModuleRendererProps) {
   const accent = getAccentColor(visualContext);
   const [activePadId, setActivePadId] = useState<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -1,6 +1,6 @@
 // src/engine/operation-executor.ts
 import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad } from './types';
-import { MASTER_BUS_ID, MAX_DRUM_PADS } from './types';
+import { MAX_DRUM_PADS } from './types';
 import { getDefaultVisualIdentity } from './visual-identity';
 import { kitToEvents, gridLength } from './drum-grid';
 
