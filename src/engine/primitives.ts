@@ -561,7 +561,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
         ...m,
         bindings: m.bindings.map(b => ({ ...b })),
         position: { ...m.position },
-        config: { ...m.config },
+        config: structuredClone(m.config),
       })),
     }, timestamp: now };
   }

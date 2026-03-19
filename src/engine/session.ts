@@ -982,7 +982,7 @@ function deepCopyTrack(track: Track): Track {
         ...m,
         bindings: m.bindings.map(b => ({ ...b })),
         position: { ...m.position },
-        config: { ...m.config },
+        config: structuredClone(m.config),
       })),
     },
     controlProvenance: track.controlProvenance ? { ...track.controlProvenance } : undefined,

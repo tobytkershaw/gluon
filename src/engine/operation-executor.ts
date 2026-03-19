@@ -1844,7 +1844,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
         };
         const newSurface: TrackSurface = {
           ...track.surface,
@@ -1871,7 +1871,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
         };
         const newModule: SurfaceModule = {
           type: 'knob-group',
@@ -1903,7 +1903,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
         };
         const modules = track.surface.modules.filter(
           m => !(m.config.pinned === true && m.bindings.some(b => b.target === `${action.moduleId}:${action.controlId}`)),
@@ -1930,7 +1930,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
         };
         const modules = track.surface.modules.map(m => {
           if (m.type !== 'xy-pad') return m;

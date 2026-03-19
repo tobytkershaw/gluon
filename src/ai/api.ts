@@ -524,7 +524,7 @@ function projectAction(session: Session, action: AIAction): Session {
       const track = getTrack(session, action.trackId);
       const pinModule: SurfaceModule = {
         type: 'knob-group',
-        id: `pin-${action.moduleId}-${action.controlId}`,
+        id: `pinned-${action.moduleId}-${action.controlId}`,
         label: action.controlId,
         bindings: [{ role: 'control', trackId: action.trackId, target: action.controlId }],
         position: { x: 0, y: 0, w: 2, h: 2 },
@@ -535,13 +535,27 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'unpin': {
       const track = getTrack(session, action.trackId);
-      const pinId = `pin-${action.moduleId}-${action.controlId}`;
+      const pinId = `pinned-${action.moduleId}-${action.controlId}`;
       const modules = track.surface.modules.filter(m => m.id !== pinId);
       return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'label_axes': {
+      // Label axes updates the xy-pad module bindings — no-op if no xy-pad exists
+      // (mirrors prevalidateAction which rejects label_axes without an xy-pad)
       const track = getTrack(session, action.trackId);
-      return updateTrack(session, action.trackId, { surface: { ...track.surface, xyAxes: { x: action.x, y: action.y } } });
+      const hasXYPad = track.surface.modules.some(m => m.type === 'xy-pad');
+      if (!hasXYPad) return session;
+      const modules = track.surface.modules.map(m => {
+        if (m.type !== 'xy-pad') return m;
+        return {
+          ...m,
+          bindings: [
+            { role: 'x-axis', trackId: action.trackId, target: action.x },
+            { role: 'y-axis', trackId: action.trackId, target: action.y },
+          ],
+        };
+      });
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'set_importance': {
       if (!Number.isFinite(action.importance)) return session; // reject non-finite (#892)
