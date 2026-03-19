@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import type { Track } from '../../engine/types';
 import { Knob } from '../Knob';
 import type { ModuleRendererProps } from './ModuleRendererProps';
+import { getAccentColor } from './visual-utils';
 
 /** Parse a binding target into moduleId + controlId. */
 function parseTarget(target: string): { moduleId: string; controlId: string } {
@@ -30,6 +31,7 @@ function resolveValue(track: Track, target: string): number {
 export function KnobGroupModule({
   module,
   track,
+  visualContext,
   onParamChange,
   onProcessorParamChange,
   onInteractionStart,
@@ -37,6 +39,7 @@ export function KnobGroupModule({
 }: ModuleRendererProps) {
   const controlBindings = module.bindings.filter(b => b.role === 'control');
   const isPinned = module.config.pinned === true;
+  const accentColor = getAccentColor(visualContext);
 
   const handleChange = useCallback(
     (target: string, value: number) => {
@@ -53,7 +56,7 @@ export function KnobGroupModule({
   return (
     <div className="h-full flex flex-col p-2">
       <div className="flex items-center gap-1 mb-2">
-        <span className="text-xs text-zinc-400 font-medium truncate">
+        <span className="text-xs font-medium truncate" style={{ color: accentColor }}>
           {module.label}
         </span>
         {isPinned && (
@@ -71,7 +74,7 @@ export function KnobGroupModule({
               key={binding.target}
               value={value}
               label={controlId}
-              accentColor="zinc"
+              accentColor={accentColor}
               onChange={v => handleChange(binding.target, v)}
               onPointerDown={onInteractionStart}
               onPointerUp={onInteractionEnd}

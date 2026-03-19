@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getActivePattern } from '../../engine/types';
 import type { NoteEvent } from '../../engine/canonical-types';
+import { getAccentRgba } from './visual-utils';
 
 /**
  * PianoRollModule — compact pitch x time note display for the Surface view.
@@ -10,7 +11,7 @@ import type { NoteEvent } from '../../engine/canonical-types';
  * as horizontal bars on a pitch (Y) vs time (X) grid. Velocity maps to color
  * intensity (amber tones). Auto-zooms to the pitch range present in the data.
  */
-export function PianoRollModule({ module: _module, track }: ModuleRendererProps) {
+export function PianoRollModule({ module: _module, track, visualContext }: ModuleRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
@@ -104,14 +105,14 @@ export function PianoRollModule({ module: _module, track }: ModuleRendererProps)
       // Velocity maps to opacity/brightness: 0.3 at vel=0, 1.0 at vel=1
       const alpha = 0.3 + note.velocity * 0.7;
 
-      // Note bar fill — amber tones
-      ctx.fillStyle = `rgba(245,158,11,${alpha})`; // amber-500
+      // Note bar fill — track accent colour
+      ctx.fillStyle = getAccentRgba(visualContext, alpha);
       ctx.beginPath();
       ctx.roundRect(x + 0.5, y + 0.5, Math.max(noteW - 1, 2), noteH, 2);
       ctx.fill();
 
       // Subtle border for definition
-      ctx.strokeStyle = `rgba(251,191,36,${alpha * 0.4})`; // amber-400
+      ctx.strokeStyle = getAccentRgba(visualContext, alpha * 0.4);
       ctx.lineWidth = 0.5;
       ctx.stroke();
     }
@@ -128,7 +129,7 @@ export function PianoRollModule({ module: _module, track }: ModuleRendererProps)
     // Duration label in bottom-right
     ctx.textAlign = 'right';
     ctx.fillText(`${duration} beats`, w - 6, h - 6);
-  }, [notes, duration, pitchMin, pitchMax, pitchRange]);
+  }, [notes, duration, pitchMin, pitchMax, pitchRange, visualContext]);
 
   return (
     <div ref={containerRef} className="h-full flex flex-col p-1">

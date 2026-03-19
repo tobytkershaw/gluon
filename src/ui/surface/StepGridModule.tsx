@@ -1,6 +1,7 @@
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import type { TriggerEvent } from '../../engine/canonical-types';
 import { getActivePattern } from '../../engine/types';
+import { getAccentColor } from './visual-utils';
 
 /**
  * StepGridModule — TR-style read-only step display for the Surface.
@@ -9,7 +10,8 @@ import { getActivePattern } from '../../engine/types';
  * the track's active pattern. Shows up to 16 steps with gate/accent
  * indicators and beat-boundary markers.
  */
-export function StepGridModule({ module, track }: ModuleRendererProps) {
+export function StepGridModule({ module, track, visualContext }: ModuleRendererProps) {
+  const accent = getAccentColor(visualContext);
   // Find pattern to display
   const hasPatterns = track.patterns.length > 0;
   const pattern = hasPatterns ? getActivePattern(track) : null;
@@ -54,15 +56,18 @@ export function StepGridModule({ module, track }: ModuleRendererProps) {
           return (
             <div
               key={i}
-              className={`
-                relative flex-1 min-w-0 h-full rounded-sm transition-colors
-                ${hasGate
-                  ? hasAccent
-                    ? 'bg-amber-500/70 border border-amber-400/60'
-                    : 'bg-amber-500/30 border border-amber-500/30'
-                  : 'bg-zinc-800/60 border border-zinc-700/40'
-                }
-              `}
+              className="relative flex-1 min-w-0 h-full rounded-sm transition-colors border"
+              style={hasGate
+                ? {
+                    backgroundColor: accent,
+                    opacity: hasAccent ? 0.7 : 0.3,
+                    borderColor: accent,
+                  }
+                : {
+                    backgroundColor: 'rgba(39,39,42,0.6)',
+                    borderColor: 'rgba(63,63,70,0.4)',
+                  }
+              }
             >
               {/* Beat boundary marker */}
               {isBeatBoundary && (

@@ -99,7 +99,8 @@ export function Knob({
   const cx = size / 2;
   const cy = size / 2;
 
-  const accentRgb = ACCENT_COLORS[accentColor] ?? ACCENT_COLORS.amber;
+  // Support both named accent colors ("amber", "sky") and raw CSS color strings ("rgb(...)", "hsl(...)")
+  const accentRgb = ACCENT_COLORS[accentColor] ?? (accentColor.startsWith('rgb') || accentColor.startsWith('hsl') ? accentColor : ACCENT_COLORS.amber);
 
   const svgRef = useRef<SVGSVGElement>(null);
 
