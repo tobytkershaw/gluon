@@ -25,6 +25,8 @@ import type { ElementsEngine } from './elements-synth';
 import { ElementsSynth } from './elements-synth';
 import type { BeadsEngine } from './beads-synth';
 import { BeadsSynth } from './beads-synth';
+import type { FramesEngine } from './frames-synth';
+import { FramesSynth } from './frames-synth';
 import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from './runtime-events';
 
 const PREFERRED_SYNTH_BACKOFF_MS = 30_000;
@@ -110,4 +112,8 @@ export async function createElementsProcessor(ctx: AudioContext): Promise<Elemen
 
 export async function createBeadsProcessor(ctx: AudioContext): Promise<BeadsEngine> {
   return BeadsSynth.create(ctx);
+}
+
+export async function createFramesProcessor(ctx: AudioContext): Promise<FramesEngine> {
+  return FramesSynth.create(ctx);
 }

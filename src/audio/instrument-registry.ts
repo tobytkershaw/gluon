@@ -108,6 +108,13 @@ export {
   getBeadsModelList,
 } from './instrument-registry-beads';
 
+export {
+  framesInstrument,
+  getFramesEngineById,
+  getFramesEngineByIndex,
+  getFramesModelList,
+} from './instrument-registry-frames';
+
 // --- Processor registry ---
 
 import { ringsInstrument } from './instrument-registry-rings';
@@ -121,6 +128,7 @@ import { distortionInstrument } from './instrument-registry-distortion';
 import { warpsInstrument } from './instrument-registry-warps';
 import { elementsInstrument } from './instrument-registry-elements';
 import { beadsInstrument } from './instrument-registry-beads';
+import { framesInstrument } from './instrument-registry-frames';
 import { tidesInstrument } from './instrument-registry-tides';
 
 const processorInstruments = new Map<string, InstrumentDef>([
@@ -135,6 +143,7 @@ const processorInstruments = new Map<string, InstrumentDef>([
   ['warps', warpsInstrument],
   ['elements', elementsInstrument],
   ['beads', beadsInstrument],
+  ['frames', framesInstrument],
 ]);
 
 const processorEngineAliases: Record<string, Record<string, string>> = {
