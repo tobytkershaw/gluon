@@ -1,4 +1,3 @@
-import { useState, useCallback } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getAccentColor } from './visual-utils';
 
@@ -8,34 +7,12 @@ import { getAccentColor } from './visual-utils';
  *
  * Shows: Source → [Processor 1] → [Processor 2] → ... → Out
  * Each processor has a bypass toggle that dims the box when bypassed.
+ * The bypass toggle dispatches through the session state (with undo support)
+ * via the onToggleProcessorEnabled callback.
  */
-export function ChainStripModule({ module, track, visualContext }: ModuleRendererProps) {
+export function ChainStripModule({ module, track, visualContext, onToggleProcessorEnabled }: ModuleRendererProps) {
   const accent = getAccentColor(visualContext);
   const processors = track.processors ?? [];
-
-  // TODO: wire bypass to operation executor
-  // Local bypass state mirrors ProcessorConfig.enabled for visual feedback.
-  // The actual bypass toggling needs to go through the operation executor
-  // so it participates in undo and state management.
-  const [localBypass, setLocalBypass] = useState<Record<string, boolean>>({});
-
-  const isEnabled = useCallback(
-    (processorId: string, configEnabled?: boolean) => {
-      if (processorId in localBypass) return localBypass[processorId];
-      return configEnabled !== false;
-    },
-    [localBypass],
-  );
-
-  const toggleBypass = useCallback((processorId: string) => {
-    setLocalBypass(prev => {
-      const current = prev[processorId];
-      // If not yet overridden locally, read from config
-      const proc = (track.processors ?? []).find(p => p.id === processorId);
-      const wasEnabled = current ?? (proc?.enabled !== false);
-      return { ...prev, [processorId]: !wasEnabled };
-    });
-  }, [track.processors]);
 
   return (
     <div className="h-full flex flex-col p-2">
@@ -57,7 +34,7 @@ export function ChainStripModule({ module, track, visualContext }: ModuleRendere
         </div>
 
         {processors.map((proc) => {
-          const enabled = isEnabled(proc.id, proc.enabled);
+          const enabled = proc.enabled !== false;
           return (
             <div key={proc.id} className="flex items-center gap-0 flex-shrink-0">
               {/* Arrow connector */}
@@ -91,7 +68,7 @@ export function ChainStripModule({ module, track, visualContext }: ModuleRendere
                       ? 'text-emerald-400 hover:bg-zinc-700'
                       : 'text-zinc-600 hover:bg-zinc-800'
                   }`}
-                  onClick={() => toggleBypass(proc.id)}
+                  onClick={() => onToggleProcessorEnabled?.(proc.id)}
                 >
                   {/* Power icon (simple circle with line) */}
                   <svg

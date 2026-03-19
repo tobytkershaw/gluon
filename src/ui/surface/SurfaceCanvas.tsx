@@ -35,6 +35,8 @@ interface SurfaceCanvasProps {
   onUpdateModule?: (updated: SurfaceModule) => void;
   /** Called when a module is removed. */
   onRemoveModule?: (moduleId: string) => void;
+  /** Toggle processor enabled/bypass — goes through session state + undo. */
+  onToggleProcessorEnabled?: (processorId: string) => void;
 }
 
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
@@ -58,6 +60,7 @@ export function SurfaceCanvas({
   onAddModule,
   onUpdateModule,
   onRemoveModule,
+  onToggleProcessorEnabled,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -231,6 +234,7 @@ export function SurfaceCanvas({
                   onProcessorParamChange={onProcessorParamChange}
                   onInteractionStart={onInteractionStart}
                   onInteractionEnd={onInteractionEnd}
+                  onToggleProcessorEnabled={onToggleProcessorEnabled}
                 />
               </div>
             );
