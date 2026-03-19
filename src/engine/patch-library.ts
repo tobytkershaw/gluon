@@ -51,7 +51,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.3,  // low harmonics — more sub, less click
       timbre: 0.2,     // dark tone
       morph: 0.4,      // moderate body
-      note: 0.3,       // low pitch
+      frequency: 0.3,       // low pitch
     },
     processors: [
       {
@@ -74,7 +74,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.7,  // rich harmonics
       timbre: 0.8,     // bright, resonant
       morph: 0.3,      // saw-ish shape
-      note: 0.35,      // bass register
+      frequency: 0.35,      // bass register
     },
     processors: [
       {
@@ -103,7 +103,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.4,
       timbre: 0.3,     // mellow tone
       morph: 0.6,      // slow evolving wavetable
-      note: 0.5,       // mid register
+      frequency: 0.5,       // mid register
     },
     processors: [
       {
@@ -136,7 +136,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.5,  // balanced tone/noise mix
       timbre: 0.6,     // brighter snap
       morph: 0.45,     // medium body
-      note: 0.45,      // tuned mid-range
+      frequency: 0.45,      // tuned mid-range
     },
     processors: [
       {
@@ -164,7 +164,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.6,  // moderate harmonics
       timbre: 0.7,     // bright FM tone
       morph: 0.5,      // balanced feedback
-      note: 0.55,      // slightly above mid
+      frequency: 0.55,      // slightly above mid
     },
     processors: [
       {
@@ -187,7 +187,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.6,  // metallic character
       timbre: 0.7,     // bright
       morph: 0.3,      // tight decay
-      note: 0.6,       // high pitch
+      frequency: 0.6,       // high pitch
     },
     processors: [
       {
@@ -215,7 +215,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.5,  // moderate spread
       timbre: 0.4,     // dark tone
       morph: 0.7,      // wide detuning
-      note: 0.45,      // mid-low register
+      frequency: 0.45,      // mid-low register
     },
     processors: [
       {
@@ -242,7 +242,7 @@ export const BUILT_IN_PATCHES: Patch[] = [
       harmonics: 0.55, // slightly inharmonic
       timbre: 0.6,     // bright resonance
       morph: 0.4,      // moderate damping
-      note: 0.6,       // high register
+      frequency: 0.6,       // high register
     },
     createdAt: 0,
   },
@@ -288,59 +288,6 @@ export function savePatch(track: Track, name: string, tags?: string[]): Patch {
         }))
       : undefined,
     createdAt: Date.now(),
-  };
-}
-
-/**
- * Apply a patch to a track, replacing its sound configuration while
- * preserving track identity (id, name, kind), pattern data, agency,
- * mix settings (volume, pan, sends), approval, views, and surface.
- *
- * Returns a new Track object (immutable).
- */
-export function applyPatch(track: Track, patch: Patch): Track {
-  // Assign new IDs to processors, modulators, and modulations to avoid
-  // collisions if the same patch is applied to multiple tracks.
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const idMap = new Map<string, string>(); // old ID → new ID
-
-  const processors = patch.processors?.map((p, i) => {
-    const newId = `${p.type}-${suffix}-${i}`;
-    idMap.set(p.id, newId);
-    return { ...p, id: newId, params: { ...p.params } };
-  });
-
-  const modulators = patch.modulators?.map((m, i) => {
-    const newId = `${m.type}-${suffix}-m${i}`;
-    idMap.set(m.id, newId);
-    return { ...m, id: newId, params: { ...m.params } };
-  });
-
-  const modulations = patch.modulations?.map((r, i) => {
-    const newModulatorId = idMap.get(r.modulatorId) ?? r.modulatorId;
-    const newTarget = { ...r.target } as typeof r.target;
-    // Remap processor IDs in modulation targets
-    if (newTarget.kind === 'processor' && idMap.has(newTarget.processorId)) {
-      newTarget.processorId = idMap.get(newTarget.processorId)!;
-    }
-    return {
-      ...r,
-      id: `mod-route-${suffix}-r${i}`,
-      modulatorId: newModulatorId,
-      target: newTarget,
-    };
-  });
-
-  return {
-    ...track,
-    engine: patch.engine,
-    model: patch.model,
-    params: { ...patch.params },
-    processors,
-    modulators,
-    modulations,
-    // Mark pattern as dirty so audio engine picks up the source change
-    _patternDirty: true,
   };
 }
 

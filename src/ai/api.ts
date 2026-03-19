@@ -45,7 +45,7 @@ import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-st
 import type { PcmRenderResult } from '../audio/render-offline';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
 import { getChainRecipe, RECIPE_NAMES as CHAIN_RECIPE_NAMES } from '../engine/chain-recipes';
-import { savePatch, applyPatch, findPatch, getAllPatches, listPatches, BUILT_IN_PATCHES } from '../engine/patch-library';
+import { savePatch, findPatch, getAllPatches, listPatches, BUILT_IN_PATCHES } from '../engine/patch-library';
 import type { Patch } from '../engine/patch-library';
 import { getMixRole, ROLE_NAMES as MIX_ROLE_NAMES } from '../engine/mix-roles';
 import { resolveModulationRecipe, MODULATION_RECIPE_NAMES } from '../engine/modulation-recipes';
@@ -4185,6 +4185,12 @@ export class GluonAI {
           return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
+        // Agency gate: load_patch modifies the track, so agency must be ON
+        if (loadTrack.agency === 'OFF') {
+          const stubAction: AISetModelAction = { type: 'set_model', trackId: loadTrack.id, model: '' };
+          return buildAgencyApproval(session, stubAction, loadTrack.id);
+        }
+
         // Lazy-load user patches from IndexedDB on first access
         if (!this._userPatchesLoaded) {
           try {
@@ -4387,6 +4393,10 @@ export class GluonAI {
             patchId: patch.id,
             builtIn: patch.builtIn ?? false,
             actionsGenerated: loadActions.length,
+            engine: patch.engine,
+            model: patch.model,
+            processorTypes: patch.processors?.map(p => p.type) ?? [],
+            modulatorTypes: patch.modulators?.map(m => m.type) ?? [],
           },
         };
       }

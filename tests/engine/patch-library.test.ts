@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   savePatch,
-  applyPatch,
   findPatch,
   getAllPatches,
   listPatches,
@@ -196,108 +195,6 @@ describe('savePatch', () => {
     expect(patch.modulators).toHaveLength(1);
     expect(patch.modulations).toHaveLength(1);
     expect(patch.modulations![0].depth).toBe(0.2);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// applyPatch
-// ---------------------------------------------------------------------------
-
-describe('applyPatch', () => {
-  it('replaces sound config, preserves identity', () => {
-    const track = makeTrack({
-      id: 'track-keep',
-      name: 'My Track',
-      volume: 0.7,
-      pan: -0.3,
-      agency: 'OFF',
-    });
-
-    const result = applyPatch(track, BUILT_IN_PATCHES[0]); // Deep Sub Kick
-
-    // Sound config changed
-    expect(result.engine).toBe('plaits');
-    expect(result.model).toBe(13); // analog-bass-drum
-    expect(result.params.harmonics).toBe(0.3);
-
-    // Identity preserved
-    expect(result.id).toBe('track-keep');
-    expect(result.name).toBe('My Track');
-    expect(result.volume).toBe(0.7);
-    expect(result.pan).toBe(-0.3);
-    expect(result.agency).toBe('OFF');
-  });
-
-  it('preserves pattern data', () => {
-    const track = makeTrack({
-      patterns: [{ id: 'p1', name: 'My Pattern', duration: 32, events: [{ kind: 'trigger', at: 0, velocity: 1 }] }],
-    });
-
-    const result = applyPatch(track, BUILT_IN_PATCHES[0]);
-    expect(result.patterns).toHaveLength(1);
-    expect(result.patterns[0].events).toHaveLength(1);
-    expect(result.patterns[0].duration).toBe(32);
-  });
-
-  it('assigns new IDs to processors (no collisions)', () => {
-    const patch = BUILT_IN_PATCHES.find(p => p.processors && p.processors.length > 0)!;
-    const track1 = makeTrack({ id: 'track-1' });
-    const track2 = makeTrack({ id: 'track-2' });
-
-    const result1 = applyPatch(track1, patch);
-    const result2 = applyPatch(track2, patch);
-
-    // Different processor IDs
-    if (result1.processors && result2.processors) {
-      const ids1 = result1.processors.map(p => p.id);
-      const ids2 = result2.processors.map(p => p.id);
-      for (const id of ids1) {
-        expect(ids2).not.toContain(id);
-      }
-    }
-  });
-
-  it('remaps modulation routing IDs correctly', () => {
-    const patch: Patch = {
-      id: 'test-patch',
-      name: 'Test',
-      engine: 'plaits',
-      model: 0,
-      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-      processors: [{ id: 'ripples-orig', type: 'ripples', model: 0, params: { cutoff: 0.5 } }],
-      modulators: [{ id: 'tides-orig', type: 'tides', model: 0, params: { frequency: 0.3 } }],
-      modulations: [{
-        id: 'mod-orig',
-        modulatorId: 'tides-orig',
-        target: { kind: 'processor', processorId: 'ripples-orig', param: 'cutoff' },
-        depth: 0.3,
-      }],
-      createdAt: 0,
-    };
-
-    const track = makeTrack();
-    const result = applyPatch(track, patch);
-
-    // All IDs should be remapped
-    expect(result.processors![0].id).not.toBe('ripples-orig');
-    expect(result.modulators![0].id).not.toBe('tides-orig');
-    expect(result.modulations![0].id).not.toBe('mod-orig');
-
-    // Modulation should reference the new processor and modulator IDs
-    const newProcId = result.processors![0].id;
-    const newModId = result.modulators![0].id;
-    expect(result.modulations![0].modulatorId).toBe(newModId);
-    const target = result.modulations![0].target;
-    expect(target.kind).toBe('processor');
-    if (target.kind === 'processor') {
-      expect(target.processorId).toBe(newProcId);
-    }
-  });
-
-  it('sets _patternDirty flag', () => {
-    const track = makeTrack();
-    const result = applyPatch(track, BUILT_IN_PATCHES[0]);
-    expect(result._patternDirty).toBe(true);
   });
 });
 
