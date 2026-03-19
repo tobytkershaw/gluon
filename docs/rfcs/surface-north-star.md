@@ -118,7 +118,7 @@ The canonical views feel like engineering tools — precise, complete, honest. S
 
 **The Deep View** feels like opening the back panel. Full diagnostic access. Every parameter, every module, every weight. This is where trust is built — you can always see exactly what the abstraction is doing. And you can always escape to Rack, Patch, or Tracker for the full canonical truth.
 
-**The visual language** is not decoration — it's information. The kick track is visually heavy and deep-coloured. The hi-hats are thin and ghostly. When the AI acts, you see signal propagation. When the music builds, the visual density increases. Different projects feel visually distinct. The AI has maximum control over the visual aspects of everything inside the Surface canvas — colour, weight, motion, labelling, arrangement. This is part of the curation, not a layer on top of it. A Surface that looks the same for every track is failing at its job of communicating what each sound is.
+**The visual language** is not decoration — it's information. The kick track is visually heavy and deep-coloured. The hi-hats are thin and ghostly. When the AI acts, you see signal propagation. When the music builds, the visual density increases. Different projects feel visually distinct. The AI selects from constrained visual primitives (track colour, module weight, edge style, labelling) through the Surface Score system — it doesn't write arbitrary CSS. But visual differentiation between tracks is part of the curation, not a layer on top of it. A Surface that looks the same for every track is failing at its job of communicating what each sound is.
 
 ---
 
@@ -181,9 +181,9 @@ Surface modules operate at two levels:
 
 This is the difference between the AI as a **UI configurator** (picks from a menu of modules) and the AI as a **UI designer** (composes interfaces from primitives). Both levels exist. Level 1 is the foundation. Level 2 is where the vision gets genuinely novel.
 
-**Level 3: Interfaces to audio modules.** Some Surface modules are direct interfaces to audio-rate DSP modules in the chain. The Mutable Instruments library includes generative modules — Marbles (random pattern generator), Grids (topographic drum pattern generator), Stages (programmable envelope/sequencer) — that are not yet compiled for Gluon but exist in the open source codebase. A Surface "pattern generator" module is not new DSP — it's an interface to Marbles or Grids, with the controls curated by the AI for the task. The AI adds Marbles to the chain and surfaces its density, bias, and jitter controls with musical labels. This is exactly how Surface works: the canonical Rack view shows every Marbles parameter; the Surface shows the controls that matter for "dial in a hi-hat pattern."
+**Level 3: Interfaces to audio modules.** Some Surface modules are direct interfaces to audio-rate DSP modules in the chain. Every processor already in Gluon (Rings, Clouds, Ripples, Compressor, EQ, etc.) can have its controls surfaced as a curated module. The AI decides which controls to expose, how to label them, and whether to wire them into macro mappings.
 
-This extends to all audio modules. Every processor in the chain (Rings, Clouds, Ripples, Compressor, EQ, etc.) can have its controls surfaced as a curated module. The AI decides which controls to expose, how to label them, and whether to wire them into macro mappings — all based on the track's musical role.
+As the audio module library grows, this extends naturally. The Mutable Instruments open source codebase includes generative modules — Marbles (random pattern generator), Grids (topographic drum pattern generator), Stages (programmable envelope/sequencer) — that are not yet compiled for Gluon. If and when these are integrated as engine modules, a Surface "pattern generator" would be an interface to Marbles or Grids, with the controls curated by the AI for the task. Per the readiness rule below, these require engine work first — the Surface module follows after the audio module is canonical and inspectable.
 
 ### Surface modules are interfaces, not logic
 
@@ -301,7 +301,7 @@ Traditional instruments require you to already know what matters. Surface tells 
 
 | Operation | What | When |
 |-----------|------|------|
-| `set_surface` | Compose a complete surface (modules, bindings, positions, visual properties) | Chain changes, human asks for reorganisation |
+| `set_surface` | Compose a complete surface (modules, bindings, positions) | Chain changes, human asks for reorganisation |
 | `pin` | Surface a raw control | Human repeatedly adjusts same raw param, or asks |
 | `unpin` | Remove a pinned control | Surface cleanup |
 | `label_axes` | Set XY pad axes | Context shift (working on spatial vs timbral qualities) |
@@ -348,7 +348,7 @@ track LEAD (agency: ON)
 3. **The human can do everything the AI can.** Parity principle. The human can construct, edit, and reconfigure their own Surface. The AI accelerates — it should never be the only path.
 4. **Transparency is one click or one question away.** Every abstraction is inspectable — the human can see every weight, every mapping, and escape to the canonical views at any time.
 5. **Small vocabulary, rich composition.** A small set of UI module primitives that the AI assembles per-instrument, per-context. The modules are the atoms; the composition is the design. Novel controls can be composed from these primitives.
-6. **The visual language is information, not decoration.** The AI controls colour, weight, motion, and labelling inside the Surface canvas. Visual differentiation between tracks is part of the curation — it communicates what each sound is before the human touches anything.
+6. **The visual language is information, not decoration.** The AI selects from constrained visual primitives (colour, weight, motion, labelling) through the Surface Score system. Visual differentiation between tracks is part of the curation — it communicates what each sound is before the human touches anything.
 7. **Make it easy for the AI to get it right.** Constrain the Surface design space (layout slots, binding contracts, visual primitives) so that good surfaces emerge naturally. The same principle as the musical tools: constrain the physics, free the aesthetics.
 8. **Surface teaches implicitly.** The AI's curation communicates what matters for each sound. A beginner learns that kicks are about punch, tone, and tail because the Surface shows them.
 9. **The abstraction earns its place.** Simple tracks get raw controls. Semantic surfaces appear only when complexity demands it.
