@@ -1,20 +1,15 @@
 // src/audio/stereo-synth.ts
 import type { StereoProcessorCommand, StereoProcessorStatus, StereoPatchParams } from './stereo-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = new URL('./stereo-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface StereoEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: StereoPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type StereoEngine = ProcessorContract;
 
-export class StereoSynth implements StereoEngine {
+export class StereoSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<StereoSynth> {
@@ -38,6 +33,8 @@ export class StereoSynth implements StereoEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -81,7 +78,7 @@ export class StereoSynth implements StereoEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -93,14 +90,32 @@ export class StereoSynth implements StereoEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(1, mode));
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(1, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: StereoPatchParams): void {
-    this.currentPatch = { ...params };
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
+  }
+
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      width: params.width ?? this.currentPatch.width,
+      mid_gain: params.mid_gain ?? this.currentPatch.mid_gain,
+      side_gain: params.side_gain ?? this.currentPatch.side_gain,
+      delay: params.delay ?? this.currentPatch.delay,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('stereo', command);
   }
 
   silence(fence?: number): void {

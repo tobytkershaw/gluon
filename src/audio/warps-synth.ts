@@ -1,20 +1,15 @@
 // src/audio/warps-synth.ts
 import type { WarpsProcessorCommand, WarpsProcessorStatus, WarpsPatchParams } from './warps-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = new URL('./warps-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface WarpsEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setModel(model: number): void;
-  setPatch(params: WarpsPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type WarpsEngine = ProcessorContract;
 
-export class WarpsSynth implements WarpsEngine {
+export class WarpsSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<WarpsSynth> {
@@ -38,6 +33,8 @@ export class WarpsSynth implements WarpsEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -92,14 +89,26 @@ export class WarpsSynth implements WarpsEngine {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentModel = Math.max(0, Math.min(3, model));
     this.post({ type: 'set-model', model: this.currentModel });
   }
 
-  setPatch(params: WarpsPatchParams): void {
-    this.currentPatch = { ...params };
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      algorithm: params.algorithm ?? this.currentPatch.algorithm,
+      timbre: params.timbre ?? this.currentPatch.timbre,
+      level: params.level ?? this.currentPatch.level,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('warps', command);
   }
 
   silence(fence?: number): void {

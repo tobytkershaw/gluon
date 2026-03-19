@@ -1,20 +1,15 @@
 // src/audio/compressor-synth.ts
 import type { CompressorProcessorCommand, CompressorProcessorStatus, CompressorPatchParams } from './compressor-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = new URL('./compressor-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface CompressorEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: CompressorPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type CompressorEngine = ProcessorContract;
 
-export class CompressorSynth implements CompressorEngine {
+export class CompressorSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<CompressorSynth> {
@@ -38,6 +33,8 @@ export class CompressorSynth implements CompressorEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -83,7 +80,7 @@ export class CompressorSynth implements CompressorEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -92,6 +89,10 @@ export class CompressorSynth implements CompressorEngine {
   }
 
   get inputNode(): AudioNode {
+    return this.node;
+  }
+
+  get outputNode(): AudioNode {
     return this.node;
   }
 
@@ -110,14 +111,36 @@ export class CompressorSynth implements CompressorEngine {
     this.post({ type: 'sidechain', enabled });
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(3, mode));
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(3, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: CompressorPatchParams): void {
-    this.currentPatch = { ...params };
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
+  }
+
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      threshold: params.threshold ?? this.currentPatch.threshold,
+      ratio: params.ratio ?? this.currentPatch.ratio,
+      attack: params.attack ?? this.currentPatch.attack,
+      release: params.release ?? this.currentPatch.release,
+      makeup: params.makeup ?? this.currentPatch.makeup,
+      mix: params.mix ?? this.currentPatch.mix,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    switch (command.type) {
+      case 'sidechain-enabled':
+        this.setSidechainEnabled(command.enabled);
+        break;
+      default:
+        warnUnsupportedCommand('compressor', command);
+    }
   }
 
   silence(fence?: number): void {

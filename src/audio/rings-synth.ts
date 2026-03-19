@@ -1,28 +1,16 @@
 import type { RingsProcessorCommand, RingsProcessorStatus, RingsPatchParams } from './rings-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = '/audio/rings-worklet.js';
 const MODULE_URL = '/audio/rings-module.js';
 const WASM_URL = '/audio/rings.wasm';
 const INIT_TIMEOUT_MS = 5000;
 
-export interface RingsEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setModel(model: number): void;
-  setPatch(params: RingsPatchParams): void;
-  setNote(tonic: number, note: number): void;
-  setFineTune(offset: number): void;
-  setPolyphony(polyphony: number): void;
-  setInternalExciter(enabled: boolean): void;
-  strum(time: number): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  /** Mute resonator output until the next strum. */
-  damp(): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type RingsEngine = ProcessorContract;
 
-export class RingsSynth implements RingsEngine {
+export class RingsSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
   private static wasmBinaryLoad: Promise<ArrayBuffer> | null = null;
 
@@ -68,6 +56,8 @@ export class RingsSynth implements RingsEngine {
     }
     return this.wasmBinaryLoad;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -119,34 +109,84 @@ export class RingsSynth implements RingsEngine {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentModel = Math.max(0, Math.min(5, model));
     this.post({ type: 'set-model', model: this.currentModel });
   }
 
-  setPatch(params: RingsPatchParams): void {
-    this.currentPatch = { ...params };
+  setPatch(params: Record<string, number>): void {
+    // Continuous params → worklet patch message
+    this.currentPatch = {
+      structure: params.structure ?? this.currentPatch.structure,
+      brightness: params.brightness ?? this.currentPatch.brightness,
+      damping: params.damping ?? this.currentPatch.damping,
+      position: params.position ?? this.currentPatch.position,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+    // Discrete params dispatched as commands
+    if (params.polyphony !== undefined) {
+      this.post({ type: 'set-polyphony', polyphony: Math.max(1, Math.min(4, Math.round(params.polyphony))) });
+    }
+    if (params['internal-exciter'] !== undefined) {
+      this.post({ type: 'set-internal-exciter', enabled: params['internal-exciter'] >= 0.5 });
+    }
+    if (params['fine-tune'] !== undefined) {
+      this.post({ type: 'set-fine-tune', offset: params['fine-tune'] });
+    }
   }
 
+  sendCommand(command: ModuleCommand): void {
+    switch (command.type) {
+      case 'strum':
+        this.post({ type: 'strum', time: command.time });
+        break;
+      case 'damp':
+        this.post({ type: 'damp' });
+        break;
+      case 'set-note':
+        this.post({ type: 'set-note', tonic: command.tonic, note: command.note });
+        break;
+      case 'set-polyphony':
+        this.post({ type: 'set-polyphony', polyphony: Math.max(1, Math.min(4, command.polyphony)) });
+        break;
+      case 'set-internal-exciter':
+        this.post({ type: 'set-internal-exciter', enabled: command.enabled });
+        break;
+      case 'set-fine-tune':
+        this.post({ type: 'set-fine-tune', offset: command.offset });
+        break;
+      default:
+        warnUnsupportedCommand('rings', command);
+    }
+  }
+
+  /** @deprecated Use sendCommand({ type: 'set-note', tonic, note }) instead. */
   setNote(tonic: number, note: number): void {
-    this.post({ type: 'set-note', tonic, note });
+    this.sendCommand({ type: 'set-note', tonic, note });
   }
 
+  /** @deprecated Use sendCommand({ type: 'set-fine-tune', offset }) instead. */
   setFineTune(offset: number): void {
-    this.post({ type: 'set-fine-tune', offset });
+    this.sendCommand({ type: 'set-fine-tune', offset });
   }
 
+  /** @deprecated Use sendCommand({ type: 'set-polyphony', polyphony }) instead. */
   setPolyphony(polyphony: number): void {
-    this.post({ type: 'set-polyphony', polyphony: Math.max(1, Math.min(4, polyphony)) });
+    this.sendCommand({ type: 'set-polyphony', polyphony });
   }
 
+  /** @deprecated Use sendCommand({ type: 'set-internal-exciter', enabled }) instead. */
   setInternalExciter(enabled: boolean): void {
-    this.post({ type: 'set-internal-exciter', enabled });
+    this.sendCommand({ type: 'set-internal-exciter', enabled });
   }
 
+  /** @deprecated Use sendCommand({ type: 'strum', time }) instead. */
   strum(time: number): void {
-    this.post({ type: 'strum', time });
+    this.sendCommand({ type: 'strum', time });
   }
 
   silence(fence?: number): void {
@@ -161,8 +201,9 @@ export class RingsSynth implements RingsEngine {
     this.post({ type: 'clear-scheduled', fence: f });
   }
 
+  /** @deprecated Use sendCommand({ type: 'damp' }) instead. */
   damp(): void {
-    this.post({ type: 'damp' });
+    this.sendCommand({ type: 'damp' });
   }
 
   destroy(): void {

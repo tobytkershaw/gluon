@@ -1,20 +1,15 @@
 // src/audio/frames-synth.ts
 import type { FramesProcessorCommand, FramesProcessorStatus, FramesPatchParams } from './frames-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = new URL('./frames-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface FramesEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: FramesPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type FramesEngine = ProcessorContract;
 
-export class FramesSynth implements FramesEngine {
+export class FramesSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<FramesSynth> {
@@ -38,6 +33,8 @@ export class FramesSynth implements FramesEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -94,7 +91,7 @@ export class FramesSynth implements FramesEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -106,14 +103,48 @@ export class FramesSynth implements FramesEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(1, mode));
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(1, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: FramesPatchParams): void {
-    this.currentPatch = { ...params };
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
+  }
+
+  setPatch(params: Record<string, number>): void {
+    const result: FramesPatchParams = {
+      frame: params.frame ?? this.currentPatch.frame,
+      channel_1: params.channel_1 ?? this.currentPatch.channel_1,
+      channel_2: params.channel_2 ?? this.currentPatch.channel_2,
+      channel_3: params.channel_3 ?? this.currentPatch.channel_3,
+      channel_4: params.channel_4 ?? this.currentPatch.channel_4,
+      modulation: params.modulation ?? this.currentPatch.modulation,
+      kf_count: params.kf_count ?? this.currentPatch.kf_count,
+    };
+    // Copy keyframe data params (kf_N_pos, kf_N_ch1..ch4)
+    for (const key of Object.keys(params)) {
+      if (key.startsWith('kf_') && key !== 'kf_count') {
+        result[key] = params[key];
+      }
+    }
+    // Preserve existing keyframe data not in current params
+    for (const key of Object.keys(this.currentPatch)) {
+      if (key.startsWith('kf_') && key !== 'kf_count' && !(key in params)) {
+        result[key] = this.currentPatch[key];
+      }
+    }
+    this.currentPatch = result;
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('frames', command);
   }
 
   silence(fence?: number): void {

@@ -171,7 +171,7 @@ describe('AudioEngine', () => {
       ...makeTrackSlot(),
       sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
       chainOutGain,
-      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy: vi.fn(), setPatch: vi.fn(), setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
+      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { role: 'processor', inputNode: procNode, outputNode: procNode, destroy: vi.fn(), setPatch: vi.fn(), setModel: vi.fn(), sendCommand: vi.fn(), silence: vi.fn() } }],
     };
 
     (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
@@ -188,7 +188,7 @@ describe('AudioEngine', () => {
 
     const slot = {
       ...makeTrackSlot(),
-      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy: vi.fn(), setPatch, setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
+      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { role: 'processor', inputNode: procNode, outputNode: procNode, destroy: vi.fn(), setPatch, setModel: vi.fn(), sendCommand: vi.fn(), silence: vi.fn() } }],
     };
 
     (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
@@ -210,7 +210,7 @@ describe('AudioEngine', () => {
       ...makeTrackSlot(),
       sourceOut: { gain: { value: 1 }, connect: sourceOutConnect, disconnect: sourceOutDisconnect },
       chainOutGain,
-      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { inputNode: procNode, destroy, setPatch: vi.fn(), setModel: vi.fn(), setNote: vi.fn(), setPolyphony: vi.fn(), setInternalExciter: vi.fn(), strum: vi.fn() } }],
+      processors: [{ id: 'rings-0', type: 'rings' as const, engine: { role: 'processor', inputNode: procNode, outputNode: procNode, destroy, setPatch: vi.fn(), setModel: vi.fn(), sendCommand: vi.fn(), silence: vi.fn() } }],
     };
 
     (engine as { tracks: Map<string, unknown> }).tracks = new Map([['v0', slot]]);
@@ -232,7 +232,7 @@ describe('AudioEngine', () => {
     (engine as { tracks: Map<string, unknown> }).tracks = new Map([
       ['v0', {
         ...makeTrackSlot(pool),
-        processors: [{ id: 'rings-0', type: 'rings', engine: { silence: procSilence, damp: vi.fn() } }],
+        processors: [{ id: 'rings-0', type: 'rings', engine: { silence: procSilence, sendCommand: vi.fn() } }],
       }],
     ]);
     (engine as { modulatorSlots: Map<string, unknown[]> }).modulatorSlots = new Map([
@@ -359,7 +359,7 @@ describe('AudioEngine', () => {
     (engine as { tracks: Map<string, unknown> }).tracks = new Map([
       ['v0', {
         ...makeTrackSlot(pool),
-        processors: [{ id: 'rings-0', type: 'rings', engine: { silence: procSilence, damp: vi.fn() } }],
+        processors: [{ id: 'rings-0', type: 'rings', engine: { silence: procSilence, sendCommand: vi.fn() } }],
       }],
     ]);
     (engine as { modulatorSlots: Map<string, unknown[]> }).modulatorSlots = new Map();

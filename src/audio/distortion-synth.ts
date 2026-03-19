@@ -1,20 +1,15 @@
 // src/audio/distortion-synth.ts
 import type { DistortionProcessorCommand, DistortionProcessorStatus, DistortionPatchParams } from './distortion-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = new URL('./distortion-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface DistortionEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: DistortionPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type DistortionEngine = ProcessorContract;
 
-export class DistortionSynth implements DistortionEngine {
+export class DistortionSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<DistortionSynth> {
@@ -38,6 +33,8 @@ export class DistortionSynth implements DistortionEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -82,7 +79,7 @@ export class DistortionSynth implements DistortionEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -94,14 +91,33 @@ export class DistortionSynth implements DistortionEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(3, mode));
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(3, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: DistortionPatchParams): void {
-    this.currentPatch = { ...params };
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
+  }
+
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      drive: params.drive ?? this.currentPatch.drive,
+      tone: params.tone ?? this.currentPatch.tone,
+      mix: params.mix ?? this.currentPatch.mix,
+      bits: params.bits ?? this.currentPatch.bits,
+      downsample: params.downsample ?? this.currentPatch.downsample,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('distortion', command);
   }
 
   silence(fence?: number): void {

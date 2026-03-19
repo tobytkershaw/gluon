@@ -1,25 +1,16 @@
 import type { ElementsProcessorCommand, ElementsProcessorStatus, ElementsPatchParams } from './elements-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = '/audio/elements-worklet.js';
 const MODULE_URL = '/audio/elements-module.js';
 const WASM_URL = '/audio/elements.wasm';
 const INIT_TIMEOUT_MS = 5000;
 
-export interface ElementsEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setModel(model: number): void;
-  setPatch(params: ElementsPatchParams): void;
-  setNote(note: number): void;
-  gate(gate: boolean, time?: number): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  /** Mute output until the next gate. */
-  damp(): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type ElementsEngine = ProcessorContract;
 
-export class ElementsSynth implements ElementsEngine {
+export class ElementsSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
   private static wasmBinaryLoad: Promise<ArrayBuffer> | null = null;
 
@@ -65,6 +56,8 @@ export class ElementsSynth implements ElementsEngine {
     }
     return this.wasmBinaryLoad;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -124,38 +117,73 @@ export class ElementsSynth implements ElementsEngine {
     return this.node;
   }
 
+  get outputNode(): AudioNode {
+    return this.node;
+  }
+
   setModel(model: number): void {
     this.currentModel = Math.max(0, Math.min(1, model));
     this.post({ type: 'set-model', model: this.currentModel });
   }
 
-  setPatch(params: ElementsPatchParams): void {
-    this.currentPatch = { ...params };
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      bow_level: params['bow_level'] ?? this.currentPatch.bow_level,
+      bow_timbre: params['bow_timbre'] ?? this.currentPatch.bow_timbre,
+      blow_level: params['blow_level'] ?? this.currentPatch.blow_level,
+      blow_timbre: params['blow_timbre'] ?? this.currentPatch.blow_timbre,
+      strike_level: params['strike_level'] ?? this.currentPatch.strike_level,
+      strike_timbre: params['strike_timbre'] ?? this.currentPatch.strike_timbre,
+      coarse: params.coarse ?? this.currentPatch.coarse,
+      fine: params.fine ?? this.currentPatch.fine,
+      geometry: params.geometry ?? this.currentPatch.geometry,
+      brightness: params.brightness ?? this.currentPatch.brightness,
+      damping: params.damping ?? this.currentPatch.damping,
+      position: params.position ?? this.currentPatch.position,
+      space: params.space ?? this.currentPatch.space,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
   }
 
+  sendCommand(command: ModuleCommand): void {
+    switch (command.type) {
+      case 'gate':
+        this.post({ type: 'gate', gate: command.open, time: command.time });
+        break;
+      case 'damp':
+        this.post({ type: 'damp' });
+        break;
+      case 'set-note':
+        // Elements uses single note (not tonic+note like Rings)
+        this.post({ type: 'set-note', note: command.note });
+        break;
+      default:
+        warnUnsupportedCommand('elements', command);
+    }
+  }
+
+  /** @deprecated Use sendCommand({ type: 'set-note', tonic: 0, note }) instead. */
   setNote(note: number): void {
     this.post({ type: 'set-note', note });
   }
 
+  /** @deprecated Use sendCommand({ type: 'gate', open, time }) instead. */
   gate(gate: boolean, time?: number): void {
-    this.post({ type: 'gate', gate, time });
+    this.sendCommand({ type: 'gate', open: gate, time });
   }
 
   silence(fence?: number): void {
     const f = fence ?? 0;
-    // Synchronous: AudioParam is read in the same process() block,
-    // eliminating the race where postMessage arrives between blocks.
     const minFenceParam = this.node.parameters.get('min-fence');
     if (minFenceParam) {
       minFenceParam.setValueAtTime(f, 0);
     }
-    // Fallback: message-based clear (kept for compatibility)
     this.post({ type: 'clear-scheduled', fence: f });
   }
 
+  /** @deprecated Use sendCommand({ type: 'damp' }) instead. */
   damp(): void {
-    this.post({ type: 'damp' });
+    this.sendCommand({ type: 'damp' });
   }
 
   destroy(): void {
