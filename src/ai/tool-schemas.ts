@@ -295,7 +295,43 @@ const editPatternTool: ToolSchema = {
               description: '"add" inserts an event, "remove" deletes it, "modify" changes properties in place.',
             },
             step: {
-              description: 'Step position (number or string). Accepts either a 0-based step number (e.g. 4, supports fractional values like 4.1 for microtiming) or a "bar.beat.sixteenth" string (e.g. "1.1.1" = step 0, "3.2.1" = step 36). For remove/modify, matches the nearest event within tolerance (0.001). Prefer bar.beat.sixteenth for multi-bar patterns.',
+              description: 'Step position (number or string). Accepts either a 0-based step number (e.g. 4, supports fractional values like 4.1 for microtiming) or a "bar.beat.sixteenth" string (e.g. "1.1.1" = step 0, "3.2.1" = step 36). Required for add operations. For remove/modify, you may omit step and use select instead. Prefer bar.beat.sixteenth for multi-bar patterns.',
+            },
+            select: {
+              type: 'object',
+              description: 'Property-based selector for remove/modify when exact microtiming is unknown. Must resolve to exactly one existing event against the current pattern state at that point in the batch. Example: { bar: 2, type: "note", pitchClass: "D", velocity: "max" }.',
+              properties: {
+                bar: {
+                  type: 'integer',
+                  description: '1-based bar number to search within.',
+                },
+                type: {
+                  type: 'string',
+                  enum: ['trigger', 'note', 'parameter'],
+                  description: 'Event kind to match.',
+                },
+                pitch: {
+                  type: 'integer',
+                  description: 'Exact MIDI pitch to match for note events.',
+                },
+                pitchClass: {
+                  type: 'string',
+                  description: 'Pitch class to match for note events (e.g. "C", "D#", "Bb").',
+                },
+                velocity: {
+                  type: 'string',
+                  enum: ['max', 'min'],
+                  description: 'Pick the loudest or softest non-disabled matching trigger/note when several candidates exist.',
+                },
+                accent: {
+                  type: 'boolean',
+                  description: 'Match accented or unaccented trigger events.',
+                },
+                controlId: {
+                  type: 'string',
+                  description: 'Control ID to match for parameter events.',
+                },
+              },
             },
             event: {
               type: 'object',
@@ -343,7 +379,7 @@ const editPatternTool: ToolSchema = {
               },
             },
           },
-          required: ['action', 'step'],
+          required: ['action'],
         },
       },
       description: {

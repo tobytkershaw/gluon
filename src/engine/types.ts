@@ -552,6 +552,11 @@ export interface AITransformAction {
 export interface PatternEditOp {
   action: 'add' | 'remove' | 'modify';
   step: number;
+  /** AI-only disambiguator for targeting one existing stacked gate event at a step. */
+  match?: {
+    type: 'trigger' | 'note';
+    pitch?: number;      // match an existing note at this step
+  };
   event?: {
     type: 'trigger' | 'note';
     pitch?: number;      // 0-127 for notes
