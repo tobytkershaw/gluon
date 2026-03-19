@@ -260,7 +260,7 @@ function toMarblesPatchParams(params: Record<string, number>): MarblesPatchParam
     spread: params.spread ?? 0.5,
     bias: params.bias ?? 0.5,
     steps: params.steps ?? 0.0,
-    deja_vu: params.deja_vu ?? params['deja_vu'] ?? 0.0,
+    deja_vu: params.deja_vu ?? 0.0,
     length: params.length ?? 0.25,
   };
 }

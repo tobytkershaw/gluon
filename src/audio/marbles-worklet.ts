@@ -41,21 +41,20 @@ class Xoshiro128ss {
   private s3: number;
 
   constructor(seed: number) {
-    // SplitMix32 to expand seed into 4 state words
-    let z = seed | 0;
-    z = (z + 0x9e3779b9) | 0;
+    // SplitMix32 to expand seed into 4 state words (chained from prior z)
+    let z = (seed + 0x9e3779b9) | 0;
     z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
     z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
     this.s0 = (z ^ (z >>> 16)) | 0;
-    z = (seed + 0x9e3779b9 * 2) | 0;
+    z = (z + 0x9e3779b9) | 0;
     z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
     z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
     this.s1 = (z ^ (z >>> 16)) | 0;
-    z = (seed + 0x9e3779b9 * 3) | 0;
+    z = (z + 0x9e3779b9) | 0;
     z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
     z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
     this.s2 = (z ^ (z >>> 16)) | 0;
-    z = (seed + 0x9e3779b9 * 4) | 0;
+    z = (z + 0x9e3779b9) | 0;
     z = Math.imul(z ^ (z >>> 16), 0x85ebca6b);
     z = Math.imul(z ^ (z >>> 13), 0xc2b2ae35);
     this.s3 = (z ^ (z >>> 16)) | 0;
@@ -130,6 +129,10 @@ class MarblesProcessor extends AudioWorkletProcessor {
   private loopLength = 4;  // effective length in steps
   private loopFilled = 0;  // how many steps have been written
   private loopReadPos = 0; // current read position for replay
+
+  // Independent gate loop positions (gate pipeline needs its own state)
+  private gateLoopWritePos = 0;
+  private gateLoopReadPos = 0;
 
   constructor() {
     super();
@@ -335,10 +338,7 @@ class MarblesProcessor extends AudioWorkletProcessor {
     // 3. Process through deja vu loop
     const looped = this.processDejaVu(biased, 0);
 
-    // 4. Scale to -1..+1 range
-    const bipolar = looped * 2 - 1;
-
-    // 5. Apply quantization
+    // 4. Apply quantization
     // Quantize in unipolar space, then convert
     const quantized = this.quantize(looped, this.smoothSteps);
     return quantized * 2 - 1;
@@ -352,28 +352,33 @@ class MarblesProcessor extends AudioWorkletProcessor {
     // Generate raw gate decision
     const rawDecision = this.rng.next();
 
-    // Process through deja vu gate buffer
+    // Process through deja vu gate buffer (uses dedicated gate loop positions)
     let gateValue: number;
     if (dv < 0.01 || this.loopFilled === 0) {
       gateValue = rawDecision;
-      this.loopGateBuffer[this.loopWritePos % len] = gateValue;
+      this.loopGateBuffer[this.gateLoopWritePos % len] = gateValue;
+      this.gateLoopWritePos = (this.gateLoopWritePos + 1) % len;
     } else if (dv <= 0.5) {
       const replayProb = dv * 2;
       if (this.rng.next() < replayProb && this.loopFilled > 0) {
         const effectiveLen = Math.min(len, this.loopFilled);
-        gateValue = this.loopGateBuffer[this.loopReadPos % effectiveLen];
+        gateValue = this.loopGateBuffer[this.gateLoopReadPos % effectiveLen];
+        this.gateLoopReadPos = (this.gateLoopReadPos + 1) % effectiveLen;
       } else {
         gateValue = rawDecision;
-        this.loopGateBuffer[this.loopWritePos % len] = gateValue;
+        this.loopGateBuffer[this.gateLoopWritePos % len] = gateValue;
+        this.gateLoopWritePos = (this.gateLoopWritePos + 1) % len;
       }
     } else {
       const permutationProb = (dv - 0.5) * 2;
       const effectiveLen = Math.min(len, this.loopFilled);
       if (effectiveLen > 0 && this.rng.next() < permutationProb) {
         const randomPos = Math.floor(this.rng.next() * effectiveLen);
+        this.gateLoopReadPos = (randomPos + 1) % effectiveLen;
         gateValue = this.loopGateBuffer[randomPos];
       } else {
-        const readPos = this.loopReadPos % Math.max(1, effectiveLen);
+        const readPos = this.gateLoopReadPos % Math.max(1, effectiveLen);
+        this.gateLoopReadPos = (readPos + 1) % Math.max(1, effectiveLen);
         gateValue = this.loopGateBuffer[readPos];
       }
     }
