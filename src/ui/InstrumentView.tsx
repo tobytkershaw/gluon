@@ -17,6 +17,7 @@ interface Props {
   onAgencyChange: (agency: Agency) => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
+  onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
   // Processor editing
   selectedProcessorId: string | null;
   onSelectProcessor: (processorId: string | null) => void;
@@ -61,6 +62,7 @@ export function InstrumentView({
   playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
+  onExtendedSourceParamChange,
   selectedProcessorId, onSelectProcessor,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor,
@@ -90,6 +92,7 @@ export function InstrumentView({
           onAgencyChange={onAgencyChange}
           onNoteChange={onNoteChange}
           onHarmonicsChange={onHarmonicsChange}
+          onExtendedSourceParamChange={onExtendedSourceParamChange}
           selectedProcessorId={selectedProcessorId}
           onSelectProcessor={onSelectProcessor}
           onProcessorParamChange={onProcessorParamChange}

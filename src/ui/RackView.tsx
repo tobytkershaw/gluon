@@ -7,13 +7,13 @@
 import { useState, useMemo } from 'react';
 import type { Track } from '../engine/types';
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
-import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { ModulePanel } from './ModulePanel';
 import { ChainStrip } from './ChainStrip';
 import { RoutingChips } from './RoutingChip';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
 import type { KnobModulationInfo } from './Knob';
+import { routeSourceModuleParam } from './source-param-routing';
 
 interface RackViewProps {
   activeTrack: Track;
@@ -24,6 +24,7 @@ interface RackViewProps {
   onModelChange: (model: number) => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
+  onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
   // Processor editing
   onProcessorParamChange: (processorId: string, param: string, value: number) => void;
   onProcessorInteractionStart: (processorId: string) => void;
@@ -101,6 +102,7 @@ export function RackView({
   activeTrack,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onNoteChange, onHarmonicsChange,
+  onExtendedSourceParamChange,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor, onToggleProcessorEnabled,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
@@ -150,18 +152,12 @@ export function RackView({
           label={sourceLabel}
           accentColor="amber"
           controls={getSourceControls(activeTrack)}
-          onParamChange={(controlId, value) => {
-            const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
-            if (runtimeParam === 'timbre') {
-              onParamChange(value, activeTrack.params.morph);
-            } else if (runtimeParam === 'morph') {
-              onParamChange(activeTrack.params.timbre, value);
-            } else if (runtimeParam === 'note') {
-              onNoteChange(value);
-            } else if (runtimeParam === 'harmonics') {
-              onHarmonicsChange(value);
-            }
-          }}
+          onParamChange={(controlId, value) => routeSourceModuleParam(controlId, value, activeTrack, {
+            onParamChange,
+            onNoteChange,
+            onHarmonicsChange,
+            onExtendedSourceParamChange,
+          })}
           onInteractionStart={onInteractionStart}
           onInteractionEnd={onInteractionEnd}
           engines={sourceEngines}

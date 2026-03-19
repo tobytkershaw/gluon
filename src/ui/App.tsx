@@ -690,6 +690,37 @@ export default function App() {
     maybeRecordAutomation(vid, 'harmonics', harmonics);
   }, [ensureAudio, maybeRecordAutomation]);
 
+  const handleExtendedSourceParamChange = useCallback((runtimeParam: string, value: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    autoRef.current.cancel(vid, runtimeParam);
+    arbRef.current.humanTouched(vid, runtimeParam, value, 'source');
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      const prevValue = track.params[runtimeParam] ?? 0;
+      const next = updateTrackParams(s, vid, { [runtimeParam]: value }, true, plaitsAdapter);
+      if (Math.abs(value - prevValue) < 0.001) return next;
+      const controlId = plaitsAdapter.mapRuntimeParamKey(runtimeParam);
+      const prevProvenance: Partial<ControlState> = {};
+      if (controlId && track.controlProvenance?.[controlId]) {
+        prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
+      }
+      const snapshot: ParamSnapshot = {
+        kind: 'param',
+        trackId: vid,
+        prevValues: { [runtimeParam]: prevValue },
+        aiTargetValues: { [runtimeParam]: value },
+        prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
+        timestamp: Date.now(),
+        description: `${controlId ?? runtimeParam} change`,
+      };
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
+
+    // Record automation if recording
+    maybeRecordAutomation(vid, runtimeParam, value);
+  }, [ensureAudio, maybeRecordAutomation]);
+
   const handleSourceInteractionStart = useCallback(() => {
     const s = sessionRef.current;
     arbRef.current.humanInteractionStart(s.activeTrackId);
@@ -2270,6 +2301,7 @@ export default function App() {
             onAgencyChange={handleAgencyChange}
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
+            onExtendedSourceParamChange={handleExtendedSourceParamChange}
             selectedProcessorId={selectedProcessorId}
             onSelectProcessor={setSelectedProcessorId}
             onProcessorParamChange={handleProcessorParamChange}
@@ -2312,6 +2344,7 @@ export default function App() {
             onModelChange={handleModelChange}
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
+            onExtendedSourceParamChange={handleExtendedSourceParamChange}
             onProcessorParamChange={handleProcessorParamChange}
             onProcessorInteractionStart={handleProcessorInteractionStart}
             onProcessorInteractionEnd={handleProcessorInteractionEnd}

@@ -3,7 +3,6 @@
 import type { Session, Track, Agency, SequencerViewKind, SemanticControlDef } from "../engine/types";
 import { getActivePattern } from "../engine/types";
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
-import { controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
 import { ParameterSpace } from './ParameterSpace';
 import { Visualiser } from './Visualiser';
@@ -15,6 +14,7 @@ import { RoutingChips } from './RoutingChip';
 import { DeepView } from './DeepView';
 import { SemanticControlsSection } from './SemanticControlsSection';
 import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
+import { routeSourceModuleParam } from './source-param-routing';
 
 interface ExpandedTrackProps {
   session: Session;
@@ -30,6 +30,7 @@ interface ExpandedTrackProps {
   onAgencyChange: (agency: Agency) => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
+  onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
   // Processor editing
   selectedProcessorId: string | null;
   onSelectProcessor: (processorId: string | null) => void;
@@ -75,6 +76,7 @@ export function ExpandedTrack({
   playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
+  onExtendedSourceParamChange,
   selectedProcessorId, onSelectProcessor,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor, onToggleProcessorEnabled,
@@ -162,18 +164,12 @@ export function ExpandedTrack({
             label={sourceLabel}
             accentColor="amber"
             controls={getSourceControls(activeTrack)}
-            onParamChange={(controlId, value) => {
-              const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
-              if (runtimeParam === 'timbre') {
-                onParamChange(value, activeTrack.params.morph);
-              } else if (runtimeParam === 'morph') {
-                onParamChange(activeTrack.params.timbre, value);
-              } else if (runtimeParam === 'note') {
-                onNoteChange(value);
-              } else if (runtimeParam === 'harmonics') {
-                onHarmonicsChange(value);
-              }
-            }}
+            onParamChange={(controlId, value) => routeSourceModuleParam(controlId, value, activeTrack, {
+              onParamChange,
+              onNoteChange,
+              onHarmonicsChange,
+              onExtendedSourceParamChange,
+            })}
             onInteractionStart={onInteractionStart}
             onInteractionEnd={onInteractionEnd}
             engines={sourceEngines}

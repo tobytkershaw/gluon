@@ -11,6 +11,7 @@ import {
 } from '../../src/engine/session';
 import { applyUndo } from '../../src/engine/primitives';
 import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
+import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
 
 describe('Session (Phase 2)', () => {
   it('creates a session with 1 audio track plus a master bus', () => {
@@ -65,6 +66,19 @@ describe('Session (Phase 2)', () => {
     const s2 = updateTrackParams(s1, vid, { timbre: 0.8 });
     expect(s2.tracks.find(v => v.id === vid)!.params.timbre).toBe(0.8);
     expect(s1.tracks.find(v => v.id === vid)!.params.timbre).toBe(0.5);
+  });
+
+  it('updates extended Plaits params by trackId', () => {
+    const s1 = createSession();
+    const vid = s1.tracks[0].id;
+    const adapter = createPlaitsAdapter();
+    const s2 = updateTrackParams(s1, vid, { decay: 0.2, lpg_colour: 0.7 }, true, adapter);
+
+    const track = s2.tracks.find(v => v.id === vid)!;
+    expect(track.params.decay).toBe(0.2);
+    expect(track.params.lpg_colour).toBe(0.7);
+    expect(s2.recentHumanActions).toHaveLength(2);
+    expect(s2.recentHumanActions.map(a => a.param)).toEqual(['decay', 'lpg_colour']);
   });
 
   it('sets model by trackId', () => {
