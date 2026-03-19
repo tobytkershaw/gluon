@@ -78,6 +78,15 @@ const moduleDefs: SurfaceModuleDef[] = [
     minSize: { w: 4, h: 3 },
     maxSize: { w: 12, h: 6 },
   },
+  {
+    type: 'level-meter',
+    name: 'Level Meter',
+    description: 'Read-only signal level display (peak/RMS).',
+    requiredBindings: [{ role: 'track', description: 'Track to monitor signal level for' }],
+    defaultSize: { w: 2, h: 4 },
+    minSize: { w: 1, h: 3 },
+    maxSize: { w: 3, h: 6 },
+  },
 ];
 
 const moduleDefMap = new Map<string, SurfaceModuleDef>(
