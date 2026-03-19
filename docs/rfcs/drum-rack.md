@@ -179,16 +179,21 @@ drums (drum-rack, 4 pads, agency ON, approval exploratory):
 
 Each lane is a string of characters, one per 16th-note step. Bar lines (`|`) are visual separators (not counted as steps).
 
-| Character | Meaning | Velocity range |
-|-----------|---------|---------------|
-| `x` | Accent hit | 0.90–1.0 |
-| `o` | Normal hit | 0.6–0.89 |
-| `g` | Ghost note | 0.2–0.39 |
-| `h` | Soft hit | 0.4–0.59 |
-| `H` | Loud hit | 0.8–0.95 |
-| `O` | Open (for hats, cymbals) | 0.7–0.9 |
-| `.` | Rest | — |
-| `|` | Bar line (visual only) | — |
+| Character | Meaning | Velocity range | Default velocity |
+|-----------|---------|---------------|-----------------|
+| `x` | Accent hit | 0.90–1.0 | 0.95 |
+| `H` | Loud hit | 0.84–0.89 | 0.88 |
+| `O` | Open (for hats, cymbals) | 0.77–0.83 | 0.80 |
+| `o` | Normal hit | 0.60–0.76 | 0.75 |
+| `h` | Soft hit | 0.40–0.59 | 0.50 |
+| `g` | Ghost note | 0.20–0.39 | 0.30 |
+| `.` | Rest | — | — |
+| `|` | Bar line (visual only) | — | — |
+
+> **Implementation note:** The velocity ranges are non-overlapping and evaluated top-down
+> (highest threshold first). Default velocities are the category midpoints used by
+> `gridToEvents()` for round-trip fidelity. See `src/engine/drum-grid.ts` for the
+> canonical thresholds.
 
 The legend maps characters to velocity categories. It's included in the compressed state so the AI doesn't have to memorize mappings. Different kits can use different legends — the characters are conventions, not fixed protocol.
 
