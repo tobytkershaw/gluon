@@ -1639,6 +1639,54 @@ describe('manage_track — adversarial', () => {
 });
 
 // ---------------------------------------------------------------------------
+// setup_return_bus
+// ---------------------------------------------------------------------------
+
+describe('setup_return_bus — adversarial', () => {
+  it('rejects missing sourceTrackId', async () => {
+    const { response, actions } = await callTool(makeSession(), 'setup_return_bus', {
+      processorType: 'clouds',
+      description: 'test',
+    });
+    expect(response.error).toMatch(/sourceTrackId/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('rejects unsupported processor type', async () => {
+    const session = makeSession();
+    const { response, actions } = await callTool(session, 'setup_return_bus', {
+      sourceTrackId: session.tracks[0].id,
+      processorType: 'rings',
+      description: 'test',
+    });
+    expect(response.error).toMatch(/unsupported/i);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('builds bus, processor, wet, and send actions for a valid return bus', async () => {
+    const session = makeSession();
+    const { response, actions } = await callTool(session, 'setup_return_bus', {
+      sourceTrackId: session.tracks[0].id,
+      processorType: 'clouds',
+      processorModel: 'pitch_shifter',
+      wet: 1.0,
+      sendLevel: 0.3,
+      name: 'Delay',
+      description: 'create delay return',
+    });
+    expect(response.applied).toBe(true);
+    expect(response.busId).toBeDefined();
+    expect(response.processorId).toBeDefined();
+    expect(actions).toHaveLength(5);
+    expect(actions[0]).toMatchObject({ type: 'add_track', kind: 'bus' });
+    expect(actions[1]).toMatchObject({ type: 'add_processor', moduleType: 'clouds' });
+    expect(actions[2]).toMatchObject({ type: 'set_model', model: 'pitch_shifter' });
+    expect(actions[3]).toMatchObject({ type: 'move', param: 'dry-wet', target: { absolute: 1.0 } });
+    expect(actions[4]).toMatchObject({ type: 'manage_send', action: 'add', level: 0.3 });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // transform
 // ---------------------------------------------------------------------------
 

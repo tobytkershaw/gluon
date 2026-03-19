@@ -97,6 +97,8 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { action: 'add', kind: 'audio', description: 'test' };
     case 'manage_send':
       return { action: 'add', trackId: 'v0', busId: 'master-bus', level: 0.5 };
+    case 'setup_return_bus':
+      return { sourceTrackId: 'v0', processorType: 'clouds', description: 'test return bus' };
     case 'set_master':
       return { volume: 0.7 };
     case 'manage_pattern':
@@ -196,7 +198,7 @@ describe('API Structural Integrity', () => {
       'move', 'sketch', 'edit_pattern', 'set_transport', 'set_model', 'transform',
       'manage_view', 'manage_processor', 'manage_modulator',
       'modulation_route', 'set_surface', 'pin_control', 'label_axes',
-      'manage_send', 'set_master', 'manage_pattern', 'manage_sequence',
+      'manage_send', 'setup_return_bus', 'set_master', 'manage_pattern', 'manage_sequence',
       'set_track_meta', 'manage_track', 'raise_decision', 'report_bug',
       'set_intent', 'set_section', 'set_scale', 'set_tension', 'shape_timbre',
       'apply_chain_recipe', 'set_mix_role', 'apply_modulation',
@@ -220,7 +222,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(40);
+    expect(GLUON_TOOLS.length).toBe(41);
   });
 
   // -----------------------------------------------------------------------

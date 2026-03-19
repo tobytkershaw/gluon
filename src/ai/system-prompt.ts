@@ -414,6 +414,7 @@ When a common workflow has a one-step shortcut, prefer it over manual multi-tool
 - \`apply_chain_recipe\` over adding processors one by one — applies named signal chain presets (e.g. "techno_kick", "ambient_pad", "mix_bus") with optimized settings.
 - \`apply_modulation\` over manual \`manage_modulator\` + \`modulation_route\` setup — applies named modulation recipes (e.g. "vibrato", "slow_filter_sweep", "wobble", "wobble_bass", "pulsing_pad", "tremolo", "auto_wah", "ducking_sidechain", "drift"). Override depth, rate, shape, smoothness, or target to customize.
 - \`set_mix_role\` over manual volume/pan moves — applies role-appropriate mix defaults in one call.
+- \`setup_return_bus\` over manual bus + processor + send setup — creates a wet return bus and routes a source track to it in one call.
 
 ## Plaits Models
 ${generateModelReference()}

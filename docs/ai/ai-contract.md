@@ -541,6 +541,22 @@ Load a saved patch onto a track. Replaces the track's sound configuration while 
 
 Built-in patches: Deep Sub Kick, Acid Bass, Warm Pad, Crisp Snare, Digital Lead, Metallic Hi-Hat, Swarm Texture, Resonant Bell. User-saved patches also available. Compound tool — emits remove/add/move/set_model actions. Undoable as an action group.
 
+#### `setup_return_bus`
+
+Create a return bus with a wet-capable processor and route a source track to it via a send. Handles bus creation, processor insertion, optional model selection, wet level, and send routing in one call.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sourceTrackId` | string | yes | Source track — ordinal (e.g. "Track 1") or internal ID. |
+| `processorType` | string | yes | Wet-capable processor type (e.g. "reverb", "delay"). |
+| `description` | string | yes | Purpose description for the return bus. |
+| `name` | string | no | Label for the new bus track. |
+| `processorModel` | string | no | Processor model/mode to set after adding. |
+| `wet` | number | no | Wet parameter level 0.0–1.0 (default 1.0). |
+| `sendLevel` | number | no | Send level 0.0–1.0 (default 0.3). |
+
+Compound tool — emits add_track, add_processor, set_model (optional), move (wet), and manage_send actions. Undoable as an action group.
+
 #### `list_patches`
 
 List available patches (built-in and user-saved). Optionally filter by tag.
