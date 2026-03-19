@@ -795,6 +795,19 @@ export function finalizeAITurn(
   const combinedSay = sayTexts.join(' ');
   if (combinedSay || log.length > 0) {
     const hasUndoEntries = next.undoStack.length > undoBaseline;
+    // Derive scope tracks from log entries — deduplicate by trackId
+    const scopeMap = new Map<string, { trackId: string; name: string; agency: import('./types').Agency }>();
+    for (const entry of log) {
+      if (!scopeMap.has(entry.trackId)) {
+        const track = next.tracks.find(t => t.id === entry.trackId);
+        scopeMap.set(entry.trackId, {
+          trackId: entry.trackId,
+          name: track?.name || entry.trackLabel || entry.trackId,
+          agency: track?.agency ?? 'OFF',
+        });
+      }
+    }
+    const scopeTracks = scopeMap.size > 0 ? [...scopeMap.values()] : undefined;
     next = {
       ...next,
       messages: [...next.messages, {
@@ -804,6 +817,7 @@ export function finalizeAITurn(
         ...(log.length > 0 ? { actions: log } : {}),
         ...(toolCalls && toolCalls.length > 0 ? { toolCalls } : {}),
         ...(hasUndoEntries ? { undoStackRange: { start: undoBaseline, end: next.undoStack.length - 1 } } : {}),
+        ...(scopeTracks ? { scopeTracks } : {}),
       }],
     };
   }

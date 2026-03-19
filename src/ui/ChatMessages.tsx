@@ -1,5 +1,5 @@
 import { useRef, useEffect } from 'react';
-import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry } from '../engine/types';
+import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry, Agency } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 import { PromptStarters } from './PromptStarters';
@@ -19,6 +19,52 @@ export function getPhaseLabel(
   if (logEntryCount > 0) return `Applying ${logEntryCount} ${logEntryCount === 1 ? 'change' : 'changes'}`;
   if (isThinking) return 'Thinking\u2026';
   return null;
+}
+
+/**
+ * Derive scope tracks from streaming log entries + current tracks.
+ * Pure function — exported for testing.
+ */
+export function deriveScopeTracks(
+  logEntries: ActionLogEntry[],
+  tracks: Track[],
+): Array<{ trackId: string; name: string; agency: Agency }> {
+  const seen = new Map<string, { trackId: string; name: string; agency: Agency }>();
+  for (const entry of logEntries) {
+    if (!seen.has(entry.trackId)) {
+      const track = tracks.find(t => t.id === entry.trackId);
+      seen.set(entry.trackId, {
+        trackId: entry.trackId,
+        name: track?.name || entry.trackLabel || entry.trackId,
+        agency: track?.agency ?? 'OFF',
+      });
+    }
+  }
+  return [...seen.values()];
+}
+
+/** Compact badge showing which tracks the AI is targeting and their agency state. */
+function ScopeBadge({ scopeTracks }: { scopeTracks: Array<{ trackId: string; name: string; agency: Agency }> }) {
+  if (scopeTracks.length === 0) return null;
+  return (
+    <div
+      className="flex flex-wrap items-baseline gap-x-1 text-[11px] font-mono mb-1"
+      style={{ animation: 'fade-up 0.15s ease-out' }}
+    >
+      <span className="text-zinc-600">Scope:</span>
+      {scopeTracks.map((st, i) => (
+        <span key={st.trackId} className="inline-flex items-baseline gap-0.5">
+          <span className={st.agency === 'ON' ? 'text-teal-500' : 'text-zinc-600'}>
+            {st.name}
+          </span>
+          <span className={st.agency === 'ON' ? 'text-teal-700' : 'text-zinc-700'}>
+            ({st.agency}{st.agency === 'OFF' ? ' \u2014 will skip' : ''})
+          </span>
+          {i < scopeTracks.length - 1 && <span className="text-zinc-700">{' \u00b7 '}</span>}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 interface Props {
@@ -98,6 +144,9 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               }`}>
                 {msg.role === 'ai' ? 'GLUON' : msg.role === 'system' ? 'SYS' : 'YOU'}
               </div>
+              {msg.scopeTracks && msg.scopeTracks.length > 0 && (
+                <ScopeBadge scopeTracks={msg.scopeTracks} />
+              )}
               {msg.text && (
                 <div className={`text-sm leading-[1.6] break-words ${
                   msg.role === 'ai' ? 'text-zinc-300' : msg.role === 'system' ? 'text-zinc-500' : 'text-zinc-400'
@@ -159,6 +208,9 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
           />
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-mono uppercase tracking-[0.2em] mb-1 text-teal-600/80">GLUON</div>
+            {streamingLogEntries.length > 0 && (
+              <ScopeBadge scopeTracks={deriveScopeTracks(streamingLogEntries, tracks)} />
+            )}
             {streamingText && (
               <div className="text-sm leading-[1.6] break-words text-zinc-300">
                 {renderInlineMarkdown(streamingText)}
