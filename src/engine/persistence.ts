@@ -35,6 +35,10 @@ export function stripForPersistence(session: Session): Session {
     // Always persist transport as stopped to avoid auto-playing on reload
     transport: { ...session.transport, status: 'stopped' },
     tracks: session.tracks.map(v => ({ ...v })),
+    // Strip listenEvents from messages — blob URLs can't survive page reload
+    messages: session.messages.map(m =>
+      m.listenEvents ? { ...m, listenEvents: undefined } : m
+    ),
   };
 }
 

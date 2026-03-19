@@ -27,7 +27,7 @@ function ListenCard({ event }: { event: ListenEvent }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const rafRef = useRef<number>(0);
 
-  // Clean up audio element and animation frame on unmount
+  // Clean up audio element, animation frame, and blob URL on unmount
   useEffect(() => {
     return () => {
       cancelAnimationFrame(rafRef.current);
@@ -35,8 +35,11 @@ function ListenCard({ event }: { event: ListenEvent }) {
         audioRef.current.pause();
         audioRef.current = null;
       }
+      if (event.audioUrl) {
+        URL.revokeObjectURL(event.audioUrl);
+      }
     };
-  }, []);
+  }, [event.audioUrl]);
 
   const updateProgress = useCallback(() => {
     const audio = audioRef.current;

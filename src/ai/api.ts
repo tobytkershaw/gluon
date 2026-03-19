@@ -3893,7 +3893,7 @@ export class GluonAI {
             }).join(', ')
           : 'full mix';
         const evaluationText = rubric
-          ? (typeof critique === 'string' ? critique : undefined)
+          ? undefined
           : (typeof critique === 'string' ? critique : undefined);
         onListenEvent({
           audioUrl,
