@@ -207,6 +207,8 @@ interface ModulePanelProps {
   // Modulation depth editing (inline on knobs)
   onModulationDepthChange?: (routeId: string, depth: number) => void;
   onModulationDepthCommit?: (routeId: string, depth: number) => void;
+  // Ramp request (Shift+Click on knobs)
+  onRampRequest?: (controlId: string, targetValue: number, durationMs: number) => void;
   // Extra bottom content (e.g. routing UI for modulators)
   children?: React.ReactNode;
 }
@@ -218,6 +220,7 @@ export function ModulePanel({
   enabled, onToggleEnabled,
   modulationMap, onModulationClick,
   onModulationDepthChange, onModulationDepthCommit,
+  onRampRequest,
   children,
 }: ModulePanelProps) {
   const accent = ACCENT[accentColor];
@@ -362,6 +365,7 @@ export function ModulePanel({
                 displayMapping={control.displayMapping}
                 onModulationDepthChange={onModulationDepthChange}
                 onModulationDepthCommit={onModulationDepthCommit}
+                onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
               />
             ))}
           </div>
@@ -387,6 +391,7 @@ export function ModulePanel({
                   size={MEDIUM_KNOB_SIZE}
                   modulations={modulationMap?.get(control.id)}
                   onModulationClick={onModulationClick}
+                  onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
                 />
               ))}
             </div>
@@ -413,6 +418,7 @@ export function ModulePanel({
                   size={SMALL_KNOB_SIZE}
                   modulations={modulationMap?.get(control.id)}
                   onModulationClick={onModulationClick}
+                  onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
                 />
               ))}
             </div>

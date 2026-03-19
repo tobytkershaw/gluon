@@ -890,12 +890,98 @@ export default function App() {
     setSession((s) => setAgency(s, s.activeTrackId, agency));
   }, [ensureAudio]);
 
+  /** Human-initiated timed parameter ramp (Shift+Click on knob). */
+  const handleHumanRamp = useCallback((controlId: string, targetValue: number, durationMs: number, processorId?: string) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
+    const track = getTrack(sessionRef.current, vid);
+
+    // Resolve start value from processor or source params
+    let startValue: number;
+    if (processorId) {
+      const proc = (track.processors ?? []).find(p => p.id === processorId);
+      startValue = proc?.params[runtimeParam] ?? 0;
+    } else {
+      startValue = track.params[runtimeParam] ?? 0;
+    }
+
+    // Guard: no-op if target already equals current value
+    if (Math.abs(targetValue - startValue) < 0.001) return;
+
+    // Signal arbitration that a human is touching this param
+    arbRef.current.humanTouched(vid, runtimeParam, startValue, processorId ? `processor:${processorId}` : 'source');
+
+    // Push undo snapshot inside setSession to avoid stale closure
+    setSession((s) => {
+      const currentTrack = getTrack(s, vid);
+      if (processorId) {
+        const proc = (currentTrack.processors ?? []).find(p => p.id === processorId);
+        const currentValue = proc?.params[runtimeParam] ?? 0;
+        const snapshot: ProcessorStateSnapshot = {
+          kind: 'processor-state',
+          trackId: vid,
+          processorId,
+          prevParams: proc ? { ...proc.params } : { [runtimeParam]: currentValue },
+          prevModel: proc?.model ?? 0,
+          timestamp: Date.now(),
+          description: `Ramp ${controlId} to ${targetValue.toFixed(2)} over ${(durationMs / 1000).toFixed(1)}s`,
+        };
+        return { ...s, undoStack: [...s.undoStack, snapshot] };
+      } else {
+        const currentValue = currentTrack.params[runtimeParam] ?? 0;
+        const snapshot: ParamSnapshot = {
+          kind: 'param',
+          trackId: vid,
+          prevValues: { [runtimeParam]: currentValue },
+          aiTargetValues: { [runtimeParam]: targetValue },
+          timestamp: Date.now(),
+          description: `Ramp ${controlId} to ${targetValue.toFixed(2)} over ${(durationMs / 1000).toFixed(1)}s`,
+        };
+        return { ...s, undoStack: [...s.undoStack, snapshot] };
+      }
+    });
+
+    // Start the animation using the same AutomationEngine used for AI drift
+    autoRef.current.start(vid, runtimeParam, startValue, targetValue, durationMs, (p, value) => {
+      if (processorId) {
+        setSession((s2) => {
+          const t = getTrack(s2, vid);
+          const proc = (t.processors ?? []).find(pr => pr.id === processorId);
+          if (!proc) return s2;
+          const updatedProc = { ...proc, params: { ...proc.params, [p]: Math.max(0, Math.min(1, value)) } };
+          return {
+            ...s2,
+            tracks: s2.tracks.map(v => v.id === vid ? {
+              ...t,
+              processors: (t.processors ?? []).map(pr => pr.id === processorId ? updatedProc : pr),
+            } : v),
+          };
+        });
+      } else {
+        setSession((s2) => applyParamDirect(s2, vid, p, value));
+      }
+    });
+    autoRef.current.startLoop();
+  }, [ensureAudio]);
+
   const handleUndo = useCallback(() => {
     ensureAudio();
+    // Cancel active automations for params being undone (side-effect hoisted out of setSession)
+    const currentSession = sessionRef.current;
+    if (currentSession.undoStack.length > 0) {
+      const topEntry = currentSession.undoStack[currentSession.undoStack.length - 1];
+      if (topEntry.kind === 'param') {
+        for (const param of Object.keys(topEntry.prevValues)) {
+          autoRef.current.cancel(topEntry.trackId, param);
+        }
+      }
+    }
     setSession((s) => {
       if (s.undoStack.length === 0) return s;
       const topEntry = s.undoStack[s.undoStack.length - 1];
       const description = topEntry.description ?? 'last action';
+
       const undone = applyUndo(s);
       const now = Date.now();
       return {
@@ -2523,6 +2609,7 @@ export default function App() {
             onPatternLength={handlePatternLength}
             onPageChange={setStepPage}
             onClearPattern={handleClearPattern}
+            onRampRequest={handleHumanRamp}
             deepViewModuleId={deepViewModuleId}
             onOpenDeepView={setDeepViewModuleId}
             analyser={audioRef.current.getAnalyser()}
@@ -2555,6 +2642,7 @@ export default function App() {
             onAddProcessor={handleAddProcessor}
             onAddModulator={handleAddModulator}
             onReplaceProcessor={handleReplaceProcessor}
+            onRampRequest={handleHumanRamp}
             onNavigateToPatch={() => setView('patch')}
           />
         )}

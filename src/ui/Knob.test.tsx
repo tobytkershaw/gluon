@@ -48,4 +48,74 @@ describe('Knob', () => {
     expect(screen.getByText('632 Hz')).toBeTruthy();
     expect(consoleError).not.toHaveBeenCalled();
   });
+
+  it('opens ramp popover on Shift+PointerDown when onRampRequest is provided', () => {
+    const onRampRequest = vi.fn();
+    const { container } = render(
+      <Knob
+        value={0.5}
+        label="Test"
+        accentColor="amber"
+        onChange={() => {}}
+        onRampRequest={onRampRequest}
+      />,
+    );
+
+    const knobSvg = container.querySelector('svg');
+    expect(knobSvg).toBeTruthy();
+
+    // Shift+PointerDown should open popover, not start drag
+    fireEvent.pointerDown(knobSvg!, {
+      pointerId: 1,
+      clientY: 100,
+      shiftKey: true,
+    });
+
+    expect(screen.getByTestId('ramp-popover')).toBeTruthy();
+  });
+
+  it('does not open ramp popover on normal PointerDown', () => {
+    const onRampRequest = vi.fn();
+    const { container } = render(
+      <Knob
+        value={0.5}
+        label="Test"
+        accentColor="amber"
+        onChange={() => {}}
+        onRampRequest={onRampRequest}
+      />,
+    );
+
+    const knobSvg = container.querySelector('svg');
+
+    // Normal PointerDown should start drag, not open popover
+    fireEvent.pointerDown(knobSvg!, {
+      pointerId: 1,
+      clientY: 100,
+      shiftKey: false,
+    });
+
+    expect(screen.queryByTestId('ramp-popover')).toBeNull();
+  });
+
+  it('does not open ramp popover on Shift+PointerDown when onRampRequest is not provided', () => {
+    const { container } = render(
+      <Knob
+        value={0.5}
+        label="Test"
+        accentColor="amber"
+        onChange={() => {}}
+      />,
+    );
+
+    const knobSvg = container.querySelector('svg');
+
+    fireEvent.pointerDown(knobSvg!, {
+      pointerId: 1,
+      clientY: 100,
+      shiftKey: true,
+    });
+
+    expect(screen.queryByTestId('ramp-popover')).toBeNull();
+  });
 });

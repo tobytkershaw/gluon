@@ -64,6 +64,8 @@ interface ExpandedTrackProps {
   // Views
   onAddView?: (kind: SequencerViewKind) => void;
   onRemoveView?: (viewId: string) => void;
+  // Ramp request (Shift+Click on knobs)
+  onRampRequest?: (controlId: string, targetValue: number, durationMs: number, processorId?: string) => void;
   // Deep view
   deepViewModuleId: string | null;
   onOpenDeepView: (moduleId: string | null) => void;
@@ -87,6 +89,7 @@ export function ExpandedTrack({
   onAddView, onRemoveView,
   stepPage, onStepToggle, onStepAccent, selectedStep, onStepSelect,
   onPatternLength, onPageChange, onClearPattern,
+  onRampRequest,
   deepViewModuleId, onOpenDeepView,
   analyser,
 }: ExpandedTrackProps) {
@@ -175,6 +178,7 @@ export function ExpandedTrack({
             engines={sourceEngines}
             currentModel={activeTrack.model}
             onModelChange={onModelChange}
+            onRampRequest={onRampRequest}
           />
 
           {/* Processor control sections */}
@@ -201,6 +205,7 @@ export function ExpandedTrack({
                 onRemove={() => onRemoveProcessor(proc.id)}
                 enabled={proc.enabled}
                 onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
+                onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur, proc.id) : undefined}
               />
             );
           })}
