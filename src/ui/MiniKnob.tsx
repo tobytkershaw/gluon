@@ -49,9 +49,11 @@ export function MiniKnob({ value, min = 0, max = 1, accentColor, title, onChange
     const step = e.shiftKey ? range * 0.1 : range * 0.01;
     if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
       e.preventDefault();
+      e.nativeEvent.stopImmediatePropagation();
       onChange(Math.min(max, value + step));
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
       e.preventDefault();
+      e.nativeEvent.stopImmediatePropagation();
       onChange(Math.max(min, value - step));
     }
   }, [onChange, value, min, max]);

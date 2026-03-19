@@ -454,7 +454,7 @@ export function AppShell({
   return (
     <div ref={shellRef} onKeyDownCapture={handleShellKeyDown} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
       {/* Global top bar — split into workstation (left) and collaboration (right) zones */}
-      <div ref={transportRef} className="flex items-center h-9 border-b border-zinc-700/40 shrink-0" role="toolbar" aria-label="Top bar">
+      <div ref={transportRef} className="flex items-center h-9 border-b border-zinc-700/40 shrink-0" role="banner" aria-label="Top bar">
         {/* Left zone: workstation controls */}
         <div className="flex-1 flex items-center gap-3 px-3">
           <ProjectMenu

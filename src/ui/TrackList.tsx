@@ -105,7 +105,7 @@ export function TrackList({
       </div>
 
       {/* Track rows — scrollable */}
-      <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5" role="listbox" aria-label="Tracks">
+      <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5" role="list" aria-label="Tracks">
         {/* Audio tracks */}
         {audioTracks.map((track) => (
           <TrackRow

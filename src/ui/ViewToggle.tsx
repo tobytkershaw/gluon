@@ -29,12 +29,12 @@ export function ViewToggle({ view, onViewChange, cancelEditRef }: Props) {
   };
 
   return (
-    <div className="flex gap-0.5 bg-zinc-900 rounded p-0.5" role="tablist" aria-label="View">
+    <div className="flex gap-0.5 bg-zinc-900 rounded p-0.5" role="group" aria-label="View">
       {tabs.map(({ key, label }) => (
         <button
           key={key}
-          role="tab"
-          aria-selected={view === key}
+          role="button"
+          aria-pressed={view === key}
           onMouseDown={handleMouseDown}
           onClick={() => handleClick(key)}
           className={`text-[11px] font-mono uppercase tracking-wider px-2.5 py-1 rounded transition-colors ${

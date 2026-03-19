@@ -8,8 +8,8 @@ describe('ViewToggle', () => {
 
     render(<ViewToggle view="chat" onViewChange={onViewChange} />);
 
-    const tabs = screen.getAllByRole('tab');
-    expect(tabs.map((tab) => tab.textContent)).toEqual([
+    const buttons = screen.getAllByRole('button');
+    expect(buttons.map((btn) => btn.textContent)).toEqual([
       'Chat',
       'Surface',
       'Rack',
@@ -17,7 +17,7 @@ describe('ViewToggle', () => {
       'Tracker',
     ]);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Surface' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Surface' }));
     expect(onViewChange).toHaveBeenCalledWith('surface');
   });
 });

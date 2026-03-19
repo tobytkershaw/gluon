@@ -170,7 +170,7 @@ export function TrackRow({
   return (
     <div
       ref={rowRef}
-      role="option"
+      role="listitem"
       aria-selected={isActive}
       aria-label={label}
       tabIndex={0}
