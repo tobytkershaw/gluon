@@ -359,24 +359,27 @@ track LEAD (agency: ON)
 
 ## 8. Current Implementation State
 
-The current implementation corresponds to the semantic-surface RFC (`ai-curated-surfaces.md`), not the full module-based north star. This table distinguishes what exists today from what this document proposes.
+**Updated 2026-03-19.** The Surface milestone (#1051-#1067) shipped the module-based foundation. The semantic-controls model has been fully replaced.
 
 | Component | Status |
 |-----------|--------|
-| **TrackSurface type** (semanticControls, pinnedControls, xyAxes, thumbprint) | Implemented |
-| **set_surface AI tool** + validation + undo | Implemented |
-| **Surface templates** for known chains | Implemented |
-| **SemanticKnob + SemanticInspector** | Implemented |
-| **Semantic value computation** (bidirectional) | Implemented |
-| **ExpandedTrack** (current Surface tab content) | Implemented but **redundant** — to be replaced |
-| Pinned controls rendering | State exists, **UI does not render** |
-| XY pad axis binding | State exists, **UI hardwired to timbre/morph** |
-| Compact cards / Stage layer | Not implemented |
-| Surface module composition (canvas) | Not implemented |
-| Pin-to-surface from Rack | Not implemented |
-| Surface Score (visual identity) | Not implemented (deferred) |
-| Performance Surface (cross-track) | Not implemented |
-| Human surface authoring UI | Not implemented (#376) |
+| **TrackSurface type** (modules[], thumbprint) | ✅ Shipped (#1051) |
+| **SurfaceModule system** (7 module types) | ✅ Shipped (#1053-#1059) |
+| **set_surface AI tool** (module composition) | ✅ Shipped (#1051) |
+| **Surface templates** for known chains | ✅ Shipped (#1051) |
+| **SurfaceCanvas** (react-grid-layout) | ✅ Shipped (#1052) |
+| **Module Picker** (human adds modules) | ✅ Shipped (#1060) |
+| **Module Config panel** (edit bindings, remove) | ✅ Shipped (#1061) |
+| **Pin-to-surface from Rack** | ✅ Shipped (#1062) |
+| **Compact cards / Stage layer** | ✅ Shipped (#1063) |
+| **Visual identity primitives** (TrackVisualIdentity) | ✅ Shipped (#1064) |
+| **set_track_identity AI tool** | ✅ Shipped (#1065) |
+| **Module visual context** (modules consume identity) | ✅ Shipped (#1066) |
+| **Legacy cleanup** (ExpandedTrack, SemanticControlsSection deleted) | ✅ Shipped (#1067) |
+| Module position locking | Filed (#1108) |
+| Full Surface Score system (palette, material, motion, atmosphere, relationships) | Designed, not implemented |
+| Performance Surface (cross-track) | Designed, not implemented |
+| Novel controls from modular parts | Designed, not implemented |
 
 ---
 

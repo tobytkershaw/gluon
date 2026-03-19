@@ -120,11 +120,11 @@ These tools are inherently AI-facing and have no meaningful human equivalent:
 
 4. **Set importance / musicalRole** (`set_importance`): No UI control exists. Approval level can be cycled in the TrackList, but importance and musicalRole are AI-only metadata.
 
-5. **Set semantic controls** (`set_surface`): Semantic controls are displayed and interactive when defined, but only the AI can define them. The human cannot create, edit, or remove semantic control definitions.
+5. ~~**Set semantic controls** (`set_surface`):~~ **Resolved.** Surface milestone (#1051-#1067) shipped Module Picker (#1060), Module Config panel (#1061), and module-based `set_surface`. Human can create, edit, rebind, and remove modules.
 
-6. **Pin/unpin controls** (`pin`, `unpin`): No UI to pin raw module controls to the surface.
+6. ~~**Pin/unpin controls** (`pin`, `unpin`):~~ **Resolved.** Pin-from-Rack shipped (#1062). Pin toggle on Rack view knobs creates/removes pinned Knob Group modules on the Surface.
 
-7. **Label XY axes** (`label_axes`): No UI to set semantic labels for the XY pad axes.
+7. ~~**Label XY axes** (`label_axes`):~~ **Resolved.** XY Pad is now a module with configurable bindings via Module Config panel (#1061).
 
 ### Minor Gaps (edge cases or convenience features)
 
