@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, SurfaceModule, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
 import { AGENCY_REJECTION_PREFIX } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
@@ -418,11 +418,9 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
       // No agency check — surface ops are UI curation, not musical mutation
-      // Build a candidate surface for validation
       const candidateSurface: TrackSurface = {
         ...track.surface,
-        semanticControls: action.semanticControls,
-        ...(action.xyAxes ? { xyAxes: action.xyAxes } : {}),
+        modules: action.modules,
       };
       const surfaceError = validateSurface(candidateSurface, track);
       if (surfaceError) return surfaceError;
@@ -432,9 +430,9 @@ export function prevalidateAction(
     case 'pin': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      // No agency check
       const MAX_PINS = 4;
-      if (track.surface.pinnedControls.length >= MAX_PINS) {
+      const pinnedCount = track.surface.modules.filter(m => m.config.pinned === true).length;
+      if (pinnedCount >= MAX_PINS) {
         return `Maximum ${MAX_PINS} pinned controls per track`;
       }
       // Validate module exists
@@ -447,18 +445,18 @@ export function prevalidateAction(
     case 'unpin': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      // No agency check
-      const pinExists = track.surface.pinnedControls.some(
-        p => p.moduleId === action.moduleId && p.controlId === action.controlId,
+      const pinModule = track.surface.modules.find(
+        m => m.config.pinned === true && m.bindings.some(b => b.target === `${action.moduleId}:${action.controlId}`),
       );
-      if (!pinExists) return `Pin not found: ${action.moduleId}:${action.controlId}`;
+      if (!pinModule) return `Pin not found: ${action.moduleId}:${action.controlId}`;
       return null;
     }
 
     case 'label_axes': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      // No agency check
+      const hasXYPad = track.surface.modules.some(m => m.type === 'xy-pad');
+      if (!hasXYPad) return `No XY Pad module on track ${action.trackId} — use set_surface to add one`;
       return null;
     }
 
@@ -1844,11 +1842,13 @@ function executeActionsInternal(
 
       case 'set_surface': {
         const track = getTrack(next, action.trackId);
-        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
+        const prevSurface = {
+          ...track.surface,
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+        };
         const newSurface: TrackSurface = {
           ...track.surface,
-          semanticControls: action.semanticControls,
-          ...(action.xyAxes ? { xyAxes: action.xyAxes } : {}),
+          modules: action.modules,
         };
         const snapshot: SurfaceSnapshot = {
           kind: 'surface',
@@ -1862,16 +1862,26 @@ function executeActionsInternal(
           undoStack: [...next.undoStack, snapshot],
         };
         const vLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
-        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `surface: ${action.description}`, diff: { kind: 'surface-set', controlCount: action.semanticControls.length, description: action.description } });
+        log.push({ trackId: action.trackId, trackLabel: vLabel, description: `surface: ${action.description}`, diff: { kind: 'surface-set', controlCount: action.modules.length, description: action.description } });
         accepted.push(action);
         break;
       }
 
       case 'pin': {
         const track = getTrack(next, action.trackId);
-        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
-        const newPinnedControls = [...track.surface.pinnedControls, { moduleId: action.moduleId, controlId: action.controlId }];
-        const newSurface: TrackSurface = { ...track.surface, pinnedControls: newPinnedControls };
+        const prevSurface = {
+          ...track.surface,
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+        };
+        const newModule: SurfaceModule = {
+          type: 'knob-group',
+          id: `pinned-${action.moduleId}-${action.controlId}`,
+          label: action.controlId,
+          bindings: [{ role: 'control', trackId: action.trackId, target: `${action.moduleId}:${action.controlId}` }],
+          position: { x: 0, y: 0, w: 2, h: 2 },
+          config: { pinned: true },
+        };
+        const newSurface: TrackSurface = { ...track.surface, modules: [...track.surface.modules, newModule] };
         const snapshot: SurfaceSnapshot = {
           kind: 'surface',
           trackId: action.trackId,
@@ -1891,11 +1901,14 @@ function executeActionsInternal(
 
       case 'unpin': {
         const track = getTrack(next, action.trackId);
-        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
-        const newPinnedControls = track.surface.pinnedControls.filter(
-          p => !(p.moduleId === action.moduleId && p.controlId === action.controlId),
+        const prevSurface = {
+          ...track.surface,
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+        };
+        const modules = track.surface.modules.filter(
+          m => !(m.config.pinned === true && m.bindings.some(b => b.target === `${action.moduleId}:${action.controlId}`)),
         );
-        const newSurface: TrackSurface = { ...track.surface, pinnedControls: newPinnedControls };
+        const newSurface: TrackSurface = { ...track.surface, modules };
         const snapshot: SurfaceSnapshot = {
           kind: 'surface',
           trackId: action.trackId,
@@ -1915,8 +1928,21 @@ function executeActionsInternal(
 
       case 'label_axes': {
         const track = getTrack(next, action.trackId);
-        const prevSurface = { ...track.surface, semanticControls: [...track.surface.semanticControls], pinnedControls: [...track.surface.pinnedControls] };
-        const newSurface: TrackSurface = { ...track.surface, xyAxes: { x: action.x, y: action.y } };
+        const prevSurface = {
+          ...track.surface,
+          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
+        };
+        const modules = track.surface.modules.map(m => {
+          if (m.type !== 'xy-pad') return m;
+          return {
+            ...m,
+            bindings: [
+              { role: 'x-axis', trackId: action.trackId, target: action.x },
+              { role: 'y-axis', trackId: action.trackId, target: action.y },
+            ],
+          };
+        });
+        const newSurface: TrackSurface = { ...track.surface, modules };
         const snapshot: SurfaceSnapshot = {
           kind: 'surface',
           trackId: action.trackId,
