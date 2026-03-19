@@ -80,7 +80,7 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
     case 'modulation_route':
       return { action: 'connect', trackId: 'v0', modulatorId: 'tides-123', targetKind: 'source', targetParam: 'timbre', depth: 0.2, description: 'test' };
     case 'set_surface':
-      return { trackId: 'v0', semanticControls: [], description: 'test' };
+      return { trackId: 'v0', action: 'auto_map', params: ['timbre'], description: 'test' };
     case 'pin_control':
       return { action: 'pin', trackId: 'v0', moduleId: 'source', controlId: 'timbre' };
     case 'label_axes':

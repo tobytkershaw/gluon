@@ -2384,14 +2384,35 @@ export class GluonAI {
         if (typeof args.trackId !== 'string' || !args.trackId) {
           return { actions: [], response: errorPayload('Missing required parameter: trackId') };
         }
-        if (!Array.isArray(args.semanticControls)) {
-          return { actions: [], response: errorPayload('Missing required parameter: semanticControls (must be an array)') };
-        }
         if (typeof args.description !== 'string') {
           return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
-        const rawControls = args.semanticControls as Record<string, unknown>[];
+        const surfaceMode = args.action === 'auto_map' ? 'auto_map' : 'define';
+        const rawControls: Record<string, unknown>[] = surfaceMode === 'auto_map'
+          ? (() => {
+              if (!Array.isArray(args.params)) {
+                return [];
+              }
+              return (args.params as unknown[])
+                .filter((param): param is string => typeof param === 'string' && param.trim().length > 0)
+                .map(param => ({
+                  name: param,
+                  weights: [{ moduleId: 'source', controlId: param, weight: 1 }],
+                }));
+            })()
+          : Array.isArray(args.semanticControls)
+            ? (args.semanticControls as Record<string, unknown>[])
+            : [];
+
+        if (surfaceMode === 'auto_map') {
+          if (!Array.isArray(args.params) || rawControls.length === 0) {
+            return { actions: [], response: errorPayload('action=auto_map requires params (must be a non-empty array of parameter IDs)') };
+          }
+        } else if (!Array.isArray(args.semanticControls)) {
+          return { actions: [], response: errorPayload('Missing required parameter: semanticControls (must be an array)') };
+        }
+
         const semanticControls: SemanticControlDef[] = rawControls.map((sc, i) => {
           const rawWeights = (sc.weights as Record<string, unknown>[]) ?? [];
           const weights: SemanticControlWeight[] = rawWeights.map(w => ({
@@ -2433,6 +2454,7 @@ export class GluonAI {
             applied: true,
             trackId: setSurfaceAction.trackId,
             controlCount: semanticControls.length,
+            mode: surfaceMode,
           },
         };
       }

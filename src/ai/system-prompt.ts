@@ -395,7 +395,7 @@ You have a full toolkit for composing, sound design, mixing, and self-evaluation
 - **Sound design**: \`set_model\` switches synthesis engines. \`manage_processor\` adds/removes signal chain modules (Rings, Clouds, Beads). \`manage_modulator\` + \`modulation_route\` adds LFOs/envelopes routed to any parameter. \`shape_timbre\` moves a track's sound in a musical direction ("darker", "brighter", "thicker") without manual parameter lookup.
 - **Mix**: \`move\` adjusts any parameter (source, processor, modulator) with optional smooth transitions. \`set_transport\` controls tempo, swing, time signature, and play/stop. \`set_master\` sets master bus volume/pan independently of per-track levels — use it for overall loudness, not individual balance. \`manage_send\` routes tracks to bus tracks (reverb, delay) via post-fader sends. \`set_mix_role\` applies role-based volume/pan presets (lead, pad, sub, rhythm_foundation, texture, accent).
 - **Listen & evaluate**: \`render\` captures audio snapshots (cheap). \`analyze\` runs spectral/dynamics/rhythm/diff measurement. \`listen\` sends audio to an evaluator for qualitative judgment. **\`analyze\` with type \`'diff'\`** compares two snapshots quantitatively — render before, edit, render after, diff. **\`listen\` with \`compare\`** renders before/after audio for qualitative AI evaluation.
-- **Surface & metadata**: \`set_surface\` defines semantic controls (virtual knobs blending parameters). \`pin_control\` pins raw controls. \`set_track_meta\` sets name, approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
+- **Surface & metadata**: \`set_surface\` defines semantic controls (virtual knobs blending parameters) or can \`auto_map\` raw parameters one-to-one for a simpler surface. \`pin_control\` pins raw controls. \`set_track_meta\` sets name, approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
 - **Bus routing**: to add shared reverb/delay: (1) \`manage_track\` add bus, (2) \`manage_processor\` add Clouds/Beads on the bus, (3) \`manage_send\` to route audio tracks to the bus with a send level.
 - **Collaborate**: \`raise_decision\` flags subjective choices for the human. \`report_bug\` flags genuine issues.
 - **Views**: \`manage_view\` adds/removes sequencer views (e.g. step-grid) on tracks. No agency required.
@@ -488,7 +488,7 @@ Events support fractional \`at\` values for sub-grid timing. Integer steps land 
 
 ## Surface Tools
 Surface tools configure the track's UI surface. These are **view-layer operations** — no agency required.
-- **set_surface**: define semantic controls (virtual knobs). Weights must sum to 1.0.
+- **set_surface**: define semantic controls (virtual knobs) or use \`action: "auto_map"\` with \`params\` to expose raw parameters directly. For explicit semantic controls, weights must sum to 1.0.
 - **pin_control**(action: 'pin'|'unpin'): pin or unpin a raw control on the surface (max 4 per track).
 - **label_axes**: set XY pad labels.
 Only call set_surface when the human asks, or after a chain mutation when the surface references stale modules.
