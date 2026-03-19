@@ -42,6 +42,7 @@ interface PlaitsWasm {
   _plaits_set_extended(handle: number, fm_amount: number, timbre_mod_amount: number, morph_mod_amount: number, decay: number, lpg_colour: number): void;
   _plaits_trigger(handle: number, accentLevel: number): void;
   _plaits_set_gate(handle: number, open: number): void;
+  _plaits_set_portamento(handle: number, time_normalized: number, mode: number): void;
   _plaits_render(handle: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -53,6 +54,7 @@ type ScheduledEvent =
   | { type: 'set-extended'; time?: number; seq: number; fence?: number; extended: PlaitsExtendedParams }
   | { type: 'trigger'; time: number; seq: number; fence?: number; accentLevel: number }
   | { type: 'set-gate'; time?: number; seq: number; fence?: number; open: boolean }
+  | { type: 'set-portamento'; time?: undefined; seq: number; fence?: number; time_normalized: number; mode: number }
   | { type: 'clear-scheduled'; time?: undefined; seq: number; fence: number }
   | { type: 'destroy'; time?: undefined; seq: number; fence?: number };
 
@@ -187,6 +189,9 @@ class PlaitsProcessor extends AudioWorkletProcessor {
         break;
       case 'set-gate':
         this.wasm._plaits_set_gate(this.handle, event.open ? 1 : 0);
+        break;
+      case 'set-portamento':
+        this.wasm._plaits_set_portamento(this.handle, event.time_normalized, event.mode);
         break;
       case 'clear-scheduled':
         // Set fence so events from previous play cycles are treated as stale.

@@ -125,6 +125,28 @@ describe('plaits-adapter', () => {
     expect(adapter.mapControl('decay').path).toBe('params.decay');
   });
 
+  // --- Portamento control IDs ---
+
+  it('validates portamento control IDs', () => {
+    for (const id of ['portamento-time', 'portamento-mode']) {
+      const result = adapter.validateOperation({
+        type: 'move', trackId: 'v0', controlId: id,
+        target: { absolute: 0.5 },
+      });
+      expect(result.valid, `${id} should be valid`).toBe(true);
+    }
+  });
+
+  it('maps portamento control IDs to runtime params', () => {
+    expect(adapter.mapControl('portamento-time').path).toBe('params.portamentoTime');
+    expect(adapter.mapControl('portamento-mode').path).toBe('params.portamentoMode');
+  });
+
+  it('maps portamento runtime params back to control IDs', () => {
+    expect(adapter.mapRuntimeParamKey('portamentoTime')).toBe('portamento-time');
+    expect(adapter.mapRuntimeParamKey('portamentoMode')).toBe('portamento-mode');
+  });
+
   it('maps extended runtime params back to control IDs', () => {
     expect(adapter.mapRuntimeParamKey('fm_amount')).toBe('fm-amount');
     expect(adapter.mapRuntimeParamKey('timbre_mod_amount')).toBe('timbre-mod-amount');

@@ -35,6 +35,7 @@ describe('Plaits: official parameter audit', () => {
       'timbre', 'morph',                            // Row 2: medium knobs
       'timbre-mod-amount', 'fm-amount', 'morph-mod-amount', // Row 3: small attenuverters
       'decay', 'lpg-colour',                        // LPG section: small
+      'portamento-time', 'portamento-mode',          // Row 4: portamento
     ]);
   });
 
@@ -313,7 +314,7 @@ describe('All MI modules: structural integrity', () => {
     it(`${name}: all controls have range 0-1`, () => {
       for (const engine of inst.engines) {
         for (const control of engine.controls) {
-          if (control.kind === 'discrete' || control.kind === 'boolean') continue;
+          if (control.kind === 'discrete' || control.kind === 'boolean' || control.kind === 'enum') continue;
           expect(control.range.min, `${name}/${engine.id}/${control.id}`).toBe(0);
           expect(control.range.max, `${name}/${engine.id}/${control.id}`).toBe(1);
         }

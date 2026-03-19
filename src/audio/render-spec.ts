@@ -38,6 +38,10 @@ export interface RenderTrackSpec {
   params: RenderSynthPatch;
   /** Plaits extended parameters (FM, LPG, etc.) */
   extendedParams: RenderPlaitsExtended;
+  /** Portamento time (0-1, maps to 0-500ms) */
+  portamentoTime: number;
+  /** Portamento mode: 0=off, 1=always, 2=legato-only */
+  portamentoMode: number;
   events: RenderEvent[];
   processors: RenderProcessorSpec[];
   modulators: RenderModulatorSpec[];
@@ -185,6 +189,9 @@ function buildTrackSpec(track: Track, bars: number, mode: TransportMode): Render
   const modulators = (track.modulators ?? []).map(buildModulatorSpec);
   const modulations = buildModulationSpecs(track, modulators);
 
+  const portamentoModeMap: Record<string, number> = { off: 0, always: 1, legato: 2 };
+  const portamentoMode = portamentoModeMap[track.portamentoMode ?? 'off'] ?? 0;
+
   return {
     id: track.id,
     model: clampModel(track.model) + GLUON_TO_PLAITS_ENGINE_OFFSET,
@@ -192,6 +199,8 @@ function buildTrackSpec(track: Track, bars: number, mode: TransportMode): Render
     pan: track.pan ?? 0.0,
     params,
     extendedParams,
+    portamentoTime: track.portamentoTime ?? 0,
+    portamentoMode,
     events,
     processors,
     modulators,

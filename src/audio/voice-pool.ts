@@ -127,6 +127,12 @@ export class VoicePool {
     }
   }
 
+  setPortamento(time: number, mode: number): void {
+    for (const voice of this.voices) {
+      voice.synth.setPortamento?.(time, mode);
+    }
+  }
+
   destroy(): void {
     for (const voice of this.voices) {
       voice.synth.destroy();

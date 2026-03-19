@@ -9,6 +9,9 @@ export interface SynthEngine {
   /** Set Plaits-specific extended parameters (FM, LPG, etc.).
    *  Optional — only implemented by PlaitsSynth. */
   setExtended?(params: PlaitsExtendedParams): void;
+  /** Set portamento (pitch glide) time and mode.
+   *  Optional — only implemented by PlaitsSynth. */
+  setPortamento?(time: number, mode: number): void;
   scheduleNote(note: ScheduledNote, fence?: number): void;
   /** Immediately close gate and clear all scheduled events.
    *  @param fence  Monotonic sequence fence — worklet only clears events with fence < this value.

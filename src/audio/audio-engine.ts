@@ -654,6 +654,12 @@ export class AudioEngine {
     slot.pool.setExtended(toPlaitsExtendedParams(params));  // extended 5
   }
 
+  setTrackPortamento(trackId: string, time: number, mode: number): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.pool) return;
+    slot.pool.setPortamento(time, mode);
+  }
+
   muteTrack(trackId: string, muted: boolean): void {
     const slot = this.tracks.get(trackId);
     if (!slot) return;

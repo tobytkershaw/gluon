@@ -282,6 +282,8 @@ export default function App() {
         if (track.model !== -1 && getTrackKind(track) === 'audio') {
           audioRef.current.setTrackModel(track.id, track.model);
           audioRef.current.setTrackParams(track.id, track.params);
+          const modeInt = track.portamentoMode === 'always' ? 1 : track.portamentoMode === 'legato' ? 2 : 0;
+          audioRef.current.setTrackPortamento(track.id, track.portamentoTime ?? 0, modeInt);
         }
       }
       // Sync initial sends
@@ -398,6 +400,11 @@ export default function App() {
       }
       if (!prev || !prev.params || !shallowEqual(prev.params, track.params)) {
         audioRef.current.setTrackParams(track.id, track.params);
+      }
+      // Sync portamento — cheap call, always idempotent in the worklet
+      {
+        const modeInt = track.portamentoMode === 'always' ? 1 : track.portamentoMode === 'legato' ? 2 : 0;
+        audioRef.current.setTrackPortamento(track.id, track.portamentoTime ?? 0, modeInt);
       }
       // Keep the live audio engine aligned with session state even while a human
       // interaction is active. Arbitration still blocks AI writes separately;

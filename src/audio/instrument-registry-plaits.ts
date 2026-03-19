@@ -21,6 +21,8 @@ export const controlIdToRuntimeParam: Record<string, string> = {
   'timbre-mod-amount': 'timbre_mod_amount',
   'morph-mod-amount': 'morph_mod_amount',
   'lpg-colour': 'lpg_colour',
+  'portamento-time': 'portamentoTime',
+  'portamento-mode': 'portamentoMode',
 };
 
 export const runtimeParamToControlId: Record<string, string> = {
@@ -29,6 +31,8 @@ export const runtimeParamToControlId: Record<string, string> = {
   timbre_mod_amount: 'timbre-mod-amount',
   morph_mod_amount: 'morph-mod-amount',
   lpg_colour: 'lpg-colour',
+  portamentoTime: 'portamento-time',
+  portamentoMode: 'portamento-mode',
 };
 
 // --- Control factory ---
@@ -150,6 +154,32 @@ function defaultControls(): ControlSchema[] {
       0.5,
       'small',
     ),
+    // Row 4: Portamento controls
+    makePlaitsControl(
+      'portamento-time',
+      'Portamento',
+      'pitch',
+      'Pitch glide time between notes. 0.0 = instant (no glide), 1.0 = 500ms glide.',
+      'portamentoTime',
+      0.0,
+      'small',
+      { type: 'linear', min: 0, max: 500, unit: 'ms', decimals: 0 },
+    ),
+    {
+      id: 'portamento-mode',
+      name: 'Porta Mode',
+      kind: 'enum' as ControlKind,
+      semanticRole: 'pitch' as SemanticRole,
+      description: 'Portamento mode: off (no glide), always (glide every note), legato (glide only when notes overlap).',
+      readable: true,
+      writable: true,
+      enumValues: ['off', 'always', 'legato'],
+      size: 'small' as const,
+      binding: {
+        adapterId: 'plaits',
+        path: 'params.portamentoMode',
+      },
+    },
   ];
 }
 

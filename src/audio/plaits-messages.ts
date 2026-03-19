@@ -47,6 +47,12 @@ export interface PlaitsClearScheduledMessage {
   fence: number;
 }
 
+export interface PlaitsPortamentoMessage {
+  type: 'set-portamento';
+  time: number;   // 0-1 normalised (maps to 0-500ms)
+  mode: number;   // 0=off, 1=always, 2=legato-only
+}
+
 export interface PlaitsDestroyMessage {
   type: 'destroy';
 }
@@ -57,6 +63,7 @@ export type PlaitsProcessorCommand =
   | PlaitsModelMessage
   | PlaitsTriggerMessage
   | PlaitsGateMessage
+  | PlaitsPortamentoMessage
   | PlaitsClearScheduledMessage
   | PlaitsDestroyMessage;
 
