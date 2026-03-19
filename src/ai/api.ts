@@ -3323,21 +3323,27 @@ export class GluonAI {
         const busActions: AIAction[] = [addTrackAction, addProcessorAction];
 
         if (typeof args.processorModel === 'string' && args.processorModel) {
-          busActions.push({
+          const setModelAction: AISetModelAction = {
             type: 'set_model',
             trackId: busId,
             processorId,
             model: args.processorModel as string,
-          } as AISetModelAction);
+          };
+          const setModelRejection = handleRejection(ctx?.validateAction?.(projectedAfterAdd, setModelAction), projectedAfterAdd, setModelAction, existingActions);
+          if (setModelRejection) return setModelRejection;
+          busActions.push(setModelAction);
         }
 
-        busActions.push({
+        const moveAction: AIMoveAction = {
           type: 'move',
           trackId: busId,
           processorId,
           param: wetParam,
           target: { absolute: wet },
-        } as AIMoveAction);
+        };
+        const moveRejection = handleRejection(ctx?.validateAction?.(projectedAfterAdd, moveAction), projectedAfterAdd, moveAction, existingActions);
+        if (moveRejection) return moveRejection;
+        busActions.push(moveAction);
 
         const sendAction: AIManageSendAction = {
           type: 'manage_send',
