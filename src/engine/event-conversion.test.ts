@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { eventsToSteps, stepsToEvents } from './event-conversion';
-import type { TriggerEvent, ParameterEvent, NoteEvent, MusicalEvent } from './canonical-types';
+import type { TriggerEvent, ParameterEvent, NoteEvent } from './canonical-types';
 
 describe('eventsToSteps', () => {
   it('does not let a parameter event overwrite micro from a trigger event', () => {

@@ -20,7 +20,7 @@ interface StereoPatch {
 
 // Mode indices
 const MODE_WIDTH = 0;
-const MODE_PAN_LAW = 1;
+const _MODE_PAN_LAW = 1;
 
 type ScheduledEvent =
   | { type: 'set-mode'; time?: number; seq: number; fence?: number; mode: number }
@@ -196,7 +196,7 @@ class StereoProcessor extends AudioWorkletProcessor {
         side *= widthScale;
 
         // Decode back to L/R
-        let wetL = mid + side;
+        const wetL = mid + side;
         let wetR = mid - side;
 
         // Haas effect: delay right channel

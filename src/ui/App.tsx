@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure helper fn co-located with component */
 // src/ui/App.tsx
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
@@ -29,8 +30,7 @@ import { loadSession } from '../engine/persistence';
 import { useProjectLifecycle } from './useProjectLifecycle';
 import { applyParamDirect, applyUndo, applyRedo } from '../engine/primitives';
 import { executeOperations, executeStepActions, finalizeAITurn, prevalidateAction } from '../engine/operation-executor';
-import type { StepExecutionReport } from '../engine/operation-executor';
-import type { OnStepCallback, StepResult, StepExecutor } from '../ai/types';
+import type { OnStepCallback, StepExecutor } from '../ai/types';
 import type { ExecutionReportLogEntry } from '../engine/canonical-types';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
 import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
@@ -178,7 +178,7 @@ export default function App() {
   const [recordArmed, setRecordArmed] = useState(false);
   const recordArmedRef = useRef(false);
   recordArmedRef.current = recordArmed;
-  const wavExporterRef = useRef(new AudioExporter());
+  const _wavExporterRef = useRef(new AudioExporter());
   const [exportingWav, setExportingWav] = useState(false);
   /** Tracks whether we've pushed an undo snapshot for the current recording session. */
   const recordingSnapshotPushed = useRef(false);
@@ -580,7 +580,7 @@ export default function App() {
 
   const activeTrack = getActiveTrack(session);
 
-  const dispatchAIActions = useCallback((actions: AIAction[], toolCalls?: ToolCallEntry[]) => {
+  const _dispatchAIActions = useCallback((actions: AIAction[], toolCalls?: ToolCallEntry[]) => {
     setSession((s) => {
       const report = executeOperations(s, actions, plaitsAdapter, arbRef.current, toolCalls);
 

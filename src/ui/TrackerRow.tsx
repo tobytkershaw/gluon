@@ -178,7 +178,7 @@ function EditableCell({
   // Start editing when editRequested changes (keyboard Enter)
   useEffect(() => {
     if (editRequested && editRequested > 0) {
-      startEdit();
+      startEdit(); // eslint-disable-line react-hooks/set-state-in-effect -- responding to parent signal
     }
   }, [editRequested, startEdit]);
 
@@ -302,7 +302,7 @@ function NoteColumnCell({
 }) {
   // --- Trigger event (no note, but a trigger exists): show TRG ---
   if (!note && trigger) {
-    const selector = selectorFromEvent(trigger);
+    const _selector = selectorFromEvent(trigger);
     return (
       <span className="text-amber-400 font-bold">
         TRG

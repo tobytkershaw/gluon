@@ -503,7 +503,7 @@ interface NodeDragState {
 // --- Components ---
 
 /** Renders input port labels and circles on the left edge of a node */
-function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: number }) {
+function InputPortColumn({ ports, nodeH: _nodeH }: { ports: ResolvedPort[]; nodeH: number }) {
   if (ports.length === 0) return null;
   return (
     <>
@@ -531,7 +531,7 @@ function InputPortColumn({ ports, nodeH }: { ports: ResolvedPort[]; nodeH: numbe
 }
 
 /** Renders output port labels and circles on the right edge of a node */
-function OutputPortColumn({ ports, nodeW }: { ports: ResolvedPort[]; nodeW: number }) {
+function OutputPortColumn({ ports, nodeW: _nodeW }: { ports: ResolvedPort[]; nodeW: number }) {
   if (ports.length === 0) return null;
   return (
     <>
@@ -956,29 +956,26 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
     }
   });
 
-  if (session.tracks.length === 0) return <EmptyState />;
-
-  const track = getActiveTrack(session);
-  const baseNodes = useMemo(() => layoutNodes(track), [track]);
+  const track = session.tracks.length > 0 ? getActiveTrack(session) : null;
+  const baseNodes = useMemo(() => track ? layoutNodes(track) : [], [track]);
   // Apply user-dragged position offsets
   const nodes = baseNodes.map(n => {
     const offset = nodeOffsets[n.id];
     if (!offset) return n;
     return { ...n, x: n.x + offset.dx, y: n.y + offset.dy };
   });
-  const targetPorts = computeTargetPorts(nodes, track);
+  const targetPorts = track ? computeTargetPorts(nodes, track) : [];
   const audioEdges = buildAudioEdges(nodes);
-  const modEdges = buildModEdges(nodes, track.modulations ?? [], targetPorts);
+  const modEdges = track ? buildModEdges(nodes, track.modulations ?? [], targetPorts) : [];
 
   // Send destination nodes — show where this track's audio is routed
-  const sends = track.sends ?? [];
+  const sends = track?.sends ?? [];
   const busTracks = getBusTracks(session);
   const sendNodes = useMemo(() => {
     if (sends.length === 0) return [];
     const outputNode = nodes.find(n => n.kind === 'output');
     if (!outputNode) return [];
     const startX = outputNode.x + OUTPUT_R * 2 + NODE_GAP / 2;
-    const SEND_NODE_W = 100;
     const SEND_NODE_H = NODE_HEADER_H + 8;
     return sends.map((send, i): NodePos => {
       const bus = busTracks.find(b => b.id === send.busId);
@@ -1189,6 +1186,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   // Wheel handler ref: pinch (ctrlKey) zooms centered on cursor, two-finger scroll pans.
   // Stored as a ref so the native event listener always sees the latest closure.
   const handleWheelRef = useRef<(e: WheelEvent) => void>(() => {});
+  // eslint-disable-next-line react-hooks/refs -- intentional ref sync for native event handler
   handleWheelRef.current = (e: WheelEvent) => {
     e.preventDefault();
     if (!containerRef.current) return;
@@ -1336,9 +1334,9 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
   // Find selected node for detail panel
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
-  const selectedEdge = selectedEdgeId ? modEdges.find(e => e.routeId === selectedEdgeId) : null;
-
   const zoomPercent = Math.round(panZoom.zoom * 100);
+
+  if (!track) return <EmptyState />;
 
   return (
     <div className="flex-1 flex flex-col h-full">

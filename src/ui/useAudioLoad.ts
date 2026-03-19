@@ -28,7 +28,7 @@ export function useAudioLoad(audioContext: AudioContext | null): number {
     if (!audioContext) {
       prevRef.current = null;
       smoothedRef.current = 0;
-      setLoad(0);
+      setLoad(0); // eslint-disable-line react-hooks/set-state-in-effect -- syncing external audio state
       return;
     }
 

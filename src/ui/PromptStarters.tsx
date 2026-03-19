@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure helper fn co-located with component */
 // src/ui/PromptStarters.tsx
 // Context-aware prompt starter chips shown when chat is empty.
 // Static templates selected by client-side logic — no model call, no latency.

@@ -196,8 +196,8 @@ class DistortionProcessor extends AudioWorkletProcessor {
         wetR = Math.max(-1, Math.min(1, dryR * driveAmount));
       } else if (isBitcrush) {
         // Quantize bit depth + sample-and-hold
-        let quantL = Math.round(dryL * levels) / levels;
-        let quantR = Math.round(dryR * levels) / levels;
+        const quantL = Math.round(dryL * levels) / levels;
+        const quantR = Math.round(dryR * levels) / levels;
 
         // Sample-and-hold for downsample
         this.holdCounterL++;

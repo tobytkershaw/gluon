@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure helper fn co-located with component */
 // src/ui/SemanticControlsSection.tsx
 // Container rendering semantic knobs for a track's surface semantic controls.
 import { useState, useCallback } from 'react';
@@ -67,11 +68,12 @@ export function SemanticControlsSection({
   const [inspectedId, setInspectedId] = useState<string | null>(null);
 
   const semanticControls = track.surface.semanticControls;
-  if (semanticControls.length === 0) return null;
 
   const handleClick = useCallback((defId: string) => {
     setInspectedId(prev => prev === defId ? null : defId);
   }, []);
+
+  if (semanticControls.length === 0) return null;
 
   return (
     <div className="bg-zinc-900/50 border border-emerald-400/20 rounded-lg p-3 space-y-3">

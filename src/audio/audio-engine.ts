@@ -1,5 +1,4 @@
 // src/audio/audio-engine.ts
-import type { SynthParams } from './synth-interface';
 import { DEFAULT_PARAMS } from './synth-interface';
 import { createPreferredSynth } from './create-synth';
 import type { RingsEngine } from './rings-synth';

@@ -20,7 +20,7 @@ const AGENCY_BADGE: Record<string, { label: string; color: string }> = {
 export function TrackSelector({ tracks, activeTrackId, onSelectTrack, onToggleMute, onToggleSolo, onToggleAgency, compact }: Props) {
   return (
     <div className="flex gap-1">
-      {tracks.map((track, i) => {
+      {tracks.map((track) => {
         const isActive = track.id === activeTrackId;
         const badge = AGENCY_BADGE[track.agency] ?? AGENCY_BADGE.OFF;
         const label = getTrackLabel(track).toUpperCase();

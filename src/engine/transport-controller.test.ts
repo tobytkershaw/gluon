@@ -262,7 +262,7 @@ describe('TransportController', () => {
   it('delays parameter events until their scheduled audio time', () => {
     vi.useFakeTimers();
     const session = makeSession();
-    let currentTime = 1;
+    const currentTime = 1;
     let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
     const onParameterEvent = vi.fn();
     const audio = {
@@ -307,7 +307,7 @@ describe('TransportController', () => {
   it('cancels queued parameter events when playback stops', () => {
     vi.useFakeTimers();
     const session = makeSession();
-    let currentTime = 1;
+    const currentTime = 1;
     let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
     const onParameterEvent = vi.fn();
     const audio = {

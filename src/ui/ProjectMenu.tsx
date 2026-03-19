@@ -218,7 +218,7 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
 
   useEffect(() => {
     if (status === 'saved') {
-      setVisible(true);
+      setVisible(true); // eslint-disable-line react-hooks/set-state-in-effect -- notification timer
       const timer = setTimeout(() => setVisible(false), 2000);
       return () => clearTimeout(timer);
     }

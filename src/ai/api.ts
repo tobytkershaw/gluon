@@ -21,7 +21,6 @@ import type { DevelopmentOp } from '../engine/motif-development';
 import { rotate, transpose, reverse, duplicate } from '../engine/transformations';
 import { humanize as humanizeEvents } from '../engine/musical-helpers';
 import { applyGroove, GROOVE_TEMPLATES } from '../engine/groove-templates';
-import type { InstrumentHint } from '../engine/groove-templates';
 import { generateArchetypeEvents, getArchetype, ARCHETYPE_NAMES } from '../engine/pattern-archetypes';
 import { generateFromGenerator } from '../engine/pattern-generator';
 import type { PatternGenerator, GeneratorBase, GeneratorLayer } from '../engine/pattern-generator';
@@ -785,18 +784,6 @@ function trackListing(session: Session): string[] {
   });
 }
 
-/** Return IDs of tracks with agency ON. */
-function agencyOnTracks(session: Session): string[] {
-  const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
-  const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus');
-  return session.tracks
-    .filter(t => t.agency === 'ON')
-    .map(t => {
-      const label = getTrackOrdinalLabel(t, audioTracks, busTracks);
-      return `${t.id} = ${label}`;
-    });
-}
-
 /** Build a "track not found" error with available track listing. */
 function trackNotFoundError(ref: string, session: Session): Record<string, unknown> {
   return enrichedError(
@@ -1104,7 +1091,6 @@ export class GluonAI {
 
     let workingSession = session;
     const allActions: AIAction[] = [];
-    let hadError = false;
     let hadVisibleOutput = false;
     let breaker = createCircuitBreaker();
 
@@ -1218,7 +1204,6 @@ export class GluonAI {
         });
       }
     } catch (error) {
-      hadError = true;
       const errorActions = this.handleError(error);
       allActions.push(...errorActions);
       // Emit a say-only step so the UI includes the error explanation in the chat message.
@@ -1357,7 +1342,7 @@ export class GluonAI {
     ctx?: AskContext,
     existingActions: AIAction[] = [],
   ): Promise<{ actions: AIAction[]; response: Record<string, unknown> }> {
-    const { name, args, id } = fc;
+    const { name, args } = fc;
 
     // Resolve ordinal track references (e.g. "Track 1") to internal IDs
     if (typeof args.trackId === 'string' && args.trackId) {
@@ -3068,7 +3053,7 @@ export class GluonAI {
               bars: renderBars,
             },
           };
-        } catch (error) {
+        } catch {
           return { actions: [], response: errorPayload('Render failed — try again.') };
         }
       }

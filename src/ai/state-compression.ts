@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, ScaleConstraint, UserSelection } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -38,7 +38,7 @@ interface CompressedModulation {
   depth: number;
 }
 
-interface CompressedRegion {
+interface _CompressedRegion {
   id: string;
   name?: string;
   start: number;

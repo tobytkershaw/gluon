@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSession, addTrack, nextTrackName, createEmptyTrack, renameTrack } from './session';
+import { createSession, addTrack, nextTrackName, renameTrack } from './session';
 
 describe('nextTrackName', () => {
   it('returns T2 when session has one track named T1', () => {

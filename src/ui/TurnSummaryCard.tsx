@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure helper fns co-located with component */
 // src/ui/TurnSummaryCard.tsx
 // Per-turn summary card shown after AI messages with actions.
 // Compact "Changed / Why / Next" display with follow-up chips.

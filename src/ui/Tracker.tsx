@@ -1,6 +1,6 @@
 // src/ui/Tracker.tsx
 import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObject } from 'react';
-import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent } from '../engine/canonical-types';
+import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent, TriggerEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
 import { TrackerRow } from './TrackerRow';
 import { keyToMidi, isPianoKey, BASE_MIDI_LOWER, OCTAVE } from './keyboard-piano-map';
@@ -120,7 +120,7 @@ function buildSlotGrid(events: MusicalEvent[], duration: number): {
     } else if (event.kind === 'trigger') {
       // Treat triggers as gate-bearing but don't add them to note columns.
       // velocity=0 sentinels (note-off) should not count as active gates.
-      if ((event as any).velocity !== 0) slot.hasGate = true;
+      if ((event as TriggerEvent).velocity !== 0) slot.hasGate = true;
     } else if (event.kind === 'parameter') {
       const pe = event as ParameterEvent;
       slot.fxValues.set(pe.controlId, pe);
@@ -240,14 +240,14 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   // Clamp cursor row when slots change
   useEffect(() => {
     if (rowCount > 0 && cursorRow >= rowCount) {
-      setCursorRow(rowCount - 1);
+      setCursorRow(rowCount - 1); // eslint-disable-line react-hooks/set-state-in-effect -- clamping to valid range
     }
   }, [rowCount, cursorRow]);
 
   // Clamp cursor column when columns change
   useEffect(() => {
     if (cursorCol >= colCount) {
-      setCursorCol(colCount - 1);
+      setCursorCol(colCount - 1); // eslint-disable-line react-hooks/set-state-in-effect -- clamping to valid range
     }
   }, [colCount, cursorCol]);
 

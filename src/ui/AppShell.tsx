@@ -184,7 +184,7 @@ export function AppShell({
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
   abActive, onAbCapture, onAbToggle, onAbClear,
-  masterVolume, masterPan, analyser, stereoAnalysers, audioContext, audioEngine, onMasterVolumeChange, onMasterPanChange,
+  masterVolume, masterPan: _masterPan, analyser: _analyser, stereoAnalysers, audioContext, audioEngine, onMasterVolumeChange, onMasterPanChange: _onMasterPanChange,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);

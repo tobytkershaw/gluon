@@ -360,8 +360,6 @@ export function generateArchetypeEvents(
   const dstSteps = options?.stepsPerBar ?? srcSteps;
   const dstBars = options?.bars ?? srcBars;
 
-  const srcTotal = srcSteps * srcBars;
-
   // Step 1: Rescale per-bar positions if stepsPerBar changed
   let baseEvents: MusicalEvent[];
   if (srcSteps === dstSteps) {

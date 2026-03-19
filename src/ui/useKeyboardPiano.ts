@@ -49,13 +49,15 @@ export function useKeyboardPiano(
   const pendingNotes = useRef(new Map<string, PendingNote>());
   // Refs to avoid stale closures in event handlers
   const octaveRef = useRef(octaveOffset);
-  octaveRef.current = octaveOffset;
   const sessionRef = useRef(session);
-  sessionRef.current = session;
   const recordArmedRef = useRef(recordArmed);
-  recordArmedRef.current = recordArmed;
   const onRecordEventsRef = useRef(onRecordEvents);
-  onRecordEventsRef.current = onRecordEvents;
+  useEffect(() => {
+    octaveRef.current = octaveOffset;
+    sessionRef.current = session;
+    recordArmedRef.current = recordArmed;
+    onRecordEventsRef.current = onRecordEvents;
+  });
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Skip if typing in an input, or if modifier keys are held (avoid conflicts with shortcuts)
