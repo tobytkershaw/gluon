@@ -1,12 +1,12 @@
 // src/engine/persistence.ts
-import type { Session, Track, ModulatorConfig, ModulationRouting } from './types';
+import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting } from './types';
 import { DEFAULT_MASTER, MASTER_BUS_ID } from './types';
 import type { Pattern } from './canonical-types';
 import { createSession, createBusTrack } from './session';
 import { stepsToEvents } from './event-conversion';
 import { reprojectTrackStepGrid } from './region-projection';
 import { createDefaultPattern } from './region-helpers';
-import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/instrument-registry';
+import { controlIdToRuntimeParam, getRegisteredModulatorTypes, getRegisteredProcessorTypes } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 import { migrateLegacySurface } from './surface-templates';
 
@@ -224,6 +224,16 @@ export function migrateTrack(track: Track): Track {
   if (!surfaced.sends) {
     surfaced = { ...surfaced, sends: [] };
   }
+
+  // Validate processors — strip unknown types that would leave a dead runtime node
+  const registeredProcTypes = getRegisteredProcessorTypes();
+  const rawProcessors = surfaced.processors ?? [];
+  const validProcessors = rawProcessors.filter((p: ProcessorConfig) => {
+    if (registeredProcTypes.includes(p.type)) return true;
+    console.warn(`[persistence] Track ${surfaced.id}: stripping unknown processor type "${p.type}"`);
+    return false;
+  });
+  surfaced = { ...surfaced, processors: validProcessors };
 
   // Validate modulators
   const registeredModTypes = getRegisteredModulatorTypes();

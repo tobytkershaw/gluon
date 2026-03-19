@@ -708,4 +708,26 @@ describe('persistence', () => {
     expect(loaded).not.toBeNull();
     expect(loaded!.transport.timeSignature).toEqual({ numerator: 3, denominator: 4 });
   });
+
+  it('strips unknown processor types during restore', () => {
+    const session = createSession();
+    const trackWithProcessors = {
+      ...session.tracks[0],
+      processors: [
+        { id: 'p1', type: 'ripples', model: 0, params: { frequency: 0.5 } },
+        { id: 'p2', type: 'deleted_plugin', model: 0, params: {} },
+        { id: 'p3', type: 'compressor', model: 0, params: { threshold: 0.6 } },
+      ],
+    };
+    const modified = {
+      ...session,
+      messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      tracks: [trackWithProcessors, ...session.tracks.slice(1)],
+    };
+
+    const restored = restoreSession(modified);
+    const track = getTrack(restored, 'v0');
+    expect(track.processors).toHaveLength(2);
+    expect(track.processors!.map(p => p.type)).toEqual(['ripples', 'compressor']);
+  });
 });
