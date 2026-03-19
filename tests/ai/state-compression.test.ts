@@ -205,6 +205,51 @@ describe('State Compression (Phase 2)', () => {
       },
     });
   });
+
+  it('includes mix warnings and recent auto diffs when provided', () => {
+    const session = createSession();
+    const result = compressState(
+      session,
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          type: 'clipping',
+          severity: 1,
+          trackId: 'master-bus',
+          trackLabel: 'Master Bus',
+          peak: -0.1,
+          message: 'Master Bus is clipping at -0.1 dBFS.',
+        },
+      ],
+      [
+        {
+          trackId: 'v0',
+          summary: 'Brighter and louder.',
+          confidence: 0.82,
+        },
+      ],
+    );
+
+    expect(result.mixWarnings).toEqual([
+      {
+        type: 'clipping',
+        severity: 1,
+        trackId: 'master-bus',
+        trackLabel: 'Master Bus',
+        peak: -0.1,
+        message: 'Master Bus is clipping at -0.1 dBFS.',
+      },
+    ]);
+    expect(result.recentAutoDiffs).toEqual([
+      {
+        trackId: 'v0',
+        summary: 'Brighter and louder.',
+        confidence: 0.82,
+      },
+    ]);
+  });
 });
 
 // ---------------------------------------------------------------------------

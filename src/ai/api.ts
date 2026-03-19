@@ -29,6 +29,7 @@ import { setTensionPoints, setTrackTensionMapping, createTensionCurve } from '..
 import { getArrangementArchetype, expandArchetype, ARRANGEMENT_ARCHETYPE_NAMES as ARRANGEMENT_NAMES } from '../engine/arrangement-archetypes';
 import type { TensionPoint, TrackTensionMapping } from '../engine/tension-curve';
 import { compressState } from './state-compression';
+import type { CompressedAutoDiffSummary } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
 import { buildListenPromptWithLens, buildComparePrompt } from './listen-prompt';
 import type { ListenLens } from './listen-prompt';
@@ -57,6 +58,7 @@ import type { FrequencyBand } from '../engine/spectral-slots';
 import type { TimbralDirection } from '../engine/timbral-vocabulary';
 import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
 import { appendSpectralAdvisory } from './spectral-lint';
+import { deriveMixWarnings } from './mix-warnings';
 import { expandParamShapes, validateParamShapes } from '../engine/param-shapes';
 import type { ParamShapes } from '../engine/param-shapes';
 import { getChordToneNames, normalizeChordProgression } from '../engine/chords';
@@ -1060,6 +1062,8 @@ export class GluonAI {
   private _userPatchesLoaded = false;
   /** Avoid repeating token-count fallback warnings every turn. */
   private countTokensFallbackWarned = false;
+  /** Automatic before/after summaries from the most recent accepted AI edit step. */
+  private recentAutoDiffs: CompressedAutoDiffSummary[] = [];
 
   constructor(
     private planner: PlannerProvider,
@@ -1149,7 +1153,7 @@ export class GluonAI {
     executeActions: StepExecutor,
     onStep?: OnStepCallback,
   ): Promise<AIAction[]> {
-    const state = compressState(session, undefined, ctx?.userSelection, ctx?.audioMetrics);
+    const state = this.buildCompressedState(session, ctx, ctx?.userSelection);
     const stateJson = JSON.stringify(state);
     await this.trimToTokenBudget(session, humanMessage, stateJson, ctx);
 
@@ -1198,7 +1202,9 @@ export class GluonAI {
         const actionable = roundResult.actions.filter(a => a.type !== 'say');
         let execReport: StepExecutionReport | null = null;
         if (actionable.length > 0) {
+          const beforeStepSession = workingSession;
           execReport = executeActions(workingSession, actionable);
+          await this.captureRecentAutoDiffs(beforeStepSession, execReport.session, execReport.accepted, ctx);
           workingSession = execReport.session;
           if (execReport.accepted.length > 0 || execReport.log.length > 0) {
             hadVisibleOutput = true;
@@ -1307,6 +1313,70 @@ export class GluonAI {
     }
 
     return allActions;
+  }
+
+  private buildCompressedState(
+    session: Session,
+    ctx?: AskContext,
+    userSelection?: UserSelection,
+  ) {
+    const mixWarnings = deriveMixWarnings(session, ctx?.audioMetrics, this.spectralSlots);
+    return compressState(
+      session,
+      undefined,
+      userSelection,
+      ctx?.audioMetrics,
+      mixWarnings,
+      this.recentAutoDiffs,
+    );
+  }
+
+  private async captureRecentAutoDiffs(
+    beforeSession: Session,
+    afterSession: Session,
+    accepted: AIAction[],
+    ctx?: AskContext,
+  ): Promise<void> {
+    if (!ctx?.listen?.renderOfflinePcm || accepted.length === 0) return;
+
+    const diffableTrackIds = Array.from(new Set(
+      accepted.flatMap(action => {
+        if (!('trackId' in action) || typeof action.trackId !== 'string') return [];
+        const track = afterSession.tracks.find(candidate => candidate.id === action.trackId);
+        if (!track || getTrackKind(track) !== 'audio') return [];
+        switch (action.type) {
+          case 'move':
+          case 'sketch':
+          case 'set_model':
+          case 'transform':
+          case 'edit_pattern':
+          case 'set_track_mix':
+          case 'manage_pattern':
+          case 'manage_sequence':
+            return [action.trackId];
+          default:
+            return [];
+        }
+      }),
+    ));
+    if (diffableTrackIds.length === 0) return;
+
+    const summaries = await Promise.all(
+      diffableTrackIds.map(async trackId => {
+        const verification = await runAutoDiffVerification(beforeSession, afterSession, trackId, ctx);
+        if (!verification) return null;
+        return {
+          trackId,
+          summary: verification.verification.summary,
+          confidence: verification.verification.confidence,
+        } satisfies CompressedAutoDiffSummary;
+      }),
+    );
+
+    const nextSummaries = summaries.filter((summary): summary is CompressedAutoDiffSummary => summary !== null);
+    if (nextSummaries.length > 0) {
+      this.recentAutoDiffs = nextSummaries.slice(-5);
+    }
   }
 
   /**
@@ -5026,7 +5096,7 @@ export class GluonAI {
       listen.onListening?.(true);
 
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
-      const state = compressState(session, undefined, undefined, ctx?.audioMetrics);
+      const state = this.buildCompressedState(session, ctx);
 
       // Build prompt — append rubric criteria when requested
       const basePrompt = buildListenPromptWithLens(question, lens);
@@ -5112,7 +5182,7 @@ export class GluonAI {
       listen.onListening?.(true);
 
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
-      const state = compressState(session, undefined, undefined, ctx?.audioMetrics);
+      const state = this.buildCompressedState(session, ctx);
 
       const critique = await this.evaluateWithListeners({
         systemPrompt: buildComparePrompt(question, lens),

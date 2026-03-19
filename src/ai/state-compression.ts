@@ -8,6 +8,7 @@ import { scaleToString, scaleNoteNames } from '../engine/scale';
 import { getChordToneNames } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
+import type { MixWarning } from './mix-warnings';
 
 interface CompressedPattern {
   length: number;
@@ -138,6 +139,8 @@ export interface CompressedState {
   intent?: SessionIntent;
   genre_reference_overlays?: CompressedGenreReferenceOverlay[];
   audioMetrics?: CompressedAudioMetrics;
+  mixWarnings?: MixWarning[];
+  recentAutoDiffs?: CompressedAutoDiffSummary[];
   section?: SectionMeta;
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
   chord_progression?: CompressedChordProgressionEntry[] | null;
@@ -160,6 +163,12 @@ interface CompressedGenreReferenceOverlay {
 interface CompressedAudioMetrics {
   master: AudioMetricFrame;
   tracks: Record<string, AudioMetricFrame>;
+}
+
+export interface CompressedAutoDiffSummary {
+  trackId: string;
+  summary: string;
+  confidence: number;
 }
 
 function round2(n: number): number {
@@ -479,6 +488,8 @@ export function compressState(
   recentPreservationReports?: PreservationReport[],
   userSelection?: UserSelection,
   audioMetrics?: AudioMetricsSnapshot,
+  mixWarnings?: MixWarning[],
+  recentAutoDiffs?: CompressedAutoDiffSummary[],
 ): CompressedState {
   const now = Date.now();
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
@@ -623,6 +634,8 @@ export function compressState(
         tracks: audioMetrics.tracks,
       },
     } : {}),
+    ...(mixWarnings && mixWarnings.length > 0 ? { mixWarnings } : {}),
+    ...(recentAutoDiffs && recentAutoDiffs.length > 0 ? { recentAutoDiffs } : {}),
     ...(session.section && Object.keys(session.section).length > 0 ? { section: session.section } : {}),
     ...(session.scale !== undefined ? {
       scale: session.scale ? {
