@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-three tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-four tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -409,6 +409,16 @@ Set the global scale/key constraint. When set, note pitches in `sketch` and `edi
 
 Undoable. Produces a `ScaleSnapshot` for undo.
 
+#### `set_chord_progression`
+
+Set a chord progression that guides harmonic content across the project. Defines a sequence of chords tied to bar positions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `chords` | array | yes | Chord entries. Each has `bar` (1-based position), `root` (note name, e.g. "C", "F#"), `quality` (e.g. "major", "minor", "dominant7", "diminished"). |
+
+Undoable. Produces a `ChordProgressionSnapshot` for undo.
+
 #### `set_tension`
 
 Set the tension/energy curve over the arrangement timeline. Defines an arc of energy and density that the AI uses as a compositional guide. Points are interpolated linearly. Optionally map individual tracks to the curve, defining how their parameters respond to energy levels. The curve is metadata/intent — it does not directly control audio parameters.
@@ -688,7 +698,9 @@ Each turn, the AI receives compressed session state as JSON:
   ],
   "observed_patterns": ["Human has approved 7 of last 10 AI actions — generally receptive"],
   "restraint_level": "adventurous",
-  "open_decisions": []
+  "open_decisions": [],
+  "scale": "C natural minor",
+  "chord_progression": [{ "bar": 1, "root": "C", "quality": "minor" }, { "bar": 5, "root": "Ab", "quality": "major" }]
 }
 ```
 

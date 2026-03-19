@@ -58,6 +58,7 @@ const PARITY_GAP_TOOLS = new Set([
   'assign_spectral_slot',      // LOW: compound tool — humans use EQ controls directly
   'manage_motif',        // MODERATE: no UI for motif registration/development (human can copy/paste patterns)
   'set_tension',         // MODERATE: no UI for tension curve (metadata for AI compositional decisions)
+  'set_chord_progression', // MODERATE: no UI for chord progression (metadata for AI harmonic guidance)
   'save_patch',          // LOW: compound tool — human can manually note down settings (future: UI patch browser)
   'load_patch',          // LOW: compound tool — human can manually set params (future: UI patch browser)
   'set_sidechain',       // MODERATE: no UI for sidechain routing (human can use ducking_sidechain modulation recipe as alternative)
@@ -91,7 +92,7 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale
-    expect(PARITY_GAP_TOOLS.size).toBe(20);
+    expect(PARITY_GAP_TOOLS.size).toBe(21);
   });
 
   it('documents the expected number of AI-only tools', () => {
