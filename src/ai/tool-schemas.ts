@@ -79,6 +79,7 @@ const moveTool: ToolSchema = {
           `The control ID to change. ` +
           `Track mix aliases: "volume", "pan". ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
+          `For drum rack per-pad params: use "padId.param" (e.g. "kick.timbre", "snare.level", "hat.pan"). ` +
           `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}; Elements: ${quoted(elementsParamIds)}; Beads: ${quoted(beadsParamIds)}). ` +
           `For Tides modulator: ${quoted(tidesParamIds)}.`,
       },
@@ -273,6 +274,13 @@ const sketchTool: ToolSchema = {
           'phase (number, sine only), stepSize (number, random_walk), values (number[], steps), ' +
           'stepsPerValue (number, steps), attack/hold/release (number, envelope).',
       },
+      kit: {
+        type: 'object',
+        description:
+          'Drum rack kit: record of padId to grid string. For drum rack tracks only. ' +
+          'Each grid string encodes one pad\'s rhythm: "x...o...|x..o...." where x=accent, o=hit, g=ghost, h=soft, H=loud, O=open, .=rest, |=bar. ' +
+          'Replaces events for mentioned pads only. When present, overrides the events array.',
+      },
       verify: {
         type: 'boolean',
         description:
@@ -301,6 +309,10 @@ const editPatternTool: ToolSchema = {
       patternId: {
         type: 'string',
         description: 'Pattern ID to edit. Defaults to active pattern if omitted.',
+      },
+      pad: {
+        type: 'string',
+        description: 'For drum rack tracks: scope operations to this pad\'s events only.',
       },
       operations: {
         type: 'array',
@@ -527,6 +539,10 @@ const setModelTool: ToolSchema = {
           'For Clouds processor: granular, pitch-shifter, looping-delay, spectral. ' +
           'For Tides modulator: ad, looping, ar.',
       },
+      pad: {
+        type: 'string',
+        description: 'For drum rack tracks: change a specific pad\'s Plaits model instead of the track\'s source engine.',
+      },
       processorId: {
         type: 'string',
         description: 'Processor ID to target. When provided, switches the processor\'s mode instead of the track\'s synthesis engine.',
@@ -548,6 +564,7 @@ const transformTool: ToolSchema = {
     type: 'object',
     properties: {
       trackId: { type: 'string', description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.' },
+      pad: { type: 'string', description: 'For drum rack tracks: scope transform to one pad\'s events only.' },
       operation: { type: 'string', description: 'Transform operation: "rotate" (shift events in time), "transpose" (shift pitch), "reverse" (mirror positions), "duplicate" (repeat pattern), "humanize" (velocity/timing jitter), "euclidean" (generate Euclidean rhythm), "ghost_notes" (add low-velocity hits around accents), "swing" (delay off-beats), "thin" (probabilistically remove events), "densify" (fill empty steps).' },
       steps: { type: 'integer', description: 'For rotate: number of steps to shift (positive=forward, negative=backward). Required for rotate, rejected for other operations.' },
       semitones: { type: 'integer', description: 'For transpose: semitones to shift (positive=up, negative=down). Required for transpose, rejected for other operations.' },
@@ -1923,6 +1940,51 @@ const applyArrangementArchetypeTool: ToolSchema = {
   },
 };
 
+const manageDrumPadTool: ToolSchema = {
+  name: 'manage_drum_pad',
+  description:
+    'Add, remove, rename, or set choke group on a drum rack pad. Drum rack tracks (engine: drum-rack) hold ' +
+    'up to 16 pads, each with its own Plaits model and params. Adding pads mid-session is the expected workflow.',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: {
+        type: 'string',
+        enum: ['add', 'remove', 'rename', 'set_choke_group'],
+        description: 'Operation to perform.',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Target drum rack track.',
+      },
+      padId: {
+        type: 'string',
+        description: 'Pad identifier (e.g. "kick", "snare", "hat-closed"). Must be unique within the rack.',
+      },
+      name: {
+        type: 'string',
+        description: 'Human-readable pad name (e.g. "Kick", "Snare"). Required for add and rename.',
+      },
+      model: {
+        type: 'string',
+        description:
+          'Plaits model for the pad. Required for add. ' +
+          'Options: virtual-analog, waveshaping, fm, grain-formant, harmonic, wavetable, ' +
+          'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
+          'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat.',
+      },
+      chokeGroup: {
+        description: 'Choke group number (integer >= 1). Pads in the same group mute each other on trigger. Set to null to remove from a choke group.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the operation.',
+      },
+    },
+    required: ['action', 'trackId', 'padId', 'description'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -1970,4 +2032,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   suggestReactionsTool,
   applyArrangementArchetypeTool,
   setTrackIdentityTool,
+  manageDrumPadTool,
 ];

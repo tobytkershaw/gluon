@@ -211,6 +211,7 @@ describe('API Structural Integrity', () => {
       'load_patch',
       'apply_arrangement_archetype',
       'set_track_identity',
+      'manage_drum_pad',
     ];
 
     // Analysis-only / non-mutating tools produce no actions (actions: []):
@@ -228,7 +229,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(46);
+    expect(GLUON_TOOLS.length).toBe(47);
   });
 
   // -----------------------------------------------------------------------

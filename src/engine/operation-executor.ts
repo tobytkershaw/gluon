@@ -1,7 +1,8 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity } from './types';
-import { MASTER_BUS_ID } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad } from './types';
+import { MASTER_BUS_ID, MAX_DRUM_PADS } from './types';
 import { getDefaultVisualIdentity } from './visual-identity';
+import { kitToEvents, gridLength } from './drum-grid';
 
 /**
  * Prefix used by prevalidateAction to distinguish master-volume permission
@@ -213,6 +214,22 @@ export function prevalidateAction(
         return null;
       }
 
+      // Drum rack per-pad param path: "padId.param"
+      if (action.param.includes('.') && track.engine === 'drum-rack' && track.drumRack) {
+        const dotIdx = action.param.indexOf('.');
+        const padId = action.param.slice(0, dotIdx);
+        const padParam = action.param.slice(dotIdx + 1);
+        const pad = track.drumRack.pads.find(p => p.id === padId);
+        if (!pad) return `Drum pad not found: ${padId}`;
+        if (padParam !== 'level' && padParam !== 'pan' && !(padParam in pad.source.params)) {
+          return `Unknown drum pad control: ${padParam} on pad ${padId}`;
+        }
+        if (!arbitrator.canAIActOnTrack(trackId)) {
+          return `Arbitration: human is currently interacting with track ${trackId}`;
+        }
+        return null;
+      }
+
       // Source path: resolve through adapter
       const resolved = resolveMoveParam(action.param, adapter);
       if (!resolved) return `Unknown control: ${action.param}`;
@@ -239,6 +256,30 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
 
+      // Drum rack validation
+      if (track.engine === 'drum-rack' && track.drumRack) {
+        const pads = track.drumRack.pads;
+        const padIdSet = new Set(pads.map(p => p.id));
+        if (action.events) {
+          for (const ev of action.events) {
+            if (ev.kind === 'trigger') {
+              const trigger = ev as { padId?: string };
+              if (!trigger.padId) return `Drum rack triggers must have padId`;
+              if (!padIdSet.has(trigger.padId)) return `Pad not found: ${trigger.padId}`;
+            }
+          }
+        }
+        if (action.kit) {
+          const activeReg = track.patterns.length > 0 ? getActivePattern(track) : undefined;
+          if (!activeReg) return `No active pattern on drum rack track`;
+          for (const [padId, grid] of Object.entries(action.kit)) {
+            if (!padIdSet.has(padId)) return `Pad not found: ${padId}`;
+            const len = gridLength(grid);
+            if (len !== activeReg.duration) return `Grid length for pad "${padId}" (${len}) does not match pattern duration (${activeReg.duration})`;
+          }
+        }
+      }
+
       const sketchPreservation = checkPreservationForSketch(session, action.trackId, action.events);
       if (sketchPreservation) return sketchPreservation;
       return null;
@@ -248,6 +289,18 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
 
+      // Drum rack pad path
+      if (action.pad) {
+        if (track.engine !== 'drum-rack' || !track.drumRack) return `Track ${action.trackId} is not a drum rack`;
+        const pad = track.drumRack.pads.find(p => p.id === action.pad);
+        if (!pad) return `Pad not found: ${action.pad}`;
+        const padEngine = getEngineById(action.model);
+        if (!padEngine) return `Unknown model: ${action.model}`;
+        if (!arbitrator.canAIActOnTrack(action.trackId)) {
+          return `Arbitration: human is currently interacting with track ${action.trackId}`;
+        }
+        return null;
+      }
 
       // Modulator path: resolve model against modulator type's engine list
       if (action.modulatorId) {
@@ -303,6 +356,10 @@ export function prevalidateAction(
     case 'transform': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
+
+      if (action.pad && action.operation === 'duplicate') {
+        return `Cannot duplicate a single pad's events — duplicate applies to the full pattern.`;
+      }
 
       const transformPreservation = checkPreservationForTransform(session, action.trackId, action.operation);
       if (transformPreservation) return transformPreservation;
@@ -613,6 +670,42 @@ export function prevalidateAction(
           }
           current = next!;
         }
+      }
+      return null;
+    }
+
+    case 'manage_drum_pad': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.engine !== 'drum-rack' || !track.drumRack) return `Track ${action.trackId} is not a drum rack`;
+      const pads = track.drumRack?.pads ?? [];
+      switch (action.action) {
+        case 'add': {
+          if (pads.length >= MAX_DRUM_PADS) return `Maximum ${MAX_DRUM_PADS} pads per drum rack`;
+          if (pads.some(p => p.id === action.padId)) return `Pad ID already exists: ${action.padId}`;
+          if (!action.model) return `action=add requires model`;
+          const padEngine = getEngineById(action.model);
+          if (!padEngine) return `Unknown model: ${action.model}`;
+          break;
+        }
+        case 'remove':
+          if (!pads.some(p => p.id === action.padId)) return `Pad not found: ${action.padId}`;
+          break;
+        case 'rename':
+          if (!pads.some(p => p.id === action.padId)) return `Pad not found: ${action.padId}`;
+          if (!action.name) return `action=rename requires name`;
+          break;
+        case 'set_choke_group':
+          if (!pads.some(p => p.id === action.padId)) return `Pad not found: ${action.padId}`;
+          if (action.chokeGroup !== null && action.chokeGroup !== undefined && (typeof action.chokeGroup !== 'number' || action.chokeGroup < 1)) {
+            return `chokeGroup must be an integer >= 1 or null`;
+          }
+          break;
+        default:
+          return `Unknown manage_drum_pad action: ${action.action}`;
+      }
+      if (!arbitrator.canAIActOnTrack(action.trackId)) {
+        return `Arbitration: human is currently interacting with track ${action.trackId}`;
       }
       return null;
     }
@@ -1041,6 +1134,33 @@ function executeActionsInternal(
           break;
         }
 
+        // Drum rack per-pad param path: "padId.param"
+        if (action.param.includes('.') && track.engine === 'drum-rack' && track.drumRack) {
+          const dotIdx = action.param.indexOf('.');
+          const padId = action.param.slice(0, dotIdx);
+          const padParam = action.param.slice(dotIdx + 1);
+          const pad = track.drumRack.pads.find(p => p.id === padId);
+          if (!pad) { rejected.push({ op: action, reason: `Drum pad not found: ${padId}` }); break; }
+
+          const prevPads = track.drumRack.pads.map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
+          const currentVal = padParam === 'level' ? pad.level : padParam === 'pan' ? pad.pan : pad.source.params[padParam] ?? 0;
+          const rawTarget = 'absolute' in action.target ? action.target.absolute : currentVal + action.target.relative;
+          const clampedVal = clampParam(rawTarget);
+          if (clampedVal === null) { rejected.push({ op: action, reason: `Non-finite parameter value for ${action.param}` }); break; }
+
+          const snapshot: DrumPadSnapshot = { kind: 'drum-pad', trackId, prevPads, timestamp: Date.now(), description: `AI drum pad move: ${action.param} ${currentVal.toFixed(2)} -> ${clampedVal.toFixed(2)}` };
+          const newPads = track.drumRack.pads.map(p => {
+            if (p.id !== padId) return p;
+            if (padParam === 'level') return { ...p, level: clampedVal };
+            if (padParam === 'pan') return { ...p, pan: clampedVal };
+            return { ...p, source: { ...p.source, params: { ...p.source.params, [padParam]: clampedVal } } };
+          });
+          next = { ...updateTrack(next, trackId, { drumRack: { ...track.drumRack, pads: newPads } }), undoStack: [...next.undoStack, snapshot] };
+          log.push({ trackId, trackLabel: vLabel, description: `${action.param} ${currentVal.toFixed(2)} → ${clampedVal.toFixed(2)}`, diff: { kind: 'param-change', controlId: action.param, from: currentVal, to: clampedVal } });
+          accepted.push(action);
+          break;
+        }
+
         // Source path: resolve through adapter
         const resolved = resolveMoveParam(action.param, adapter);
         if (!resolved) { rejected.push({ op: action, reason: 'Internal: param unresolvable at execution' }); break; }
@@ -1134,7 +1254,48 @@ function executeActionsInternal(
         let eventsAfter = eventsBefore;
         let newEventsForReport: MusicalEvent[] | undefined;
 
-        if (action.events) {
+        if (action.kit && track.engine === 'drum-rack' && track.drumRack) {
+          // Kit-based sketch: parse grid strings into events, merge with existing pad events
+          if (!activeReg) { rejected.push({ op: action, reason: 'No active pattern on drum rack track' }); break; }
+          const sketchRegion = activeReg;
+          const prevEvents = sketchRegion.events;
+
+          // Parse kit grid strings into events
+          let kitEvents = kitToEvents(action.kit) as MusicalEvent[];
+
+          // Apply groove/humanize/dynamic
+          if (action.groove && action.groove in GROOVE_TEMPLATES) {
+            kitEvents = applyGroove(kitEvents, GROOVE_TEMPLATES[action.groove], action.grooveAmount ?? 0.7, undefined, sketchRegion.duration);
+          }
+          if (action.humanize != null && action.humanize > 0) {
+            kitEvents = humanize(kitEvents, sketchRegion.duration, { velocityAmount: action.humanize, timingAmount: action.humanize * 0.33 });
+          }
+          if (action.dynamic) {
+            kitEvents = applyDynamicShape(action.dynamic, kitEvents, sketchRegion.duration);
+          }
+
+          // Merge: keep events for pads NOT mentioned in kit, replace events for mentioned pads
+          const mentionedPadIds = new Set(Object.keys(action.kit));
+          const keptEvents = prevEvents.filter(e =>
+            e.kind !== 'trigger' || !('padId' in e) || !mentionedPadIds.has((e as { padId?: string }).padId ?? ''),
+          );
+          const mergedEvents = [...keptEvents, ...kitEvents];
+
+          const updatedRegion = normalizePatternEvents({ ...sketchRegion, events: mergedEvents });
+          const validation = validatePattern(updatedRegion);
+          if (!validation.valid) { rejected.push({ op: action, reason: `Invalid region: ${validation.errors.join('; ')}` }); break; }
+
+          const newRegions = track.patterns.map(r => r.id === sketchRegion.id ? updatedRegion : r);
+          const inverseOpts = {
+            midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
+            canonicalToRuntime: (id: string) => { const binding = adapter.mapControl(id); const parts = binding.path.split('.'); return parts[parts.length - 1]; },
+          };
+          const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
+          const snapshot: PatternEditSnapshot = { kind: 'pattern-edit', trackId: action.trackId, patternId: sketchRegion.id, prevEvents: [...prevEvents], timestamp: Date.now(), description: action.description };
+          next = { ...updateTrack(next, action.trackId, { patterns: newRegions, stepGrid: pattern, _patternDirty: true }), undoStack: [...next.undoStack, snapshot] };
+          eventsAfter = updatedRegion.events.length;
+          newEventsForReport = updatedRegion.events;
+        } else if (action.events) {
           // Canonical sketch: write events to region first (source of truth),
           // then project to pattern (derived cache).
           const sketchRegion = activeReg!;
@@ -1328,6 +1489,23 @@ function executeActionsInternal(
           break;
         }
 
+        // Drum rack pad path: switch a pad's Plaits model
+        if (action.pad && track.drumRack) {
+          const prevPads = track.drumRack.pads.map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
+          const pad = track.drumRack.pads.find(p => p.id === action.pad);
+          if (!pad) { rejected.push({ op: action, reason: `Pad not found: ${action.pad}` }); break; }
+          const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
+          if (engineIndex < 0) { rejected.push({ op: action, reason: `Unknown model: ${action.model}` }); break; }
+          const defaultParams: Record<string, number> = {};
+          for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; }
+          const padSnapshot: DrumPadSnapshot = { kind: 'drum-pad', trackId: action.trackId, prevPads, timestamp: Date.now(), description: `AI drum pad model: ${action.pad} → ${plaitsInstrument.engines[engineIndex].label}` };
+          const newPads = track.drumRack.pads.map(p => p.id === action.pad ? { ...p, source: { ...p.source, model: engineIndex, params: defaultParams } } : p);
+          next = { ...updateTrack(next, action.trackId, { drumRack: { ...track.drumRack, pads: newPads } }), undoStack: [...next.undoStack, padSnapshot] };
+          log.push({ trackId: action.trackId, trackLabel: vLabel, description: `pad ${action.pad} model → ${plaitsInstrument.engines[engineIndex].label}`, diff: { kind: 'model-change', from: String(pad.source.model), to: plaitsInstrument.engines[engineIndex].label } });
+          accepted.push(action);
+          break;
+        }
+
         // Processor path: switch processor mode
         if (action.processorId) {
           const processors = track.processors ?? [];
@@ -1417,8 +1595,80 @@ function executeActionsInternal(
           });
         }
 
-        // Apply edits via pattern-primitives (includes undo snapshot)
-        next = editPatternEvents(next, action.trackId, action.patternId, editOps, action.description);
+        // Pad-scoped edit_pattern for drum rack tracks
+        if (action.pad && track.engine === 'drum-rack' && track.drumRack) {
+          const padId = action.pad;
+          const patternEvents = [...targetPattern.events];
+          const prevEvents = [...patternEvents];
+
+          for (const op of editOps) {
+            switch (op.action) {
+              case 'add': {
+                if (op.event?.type === 'trigger') {
+                  const newTrigger: MusicalEvent = {
+                    kind: 'trigger',
+                    at: op.step,
+                    velocity: op.event.velocity ?? 0.8,
+                    accent: op.event.accent ?? false,
+                    padId,
+                  } as MusicalEvent;
+                  // Check for existing trigger at this step for this pad
+                  const existingIdx = patternEvents.findIndex(
+                    e => e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
+                  );
+                  if (existingIdx >= 0) {
+                    patternEvents[existingIdx] = newTrigger;
+                  } else {
+                    const insertAt = patternEvents.findIndex(e => e.at > op.step);
+                    if (insertAt === -1) patternEvents.push(newTrigger);
+                    else patternEvents.splice(insertAt, 0, newTrigger);
+                  }
+                }
+                break;
+              }
+              case 'remove': {
+                // Only remove triggers matching this pad
+                for (let i = patternEvents.length - 1; i >= 0; i--) {
+                  const e = patternEvents[i];
+                  if (e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId) {
+                    patternEvents.splice(i, 1);
+                    break; // remove one at a time
+                  }
+                }
+                break;
+              }
+              case 'modify': {
+                // Only modify triggers matching this pad
+                const idx = patternEvents.findIndex(
+                  e => e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
+                );
+                if (idx >= 0 && op.event) {
+                  const existing = patternEvents[idx] as MusicalEvent & { velocity?: number; accent?: boolean };
+                  patternEvents[idx] = {
+                    ...existing,
+                    ...(op.event.velocity !== undefined ? { velocity: op.event.velocity } : {}),
+                    ...(op.event.accent !== undefined ? { accent: op.event.accent } : {}),
+                  } as MusicalEvent;
+                }
+                break;
+              }
+            }
+          }
+
+          // Update the pattern with scoped edits
+          const updatedRegion = normalizePatternEvents({ ...targetPattern, events: patternEvents });
+          const newRegions = track.patterns.map(r => r.id === targetPattern.id ? updatedRegion : r);
+          const inverseOpts = {
+            midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
+            canonicalToRuntime: (id: string) => { const binding = adapter.mapControl(id); const parts = binding.path.split('.'); return parts[parts.length - 1]; },
+          };
+          const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
+          const snapshot: PatternEditSnapshot = { kind: 'pattern-edit', trackId: action.trackId, patternId: targetPattern.id, prevEvents, timestamp: Date.now(), description: action.description };
+          next = { ...updateTrack(next, action.trackId, { patterns: newRegions, stepGrid: pattern, _patternDirty: true }), undoStack: [...next.undoStack, snapshot] };
+        } else {
+          // Apply edits via pattern-primitives (includes undo snapshot)
+          next = editPatternEvents(next, action.trackId, action.patternId, editOps, action.description);
+        }
 
         const updatedTrack = getTrack(next, action.trackId);
         const updatedPattern = action.patternId
@@ -1447,69 +1697,68 @@ function executeActionsInternal(
 
         const prevEvents = [...region.events];
         const prevDuration = region.duration;
+        const padScope = action.pad;
+        const sourceEvents = padScope
+          ? region.events.filter(e => e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === padScope)
+          : region.events;
+        const otherEvents = padScope
+          ? region.events.filter(e => !(e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === padScope))
+          : [];
+
         let newEvents: MusicalEvent[];
         let newDuration = region.duration;
 
         switch (action.operation) {
           case 'rotate':
-            newEvents = rotate(region.events, action.steps ?? 0, region.duration);
+            newEvents = rotate(sourceEvents, action.steps ?? 0, region.duration);
             break;
           case 'transpose':
-            newEvents = transpose(region.events, action.semitones ?? 0);
+            newEvents = transpose(sourceEvents, action.semitones ?? 0);
             break;
           case 'reverse':
-            newEvents = reverse(region.events, region.duration);
+            newEvents = reverse(sourceEvents, region.duration);
             break;
           case 'duplicate': {
-            const dup = duplicate(region.events, region.duration);
+            const dup = duplicate(sourceEvents, region.duration);
             newEvents = dup.events;
-            newDuration = dup.duration;
+            if (!padScope) newDuration = dup.duration;
             break;
           }
           case 'humanize':
-            newEvents = humanize(region.events, region.duration, {
+            newEvents = humanize(sourceEvents, region.duration, {
               velocityAmount: action.velocity_amount ?? 0.3,
               timingAmount: action.timing_amount ?? 0.1,
             });
             break;
-          case 'euclidean':
-            newEvents = euclidean({
-              hits: action.hits ?? 4,
-              steps: region.duration,
-              rotation: action.rotation ?? 0,
-              velocity: action.velocity ?? 0.8,
-            });
+          case 'euclidean': {
+            let eucEvents = euclidean({ hits: action.hits ?? 4, steps: region.duration, rotation: action.rotation ?? 0, velocity: action.velocity ?? 0.8 });
+            if (padScope) { eucEvents = eucEvents.map(e => e.kind === 'trigger' ? { ...e, padId: padScope } : e); }
+            newEvents = eucEvents;
             break;
+          }
           case 'ghost_notes':
-            newEvents = ghostNotes(region.events, region.duration, {
-              velocity: action.velocity ?? 0.3,
-              probability: action.probability ?? 0.5,
-            });
+            newEvents = ghostNotes(sourceEvents, region.duration, { velocity: action.velocity ?? 0.3, probability: action.probability ?? 0.5 });
             break;
           case 'swing':
-            newEvents = swingTransform(region.events, region.duration, {
-              amount: action.amount ?? 0.5,
-            });
+            newEvents = swingTransform(sourceEvents, region.duration, { amount: action.amount ?? 0.5 });
             break;
           case 'thin':
-            newEvents = thin(region.events, {
-              probability: action.probability ?? 0.5,
-            });
+            newEvents = thin(sourceEvents, { probability: action.probability ?? 0.5 });
             break;
           case 'densify':
-            newEvents = densify(region.events, region.duration, {
-              probability: action.probability ?? 0.5,
-              velocity: action.velocity ?? 0.6,
-            });
+            newEvents = densify(sourceEvents, region.duration, { probability: action.probability ?? 0.5, velocity: action.velocity ?? 0.6 });
             break;
           default:
             rejected.push({ op: action, reason: `Unknown transform operation: ${(action as AITransformAction).operation}` });
             continue;
         }
 
+        // Merge back with other events when pad-scoped
+        const finalEvents = padScope ? [...otherEvents, ...newEvents] : newEvents;
+
         const updatedRegion = normalizePatternEvents({
           ...region,
-          events: newEvents,
+          events: finalEvents,
           duration: newDuration,
         });
 
@@ -2488,6 +2737,46 @@ function executeActionsInternal(
         next = seqResult;
         const seqLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: seqLabel, description: `sequence ${action.action}: ${action.description}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'manage_drum_pad': {
+        const track = getTrack(next, action.trackId);
+        const prevPads = [...(track.drumRack?.pads ?? [])].map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
+        const drumPadSnapshot: DrumPadSnapshot = { kind: 'drum-pad', trackId: action.trackId, prevPads, timestamp: Date.now(), description: `manage_drum_pad ${action.action}: ${action.description}` };
+
+        let newPads: DrumPad[];
+        switch (action.action) {
+          case 'add': {
+            const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
+            const defaultParams: Record<string, number> = {};
+            if (engineIndex >= 0) { for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; } }
+            const newPad: DrumPad = { id: action.padId, name: action.name ?? action.padId, source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: defaultParams }, level: 0.8, pan: 0.5 };
+            if (action.chokeGroup != null) (newPad as DrumPad).chokeGroup = action.chokeGroup as number;
+            newPads = [...prevPads, newPad];
+            break;
+          }
+          case 'remove':
+            newPads = prevPads.filter(p => p.id !== action.padId);
+            break;
+          case 'rename':
+            newPads = prevPads.map(p => p.id === action.padId ? { ...p, name: action.name! } : p);
+            break;
+          case 'set_choke_group':
+            newPads = prevPads.map(p => {
+              if (p.id !== action.padId) return p;
+              if (action.chokeGroup === null || action.chokeGroup === undefined) { const { chokeGroup: _, ...rest } = p; return rest as DrumPad; }
+              return { ...p, chokeGroup: action.chokeGroup };
+            });
+            break;
+          default:
+            rejected.push({ op: action, reason: `Unknown manage_drum_pad action: ${(action as { action: string }).action}` });
+            continue;
+        }
+        next = { ...updateTrack(next, action.trackId, { drumRack: { ...(track.drumRack ?? { pads: [] }), pads: newPads } }), undoStack: [...next.undoStack, drumPadSnapshot] };
+        const padLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: padLabel, description: `drum pad ${action.action}: ${action.padId}` });
         accepted.push(action);
         break;
       }

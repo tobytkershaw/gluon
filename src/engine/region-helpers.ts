@@ -104,9 +104,14 @@ export function validatePattern(pattern: Pattern): { valid: boolean; errors: str
       const b = pattern.events[j];
       if (!sameAt(a.at, b.at)) continue;
 
-      // Invariant 8: no duplicate triggers at same position
+      // Invariant 8: no duplicate triggers at same position for the same padId
+      // (different padIds at the same step are valid for drum rack tracks)
       if (a.kind === 'trigger' && b.kind === 'trigger') {
-        errors.push(`Duplicate TriggerEvents at at≈${a.at}`);
+        const aPadId = (a as import('./canonical-types').TriggerEvent).padId;
+        const bPadId = (b as import('./canonical-types').TriggerEvent).padId;
+        if (aPadId === bPadId) {
+          errors.push(`Duplicate TriggerEvents at at≈${a.at}${aPadId ? ` for pad "${aPadId}"` : ''}`);
+        }
       }
 
       // Invariant 9: no duplicate parameter events for same controlId at same position
@@ -206,8 +211,11 @@ export const normalizeRegionEvents = normalizePatternEvents;
 function deduplicationKey(event: MusicalEvent): string {
   const bucket = Math.floor(event.at / AT_TOLERANCE);
   switch (event.kind) {
-    case 'trigger':
-      return `trigger@${bucket}`;
+    case 'trigger': {
+      // For drum rack: different pads at the same step are distinct events
+      const padId = (event as import('./canonical-types').TriggerEvent).padId;
+      return padId ? `trigger:${padId}@${bucket}` : `trigger@${bucket}`;
+    }
     case 'note':
       // Polyphonic: dedup by (position, pitch) — different pitches coexist
       return `note:${(event as NoteEvent).pitch}@${bucket}`;
