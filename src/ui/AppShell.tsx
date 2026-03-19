@@ -283,7 +283,7 @@ export function AppShell({
             {apiConfigured ? (
               <>
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                  <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
+                  <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} />
                 </div>
 
                 <div className="shrink-0 border-t border-zinc-800/40 pb-2">
@@ -423,6 +423,8 @@ export function AppShell({
           onReaction={onReaction}
           undoStack={undoStack}
           onUndoMessage={onUndoMessage}
+          tracks={tracks}
+          sessionMessages={messages}
           apiConfigured={apiConfigured}
           onApiKey={onApiKey}
           currentOpenaiKey={currentOpenaiKey}
