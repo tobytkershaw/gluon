@@ -400,6 +400,32 @@ export class Scheduler {
         resolvedParams.note = (event as NoteEvent).pitch / 127;
       }
 
+      // For drum rack triggers, resolve per-pad params and include padId
+      const triggerPadId = event.kind === 'trigger' ? (event as TriggerEvent).padId : undefined;
+      let noteParams = resolvedParams;
+      let noteBaseParams = automatedBaseParams;
+      if (triggerPadId && track.engine === 'drum-rack' && track.drumRack) {
+        const pad = track.drumRack.pads.find(p => p.id === triggerPadId);
+        if (pad) {
+          // Use the pad's source params as the base, with p-lock overrides applied
+          const padBase: SynthParamValues = {
+            harmonics: pad.source.params.harmonics ?? 0.5,
+            timbre: pad.source.params.timbre ?? 0.5,
+            morph: pad.source.params.morph ?? 0.5,
+            note: pad.source.params.note ?? 0.47,
+            ...pad.source.params,
+          };
+          noteParams = resolveEventParams(
+            events,
+            event.at,
+            padBase,
+            {},
+            (controlId) => controlIdToRuntimeParam[controlId] ?? controlId,
+          );
+          noteBaseParams = padBase;
+        }
+      }
+
       this.onNote({
         eventId: runtimeEventId,
         generation: this.generation,
@@ -407,8 +433,9 @@ export class Scheduler {
         time: noteTime,
         gateOffTime,
         accent,
-        params: resolvedParams,
-        baseParams: automatedBaseParams,
+        params: noteParams,
+        baseParams: noteBaseParams,
+        padId: triggerPadId,
       });
 
       recordQaAudioTrace({

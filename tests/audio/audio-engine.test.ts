@@ -63,6 +63,8 @@ function makeTrackSlot(pool?: VoicePool) {
     processors: [] as unknown[],
     currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     currentModel: 0,
+    isDrumRack: false,
+    drumPads: new Map(),
   };
 }
 

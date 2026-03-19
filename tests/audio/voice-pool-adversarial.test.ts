@@ -102,6 +102,8 @@ function makeTrackSlot(pool?: VoicePool) {
     currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     currentModel: 0,
     isBus: false,
+    isDrumRack: false,
+    drumPads: new Map(),
   };
 }
 
@@ -119,6 +121,8 @@ function makeBusSlot() {
     currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
     currentModel: 0,
     isBus: true,
+    isDrumRack: false,
+    drumPads: new Map(),
   };
 }
 

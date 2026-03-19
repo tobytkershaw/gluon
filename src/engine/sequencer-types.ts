@@ -75,6 +75,8 @@ export interface ScheduledNote {
   params: SynthParamValues;
   /** Base track params — if params matches this, no set-patch is sent (sync effect handles it). */
   baseParams?: SynthParamValues;
+  /** For drum rack tracks: which pad this trigger belongs to. */
+  padId?: string;
 }
 
 export interface ScheduledParameterEvent {
