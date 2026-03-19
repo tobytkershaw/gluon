@@ -4,6 +4,7 @@ import { ProviderError } from '../../../src/ai/types';
 
 // Mock the @google/genai module
 const mockGenerateContent = vi.fn();
+const mockGenerateContentStream = vi.fn();
 const mockCountTokens = vi.fn();
 const mockCachesCreate = vi.fn();
 const mockCachesUpdate = vi.fn();
@@ -11,7 +12,11 @@ const mockCachesDelete = vi.fn();
 vi.mock('@google/genai', () => {
   return {
     GoogleGenAI: class {
-      models = { generateContent: mockGenerateContent, countTokens: mockCountTokens };
+      models = {
+        generateContent: mockGenerateContent,
+        generateContentStream: mockGenerateContentStream,
+        countTokens: mockCountTokens,
+      };
       caches = { create: mockCachesCreate, update: mockCachesUpdate, delete: mockCachesDelete };
     },
     Type: {
@@ -418,7 +423,8 @@ describe('GeminiPlannerProvider', () => {
     expect(createArg.config.systemInstruction).toBe('system');
     expect(createArg.config.tools).toBeDefined();
     expect(createArg.config.tools[0].functionDeclarations).toBeDefined();
-    expect(createArg.config.ttl).toBe('600s');
+    expect(createArg.config.toolConfig.functionCallingConfig.mode).toBe('AUTO');
+    expect(createArg.config.ttl).toBe('3600s');
 
     // Request should use cachedContent instead of systemInstruction/tools/toolConfig
     const genArg = mockGenerateContent.mock.calls[0][0];
@@ -441,6 +447,32 @@ describe('GeminiPlannerProvider', () => {
     expect(mockCachesCreate).toHaveBeenCalledTimes(1);
     // Both requests should use cached content
     expect(mockGenerateContent.mock.calls[1][0].config.cachedContent).toBe('caches/abc123');
+  });
+
+  it('streaming requests use cachedContent when cache creation succeeds', async () => {
+    mockCachesCreate.mockResolvedValueOnce({ name: 'caches/stream' });
+    mockGenerateContentStream.mockResolvedValueOnce((async function* () {
+      yield {
+        candidates: [{ content: { role: 'model', parts: [{ text: 'hello' }] } }],
+        usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 2, cachedContentTokenCount: 8 },
+      };
+    })());
+
+    const chunks: string[] = [];
+    const result = await planner.startTurn({
+      systemPrompt: 'system',
+      userMessage: 'hi',
+      tools: GLUON_TOOLS,
+      onStreamText: (chunk) => chunks.push(chunk),
+    });
+
+    expect(result.textParts).toEqual(['hello']);
+    expect(chunks).toEqual(['hello']);
+    const call = mockGenerateContentStream.mock.calls[0][0];
+    expect(call.config.cachedContent).toBe('caches/stream');
+    expect(call.config.systemInstruction).toBeUndefined();
+    expect(call.config.tools).toBeUndefined();
+    expect(call.config.toolConfig).toBeUndefined();
   });
 
   it('cache invalidated on prompt change', async () => {
