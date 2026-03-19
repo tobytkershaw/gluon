@@ -33,7 +33,7 @@ function resolveRawValue(track: Track, moduleId: string, controlId: string): num
 }
 
 /** Compute the display value of a semantic control as weighted average of raw params. */
-function computeSemanticValue(track: Track, def: SemanticControlDef): number {
+export function computeSemanticValue(track: Track, def: SemanticControlDef): number {
   if (def.weights.length === 0) return 0.5;
   let totalWeight = 0;
   let sum = 0;
