@@ -105,11 +105,11 @@ Render audio offline and evaluate how it sounds. Works whether or not the transp
 | `lens` | string | no | Focus the evaluation on a specific aspect. One of: `full-mix`, `low-end`, `rhythm`, `harmony`, `texture`, `dynamics`. |
 | `compare` | object | no | Request comparative evaluation. Contains `beforeSessionIndex` and `question`. **Note:** true before/after rendering is not yet implemented — the runtime currently renders only the current state and uses the compare prompt to frame evaluation as comparative. |
 
-Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Track isolation is built into the render — only the requested tracks are included. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
+Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Track isolation is built into the render — only the requested tracks are included. Within a single turn, `listen` evaluates the current projected state, including edits made earlier in the same tool loop.
 
 #### `render`
 
-Capture an audio snapshot with explicit scope. Returns a `snapshotId` that can be passed to `analyze` or `listen`. Cheap — use freely before analysis tools. Changes made in this turn aren't audible yet — render in a follow-up turn to capture edits.
+Capture an audio snapshot with explicit scope. Returns a `snapshotId` that can be passed to `analyze` or `listen`. Cheap — use freely before analysis tools. Within a single turn, `render` captures the current projected state, including edits made earlier in the same tool loop.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

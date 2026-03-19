@@ -407,7 +407,7 @@ listen {
 }
 ```
 
-Renders audio offline from the current project state, converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Changes made in the same turn aren't audible yet — listen in a follow-up turn to hear edits.
+Renders audio offline from the current project state, converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Within a single turn, `listen` evaluates the current projected state, including edits made earlier in the same tool loop.
 
 #### `render`
 

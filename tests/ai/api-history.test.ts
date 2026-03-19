@@ -4,6 +4,9 @@ import { GluonAI } from '../../src/ai/api';
 import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema } from '../../src/ai/types';
 import { ProviderError } from '../../src/ai/types';
 import { createSession } from '../../src/engine/session';
+import { clearSnapshots } from '../../src/audio/snapshot-store';
+import type { Session } from '../../src/engine/types';
+import type { PcmRenderResult } from '../../src/audio/render-offline';
 
 // ---------------------------------------------------------------------------
 // Mock planner that records calls and returns configurable responses
@@ -70,6 +73,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     planner = createMockPlanner();
     listener = createMockListener();
     ai = new GluonAI(planner, listener);
+    clearSnapshots();
   });
 
   it('trims history before each ask', async () => {
@@ -389,6 +393,60 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     });
 
     expect(actions.filter(a => a.type === 'move')).toHaveLength(1);
+  });
+
+  it('render in the same turn uses projected post-edit state', async () => {
+    const renderedTimbres: number[] = [];
+    const renderOfflinePcm = vi.fn(async (session: Session): Promise<PcmRenderResult> => {
+      renderedTimbres.push(session.tracks[0].params.timbre);
+      return { pcm: new Float32Array(128), sampleRate: 44100 };
+    });
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [
+        { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.7 }, trackId: 'v0' } },
+        { id: 'c2', name: 'render', args: { scope: 'v0', bars: 2 } },
+      ],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'brighten the kick', {
+      listen: {
+        renderOffline: vi.fn(async () => new Blob()),
+        renderOfflinePcm,
+      },
+    });
+
+    expect(renderOfflinePcm).toHaveBeenCalledTimes(1);
+    expect(renderedTimbres).toEqual([0.7]);
+  });
+
+  it('listen in the same turn uses projected post-edit state', async () => {
+    const renderedTimbres: number[] = [];
+    const renderOffline = vi.fn(async (session: Session) => {
+      renderedTimbres.push(session.tracks[0].params.timbre);
+      return new Blob();
+    });
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [
+        { id: 'c1', name: 'move', args: { param: 'timbre', target: { absolute: 0.8 }, trackId: 'v0' } },
+        { id: 'c2', name: 'listen', args: { question: 'Did that get brighter?', trackIds: ['v0'], bars: 2 } },
+      ],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(createSession(), 'brighten the kick', {
+      listen: {
+        renderOffline,
+        renderOfflinePcm: vi.fn(async () => ({ pcm: new Float32Array(128), sampleRate: 44100 })),
+      },
+    });
+
+    expect(renderOffline).toHaveBeenCalledTimes(1);
+    expect(renderedTimbres).toEqual([0.8]);
   });
 
   it('clearHistory delegates to planner', () => {
