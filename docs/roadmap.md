@@ -4,29 +4,32 @@
 
 ## Where We Are
 
-Gluon now has a working cockpit as well as a working engine: Plaits synthesis, Rings and Clouds processors, Tides modulation, canonical event sequencing, four navigable views (Surface, Rack, Patch, Tracker), project persistence, mix bus, offline listen, and AI surface tooling.
+**As of:** 2026-03-19
 
-What it still does not do cleanly enough is hold one truthful contract across docs, UI, runtime, and AI. Collaboration quality improved substantially in M6, but the March 2026 audit found follow-on gaps around Surface honesty, routing usability, audio runtime parity, and degraded-mode robustness.
+M0 through M6 are complete. Gluon has Plaits/Rings/Clouds/Tides synthesis, processor chains (Ripples, EQ, Compressor), Tides modulation, canonical event sequencing, four views (Surface, Rack, Patch, Tracker), project persistence, bus routing, offline listen, and a 20-tool AI collaboration layer.
 
-The roadmap from here is therefore not just "more collaboration quality." It is also about making the shipped workbench and documentation honest, robust, and orthodoxy-aligned before pushing further into new abstractions.
+**Current phase: Finalization.** The goal is to complete all implemented elements to full song composition capability — not new subsystems, but finishing what's started. The AI stack is Gemini-only (Gemini 3.1 Pro planner + Gemini Flash listener). GPT was tried but underperforms on music tasks.
 
-**Completed foundations:** Phases 1–3, core M0 stabilisation fixes, major M5 workbench foundations, M6 collaboration systems, Phase 4B (Tides modulation).
+The critical path is: fix blocking bugs → fix AI reliability (#945 resilient agentic architecture) → ship chat UX improvements → agency redesign (#926). A full composition walkthrough (#527) remains the finalization gate but is deferred until significant backlog progress is made — multiple attempts generated more issues than they resolved.
+
+**Completed foundations:** Phases 1–3, M0 stabilisation, M5 workbench, M6 collaboration, Phase 4B (Tides modulation), Finalization waves 1–3, AI capability sprint (15 PRs, 30+ tools/features).
 
 ---
 
 ## Phase Map
 
 ```
-  NOW                                                              LATER
-   │                                                                 │
-   ▼                                                                 ▼
-┌──────────┐   ┌──────────────┐   ┌────────────────┐   ┌───────────────────┐
-│ STABILIZE │──▶│  WORKBENCH   │──▶│  COLLABORATION │──▶│    OPEN WORLD     │
-│           │   │              │   │                │   │                   │
-│ M0: Fix   │   │ M5: Make the │   │ M6: Make the   │   │ M7: Connect to    │
-│ what's    │   │ human        │   │ AI a better    │   │ the outside       │
-│ broken    │   │ effective    │   │ collaborator   │   │ world             │
-└──────────┘   └──────────────┘   └────────────────┘   └───────────────────┘
+  DONE                                                    NOW              LATER
+   │                                                       │                 │
+   ▼                                                       ▼                 ▼
+┌──────────┐   ┌──────────────┐   ┌────────────────┐   ┌──────────────┐   ┌───────────────────┐
+│ STABILIZE │──▶│  WORKBENCH   │──▶│  COLLABORATION │──▶│ FINALIZATION  │──▶│    OPEN WORLD     │
+│           │   │              │   │                │   │              │   │                   │
+│ M0: Fix   │   │ M5: Make the │   │ M6: Make the   │   │ Complete all │   │ M7: Connect to    │
+│ what's    │   │ human        │   │ AI a better    │   │ elements to  │   │ the outside       │
+│ broken    │   │ effective    │   │ collaborator   │   │ full song    │   │ world             │
+│  ✓        │   │  ✓           │   │  ✓             │   │ capability   │   │                   │
+└──────────┘   └──────────────┘   └────────────────┘   └──────────────┘   └───────────────────┘
 ```
 
 Each phase has a clear product test — what can the user do at the end that they can't do now?
@@ -152,7 +155,7 @@ This phase implements the design work from the AI environment docs. The product 
 
 ### M6X: Model Stack Prerequisite — Complete
 
-Provider abstraction landed (PR #275), GPT-5.4 planner + Gemini 3 Flash listener stack selected (PR #278).
+Provider abstraction landed (PR #275). Originally GPT-5.4 planner + Gemini 3 Flash listener (PR #278), now Gemini-only: Gemini 3.1 Pro (planner) + Gemini Flash (listener). GPT was evaluated but underperforms on music tasks.
 
 ### 6A0: Collaboration State Foundation — Complete
 
@@ -201,6 +204,37 @@ Post-M6 QA and consolidation pass:
 
 ### Known issue
 - `render` tool fails without prior audio context activation (#379). The `listen` tool works independently.
+
+---
+
+## FINALIZATION — Complete to Full Song Composition
+
+**Status:** Active. Blocking bugs being fixed, AI reliability and chat UX in progress.
+
+**Product test:** A human and AI can collaboratively compose a 4-track techno piece from scratch, using only the shipped tools, without hitting blocking bugs or needing workarounds.
+
+### Critical Path
+
+1. **Fix blocking bugs** — notes silent on transport start (#965), extended param dials broken (#966), wrong AI param descriptions (#968)
+2. **Fix AI reliability** — stuck in tool loops (#918), duplicate decisions (#928), new tracks untargetable (#939), resilient agentic architecture (#945)
+3. **Chat UX** — empty state starters (#970), phase labels (#971), per-turn summary cards (#972), musical reactions (#973), scope badges (#974), listen events (#975). Design brief: `docs/briefs/chat-ux.md`
+4. **Agency redesign** — approval-based instead of binary ON/OFF (#926)
+5. **Composition walkthrough** — re-attempt #527 after significant progress
+
+### Also in scope
+
+- Per-track swing (#156)
+- Tempo-synced parameter values (#959)
+- Compound tools for common workflows (#958)
+- Patch library (#779)
+- Docs truthfulness audit (#572)
+
+### Finalization exit criteria
+
+- The #527 composition walkthrough completes without blocking bugs
+- AI can reliably execute multi-step musical tasks without loops or regressions
+- Chat UX surfaces the collaboration loop (brief → change → listen → react → next)
+- Agency model supports granular permissions, not just binary ON/OFF
 
 ---
 
@@ -279,40 +313,36 @@ The next Surface-specific work is partly expressivity and partly contract honest
 ## Dependency Graph
 
 ```
-M0: Stabilize
+M0: Stabilize ✓
  │
  ▼
-M5A: Project Foundation ──────────────────────────────┐
+M5A: Project Foundation ✓ ────────────────────────────┐
  │                                                     │
- ├──▶ M5B: Parameter & Patch Navigation                │
+ ├──▶ M5B: Parameter & Patch Navigation ✓              │
  │     │                                               │
- │     ├──▶ M5C: AI-Curated Surfaces                   │
+ │     ├──▶ M5C: AI-Curated Surfaces ✓                 │
  │     │                                               │
- │     └──▶ M5E: Legibility                            │
+ │     └──▶ M5E: Legibility ✓                          │
  │                                                     │
- └──▶ M5D: Sequencer & Listen (parallel) ─────────────┤
+ └──▶ M5D: Sequencer & Listen (parallel) ✓ ───────────┤
                                                        │
                                                        ▼
-                                              M6X: Model Stack
+                                              M6X: Model Stack ✓
                                                        │
                                                        ▼
-                                              M6A0: Collaboration
-                                              State Foundation
-                                                       │
-                                               ┌───────┴───────┐
-                                               ▼               ▼
-                                      M6A: Preservation M6B: Aesthetic
-                                                        Direction
-                                               │               │
-                                               └───────┬──────────────┐
-                                                       ▼              ▼
-                                              M6C: Structured   M6D: Environment
-                                              Listening         Legibility
-                                                       ▼
+                                              M6: Collaboration ✓
                                                        │
                                                        ▼
-                                              M7: External
-                                              Integration
+                                              Finalization ◀── YOU ARE HERE
+                                               │
+                                               ├── Blocking bugs
+                                               ├── AI reliability (#945)
+                                               ├── Chat UX (#970-976)
+                                               ├── Agency redesign (#926)
+                                               └── Composition walkthrough (#527)
+                                                       │
+                                                       ▼
+                                              M7: External Integration
 
 Parallel long-term stream:
 M5/M6 foundations ───────────────────────────▶ Modular Evolution
@@ -325,8 +355,8 @@ M5/M6 foundations ────────────────────�
 | # | Issue | Notes |
 |---|-------|-------|
 | ~~72~~ | ~~Migrate to gemini-3-flash~~ | Done (PR #278) |
+| ~~156~~ | ~~Per-track swing~~ | Moved to Finalization, `priority:next` |
 | 8 | Graceful AI model degradation | Each AI layer independently disableable |
-| 156 | Per-track swing | Sequencer feature, implement when swing UX is clearer |
 | 50 | Ableton sequencing adapter spike | M7 territory (deprioritized) |
 | 6 | Lyria integration + sampler voice | M7 territory (deprioritized) |
 
@@ -340,7 +370,11 @@ M5/M6 foundations ────────────────────�
 
 3. **What counts as “family-preserving” in practice?** `preserve_exact` can be enforced structurally; `preserve_family` requires similarity rules that are musically useful but not brittle. Still open — only `preserve_exact` is implemented.
 
-4. **M7 direction:** Deprioritized. Focus is on standalone depth improvements (parity gaps, render fix, level meters) before external integration.
+4. ~~**M7 direction:**~~ Resolved: deprioritized. Focus on standalone depth. M7 deferred until after Finalization.
+
+5. **Agency redesign (#926):** Binary ON/OFF is too blunt. Approval-based or permission-request model? Design-tier, in Finalization scope.
+
+6. **Resilient agentic architecture (#945):** Batch one-shot tool model is fragile. Decomposed step-by-step execution with streaming feedback, error recovery, and circuit breakers needed. The architectural question that most affects AI reliability.
 
 ---
 
@@ -365,6 +399,11 @@ Documents that inform this roadmap, grouped by the phase they primarily serve.
 - `docs/ai/ai-musical-environment.md` — target AI environment (structured listening, environment legibility, layered actions)
 - `docs/principles/ai-collaboration-model.md` — collaboration phases and posture
 - `docs/principles/ai-capability-doctrine.md` — hard boundaries, maximum usefulness inside them
+
+### Finalization
+- `docs/briefs/chat-ux.md` — chat UX collaboration loop (7 shippable improvements)
+- `docs/principles/ai-collaboration-model.md` — behavioral contract the chat UI should make visible
+- `docs/principles/ai-interface-design-principles.md` — transparency, legibility, composability
 
 ### Modular Evolution
 - `docs/briefs/modular-roadmap.md` — long-horizon modular patching path beyond the current chain model

@@ -76,8 +76,7 @@ npm run wasm:build   # Compile MI modules to WASM
 ## Reference Docs
 
 - [`docs/gluon-architecture.md`](./docs/gluon-architecture.md) — Full vision and architecture
-- [`docs/roadmap.md`](./docs/roadmap.md) — Implementation roadmap
-- [`docs/status.md`](./docs/status.md) — Current build status and milestone tracking
+- [`docs/roadmap.md`](./docs/roadmap.md) — Implementation roadmap and milestone tracking
 - [`docs/gluon-interaction-protocol-v05.md`](./docs/gluon-interaction-protocol-v05.md) — Protocol spec (v0.5.0)
 
 ### Principles — [`docs/principles/`](./docs/principles/)

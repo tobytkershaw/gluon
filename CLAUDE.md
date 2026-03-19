@@ -147,12 +147,9 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - For active implementation work, add:
   - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
-- When an issue is actively in implementation, add one provisional owner label:
-  - `provisional:codex`
-  - `provisional:claude`
-- Switch the provisional owner label before implementation starts if ownership changes.
-- If the issue is already in progress, leave a short issue comment when reassigning it.
-- Never leave both provisional owner labels on one issue.
+- Issues use two ownership states: `provisional:codex`/`provisional:claude` (planned) and `active:codex`/`active:claude` (in progress).
+- **The first action when picking up an issue is to claim it.** Remove `provisional:*` and add `active:claude`. Do this before creating a worktree, before reading code, before planning. If reassigning from Codex, comment on the issue.
+- Never leave both `provisional:` and `active:` labels, or labels for both agents, on the same issue.
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
   - `M0–M6` — complete (stabilization, sequencer, chains, modulation, UI layers, AI collaboration)
@@ -169,7 +166,6 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/design-references.md` - Design references from synths, DAWs, and related tools: Guitar Rig (rack + inline params), Bitwig (modulation, remote controls), Reason, VCV Rack, Ableton, Max, and others. Includes parameter ground truth analysis and modulation display comparison.
 - `docs/audio-software-patterns.md` - Established audio software implementation patterns (parameter smoothing, denormals, voice allocation, tempo maps, accessibility, etc.) with Gluon coverage status and key references
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
-- `docs/status.md` - Current build status and milestone tracking
 
 ### Principles (`docs/principles/`)
 - `docs/principles/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.

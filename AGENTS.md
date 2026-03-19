@@ -97,12 +97,9 @@ Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor ar
 - For active implementation work, add:
   - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
-- When an issue is actively in implementation, add one provisional owner label:
-  - `provisional:codex`
-  - `provisional:claude`
-- Switch the provisional owner label before implementation starts if ownership changes.
-- If the issue is already in progress, leave a short issue comment when reassigning it.
-- Never leave both provisional owner labels on one issue.
+- Issues use two ownership states: `provisional:codex`/`provisional:claude` (planned) and `active:codex`/`active:claude` (in progress).
+- **The first action when picking up an issue is to claim it.** Remove `provisional:*` and add `active:codex`. Do this before creating a worktree, before reading code, before planning. If reassigning from Claude, comment on the issue.
+- Never leave both `provisional:` and `active:` labels, or labels for both agents, on the same issue.
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
   - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
@@ -119,7 +116,7 @@ Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor ar
 - `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
-- `docs/status.md` - Current build status and milestone tracking
+- `docs/roadmap.md` - Implementation roadmap and milestone tracking
 
 ### Principles (`docs/principles/`)
 - `docs/principles/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.

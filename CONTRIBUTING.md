@@ -36,18 +36,16 @@ Every active implementation issue should have:
 - one priority label
 - one milestone
 
-When an issue is actively being worked, also add exactly one provisional owner label:
-- `provisional:codex`
-- `provisional:claude`
+Issues use a two-state ownership model:
 
-These labels are temporary execution signals, not permanent taxonomy. Remove or switch them when work is handed off, paused, or merged.
+- `provisional:codex` / `provisional:claude` — **planned** assignment from backlog grooming. Not yet started.
+- `active:codex` / `active:claude` — agent is **actively working** on this issue.
 
-Before implementation starts, the provisional owner label must already match the agent who is about to work on the issue.
+**The first action when picking up an issue is to claim it.** Remove the `provisional:*` label and add the matching `active:*` label. This happens before creating a worktree, before reading code, before starting a plan. It's a hard gate, not a suggestion.
 
-- If Codex takes an issue currently marked `provisional:claude`, switch the label first, then create the worktree and branch.
-- If Claude takes an issue currently marked `provisional:codex`, switch the label first, then start implementation.
-- If ownership is changing after work has already started, leave a short issue comment when switching labels so the handoff is explicit.
-- Never leave both provisional owner labels on the same issue.
+- If picking up an issue assigned to a different agent, switch both labels to yours and leave a short issue comment explaining the reassignment.
+- Never leave both `provisional:` and `active:` labels, or labels for both agents, on the same issue.
+- Remove all ownership labels after merge or if you abandon the issue.
 
 ## Issue Quality
 
@@ -128,7 +126,7 @@ If two issues need one of those files:
 ## Suggested Execution Pattern
 
 For each issue:
-1. assign provisional owner label
+1. **claim ownership** — remove `provisional:*` and add `active:codex` or `active:claude`. If reassigning from another agent, comment on the issue. This is step 1, before any code or planning.
 2. create worktree and branch
 3. implement only the scoped issue
 4. run targeted verification during development
@@ -136,7 +134,7 @@ For each issue:
 6. run final verification
 7. open PR with `Closes #NNN`
 8. merge quickly once checks and review level are satisfied
-9. remove provisional label after merge or handoff
+9. remove `active:*` label after merge or handoff
 
 ## Review Depth
 
