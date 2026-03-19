@@ -126,25 +126,22 @@ describe('plaits-adapter', () => {
   });
 
   // --- Portamento control IDs ---
+  // Portamento is a track-level field, not a params entry.
+  // It should NOT be validated through the move/adapter pipeline.
 
-  it('validates portamento control IDs', () => {
+  it('rejects portamento control IDs through move validation', () => {
     for (const id of ['portamento-time', 'portamento-mode']) {
       const result = adapter.validateOperation({
         type: 'move', trackId: 'v0', controlId: id,
         target: { absolute: 0.5 },
       });
-      expect(result.valid, `${id} should be valid`).toBe(true);
+      expect(result.valid, `${id} should be rejected through move`).toBe(false);
     }
   });
 
-  it('maps portamento control IDs to runtime params', () => {
-    expect(adapter.mapControl('portamento-time').path).toBe('params.portamentoTime');
-    expect(adapter.mapControl('portamento-mode').path).toBe('params.portamentoMode');
-  });
-
-  it('maps portamento runtime params back to control IDs', () => {
-    expect(adapter.mapRuntimeParamKey('portamentoTime')).toBe('portamento-time');
-    expect(adapter.mapRuntimeParamKey('portamentoMode')).toBe('portamento-mode');
+  it('does not map portamento runtime params to control IDs', () => {
+    expect(adapter.mapRuntimeParamKey('portamentoTime')).toBeNull();
+    expect(adapter.mapRuntimeParamKey('portamentoMode')).toBeNull();
   });
 
   it('maps extended runtime params back to control IDs', () => {

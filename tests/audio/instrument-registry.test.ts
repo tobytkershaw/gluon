@@ -26,7 +26,7 @@ const VALID_BINDINGS = [
   'params.timbre', 'params.harmonics', 'params.morph', 'params.note',
   'params.fm_amount', 'params.timbre_mod_amount', 'params.morph_mod_amount',
   'params.decay', 'params.lpg_colour',
-  'params.portamentoTime', 'params.portamentoMode',
+  'track.portamentoTime', 'track.portamentoMode',
 ];
 
 describe('Plaits instrument registry', () => {

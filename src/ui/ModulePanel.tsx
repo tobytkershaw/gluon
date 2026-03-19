@@ -88,13 +88,43 @@ function ToggleControl({ control, accentColor, onChange }: {
   );
 }
 
-/** Discrete selector for discrete controls (e.g. polyphony 1-4) */
+/** Discrete selector for discrete and enum controls (e.g. polyphony 1-4, portamento mode) */
 function DiscreteSelector({ control, accentColor, onChange }: {
   control: ControlDef;
   accentColor: AccentColor;
   onChange: (controlId: string, value: number) => void;
 }) {
   const accent = ACCENT[accentColor];
+
+  // Enum controls: render string labels as cycle buttons
+  if (control.enumValues && control.enumValues.length > 0) {
+    const currentIndex = Math.round(control.value);
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <span className="text-[10px] text-zinc-500 text-center leading-tight truncate w-full">
+          {control.name}
+        </span>
+        <div className="flex gap-0.5">
+          {control.enumValues.map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => onChange(control.id, i)}
+              className={`px-1.5 h-5 rounded text-[10px] font-mono transition-colors border ${
+                currentIndex === i
+                  ? accent.selectorActive
+                  : `border-transparent ${accent.selectorInactive}`
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Discrete numeric controls
   const min = control.range?.min ?? 0;
   const max = control.range?.max ?? 1;
   const steps = [];

@@ -21,8 +21,6 @@ export const controlIdToRuntimeParam: Record<string, string> = {
   'timbre-mod-amount': 'timbre_mod_amount',
   'morph-mod-amount': 'morph_mod_amount',
   'lpg-colour': 'lpg_colour',
-  'portamento-time': 'portamentoTime',
-  'portamento-mode': 'portamentoMode',
 };
 
 export const runtimeParamToControlId: Record<string, string> = {
@@ -31,8 +29,6 @@ export const runtimeParamToControlId: Record<string, string> = {
   timbre_mod_amount: 'timbre-mod-amount',
   morph_mod_amount: 'morph-mod-amount',
   lpg_colour: 'lpg-colour',
-  portamentoTime: 'portamento-time',
-  portamentoMode: 'portamento-mode',
 };
 
 // --- Control factory ---
@@ -154,17 +150,23 @@ function defaultControls(): ControlSchema[] {
       0.5,
       'small',
     ),
-    // Row 4: Portamento controls
-    makePlaitsControl(
-      'portamento-time',
-      'Portamento',
-      'pitch',
-      'Pitch glide time between notes. 0.0 = instant (no glide), 1.0 = 500ms glide.',
-      'portamentoTime',
-      0.0,
-      'small',
-      { type: 'linear', min: 0, max: 500, unit: 'ms', decimals: 0 },
-    ),
+    // Row 4: Portamento controls — track-level fields, not params entries
+    {
+      id: 'portamento-time',
+      name: 'Portamento',
+      kind: 'continuous' as ControlKind,
+      semanticRole: 'pitch' as SemanticRole,
+      description: 'Pitch glide time between notes. 0.0 = instant (no glide), 1.0 = 500ms glide.',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 1, default: 0 },
+      size: 'small' as const,
+      binding: {
+        adapterId: 'plaits',
+        path: 'track.portamentoTime',
+      },
+      displayMapping: { type: 'linear', min: 0, max: 500, unit: 'ms', decimals: 0 },
+    },
     {
       id: 'portamento-mode',
       name: 'Porta Mode',
@@ -177,7 +179,7 @@ function defaultControls(): ControlSchema[] {
       size: 'small' as const,
       binding: {
         adapterId: 'plaits',
-        path: 'params.portamentoMode',
+        path: 'track.portamentoMode',
       },
     },
   ];

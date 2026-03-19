@@ -16,7 +16,6 @@ import { eventsToSteps } from '../engine/event-conversion';
 const KNOWN_CONTROL_IDS = new Set([
   'timbre', 'harmonics', 'morph', 'frequency',
   'fm-amount', 'timbre-mod-amount', 'morph-mod-amount', 'decay', 'lpg-colour',
-  'portamento-time', 'portamento-mode',
 ]);
 
 export function createPlaitsAdapter(): SourceAdapter {

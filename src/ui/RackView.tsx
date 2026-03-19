@@ -25,6 +25,7 @@ interface RackViewProps {
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
   onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
+  onPortamentoChange?: (field: 'portamentoTime' | 'portamentoMode', value: number | string) => void;
   // Processor editing
   onProcessorParamChange: (processorId: string, param: string, value: number) => void;
   onProcessorInteractionStart: (processorId: string) => void;
@@ -107,6 +108,7 @@ export function RackView({
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onNoteChange, onHarmonicsChange,
   onExtendedSourceParamChange,
+  onPortamentoChange,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor, onToggleProcessorEnabled,
   onModulatorParamChange, onModulatorInteractionStart, onModulatorInteractionEnd,
@@ -164,6 +166,7 @@ export function RackView({
             onNoteChange,
             onHarmonicsChange,
             onExtendedSourceParamChange,
+            onPortamentoChange,
           })}
           onInteractionStart={onInteractionStart}
           onInteractionEnd={onInteractionEnd}

@@ -362,6 +362,8 @@ export default function App() {
           if (t && t.model !== -1 && !isBus) {
             audio.setTrackModel(t.id, t.model);
             audio.setTrackParams(t.id, t.params);
+            const modeInt = t.portamentoMode === 'always' ? 1 : t.portamentoMode === 'legato' ? 2 : 0;
+            audio.setTrackPortamento(t.id, t.portamentoTime ?? 0, modeInt);
           }
           // If this is the master bus, set it as such
           if (track.id === MASTER_BUS_ID) {
@@ -802,6 +804,42 @@ export default function App() {
     // Record automation if recording
     maybeRecordAutomation(vid, runtimeParam, value);
   }, [ensureAudio, maybeRecordAutomation]);
+
+  /** Handle portamento changes — writes to track-level fields with undo support. */
+  const handlePortamentoChange = useCallback((field: 'portamentoTime' | 'portamentoMode', value: number | string) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      const prevProps: Partial<import('../engine/types').Track> = {};
+      const update: Partial<import('../engine/types').Track> = {};
+
+      if (field === 'portamentoTime') {
+        const numValue = typeof value === 'number' ? value : 0;
+        prevProps.portamentoTime = track.portamentoTime;
+        update.portamentoTime = Math.max(0, Math.min(1, numValue));
+      } else {
+        // portamento-mode: enum control passes numeric index — convert to string
+        const modeMap = ['off', 'always', 'legato'] as const;
+        const modeValue = typeof value === 'number' ? modeMap[Math.round(value)] ?? 'off' : value as 'off' | 'always' | 'legato';
+        prevProps.portamentoMode = track.portamentoMode;
+        update.portamentoMode = modeValue;
+      }
+
+      const snapshot: TrackPropertySnapshot = {
+        kind: 'track-property',
+        trackId: vid,
+        prevProps,
+        timestamp: Date.now(),
+        description: `${field} change`,
+      };
+
+      return {
+        ...updateTrack(s, vid, update),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
 
   const handleSourceInteractionStart = useCallback(() => {
     const s = sessionRef.current;
@@ -2588,6 +2626,7 @@ export default function App() {
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
             onExtendedSourceParamChange={handleExtendedSourceParamChange}
+            onPortamentoChange={handlePortamentoChange}
             selectedProcessorId={selectedProcessorId}
             onSelectProcessor={setSelectedProcessorId}
             onProcessorParamChange={handleProcessorParamChange}
@@ -2632,6 +2671,7 @@ export default function App() {
             onNoteChange={handleNoteChange}
             onHarmonicsChange={handleHarmonicsChange}
             onExtendedSourceParamChange={handleExtendedSourceParamChange}
+            onPortamentoChange={handlePortamentoChange}
             onProcessorParamChange={handleProcessorParamChange}
             onProcessorInteractionStart={handleProcessorInteractionStart}
             onProcessorInteractionEnd={handleProcessorInteractionEnd}
