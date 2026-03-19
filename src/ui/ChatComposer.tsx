@@ -1,16 +1,37 @@
-import { useState, useRef, useCallback } from 'react';
+import { forwardRef, useState, useRef, useCallback, useImperativeHandle } from 'react';
+import type { FollowUpChip } from './TurnSummaryCard';
 
 interface Props {
   onSend: (message: string) => void;
   disabled?: boolean;
   variant?: 'sidebar' | 'footer';
+  lastUserMessage?: string;
+  followUpChips?: FollowUpChip[];
 }
 
 const MAX_HEIGHT = 150;
 
-export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: Props) {
+export interface ChatComposerHandle {
+  focus: (options?: { selectAll?: boolean }) => void;
+}
+
+export const ChatComposer = forwardRef<ChatComposerHandle, Props>(function ChatComposer(
+  { onSend, disabled = false, variant = 'footer', lastUserMessage, followUpChips = [] }: Props,
+  ref,
+) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useImperativeHandle(ref, () => ({
+    focus: (options) => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      ta.focus({ preventScroll: true });
+      if (options?.selectAll) {
+        ta.setSelectionRange(0, ta.value.length);
+      }
+    },
+  }), []);
 
   const resetHeight = useCallback(() => {
     const ta = textareaRef.current;
@@ -47,11 +68,41 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       submit();
+      return;
     }
-  }, [submit]);
+
+    if (disabled) return;
+
+    if (
+      e.key === 'ArrowUp' &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      input.trim() === '' &&
+      lastUserMessage?.trim()
+    ) {
+      e.preventDefault();
+      setInput(lastUserMessage);
+      requestAnimationFrame(() => {
+        const ta = textareaRef.current;
+        if (!ta) return;
+        ta.setSelectionRange(lastUserMessage.length, lastUserMessage.length);
+      });
+      return;
+    }
+
+    if (!input.trim() && !e.metaKey && !e.ctrlKey && !e.altKey && /^[1-4]$/.test(e.key)) {
+      const index = Number(e.key) - 1;
+      const chip = followUpChips[index];
+      if (!chip) return;
+      e.preventDefault();
+      onSend(chip.prompt);
+    }
+  }, [disabled, followUpChips, input, lastUserMessage, onSend, submit]);
 
   const textareaProps = {
     ref: textareaRef,
+    'data-chat-composer': 'true',
     value: input,
     onChange: handleChange,
     onKeyDown: handleKeyDown,
@@ -106,4 +157,4 @@ export function ChatComposer({ onSend, disabled = false, variant = 'footer' }: P
       </div>
     </form>
   );
-}
+});

@@ -2,9 +2,11 @@
 // Persistent collapsible chat sidebar — the AI collaborator's space.
 // Open: full sidebar with messages, composer, and bold visual identity.
 // Collapsed: renders nothing (floating composer pill appears in AppShell).
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, type Ref } from 'react';
 import type { ChatMessage, Track, Reaction, UndoEntry } from '../engine/types';
 import type { ListenerMode } from '../ai/api';
+import type { FollowUpChip } from './TurnSummaryCard';
+import type { ChatComposerHandle } from './ChatComposer';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -32,6 +34,9 @@ interface Props {
   open: boolean;
   width: number;
   onResize: (width: number) => void;
+  composerRef?: Ref<ChatComposerHandle>;
+  lastHumanMessage?: string;
+  followUpChips?: FollowUpChip[];
 }
 
 export function ChatSidebar({
@@ -40,6 +45,7 @@ export function ChatSidebar({
   tracks, sessionMessages,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   open, width, onResize,
+  composerRef, lastHumanMessage, followUpChips = [],
 }: Props) {
   const dragging = useRef(false);
 
@@ -96,7 +102,14 @@ export function ChatSidebar({
 
             {/* Composer at bottom of sidebar */}
             <div className="shrink-0 border-t border-violet-900/20">
-              <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
+              <ChatComposer
+                ref={composerRef}
+                onSend={onSend}
+                disabled={isThinking || isListening}
+                variant="sidebar"
+                lastUserMessage={lastHumanMessage}
+                followUpChips={followUpChips}
+              />
             </div>
           </>
         ) : (

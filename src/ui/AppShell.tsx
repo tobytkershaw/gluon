@@ -2,7 +2,7 @@
 // Layout shell: view-driven workstation with chat as a first-class tab.
 // Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
-import { useEffect, useRef, type ReactNode, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useCallback, type ReactNode, type MutableRefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
@@ -23,6 +23,8 @@ import { RedoButton } from './RedoButton';
 import { PeakMeter as PeakMeterFooter } from './MasterStrip';
 import { AudioLoadMeter } from './AudioLoadMeter';
 import { OpenDecisionsPanel } from './OpenDecisionsPanel';
+import { deriveFollowUps, type FollowUpChip } from './TurnSummaryCard';
+import type { ChatComposerHandle } from './ChatComposer';
 import type { AudioEngine } from '../audio/audio-engine';
 
 interface Props {
@@ -137,6 +139,24 @@ interface Props {
 
 const CHAT_COLLAPSE_WIDTH = 1280;
 
+function getLastHumanMessage(messages: ChatMessage[]): string | undefined {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === 'human' && msg.text.trim()) return msg.text;
+  }
+  return undefined;
+}
+
+function getLatestFollowUpChips(messages: ChatMessage[]): FollowUpChip[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === 'ai' && msg.actions && msg.actions.length > 0) {
+      return deriveFollowUps(msg.actions).slice(0, 4);
+    }
+  }
+  return [];
+}
+
 export function AppShell({
   tracks, activeTrackId, expandedTrackIds, activityMap,
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
@@ -164,12 +184,84 @@ export function AppShell({
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
+  const instrumentRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<ChatComposerHandle>(null);
   const prevNarrowRef = useRef(false);
   const autoCollapsedRef = useRef(false);
   const resizeTogglingRef = useRef(false);
   const prevChatOpenRef = useRef(chatOpen);
+  const pendingComposerFocusRef = useRef<{ selectAll: boolean } | null>(null);
+  const pendingInstrumentFocusRef = useRef(false);
+  const lastNonChatViewRef = useRef<ViewMode>(view === 'chat' ? 'surface' : view);
 
   const isActive = isThinking || isListening;
+  const lastHumanMessage = useMemo(() => getLastHumanMessage(messages), [messages]);
+  const followUpChips = useMemo(() => getLatestFollowUpChips(messages), [messages]);
+
+  useEffect(() => {
+    if (view !== 'chat') {
+      lastNonChatViewRef.current = view;
+    }
+  }, [view]);
+
+  useEffect(() => {
+    const pending = pendingComposerFocusRef.current;
+    if (!pending) return;
+    if (view !== 'chat' && !chatOpen) return;
+
+    const raf = requestAnimationFrame(() => {
+      composerRef.current?.focus({ selectAll: pending.selectAll });
+    });
+    pendingComposerFocusRef.current = null;
+    return () => cancelAnimationFrame(raf);
+  }, [chatOpen, view]);
+
+  useEffect(() => {
+    if (!pendingInstrumentFocusRef.current) return;
+    if (view === 'chat') return;
+
+    const raf = requestAnimationFrame(() => {
+      instrumentRef.current?.focus({ preventScroll: true });
+    });
+    pendingInstrumentFocusRef.current = false;
+    return () => cancelAnimationFrame(raf);
+  }, [view]);
+
+  const focusComposer = useCallback((selectAll: boolean) => {
+    pendingComposerFocusRef.current = { selectAll };
+    if (view !== 'chat' && !chatOpen) {
+      onChatToggle();
+      return;
+    }
+    composerRef.current?.focus({ selectAll });
+    pendingComposerFocusRef.current = null;
+  }, [chatOpen, onChatToggle, view]);
+
+  const focusInstrument = useCallback(() => {
+    if (view === 'chat') {
+      pendingInstrumentFocusRef.current = true;
+      onViewChange(lastNonChatViewRef.current);
+      return;
+    }
+    instrumentRef.current?.focus({ preventScroll: true });
+  }, [onViewChange, view]);
+
+  const handleShellKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    const isMod = e.metaKey || e.ctrlKey;
+    const activeElement = document.activeElement as HTMLElement | null;
+    const isChatComposer = !!activeElement?.closest?.('[data-chat-composer="true"]');
+
+    if (isMod && e.key.toLowerCase() === 'l') {
+      e.preventDefault();
+      focusComposer(true);
+      return;
+    }
+
+    if (e.key === 'Escape' && (view === 'chat' || isChatComposer)) {
+      e.preventDefault();
+      focusInstrument();
+    }
+  }, [focusComposer, focusInstrument, view]);
 
   useEffect(() => {
     if (chatOpen !== prevChatOpenRef.current) {
@@ -209,7 +301,7 @@ export function AppShell({
   // ── Chat view ────────────────────────────────────────────────────────
   if (view === 'chat') {
     return (
-      <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
+      <div ref={shellRef} onKeyDownCapture={handleShellKeyDown} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
         <div className="flex items-center h-9 border-b border-zinc-700/40 shrink-0">
           <div className="flex-1 flex items-center gap-3 px-3">
             <ProjectMenu
@@ -287,7 +379,14 @@ export function AppShell({
                 </div>
 
                 <div className="shrink-0 border-t border-zinc-800/40 pb-2">
-                  <ChatComposer onSend={onSend} disabled={isThinking || isListening} variant="sidebar" />
+                  <ChatComposer
+                    ref={composerRef}
+                    onSend={onSend}
+                    disabled={isThinking || isListening}
+                    variant="sidebar"
+                    lastUserMessage={lastHumanMessage}
+                    followUpChips={followUpChips}
+                  />
                 </div>
               </>
             ) : (
@@ -306,7 +405,7 @@ export function AppShell({
 
   // ── Instrument-focused layout (original) ─────────────────────────────
   return (
-    <div ref={shellRef} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
+    <div ref={shellRef} onKeyDownCapture={handleShellKeyDown} className="h-screen flex flex-col bg-zinc-950 text-zinc-100 relative">
       {/* Global top bar — split into workstation (left) and collaboration (right) zones */}
       <div className="flex items-center h-9 border-b border-zinc-700/40 shrink-0">
         {/* Left zone: workstation controls */}
@@ -382,7 +481,7 @@ export function AppShell({
         {/* Workstation: instrument + track list */}
         <div className="flex-1 flex min-h-0">
           {/* Main content (instrument view) */}
-          <div className="flex-1 min-w-0 flex flex-col">
+          <div ref={instrumentRef} tabIndex={-1} data-shortcut-scope="instrument" className="flex-1 min-w-0 flex flex-col outline-none">
             {children}
           </div>
           {/* Track sidebar */}
@@ -433,6 +532,9 @@ export function AppShell({
           open={chatOpen}
           width={chatWidth}
           onResize={onChatResize}
+          composerRef={composerRef}
+          lastHumanMessage={lastHumanMessage}
+          followUpChips={followUpChips}
         />
 
       </div>
