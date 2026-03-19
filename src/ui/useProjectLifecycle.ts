@@ -27,20 +27,22 @@ interface ProjectLifecycle {
   saveError: boolean;
   /** Granular save status */
   saveStatus: SaveStatus;
+  /** Last user-visible project lifecycle error */
+  projectActionError: string | null;
   /** Create a new project and switch to it */
-  createProject: (name?: string) => Promise<void>;
+  createProject: (name?: string) => Promise<boolean>;
   /** Switch to a different project */
-  switchProject: (id: string) => Promise<void>;
+  switchProject: (id: string) => Promise<boolean>;
   /** Rename the active project */
-  renameActiveProject: (name: string) => Promise<void>;
+  renameActiveProject: (name: string) => Promise<boolean>;
   /** Duplicate the active project */
-  duplicateActiveProject: () => Promise<void>;
+  duplicateActiveProject: () => Promise<boolean>;
   /** Delete the active project */
-  deleteActiveProject: () => Promise<void>;
+  deleteActiveProject: () => Promise<boolean>;
   /** Export the active project as a .gluon JSON file */
-  exportActiveProject: () => Promise<void>;
+  exportActiveProject: () => Promise<boolean>;
   /** Import a .gluon JSON file */
-  importProject: (file: File) => Promise<void>;
+  importProject: (file: File) => Promise<boolean>;
 }
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -53,9 +55,11 @@ export function useProjectLifecycle(
   const [projectName, setProjectName] = useState('Untitled');
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [projectActionError, setProjectActionError] = useState<string | null>(null);
 
   // Guard: suppress auto-save during load/switch
   const loadingRef = useRef(true);
+  const loadRequestRef = useRef(0);
   const failureCountRef = useRef(0);
   const sessionRef = useRef(session);
   const projectIdRef = useRef(projectId);
@@ -77,29 +81,53 @@ export function useProjectLifecycle(
     } catch { /* ignore */ }
   }, []);
 
-  const persistCurrentProjectIfNeeded = useCallback(async () => {
-    if (!projectIdRef.current) return;
-    try {
-      await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
-    } catch {
-      // Best effort only. Explicit lifecycle actions should still proceed.
+  const setActionError = useCallback((fallback: string, err?: unknown) => {
+    if (err instanceof Error && err.message) {
+      setProjectActionError(err.message);
+      return;
     }
+    setProjectActionError(fallback);
   }, []);
 
+  const persistCurrentProjectIfNeeded = useCallback(async () => {
+    if (!projectIdRef.current) return true;
+    try {
+      await saveProject(projectIdRef.current, projectNameRef.current, sessionRef.current);
+      return true;
+    } catch {
+      setActionError('Failed to save the current project before continuing.');
+      return false;
+    }
+  }, [setActionError]);
+
   const loadProjectById = useCallback(async (id: string) => {
+    const requestId = ++loadRequestRef.current;
     loadingRef.current = true;
     try {
       const project = await loadProject(id);
-      if (!project) return;
+      if (requestId !== loadRequestRef.current) return false;
+      if (!project) {
+        setActionError(`Project ${id} could not be loaded.`);
+        return false;
+      }
       setProjectId(project.id);
       setProjectName(project.meta.name);
       setSession(restoreSession(project.session, project.version));
       localStorage.setItem(ACTIVE_KEY, project.id);
+      setProjectActionError(null);
       await refreshProjects();
+      return true;
+    } catch (err) {
+      if (requestId === loadRequestRef.current) {
+        setActionError(`Failed to load project ${id}.`, err);
+      }
+      return false;
     } finally {
-      loadingRef.current = false;
+      if (requestId === loadRequestRef.current) {
+        loadingRef.current = false;
+      }
     }
-  }, [refreshProjects, setSession]);
+  }, [refreshProjects, setSession, setActionError]);
 
   // --- Initial load ---
   useEffect(() => {
@@ -116,6 +144,7 @@ export function useProjectLifecycle(
             setProjectName(project.meta.name);
             setSession(restoreSession(project.session, project.version));
             localStorage.setItem(ACTIVE_KEY, project.id);
+            setProjectActionError(null);
             await refreshProjects();
             loadingRef.current = false;
             return;
@@ -129,6 +158,7 @@ export function useProjectLifecycle(
           setProjectName('Recovered Session');
           setSession(restoreSession(migrated.session));
           localStorage.setItem(ACTIVE_KEY, migrated.id);
+          setProjectActionError(null);
           await refreshProjects();
           loadingRef.current = false;
           return;
@@ -141,6 +171,7 @@ export function useProjectLifecycle(
           setProjectName('Untitled');
           setSession(restoreSession(newSession));
           localStorage.setItem(ACTIVE_KEY, id);
+          setProjectActionError(null);
           await refreshProjects();
           loadingRef.current = false;
         }
@@ -148,6 +179,7 @@ export function useProjectLifecycle(
         // IndexedDB unavailable — work in memory
         if (!cancelled) {
           setSaveStatus('error');
+          setProjectActionError(null);
           setSession(createSession());
           loadingRef.current = false;
         }
@@ -185,41 +217,68 @@ export function useProjectLifecycle(
   // --- Actions ---
 
   const createProjectAction = useCallback(async (name?: string) => {
-    await persistCurrentProjectIfNeeded();
+    if (!(await persistCurrentProjectIfNeeded())) return false;
 
     loadingRef.current = true;
-    const { id, session: newSession } = await createProjectInDB(name);
-    setProjectId(id);
-    setProjectName(name ?? 'Untitled');
-    setSession(restoreSession(newSession));
-    localStorage.setItem(ACTIVE_KEY, id);
-    await refreshProjects();
-    loadingRef.current = false;
-  }, [persistCurrentProjectIfNeeded, setSession, refreshProjects]);
+    const requestId = ++loadRequestRef.current;
+    try {
+      const { id, session: newSession } = await createProjectInDB(name);
+      if (requestId !== loadRequestRef.current) return false;
+      setProjectId(id);
+      setProjectName(name ?? 'Untitled');
+      setSession(restoreSession(newSession));
+      localStorage.setItem(ACTIVE_KEY, id);
+      setProjectActionError(null);
+      await refreshProjects();
+      return true;
+    } catch (err) {
+      if (requestId === loadRequestRef.current) setActionError('Failed to create a project.', err);
+      return false;
+    } finally {
+      if (requestId === loadRequestRef.current) loadingRef.current = false;
+    }
+  }, [persistCurrentProjectIfNeeded, setActionError, refreshProjects, setSession]);
 
   const switchProjectAction = useCallback(async (id: string) => {
-    await persistCurrentProjectIfNeeded();
-    await loadProjectById(id);
+    if (!(await persistCurrentProjectIfNeeded())) return false;
+    return loadProjectById(id);
   }, [loadProjectById, persistCurrentProjectIfNeeded]);
 
   const renameActiveProjectAction = useCallback(async (name: string) => {
-    if (!projectIdRef.current) return;
-    setProjectName(name);
-    await renameProjectInDB(projectIdRef.current, name);
-    await refreshProjects();
-  }, [refreshProjects]);
+    if (!projectIdRef.current) return false;
+    try {
+      setProjectName(name);
+      await renameProjectInDB(projectIdRef.current, name);
+      setProjectActionError(null);
+      await refreshProjects();
+      return true;
+    } catch (err) {
+      setActionError('Failed to rename the project.', err);
+      return false;
+    }
+  }, [refreshProjects, setActionError]);
 
   const duplicateActiveProjectAction = useCallback(async () => {
-    if (!projectIdRef.current) return;
-    await persistCurrentProjectIfNeeded();
-    const newId = await duplicateProjectInDB(projectIdRef.current);
-    await loadProjectById(newId);
+    if (!projectIdRef.current) return false;
+    if (!(await persistCurrentProjectIfNeeded())) return false;
+    try {
+      const newId = await duplicateProjectInDB(projectIdRef.current);
+      return loadProjectById(newId);
+    } catch (err) {
+      setActionError('Failed to duplicate the project.', err);
+      return false;
+    }
   }, [loadProjectById, persistCurrentProjectIfNeeded]);
 
   const deleteActiveProjectAction = useCallback(async () => {
-    if (!projectIdRef.current) return;
+    if (!projectIdRef.current) return false;
     const idToDelete = projectIdRef.current;
-    await deleteProjectInDB(idToDelete);
+    try {
+      await deleteProjectInDB(idToDelete);
+    } catch (err) {
+      setActionError('Failed to delete the project.', err);
+      return false;
+    }
 
     // Deletion is terminal. Clear save-path refs before loading a replacement
     // so the just-deleted project cannot be recreated by a save-before-switch.
@@ -230,43 +289,63 @@ export function useProjectLifecycle(
     // Switch to most recent remaining, or create new
     const remaining = await listProjects();
     if (remaining.length > 0) {
-      await loadProjectById(remaining[0].id);
+      return loadProjectById(remaining[0].id);
     } else {
       loadingRef.current = true;
-      const { id, session: newSession } = await createProjectInDB('Untitled');
-      setProjectId(id);
-      setProjectName('Untitled');
-      setSession(restoreSession(newSession));
-      localStorage.setItem(ACTIVE_KEY, id);
-      await refreshProjects();
-      loadingRef.current = false;
+      const requestId = ++loadRequestRef.current;
+      try {
+        const { id, session: newSession } = await createProjectInDB('Untitled');
+        if (requestId !== loadRequestRef.current) return false;
+        setProjectId(id);
+        setProjectName('Untitled');
+        setSession(restoreSession(newSession));
+        localStorage.setItem(ACTIVE_KEY, id);
+        setProjectActionError(null);
+        await refreshProjects();
+        return true;
+      } catch (err) {
+        if (requestId === loadRequestRef.current) {
+          setActionError('Failed to create a replacement project.', err);
+        }
+        return false;
+      } finally {
+        if (requestId === loadRequestRef.current) loadingRef.current = false;
+      }
     }
-  }, [setSession, loadProjectById, refreshProjects]);
+  }, [setActionError, setSession, loadProjectById, refreshProjects]);
 
   const exportActiveProjectAction = useCallback(async () => {
-    if (!projectIdRef.current) return;
-    await persistCurrentProjectIfNeeded();
-    const json = await exportProjectInDB(projectIdRef.current);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${projectNameRef.current.replace(/[^a-zA-Z0-9_-]/g, '_')}.gluon`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }, [persistCurrentProjectIfNeeded]);
+    if (!projectIdRef.current) return false;
+    if (!(await persistCurrentProjectIfNeeded())) return false;
+    try {
+      const json = await exportProjectInDB(projectIdRef.current);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${projectNameRef.current.replace(/[^a-zA-Z0-9_-]/g, '_')}.gluon`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setProjectActionError(null);
+      return true;
+    } catch (err) {
+      setActionError('Failed to export the project.', err);
+      return false;
+    }
+  }, [persistCurrentProjectIfNeeded, setActionError]);
 
   const importProjectAction = useCallback(async (file: File) => {
     try {
       const json = await file.text();
       const { id } = await importProjectInDB(json);
-      await switchProjectAction(id);
+      return switchProjectAction(id);
     } catch (err) {
       // Surface error without crashing — current project is unaffected
+      setActionError('Failed to import the project.', err);
       console.error('[project] Import failed:', err);
-      throw err;
+      return false;
     }
-  }, [switchProjectAction]);
+  }, [setActionError, switchProjectAction]);
 
   return {
     projectId,
@@ -274,6 +353,7 @@ export function useProjectLifecycle(
     projects,
     saveError: saveStatus === 'error',
     saveStatus,
+    projectActionError,
     createProject: createProjectAction,
     switchProject: switchProjectAction,
     renameActiveProject: renameActiveProjectAction,

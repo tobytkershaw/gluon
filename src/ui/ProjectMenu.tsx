@@ -1,5 +1,5 @@
 // src/ui/ProjectMenu.tsx
-// Dropdown menu for project management — lives in the top bar.
+// Dropdown menu for project management - lives in the top bar.
 import { useState, useRef, useEffect } from 'react';
 import type { ProjectMeta } from '../engine/project-store';
 import type { SaveStatus } from './useProjectLifecycle';
@@ -9,32 +9,31 @@ interface Props {
   projects: ProjectMeta[];
   saveError: boolean;
   saveStatus: SaveStatus;
-  onRename: (name: string) => void;
-  onNew: () => void;
-  onOpen: (id: string) => void;
-  onDuplicate: () => void;
-  onDelete: () => void;
-  onExport: () => void;
-  onImport: (file: File) => Promise<void>;
+  projectActionError?: string | null;
+  onRename: (name: string) => Promise<boolean> | boolean;
+  onNew: () => Promise<boolean> | boolean;
+  onOpen: (id: string) => Promise<boolean> | boolean;
+  onDuplicate: () => Promise<boolean> | boolean;
+  onDelete: () => Promise<boolean> | boolean;
+  onExport: () => Promise<boolean> | boolean;
+  onImport: (file: File) => Promise<boolean> | boolean;
   onExportWav?: (bars: number) => void;
   exportingWav?: boolean;
 }
 
 export function ProjectMenu({
-  projectName, projects, saveError, saveStatus,
+  projectName, projects, saveError, saveStatus, projectActionError = null,
   onRename, onNew, onOpen, onDuplicate, onDelete, onExport, onImport,
   onExportWav, exportingWav,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(projectName);
-  const [importError, setImportError] = useState<string | null>(null);
   const [wavBarPicker, setWavBarPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -44,10 +43,8 @@ export function ProjectMenu({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Reset bar picker when menu closes
   useEffect(() => { if (!open) setWavBarPicker(false); }, [open]);
 
-  // Focus input on edit
   useEffect(() => {
     if (editing && inputRef.current) {
       inputRef.current.focus();
@@ -55,34 +52,49 @@ export function ProjectMenu({
     }
   }, [editing]);
 
-  // Sync edit value when project changes
   useEffect(() => { setEditValue(projectName); }, [projectName]);
 
-  const commitRename = () => {
+  const projectActionsUnavailable = saveError;
+
+  const commitRename = async () => {
     const name = editValue.trim();
-    if (name && name !== projectName) onRename(name);
-    setEditing(false);
+    if (!name || name === projectName) {
+      setEditing(false);
+      return;
+    }
+    const ok = await onRename(name);
+    if (ok !== false) {
+      setEditing(false);
+    }
   };
 
-  const handleImportClick = () => { setImportError(null); fileRef.current?.click(); };
+  const handleAction = async (action: () => Promise<boolean> | boolean, closeOnSuccess = true) => {
+    if (projectActionsUnavailable) return false;
+    const ok = await action();
+    if (ok !== false && closeOnSuccess) {
+      setOpen(false);
+    }
+    return ok !== false;
+  };
+
+  const handleImportClick = () => {
+    if (projectActionsUnavailable) return;
+    fileRef.current?.click();
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      try {
-        setImportError(null);
-        await onImport(file);
+      const ok = await handleAction(() => onImport(file));
+      if (ok) {
         setOpen(false);
-      } catch (err) {
-        setImportError(err instanceof Error ? err.message : 'Import failed');
       }
     }
-    // Reset so the same file can be re-imported
     e.target.value = '';
   };
 
   return (
     <div ref={menuRef} className="relative">
-      {/* Project name button */}
       <button
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-800/50 transition-colors group"
@@ -96,21 +108,34 @@ export function ProjectMenu({
         </svg>
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div
           className="absolute top-full left-0 mt-1 w-64 bg-zinc-900 border border-zinc-700/60 rounded-lg shadow-2xl shadow-black/50 z-50 overflow-hidden"
           style={{ animation: 'fade-up 0.1s ease-out' }}
         >
-          {/* Rename */}
+          {(projectActionsUnavailable || projectActionError) && (
+            <div className="px-3 py-2 border-b border-zinc-800/60 space-y-1">
+              {projectActionsUnavailable && (
+                <div className="text-[11px] font-mono text-amber-400/90">
+                  Working in memory: project actions are unavailable until IndexedDB recovers.
+                </div>
+              )}
+              {projectActionError && (
+                <div className="text-[11px] font-mono text-red-400/90 break-words">
+                  {projectActionError}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="px-3 py-2 border-b border-zinc-800/60">
             {editing ? (
-              <form onSubmit={(e) => { e.preventDefault(); commitRename(); }} className="flex gap-1.5">
+              <form onSubmit={(e) => { e.preventDefault(); void commitRename(); }} className="flex gap-1.5">
                 <input
                   ref={inputRef}
                   value={editValue}
                   onChange={(e) => setEditValue(e.target.value)}
-                  onBlur={commitRename}
+                  onBlur={() => { void commitRename(); }}
                   onKeyDown={(e) => { if (e.key === 'Escape') setEditing(false); }}
                   className="flex-1 bg-zinc-800 text-[11px] font-mono text-zinc-200 rounded px-2 py-1 outline-none border border-zinc-700/50 focus:border-zinc-500 min-w-0"
                 />
@@ -120,28 +145,26 @@ export function ProjectMenu({
                 onClick={() => setEditing(true)}
                 className="text-[11px] font-mono text-zinc-300 hover:text-zinc-100 transition-colors w-full text-left truncate"
                 title="Click to rename"
+                disabled={projectActionsUnavailable}
               >
                 {projectName}
               </button>
             )}
           </div>
 
-          {/* Actions */}
           <div className="py-1">
-            <MenuItem label="New project" onClick={() => { onNew(); setOpen(false); }} />
-            <MenuItem label="Duplicate" onClick={() => { onDuplicate(); setOpen(false); }} />
-            <MenuItem label="Export .gluon" onClick={() => { onExport(); setOpen(false); }} />
-            <MenuItem label="Import .gluon" onClick={handleImportClick} />
+            <MenuItem label="New project" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onNew())} />
+            <MenuItem label="Duplicate" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onDuplicate())} />
+            <MenuItem label="Export .gluon" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onExport())} />
+            <MenuItem label="Import .gluon" disabled={projectActionsUnavailable} onClick={handleImportClick} />
             <input ref={fileRef} type="file" accept=".gluon,.json" className="hidden" onChange={handleFileChange} />
-            {importError && (
-              <div className="px-3 py-1.5 text-[11px] font-mono text-red-400/80">{importError}</div>
-            )}
             {onExportWav && (
               <>
                 <div className="border-t border-zinc-800/60 my-1" />
                 {!wavBarPicker ? (
                   <MenuItem
                     label={exportingWav ? 'Exporting...' : 'Export WAV'}
+                    disabled={projectActionsUnavailable}
                     onClick={() => { if (!exportingWav) setWavBarPicker(true); }}
                   />
                 ) : (
@@ -163,10 +186,9 @@ export function ProjectMenu({
               </>
             )}
             <div className="border-t border-zinc-800/60 my-1" />
-            <MenuItem label="Delete project" onClick={() => { onDelete(); setOpen(false); }} danger />
+            <MenuItem label="Delete project" disabled={projectActionsUnavailable} onClick={() => handleAction(() => onDelete())} danger />
           </div>
 
-          {/* Project list */}
           {projects.length > 1 && (
             <>
               <div className="border-t border-zinc-800/60" />
@@ -177,8 +199,9 @@ export function ProjectMenu({
                 {projects.map(p => (
                   <button
                     key={p.id}
-                    onClick={() => { onOpen(p.id); setOpen(false); }}
-                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-800/50 transition-colors"
+                    onClick={() => { void handleAction(() => onOpen(p.id)); }}
+                    disabled={projectActionsUnavailable}
+                    className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-800/50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <span className="text-[11px] font-mono text-zinc-400 truncate flex-1">{p.name}</span>
                     <span className="text-[11px] font-mono text-zinc-700 shrink-0">{relativeTime(p.updatedAt)}</span>
@@ -196,7 +219,6 @@ export function ProjectMenu({
 function SaveIndicator({ status }: { status: SaveStatus }) {
   const [visible, setVisible] = useState(false);
 
-  // Show checkmark briefly on save, then fade out
   useEffect(() => {
     if (status === 'saved') {
       setVisible(true);
@@ -210,11 +232,10 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
     }
   }, [status]);
 
-  // Fixed-size container prevents layout shift when indicator appears/disappears
   return (
     <span className="w-2.5 h-2.5 shrink-0 flex items-center justify-center">
       {status === 'error' && (
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="Save failed — working in memory" />
+        <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="IndexedDB unavailable; working in memory" />
       )}
       {status === 'saving' && (
         <span
@@ -232,14 +253,24 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   );
 }
 
-function MenuItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
+function MenuItem({
+  label, onClick, danger, disabled,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+}) {
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       className={`w-full text-left px-3 py-1.5 text-[11px] font-mono transition-colors ${
-        danger
-          ? 'text-red-400/70 hover:text-red-400 hover:bg-red-500/10'
-          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50'
+        disabled
+          ? 'text-zinc-600 cursor-not-allowed'
+          : danger
+            ? 'text-red-400 hover:bg-red-950/30'
+            : 'text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100'
       }`}
     >
       {label}
@@ -249,8 +280,8 @@ function MenuItem({ label, onClick, danger }: { label: string; onClick: () => vo
 
 function relativeTime(timestamp: number): string {
   const diff = Date.now() - timestamp;
+  if (diff < 60000) return 'now';
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'now';
   if (mins < 60) return `${mins}m`;
   const hours = Math.floor(mins / 60);
   if (hours < 24) return `${hours}h`;
