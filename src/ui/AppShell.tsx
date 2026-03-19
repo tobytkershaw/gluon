@@ -50,6 +50,9 @@ interface Props {
   onRemoveSend?: (trackId: string, busId: string) => void;
   onSetSendLevel?: (trackId: string, busId: string, level: number) => void;
   runtimeDegradation?: string | null;
+  onContinueWithoutAI?: () => void;
+  /** True when the user has dismissed the API key setup to use manual mode. */
+  setupDismissed?: boolean;
   // Chat sidebar
   messages: ChatMessage[];
   onSend: (message: string) => void;
@@ -168,6 +171,8 @@ export function AppShell({
   onAddTrack, onRemoveTrack, onSetMusicalRole, onSetImportance,
   onAddSend, onRemoveSend, onSetSendLevel,
   runtimeDegradation,
+  onContinueWithoutAI,
+  setupDismissed = false,
   messages, onSend, isThinking, isListening, streamingText, streamingLogEntries, streamingRejections,
   reactions, onReaction,
   openDecisions = [], onDecisionRespond,
@@ -387,7 +392,7 @@ export function AppShell({
               </div>
             )}
 
-            {apiConfigured ? (
+            {(apiConfigured || setupDismissed) ? (
               <>
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
                   <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} />
@@ -405,7 +410,7 @@ export function AppShell({
                 </div>
               </>
             ) : (
-              <ApiKeySetup onSubmit={onApiKey} />
+              <ApiKeySetup onSubmit={onApiKey} onContinueWithoutAI={onContinueWithoutAI} />
             )}
           </div>
         </div>
@@ -551,6 +556,8 @@ export function AppShell({
           apiConfigured={apiConfigured}
           listenerConfigured={listenerConfigured}
           onApiKey={onApiKey}
+          onContinueWithoutAI={onContinueWithoutAI}
+          setupDismissed={setupDismissed}
           currentOpenaiKey={currentOpenaiKey}
           currentGeminiKey={currentGeminiKey}
           listenerMode={listenerMode}

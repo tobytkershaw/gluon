@@ -30,6 +30,8 @@ interface Props {
   apiConfigured: boolean;
   listenerConfigured?: boolean;
   onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
+  onContinueWithoutAI?: () => void;
+  setupDismissed?: boolean;
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
@@ -45,7 +47,7 @@ export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false, streamingText = '', streamingLogEntries, streamingRejections,
   reactions, onReaction, undoStack, onUndoMessage,
   tracks, sessionMessages,
-  apiConfigured, listenerConfigured = false, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
+  apiConfigured, listenerConfigured = false, onApiKey, onContinueWithoutAI, setupDismissed = false, currentOpenaiKey, currentGeminiKey, listenerMode,
   open, width, onResize,
   composerRef, lastHumanMessage, followUpChips = [],
 }: Props) {
@@ -103,7 +105,7 @@ export function ChatSidebar({
           </div>
         )}
 
-        {apiConfigured ? (
+        {(apiConfigured || setupDismissed) ? (
           <>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
               <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={sessionMessages} onStarterSelect={onSend} />
@@ -122,7 +124,7 @@ export function ChatSidebar({
             </div>
           </>
         ) : (
-          <ApiKeySetup onSubmit={onApiKey} />
+          <ApiKeySetup onSubmit={onApiKey} onContinueWithoutAI={onContinueWithoutAI} />
         )}
 
         {/* Drag handle on LEFT edge */}

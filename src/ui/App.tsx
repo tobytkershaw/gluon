@@ -173,6 +173,7 @@ export default function App() {
   const [audioStarted, setAudioStarted] = useState(false);
   const [plannerConfigured, setPlannerConfigured] = useState(() => aiRef.current.isPlannerConfigured());
   const [listenerConfigured, setListenerConfigured] = useState(() => aiRef.current.isListenerConfigured());
+  const [manualModeDismissed, setManualModeDismissed] = useState(false);
   // Legacy alias — planner gates chat availability
   const apiConfigured = plannerConfigured;
   const [globalStep, setGlobalStep] = useState(0);
@@ -1182,6 +1183,10 @@ export default function App() {
     setPlannerConfigured(aiRef.current.isPlannerConfigured());
     setListenerConfigured(aiRef.current.isListenerConfigured());
   }, [listenerMode]);
+
+  const handleContinueWithoutAI = useCallback(() => {
+    setManualModeDismissed(true);
+  }, []);
 
   const handleTogglePlay = useCallback(async () => {
     if (!await ensureAudio()) return;
@@ -2395,6 +2400,8 @@ export default function App() {
       apiConfigured={apiConfigured}
       listenerConfigured={listenerConfigured}
       onApiKey={handleApiKey}
+      onContinueWithoutAI={handleContinueWithoutAI}
+      setupDismissed={manualModeDismissed}
       currentOpenaiKey={openaiKey}
       currentGeminiKey={geminiKey}
       listenerMode={listenerMode}
