@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { createSession, addTrack, nextTrackName, renameTrack } from './session';
+import { createSession, addTrack, nextTrackName, renameTrack, removeTrack } from './session';
+import { applyUndo } from './primitives';
 
 describe('nextTrackName', () => {
   it('returns T2 when session has one track named T1', () => {
@@ -69,5 +70,75 @@ describe('addTrack auto-naming', () => {
     const busTrack = result.tracks.find(t => t.kind === 'bus' && t.id !== 'master-bus');
     expect(busTrack).toBeDefined();
     expect(busTrack!.name).toBeUndefined();
+  });
+});
+
+describe('removeTrack sidechain cleanup', () => {
+  function sessionWithSidechain() {
+    let session = createSession(); // T1
+    session = addTrack(session)!;  // T2
+    session = addTrack(session)!;  // T3
+    const t1 = session.tracks[0]; // audio track (sidechain source)
+    const t2 = session.tracks[1]; // audio track (has compressor with sidechain)
+    // Add a compressor to T2 that sidechains from T1
+    const compressor = {
+      id: 'comp-1',
+      type: 'compressor',
+      model: 0,
+      params: { threshold: 0.5, ratio: 0.5, attack: 0.2, release: 0.3 },
+      sidechainSourceId: t1.id,
+    };
+    session = {
+      ...session,
+      tracks: session.tracks.map(t =>
+        t.id === t2.id ? { ...t, processors: [compressor] } : t,
+      ),
+    };
+    return { session, sourceId: t1.id, scTrackId: t2.id };
+  }
+
+  it('clears sidechainSourceId when source track is removed', () => {
+    const { session, sourceId, scTrackId } = sessionWithSidechain();
+    const result = removeTrack(session, sourceId)!;
+    expect(result).not.toBeNull();
+    const scTrack = result.tracks.find(t => t.id === scTrackId)!;
+    const comp = scTrack.processors!.find(p => p.id === 'comp-1')!;
+    expect(comp.sidechainSourceId).toBeUndefined();
+  });
+
+  it('preserves sidechain when a different track is removed', () => {
+    const { session, sourceId, scTrackId } = sessionWithSidechain();
+    // Remove T3 (not the sidechain source)
+    const t3 = session.tracks[2];
+    const result = removeTrack(session, t3.id)!;
+    expect(result).not.toBeNull();
+    const scTrack = result.tracks.find(t => t.id === scTrackId)!;
+    const comp = scTrack.processors!.find(p => p.id === 'comp-1')!;
+    expect(comp.sidechainSourceId).toBe(sourceId);
+  });
+
+  it('records affectedSidechains in the undo snapshot', () => {
+    const { session, sourceId } = sessionWithSidechain();
+    const result = removeTrack(session, sourceId)!;
+    const snapshot = result.undoStack[result.undoStack.length - 1];
+    expect(snapshot.kind).toBe('track-remove');
+    if (snapshot.kind === 'track-remove') {
+      expect(snapshot.affectedSidechains).toBeDefined();
+      expect(snapshot.affectedSidechains!.length).toBe(1);
+      expect(snapshot.affectedSidechains![0].prevSourceId).toBe(sourceId);
+    }
+  });
+
+  it('undo restores sidechain references', () => {
+    const { session, sourceId, scTrackId } = sessionWithSidechain();
+    const removed = removeTrack(session, sourceId)!;
+    // Verify sidechain is cleared
+    const compAfterRemove = removed.tracks.find(t => t.id === scTrackId)!.processors!.find(p => p.id === 'comp-1')!;
+    expect(compAfterRemove.sidechainSourceId).toBeUndefined();
+    // Undo
+    const undone = applyUndo(removed);
+    const scTrack = undone.tracks.find(t => t.id === scTrackId)!;
+    const comp = scTrack.processors!.find(p => p.id === 'comp-1')!;
+    expect(comp.sidechainSourceId).toBe(sourceId);
   });
 });

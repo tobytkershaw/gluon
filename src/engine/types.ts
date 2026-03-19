@@ -484,6 +484,8 @@ export interface TrackRemoveSnapshot {
   prevActiveTrackId: string;
   /** Sends from other tracks that pointed at the removed track, captured before stripping. */
   affectedSends?: Array<{ trackId: string; prevSends: Send[] }>;
+  /** Compressor sidechain references that pointed at the removed track, captured before clearing. */
+  affectedSidechains?: Array<{ trackId: string; processorId: string; prevSourceId: string }>;
   timestamp: number;
   description: string;
 }

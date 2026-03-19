@@ -364,6 +364,20 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
         newTracks = newTracks.map(t => t.id === trackId ? { ...t, sends: prevSends } : t);
       }
     }
+    // Restore sidechain references that were cleared when the track was removed
+    if (snapshot.affectedSidechains) {
+      for (const { trackId, processorId, prevSourceId } of snapshot.affectedSidechains) {
+        newTracks = newTracks.map(t => {
+          if (t.id !== trackId) return t;
+          return {
+            ...t,
+            processors: (t.processors ?? []).map(p =>
+              p.id === processorId ? { ...p, sidechainSourceId: prevSourceId } : p,
+            ),
+          };
+        });
+      }
+    }
     return { ...session, tracks: newTracks, activeTrackId: snapshot.prevActiveTrackId };
   }
 
