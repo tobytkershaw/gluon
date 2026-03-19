@@ -48,13 +48,13 @@ function beadsControls(): ControlSchema[] {
       'density',
       'Density',
       'density',
-      'Grain density and overlap. Low values produce sparse grains, high values create thick clouds. In delay mode controls feedback amount.',
+      'Grain density and overlap. Low values produce sparse grains, high values create thick clouds. In delay mode controls time subdivision.',
     ),
     makeBeadsControl(
       'time',
       'Time',
       'decay',
-      'Grain size in granular mode, delay time in delay mode, decay time in reverb mode.',
+      'Buffer read position — scrubs from most recent to oldest captured audio. In delay mode selects delay time.',
     ),
     makeBeadsControl(
       'pitch',
@@ -94,7 +94,7 @@ function beadsControls(): ControlSchema[] {
 const BEADS_ENGINE_DATA: [string, string, string][] = [
   ['granular', 'Granular', 'Granular processing — real-time grain cloud, improved Clouds algorithm'],
   ['delay', 'Delay', 'Delay line — feedback, filtering, and pitch shifting'],
-  ['reverb', 'Reverb', 'Algorithmic reverb — lush decay evolved from Clouds\' reverb mode'],
+  ['reverb', 'Reverb', 'Reverb processing — lush diffuse decay (Gluon extension; on hardware, reverb is an always-on output effect, not a separate mode)'],
 ];
 
 const beadsEngines: EngineDef[] = BEADS_ENGINE_DATA.map(([id, label, description]) => ({

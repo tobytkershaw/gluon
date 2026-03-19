@@ -119,7 +119,7 @@ describe('Warps engine lookup helpers', () => {
     const list = getWarpsModelList();
     expect(list).toHaveLength(4);
     expect(list[0].name).toBe('Crossfade');
-    expect(list[3].name).toBe('Frequency Shift');
+    expect(list[3].name).toBe('Frequency Shift (Gluon)');
   });
 });
 

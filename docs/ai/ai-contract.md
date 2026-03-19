@@ -659,7 +659,7 @@ Nine controls, all 0.0–1.0:
 | **frequency**        | Fundamental pitch. Low to high.                 | `note`            |
 | **harmonics**        | Harmonic complexity. Simple to dense.            | `harmonics`       |
 | **timbre**           | Spectral content. Dark to bright.                | `timbre`          |
-| **morph**            | Surface character. Smooth to textured.           | `morph`           |
+| **morph**            | Lateral timbral variation. Different characters at same brightness. | `morph`           |
 | **timbre-mod-amount**| Internal envelope → timbre modulation depth.     | `timbre_mod_amount`|
 | **fm-amount**        | Internal envelope → pitch modulation depth.      | `fm_amount`       |
 | **morph-mod-amount** | Internal envelope → morph modulation depth.      | `morph_mod_amount` |
@@ -674,7 +674,7 @@ Seven controls (polyphony is discrete 1–4, internal-exciter is boolean, rest 0
 |---------------------|------------------------------------------------|
 | **structure**        | Geometric structure of the resonator.            |
 | **brightness**       | Spectral content of the resonance.               |
-| **damping**          | Decay time. Low = long ring, high = short.       |
+| **damping**          | Decay time. Low = short decay, high = long ring. |
 | **position**         | Excitation position on the resonator.            |
 | **fine-tune**        | Fine pitch offset. 0.5 = centered, +/- 1 semitone. |
 | **internal-exciter** | Use internal excitation vs external input (boolean). |
