@@ -1053,8 +1053,8 @@ const manageSequenceTool: ToolSchema = {
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata and mix properties in a single call: name (rename), volume, pan, swing (per-track override), muted, solo, approval (editability), importance (mix priority 0-1), and/or musicalRole (e.g. "driving rhythm", "ambient pad"). ' +
-    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", swing: 0.6) for per-track swing. Use inheritSwing: true to revert to global transport swing. Approval requires agency ON and a reason.',
+    'Set track metadata and mix properties in a single call: name (rename), volume, pan, swing (per-track override), muted, solo, approval (editability), importance (mix priority 0-1), musicalRole, portamentoTime (0-1 = 0-500ms glide), and/or portamentoMode (off/always/legato). ' +
+    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", portamentoTime: 0.3, portamentoMode: "legato") for pitch glide. Use inheritSwing: true to revert to global transport swing. Approval requires agency ON and a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -1106,6 +1106,15 @@ const setTrackMetaTool: ToolSchema = {
       reason: {
         type: 'string',
         description: 'Required when setting approval. Why this approval level is appropriate.',
+      },
+      portamentoTime: {
+        type: 'number',
+        description: 'Portamento (pitch glide) time, normalised 0.0-1.0 mapping to 0-500ms. 0 = instant (no glide).',
+      },
+      portamentoMode: {
+        type: 'string',
+        enum: ['off', 'always', 'legato'],
+        description: 'Portamento mode: off (no glide), always (glide every note), legato (glide only on overlapping notes).',
       },
     },
     required: ['trackId'],

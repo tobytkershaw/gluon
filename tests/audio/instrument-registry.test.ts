@@ -26,6 +26,7 @@ const VALID_BINDINGS = [
   'params.timbre', 'params.harmonics', 'params.morph', 'params.note',
   'params.fm_amount', 'params.timbre_mod_amount', 'params.morph_mod_amount',
   'params.decay', 'params.lpg_colour',
+  'track.portamentoTime', 'track.portamentoMode',
 ];
 
 describe('Plaits instrument registry', () => {
@@ -100,7 +101,7 @@ describe('Plaits instrument registry', () => {
 
   it('getEngineControlSchemas returns controls for valid engine', () => {
     const schemas = getEngineControlSchemas('virtual-analog');
-    expect(schemas).toHaveLength(9);
+    expect(schemas).toHaveLength(11);
   });
 
   it('getControlBinding returns binding for valid engine+control', () => {

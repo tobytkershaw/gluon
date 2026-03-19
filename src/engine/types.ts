@@ -151,6 +151,10 @@ export interface Track {
   /** Per-track swing override (0.0–1.0). When set, overrides global transport swing for this track.
    *  null or undefined = inherit global transport swing. */
   swing?: number | null;
+  /** Portamento (pitch glide) time, normalised 0.0–1.0 mapping to 0–500ms. Default 0 (off). */
+  portamentoTime?: number;
+  /** Portamento mode: 'off' (no glide), 'always' (glide every note), 'legato' (glide only on overlapping notes). */
+  portamentoMode?: 'off' | 'always' | 'legato';
   /** Post-fader sends to bus tracks. Default: [] */
   sends?: Send[];
   controlProvenance?: ControlState;
@@ -883,7 +887,14 @@ export interface AIRenameTrackAction {
   name: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
+export interface AISetPortamentoAction {
+  type: 'set_portamento';
+  trackId: string;
+  time?: number;  // 0.0–1.0 (normalised)
+  mode?: 'off' | 'always' | 'legato';
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetPortamentoAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
 
 // --- Reaction History ---
 

@@ -43,6 +43,28 @@ describe('render-spec — extended param routing', () => {
   });
 });
 
+describe('render-spec — portamento fields', () => {
+  it('RenderTrackSpec includes portamentoTime and portamentoMode', () => {
+    expect(RENDER_SPEC_SRC).toContain('portamentoTime: number');
+    expect(RENDER_SPEC_SRC).toContain('portamentoMode: number');
+  });
+
+  it('buildTrackSpec populates portamento fields from track state', () => {
+    expect(RENDER_SPEC_SRC).toContain('portamentoTime: track.portamentoTime');
+    expect(RENDER_SPEC_SRC).toContain('portamentoMode');
+  });
+});
+
+describe('render-worker — portamento handling', () => {
+  it('declares _plaits_set_portamento in PlaitsWasm interface', () => {
+    expect(RENDER_WORKER_SRC).toContain('_plaits_set_portamento');
+  });
+
+  it('calls _plaits_set_portamento during track setup', () => {
+    expect(RENDER_WORKER_SRC).toContain('plaits._plaits_set_portamento(pHandle, track.portamentoTime, track.portamentoMode)');
+  });
+});
+
 describe('render-worker — extended param handling', () => {
   it('imports RenderPlaitsExtended type', () => {
     expect(RENDER_WORKER_SRC).toContain('RenderPlaitsExtended');

@@ -67,8 +67,12 @@ struct PlaitsVoiceState {
   SmoothedParam smooth_decay;
   SmoothedParam smooth_lpg_colour;
 
+  // Portamento (pitch slew) state
+  float portamento_coeff;  // per-block smoothing coefficient for note glide
+  int portamento_mode;     // 0=off, 1=always, 2=legato-only
+
   PlaitsVoiceState() : trigger_blocks_remaining(0), accent_level(0.0f), gate_open(false), sample_rate(48000.0f),
-                       level_active(false) {
+                       level_active(false), portamento_coeff(1.0f), portamento_mode(0) {
     std::memset(&patch, 0, sizeof(patch));
     std::memset(&modulations, 0, sizeof(modulations));
   }
@@ -166,14 +170,37 @@ void plaits_set_extended(void* handle, float fm_amount, float timbre_mod_amount,
   state->smooth_lpg_colour.set(clamp01(lpg_colour));
 }
 
+void plaits_set_portamento(void* handle, float time_normalized, int mode) {
+  auto* state = static_cast<PlaitsVoiceState*>(handle);
+  if (!state) return;
+  state->portamento_mode = std::max(0, std::min(2, mode));
+  // Map normalised time (0-1) to settling time 0-500ms.
+  // At 48kHz with block size 24, there are 2000 blocks/sec.
+  // coeff = 1.0 - pow(0.1, 1.0 / (T * blocks_per_sec))
+  // T=0 → clamp to 1.0 (instant snap). T=0.5s → ~0.0023.
+  float t_sec = time_normalized * 0.5f;  // 0-1 maps to 0-500ms
+  if (t_sec <= 0.0f || mode == 0) {
+    state->portamento_coeff = 1.0f;  // instant (no glide)
+  } else {
+    float blocks_per_sec = state->sample_rate / static_cast<float>(plaits::kMaxBlockSize);
+    state->portamento_coeff = 1.0f - std::pow(0.1f, 1.0f / (t_sec * blocks_per_sec));
+  }
+}
+
 void plaits_trigger(void* handle, float accent_level) {
   auto* state = static_cast<PlaitsVoiceState*>(handle);
   if (!state) return;
   state->accent_level = std::max(0.0f, accent_level);
   state->trigger_blocks_remaining = 1;
   state->level_active = true;
-  // Snap note pitch to target so the trigger fires at the correct pitch.
-  state->smooth_note.reset(state->smooth_note.target);
+  // Portamento-aware note snap:
+  // mode 0 (off): always snap pitch immediately
+  // mode 1 (always): never snap — let smooth_note glide
+  // mode 2 (legato-only): snap if gate was closed, glide if gate was open
+  if (state->portamento_mode == 0 ||
+      (state->portamento_mode == 2 && !state->gate_open)) {
+    state->smooth_note.reset(state->smooth_note.target);
+  }
   // gate_open is managed by plaits_set_gate — don't set it here.
   //
   // Timing: we set modulations.trigger = 1 immediately, but Plaits internally
@@ -206,7 +233,14 @@ int plaits_render(void* handle, float* output, int num_frames) {
     state->smooth_harmonics.step(kSmoothCoeff);
     state->smooth_timbre.step(kSmoothCoeff);
     state->smooth_morph.step(kSmoothCoeff);
-    state->smooth_note.step(kSmoothCoeff);
+    // Use portamento coefficient for note when portamento is active,
+    // otherwise use the standard smoothing coefficient.
+    {
+      float note_coeff = (state->portamento_mode != 0)
+        ? state->portamento_coeff
+        : kSmoothCoeff;
+      state->smooth_note.step(note_coeff);
+    }
     state->smooth_fm_amount.step(kSmoothCoeff);
     state->smooth_timbre_mod_amount.step(kSmoothCoeff);
     state->smooth_morph_mod_amount.step(kSmoothCoeff);

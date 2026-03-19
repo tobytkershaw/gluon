@@ -16,21 +16,52 @@ export interface ControlDef {
   range?: { min: number; max: number; default: number };
   /** Optional display mapping for showing human-readable values with units */
   displayMapping?: DisplayMapping;
+  /** For enum controls: the valid string values */
+  enumValues?: string[];
 }
+
+/** Map of portamento-mode enum values to numeric indices for the Rack's DiscreteSelector. */
+const PORTAMENTO_MODE_INDEX: Record<string, number> = { off: 0, always: 1, legato: 2 };
 
 /** Build source controls from instrument registry */
 export function getSourceControls(track: Track): ControlDef[] {
   const engine = getEngineByIndex(track.model);
   if (!engine) return [];
-  return engine.controls.map(c => ({
-    id: c.id,
-    name: c.name,
-    value: track.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
-    size: c.size ?? 'large',
-    kind: c.kind,
-    range: c.range,
-    displayMapping: c.displayMapping,
-  }));
+  return engine.controls.map(c => {
+    // Track-level portamento fields — read from track, not track.params
+    if (c.binding?.path?.startsWith('track.')) {
+      const field = c.binding.path.slice('track.'.length);
+      let value: number;
+      if (field === 'portamentoTime') {
+        value = track.portamentoTime ?? c.range?.default ?? 0;
+      } else if (field === 'portamentoMode') {
+        // Enum: convert string mode to numeric index for DiscreteSelector
+        value = PORTAMENTO_MODE_INDEX[track.portamentoMode ?? 'off'] ?? 0;
+      } else {
+        value = (track as Record<string, unknown>)[field] as number ?? c.range?.default ?? 0.5;
+      }
+      return {
+        id: c.id,
+        name: c.name,
+        value,
+        size: c.size ?? 'large',
+        kind: c.kind,
+        range: c.range,
+        displayMapping: c.displayMapping,
+        enumValues: c.enumValues,
+      };
+    }
+
+    return {
+      id: c.id,
+      name: c.name,
+      value: track.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
+      size: c.size ?? 'large',
+      kind: c.kind,
+      range: c.range,
+      displayMapping: c.displayMapping,
+    };
+  });
 }
 
 /** Build processor controls from instrument registry */

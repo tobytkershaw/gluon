@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -2688,8 +2688,10 @@ export class GluonAI {
         const hasRole = args.musicalRole !== undefined;
         const hasMuted = args.muted !== undefined;
         const hasSolo = args.solo !== undefined;
-        if (!hasName && !hasVolume && !hasPan && !hasSwing && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo) {
-          return { actions: [], response: errorPayload('At least one of name, volume, pan, swing, approval, importance, musicalRole, muted, solo required') };
+        const hasPortamentoTime = args.portamentoTime !== undefined;
+        const hasPortamentoMode = args.portamentoMode !== undefined;
+        if (!hasName && !hasVolume && !hasPan && !hasSwing && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo && !hasPortamentoTime && !hasPortamentoMode) {
+          return { actions: [], response: errorPayload('At least one of name, volume, pan, swing, approval, importance, musicalRole, muted, solo, portamentoTime, portamentoMode required') };
         }
 
         const metaActions: AIAction[] = [];
@@ -2806,6 +2808,37 @@ export class GluonAI {
             };
             metaActions.push(setImportanceAction);
             applied.push('musicalRole');
+          }
+        }
+
+        // Handle portamento
+        if (hasPortamentoTime || hasPortamentoMode) {
+          const portaAction: AISetPortamentoAction = {
+            type: 'set_portamento',
+            trackId: args.trackId as string,
+          };
+          let portaError = false;
+          if (hasPortamentoTime) {
+            if (typeof args.portamentoTime !== 'number' || !Number.isFinite(args.portamentoTime)) {
+              errors.push('portamentoTime must be a finite number (0.0-1.0)');
+              portaError = true;
+            } else {
+              portaAction.time = Math.max(0, Math.min(1, args.portamentoTime));
+            }
+          }
+          if (hasPortamentoMode) {
+            const validModes = ['off', 'always', 'legato'];
+            if (typeof args.portamentoMode !== 'string' || !validModes.includes(args.portamentoMode)) {
+              errors.push(`portamentoMode must be one of: ${validModes.join(', ')}`);
+              portaError = true;
+            } else {
+              portaAction.mode = args.portamentoMode as 'off' | 'always' | 'legato';
+            }
+          }
+          if (!portaError) {
+            metaActions.push(portaAction);
+            if (hasPortamentoTime) applied.push('portamentoTime');
+            if (hasPortamentoMode) applied.push('portamentoMode');
           }
         }
 

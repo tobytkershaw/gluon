@@ -31,6 +31,7 @@ interface ExpandedTrackProps {
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
   onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
+  onPortamentoChange?: (field: 'portamentoTime' | 'portamentoMode', value: number | string) => void;
   // Processor editing
   selectedProcessorId: string | null;
   onSelectProcessor: (processorId: string | null) => void;
@@ -79,6 +80,7 @@ export function ExpandedTrack({
   onParamChange, onInteractionStart, onInteractionEnd,
   onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
   onExtendedSourceParamChange,
+  onPortamentoChange,
   selectedProcessorId, onSelectProcessor,
   onProcessorParamChange, onProcessorInteractionStart, onProcessorInteractionEnd,
   onProcessorModelChange, onRemoveProcessor, onToggleProcessorEnabled,
@@ -172,6 +174,7 @@ export function ExpandedTrack({
               onNoteChange,
               onHarmonicsChange,
               onExtendedSourceParamChange,
+              onPortamentoChange,
             })}
             onInteractionStart={onInteractionStart}
             onInteractionEnd={onInteractionEnd}

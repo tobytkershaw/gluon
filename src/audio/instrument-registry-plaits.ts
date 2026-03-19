@@ -150,6 +150,38 @@ function defaultControls(): ControlSchema[] {
       0.5,
       'small',
     ),
+    // Row 4: Portamento controls — track-level fields, not params entries
+    {
+      id: 'portamento-time',
+      name: 'Portamento',
+      kind: 'continuous' as ControlKind,
+      semanticRole: 'pitch' as SemanticRole,
+      description: 'Pitch glide time between notes. 0.0 = instant (no glide), 1.0 = 500ms glide.',
+      readable: true,
+      writable: true,
+      range: { min: 0, max: 1, default: 0 },
+      size: 'small' as const,
+      binding: {
+        adapterId: 'plaits',
+        path: 'track.portamentoTime',
+      },
+      displayMapping: { type: 'linear', min: 0, max: 500, unit: 'ms', decimals: 0 },
+    },
+    {
+      id: 'portamento-mode',
+      name: 'Porta Mode',
+      kind: 'enum' as ControlKind,
+      semanticRole: 'pitch' as SemanticRole,
+      description: 'Portamento mode: off (no glide), always (glide every note), legato (glide only when notes overlap).',
+      readable: true,
+      writable: true,
+      enumValues: ['off', 'always', 'legato'],
+      size: 'small' as const,
+      binding: {
+        adapterId: 'plaits',
+        path: 'track.portamentoMode',
+      },
+    },
   ];
 }
 

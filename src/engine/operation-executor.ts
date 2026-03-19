@@ -526,6 +526,20 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'set_portamento': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+      if (action.time !== undefined) {
+        if (!Number.isFinite(action.time)) return `Non-finite portamento time: ${action.time}`;
+        if (action.time < 0 || action.time > 1) return `Portamento time out of range (0.0-1.0): ${action.time}`;
+      }
+      if (action.mode !== undefined && !['off', 'always', 'legato'].includes(action.mode)) {
+        return `Invalid portamento mode: ${action.mode}`;
+      }
+      return null;
+    }
+
     case 'rename_track': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
@@ -2182,6 +2196,38 @@ function executeActionsInternal(
         if (action.pan !== undefined) mixParts.push(`pan=${action.pan.toFixed(2)}`);
         if (action.swing !== undefined) mixParts.push(action.swing === null ? 'swing=inherit' : `swing=${action.swing.toFixed(2)}`);
         log.push({ trackId: action.trackId, trackLabel: mixLabel, description: mixParts.join(', ') });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_portamento': {
+        const portaTrack = getTrack(next, action.trackId);
+        const prevProps: Partial<Track> = {};
+        if (action.time !== undefined) prevProps.portamentoTime = portaTrack.portamentoTime;
+        if (action.mode !== undefined) prevProps.portamentoMode = portaTrack.portamentoMode;
+
+        const portaSnapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId: action.trackId,
+          prevProps,
+          timestamp: Date.now(),
+          description: `AI set_portamento on ${action.trackId}`,
+        };
+
+        const portaUpdate: Partial<Track> = {};
+        if (action.time !== undefined) portaUpdate.portamentoTime = Math.max(0, Math.min(1, action.time));
+        if (action.mode !== undefined) portaUpdate.portamentoMode = action.mode;
+
+        next = {
+          ...updateTrack(next, action.trackId, portaUpdate),
+          undoStack: [...next.undoStack, portaSnapshot],
+        };
+
+        const portaLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        const portaParts: string[] = [];
+        if (action.time !== undefined) portaParts.push(`time=${action.time.toFixed(2)}`);
+        if (action.mode !== undefined) portaParts.push(`mode=${action.mode}`);
+        log.push({ trackId: action.trackId, trackLabel: portaLabel, description: `portamento: ${portaParts.join(', ')}` });
         accepted.push(action);
         break;
       }

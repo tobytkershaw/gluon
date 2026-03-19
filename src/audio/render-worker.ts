@@ -30,6 +30,7 @@ interface PlaitsWasm {
   _plaits_set_extended(handle: number, fm_amount: number, timbre_mod_amount: number, morph_mod_amount: number, decay: number, lpg_colour: number): void;
   _plaits_trigger(handle: number, accentLevel: number): void;
   _plaits_set_gate(handle: number, open: number): void;
+  _plaits_set_portamento(handle: number, time_normalized: number, mode: number): void;
   _plaits_render(handle: number, outputPtr: number, frames: number): number;
   HEAPF32?: Float32Array;
   memory?: WebAssembly.Memory;
@@ -336,6 +337,7 @@ async function renderTrack(
   const pOutPtr = plaits._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
 
   plaits._plaits_set_model(pHandle, track.model);
+  plaits._plaits_set_portamento(pHandle, track.portamentoTime, track.portamentoMode);
   const currentPatch: RenderSynthPatch = { ...track.params };
   plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
   const currentExtended: RenderPlaitsExtended = { ...track.extendedParams };

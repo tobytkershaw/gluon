@@ -150,6 +150,10 @@ export class PlaitsSynth implements SynthEngine {
     this.post({ type: 'set-extended', extended: params });
   }
 
+  setPortamento(time: number, mode: number): void {
+    this.post({ type: 'set-portamento', time, mode });
+  }
+
   scheduleNote(note: ScheduledNote, fence?: number): void {
     // Only send timed set-patch / set-extended when this note has per-step
     // overrides for the corresponding param group. A timed set-patch with

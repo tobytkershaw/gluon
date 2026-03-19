@@ -110,6 +110,38 @@ describe('gluon_plaits.cpp contracts', () => {
     const body = triggerFn![1];
     expect(body).toMatch(/smooth_note\.reset/);
   });
+
+  it('plaits_set_portamento function exists and accepts time and mode', () => {
+    expect(PLAITS_SRC).toContain('void plaits_set_portamento(void* handle, float time_normalized, int mode)');
+  });
+
+  it('portamento state fields exist on PlaitsVoiceState', () => {
+    expect(PLAITS_SRC).toContain('float portamento_coeff');
+    expect(PLAITS_SRC).toContain('int portamento_mode');
+  });
+
+  it('portamento mode controls note snap in trigger', () => {
+    const triggerFn = PLAITS_SRC.match(
+      /void plaits_trigger\(.*?\{([\s\S]*?)\n\}/,
+    );
+    expect(triggerFn).not.toBeNull();
+    const body = triggerFn![1];
+    // mode 0 (off) should snap
+    expect(body).toContain('portamento_mode == 0');
+    // mode 2 (legato) should check gate_open
+    expect(body).toContain('portamento_mode == 2');
+    expect(body).toContain('gate_open');
+  });
+
+  it('render uses portamento_coeff for smooth_note when portamento active', () => {
+    const renderFn = PLAITS_SRC.match(
+      /int plaits_render\(.*?\{([\s\S]*?)\n\}/,
+    );
+    expect(renderFn).not.toBeNull();
+    const body = renderFn![1];
+    expect(body).toContain('portamento_coeff');
+    expect(body).toContain('portamento_mode');
+  });
 });
 
 describe('PlaitsSynth.scheduleNote — independent base/extended override detection', () => {
