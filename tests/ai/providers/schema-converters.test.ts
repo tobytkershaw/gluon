@@ -115,6 +115,36 @@ describe('toGeminiDeclarations', () => {
     expect(decl.parameters!.properties!.x.type).toBe(Type.NUMBER);
   });
 
+  it('throws for oneOf with complex types', () => {
+    const tools: ToolSchema[] = [{
+      name: 'test',
+      description: 'test tool',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { oneOf: [{ type: 'object', properties: {} }] },
+        },
+      },
+    }];
+
+    expect(() => toGeminiDeclarations(tools)).toThrow(/Cannot flatten oneOf.*complex types.*test\.x/);
+  });
+
+  it('throws for empty oneOf', () => {
+    const tools: ToolSchema[] = [{
+      name: 'test',
+      description: 'test tool',
+      parameters: {
+        type: 'object',
+        properties: {
+          x: { oneOf: [] },
+        },
+      },
+    }];
+
+    expect(() => toGeminiDeclarations(tools)).toThrow(/oneOf at test\.x has no branches/);
+  });
+
   it('throws for anyOf', () => {
     const tools: ToolSchema[] = [{
       name: 'bad',

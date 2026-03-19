@@ -22,6 +22,10 @@ const UNSUPPORTED_KEYS = ['anyOf', 'additionalProperties', 'nullable'] as const;
  * description if present on the parent schema.
  */
 function flattenOneOf(branches: JsonSchema[], description: string | undefined, path: string): Schema {
+  if (branches.length === 0) {
+    throw new Error(`oneOf at ${path} has no branches — invalid schema.`);
+  }
+
   // Collect the unique types from all branches
   const types = new Set(branches.map(b => b.type).filter(Boolean));
 
