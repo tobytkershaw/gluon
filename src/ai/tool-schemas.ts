@@ -890,7 +890,8 @@ const setSidechainTool: ToolSchema = {
     type: 'object',
     properties: {
       sourceTrackId: {
-        description: 'Source track whose audio drives the compressor\'s detector. Use ordinal label (e.g. "Track 1") or internal ID. Set to null to remove sidechain.',
+        type: 'string',
+        description: 'Source track whose audio drives the compressor\'s detector. Use ordinal label (e.g. "Track 1") or internal ID. Set to empty string to remove sidechain.',
       },
       targetTrackId: {
         type: 'string',
