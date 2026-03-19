@@ -767,4 +767,64 @@ describe('TransportController', () => {
 
     controller.dispose();
   });
+
+  it('invalidates a newly added dirty track while playback is already running', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    let schedulerPositionChange: ((step: number) => void) | null = null;
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onPositionChange }) => {
+        schedulerPositionChange = onPositionChange;
+        return scheduler;
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+    schedulerPositionChange?.(6);
+
+    const region = createDefaultPattern('v1', 16);
+    region.events = [{ kind: 'trigger', at: 8, velocity: 0.8 }];
+    session.tracks.push({
+      id: 'v1',
+      engine: 'plaits',
+      model: 0,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+      agency: 'ON',
+      muted: false,
+      solo: false,
+      stepGrid: { steps: [], length: 16 },
+      patterns: [region],
+      surface: { semanticControls: [], pinnedControls: [], xyAxes: { x: 'timbre', y: 'morph' }, thumbprint: { type: 'static-color' } },
+      _patternDirty: true,
+    });
+
+    controller.syncArrangement();
+
+    expect(scheduler.invalidateTrack).toHaveBeenCalledWith('v1', 6);
+    expect(session.tracks[0]._patternDirty).toBe(false);
+
+    controller.dispose();
+  });
 });
