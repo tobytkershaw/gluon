@@ -954,7 +954,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
       setNodeDrag(null);
       hasAutoFitRef.current = false;
     }
-  });
+  }, [session.activeTrackId]);
 
   const track = session.tracks.length > 0 ? getActiveTrack(session) : null;
   const baseNodes = useMemo(() => track ? layoutNodes(track) : [], [track]);
