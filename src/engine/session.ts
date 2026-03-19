@@ -982,11 +982,7 @@ function deepCopyTrack(track: Track): Track {
         ...m,
         bindings: m.bindings.map(b => ({ ...b })),
         position: { ...m.position },
-<<<<<<< HEAD
         config: structuredClone(m.config),
-=======
-        config: { ...m.config },
->>>>>>> surface/1052-canvas
       })),
     },
     controlProvenance: track.controlProvenance ? { ...track.controlProvenance } : undefined,

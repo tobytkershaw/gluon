@@ -1,13 +1,16 @@
 import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
 import type { Track } from '../../engine/types';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { PlaceholderModule } from './PlaceholderModule';
+import { KnobGroupModule } from './KnobGroupModule';
+import { MacroKnobModule } from './MacroKnobModule';
+import { XYPadModule } from './XYPadModule';
 
 interface SurfaceCanvasProps {
   track: Track;
+  onParamChange?: (controlId: string, value: number) => void;
   onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
   onInteractionStart?: () => void;
   onInteractionEnd?: () => void;
@@ -17,15 +20,16 @@ interface SurfaceCanvasProps {
 // Starts with PlaceholderModule for all types.
 // Individual renderers will replace these as #1053-#1055 land.
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
-  'knob-group': PlaceholderModule,
-  'macro-knob': PlaceholderModule,
-  'xy-pad': PlaceholderModule,
+  'knob-group': KnobGroupModule,
+  'macro-knob': MacroKnobModule,
+  'xy-pad': XYPadModule,
   'step-grid': PlaceholderModule,
   'chain-strip': PlaceholderModule,
 };
 
 export function SurfaceCanvas({
   track,
+  onParamChange,
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
@@ -99,6 +103,7 @@ export function SurfaceCanvas({
               <Renderer
                 module={mod}
                 track={track}
+                onParamChange={onParamChange}
                 onProcessorParamChange={onProcessorParamChange}
                 onInteractionStart={onInteractionStart}
                 onInteractionEnd={onInteractionEnd}

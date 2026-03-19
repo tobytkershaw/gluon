@@ -1,9 +1,5 @@
 // src/engine/operation-executor.ts
-<<<<<<< HEAD
 import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, SurfaceModule, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
-=======
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, SurfaceModule, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, Track } from './types';
->>>>>>> surface/1052-canvas
 import { AGENCY_REJECTION_PREFIX } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
@@ -1848,11 +1844,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-<<<<<<< HEAD
           modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
-=======
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
->>>>>>> surface/1052-canvas
         };
         const newSurface: TrackSurface = {
           ...track.surface,
@@ -1879,11 +1871,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-<<<<<<< HEAD
           modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
-=======
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
->>>>>>> surface/1052-canvas
         };
         const newModule: SurfaceModule = {
           type: 'knob-group',
@@ -1915,11 +1903,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-<<<<<<< HEAD
           modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
-=======
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
->>>>>>> surface/1052-canvas
         };
         const modules = track.surface.modules.filter(
           m => !(m.config.pinned === true && m.bindings.some(b => b.target === `${action.moduleId}:${action.controlId}`)),
@@ -1946,11 +1930,7 @@ function executeActionsInternal(
         const track = getTrack(next, action.trackId);
         const prevSurface = {
           ...track.surface,
-<<<<<<< HEAD
           modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
-=======
-          modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: { ...m.config } })),
->>>>>>> surface/1052-canvas
         };
         const modules = track.surface.modules.map(m => {
           if (m.type !== 'xy-pad') return m;
