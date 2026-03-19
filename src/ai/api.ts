@@ -562,10 +562,16 @@ export function buildAgencyApproval(
   session: Session,
   blockedAction: AIAction,
   trackId: string,
+  existingActions: AIAction[] = [],
 ): { actions: AIAction[]; response: Record<string, unknown> } {
   const track = session.tracks.find(t => t.id === trackId);
   const label = track ? getTrackLabel(track) : trackId;
-  const decisionId = `agency-approval-${Date.now()}`;
+  const existingDecision = existingActions.find((action): action is AIRaiseDecisionAction =>
+    action.type === 'raise_decision' &&
+    action.decisionId.startsWith('agency-approval-') &&
+    action.trackIds?.includes(trackId),
+  );
+  const decisionId = existingDecision?.decisionId ?? `agency-approval-${Date.now()}`;
 
   const raiseAction: AIRaiseDecisionAction = {
     type: 'raise_decision',
@@ -587,7 +593,7 @@ export function buildAgencyApproval(
   };
 
   return {
-    actions: [raiseAction],
+    actions: existingDecision ? [] : [raiseAction],
     response: approval as unknown as Record<string, unknown>,
   };
 }
@@ -600,10 +606,11 @@ function handleRejection(
   rejection: string | null | undefined,
   session: Session,
   action: AIAction,
+  existingActions: AIAction[] = [],
 ): { actions: AIAction[]; response: Record<string, unknown> } | null {
   if (!rejection) return null;
   const agencyTrackId = isAgencyRejection(rejection);
-  if (agencyTrackId) return buildAgencyApproval(session, action, agencyTrackId);
+  if (agencyTrackId) return buildAgencyApproval(session, action, agencyTrackId, existingActions);
 
   // Enrich common rejection patterns with recovery hints
   if (rejection.startsWith('Track not found')) {
@@ -826,7 +833,7 @@ export class GluonAI {
 
       while (stepCount < GluonAI.MAX_STREAMING_STEPS) {
         // Process this round: collect text, execute tool calls
-        const roundResult = await this.processRound(generateResult, workingSession, ctx, breaker);
+        const roundResult = await this.processRound(generateResult, workingSession, ctx, breaker, allActions);
 
         // Track visible output
         if (roundResult.textParts.length > 0) hadVisibleOutput = true;
@@ -956,6 +963,7 @@ export class GluonAI {
     session: Session,
     ctx?: AskContext,
     breaker?: import('./circuit-breaker').CircuitBreakerState,
+    turnActions: AIAction[] = [],
   ): Promise<{
     textParts: string[];
     actions: AIAction[];
@@ -1011,7 +1019,7 @@ export class GluonAI {
         continue;
       }
 
-      const execResult = await this.executeFunctionCall(fc, roundSession, ctx);
+      const execResult = await this.executeFunctionCall(fc, roundSession, ctx, [...turnActions, ...actions]);
       actions.push(...execResult.actions);
       functionResponses.push({ id: fc.id, name: fc.name, result: execResult.response });
       // Project actions onto the running snapshot for subsequent calls
@@ -1042,6 +1050,7 @@ export class GluonAI {
     fc: NeutralFunctionCall,
     session: Session,
     ctx?: AskContext,
+    existingActions: AIAction[] = [],
   ): Promise<{ actions: AIAction[]; response: Record<string, unknown> }> {
     const { name, args, id } = fc;
 
@@ -1117,7 +1126,7 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(session, action);
-        const rejectionResult = handleRejection(rejection, session, action);
+        const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
         const trackId = action.trackId ?? session.activeTrackId;
@@ -1232,7 +1241,7 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(session, action);
-        const rejectionResult = handleRejection(rejection, session, action);
+        const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
         // Compute consequence details from the before/after state
@@ -1333,7 +1342,7 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(session, action);
-        const rejectionResult = handleRejection(rejection, session, action);
+        const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
         // Summarize operations
@@ -1383,7 +1392,7 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(session, action);
-        const rejectionResult = handleRejection(rejection, session, action);
+        const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
         const resultBpm = action.bpm !== undefined ? Math.max(20, Math.min(300, action.bpm)) : undefined;
@@ -1418,7 +1427,7 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(session, action);
-        const rejectionResult = handleRejection(rejection, session, action);
+        const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
         const setModelResponse: Record<string, unknown> = {
@@ -1489,7 +1498,7 @@ export class GluonAI {
         };
 
         const rejection = ctx?.validateAction?.(session, action);
-        const rejectionResult = handleRejection(rejection, session, action);
+        const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
         return {
@@ -1529,7 +1538,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addViewRejection = handleRejection(ctx?.validateAction?.(session, addViewAction), session, addViewAction);
+            const addViewRejection = handleRejection(ctx?.validateAction?.(session, addViewAction), session, addViewAction, existingActions);
             if (addViewRejection) return addViewRejection;
 
             return {
@@ -1556,7 +1565,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeViewRejection = handleRejection(ctx?.validateAction?.(session, removeViewAction), session, removeViewAction);
+            const removeViewRejection = handleRejection(ctx?.validateAction?.(session, removeViewAction), session, removeViewAction, existingActions);
             if (removeViewRejection) return removeViewRejection;
 
             return {
@@ -1609,7 +1618,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addProcRejection = handleRejection(ctx?.validateAction?.(session, addProcAction), session, addProcAction);
+            const addProcRejection = handleRejection(ctx?.validateAction?.(session, addProcAction), session, addProcAction, existingActions);
             if (addProcRejection) return addProcRejection;
 
             // Include the projected chain so the model knows what's already on the track
@@ -1642,7 +1651,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeProcRejection = handleRejection(ctx?.validateAction?.(session, removeProcAction), session, removeProcAction);
+            const removeProcRejection = handleRejection(ctx?.validateAction?.(session, removeProcAction), session, removeProcAction, existingActions);
             if (removeProcRejection) return removeProcRejection;
 
             const projectedAfterRemove = projectAction(session, removeProcAction);
@@ -1680,7 +1689,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const replaceRejection = handleRejection(ctx?.validateAction?.(session, replaceAction), session, replaceAction);
+            const replaceRejection = handleRejection(ctx?.validateAction?.(session, replaceAction), session, replaceAction, existingActions);
             if (replaceRejection) return replaceRejection;
 
             const projectedAfterReplace = projectAction(session, replaceAction);
@@ -1766,7 +1775,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addModRejection = handleRejection(ctx?.validateAction?.(session, addModAction), session, addModAction);
+            const addModRejection = handleRejection(ctx?.validateAction?.(session, addModAction), session, addModAction, existingActions);
             if (addModRejection) return addModRejection;
 
             return {
@@ -1794,7 +1803,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeModRejection = handleRejection(ctx?.validateAction?.(session, removeModAction), session, removeModAction);
+            const removeModRejection = handleRejection(ctx?.validateAction?.(session, removeModAction), session, removeModAction, existingActions);
             if (removeModRejection) return removeModRejection;
 
             return {
@@ -1867,7 +1876,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const connectRejection = handleRejection(ctx?.validateAction?.(session, connectAction), session, connectAction);
+            const connectRejection = handleRejection(ctx?.validateAction?.(session, connectAction), session, connectAction, existingActions);
             if (connectRejection) return connectRejection;
 
             const targetStr = modTarget.kind === 'source'
@@ -1901,7 +1910,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const disconnectRejection = handleRejection(ctx?.validateAction?.(session, disconnectAction), session, disconnectAction);
+            const disconnectRejection = handleRejection(ctx?.validateAction?.(session, disconnectAction), session, disconnectAction, existingActions);
             if (disconnectRejection) return disconnectRejection;
 
             return {
@@ -1962,7 +1971,7 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const setSurfaceRejection = handleRejection(ctx?.validateAction?.(session, setSurfaceAction), session, setSurfaceAction);
+        const setSurfaceRejection = handleRejection(ctx?.validateAction?.(session, setSurfaceAction), session, setSurfaceAction, existingActions);
         if (setSurfaceRejection) return setSurfaceRejection;
 
         return {
@@ -1997,7 +2006,7 @@ export class GluonAI {
               description: `pin ${args.moduleId}:${args.controlId}`,
             };
 
-            const pinRejection = handleRejection(ctx?.validateAction?.(session, pinAction), session, pinAction);
+            const pinRejection = handleRejection(ctx?.validateAction?.(session, pinAction), session, pinAction, existingActions);
             if (pinRejection) return pinRejection;
 
             return {
@@ -2019,7 +2028,7 @@ export class GluonAI {
               description: `unpin ${args.moduleId}:${args.controlId}`,
             };
 
-            const unpinRejection = handleRejection(ctx?.validateAction?.(session, unpinAction), session, unpinAction);
+            const unpinRejection = handleRejection(ctx?.validateAction?.(session, unpinAction), session, unpinAction, existingActions);
             if (unpinRejection) return unpinRejection;
 
             return {
@@ -2056,7 +2065,7 @@ export class GluonAI {
           description: `label axes: ${args.x} x ${args.y}`,
         };
 
-        const labelAxesRejection = handleRejection(ctx?.validateAction?.(session, labelAxesAction), session, labelAxesAction);
+        const labelAxesRejection = handleRejection(ctx?.validateAction?.(session, labelAxesAction), session, labelAxesAction, existingActions);
         if (labelAxesRejection) return labelAxesRejection;
 
         return {
@@ -2145,7 +2154,7 @@ export class GluonAI {
               level: level as ApprovalLevel,
               reason: args.reason as string,
             };
-            const markRejection = handleRejection(ctx?.validateAction?.(session, markApprovedAction), session, markApprovedAction);
+            const markRejection = handleRejection(ctx?.validateAction?.(session, markApprovedAction), session, markApprovedAction, existingActions);
             if (markRejection) {
               errors.push(markRejection.response.error as string ?? markRejection.response.message as string ?? 'Rejected');
             } else {
@@ -2382,7 +2391,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const addTrackRejection = handleRejection(ctx?.validateAction?.(session, addTrackAction), session, addTrackAction);
+            const addTrackRejection = handleRejection(ctx?.validateAction?.(session, addTrackAction), session, addTrackAction, existingActions);
             if (addTrackRejection) return addTrackRejection;
 
             // Project the addition to determine the new track's ordinal position and ID
@@ -2430,7 +2439,7 @@ export class GluonAI {
               description: args.description as string,
             };
 
-            const removeTrackRejection = handleRejection(ctx?.validateAction?.(session, removeTrackAction), session, removeTrackAction);
+            const removeTrackRejection = handleRejection(ctx?.validateAction?.(session, removeTrackAction), session, removeTrackAction, existingActions);
             if (removeTrackRejection) return removeTrackRejection;
 
             return {
@@ -2778,7 +2787,7 @@ export class GluonAI {
           ...(args.level !== undefined ? { level: args.level as number } : {}),
         };
 
-        const sendRejection = handleRejection(ctx?.validateAction?.(session, manageSendAction), session, manageSendAction);
+        const sendRejection = handleRejection(ctx?.validateAction?.(session, manageSendAction), session, manageSendAction, existingActions);
         if (sendRejection) return sendRejection;
 
         return {
@@ -2845,7 +2854,7 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const patternRejection = handleRejection(ctx?.validateAction?.(session, managePatternAction), session, managePatternAction);
+        const patternRejection = handleRejection(ctx?.validateAction?.(session, managePatternAction), session, managePatternAction, existingActions);
         if (patternRejection) return patternRejection;
 
         return {
@@ -2906,7 +2915,7 @@ export class GluonAI {
           description: args.description as string,
         };
 
-        const seqRejection = handleRejection(ctx?.validateAction?.(session, manageSequenceAction), session, manageSequenceAction);
+        const seqRejection = handleRejection(ctx?.validateAction?.(session, manageSequenceAction), session, manageSequenceAction, existingActions);
         if (seqRejection) return seqRejection;
 
         return {
