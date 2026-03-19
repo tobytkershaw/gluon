@@ -234,6 +234,45 @@ describe('set_surface with modules', () => {
     expect(report.rejected[0].reason).toContain('weights sum');
   });
 
+  it('rejects module with cross-track binding (#1154)', () => {
+    const session = setupSession();
+    const crossTrackModule = makeKnobGroup('kg-cross', [
+      { role: 'control', trackId: 'other-track', target: 'timbre' },
+    ]);
+    const actions: AIAction[] = [
+      { type: 'set_surface', trackId: 'v0', modules: [crossTrackModule], description: 'test' },
+    ];
+    const report = executeOperations(session, actions, adapter, arbitrator);
+    expect(report.rejected).toHaveLength(1);
+    expect(report.rejected[0].reason).toContain('cross-track');
+  });
+
+  it('accepts module with empty trackId (owning track shorthand)', () => {
+    const session = setupSession();
+    const module = makeKnobGroup('kg-empty', [
+      { role: 'control', trackId: '', target: 'timbre' },
+    ]);
+    const actions: AIAction[] = [
+      { type: 'set_surface', trackId: 'v0', modules: [module], description: 'test' },
+    ];
+    const report = executeOperations(session, actions, adapter, arbitrator);
+    expect(report.accepted).toHaveLength(1);
+    expect(report.rejected).toHaveLength(0);
+  });
+
+  it('accepts module with matching owning trackId', () => {
+    const session = setupSession();
+    const module = makeKnobGroup('kg-match', [
+      { role: 'control', trackId: 'v0', target: 'timbre' },
+    ]);
+    const actions: AIAction[] = [
+      { type: 'set_surface', trackId: 'v0', modules: [module], description: 'test' },
+    ];
+    const report = executeOperations(session, actions, adapter, arbitrator);
+    expect(report.accepted).toHaveLength(1);
+    expect(report.rejected).toHaveLength(0);
+  });
+
   it('rejects macro-knob referencing unknown processor', () => {
     const session = setupSession();
     const macro = makeMacroKnob('m1', [
