@@ -342,10 +342,12 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'track-add') {
-    // Undo an add: remove the track
+    // Undo an add: remove the track and restore previous active track
     const newTracks = session.tracks.filter(t => t.id !== snapshot.trackId);
     let newActiveTrackId = session.activeTrackId;
-    if (session.activeTrackId === snapshot.trackId && newTracks.length > 0) {
+    if (snapshot.prevActiveTrackId && newTracks.some(t => t.id === snapshot.prevActiveTrackId)) {
+      newActiveTrackId = snapshot.prevActiveTrackId;
+    } else if (session.activeTrackId === snapshot.trackId && newTracks.length > 0) {
       newActiveTrackId = newTracks[Math.max(0, newTracks.length - 1)].id;
     }
     return { ...session, tracks: newTracks, activeTrackId: newActiveTrackId };
@@ -685,6 +687,17 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     return { ...snapshot, timestamp: now };
   }
 
+  if (snapshot.kind === 'chord-progression') {
+    return { ...snapshot, prevChordProgression: session.chordProgression, timestamp: now };
+  }
+
+  if (snapshot.kind === 'sidechain') {
+    const track = session.tracks.find(v => v.id === snapshot.targetTrackId);
+    if (!track) return { ...snapshot, timestamp: now };
+    const proc = (track.processors ?? []).find(p => p.id === snapshot.processorId);
+    return { ...snapshot, prevSourceId: proc?.sidechainSourceId, timestamp: now };
+  }
+
   if (snapshot.kind === 'track-add') {
     // Reverse of add is remove — capture the added track so redo can re-add it
     const track = session.tracks.find(t => t.id === snapshot.trackId);
@@ -707,6 +720,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     return {
       kind: 'track-add' as const,
       trackId: snapshot.removedTrack.id,
+      prevActiveTrackId: session.activeTrackId,
       timestamp: now,
       description: snapshot.description,
     };
