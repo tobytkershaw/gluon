@@ -911,6 +911,7 @@ export class GluonAI {
           systemPrompt,
           tools: GLUON_TOOLS,
           functionResponses: roundResult.functionResponses,
+          onStreamText,
         });
       }
     } catch (error) {
