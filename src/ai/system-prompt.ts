@@ -418,7 +418,7 @@ ${generateProcessorIndex()}
 ${processorTypes.size > 0 ? `\n### Active Processor Details\n${generateActiveProcessorReference(processorTypes)}` : ''}
 
 Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types, 'bypass' to toggle enabled/disabled.
-To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx").
+To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx"). For supported Hz-mapped rate controls, **move.target** can also use musical divisions like \`{ value: "1/8d" }\` to resolve a tempo-synced rate from the current BPM.
 To switch processor modes, use **set_model** with the processorId parameter (e.g. set_model model="string" processorId="rings-xxx").
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.
 

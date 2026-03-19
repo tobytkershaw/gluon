@@ -472,6 +472,99 @@ function projectAction(session: Session, action: AIAction): Session {
   }
 }
 
+interface ResolvedMoveTarget {
+  target: { absolute: number } | { relative: number };
+  tempoSyncLabel?: string;
+}
+
+function parseMusicalDivision(value: string): number | null {
+  const match = value.trim().match(/^(\d+)\/(\d+)([dt])?$/i);
+  if (!match) return null;
+  const numerator = Number(match[1]);
+  const denominator = Number(match[2]);
+  const modifier = match[3]?.toLowerCase();
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || numerator <= 0 || denominator <= 0) {
+    return null;
+  }
+
+  let beats = (4 * numerator) / denominator;
+  if (modifier === 'd') beats *= 1.5;
+  if (modifier === 't') beats *= 2 / 3;
+  return beats;
+}
+
+function invertDisplayMapping(displayValue: number, mapping: { type: 'linear' | 'log'; min: number; max: number }): number {
+  if (mapping.type === 'linear') {
+    return (displayValue - mapping.min) / (mapping.max - mapping.min);
+  }
+  return Math.log(displayValue / mapping.min) / Math.log(mapping.max / mapping.min);
+}
+
+function resolveTempoSyncedMoveTarget(
+  session: Session,
+  args: Record<string, unknown>,
+): ResolvedMoveTarget | { error: string } {
+  const target = args.target as Record<string, unknown> | undefined;
+  if (!target) return { error: 'Missing required parameter: target (needs absolute, relative, or value)' };
+  if (typeof target.absolute === 'number') return { target: { absolute: target.absolute } };
+  if (typeof target.relative === 'number') return { target: { relative: target.relative } };
+
+  const semanticValue = typeof target.value === 'string' ? target.value : undefined;
+  if (!semanticValue) {
+    return { error: 'Missing required parameter: target (needs absolute, relative, or value)' };
+  }
+
+  const beats = parseMusicalDivision(semanticValue);
+  if (beats == null) {
+    return { error: `Invalid target.value "${semanticValue}". Use note divisions like "1/4", "1/8d", or "1/8t".` };
+  }
+
+  const trackId = (args.trackId as string) ?? session.activeTrackId;
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) {
+    return { error: trackNotFoundError(String(args.trackId), session).error as string };
+  }
+
+  const param = args.param as string;
+  let mapping: { type: 'linear' | 'log'; min: number; max: number } | undefined;
+  let targetLabel: string | undefined;
+
+  if (typeof args.modulatorId === 'string' && args.modulatorId) {
+    const mod = (track.modulators ?? []).find(m => m.id === args.modulatorId);
+    if (!mod) return { error: `Modulator not found: ${args.modulatorId}` };
+    const instrument = getModulatorInstrument(mod.type);
+    const schema = instrument?.engines[mod.model]?.controls.find(c => c.id === param);
+    if (schema?.displayMapping && (schema.displayMapping.type === 'log' || schema.displayMapping.type === 'linear') && schema.displayMapping.unit === 'Hz') {
+      mapping = schema.displayMapping;
+      targetLabel = `${mod.type}.${param}`;
+    }
+  } else if (typeof args.processorId === 'string' && args.processorId) {
+    const proc = (track.processors ?? []).find(p => p.id === args.processorId);
+    if (!proc) return { error: `Processor not found: ${args.processorId}` };
+    const instrument = getProcessorInstrument(proc.type);
+    const schema = instrument?.engines[proc.model]?.controls.find(c => c.id === param);
+    if (schema?.displayMapping && (schema.displayMapping.type === 'log' || schema.displayMapping.type === 'linear') && schema.displayMapping.unit === 'Hz') {
+      mapping = schema.displayMapping;
+      targetLabel = `${proc.type}.${param}`;
+    }
+  }
+
+  if (!mapping || !targetLabel) {
+    return {
+      error: `Tempo-synced target.value is currently supported only for Hz-mapped rate controls (for example modulator frequency or chorus/flanger/phaser rate), not for "${param}".`,
+    };
+  }
+
+  const secondsPerBeat = 60 / session.transport.bpm;
+  const hz = 1 / (beats * secondsPerBeat);
+  const normalized = Math.max(0, Math.min(1, invertDisplayMapping(hz, mapping)));
+
+  return {
+    target: { absolute: normalized },
+    tempoSyncLabel: semanticValue,
+  };
+}
+
 /** Build an error function response payload */
 function errorPayload(message: string): Record<string, unknown> {
   return { error: message };
@@ -1119,19 +1212,15 @@ export class GluonAI {
         if (typeof args.param !== 'string' || !args.param) {
           return { actions: [], response: errorPayload('Missing required parameter: param') };
         }
-        const target = args.target as Record<string, unknown> | undefined;
-        if (!target || (typeof target.absolute !== 'number' && typeof target.relative !== 'number')) {
-          return { actions: [], response: errorPayload('Missing required parameter: target (needs absolute or relative number)') };
+        const resolvedTarget = resolveTempoSyncedMoveTarget(session, args);
+        if ('error' in resolvedTarget) {
+          return { actions: [], response: errorPayload(resolvedTarget.error) };
         }
-
-        const targetValue = typeof target.absolute === 'number'
-          ? { absolute: target.absolute }
-          : { relative: target.relative as number };
 
         const action: AIMoveAction = {
           type: 'move',
           param: args.param as string,
-          target: targetValue,
+          target: resolvedTarget.target,
           ...(args.trackId ? { trackId: args.trackId as string } : {}),
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
           ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
@@ -1186,6 +1275,7 @@ export class GluonAI {
             from: Math.round(currentVal * 100) / 100,
             to: Math.round(resultValue * 100) / 100,
             ...(clamped ? { clamped: true, requestedValue: Math.round(rawTarget * 100) / 100 } : {}),
+            ...(resolvedTarget.tempoSyncLabel ? { tempoSync: resolvedTarget.tempoSyncLabel } : {}),
             ...(recentHumanTouch ? { recentHumanTouch: true } : {}),
           },
         };
