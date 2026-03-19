@@ -52,7 +52,7 @@ Grabs the Space knob, turns it up. Clouds mix and size increase together. Rings 
 
 Tells the AI "make the lead more aggressive." The AI moves parameters and updates the **presentation** of the Surface — foregrounding Attack and Brightness in the layout and axis labels, because those are now the dimensions that matter. The underlying semantic mappings (what "Brightness" maps to) stay stable; what changes is which controls are prominent.
 
-Wants to fine-tune Clouds feedback specifically. Opens the Deep View for the Clouds node. Sees every raw parameter. Pins `feedback` to the Surface. Now it's right there next to the macro knobs.
+Wants to fine-tune Clouds feedback specifically. Switches to Rack — sees every raw parameter on every module. Finds Clouds feedback, pins it to the Surface. Switches back. Now it's right there next to the macro knobs.
 
 ### The musician performing
 
@@ -62,9 +62,7 @@ Grabs the Darkness macro, sweeps it down. Every track responds — filters close
 
 ### The musician who doesn't trust the AI's surface
 
-Opens the Deep View. Sees every parameter on every module. Inspects what "Brightness" actually does — "Plaits timbre × 0.6, Rings brightness × 0.3, Clouds feedback × 0.1". Adjusts the weights. Or ignores semantic controls entirely and pins the raw controls they want.
-
-Or switches to Rack view. Full ground truth. Every knob for every module. No abstraction. No AI opinion.
+Clicks on a macro knob and inspects what "Brightness" actually does — a popover shows "Plaits timbre × 0.6, Rings brightness × 0.3, Clouds feedback × 0.1". Or switches to Rack view. Full ground truth. Every knob for every module. No abstraction. No AI opinion. From Rack, they can pin raw controls to the Surface, or ignore Surface entirely and work in the canonical views.
 
 ### The musician with a bare Plaits track (no chain)
 
@@ -116,7 +114,7 @@ The canonical views feel like engineering tools — precise, complete, honest. S
 
 **The Performance Surface** feels like standing at the mixing desk. Everything is in reach. You're not editing individual instruments — you're shaping the whole piece. Faders, macros, relationships between tracks.
 
-**The Deep View** feels like opening the back panel. Full diagnostic access. Every parameter, every module, every weight. This is where trust is built — you can always see exactly what the abstraction is doing. And you can always escape to Rack, Patch, or Tracker for the full canonical truth.
+**The canonical views** are always one tab away. Rack shows every parameter. Patch shows every connection. Tracker shows every event. No abstraction, no AI opinion. If you want to see exactly what a macro knob is doing, click it for the inspector popover. If you want the full picture, switch to Rack. The friction of switching tabs is intentional — it reinforces that canonical views are where you go for truth, and Surface is where you go for the curated abstraction.
 
 **The visual language** is not decoration — it's information. The kick track is visually heavy and deep-coloured. The hi-hats are thin and ghostly. When the AI acts, you see signal propagation. When the music builds, the visual density increases. Different projects feel visually distinct. The AI selects from constrained visual primitives (track colour, module weight, edge style, labelling) through the Surface Score system — it doesn't write arbitrary CSS. But visual differentiation between tracks is part of the curation, not a layer on top of it. A Surface that looks the same for every track is failing at its job of communicating what each sound is.
 
@@ -132,13 +130,12 @@ Some Surface modules show and edit the same data that canonical views show — a
 
 If there's ever a question about what the data actually is, you go to the canonical view. Surface modules defer to canonical views in terms of truthfulness. They are useful abstractions, not authoritative representations.
 
-### Three layers, increasing detail
+### Two layers
 
 | Layer | What | Scope | When visible |
 |-------|------|-------|-------------|
 | **Stage** | Compact cards — identity markers, not controls | All tracks | Always (when Surface tab active) |
 | **Surface** | Composed modules — curated controls for one track | Per-track | When a track is expanded from Stage |
-| **Deep View** | Full parameter listing per module | Per-module within a track | On demand (click chain node, double-click, or ask AI) |
 
 Plus:
 
@@ -146,13 +143,13 @@ Plus:
 |-------|------|-------|-------------|
 | **Performance Surface** | Cross-track composed modules — mixer, macros, relationships | All tracks | Dedicated mode/toggle |
 
+There is no "Deep View" layer within Surface. When the human needs full parameter access, they switch to the canonical views (Rack, Patch, Tracker). This keeps the conceptual separation clean: Surface is the curated abstraction, canonical views are the ground truth. Putting a raw-parameter inspector inside Surface would duplicate what Rack already does and blur the distinction.
+
+**Pin-to-surface** is a cross-tab action. From Rack, the human can pin any raw control to the Surface. From Surface, the human can inspect a macro knob's weight mapping via the inline inspector popover (SemanticInspector). The AI's `pin` tool also works cross-tab.
+
 ### Layer interactions
 
 **Stage → Surface:** Click a compact card, it expands into the Surface. The other cards stay visible as compact markers. Only one track's Surface is expanded at a time.
-
-**Surface → Deep View:** Click a node in the chain strip, or double-click the expanded area, or ask the AI. Deep View shows every raw control for that module, with pin-to-surface buttons.
-
-**Deep View → Surface:** Pin a raw control from the Deep View. It appears on the Surface next to the curated modules.
 
 ### Compact cards (Stage)
 
@@ -280,7 +277,7 @@ This means:
 - **Layout constraints** rather than a blank canvas. The AI fills defined slots in a constrained layout system, not an infinite plane. Good layouts emerge from good constraints, not from unlimited freedom.
 - **Module types with clear binding contracts.** The AI knows what a Knob Group needs (N control IDs) and what a Step Grid needs (a region). It doesn't have to guess what data each module requires.
 - **Templates as starting points.** Known chain configurations get deterministic default surfaces from a registry. The AI proposes surfaces for novel configurations. For common chains, the experience is instant and predictable.
-- **Visual language primitives** rather than arbitrary styling. The AI selects from a constrained palette — track colour derived from timbral character, weight from frequency register, motion from rhythmic role. It doesn't write CSS.
+- **Visual language primitives** rather than arbitrary styling. The AI selects from a constrained vocabulary (hue, saturation, weight, edge style, prominence) and uses its musical understanding to choose appropriate values. It doesn't write CSS, and it doesn't follow mechanical formulas — it makes intelligent visual decisions within bounded parameters.
 - **Structured feedback.** The AI receives consequences after surface operations (what was applied, what was rejected, what the resulting surface looks like) so it can reason about the next step.
 
 The goal: it should be hard for the AI to produce a bad Surface, and easy for it to produce a good one. Constrain the physics, free the aesthetics — the same principle as the musical tools.
@@ -336,7 +333,7 @@ track LEAD (agency: ON)
 - **Chain tracks (>6 raw params):** semantic macro knobs that map weighted across modules.
 - **Stability:** mappings are defined per-engine-chain configuration, not per-patch. They are authored when the chain is built and remain stable until chain structure changes.
 - **Presentation can change without remapping:** layout, prominence, axis assignment, and which controls are visually foregrounded may change with context or user request. This is not the same as redefining a semantic mapping.
-- **Inspectable:** human can see the weight mapping from Deep View and override it.
+- **Inspectable:** human can see the weight mapping via the inline inspector popover on Surface, or by switching to Rack for full parameter access.
 - **AI cannot silently redefine what "Brightness" means.**
 
 ---
@@ -376,27 +373,27 @@ The current implementation corresponds to the semantic-surface RFC (`ai-curated-
 | XY pad axis binding | State exists, **UI hardwired to timbre/morph** |
 | Compact cards / Stage layer | Not implemented |
 | Surface module composition (canvas) | Not implemented |
-| Deep View (per-module inspector with pin-to-surface) | Partial |
+| Pin-to-surface from Rack | Not implemented |
 | Surface Score (visual identity) | Not implemented (deferred) |
 | Performance Surface (cross-track) | Not implemented |
 | Human surface authoring UI | Not implemented (#376) |
 
 ---
 
-## 9. Open Decisions
+## 9. Decisions
 
-### Must decide before implementation
+### Resolved
 
-| # | Question | Options | Stakes |
-|---|----------|---------|--------|
-| 1 | **Does `set_surface` compose modules or define semantic controls?** | (A) Stays as semantic-control-only, new tool for modules. (B) Evolves to compose modules; semantic controls become config within KnobGroup/MacroKnob. | Shapes the entire AI-surface contract. (B) is cleaner but bigger change. |
-| 2 | **Constrained layout system?** | Defined slot system (header/controls/sequencer/footer), CSS Grid with constraints, or react-grid-layout with size limits. Not free-form — the layout system should make it hard to produce a bad arrangement. | Determines how modules are positioned. The constraint is the design. |
-| 3 | **What visual primitives does the AI control?** | Track colour, module weight, edge style, labelling, motion — defined as a constrained vocabulary the AI selects from, not arbitrary CSS. | Determines how visual identity is structured. Needs to be constrained enough for good defaults, expressive enough for differentiation. |
-| 4 | **Who initiates the first surface?** | (A) Templates only (deterministic). (B) AI proposes on track creation. (C) Empty canvas until configured. | Predictability vs adaptiveness vs honesty. |
-| 5 | **Deep View: overlay, panel, or inline?** | Slides over Surface, appears as side panel, expands inline below chain strip | Affects spatial model. |
-| 6 | **Human surface editing: direct manipulation, AI-mediated, or both?** | (A) Human drags modules, resizes, rebinds. (B) Human tells AI. (C) Both. | Parity principle says (C), but drag-and-drop UI is significant work. |
+| # | Question | Decision | Rationale |
+|---|----------|----------|-----------|
+| 1 | **Does `set_surface` compose modules or define semantic controls?** | Evolves to compose modules. Aggressive migration — build the module-composition version from day one. Current semantic-controls tool gets replaced, not extended. | Semantic control definitions become configuration within Macro Knob / Knob Group modules. One tool for the whole surface. |
+| 2 | **Constrained layout system?** | react-grid-layout (or similar) with module min/max sizes, grid columns, and snap behaviour. | Parity principle requires human drag/resize — we need the interaction layer anyway. Constraints come from module size limits, not the layout library. |
+| 3 | **What visual primitives does the AI control?** | A constrained vocabulary (hue, saturation, weight, edge style, label text, control prominence) through the Score system. The AI *decides* values intelligently based on musical understanding — no mechanical derivation from audio properties. | Same principle as musical tools: constrain the space, free the aesthetics. The AI uses understanding, not formulas. |
+| 4 | **Who initiates the first surface?** | Templates as defaults for known chains. Human can build from scratch via module picker/menu. AI proposes for novel chains. | Parity principle: the human needs a menu system for building surfaces manually, not just templates. |
+| 5 | **Deep View?** | Removed. No Deep View layer within Surface. | Duplicates what Rack already does. Blurs the canonical/curated distinction. When you need raw parameter access, switch to Rack. Pin-to-surface is a cross-tab action. |
+| 6 | **Human surface editing?** | Both direct manipulation and AI-mediated. Direct manipulation (drag, resize, module picker, rebind) from v1, not deferred to v2. | Parity principle demands it. The grid library gives us drag/resize from day one. |
 
-### Can decide during implementation
+### Open (decide during implementation)
 
 | # | Question | Options |
 |---|----------|---------|
@@ -408,16 +405,6 @@ The current implementation corresponds to the semantic-surface RFC (`ai-curated-
 | 12 | Surface changes in chat vs inline? | Chat messages vs UI notifications on the card |
 | 13 | Human weight editing UX? | Sliders per weight, matrix, or AI-mediated |
 | 14 | Stage: new component or visual upgrade to track sidebar? | Keep simple — the exact form follows from the layout work |
-
-### Recommended directions
-
-To keep implementation coherent, this document recommends:
-
-1. **`set_surface` evolves toward module composition**, but the current semantic-controls contract remains the shipped behaviour until migration is complete. The two contracts coexist during transition.
-2. **Use a constrained slot/grid layout**, not a free-form canvas. Good layouts emerge from good constraints.
-3. **Keep first-surface creation deterministic by default**: registry templates first, AI proposals only for novel chain configurations.
-4. **Adopt both human editing paths over time**: direct manipulation for common operations (drag, resize, rebind), AI-mediated editing for larger reorganisations.
-5. **Treat Deep View as a side panel or inspector layer**, not a destructive mode switch, so trust and context stay continuous with the Surface.
 
 ---
 
