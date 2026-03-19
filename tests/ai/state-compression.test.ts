@@ -187,6 +187,24 @@ describe('State Compression (Phase 2)', () => {
     expect(pattern.triggers).toEqual([{ at: 0.33, vel: 0.7 }, { at: 1.67, vel: 0.9 }]);
     expect(pattern.notes).toEqual([{ at: 3.25, pitch: 48, vel: 0.6 }]);
   });
+
+  it('includes live audio metrics when provided', () => {
+    const session = createSession();
+    const result = compressState(session, undefined, undefined, {
+      capturedAt: 1234,
+      master: { rms: -12.3, peak: -3.2, centroid: 2400, crest: 9.1, onsetDensity: 1.5 },
+      tracks: {
+        v0: { rms: -18.1, peak: -9.5, centroid: 180, crest: 8.6, onsetDensity: 4.2 },
+      },
+    });
+
+    expect(result.audioMetrics).toEqual({
+      master: { rms: -12.3, peak: -3.2, centroid: 2400, crest: 9.1, onsetDensity: 1.5 },
+      tracks: {
+        v0: { rms: -18.1, peak: -9.5, centroid: 180, crest: 8.6, onsetDensity: 4.2 },
+      },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

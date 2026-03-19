@@ -43,6 +43,7 @@ import type { TrackAudio } from '../audio/audio-analysis';
 import { getProfile, compareToProfile } from '../engine/reference-profiles';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
+import type { AudioMetricsSnapshot } from '../audio/live-audio-metrics';
 import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
 import { getChainRecipe, RECIPE_NAMES as CHAIN_RECIPE_NAMES } from '../engine/chain-recipes';
 import { savePatch, findPatch, getAllPatches, listPatches, BUILT_IN_PATCHES } from '../engine/patch-library';
@@ -1061,6 +1062,8 @@ export interface AskContext {
   }) => void;
   /** Current UI selection in the Tracker (if any). Included in compressed state so the AI knows what the human is pointing at. */
   userSelection?: UserSelection;
+  /** Fresh live analyser metrics, if available. */
+  audioMetrics?: AudioMetricsSnapshot;
   /** Called when the AI completes a listen event, so the UI can capture the audio for human playback. */
   onListenEvent?: (event: import('../engine/types').ListenEvent) => void;
 }
@@ -1160,7 +1163,7 @@ export class GluonAI {
     executeActions: StepExecutor,
     onStep?: OnStepCallback,
   ): Promise<AIAction[]> {
-    const state = compressState(session, undefined, ctx?.userSelection);
+    const state = compressState(session, undefined, ctx?.userSelection, ctx?.audioMetrics);
     const stateJson = JSON.stringify(state);
     await this.trimToTokenBudget(session, humanMessage, stateJson, ctx);
 
@@ -5034,7 +5037,7 @@ export class GluonAI {
       listen.onListening?.(true);
 
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
-      const state = compressState(session);
+      const state = compressState(session, undefined, undefined, ctx?.audioMetrics);
 
       // Build prompt — append rubric criteria when requested
       const basePrompt = buildListenPromptWithLens(question, lens);
@@ -5120,7 +5123,7 @@ export class GluonAI {
       listen.onListening?.(true);
 
       const wavBlob = await listen.renderOffline(session, trackIds, bars);
-      const state = compressState(session);
+      const state = compressState(session, undefined, undefined, ctx?.audioMetrics);
 
       const critique = await this.evaluateWithListeners({
         systemPrompt: buildComparePrompt(question, lens),
