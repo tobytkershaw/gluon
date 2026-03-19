@@ -4,6 +4,7 @@ import {
   isValidModuleType,
   validateModuleBindings,
   getAllModuleDefs,
+  getPickableModuleDefs,
 } from '../../src/engine/surface-module-registry';
 import { executeOperations } from '../../src/engine/operation-executor';
 import { createSession } from '../../src/engine/session';
@@ -112,6 +113,15 @@ describe('SurfaceModuleRegistry', () => {
     expect(types).toContain('piano-roll');
     expect(types).toContain('level-meter');
     expect(types).toContain('pad-grid');
+  });
+
+  it('getPickableModuleDefs excludes hidden modules', () => {
+    const pickable = getPickableModuleDefs();
+    const types = pickable.map(d => d.type);
+    expect(types).not.toContain('level-meter');
+    // Hidden modules are still in the full registry
+    const all = getAllModuleDefs();
+    expect(all.map(d => d.type)).toContain('level-meter');
   });
 
   it('getModuleDef returns definition for valid type', () => {

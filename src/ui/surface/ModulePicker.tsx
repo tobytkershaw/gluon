@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { getAllModuleDefs } from '../../engine/surface-module-registry';
+import { getPickableModuleDefs } from '../../engine/surface-module-registry';
 import type { SurfaceModule } from '../../engine/types';
 
 interface ModulePickerProps {
@@ -36,7 +36,7 @@ export function ModulePicker({ onAddModule, onClose }: ModulePickerProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [onClose]);
 
-  const defs = getAllModuleDefs();
+  const defs = getPickableModuleDefs();
 
   function handleSelect(type: string) {
     const def = defs.find(d => d.type === type);
