@@ -1855,6 +1855,45 @@ const suggestReactionsTool: ToolSchema = {
   },
 };
 
+const setTrackIdentityTool: ToolSchema = {
+  name: 'set_track_identity',
+  description:
+    'Set the visual identity for a track on the Surface view. Use when creating tracks, changing their role, or when the timbral character shifts significantly. ' +
+    'All visual properties are optional — set any subset. Match visual properties to musical role: bass = heavy/deep, leads = prominent/bright, textures = soft/receding.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      colour: {
+        type: 'object',
+        description: 'Track colour in HSB colour space.',
+        properties: {
+          hue: { type: 'number', description: 'Hue 0-360.' },
+          saturation: { type: 'number', description: 'Saturation 0-1.' },
+          brightness: { type: 'number', description: 'Brightness 0-1.' },
+        },
+      },
+      weight: {
+        type: 'number',
+        description: 'Visual weight 0-1 (0=featherlight, 1=heavy). Match to sonic density: sub bass=0.9, hi-hats=0.1, pads=0.4.',
+      },
+      edgeStyle: {
+        type: 'string',
+        enum: ['crisp', 'soft', 'glow'],
+        description: 'Edge treatment. crisp=percussive/sharp, soft=warm/rounded, glow=ambient/ethereal.',
+      },
+      prominence: {
+        type: 'number',
+        description: 'Visual prominence 0-1. How foregrounded the track is. Lead=0.9, texture=0.2, rhythm foundation=0.5.',
+      },
+    },
+    required: ['trackId'],
+  },
+};
+
 const applyArrangementArchetypeTool: ToolSchema = {
   name: 'apply_arrangement_archetype',
   description:
@@ -1930,4 +1969,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   listPatchesTool,
   suggestReactionsTool,
   applyArrangementArchetypeTool,
+  setTrackIdentityTool,
 ];

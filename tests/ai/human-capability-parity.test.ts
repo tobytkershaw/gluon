@@ -65,6 +65,7 @@ const PARITY_GAP_TOOLS = new Set([
   'set_sidechain',       // MODERATE: no UI for sidechain routing (human can use ducking_sidechain modulation recipe as alternative)
   'setup_return_bus',    // LOW: compound tool — humans use individual track/processor/send controls instead
   'apply_arrangement_archetype', // LOW: compound tool — humans use manage_pattern + sketch + manage_sequence directly
+  'set_track_identity',  // MODERATE: no UI for visual identity editing (AI-set, human-overridable via undo)
 ]);
 
 describe('Human Capability Parity', () => {
@@ -93,7 +94,7 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale, set_chord_progression
-    expect(PARITY_GAP_TOOLS.size).toBe(22);
+    expect(PARITY_GAP_TOOLS.size).toBe(23);
   });
 
   it('documents the expected number of AI-only tools', () => {

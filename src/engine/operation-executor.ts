@@ -1,6 +1,7 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity } from './types';
 import { MASTER_BUS_ID } from './types';
+import { getDefaultVisualIdentity } from './visual-identity';
 
 /**
  * Prefix used by prevalidateAction to distinguish master-volume permission
@@ -34,6 +35,11 @@ import { setPatternLength, clearPattern } from './pattern-primitives';
 import { quantizePitch, scaleToString } from './scale';
 import { normalizeChordProgression } from './chords';
 import { applyDynamicShape } from './dynamic-shapes';
+
+/** Clamp a number to a [min, max] range. */
+function clampNum(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 /**
  * Extract sorted rhythm positions (the `at` values of note and trigger events)
@@ -471,6 +477,13 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
       // No agency check — importance is AI metadata, not musical mutation
+      return null;
+    }
+
+    case 'set_track_identity': {
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
+      // No agency check — visual identity is AI metadata, not musical mutation
       return null;
     }
 
@@ -2050,6 +2063,38 @@ function executeActionsInternal(
         const iLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         const roleSuffix = action.musicalRole ? ` (${action.musicalRole})` : '';
         log.push({ trackId: action.trackId, trackLabel: iLabel, description: `importance: ${clamped.toFixed(2)}${roleSuffix}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_track_identity': {
+        const track = getTrack(next, action.trackId);
+        const prevIdentity = track.visualIdentity;
+        const existing = prevIdentity ?? getDefaultVisualIdentity(next.tracks.indexOf(track));
+        // Merge partial identity with existing
+        const merged: TrackVisualIdentity = {
+          colour: {
+            hue: clampNum(action.identity.colour?.hue ?? existing.colour.hue, 0, 360),
+            saturation: clampNum(action.identity.colour?.saturation ?? existing.colour.saturation, 0, 1),
+            brightness: clampNum(action.identity.colour?.brightness ?? existing.colour.brightness, 0, 1),
+          },
+          weight: clampNum(action.identity.weight ?? existing.weight, 0, 1),
+          edgeStyle: action.identity.edgeStyle ?? existing.edgeStyle,
+          prominence: clampNum(action.identity.prominence ?? existing.prominence, 0, 1),
+        };
+        const identitySnapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId: action.trackId,
+          prevProps: { visualIdentity: prevIdentity },
+          timestamp: Date.now(),
+          description: `AI set_track_identity on ${action.trackId}`,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { visualIdentity: merged }),
+          undoStack: [...next.undoStack, identitySnapshot],
+        };
+        const idLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: idLabel, description: `visual identity updated` });
         accepted.push(action);
         break;
       }

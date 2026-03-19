@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -574,6 +574,22 @@ function projectAction(session: Session, action: AIAction): Session {
         importance: clamped,
         ...(action.musicalRole ? { musicalRole: action.musicalRole } : {}),
       });
+    }
+    case 'set_track_identity': {
+      const idTrack = session.tracks.find(t => t.id === action.trackId);
+      if (!idTrack) return session;
+      const existing = idTrack.visualIdentity ?? { colour: { hue: 0, saturation: 0.6, brightness: 0.7 }, weight: 0.5, edgeStyle: 'crisp' as const, prominence: 0.5 };
+      const merged = {
+        colour: {
+          hue: Math.min(360, Math.max(0, action.identity.colour?.hue ?? existing.colour.hue)),
+          saturation: Math.min(1, Math.max(0, action.identity.colour?.saturation ?? existing.colour.saturation)),
+          brightness: Math.min(1, Math.max(0, action.identity.colour?.brightness ?? existing.colour.brightness)),
+        },
+        weight: Math.min(1, Math.max(0, action.identity.weight ?? existing.weight)),
+        edgeStyle: action.identity.edgeStyle ?? existing.edgeStyle,
+        prominence: Math.min(1, Math.max(0, action.identity.prominence ?? existing.prominence)),
+      };
+      return updateTrack(session, action.trackId, { visualIdentity: merged });
     }
     case 'raise_decision': {
       const decisions = (session.openDecisions ?? []).filter(d => !d.resolved);
@@ -2869,6 +2885,58 @@ export class GluonAI {
             applied,
             ...(errors.length > 0 ? { errors } : {}),
           },
+        };
+      }
+
+      case 'set_track_identity': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        const identityTrackId = resolveTrackId(args.trackId as string, session);
+        if (!identityTrackId) {
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+        }
+
+        // Build partial identity from provided args
+        const identity: Partial<import('../engine/types').TrackVisualIdentity> = {};
+
+        if (args.colour && typeof args.colour === 'object') {
+          const c = args.colour as Record<string, unknown>;
+          identity.colour = {
+            hue: typeof c.hue === 'number' ? Math.min(360, Math.max(0, c.hue)) : 0,
+            saturation: typeof c.saturation === 'number' ? Math.min(1, Math.max(0, c.saturation)) : 0.6,
+            brightness: typeof c.brightness === 'number' ? Math.min(1, Math.max(0, c.brightness)) : 0.7,
+          };
+        }
+        if (typeof args.weight === 'number') {
+          identity.weight = Math.min(1, Math.max(0, args.weight));
+        }
+        if (typeof args.edgeStyle === 'string') {
+          const validEdges = ['crisp', 'soft', 'glow'] as const;
+          if (validEdges.includes(args.edgeStyle as typeof validEdges[number])) {
+            identity.edgeStyle = args.edgeStyle as 'crisp' | 'soft' | 'glow';
+          }
+        }
+        if (typeof args.prominence === 'number') {
+          identity.prominence = Math.min(1, Math.max(0, args.prominence));
+        }
+
+        if (Object.keys(identity).length === 0) {
+          return { actions: [], response: errorPayload('At least one visual property (colour, weight, edgeStyle, prominence) is required') };
+        }
+
+        const setIdentityAction: AISetTrackIdentityAction = {
+          type: 'set_track_identity',
+          trackId: identityTrackId,
+          identity,
+        };
+
+        const identityRejection = handleRejection(ctx?.validateAction?.(session, setIdentityAction), session, setIdentityAction, existingActions);
+        if (identityRejection) return identityRejection;
+
+        return {
+          actions: [setIdentityAction],
+          response: { queued: true, trackId: identityTrackId, identity },
         };
       }
 

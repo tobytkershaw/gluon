@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-five tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-six tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -323,6 +323,20 @@ Update XY pad axis bindings. **Fails if no xy-pad module exists** on the track's
 | `trackId` | string | yes | Target track ID (e.g. "v0"). |
 | `x` | string | yes | X-axis semantic label (e.g. "Brightness"). |
 | `y` | string | yes | Y-axis semantic label (e.g. "Texture"). |
+
+#### `set_track_identity`
+
+Set per-track visual identity for the Surface view. All visual properties are optional — set any subset. Merges with existing identity (or defaults).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
+| `colour` | object | no | Track colour in HSB: `{ hue: 0-360, saturation: 0-1, brightness: 0-1 }`. |
+| `weight` | number | no | Visual weight 0-1 (0=featherlight, 1=heavy). |
+| `edgeStyle` | string | no | Edge treatment: "crisp", "soft", or "glow". |
+| `prominence` | number | no | Visual prominence 0-1 (0=recedes, 1=foregrounded). |
+
+**Trigger discipline**: set on track creation, role change, timbral shift, or explicit request. Don't update on every parameter tweak.
 
 ### Track Metadata
 
