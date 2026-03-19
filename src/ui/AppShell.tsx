@@ -9,6 +9,7 @@ import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
 import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
+import { ChatSidebar } from './ChatSidebar';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -61,6 +62,10 @@ interface Props {
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
+  chatOpen: boolean;
+  onChatToggle: () => void;
+  chatWidth: number;
+  onChatResize: (width: number) => void;
   // Project
   projectName: string;
   projects: ProjectMeta[];
@@ -130,6 +135,8 @@ interface Props {
   children: ReactNode;
 }
 
+const CHAT_COLLAPSE_WIDTH = 1280;
+
 export function AppShell({
   tracks, activeTrackId, expandedTrackIds, activityMap,
   onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
@@ -139,6 +146,7 @@ export function AppShell({
   reactions, onReaction,
   openDecisions = [], onDecisionRespond,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
+  chatOpen, onChatToggle, chatWidth, onChatResize,
   projectName, projects, saveError, saveStatus,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -156,8 +164,47 @@ export function AppShell({
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
+  const prevNarrowRef = useRef(false);
+  const autoCollapsedRef = useRef(false);
+  const resizeTogglingRef = useRef(false);
+  const prevChatOpenRef = useRef(chatOpen);
 
   const isActive = isThinking || isListening;
+
+  useEffect(() => {
+    if (chatOpen !== prevChatOpenRef.current) {
+      if (!resizeTogglingRef.current) {
+        autoCollapsedRef.current = false;
+      }
+      prevChatOpenRef.current = chatOpen;
+    }
+  }, [chatOpen]);
+
+  useEffect(() => {
+    if (view === 'chat') return;
+    const el = shellRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const isNarrow = entry.contentRect.width < CHAT_COLLAPSE_WIDTH;
+        if (isNarrow && !prevNarrowRef.current && chatOpen) {
+          autoCollapsedRef.current = true;
+          resizeTogglingRef.current = true;
+          onChatToggle();
+          resizeTogglingRef.current = false;
+        }
+        if (!isNarrow && prevNarrowRef.current && !chatOpen && autoCollapsedRef.current) {
+          autoCollapsedRef.current = false;
+          resizeTogglingRef.current = true;
+          onChatToggle();
+          resizeTogglingRef.current = false;
+        }
+        prevNarrowRef.current = isNarrow;
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [chatOpen, onChatToggle, view]);
 
   // ── Chat view ────────────────────────────────────────────────────────
   if (view === 'chat') {
@@ -364,6 +411,28 @@ export function AppShell({
           />
         </div>
 
+        <ChatSidebar
+          messages={messages}
+          onSend={onSend}
+          isThinking={isThinking}
+          isListening={isListening}
+          streamingText={streamingText}
+          streamingLogEntries={streamingLogEntries}
+          streamingRejections={streamingRejections}
+          reactions={reactions}
+          onReaction={onReaction}
+          undoStack={undoStack}
+          onUndoMessage={onUndoMessage}
+          apiConfigured={apiConfigured}
+          onApiKey={onApiKey}
+          currentOpenaiKey={currentOpenaiKey}
+          currentGeminiKey={currentGeminiKey}
+          listenerMode={listenerMode}
+          open={chatOpen}
+          width={chatWidth}
+          onResize={onChatResize}
+        />
+
       </div>
 
       {onDecisionRespond && openDecisions.length > 0 && (
@@ -402,6 +471,19 @@ export function AppShell({
           <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
         </div>
         <div className="shrink-0 flex items-center px-3 border-l border-zinc-800/30">
+          <button
+            onClick={onChatToggle}
+            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors mr-2"
+            title={chatOpen ? 'Collapse chat sidebar' : 'Expand chat sidebar'}
+          >
+            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-violet-400 transition-colors">
+              {chatOpen ? (
+                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              ) : (
+                <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              )}
+            </svg>
+          </button>
           {isActive && (
             <span
               className="shrink-0 w-2 h-2 rounded-full bg-violet-400"
