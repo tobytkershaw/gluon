@@ -6,7 +6,7 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import { clearSnapshots } from '../audio/snapshot-store';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, UserSelection, OpenDecision } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -1012,6 +1012,37 @@ export default function App() {
         description: 'Surface control gesture',
       };
       return { ...s, undoStack: [...s.undoStack, group] };
+    });
+  }, []);
+
+  /** Add a module to the active track's surface (human parity with set_surface). */
+  const handleAddSurfaceModule = useCallback((module: SurfaceModule) => {
+    setSession((s) => {
+      const track = getActiveTrack(s);
+      const prevSurface: TrackSurface = {
+        ...track.surface,
+        modules: track.surface.modules.map(m => ({
+          ...m,
+          bindings: [...m.bindings],
+          position: { ...m.position },
+          config: structuredClone(m.config),
+        })),
+      };
+      const newSurface: TrackSurface = {
+        ...track.surface,
+        modules: [...track.surface.modules, module],
+      };
+      const snapshot: SurfaceSnapshot = {
+        kind: 'surface',
+        trackId: s.activeTrackId,
+        prevSurface,
+        timestamp: Date.now(),
+        description: `Added ${module.label} module`,
+      };
+      return {
+        ...updateTrack(s, s.activeTrackId, { surface: newSurface }),
+        undoStack: [...s.undoStack, snapshot],
+      };
     });
   }, []);
 
@@ -2716,6 +2747,7 @@ export default function App() {
             onProcessorParamChange={handleSurfaceProcessorParamChange}
             onInteractionStart={handleSurfaceInteractionStart}
             onInteractionEnd={handleSurfaceInteractionEnd}
+            onAddModule={handleAddSurfaceModule}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (
