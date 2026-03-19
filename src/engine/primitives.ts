@@ -280,9 +280,9 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
 
   if (snapshot.kind === 'drum-pad') {
     const track = session.tracks.find(v => v.id === snapshot.trackId);
-    if (!track || !track.drumRack) return session;
+    if (!track) return session;
     return updateTrack(session, snapshot.trackId, {
-      drumRack: { ...track.drumRack, pads: snapshot.prevPads },
+      drumRack: { ...(track.drumRack ?? { pads: [] }), pads: snapshot.prevPads },
     });
   }
 
@@ -602,10 +602,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
 
   if (snapshot.kind === 'drum-pad') {
     const track = session.tracks.find(v => v.id === snapshot.trackId);
-    if (!track || !track.drumRack) return { ...snapshot, timestamp: now };
+    if (!track) return { ...snapshot, timestamp: now };
+    const currentPads = track.drumRack?.pads ?? [];
     return {
       ...snapshot,
-      prevPads: track.drumRack.pads.map(p => ({
+      prevPads: currentPads.map(p => ({
         ...p,
         source: { ...p.source, params: { ...p.source.params } },
       })),

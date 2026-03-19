@@ -23,7 +23,10 @@ export interface DrumPad {
   pan: number;              // 0.0–1.0 (0.5 = center), default 0.5
 }
 
-/** Drum rack configuration, stored on the Track when engine === 'drum-rack'. */
+/**
+ * Drum rack configuration, stored on the Track when engine === 'drum-rack'.
+ * All mutations to pads must go through DrumPadSnapshot capture for undo support.
+ */
 export interface DrumRackConfig {
   pads: DrumPad[];          // growable, max 16 for v1
 }

@@ -20,12 +20,22 @@ export const DEFAULT_LEGEND: GridLegend = {
   'O': { velocity: 0.80, label: 'open' },
 };
 
-/** Velocity → grid character thresholds (evaluated top-down, first match wins). */
+/**
+ * Velocity → grid character thresholds (evaluated top-down, first match wins).
+ * Boundaries are chosen so that each legend entry's velocity round-trips:
+ *   x(0.95)→x, H(0.88)→H, O(0.80)→O, o(0.75)→o, h(0.50)→h, g(0.30)→g
+ *
+ * Note: H (loud) and O (open) are semantically distinct in the RFC but
+ * serialisation can only distinguish them by velocity. The AI writes the
+ * character it means; the thresholds ensure the legend velocities round-trip.
+ */
 const VELOCITY_THRESHOLDS: Array<{ min: number; char: string }> = [
-  { min: 0.90, char: 'x' },
-  { min: 0.60, char: 'o' },
-  { min: 0.40, char: 'h' },
-  { min: 0.01, char: 'g' },
+  { min: 0.90, char: 'x' },  // accent: 0.90–1.0
+  { min: 0.84, char: 'H' },  // loud:   0.84–0.89
+  { min: 0.77, char: 'O' },  // open:   0.77–0.83
+  { min: 0.60, char: 'o' },  // hit:    0.60–0.76
+  { min: 0.40, char: 'h' },  // soft:   0.40–0.59
+  { min: 0.20, char: 'g' },  // ghost:  0.20–0.39
 ];
 
 /**
@@ -54,7 +64,9 @@ export function eventsToGrid(
   const grid: string[] = new Array(patternLength).fill('.');
 
   for (const event of events) {
-    const step = Math.round(event.at);
+    // Floor, not round: micro-timing offsets should snap back to their
+    // originating step, not advance to the next one. Detail map handles offsets.
+    const step = Math.floor(event.at);
     if (step < 0 || step >= patternLength) continue;
     const vel = event.velocity ?? 0.75;
     // velocity=0 sentinel means disabled trigger — render as rest
@@ -153,7 +165,8 @@ export function kitToEvents(
   for (const [padId, grid] of Object.entries(kit)) {
     events.push(...gridToEvents(grid, padId, legend));
   }
-  events.sort((a, b) => a.at - b.at);
+  // Sort by position, then by padId for deterministic ordering at same step
+  events.sort((a, b) => a.at - b.at || (a.padId ?? '').localeCompare(b.padId ?? ''));
   return events;
 }
 
@@ -172,7 +185,8 @@ export function gridLength(grid: string): number {
  * Format the default legend as a human-readable string for AI state compression.
  */
 export function formatLegend(legend: GridLegend = DEFAULT_LEGEND): string {
-  return Object.entries(legend)
+  const chars = Object.entries(legend)
     .map(([char, { label }]) => `${char}=${label}`)
     .join(' ');
+  return `${chars} .=rest |=bar`;
 }

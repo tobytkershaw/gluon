@@ -16,11 +16,25 @@ describe('drum-grid', () => {
     it('maps accent velocity to x', () => {
       expect(velocityToGridChar(0.95)).toBe('x');
       expect(velocityToGridChar(1.0)).toBe('x');
+      expect(velocityToGridChar(0.90)).toBe('x');
+    });
+
+    it('maps loud velocity to H', () => {
+      expect(velocityToGridChar(0.88)).toBe('H');
+      expect(velocityToGridChar(0.84)).toBe('H');
+      expect(velocityToGridChar(0.89)).toBe('H');
+    });
+
+    it('maps open velocity to O', () => {
+      expect(velocityToGridChar(0.80)).toBe('O');
+      expect(velocityToGridChar(0.77)).toBe('O');
+      expect(velocityToGridChar(0.83)).toBe('O');
     });
 
     it('maps normal velocity to o', () => {
       expect(velocityToGridChar(0.75)).toBe('o');
       expect(velocityToGridChar(0.60)).toBe('o');
+      expect(velocityToGridChar(0.76)).toBe('o');
     });
 
     it('maps soft velocity to h', () => {
@@ -30,10 +44,11 @@ describe('drum-grid', () => {
 
     it('maps ghost velocity to g', () => {
       expect(velocityToGridChar(0.30)).toBe('g');
-      expect(velocityToGridChar(0.10)).toBe('g');
+      expect(velocityToGridChar(0.20)).toBe('g');
     });
 
-    it('maps zero velocity to rest', () => {
+    it('maps sub-ghost velocity to rest', () => {
+      expect(velocityToGridChar(0.19)).toBe('.');
       expect(velocityToGridChar(0)).toBe('.');
     });
   });
@@ -124,9 +139,9 @@ describe('drum-grid', () => {
     });
 
     it('handles all velocity categories', () => {
-      const events = gridToEvents('xoghHO', 'test');
+      const events = gridToEvents('xHOogh', 'test');
       expect(events).toHaveLength(6);
-      expect(events.map(e => e.velocity)).toEqual([0.95, 0.75, 0.30, 0.50, 0.88, 0.80]);
+      expect(events.map(e => e.velocity)).toEqual([0.95, 0.88, 0.80, 0.75, 0.30, 0.50]);
     });
 
     it('ignores unknown characters', () => {
@@ -174,6 +189,21 @@ describe('drum-grid', () => {
 
       expect(parsed[0].velocity).toBe(DEFAULT_LEGEND['x'].velocity);
       expect(parsed[1].velocity).toBe(DEFAULT_LEGEND['o'].velocity);
+    });
+
+    it('round-trips H and O characters (RFC hat pattern)', () => {
+      // This is the RFC's example: "hHh.hHh." — must survive serialise→parse→serialise
+      const grid = 'hHh.hHh.';
+      const parsed = gridToEvents(grid, 'hat');
+      const reSerialized = eventsToGrid(parsed, 8, 8);
+      expect(reSerialized).toBe(grid);
+    });
+
+    it('round-trips all legend characters', () => {
+      const grid = 'xHOogh..';
+      const parsed = gridToEvents(grid, 'test');
+      const reSerialized = eventsToGrid(parsed, 8, 8);
+      expect(reSerialized).toBe(grid);
     });
 
     it('round-trips a 2-bar pattern', () => {
@@ -265,11 +295,15 @@ describe('drum-grid', () => {
   });
 
   describe('formatLegend', () => {
-    it('formats the default legend', () => {
+    it('formats the default legend with rest and bar', () => {
       const legend = formatLegend();
       expect(legend).toContain('x=accent');
       expect(legend).toContain('o=hit');
       expect(legend).toContain('g=ghost');
+      expect(legend).toContain('H=loud');
+      expect(legend).toContain('O=open');
+      expect(legend).toContain('.=rest');
+      expect(legend).toContain('|=bar');
     });
   });
 });
