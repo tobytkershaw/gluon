@@ -516,22 +516,28 @@ function projectAction(session: Session, action: AIAction): Session {
       const track = getTrack(session, action.trackId);
       const newSurface: TrackSurface = {
         ...track.surface,
-        semanticControls: action.semanticControls,
-        ...(action.xyAxes ? { xyAxes: action.xyAxes } : {}),
+        modules: action.modules,
       };
       return updateTrack(session, action.trackId, { surface: newSurface });
     }
     case 'pin': {
       const track = getTrack(session, action.trackId);
-      const pinnedControls = [...track.surface.pinnedControls, { moduleId: action.moduleId, controlId: action.controlId }];
-      return updateTrack(session, action.trackId, { surface: { ...track.surface, pinnedControls } });
+      const pinModule: SurfaceModule = {
+        type: 'knob-group',
+        id: `pin-${action.moduleId}-${action.controlId}`,
+        label: action.controlId,
+        bindings: [{ role: 'control', trackId: action.trackId, target: action.controlId }],
+        position: { x: 0, y: 0, w: 2, h: 2 },
+        config: { pinned: true, moduleId: action.moduleId },
+      };
+      const modules = [...track.surface.modules, pinModule];
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'unpin': {
       const track = getTrack(session, action.trackId);
-      const pinnedControls = track.surface.pinnedControls.filter(
-        p => !(p.moduleId === action.moduleId && p.controlId === action.controlId),
-      );
-      return updateTrack(session, action.trackId, { surface: { ...track.surface, pinnedControls } });
+      const pinId = `pin-${action.moduleId}-${action.controlId}`;
+      const modules = track.surface.modules.filter(m => m.id !== pinId);
+      return updateTrack(session, action.trackId, { surface: { ...track.surface, modules } });
     }
     case 'label_axes': {
       const track = getTrack(session, action.trackId);
