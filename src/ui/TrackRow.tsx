@@ -6,12 +6,29 @@ import { getTrackLabel } from '../engine/track-labels';
 import { computeThumbprintColor } from './thumbprint';
 import { TrackLevelMeter } from './TrackLevelMeter';
 
-const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string }> = {
-  exploratory: { label: '', color: '', title: 'Exploratory — Gluon may freely edit' },
-  liked: { label: 'L', color: 'bg-blue-500/20 text-blue-400', title: 'Liked — Gluon preserves unless asked' },
-  approved: { label: 'A', color: 'bg-emerald-500/20 text-emerald-400', title: 'Approved — Gluon preserves during expansion' },
-  anchor: { label: '#', color: 'bg-purple-500/20 text-purple-400', title: 'Anchor — core identity, changes need confirmation' },
+const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string; humanLabel: string }> = {
+  exploratory: { label: '\u25CB', color: 'bg-zinc-700/30 text-zinc-600', title: 'Draft — Gluon may freely edit (click to promote)', humanLabel: 'Draft' },
+  liked: { label: '\u2661', color: 'bg-amber-500/20 text-amber-400', title: 'Keeper — Gluon preserves unless asked (click to promote)', humanLabel: 'Keeper' },
+  approved: { label: '\u25C9', color: 'bg-teal-500/20 text-teal-400', title: 'Locked — Gluon preserves during expansion (click to promote)', humanLabel: 'Locked' },
+  anchor: { label: '\u2693', color: 'bg-purple-500/20 text-purple-400', title: 'Anchor — core identity, changes need confirmation (click to cycle)', humanLabel: 'Anchor' },
 };
+
+/** Map importance 0-1 to a 3-tier display: low / mid / high. */
+const IMPORTANCE_TIERS = [
+  { label: 'Low', threshold: 0.33 },
+  { label: 'Mid', threshold: 0.66 },
+  { label: 'High', threshold: 1.01 },
+] as const;
+
+function importanceTier(value: number): 0 | 1 | 2 {
+  if (value <= 0.33) return 0;
+  if (value <= 0.66) return 1;
+  return 2;
+}
+
+function tierToValue(tier: 0 | 1 | 2): number {
+  return [0.2, 0.5, 0.9][tier];
+}
 
 interface Props {
   track: Track;
@@ -36,6 +53,7 @@ interface Props {
   onCycleApproval?: () => void;
   onRemove?: () => void;
   onSetMusicalRole?: (role: string) => void;
+  onSetImportance?: (importance: number) => void;
   /** Available bus tracks for send routing. */
   busTracks?: Track[];
   onAddSend?: (busId: string, level?: number) => void;
@@ -47,7 +65,7 @@ export function TrackRow({
   track, label, isActive, isExpanded, onToggleExpand, isBus, isMasterBus, analyser,
   activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onToggleAgency, onRename, onCycleApproval,
-  onRemove, onSetMusicalRole,
+  onRemove, onSetMusicalRole, onSetImportance,
   busTracks, onAddSend, onRemoveSend, onSetSendLevel,
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
@@ -268,11 +286,12 @@ export function TrackRow({
           >
             S
           </button>
-          {onCycleApproval && approvalInfo.label && (
+          {onCycleApproval && (
             <button
               onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
               title={approvalInfo.title}
               className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
+              aria-label={`Protection: ${approvalInfo.humanLabel}`}
             >
               {approvalInfo.label}
             </button>
@@ -293,9 +312,50 @@ export function TrackRow({
         />
       )}
 
-      {/* Expanded metadata: musical role (expanded non-bus tracks only) */}
-      {isExpanded && !isBus && !isMasterBus && onSetMusicalRole && (
+      {/* Expanded metadata: approval, importance, musical role (expanded non-bus tracks only) */}
+      {isExpanded && !isBus && !isMasterBus && (
         <div className="mt-1.5 space-y-1 px-0.5">
+          {/* Approval level — full label with cycle control */}
+          {onCycleApproval && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Protection level — how much Gluon should preserve this track">Prot</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
+                className={`text-[10px] font-mono px-1 py-0 rounded cursor-pointer transition-colors ${approvalInfo.color} hover:brightness-125`}
+                title={approvalInfo.title}
+                aria-label={`Protection: ${approvalInfo.humanLabel}`}
+              >
+                {approvalInfo.humanLabel}
+              </button>
+            </div>
+          )}
+          {/* Importance — 3-tier selector */}
+          {onSetImportance && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Importance — how prominent this track is in the mix">Imp</span>
+              <div className="flex gap-0.5">
+                {IMPORTANCE_TIERS.map((tier, i) => {
+                  const currentTier = importanceTier(track.importance ?? 0.5);
+                  const isSelected = currentTier === i;
+                  return (
+                    <button
+                      key={tier.label}
+                      onClick={(e) => { e.stopPropagation(); onSetImportance(tierToValue(i as 0 | 1 | 2)); }}
+                      className={`text-[9px] font-mono px-1 py-0 rounded cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-zinc-600/40 text-zinc-300'
+                          : 'text-zinc-600 hover:text-zinc-400'
+                      }`}
+                      title={`${tier.label} importance (${Math.round(tierToValue(i as 0 | 1 | 2) * 100)}%)`}
+                      aria-label={`Set importance to ${tier.label.toLowerCase()}`}
+                    >
+                      {tier.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           {/* Musical role */}
           {onSetMusicalRole && (
             <div className="flex items-center gap-1.5">
@@ -322,7 +382,7 @@ export function TrackRow({
                   }}
                   title={track.musicalRole || 'Click to set musical role'}
                 >
-                  {track.musicalRole || '—'}
+                  {track.musicalRole || '\u2014'}
                 </span>
               )}
             </div>

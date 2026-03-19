@@ -1341,6 +1341,22 @@ export default function App() {
     });
   }, []);
 
+  const handleSetImportance = useCallback((trackId: string, importance: number) => {
+    setSession((s) => {
+      const track = s.tracks.find(t => t.id === trackId);
+      if (!track) return s;
+      const snapshot: TrackPropertySnapshot = {
+        kind: 'track-property',
+        trackId,
+        prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+        timestamp: Date.now(),
+        description: `Set importance: ${Math.round((track.importance ?? 0.5) * 100)}% → ${Math.round(importance * 100)}%`,
+      };
+      const next = setTrackImportance(s, trackId, importance);
+      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    });
+  }, []);
+
   const handleChangeVolume = useCallback((trackId: string, value: number) => {
     ensureAudio();
     setSession((s) => setTrackVolume(s, trackId, value));
@@ -2247,6 +2263,7 @@ export default function App() {
       onAddTrack={handleAddTrack}
       onRemoveTrack={handleRemoveTrack}
       onSetMusicalRole={handleSetMusicalRole}
+      onSetImportance={handleSetImportance}
       onAddSend={handleAddSend}
       onRemoveSend={handleRemoveSend}
       onSetSendLevel={handleSetSendLevel}
