@@ -80,7 +80,7 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
     case 'modulation_route':
       return { action: 'connect', trackId: 'v0', modulatorId: 'tides-123', targetKind: 'source', targetParam: 'timbre', depth: 0.2, description: 'test' };
     case 'set_surface':
-      return { trackId: 'v0', action: 'auto_map', params: ['timbre'], description: 'test' };
+      return { trackId: 'v0', modules: [{ type: 'knob-group', id: 'k', label: 'K', bindings: [{ role: 'control', target: 'timbre' }] }], description: 'test' };
     case 'pin_control':
       return { action: 'pin', trackId: 'v0', moduleId: 'source', controlId: 'timbre' };
     case 'label_axes':
@@ -223,7 +223,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(42);
+    expect(GLUON_TOOLS.length).toBe(43);
   });
 
   // -----------------------------------------------------------------------
