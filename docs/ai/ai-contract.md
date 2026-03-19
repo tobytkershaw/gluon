@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-six tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-seven tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -158,9 +158,23 @@ Add or remove a track. Audio tracks produce sound; bus tracks receive audio via 
 | `label` | string | no | Optional display name for the new track. |
 | `description` | string | yes | Short description of the operation. |
 
+#### `manage_drum_pad`
+
+Add, remove, rename, or set choke group on a drum rack pad. Drum rack tracks hold up to 16 pads, each with its own Plaits model and params.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | yes | `add`, `remove`, `rename`, or `set_choke_group` |
+| `trackId` | string | yes | Target drum rack track |
+| `padId` | string | yes | Pad identifier (e.g. "kick", "snare") |
+| `name` | string | no | Human-readable pad name. Required for add/rename. |
+| `model` | string | no | Plaits model for the pad. Required for add. |
+| `chokeGroup` | number/null | no | Choke group number (>= 1) or null to remove. Required for set_choke_group. |
+| `description` | string | yes | Short description |
+
 #### `set_model`
 
-Switch the mode of a module. Without `processorId`/`modulatorId`, changes the track synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode.
+Switch the mode of a module. Without `processorId`/`modulatorId`, changes the track synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode. With `pad`, changes a drum pad's Plaits model.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|

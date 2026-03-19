@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -342,7 +342,7 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'sketch': {
       const track = getTrack(session, action.trackId);
-      if (!action.events || track.patterns.length === 0) return session;
+      if ((!action.events && !action.kit) || track.patterns.length === 0) return session;
       const activeReg = getActivePattern(track);
       // Apply groove template (before humanize)
       let sketchEvents = action.events;
@@ -1730,8 +1730,11 @@ export class GluonAI {
           archetypeUsed = true;
         } else if (Array.isArray(args.events)) {
           resolvedEvents = args.events as AISketchAction['events'];
+        } else if (args.kit && typeof args.kit === 'object') {
+          // Kit-based sketch for drum rack tracks — events are generated from grid strings at execution time
+          resolvedEvents = undefined;
         } else {
-          return { actions: [], response: errorPayload('Sketch requires one of: events array, archetype name, or generator object') };
+          return { actions: [], response: errorPayload('Sketch requires one of: events array, archetype name, generator object, or kit (drum rack)') };
         }
 
         // Resolve bar.beat.sixteenth strings to absolute step numbers
@@ -1770,6 +1773,7 @@ export class GluonAI {
           trackId: args.trackId as string,
           description: args.description as string,
           events: resolvedEvents,
+          ...(args.kit && typeof args.kit === 'object' ? { kit: args.kit as Record<string, string> } : {}),
           ...(typeof args.humanize === 'number' ? { humanize: Math.max(0, Math.min(1, args.humanize)) } : {}),
           ...(typeof args.groove === 'string' && args.groove in GROOVE_TEMPLATES ? { groove: args.groove } : {}),
           ...(typeof args.groove_amount === 'number' ? { grooveAmount: Math.max(0, Math.min(1, args.groove_amount)) } : {}),
@@ -2006,6 +2010,7 @@ export class GluonAI {
           model: args.model as string,
           ...(args.processorId ? { processorId: args.processorId as string } : {}),
           ...(args.modulatorId ? { modulatorId: args.modulatorId as string } : {}),
+          ...(typeof args.pad === 'string' ? { pad: args.pad } : {}),
         };
 
         const rejection = ctx?.validateAction?.(session, action);
@@ -2086,6 +2091,7 @@ export class GluonAI {
           trackId: args.trackId as string,
           operation: operation as AITransformAction['operation'],
           description: args.description as string,
+          ...(typeof args.pad === 'string' ? { pad: args.pad } : {}),
           ...(hasSteps ? { steps: args.steps as number } : {}),
           ...(hasSemitones ? { semitones: args.semitones as number } : {}),
           ...(typeof args.velocity_amount === 'number' ? { velocity_amount: args.velocity_amount } : { velocity_amount: 0.3 }),
@@ -3194,6 +3200,51 @@ export class GluonAI {
           default:
             return { actions: [], response: errorPayload(`Invalid action "${trackSubAction}". Use: add, remove`) };
         }
+      }
+
+      case 'manage_drum_pad': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.padId !== 'string' || !args.padId) {
+          return { actions: [], response: errorPayload('Missing required parameter: padId') };
+        }
+        if (typeof args.description !== 'string') {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+        const drumPadSubAction = args.action as string;
+        if (!drumPadSubAction || !['add', 'remove', 'rename', 'set_choke_group'].includes(drumPadSubAction)) {
+          return { actions: [], response: errorPayload(`Invalid action: ${drumPadSubAction}. Must be one of: add, remove, rename, set_choke_group`) };
+        }
+
+        const resolvedDrumTrackId = resolveTrackId(args.trackId as string, session);
+        if (!resolvedDrumTrackId) {
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+        }
+
+        const drumPadAction: AIManageDrumPadAction = {
+          type: 'manage_drum_pad',
+          trackId: resolvedDrumTrackId,
+          action: drumPadSubAction as AIManageDrumPadAction['action'],
+          padId: args.padId as string,
+          ...(typeof args.name === 'string' ? { name: args.name } : {}),
+          ...(typeof args.model === 'string' ? { model: args.model } : {}),
+          ...(args.chokeGroup !== undefined ? { chokeGroup: args.chokeGroup as number | null } : {}),
+          description: args.description as string,
+        };
+
+        const drumPadRejection = handleRejection(ctx?.validateAction?.(session, drumPadAction), session, drumPadAction, existingActions);
+        if (drumPadRejection) return drumPadRejection;
+
+        return {
+          actions: [drumPadAction],
+          response: {
+            applied: true,
+            trackId: resolvedDrumTrackId,
+            action: drumPadSubAction,
+            padId: args.padId,
+          },
+        };
       }
 
       case 'report_bug': {

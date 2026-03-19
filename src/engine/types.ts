@@ -611,6 +611,8 @@ export interface AISketchAction {
   pattern?: StepGridSketch;
   /** Canonical event shape */
   events?: CanonicalMusicalEvent[];
+  /** Drum rack kit: record of padId -> grid string. Parsed into TriggerEvents with padId set. */
+  kit?: Record<string, string>;
   /** Humanize amount (0.0-1.0). When set, applies velocity/timing jitter to events. */
   humanize?: number;
   /** Groove template name. Applied after note generation, before humanize. */
@@ -641,12 +643,16 @@ export interface AISetModelAction {
   processorId?: string;
   /** When present, switches the modulator's mode */
   modulatorId?: string;
+  /** When present, changes a drum pad's model instead of the track's synthesis engine */
+  pad?: string;
   model: string;  // Engine ID from the instrument registry (e.g. "analog-bass-drum" for track, "modal" for Rings)
 }
 
 export interface AITransformAction {
   type: 'transform';
   trackId: string;
+  /** For drum rack tracks: scope transform to a single pad's events. */
+  pad?: string;
   operation: 'rotate' | 'transpose' | 'reverse' | 'duplicate' | 'humanize' | 'euclidean' | 'ghost_notes' | 'swing' | 'thin' | 'densify';
   steps?: number;
   semitones?: number;
@@ -689,6 +695,8 @@ export interface AIEditPatternAction {
   type: 'edit_pattern';
   trackId: string;
   patternId?: string;
+  /** For drum rack tracks: scope operations to a single pad's events. */
+  pad?: string;
   operations: PatternEditOp[];
   description: string;
 }
@@ -981,7 +989,18 @@ export interface AISetTrackIdentityAction {
   identity: Partial<TrackVisualIdentity>;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetPortamentoAction | AISetTrackIdentityAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction;
+export interface AIManageDrumPadAction {
+  type: 'manage_drum_pad';
+  trackId: string;
+  action: 'add' | 'remove' | 'rename' | 'set_choke_group';
+  padId: string;
+  name?: string;
+  model?: string;
+  chokeGroup?: number | null;
+  description: string;
+}
+
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetPortamentoAction | AISetTrackIdentityAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction | AIManageDrumPadAction;
 
 // --- Reaction History ---
 
