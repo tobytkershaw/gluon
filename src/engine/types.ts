@@ -979,6 +979,22 @@ export interface ActionLogEntry {
   kind?: 'action' | 'bug-report';
 }
 
+/** A listen event — rendered audio the AI evaluated, exposed for human playback. */
+export interface ListenEvent {
+  /** Blob URL for playback (created via URL.createObjectURL). */
+  audioUrl: string;
+  /** Duration in seconds. */
+  duration?: number;
+  /** The listener model's evaluation summary. */
+  evaluation?: string;
+  /** Whether this is a before/after comparison. */
+  isDiff?: boolean;
+  /** Label (e.g. "before", "after", track name). */
+  label?: string;
+  /** Scope of what was rendered (track IDs or "full mix"). */
+  scope?: string;
+}
+
 /** A tool call the AI made during a turn, for display in chat. */
 export interface ToolCallEntry {
   /** Raw tool name (e.g. "move", "listen", "sketch") */
@@ -994,6 +1010,8 @@ export interface ChatMessage {
   actions?: ActionLogEntry[];
   /** Tool calls the AI made during this turn (for transparency display). */
   toolCalls?: ToolCallEntry[];
+  /** Listen events — rendered audio the AI evaluated, with playback URLs. */
+  listenEvents?: ListenEvent[];
   /** Range of undo stack entries produced by this AI turn.
    *  After collapse (batch path), start === end (single group).
    *  In streaming path with per-step groups, start..end spans multiple entries.
