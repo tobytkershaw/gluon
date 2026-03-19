@@ -3,6 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
+import { clearSnapshots } from '../audio/snapshot-store';
 import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, UserSelection, OpenDecision } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
@@ -1064,13 +1065,14 @@ export default function App() {
       );
     } catch {
       // Error already handled by GluonAI.handleError
-    } finally {
-      if (thisRequest === requestIdRef.current) {
-        // Finalize: create ChatMessage without collapsing — per-step groups are already in place
-        setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions, collectedListenEvents));
-        setIsThinking(false);
-        setIsListening(false);
-        setStreamingText('');
+      } finally {
+        if (thisRequest === requestIdRef.current) {
+          // Finalize: create ChatMessage without collapsing — per-step groups are already in place
+          setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions, collectedListenEvents));
+          clearSnapshots();
+          setIsThinking(false);
+          setIsListening(false);
+          setStreamingText('');
         setStreamingLogEntries([]);
         setStreamingRejections([]);
       }
