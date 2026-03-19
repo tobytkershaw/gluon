@@ -8,6 +8,7 @@ import { reprojectTrackStepGrid } from './region-projection';
 import { createDefaultPattern } from './region-helpers';
 import { controlIdToRuntimeParam, getRegisteredModulatorTypes } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
+import { migrateLegacySurface } from './surface-templates';
 
 const STORAGE_KEY = 'gluon-session';
 export const CURRENT_VERSION = 6;
@@ -191,16 +192,23 @@ export function migrateTrack(track: Track): Track {
 
   let surfaced = migrated as unknown as Track;
 
-  // Hydrate surface for tracks without one
+  // Hydrate surface for tracks without one, or migrate legacy format
   if (!surfaced.surface) {
     surfaced = {
       ...surfaced,
       surface: {
-        semanticControls: [],
-        pinnedControls: [],
-        xyAxes: { x: 'timbre', y: 'morph' },
+        modules: [],
         thumbprint: { type: 'static-color' },
       },
+    };
+  } else if ('semanticControls' in surfaced.surface) {
+    // Legacy surface with semanticControls/pinnedControls/xyAxes — migrate to modules
+    surfaced = {
+      ...surfaced,
+      surface: migrateLegacySurface(
+        surfaced.surface as unknown as Record<string, unknown>,
+        surfaced.id,
+      ),
     };
   }
 
