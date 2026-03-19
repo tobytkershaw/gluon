@@ -17,6 +17,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'happy-dom',
+    css: true,
     setupFiles: [],
     exclude: [
       ...configDefaults.exclude,
