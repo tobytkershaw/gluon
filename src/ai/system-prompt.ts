@@ -418,7 +418,7 @@ ${generateProcessorIndex()}
 ${processorTypes.size > 0 ? `\n### Active Processor Details\n${generateActiveProcessorReference(processorTypes)}` : ''}
 
 Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types, 'bypass' to toggle enabled/disabled.
-To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx").
+To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx"). For supported Hz-mapped rate controls, **move.target** can also use musical divisions like \`{ value: "1/8d" }\` to resolve a tempo-synced rate from the current BPM.
 To switch processor modes, use **set_model** with the processorId parameter (e.g. set_model model="string" processorId="rings-xxx").
 Processors array order = signal chain order. All controls are normalized 0.0–1.0.
 
@@ -432,6 +432,7 @@ ${modulatorTypes.size > 0 ? `\n### Active Modulator Details\n${generateActiveMod
 - Human sets center point; modulation adds/subtracts around it. Start shallow (0.1-0.3).
 - Valid targets: source params (timbre, harmonics, morph, frequency) and processor params (e.g. Clouds position, Rings brightness). Frequency modulation operates on pitch (log-frequency): use shallow depth (0.01–0.05) for vibrato, up to ~0.2 for pitch sweeps or FM-style effects. Beyond 0.2 artifacts are likely.
 - Use **move** with modulatorId to adjust controls; **set_model** with modulatorId to switch modes.
+- Supported tempo-synced **move.target** values like \`{ value: "1/8d" }\` apply to modulator rate controls such as Tides \`frequency\`, using the current BPM.
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
 - Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing), → Beads time/position (granular texture evolution).
 

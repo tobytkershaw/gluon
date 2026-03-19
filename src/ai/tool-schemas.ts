@@ -81,10 +81,11 @@ const moveTool: ToolSchema = {
       },
       target: {
         type: 'object',
-        description: 'Target value — use absolute (0.0-1.0) or relative (-1.0 to 1.0).',
+        description: 'Target value — use absolute (0.0-1.0), relative (-1.0 to 1.0), or value for supported tempo-synced rate controls (for example "1/8d").',
         properties: {
           absolute: { type: 'number', description: 'Absolute value (0.0-1.0).' },
           relative: { type: 'number', description: 'Relative offset (-1.0 to 1.0).' },
+          value: { type: 'string', description: 'Musical time division for supported Hz-mapped rate controls, e.g. "1/4", "1/8d", or "1/8t".' },
         },
       },
       trackId: {
