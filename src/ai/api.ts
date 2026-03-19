@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -58,6 +58,7 @@ import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
 import { appendSpectralAdvisory } from './spectral-lint';
 import { expandParamShapes, validateParamShapes } from '../engine/param-shapes';
 import type { ParamShapes } from '../engine/param-shapes';
+import { getChordToneNames, normalizeChordProgression } from '../engine/chords';
 
 /**
  * Infer spectral slot priority from a track's musicalRole string.
@@ -641,6 +642,11 @@ function projectAction(session: Session, action: AIAction): Session {
     }
     case 'set_scale':
       return { ...session, scale: action.scale };
+    case 'set_chord_progression':
+      return {
+        ...session,
+        chordProgression: action.chordProgression ? normalizeChordProgression(action.chordProgression) : action.chordProgression,
+      };
     case 'manage_motif':
       // Motif operations are handled in the tool handler; no session state mutation needed.
       return session;
@@ -3950,6 +3956,61 @@ export class GluonAI {
             scale: scaleConstraint,
             label: scaleToString(scaleConstraint),
             notes: scaleNoteNames(scaleConstraint),
+          },
+        };
+      }
+
+      case 'set_chord_progression': {
+        if (args.clear === true) {
+          const clearAction: AISetChordProgressionAction = { type: 'set_chord_progression', chordProgression: null };
+          return {
+            actions: [clearAction],
+            response: { applied: true, chord_progression: null, message: 'Chord progression cleared.' },
+          };
+        }
+
+        if (!Array.isArray(args.chords) || args.chords.length === 0) {
+          return { actions: [], response: errorPayload('Provide a non-empty chords array, or set clear: true to remove the chord progression.') };
+        }
+
+        const seenBars = new Set<number>();
+        const chordProgression = [] as NonNullable<AISetChordProgressionAction['chordProgression']>;
+        for (const [index, rawChord] of args.chords.entries()) {
+          if (!rawChord || typeof rawChord !== 'object') {
+            return { actions: [], response: errorPayload(`chords[${index}] must be an object with bar and chord.`) };
+          }
+          const barValue = Number((rawChord as Record<string, unknown>).bar);
+          const chord = String((rawChord as Record<string, unknown>).chord ?? '').trim();
+          if (!Number.isInteger(barValue) || barValue < 1) {
+            return { actions: [], response: errorPayload(`chords[${index}].bar must be a positive integer.`) };
+          }
+          const bar = barValue;
+          if (!chord) {
+            return { actions: [], response: errorPayload(`chords[${index}].chord is required.`) };
+          }
+          if (seenBars.has(bar)) {
+            return { actions: [], response: errorPayload(`Duplicate chord entry for bar ${bar}. Use one chord per bar.`) };
+          }
+          seenBars.add(bar);
+          chordProgression.push({ bar, chord });
+        }
+
+        chordProgression.sort((a, b) => a.bar - b.bar);
+
+        const setChordProgressionAction: AISetChordProgressionAction = {
+          type: 'set_chord_progression',
+          chordProgression,
+        };
+
+        return {
+          actions: [setChordProgressionAction],
+          response: {
+            applied: true,
+            chord_progression: chordProgression.map(entry => ({
+              bar: entry.bar,
+              chord: entry.chord,
+              tones: getChordToneNames(entry.chord),
+            })),
           },
         };
       }

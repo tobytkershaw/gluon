@@ -231,6 +231,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return { ...session, scale: snapshot.prevScale };
   }
 
+  if (snapshot.kind === 'chord-progression') {
+    return { ...session, chordProgression: snapshot.prevChordProgression };
+  }
+
   if (snapshot.kind === 'master') {
     return { ...session, master: snapshot.prevMaster };
   }

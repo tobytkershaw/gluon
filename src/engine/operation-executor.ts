@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, Track } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
 import { AGENCY_REJECTION_PREFIX } from './types';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
@@ -25,6 +25,7 @@ import { validateChainMutation, validateProcessorTarget, validateModulatorMutati
 import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef } from './session';
 import { setPatternLength, clearPattern } from './pattern-primitives';
 import { quantizePitch, scaleToString } from './scale';
+import { normalizeChordProgression } from './chords';
 import { applyDynamicShape } from './dynamic-shapes';
 
 /**
@@ -506,6 +507,10 @@ export function prevalidateAction(
       return null;
 
     case 'set_scale':
+      // No side-effect guards — session metadata, not musical mutation
+      return null;
+
+    case 'set_chord_progression':
       // No side-effect guards — session metadata, not musical mutation
       return null;
 
@@ -2044,6 +2049,26 @@ function executeActionsInternal(
         next = { ...next, scale: action.scale, undoStack: [...next.undoStack, snapshot] };
         const label = action.scale ? scaleToString(action.scale) : 'chromatic (no constraint)';
         log.push({ trackId: '', trackLabel: 'SESSION', description: `scale: ${label}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'set_chord_progression': {
+        const prevChordProgression = next.chordProgression;
+        const normalized = action.chordProgression ? normalizeChordProgression(action.chordProgression) : action.chordProgression;
+        const snapshot: ChordProgressionSnapshot = {
+          kind: 'chord-progression',
+          prevChordProgression,
+          timestamp: Date.now(),
+          description: normalized
+            ? `Set chord progression: ${normalized.map(entry => `${entry.bar}:${entry.chord}`).join(' · ')}`
+            : 'Clear chord progression',
+        };
+        next = { ...next, chordProgression: normalized, undoStack: [...next.undoStack, snapshot] };
+        const label = normalized
+          ? normalized.map(entry => `${entry.bar}:${entry.chord}`).join(' · ')
+          : 'cleared';
+        log.push({ trackId: '', trackLabel: 'SESSION', description: `chord progression: ${label}` });
         accepted.push(action);
         break;
       }
