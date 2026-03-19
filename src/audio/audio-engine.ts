@@ -19,6 +19,8 @@ import type { ElementsEngine } from './elements-synth';
 import type { ElementsPatchParams } from './elements-messages';
 import type { BeadsEngine } from './beads-synth';
 import type { BeadsPatchParams } from './beads-messages';
+import type { FramesEngine } from './frames-synth';
+import type { FramesPatchParams } from './frames-messages';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
 import type { TidesEngine } from './tides-synth';
@@ -39,7 +41,7 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine | ElementsEngine | BeadsEngine;
+type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine | ElementsEngine | BeadsEngine | FramesEngine;
 
 interface ProcessorSlot {
   id: string;
@@ -243,6 +245,25 @@ function toBeadsPatchParams(params: Record<string, number>): BeadsPatchParams {
     pitch: params.pitch ?? 0.5,
     dry_wet: params['dry-wet'] ?? 0.5,
   };
+}
+
+function toFramesPatchParams(params: Record<string, number>): FramesPatchParams {
+  const result: FramesPatchParams = {
+    frame: params.frame ?? 0.0,
+    channel_1: params.channel_1 ?? 0.0,
+    channel_2: params.channel_2 ?? 0.0,
+    channel_3: params.channel_3 ?? 0.0,
+    channel_4: params.channel_4 ?? 0.0,
+    modulation: params.modulation ?? 0.5,
+    kf_count: params.kf_count ?? 0.1,
+  };
+  // Copy keyframe data params (kf_N_pos, kf_N_ch1..ch4)
+  for (const key of Object.keys(params)) {
+    if (key.startsWith('kf_') && key !== 'kf_count') {
+      result[key] = params[key];
+    }
+  }
+  return result;
 }
 
 function toTidesPatchParams(params: Record<string, number>): TidesPatchParams {
@@ -951,6 +972,9 @@ export class AudioEngine {
       } else if (processorType === 'beads') {
         const { createBeadsProcessor } = await import('./create-synth');
         engine = await createBeadsProcessor(this.ctx);
+      } else if (processorType === 'frames') {
+        const { createFramesProcessor } = await import('./create-synth');
+        engine = await createFramesProcessor(this.ctx);
       } else {
         return;
       }
@@ -1030,6 +1054,9 @@ export class AudioEngine {
     } else if (proc.type === 'beads') {
       const engine = proc.engine as import('./beads-synth').BeadsEngine;
       engine.setPatch(toBeadsPatchParams(params));
+    } else if (proc.type === 'frames') {
+      const engine = proc.engine as import('./frames-synth').FramesEngine;
+      engine.setPatch(toFramesPatchParams(params));
     }
   }
 
@@ -1060,6 +1087,8 @@ export class AudioEngine {
       (proc.engine as import('./elements-synth').ElementsEngine).setModel(model);
     } else if (proc.type === 'beads') {
       (proc.engine as import('./beads-synth').BeadsEngine).setModel(model);
+    } else if (proc.type === 'frames') {
+      (proc.engine as import('./frames-synth').FramesEngine).setMode(model);
     }
   }
 
