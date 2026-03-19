@@ -6,7 +6,7 @@
 
 **As of:** 2026-03-19
 
-M0 through M6 are complete. Gluon has Plaits/Rings/Clouds/Tides synthesis, processor chains (Ripples, EQ, Compressor), Tides modulation, canonical event sequencing, four views (Surface, Rack, Patch, Tracker), project persistence, bus routing, offline listen, and a 20-tool AI collaboration layer.
+M0 through M6 are complete. Gluon has Plaits synthesis (16 models), Elements physical modelling, processor chains (Rings, Clouds, Beads, Warps, Ripples, EQ, Compressor, Chorus, Distortion, Stereo), Tides modulation, canonical event sequencing, four views (Surface, Rack, Patch, Tracker), project persistence, bus routing, offline listen, and a 40+ tool AI collaboration layer.
 
 **Current phase: Finalization.** The goal is to complete all implemented elements to full song composition capability — not new subsystems, but finishing what's started. The AI stack is Gemini-only (Gemini 3.1 Pro planner + Gemini Flash listener). GPT was tried but underperforms on music tasks.
 

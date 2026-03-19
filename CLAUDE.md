@@ -8,7 +8,7 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 
 - **Browser-based**: React + TypeScript + Vite
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
-- **AI (reasoning)**: Google Gemini (`@google/genai`) — Gemini 2.5 Pro (planner) + Gemini Flash (listener)
+- **AI (reasoning)**: Google Gemini (`@google/genai`) — Gemini 3.1 Pro (planner) + Gemini Flash (listener)
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
 - **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v05.md`)
 

@@ -98,18 +98,26 @@ The Mutable Instruments open source DSP code is the foundation. These are arguab
 
 Each model exposes two continuous parameters (TIMBRE and COLOR) plus pitch, creating a 2D parameter space per model. This is the key to the AI integration: the AI can reason about, visualise, and navigate these spaces.
 
-**Braids** (predecessor with 33 synthesis models):
-Additional models including CZ-style phase distortion, vowel/formant synthesis, Karplus-Strong plucked strings, bowed strings, reed and flute physical models, particle synthesis, and more.
+**Braids** (future — not yet compiled to WASM):
+Predecessor with 33 synthesis models including CZ-style phase distortion, vowel/formant synthesis, Karplus-Strong plucked strings, bowed strings, reed and flute physical models, particle synthesis, and more.
 
-**Additional MI modules** (all open source, all portable):
+**Additional MI modules** (all open source, compiled to WASM and shipping):
 - **Rings**: Resonator (sympathetic strings, modal synthesis)
-- **Clouds/Beads**: Granular processor (for audio input processing)
-- **Elements**: Full physical modelling voice
-- **Tides**: Function generator / complex LFO
+- **Clouds**: Granular processor (for audio input processing)
+- **Beads**: Granular processor (Clouds successor, texture/reverb modes)
+- **Elements**: Full physical modelling voice (source or processor)
+- **Tides**: Function generator / complex LFO (modulator)
 - **Warps**: Signal crossfader/wavefolder/vocoder
 
-These would be compiled to:
-- **WebAssembly** (current: for browser-based Gluon)
+**Built-in processors** (Web Audio / custom WASM):
+- **Ripples**: Resonant filter (LP/BP/HP)
+- **EQ**: Parametric equalizer
+- **Compressor**: Dynamics processor (4 character modes)
+- **Chorus**: Chorus/flanger effect
+- **Distortion**: Waveshaping distortion
+- **Stereo**: Stereo width/panning processor
+
+Future compilation targets:
 - **Native** (future: Rust wrapper around C++ DSP for desktop app)
 - **VST/AU plugin** (future: for DAW integration)
 
@@ -177,9 +185,9 @@ These are hard boundaries. Once they are explicit and enforced, Gluon should bia
 - Respect hardware-specific parameter ranges
 - Rate-limit CC messages to avoid overwhelming MIDI bus
 
-### 5. MIDI/OSC Bridge
+### 5. MIDI/OSC Bridge (Future — M7)
 
-The bridge between Gluon and the outside world.
+The bridge between Gluon and the outside world. **Not yet implemented.** This section describes the intended architecture for M7: External Integration.
 
 **MIDI Output** (to hardware synths and DAW):
 - Note messages (note on/off, velocity, aftertouch)
@@ -255,9 +263,9 @@ The UI should feel like an instrument, not a productivity app. Dark theme. Music
 ### Browser-based (current focus)
 
 - **UI:** React + TypeScript + Vite + Tailwind CSS
-- **DSP:** Mutable Instruments Plaits C++ code compiled to WebAssembly via Emscripten, running in an AudioWorklet
-- **AI (reasoning):** Google Gemini API (`@google/genai` SDK) for project state reasoning and structured edits
-- **AI (audio evaluation):** Gemini native audio model for listening to rendered audio snapshots
+- **DSP:** Mutable Instruments modules (Plaits, Rings, Clouds, Beads, Elements, Warps, Tides) compiled to WebAssembly via Emscripten, plus built-in processors (Ripples, EQ, Compressor, Chorus, Distortion, Stereo), running in AudioWorklets
+- **AI (reasoning):** Google Gemini API (`@google/genai` SDK) — Gemini 3.1 Pro for project state reasoning and structured edits
+- **AI (audio evaluation):** Gemini Flash for listening to rendered audio snapshots
 - **Audio:** Web Audio API + AudioWorklet for real-time synthesis and playback
 
 ### Future (not in current scope)
@@ -265,7 +273,6 @@ The UI should feel like an instrument, not a productivity app. Dark theme. Music
 - **MIDI/hardware:** MIDI output to hardware synths, hardware profile system
 - **DAW integration:** Ableton Live integration, clip writing, automation
 - **Desktop app:** Tauri or Electron wrapper for native performance
-- **Additional DSP:** Rings, Clouds, Elements compiled to WASM as effects
 
 ---
 
@@ -337,14 +344,17 @@ Rings and Clouds WASM processors, processor chain architecture (source → proce
 ### Phase 4B: Modulation (COMPLETE)
 Tides WASM function generator, modulation routing (modulator → GainNode depth → target AudioParam), AI modulation tools (`add_modulator`, `remove_modulator`, `connect_modulator`, `disconnect_modulator`).
 
-### M0: Stabilization (IN PROGRESS)
+### M0: Stabilization (COMPLETE)
 Pre-M5 QA sweep: fix audio pipeline bugs, UI state issues, transport crashes, and worklet edge cases.
 
-### M5: UI Layers (PLANNED)
+### M5: UI Layers (COMPLETE)
 Project persistence, parameter and patch navigation, AI-curated surfaces, offline listen tool, AI action legibility.
 
-### M6: AI Collaboration Quality (PLANNED)
+### M6: AI Collaboration Quality (COMPLETE)
 Preservation contracts, aesthetic direction, structured listening, environment legibility.
+
+### Finalization (IN PROGRESS)
+Complete all implemented elements to full song composition capability. See `docs/roadmap.md` for details.
 
 ### M7: External Integration (FUTURE)
 MIDI output to hardware synths, hardware profiles, DAW integration (Ableton), external sequencer adapters, community ecosystem.
