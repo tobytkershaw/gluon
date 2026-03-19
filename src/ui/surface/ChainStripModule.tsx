@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
+import { getAccentColor } from './visual-utils';
 
 /**
  * ChainStripModule — horizontal signal flow diagram with bypass toggles
@@ -8,7 +9,8 @@ import type { ModuleRendererProps } from './ModuleRendererProps';
  * Shows: Source → [Processor 1] → [Processor 2] → ... → Out
  * Each processor has a bypass toggle that dims the box when bypassed.
  */
-export function ChainStripModule({ module, track }: ModuleRendererProps) {
+export function ChainStripModule({ module, track, visualContext }: ModuleRendererProps) {
+  const accent = getAccentColor(visualContext);
   const processors = track.processors ?? [];
 
   // TODO: wire bypass to operation executor
@@ -39,7 +41,7 @@ export function ChainStripModule({ module, track }: ModuleRendererProps) {
     <div className="h-full flex flex-col p-2">
       {/* Header */}
       <div className="flex items-center gap-1 mb-1">
-        <span className="text-xs text-zinc-400 font-medium truncate">
+        <span className="text-xs font-medium truncate" style={{ color: accent }}>
           {module.label}
         </span>
       </div>
@@ -47,8 +49,11 @@ export function ChainStripModule({ module, track }: ModuleRendererProps) {
       {/* Signal flow strip */}
       <div className="flex-1 flex items-center gap-0 overflow-x-auto min-w-0">
         {/* Source node */}
-        <div className="flex-shrink-0 px-2 py-1 rounded bg-zinc-800 border border-zinc-700">
-          <span className="text-[11px] text-zinc-300 font-medium">Source</span>
+        <div
+          className="flex-shrink-0 px-2 py-1 rounded bg-zinc-800 border"
+          style={{ borderColor: accent }}
+        >
+          <span className="text-[11px] font-medium" style={{ color: accent }}>Source</span>
         </div>
 
         {processors.map((proc) => {

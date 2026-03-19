@@ -7,6 +7,7 @@ import type { SemanticControlDef } from '../../engine/types';
 import { Knob } from '../Knob';
 import { computeSemanticValue, computeSemanticRawUpdates } from './semantic-utils';
 import type { ModuleRendererProps } from './ModuleRendererProps';
+import { getAccentColor } from './visual-utils';
 
 /**
  * MacroKnobModule — single knob that fans out to weighted raw params.
@@ -16,12 +17,14 @@ import type { ModuleRendererProps } from './ModuleRendererProps';
 export function MacroKnobModule({
   module,
   track,
+  visualContext,
   onParamChange,
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
 }: ModuleRendererProps) {
   const semanticControl = module.config.semanticControl as SemanticControlDef | undefined;
+  const accentColor = getAccentColor(visualContext);
 
   if (!semanticControl) {
     return (
@@ -52,7 +55,7 @@ export function MacroKnobModule({
       <Knob
         value={displayValue}
         label={semanticControl.name}
-        accentColor="amber"
+        accentColor={accentColor}
         onChange={handleChange}
         onPointerDown={onInteractionStart}
         onPointerUp={onInteractionEnd}

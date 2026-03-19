@@ -625,6 +625,7 @@ export default function App() {
   }, [session.tracks, audioStarted]);
 
   const activeTrack = getActiveTrack(session);
+  const activeTrackIndex = session.tracks.findIndex(t => t.id === session.activeTrackId);
 
   const _dispatchAIActions = useCallback((actions: AIAction[], toolCalls?: ToolCallEntry[]) => {
     setSession((s) => {
@@ -2831,6 +2832,7 @@ export default function App() {
         {!isSessionEmpty && view === 'surface' && (
           <SurfaceCanvas
             track={activeTrack}
+            trackIndex={activeTrackIndex}
             onParamChange={handleSurfaceSourceParamChange}
             onProcessorParamChange={handleSurfaceProcessorParamChange}
             onInteractionStart={handleSurfaceInteractionStart}

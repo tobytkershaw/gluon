@@ -3,6 +3,8 @@ import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import type { Track, SurfaceModule } from '../../engine/types';
 import type { ModuleRendererProps } from './ModuleRendererProps';
+import { deriveModuleVisualContext } from '../../engine/visual-identity';
+import { getModuleContainerStyle } from './visual-utils';
 import { PlaceholderModule } from './PlaceholderModule';
 import { KnobGroupModule } from './KnobGroupModule';
 import { MacroKnobModule } from './MacroKnobModule';
@@ -16,6 +18,8 @@ import { ModuleConfigPanel } from './ModuleConfigPanel';
 
 interface SurfaceCanvasProps {
   track: Track;
+  /** Index of the track in the session tracks array (for default hue distribution) */
+  trackIndex?: number;
   /** Called for source param changes — (controlId, value). No per-frame undo. */
   onParamChange?: (controlId: string, value: number) => void;
   /** Called for processor param changes. No per-frame undo. */
@@ -44,6 +48,7 @@ const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> 
 
 export function SurfaceCanvas({
   track,
+  trackIndex = 0,
   onParamChange,
   onProcessorParamChange,
   onInteractionStart,
@@ -54,6 +59,12 @@ export function SurfaceCanvas({
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
+
+  // Derive visual context from the track's visual identity (Score system)
+  const visualContext = useMemo(
+    () => deriveModuleVisualContext(track, trackIndex),
+    [track, trackIndex],
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
 
@@ -198,19 +209,22 @@ export function SurfaceCanvas({
           {modules.map((mod) => {
             const Renderer = moduleRenderers[mod.type] ?? PlaceholderModule;
             const isSelected = mod.id === selectedModuleId;
+            const containerStyle = getModuleContainerStyle(visualContext);
             return (
               <div
                 key={mod.id}
                 className={`bg-zinc-900 border rounded-lg overflow-hidden cursor-pointer transition-colors ${
                   isSelected
-                    ? 'border-zinc-500 ring-1 ring-zinc-500/50'
-                    : 'border-zinc-800 hover:border-zinc-700'
+                    ? 'ring-1 ring-zinc-500/50'
+                    : ''
                 }`}
+                style={isSelected ? { ...containerStyle, borderColor: undefined } : containerStyle}
                 onClick={(e) => handleModuleClick(mod.id, e)}
               >
                 <Renderer
                   module={mod}
                   track={track}
+                  visualContext={visualContext}
                   onParamChange={onParamChange}
                   onProcessorParamChange={onProcessorParamChange}
                   onInteractionStart={onInteractionStart}

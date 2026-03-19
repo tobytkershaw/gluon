@@ -1,4 +1,5 @@
 import type { ModuleRendererProps } from './ModuleRendererProps';
+import { getAccentColor } from './visual-utils';
 
 // TODO: wire to real-time audio analysis data
 const STATIC_LEVEL_DB = -12;
@@ -15,7 +16,8 @@ function dbToFraction(db: number): number {
   return (db + 48) / 48;
 }
 
-export function LevelMeterModule({ module, track }: ModuleRendererProps) {
+export function LevelMeterModule({ module, track, visualContext }: ModuleRendererProps) {
+  const accent = getAccentColor(visualContext);
   const levelFraction = dbToFraction(STATIC_LEVEL_DB);
   const peakFraction = dbToFraction(STATIC_PEAK_DB);
 
@@ -50,9 +52,11 @@ export function LevelMeterModule({ module, track }: ModuleRendererProps) {
 
           {/* Peak hold indicator */}
           <div
-            className="absolute left-0 right-0 h-[2px] bg-white/80"
+            className="absolute left-0 right-0 h-[2px]"
             style={{
               bottom: `${peakFraction * 100}%`,
+              backgroundColor: accent,
+              opacity: 0.8,
             }}
           />
         </div>
