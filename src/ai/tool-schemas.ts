@@ -1620,6 +1620,50 @@ const assignSpectralSlotTool: ToolSchema = {
   },
 };
 
+const relateTool: ToolSchema = {
+  name: 'relate',
+  description:
+    'Resolve a musical relationship from a source track onto a target track. ' +
+    'Supports rhythmic alignment/interlocking, timbral contrast, and spectral complement. ' +
+    'The source track is read as reference; only the target track is changed.',
+  parameters: {
+    type: 'object',
+    properties: {
+      sourceTrackId: {
+        type: 'string',
+        description: 'Reference track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      targetTrackId: {
+        type: 'string',
+        description: 'Track to modify relative to the source.',
+      },
+      relation: {
+        type: 'string',
+        enum: ['align', 'complement', 'increase_contrast', 'decrease_contrast', 'spectral_complement'],
+        description:
+          'align — place target note/trigger events on the source onsets. ' +
+          'complement — place target note/trigger events between source onsets. ' +
+          'increase_contrast / decrease_contrast — move target timbre away from or toward the source on a named dimension. ' +
+          'spectral_complement — assign a target spectral role that avoids the source band.',
+      },
+      dimension: {
+        type: 'string',
+        enum: ['brightness', 'thickness'],
+        description: 'Required for increase_contrast and decrease_contrast.',
+      },
+      amount: {
+        type: 'number',
+        description: 'Optional intensity (0.0-1.0). Used for timbral contrast. Default 0.3.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the relationship intent (e.g. "make bass interlock with kick").',
+      },
+    },
+    required: ['sourceTrackId', 'targetTrackId', 'relation', 'description'],
+  },
+};
+
 const manageMotifTool: ToolSchema = {
   name: 'manage_motif',
   description:
@@ -1849,6 +1893,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   applyModulationTool,
   shapeTimbreTool,
   assignSpectralSlotTool,
+  relateTool,
   manageMotifTool,
   savePatchTool,
   loadPatchTool,

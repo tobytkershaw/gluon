@@ -60,6 +60,7 @@ import { appendSpectralAdvisory } from './spectral-lint';
 import { expandParamShapes, validateParamShapes } from '../engine/param-shapes';
 import type { ParamShapes } from '../engine/param-shapes';
 import { getChordToneNames, normalizeChordProgression } from '../engine/chords';
+import { resolveRhythmicRelation, planContrastDirection, inferSpectralComplementBands } from '../engine/relational-ops';
 
 /**
  * Infer spectral slot priority from a track's musicalRole string.
@@ -4418,6 +4419,152 @@ export class GluonAI {
             allSlots: this.spectralSlots.getAll(),
           },
         };
+      }
+
+      case 'relate': {
+        const sourceTrackId = resolveTrackId(String(args.sourceTrackId ?? ''), session);
+        if (!sourceTrackId) {
+          return { actions: [], response: trackNotFoundError(String(args.sourceTrackId), session) };
+        }
+        const targetTrackId = resolveTrackId(String(args.targetTrackId ?? ''), session);
+        if (!targetTrackId) {
+          return { actions: [], response: trackNotFoundError(String(args.targetTrackId), session) };
+        }
+        if (sourceTrackId === targetTrackId) {
+          return { actions: [], response: errorPayload('sourceTrackId and targetTrackId must be different tracks') };
+        }
+
+        const relation = args.relation as string | undefined;
+        if (!relation) {
+          return { actions: [], response: errorPayload('Missing required parameter: relation') };
+        }
+        if (typeof args.description !== 'string' || !args.description) {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+
+        const sourceTrack = session.tracks.find(track => track.id === sourceTrackId);
+        const targetTrack = session.tracks.find(track => track.id === targetTrackId);
+        if (!sourceTrack || !targetTrack) {
+          return { actions: [], response: errorPayload('Source or target track not found') };
+        }
+
+        if (relation === 'align' || relation === 'complement') {
+          try {
+            const resolved = resolveRhythmicRelation(
+              getActivePattern(sourceTrack),
+              getActivePattern(targetTrack),
+              relation,
+            );
+            const action: AISketchAction = {
+              type: 'sketch',
+              trackId: targetTrackId,
+              description: args.description as string,
+              events: resolved.events,
+            };
+            const rejection = ctx?.validateAction?.(session, action);
+            const rejectionResult = handleRejection(rejection, session, action, existingActions);
+            if (rejectionResult) return rejectionResult;
+
+            return {
+              actions: [action],
+              response: {
+                applied: true,
+                sourceTrackId,
+                targetTrackId,
+                relation,
+                sourceOnsets: resolved.sourceOnsets,
+                targetOnsets: resolved.targetOnsets,
+                resultingEventCount: resolved.events.length,
+              },
+            };
+          } catch (error) {
+            return { actions: [], response: errorPayload((error as Error).message) };
+          }
+        }
+
+        if (relation === 'increase_contrast' || relation === 'decrease_contrast') {
+          const dimension = args.dimension as 'brightness' | 'thickness' | undefined;
+          if (!dimension) {
+            return { actions: [], response: errorPayload('dimension is required for contrast relations') };
+          }
+          const amount = typeof args.amount === 'number' ? Math.max(0, Math.min(1, args.amount)) : 0.3;
+          const plan = planContrastDirection(sourceTrack, targetTrack, relation, dimension);
+          const engineDef = plaitsInstrument.engines[targetTrack.model];
+          if (!engineDef) {
+            return { actions: [], response: enrichedError('Target track has no recognized synth engine.', {
+              hint: `Target model index is ${targetTrack.model}.`,
+            }) };
+          }
+
+          const deltas = resolveTimbralMove(engineDef.id, plan.direction, amount);
+          if (deltas.length === 0) {
+            return { actions: [], response: errorPayload(`No timbral mapping for ${plan.direction} on engine ${engineDef.id}`) };
+          }
+
+          const actions: AIAction[] = deltas.map(({ param, delta }) => {
+            const runtimeKey = controlIdToRuntimeParam[param] ?? param;
+            const currentVal = targetTrack.params[runtimeKey] ?? 0.5;
+            return {
+              type: 'move',
+              trackId: targetTrackId,
+              param,
+              target: { absolute: Math.max(0, Math.min(1, currentVal + delta)) },
+            } satisfies AIMoveAction;
+          });
+
+          for (const action of actions) {
+            const rejection = ctx?.validateAction?.(session, action);
+            const rejectionResult = handleRejection(rejection, session, action, existingActions);
+            if (rejectionResult) return rejectionResult;
+          }
+
+          return {
+            actions,
+            response: {
+              applied: true,
+              sourceTrackId,
+              targetTrackId,
+              relation,
+              dimension,
+              direction: plan.direction,
+              sourceValue: Math.round(plan.sourceValue * 100) / 100,
+              targetValue: Math.round(plan.targetValue * 100) / 100,
+              amount,
+            },
+          };
+        }
+
+        if (relation === 'spectral_complement') {
+          const sourceMetrics = ctx?.audioMetrics?.tracks[sourceTrackId];
+          const targetMetrics = ctx?.audioMetrics?.tracks[targetTrackId];
+          const resolved = inferSpectralComplementBands(sourceTrack, targetTrack, sourceMetrics, targetMetrics);
+          const priority = inferSpectralPriorityFromRole(targetTrack.musicalRole);
+          const slot = this.spectralSlots.assign(targetTrackId, resolved.targetBands, priority);
+          const collisions = this.spectralSlots.detectCollisions();
+          const adjustments = this.spectralSlots.computeAdjustments();
+          const action: AIAssignSpectralSlotAction = {
+            type: 'assign_spectral_slot',
+            trackId: targetTrackId,
+            bands: resolved.targetBands,
+            priority,
+          };
+          return {
+            actions: [action],
+            response: {
+              applied: true,
+              sourceTrackId,
+              targetTrackId,
+              relation,
+              sourceBand: resolved.sourceBand,
+              targetBands: resolved.targetBands,
+              slot,
+              collisions: collisions.length > 0 ? collisions : undefined,
+              suggestedAdjustments: adjustments.length > 0 ? adjustments : undefined,
+            },
+          };
+        }
+
+        return { actions: [], response: errorPayload(`Unknown relation: ${relation}`) };
       }
 
       case 'manage_motif': {
