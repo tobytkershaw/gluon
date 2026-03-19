@@ -1,20 +1,15 @@
 // src/audio/chorus-synth.ts
 import type { ChorusProcessorCommand, ChorusProcessorStatus, ChorusPatchParams } from './chorus-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = new URL('./chorus-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface ChorusEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: ChorusPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type ChorusEngine = ProcessorContract;
 
-export class ChorusSynth implements ChorusEngine {
+export class ChorusSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<ChorusSynth> {
@@ -38,6 +33,8 @@ export class ChorusSynth implements ChorusEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -82,7 +79,7 @@ export class ChorusSynth implements ChorusEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -94,14 +91,29 @@ export class ChorusSynth implements ChorusEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(2, mode));
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(2, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: ChorusPatchParams): void {
-    this.currentPatch = { ...params };
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
+  }
+
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      rate: params.rate ?? this.currentPatch.rate,
+      depth: params.depth ?? this.currentPatch.depth,
+      feedback: params.feedback ?? this.currentPatch.feedback,
+      mix: params.mix ?? this.currentPatch.mix,
+      stereo: params.stereo ?? this.currentPatch.stereo,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('chorus', command);
   }
 
   silence(fence?: number): void {

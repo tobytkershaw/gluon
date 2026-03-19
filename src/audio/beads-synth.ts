@@ -1,21 +1,16 @@
 import type { BeadsProcessorCommand, BeadsProcessorStatus, BeadsPatchParams } from './beads-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = '/audio/beads-worklet.js';
 const MODULE_URL = '/audio/beads-module.js';
 const WASM_URL = '/audio/beads.wasm';
 const INIT_TIMEOUT_MS = 5000;
 
-export interface BeadsEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setModel(model: number): void;
-  setPatch(params: BeadsPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type BeadsEngine = ProcessorContract;
 
-export class BeadsSynth implements BeadsEngine {
+export class BeadsSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
   private static wasmBinaryLoad: Promise<ArrayBuffer> | null = null;
 
@@ -61,6 +56,8 @@ export class BeadsSynth implements BeadsEngine {
     }
     return this.wasmBinaryLoad;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -117,9 +114,20 @@ export class BeadsSynth implements BeadsEngine {
     this.post({ type: 'set-model', model: this.currentModel });
   }
 
-  setPatch(params: BeadsPatchParams): void {
-    this.currentPatch = { ...params };
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      time: params.time ?? this.currentPatch.time,
+      density: params.density ?? this.currentPatch.density,
+      texture: params.texture ?? this.currentPatch.texture,
+      position: params.position ?? this.currentPatch.position,
+      pitch: params.pitch ?? this.currentPatch.pitch,
+      dry_wet: params['dry-wet'] ?? params.dry_wet ?? this.currentPatch.dry_wet,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('beads', command);
   }
 
   silence(fence?: number): void {

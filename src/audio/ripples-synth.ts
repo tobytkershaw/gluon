@@ -1,19 +1,14 @@
 import type { RipplesProcessorCommand, RipplesProcessorStatus, RipplesPatchParams } from './ripples-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = '/audio/ripples-worklet.js';
 const INIT_TIMEOUT_MS = 5000;
 
-export interface RipplesEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: RipplesPatchParams): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type RipplesEngine = ProcessorContract;
 
-export class RipplesSynth implements RipplesEngine {
+export class RipplesSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<RipplesSynth> {
@@ -37,6 +32,8 @@ export class RipplesSynth implements RipplesEngine {
     }
     return load;
   }
+
+  readonly role = 'processor' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -75,7 +72,7 @@ export class RipplesSynth implements RipplesEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -87,14 +84,27 @@ export class RipplesSynth implements RipplesEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(3, mode));
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(3, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: RipplesPatchParams): void {
-    this.currentPatch = { ...params };
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
+  }
+
+  setPatch(params: Record<string, number>): void {
+    this.currentPatch = {
+      cutoff: params.cutoff ?? this.currentPatch.cutoff,
+      resonance: params.resonance ?? this.currentPatch.resonance,
+      drive: params.drive ?? this.currentPatch.drive,
+    };
     this.post({ type: 'set-patch', patch: this.currentPatch });
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    warnUnsupportedCommand('ripples', command);
   }
 
   silence(fence?: number): void {

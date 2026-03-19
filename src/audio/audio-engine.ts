@@ -1,34 +1,10 @@
 // src/audio/audio-engine.ts
 import { DEFAULT_PARAMS } from './synth-interface';
 import { createPreferredSynth } from './create-synth';
-import type { RingsEngine } from './rings-synth';
-import type { CloudsEngine } from './clouds-synth';
-import type { RipplesEngine } from './ripples-synth';
-import type { EqEngine } from './eq-synth';
-import type { CompressorEngine } from './compressor-synth';
-import type { CompressorPatchParams } from './compressor-messages';
-import type { StereoEngine } from './stereo-synth';
-import type { StereoPatchParams } from './stereo-messages';
-import type { ChorusEngine } from './chorus-synth';
-import type { ChorusPatchParams } from './chorus-messages';
-import type { DistortionEngine } from './distortion-synth';
-import type { DistortionPatchParams } from './distortion-messages';
-import type { WarpsEngine } from './warps-synth';
-import type { WarpsPatchParams } from './warps-messages';
-import type { ElementsEngine } from './elements-synth';
-import type { ElementsPatchParams } from './elements-messages';
-import type { BeadsEngine } from './beads-synth';
-import type { BeadsPatchParams } from './beads-messages';
-import type { FramesEngine } from './frames-synth';
-import type { FramesPatchParams } from './frames-messages';
+import type { ProcessorContract, ModulatorContract } from './module-contract';
+import { moduleDescriptors } from './module-descriptors';
 import type { ScheduledNote } from '../engine/sequencer-types';
 import type { SynthParamValues, ModulationTarget } from '../engine/types';
-import type { TidesEngine } from './tides-synth';
-import type { TidesPatchParams } from './tides-messages';
-import type { MarblesEngine } from './marbles-synth';
-import type { MarblesPatchParams } from './marbles-messages';
-import type { RingsPatchParams } from './rings-messages';
-import type { CloudsPatchParams } from './clouds-messages';
 import type { PlaitsExtendedParams } from './plaits-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
@@ -41,22 +17,20 @@ const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
 
-type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine | ElementsEngine | BeadsEngine | FramesEngine;
-
 interface ProcessorSlot {
   id: string;
   type: string;
-  engine: ProcessorEngine;
+  engine: ProcessorContract;
   /** Whether this processor is wired into the chain. Default: true. */
   enabled: boolean;
+  /** True if module creation failed and a pass-through was substituted. */
+  degraded: boolean;
 }
-
-type ModulatorEngine = TidesEngine | MarblesEngine;
 
 interface ModulatorSlot {
   id: string;
   type: string;
-  engine: ModulatorEngine;
+  engine: ModulatorContract;
   keepAliveGain: GainNode;  // gain=0 → destination (prevents GC)
 }
 
@@ -117,181 +91,6 @@ export interface ActiveVoiceSnapshot {
   noteTime: number;
   gateOffTime: number;
   state: 'scheduled' | 'released' | 'silenced';
-}
-
-function toRingsPatchParams(params: Record<string, number>): RingsPatchParams {
-  return {
-    structure: params.structure ?? 0.5,
-    brightness: params.brightness ?? 0.5,
-    damping: params.damping ?? 0.7,
-    position: params.position ?? 0.5,
-  };
-}
-
-function toCloudsPatchParams(params: Record<string, number>): CloudsPatchParams {
-  return {
-    position: params.position ?? 0.5,
-    size: params.size ?? 0.5,
-    density: params.density ?? 0.5,
-    feedback: params.feedback ?? 0.5,
-  };
-}
-
-function toRipplesPatchParams(params: Record<string, number>): import('./ripples-messages').RipplesPatchParams {
-  return {
-    cutoff: params.cutoff ?? 0.5,
-    resonance: params.resonance ?? 0.0,
-    drive: params.drive ?? 0.0,
-  };
-}
-
-function toEqPatchParams(params: Record<string, number>): import('./eq-messages').EqPatchParams {
-  return {
-    low_freq: params['low-freq'] ?? 0.25,
-    low_gain: params['low-gain'] ?? 0.5,
-    mid1_freq: params['mid1-freq'] ?? 0.4,
-    mid1_gain: params['mid1-gain'] ?? 0.5,
-    mid1_q: params['mid1-q'] ?? 0.3,
-    mid2_freq: params['mid2-freq'] ?? 0.6,
-    mid2_gain: params['mid2-gain'] ?? 0.5,
-    mid2_q: params['mid2-q'] ?? 0.3,
-    high_freq: params['high-freq'] ?? 0.75,
-    high_gain: params['high-gain'] ?? 0.5,
-  };
-}
-
-function toCloudsExtendedParams(params: Record<string, number>): import('./clouds-messages').CloudsExtendedParams {
-  return {
-    texture: params.texture ?? 0.5,
-    pitch: params.pitch ?? 0.5,
-    dry_wet: params['dry-wet'] ?? 0.5,
-    stereo_spread: params['stereo-spread'] ?? 0.0,
-    reverb: params.reverb ?? 0.0,
-  };
-}
-
-function toCompressorPatchParams(params: Record<string, number>): CompressorPatchParams {
-  return {
-    threshold: params.threshold ?? 0.5,
-    ratio: params.ratio ?? 0.3,
-    attack: params.attack ?? 0.3,
-    release: params.release ?? 0.4,
-    makeup: params.makeup ?? 0.0,
-    mix: params.mix ?? 1.0,
-  };
-}
-
-function toStereoPatchParams(params: Record<string, number>): StereoPatchParams {
-  return {
-    width: params.width ?? 0.5,
-    mid_gain: params.mid_gain ?? 0.5,
-    side_gain: params.side_gain ?? 0.5,
-    delay: params.delay ?? 0.0,
-  };
-}
-
-function toChorusPatchParams(params: Record<string, number>): ChorusPatchParams {
-  return {
-    rate: params.rate ?? 0.3,
-    depth: params.depth ?? 0.5,
-    feedback: params.feedback ?? 0.0,
-    mix: params.mix ?? 0.5,
-    stereo: params.stereo ?? 0.5,
-  };
-}
-
-function toDistortionPatchParams(params: Record<string, number>): DistortionPatchParams {
-  return {
-    drive: params.drive ?? 0.5,
-    tone: params.tone ?? 0.5,
-    mix: params.mix ?? 1.0,
-    bits: params.bits ?? 1.0,
-    downsample: params.downsample ?? 0.0,
-  };
-}
-
-function toWarpsPatchParams(params: Record<string, number>): WarpsPatchParams {
-  return {
-    algorithm: params.algorithm ?? 0.0,
-    timbre: params.timbre ?? 0.5,
-    level: params.level ?? 0.5,
-  };
-}
-
-function toElementsPatchParams(params: Record<string, number>): ElementsPatchParams {
-  return {
-    bow_level: params['bow_level'] ?? 0.0,
-    bow_timbre: params['bow_timbre'] ?? 0.5,
-    blow_level: params['blow_level'] ?? 0.0,
-    blow_timbre: params['blow_timbre'] ?? 0.5,
-    strike_level: params['strike_level'] ?? 0.8,
-    strike_timbre: params['strike_timbre'] ?? 0.5,
-    coarse: params.coarse ?? 0.5,
-    fine: params.fine ?? 0.5,
-    geometry: params.geometry ?? 0.5,
-    brightness: params.brightness ?? 0.5,
-    damping: params.damping ?? 0.5,
-    position: params.position ?? 0.5,
-    space: params.space ?? 0.3,
-  };
-}
-
-function toBeadsPatchParams(params: Record<string, number>): BeadsPatchParams {
-  return {
-    time: params.time ?? 0.5,
-    density: params.density ?? 0.5,
-    texture: params.texture ?? 0.5,
-    position: params.position ?? 0.5,
-    pitch: params.pitch ?? 0.5,
-    dry_wet: params['dry-wet'] ?? 0.5,
-  };
-}
-
-function toFramesPatchParams(params: Record<string, number>): FramesPatchParams {
-  const result: FramesPatchParams = {
-    frame: params.frame ?? 0.0,
-    channel_1: params.channel_1 ?? 0.0,
-    channel_2: params.channel_2 ?? 0.0,
-    channel_3: params.channel_3 ?? 0.0,
-    channel_4: params.channel_4 ?? 0.0,
-    modulation: params.modulation ?? 0.5,
-    kf_count: params.kf_count ?? 0.1,
-  };
-  // Copy keyframe data params (kf_N_pos, kf_N_ch1..ch4)
-  for (const key of Object.keys(params)) {
-    if (key.startsWith('kf_') && key !== 'kf_count') {
-      result[key] = params[key];
-    }
-  }
-  return result;
-}
-
-function toTidesPatchParams(params: Record<string, number>): TidesPatchParams {
-  return {
-    frequency: params.frequency ?? 0.5,
-    shape: params.shape ?? 0.5,
-    slope: params.slope ?? 0.5,
-    smoothness: params.smoothness ?? 0.5,
-  };
-}
-
-function toMarblesPatchParams(params: Record<string, number>): MarblesPatchParams {
-  return {
-    rate: params.rate ?? 0.5,
-    spread: params.spread ?? 0.5,
-    bias: params.bias ?? 0.5,
-    steps: params.steps ?? 0.0,
-    deja_vu: params.deja_vu ?? 0.0,
-    length: params.length ?? 0.25,
-  };
-}
-
-function toTidesExtendedParams(params: Record<string, number>): import('./tides-messages').TidesExtendedParams {
-  return {
-    shift: params.shift ?? 0.0,
-    output_mode: Math.round(params['output-mode'] ?? 0),
-    range: Math.round(params.range ?? 0),
-  };
 }
 
 function toPlaitsExtendedParams(params: SynthParamValues): PlaitsExtendedParams {
@@ -834,9 +633,7 @@ export class AudioEngine {
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
         proc.engine.silence(this.generation);
-        if (proc.type === 'rings') {
-          (proc.engine as import('./rings-synth').RingsEngine).damp();
-        }
+        proc.engine.sendCommand({ type: 'damp' });
       }
     }
     // Clear scheduled events in modulators and pause their output
@@ -936,52 +733,16 @@ export class AudioEngine {
     if (!slot || !this.ctx) return;
     if (slot.processors.some(p => p.id === processorId)) return;
 
+    const descriptor = moduleDescriptors.get(processorType);
+    if (!descriptor || descriptor.role !== 'processor') return;
+
     this.pendingProcessors.add(key);
     try {
-      let engine: ProcessorEngine;
-      if (processorType === 'rings') {
-        const { createRingsProcessor } = await import('./create-synth');
-        engine = await createRingsProcessor(this.ctx);
-      } else if (processorType === 'clouds') {
-        const { createCloudsProcessor } = await import('./create-synth');
-        engine = await createCloudsProcessor(this.ctx);
-      } else if (processorType === 'ripples') {
-        const { createRipplesProcessor } = await import('./create-synth');
-        engine = await createRipplesProcessor(this.ctx);
-      } else if (processorType === 'eq') {
-        const { createEqProcessor } = await import('./create-synth');
-        engine = await createEqProcessor(this.ctx);
-      } else if (processorType === 'compressor') {
-        const { createCompressorProcessor } = await import('./create-synth');
-        engine = await createCompressorProcessor(this.ctx);
-      } else if (processorType === 'stereo') {
-        const { createStereoProcessor } = await import('./create-synth');
-        engine = await createStereoProcessor(this.ctx);
-      } else if (processorType === 'chorus') {
-        const { createChorusProcessor } = await import('./create-synth');
-        engine = await createChorusProcessor(this.ctx);
-      } else if (processorType === 'distortion') {
-        const { createDistortionProcessor } = await import('./create-synth');
-        engine = await createDistortionProcessor(this.ctx);
-      } else if (processorType === 'warps') {
-        const { createWarpsProcessor } = await import('./create-synth');
-        engine = await createWarpsProcessor(this.ctx);
-      } else if (processorType === 'elements') {
-        const { createElementsProcessor } = await import('./create-synth');
-        engine = await createElementsProcessor(this.ctx);
-      } else if (processorType === 'beads') {
-        const { createBeadsProcessor } = await import('./create-synth');
-        engine = await createBeadsProcessor(this.ctx);
-      } else if (processorType === 'frames') {
-        const { createFramesProcessor } = await import('./create-synth');
-        engine = await createFramesProcessor(this.ctx);
-      } else {
-        return;
-      }
+      const { engine, degraded } = await descriptor.create(this.ctx) as { engine: ProcessorContract; degraded: boolean };
       // After async gap: only insert if still wanted (key not cancelled
       // by removeProcessor) and not already present (dedupe).
       if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
-        slot.processors.push({ id: processorId, type: processorType, engine, enabled: true });
+        slot.processors.push({ id: processorId, type: processorType, engine, enabled: true, degraded });
         this.rebuildChain(slot);
       } else {
         engine.destroy();
@@ -1014,50 +775,7 @@ export class AudioEngine {
     if (!slot) return;
     const proc = slot.processors.find(p => p.id === processorId);
     if (!proc) return;
-    // Each processor type has its own setPatch shape — dispatch by type.
-    // Continuous params go via setPatch; discrete/boolean params use dedicated setters.
-    if (proc.type === 'rings') {
-      const engine = proc.engine as import('./rings-synth').RingsEngine;
-      engine.setPatch(toRingsPatchParams(params));
-      if (params.polyphony !== undefined) engine.setPolyphony(Math.round(params.polyphony));
-      if (params['internal-exciter'] !== undefined) engine.setInternalExciter(params['internal-exciter'] >= 0.5);
-      if (params['fine-tune'] !== undefined) engine.setFineTune(params['fine-tune']);
-    } else if (proc.type === 'clouds') {
-      const engine = proc.engine as import('./clouds-synth').CloudsEngine;
-      engine.setPatch(toCloudsPatchParams(params));
-      engine.setExtended(toCloudsExtendedParams(params));
-      if (params.freeze !== undefined) engine.setFreeze(params.freeze >= 0.5);
-    } else if (proc.type === 'ripples') {
-      const engine = proc.engine as import('./ripples-synth').RipplesEngine;
-      engine.setPatch(toRipplesPatchParams(params));
-    } else if (proc.type === 'eq') {
-      const engine = proc.engine as import('./eq-synth').EqEngine;
-      engine.setPatch(toEqPatchParams(params));
-    } else if (proc.type === 'compressor') {
-      const engine = proc.engine as import('./compressor-synth').CompressorEngine;
-      engine.setPatch(toCompressorPatchParams(params));
-    } else if (proc.type === 'stereo') {
-      const engine = proc.engine as import('./stereo-synth').StereoEngine;
-      engine.setPatch(toStereoPatchParams(params));
-    } else if (proc.type === 'chorus') {
-      const engine = proc.engine as import('./chorus-synth').ChorusEngine;
-      engine.setPatch(toChorusPatchParams(params));
-    } else if (proc.type === 'distortion') {
-      const engine = proc.engine as import('./distortion-synth').DistortionEngine;
-      engine.setPatch(toDistortionPatchParams(params));
-    } else if (proc.type === 'warps') {
-      const engine = proc.engine as import('./warps-synth').WarpsEngine;
-      engine.setPatch(toWarpsPatchParams(params));
-    } else if (proc.type === 'elements') {
-      const engine = proc.engine as import('./elements-synth').ElementsEngine;
-      engine.setPatch(toElementsPatchParams(params));
-    } else if (proc.type === 'beads') {
-      const engine = proc.engine as import('./beads-synth').BeadsEngine;
-      engine.setPatch(toBeadsPatchParams(params));
-    } else if (proc.type === 'frames') {
-      const engine = proc.engine as import('./frames-synth').FramesEngine;
-      engine.setPatch(toFramesPatchParams(params));
-    }
+    proc.engine.setPatch(params);
   }
 
   setProcessorModel(trackId: string, processorId: string, model: number): void {
@@ -1065,31 +783,7 @@ export class AudioEngine {
     if (!slot) return;
     const proc = slot.processors.find(p => p.id === processorId);
     if (!proc) return;
-    if (proc.type === 'rings') {
-      (proc.engine as import('./rings-synth').RingsEngine).setModel(model);
-    } else if (proc.type === 'clouds') {
-      (proc.engine as import('./clouds-synth').CloudsEngine).setMode(model);
-    } else if (proc.type === 'ripples') {
-      (proc.engine as import('./ripples-synth').RipplesEngine).setMode(model);
-    } else if (proc.type === 'eq') {
-      (proc.engine as import('./eq-synth').EqEngine).setMode(model);
-    } else if (proc.type === 'compressor') {
-      (proc.engine as import('./compressor-synth').CompressorEngine).setMode(model);
-    } else if (proc.type === 'stereo') {
-      (proc.engine as import('./stereo-synth').StereoEngine).setMode(model);
-    } else if (proc.type === 'chorus') {
-      (proc.engine as import('./chorus-synth').ChorusEngine).setMode(model);
-    } else if (proc.type === 'distortion') {
-      (proc.engine as import('./distortion-synth').DistortionEngine).setMode(model);
-    } else if (proc.type === 'warps') {
-      (proc.engine as import('./warps-synth').WarpsEngine).setModel(model);
-    } else if (proc.type === 'elements') {
-      (proc.engine as import('./elements-synth').ElementsEngine).setModel(model);
-    } else if (proc.type === 'beads') {
-      (proc.engine as import('./beads-synth').BeadsEngine).setModel(model);
-    } else if (proc.type === 'frames') {
-      (proc.engine as import('./frames-synth').FramesEngine).setMode(model);
-    }
+    proc.engine.setModel(model);
   }
 
   /** Enable or bypass a processor, rebuilding the chain to wire around it. */
@@ -1170,18 +864,12 @@ export class AudioEngine {
     const existing = this.modulatorSlots.get(trackId) ?? [];
     if (existing.some(s => s.id === modulatorId)) return;
 
+    const descriptor = moduleDescriptors.get(modulatorType);
+    if (!descriptor || descriptor.role !== 'modulator') return;
+
     this.pendingModulators.add(key);
     try {
-      let engine: ModulatorEngine;
-      if (modulatorType === 'tides') {
-        const { createTidesModulator } = await import('./create-synth');
-        engine = await createTidesModulator(this.ctx);
-      } else if (modulatorType === 'marbles') {
-        const { createMarblesModulator } = await import('./create-synth');
-        engine = await createMarblesModulator(this.ctx);
-      } else {
-        return;
-      }
+      const { engine } = await descriptor.create(this.ctx) as { engine: ModulatorContract; degraded: boolean };
 
       // After async gap: only insert if still wanted
       if (!this.pendingModulators.has(key)) {
@@ -1238,13 +926,7 @@ export class AudioEngine {
     if (!slots) return;
     const modSlot = slots.find(s => s.id === modulatorId);
     if (!modSlot) return;
-    if (modSlot.type === 'marbles') {
-      (modSlot.engine as MarblesEngine).setPatch(toMarblesPatchParams(params));
-    } else {
-      // Default: Tides
-      (modSlot.engine as TidesEngine).setPatch(toTidesPatchParams(params));
-      (modSlot.engine as TidesEngine).setExtended(toTidesExtendedParams(params));
-    }
+    modSlot.engine.setPatch(params);
   }
 
   setModulatorModel(trackId: string, modulatorId: string, model: number): void {
@@ -1252,7 +934,7 @@ export class AudioEngine {
     if (!slots) return;
     const modSlot = slots.find(s => s.id === modulatorId);
     if (!modSlot) return;
-    modSlot.engine.setMode(model);
+    modSlot.engine.setModel(model);
   }
 
   addModulationRoute(trackId: string, routeId: string, modulatorId: string, target: ModulationTarget, depth: number): void {
@@ -1447,22 +1129,23 @@ export class AudioEngine {
     if (!sourceSlot || !targetSlot) return;
 
     const proc = targetSlot.processors.find(p => p.id === processorId);
-    if (!proc || proc.type !== 'compressor') return;
+    if (!proc) return;
+    const descriptor = moduleDescriptors.get(proc.type);
+    if (!descriptor?.sidechain) return;
 
     const key = `${targetTrackId}:${processorId}`;
 
     // Remove existing sidechain on this processor if any
     this.removeSidechainByKey(key);
 
-    // Create a tap from the source track's muteGain to the compressor's sidechain input
+    // Create a tap from the source track's muteGain to the processor's sidechain input
     const tapGain = this.ctx.createGain();
     tapGain.gain.value = 1.0;
     sourceSlot.muteGain.connect(tapGain);
 
-    // Connect to the compressor's second input (index 1)
-    const compEngine = proc.engine as import('./compressor-synth').CompressorSynth;
-    tapGain.connect(compEngine.sidechainInputNode, 0, compEngine.sidechainInputIndex);
-    compEngine.setSidechainEnabled(true);
+    // Connect to the processor's sidechain input
+    tapGain.connect(proc.engine.inputNode, 0, descriptor.sidechain.inputIndex);
+    proc.engine.sendCommand({ type: 'sidechain-enabled', enabled: true });
 
     this.sidechainSlots.set(key, {
       sourceTrackId,
@@ -1495,9 +1178,8 @@ export class AudioEngine {
       // Notify the worklet that the sidechain is disconnected
       const targetSlot = this.tracks.get(existing.targetTrackId);
       const proc = targetSlot?.processors.find(p => p.id === existing.processorId);
-      if (proc && proc.type === 'compressor') {
-        const compEngine = proc.engine as import('./compressor-synth').CompressorSynth;
-        compEngine.setSidechainEnabled(false);
+      if (proc) {
+        proc.engine.sendCommand({ type: 'sidechain-enabled', enabled: false });
       }
       this.sidechainSlots.delete(key);
     }

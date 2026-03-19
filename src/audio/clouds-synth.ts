@@ -1,23 +1,16 @@
 import type { CloudsProcessorCommand, CloudsProcessorStatus, CloudsPatchParams, CloudsExtendedParams } from './clouds-messages';
+import type { ProcessorContract, ModuleCommand } from './module-contract';
+import { warnUnsupportedCommand } from './module-contract';
 
 const WORKLET_URL = '/audio/clouds-worklet.js';
 const MODULE_URL = '/audio/clouds-module.js';
 const WASM_URL = '/audio/clouds.wasm';
 const INIT_TIMEOUT_MS = 5000;
 
-export interface CloudsEngine {
-  /** The AudioWorkletNode — connect a source to its input */
-  readonly inputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: CloudsPatchParams): void;
-  setExtended(params: CloudsExtendedParams): void;
-  setFreeze(freeze: boolean): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  destroy(): void;
-}
+/** @deprecated Use ProcessorContract instead. */
+export type CloudsEngine = ProcessorContract;
 
-export class CloudsSynth implements CloudsEngine {
+export class CloudsSynth implements ProcessorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
   private static wasmBinaryLoad: Promise<ArrayBuffer> | null = null;
 
@@ -64,9 +57,12 @@ export class CloudsSynth implements CloudsEngine {
     return this.wasmBinaryLoad;
   }
 
+  readonly role = 'processor' as const;
+
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
   private currentPatch: CloudsPatchParams = { position: 0.5, size: 0.5, density: 0.5, feedback: 0.0 };
+  private currentExtended: CloudsExtendedParams = { texture: 0.5, pitch: 0.5, dry_wet: 0.5, stereo_spread: 0.0, reverb: 0.0 };
   private currentMode = 0;
 
   private constructor(ctx: AudioContext, wasmBinary: ArrayBuffer) {
@@ -102,7 +98,7 @@ export class CloudsSynth implements CloudsEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     this.setPatch(this.currentPatch);
   }
 
@@ -114,22 +110,59 @@ export class CloudsSynth implements CloudsEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(3, mode));
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(3, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: CloudsPatchParams): void {
-    this.currentPatch = { ...params };
-    this.post({ type: 'set-patch', patch: this.currentPatch });
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
   }
 
+  setPatch(params: Record<string, number>): void {
+    // Base params
+    this.currentPatch = {
+      position: params.position ?? this.currentPatch.position,
+      size: params.size ?? this.currentPatch.size,
+      density: params.density ?? this.currentPatch.density,
+      feedback: params.feedback ?? this.currentPatch.feedback,
+    };
+    this.post({ type: 'set-patch', patch: this.currentPatch });
+    // Extended params
+    const extended: CloudsExtendedParams = {
+      texture: params.texture ?? this.currentExtended.texture,
+      pitch: params.pitch ?? this.currentExtended.pitch,
+      dry_wet: params['dry-wet'] ?? params.dry_wet ?? this.currentExtended.dry_wet,
+      stereo_spread: params['stereo-spread'] ?? params.stereo_spread ?? this.currentExtended.stereo_spread,
+      reverb: params.reverb ?? this.currentExtended.reverb,
+    };
+    this.currentExtended = extended;
+    this.post({ type: 'set-extended', extended });
+    // Discrete: freeze
+    if (params.freeze !== undefined) {
+      this.post({ type: 'set-freeze', freeze: params.freeze >= 0.5 });
+    }
+  }
+
+  sendCommand(command: ModuleCommand): void {
+    switch (command.type) {
+      case 'freeze':
+        this.post({ type: 'set-freeze', freeze: command.enabled });
+        break;
+      default:
+        warnUnsupportedCommand('clouds', command);
+    }
+  }
+
+  /** @deprecated Use setPatch or sendCommand instead. */
   setExtended(params: CloudsExtendedParams): void {
     this.post({ type: 'set-extended', extended: params });
   }
 
+  /** @deprecated Use sendCommand({ type: 'freeze', enabled }) instead. */
   setFreeze(freeze: boolean): void {
-    this.post({ type: 'set-freeze', freeze });
+    this.sendCommand({ type: 'freeze', enabled: freeze });
   }
 
   silence(fence?: number): void {

@@ -1,27 +1,15 @@
 // src/audio/marbles-synth.ts
 // Pure JS modulator synth wrapper for Marbles (no WASM needed).
 import type { MarblesProcessorCommand, MarblesProcessorStatus, MarblesPatchParams } from './marbles-messages';
+import type { ModulatorContract } from './module-contract';
 
 const WORKLET_URL = new URL('./marbles-worklet.ts', import.meta.url).href;
 const INIT_TIMEOUT_MS = 5000;
 
-export interface MarblesEngine {
-  /** The AudioWorkletNode — connect its output to GainNodes for modulation routing */
-  readonly outputNode: AudioNode;
-  setMode(mode: number): void;
-  setPatch(params: MarblesPatchParams): void;
-  /** No extended params for Marbles (all params are in the patch). */
-  setExtended(params: Record<string, number>): void;
-  /** Clear all scheduled events from the worklet queue. */
-  silence(fence?: number): void;
-  /** Pause modulation output (fill with zeros). */
-  pause(): void;
-  /** Resume modulation output after pause. */
-  resume(): void;
-  destroy(): void;
-}
+/** @deprecated Use ModulatorContract instead. */
+export type MarblesEngine = ModulatorContract;
 
-export class MarblesSynth implements MarblesEngine {
+export class MarblesSynth implements ModulatorContract {
   private static moduleLoads = new WeakMap<AudioContext, Promise<void>>();
 
   static async create(ctx: AudioContext): Promise<MarblesSynth> {
@@ -45,6 +33,8 @@ export class MarblesSynth implements MarblesEngine {
     }
     return load;
   }
+
+  readonly role = 'modulator' as const;
 
   private readonly node: AudioWorkletNode;
   private readonly ready: Promise<void>;
@@ -82,7 +72,7 @@ export class MarblesSynth implements MarblesEngine {
 
   private async waitUntilReady(): Promise<void> {
     await this.ready;
-    this.setMode(this.currentMode);
+    this.setModel(this.currentMode);
     if (this.currentPatch) {
       this.setPatch(this.currentPatch);
     }
@@ -96,29 +86,27 @@ export class MarblesSynth implements MarblesEngine {
     return this.node;
   }
 
-  setMode(mode: number): void {
-    this.currentMode = Math.max(0, Math.min(2, mode));
+  setModel(model: number): void {
+    this.currentMode = Math.max(0, Math.min(2, model));
     this.post({ type: 'set-mode', mode: this.currentMode });
   }
 
-  setPatch(params: MarblesPatchParams): void {
-    this.currentPatch = { ...params };
-    this.post({
-      type: 'set-patch',
-      patch: {
-        rate: params.rate ?? 0.5,
-        spread: params.spread ?? 0.5,
-        bias: params.bias ?? 0.5,
-        steps: params.steps ?? 0.0,
-        deja_vu: params.deja_vu ?? 0.0,
-        length: params.length ?? 0.25,
-      },
-    });
+  /** @deprecated Use setModel instead. */
+  setMode(mode: number): void {
+    this.setModel(mode);
   }
 
-  setExtended(_params: Record<string, number>): void {
-    // Marbles has no extended params — all controls are in the main patch.
-    // This method exists for interface compatibility with the modulator slot.
+  setPatch(params: Record<string, number>): void {
+    const patch: MarblesPatchParams = {
+      rate: params.rate ?? this.currentPatch?.rate ?? 0.5,
+      spread: params.spread ?? this.currentPatch?.spread ?? 0.5,
+      bias: params.bias ?? this.currentPatch?.bias ?? 0.5,
+      steps: params.steps ?? this.currentPatch?.steps ?? 0.0,
+      deja_vu: params.deja_vu ?? this.currentPatch?.deja_vu ?? 0.0,
+      length: params.length ?? this.currentPatch?.length ?? 0.25,
+    };
+    this.currentPatch = patch;
+    this.post({ type: 'set-patch', patch });
   }
 
   silence(_fence?: number): void {
