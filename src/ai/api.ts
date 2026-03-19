@@ -95,6 +95,14 @@ type RawPatternEditOp = Omit<PatternEditOp, 'step'> & {
   select?: PatternEventSelector;
 };
 
+const RETURN_BUS_WET_PARAM: Record<string, string> = {
+  clouds: 'dry-wet',
+  beads: 'dry-wet',
+  chorus: 'mix',
+  compressor: 'mix',
+  distortion: 'mix',
+};
+
 const PITCH_CLASS_LOOKUP: Record<string, number> = {
   C: 0,
   'B#': 0,
@@ -3245,6 +3253,117 @@ export class GluonAI {
         return {
           actions: [manageSendAction],
           response: { queued: true, action: sendSubAction, trackId: sendTrackId, busId: sendBusId },
+        };
+      }
+
+      case 'setup_return_bus': {
+        if (typeof args.sourceTrackId !== 'string' || !args.sourceTrackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: sourceTrackId') };
+        }
+        if (typeof args.processorType !== 'string' || !args.processorType) {
+          return { actions: [], response: errorPayload('Missing required parameter: processorType') };
+        }
+        if (typeof args.description !== 'string' || !args.description) {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+
+        const sourceTrackId = resolveTrackId(args.sourceTrackId as string, session);
+        if (!sourceTrackId) {
+          return { actions: [], response: trackNotFoundError(String(args.sourceTrackId), session) };
+        }
+
+        const sourceTrack = session.tracks.find(t => t.id === sourceTrackId);
+        if (!sourceTrack) {
+          return { actions: [], response: trackNotFoundError(String(args.sourceTrackId), session) };
+        }
+
+        const processorType = String(args.processorType);
+        const wetParam = RETURN_BUS_WET_PARAM[processorType];
+        if (!wetParam || !getProcessorInstrument(processorType)) {
+          return {
+            actions: [],
+            response: enrichedError(`Unsupported return-bus processor: "${processorType}"`, {
+              hint: 'Use a wet-capable processor type for return routing.',
+              available: Object.keys(RETURN_BUS_WET_PARAM),
+            }),
+          };
+        }
+
+        const wet = typeof args.wet === 'number' ? args.wet : 1.0;
+        const sendLevel = typeof args.sendLevel === 'number' ? args.sendLevel : 0.3;
+        const projectedAfterAdd = addTrack(session, 'bus');
+        if (!projectedAfterAdd) {
+          return { actions: [], response: errorPayload('Unable to add another bus track.') };
+        }
+        const busId = projectedAfterAdd.activeTrackId;
+        const now = Date.now();
+        const processorId = `${processorType}-${now}`;
+
+        const addTrackAction: AIAddTrackAction = {
+          type: 'add_track',
+          kind: 'bus',
+          ...(typeof args.name === 'string' && args.name ? { label: args.name } : {}),
+          description: args.description as string,
+        };
+
+        const addTrackRejection = handleRejection(ctx?.validateAction?.(session, addTrackAction), session, addTrackAction, existingActions);
+        if (addTrackRejection) return addTrackRejection;
+
+        const addProcessorAction: AIAddProcessorAction = {
+          type: 'add_processor',
+          trackId: busId,
+          moduleType: processorType,
+          processorId,
+          description: `Add ${processorType} to return bus`,
+        };
+
+        const addProcessorRejection = handleRejection(ctx?.validateAction?.(projectedAfterAdd, addProcessorAction), projectedAfterAdd, addProcessorAction, existingActions);
+        if (addProcessorRejection) return addProcessorRejection;
+
+        const busActions: AIAction[] = [addTrackAction, addProcessorAction];
+
+        if (typeof args.processorModel === 'string' && args.processorModel) {
+          busActions.push({
+            type: 'set_model',
+            trackId: busId,
+            processorId,
+            model: args.processorModel as string,
+          } as AISetModelAction);
+        }
+
+        busActions.push({
+          type: 'move',
+          trackId: busId,
+          processorId,
+          param: wetParam,
+          target: { absolute: wet },
+        } as AIMoveAction);
+
+        const sendAction: AIManageSendAction = {
+          type: 'manage_send',
+          action: 'add',
+          trackId: sourceTrackId,
+          busId,
+          level: sendLevel,
+        };
+
+        const sendRejection = handleRejection(ctx?.validateAction?.(projectedAfterAdd, sendAction), projectedAfterAdd, sendAction, existingActions);
+        if (sendRejection) return sendRejection;
+
+        busActions.push(sendAction);
+
+        return {
+          actions: busActions,
+          response: {
+            applied: true,
+            sourceTrackId,
+            busId,
+            processorId,
+            processorType,
+            wet,
+            sendLevel,
+            ...(typeof args.name === 'string' && args.name ? { busLabel: args.name } : {}),
+          },
         };
       }
 

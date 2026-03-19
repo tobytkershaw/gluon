@@ -834,6 +834,46 @@ const manageSendTool: ToolSchema = {
   },
 };
 
+const setupReturnBusTool: ToolSchema = {
+  name: 'setup_return_bus',
+  description:
+    'Create a bus track with a wet-only FX processor and route a source track to it with a post-fader send. Use for shared reverb/delay-style return routing in one step.',
+  parameters: {
+    type: 'object',
+    properties: {
+      sourceTrackId: {
+        type: 'string',
+        description: 'Source track to send from — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      name: {
+        type: 'string',
+        description: 'Bus label (e.g. "Delay", "Verb").',
+      },
+      processorType: {
+        type: 'string',
+        description: 'Processor to place on the return bus. Supported wet-capable processors: "clouds", "beads", "chorus", "compressor", "distortion".',
+      },
+      processorModel: {
+        type: 'string',
+        description: 'Optional processor model/mode to set after adding the processor.',
+      },
+      wet: {
+        type: 'number',
+        description: 'Wet amount to set on the return processor (0.0-1.0). Defaults to 1.0 for a true return bus.',
+      },
+      sendLevel: {
+        type: 'number',
+        description: 'Post-fader send level from the source track to the new bus (0.0-1.0). Defaults to 0.3.',
+      },
+      description: {
+        type: 'string',
+        description: 'Short description of the routing intent.',
+      },
+    },
+    required: ['sourceTrackId', 'processorType', 'description'],
+  },
+};
+
 const setMasterTool: ToolSchema = {
   name: 'set_master',
   description:
@@ -1647,6 +1687,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   pinControlTool,
   labelAxesTool,
   manageSendTool,
+  setupReturnBusTool,
   setMasterTool,
   managePatternTool,
   manageSequenceTool,
