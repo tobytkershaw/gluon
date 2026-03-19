@@ -2,11 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { deriveScopeTracks } from '../../src/ui/ChatMessages';
 import type { ActionLogEntry, Track } from '../../src/engine/types';
 
-function makeTrack(id: string, name: string, agency: 'ON' | 'OFF'): Track {
+function makeTrack(id: string, name: string): Track {
   return {
     id,
     name,
-    agency,
     mute: false,
     solo: false,
     pan: 0.5,
@@ -28,15 +27,15 @@ describe('deriveScopeTracks', () => {
   });
 
   it('derives scope from a single log entry with matching track', () => {
-    const tracks = [makeTrack('t1', 'kick', 'ON')];
+    const tracks = [makeTrack('t1', 'kick')];
     const entries = [makeLogEntry('t1', 'kick')];
     expect(deriveScopeTracks(entries, tracks)).toEqual([
-      { trackId: 't1', name: 'kick', agency: 'ON' },
+      { trackId: 't1', name: 'kick' },
     ]);
   });
 
   it('deduplicates multiple entries for the same track', () => {
-    const tracks = [makeTrack('t1', 'kick', 'ON')];
+    const tracks = [makeTrack('t1', 'kick')];
     const entries = [
       makeLogEntry('t1', 'kick'),
       makeLogEntry('t1', 'kick'),
@@ -49,9 +48,9 @@ describe('deriveScopeTracks', () => {
 
   it('includes multiple tracks preserving insertion order', () => {
     const tracks = [
-      makeTrack('t1', 'kick', 'ON'),
-      makeTrack('t2', 'bass', 'ON'),
-      makeTrack('t3', 'hats', 'OFF'),
+      makeTrack('t1', 'kick'),
+      makeTrack('t2', 'bass'),
+      makeTrack('t3', 'hats'),
     ];
     const entries = [
       makeLogEntry('t2', 'bass'),
@@ -62,7 +61,6 @@ describe('deriveScopeTracks', () => {
     expect(result).toHaveLength(3);
     expect(result[0].name).toBe('bass');
     expect(result[1].name).toBe('hats');
-    expect(result[1].agency).toBe('OFF');
     expect(result[2].name).toBe('kick');
   });
 
@@ -70,7 +68,7 @@ describe('deriveScopeTracks', () => {
     const entries = [makeLogEntry('gone', 'deleted-track')];
     const result = deriveScopeTracks(entries, []);
     expect(result).toEqual([
-      { trackId: 'gone', name: 'deleted-track', agency: 'OFF' },
+      { trackId: 'gone', name: 'deleted-track' },
     ]);
   });
 
@@ -79,11 +77,5 @@ describe('deriveScopeTracks', () => {
     const result = deriveScopeTracks(entries, []);
     // Empty string is falsy, so falls through to trackId
     expect(result[0].name).toBe('x');
-  });
-
-  it('reflects current agency state from tracks', () => {
-    const tracks = [makeTrack('t1', 'kick', 'OFF')];
-    const entries = [makeLogEntry('t1', 'kick')];
-    expect(deriveScopeTracks(entries, tracks)[0].agency).toBe('OFF');
   });
 });

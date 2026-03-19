@@ -12,7 +12,7 @@ The AI has forty-four tools, declared as neutral JSON Schema and adapted per pro
 
 ### Programming
 
-Change what the instrument sounds like — parameters, patterns, and transformations. **Requires track agency ON.**
+Change what the instrument sounds like — parameters, patterns, and transformations.
 
 #### `move`
 
@@ -132,7 +132,7 @@ Run deterministic audio analysis on a rendered snapshot. Supports spectral, dyna
 
 #### `set_transport`
 
-Change tempo, swing, time signature, or play/stop state. At least one parameter must be provided. **No agency gate** — transport is global.
+Change tempo, swing, time signature, or play/stop state. At least one parameter must be provided.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -144,11 +144,11 @@ Change tempo, swing, time signature, or play/stop state. At least one parameter 
 
 ### Structure
 
-Change what the instrument is — its modules, signal chain, and configuration. **Requires track agency ON** (except `manage_track` add, which creates a new track).
+Change what the instrument is — its modules, signal chain, and configuration.
 
 #### `manage_track`
 
-Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Adding does not require agency. Removing requires agency ON and the track must not have anchor approval.
+Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Removing requires that the track must not have anchor approval.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -251,7 +251,7 @@ At least one of `volume` or `pan` must be provided.
 
 #### `manage_pattern`
 
-Add, remove, duplicate, rename, set active, set length, or clear a pattern on a track. **Requires track agency ON.**
+Add, remove, duplicate, rename, set active, set length, or clear a pattern on a track.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -264,7 +264,7 @@ Add, remove, duplicate, rename, set active, set length, or clear a pattern on a 
 
 #### `manage_sequence`
 
-Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, or reorder references. **Requires track agency ON.**
+Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, or reorder references.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -277,7 +277,7 @@ Manage the arrangement sequence on a track: append a pattern reference, remove a
 
 ### UI Curation
 
-Changes to what the human sees, not what the instrument plays. **No agency gate** — the AI should be able to help the human inspect any track regardless of agency.
+Changes to what the human sees, not what the instrument plays.
 
 #### `manage_view`
 
@@ -293,7 +293,7 @@ Add or remove a sequencer view on a track.
 
 #### `set_surface`
 
-Compose a track's UI surface from modules. Each module has a type, bindings to controls, a grid position, and optional configuration. Does not require agency.
+Compose a track's UI surface from modules. Each module has a type, bindings to controls, a grid position, and optional configuration.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -303,7 +303,7 @@ Compose a track's UI surface from modules. Each module has a type, bindings to c
 
 #### `pin_control`
 
-Pin or unpin a raw module control on the track's surface. Creates or removes a pinned knob-group module. Max 4 pins per track. Does not require agency.
+Pin or unpin a raw module control on the track's surface. Creates or removes a pinned knob-group module. Max 4 pins per track.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -314,7 +314,7 @@ Pin or unpin a raw module control on the track's surface. Creates or removes a p
 
 #### `label_axes`
 
-Update XY pad axis bindings. **Fails if no xy-pad module exists** on the track's surface — use `set_surface` to add one first. Does not require agency.
+Update XY pad axis bindings. **Fails if no xy-pad module exists** on the track's surface — use `set_surface` to add one first.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -326,7 +326,7 @@ Update XY pad axis bindings. **Fails if no xy-pad module exists** on the track's
 
 #### `set_track_meta`
 
-Set track metadata: name, volume, pan, muted, solo, approval level, importance, and/or musical role in a single call. At least one field required. Approval requires agency ON and a reason.
+Set track metadata: name, volume, pan, muted, solo, approval level, importance, and/or musical role in a single call. At least one field required. Approval requires a reason.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -552,7 +552,7 @@ Read-only from the session perspective — saves to the patch library (IndexedDB
 
 #### `load_patch`
 
-Load a saved patch onto a track. Replaces the track's sound configuration while preserving pattern data, track identity, agency, and mix settings.
+Load a saved patch onto a track. Replaces the track's sound configuration while preserving pattern data, track identity, and mix settings.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -638,7 +638,6 @@ Each turn, the AI receives compressed session state as JSON:
       "label": "Track 1 (Kick)",
       "model": "analog_bass_drum",
       "params": { "timbre": 0.65, "harmonics": 0.30, "morph": 0.20, "frequency": 0.40 },
-      "agency": "ON",
       "approval": "exploratory",
       "muted": false,
       "solo": false,
@@ -705,7 +704,7 @@ Each turn, the AI receives compressed session state as JSON:
 ```
 
 Fields:
-- **tracks[]** — each track's current state (1–16 tracks, variable), with a human-readable `label` (e.g. "Track 1 (Kick)"), parameters (control IDs), agency, approval, pattern, views, processor chain, modulators, modulation routings, importance, and musical role
+- **tracks[]** — each track's current state (1–16 tracks, variable), with a human-readable `label` (e.g. "Track 1 (Kick)"), parameters (control IDs), approval, pattern, views, processor chain, modulators, modulation routings, importance, and musical role
 - **label** — 1-indexed ordinal label with engine or user-assigned name (e.g. "Track 1 (Kick)", "Track 2 (My Lead)"). Bus tracks show "Master Bus" or "Bus".
 - **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`
 - **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
@@ -858,7 +857,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 
 1. All param values are **0.0–1.0**.
 2. `trackId` must reference an existing track — accepts ordinal ("Track 1", "1") or internal ID ("v0"–"v15").
-3. Agency must be **ON** for the target track (programming, structure, and modulation tools). UI curation tools (`manage_view`, `set_surface`, `pin_control`, `label_axes`) do not require agency. When agency is OFF, the system raises a decision prompt asking the human to approve or deny the change. The AI receives a structured `{ blocked: true, reason: "agency_off", decisionId }` response and should wait for the human's decision before retrying. **Planned (#926):** The binary agency gate will evolve into granular permission gates with claim/protect semantics and a default blacklist.
+3. Master bus volume/pan changes require human permission. The AI should ask in chat before modifying master volume or pan.
 4. `at` in events is a **0-based step index** (fractional values allowed for microtiming) or a **"bar.beat.sixteenth" string** (1-based, e.g. "1.1.1" = step 0).
 5. MIDI pitch in note events is **0–127**.
 6. `duration` in note events must be **> 0** (gate length in steps).

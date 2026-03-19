@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { applySketch, applyUndo } from '../../src/engine/primitives';
-import { createSession, setAgency } from '../../src/engine/session';
+import { createSession } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import { Scheduler } from '../../src/engine/scheduler';
 import { getTrack } from '../../src/engine/types';
@@ -74,10 +74,8 @@ function paramAt(steps: Step[], index: number, param: string): number | undefine
   return steps[index]?.params?.[param];
 }
 
-function setupSessionWithAgency(trackId = 'v0'): Session {
-  let session = createSession();
-  session = setAgency(session, trackId, 'ON');
-  return session;
+function setupSessionWithAgency(_trackId = 'v0'): Session {
+  return createSession();
 }
 
 // ---------------------------------------------------------------------------

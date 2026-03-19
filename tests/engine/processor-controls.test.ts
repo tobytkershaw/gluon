@@ -78,19 +78,7 @@ describe('Processor-targeted move', () => {
         .toMatch(/not supported.*processor/i);
     });
 
-    it('rejects processor move when agency OFF', () => {
-      const session = sessionWithProcessor();
-      const s = {
-        ...session,
-        tracks: session.tracks.map(v => v.id === 'v0' ? { ...v, agency: 'OFF' as const } : v),
-      };
-      const action: AIAction = {
-        type: 'move', param: 'brightness', target: { absolute: 0.3 },
-        trackId: 'v0', processorId: 'rings-test-1',
-      };
-      expect(prevalidateAction(s, action, adapter, makeArbitrator()))
-        .toContain('agency OFF');
-    });
+    // Agency enforcement removed in #926.
   });
 
   describe('execution', () => {

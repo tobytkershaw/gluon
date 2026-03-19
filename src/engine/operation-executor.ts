@@ -1,6 +1,13 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, SurfaceModule, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
-import { AGENCY_REJECTION_PREFIX } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track } from './types';
+import { MASTER_BUS_ID } from './types';
+
+/**
+ * Prefix used by prevalidateAction to distinguish master-volume permission
+ * requests from other validation errors. The AI/UI layer detects this prefix
+ * and shows a permission toast.
+ */
+export const MASTER_PERMISSION_PREFIX = 'Permission:';
 import { applySurfaceTemplate, validateSurface } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
@@ -176,7 +183,7 @@ export function prevalidateAction(
       const trackId = action.trackId ?? session.activeTrackId;
       const track = session.tracks.find(v => v.id === trackId);
       if (!track) return `Track not found: ${trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${trackId} has agency OFF`;
+
 
       // Modulator path: validate against modulator registry
       if (action.modulatorId) {
@@ -225,7 +232,7 @@ export function prevalidateAction(
     case 'sketch': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const sketchPreservation = checkPreservationForSketch(session, action.trackId, action.events);
       if (sketchPreservation) return sketchPreservation;
       return null;
@@ -234,7 +241,7 @@ export function prevalidateAction(
     case 'set_model': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
 
       // Modulator path: resolve model against modulator type's engine list
       if (action.modulatorId) {
@@ -268,7 +275,7 @@ export function prevalidateAction(
     case 'edit_pattern': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       if (track.patterns.length === 0) return `Track ${action.trackId} has no patterns`;
       // Resolve pattern
       const targetPattern = action.patternId
@@ -290,7 +297,7 @@ export function prevalidateAction(
     case 'transform': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const transformPreservation = checkPreservationForTransform(session, action.trackId, action.operation);
       if (transformPreservation) return transformPreservation;
       return null;
@@ -315,7 +322,7 @@ export function prevalidateAction(
     case 'add_processor': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const chainResult = validateChainMutation(track, { kind: 'add', type: action.moduleType });
       if (!chainResult.valid) return chainResult.errors[0];
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -327,7 +334,7 @@ export function prevalidateAction(
     case 'remove_processor': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const chainResult = validateChainMutation(track, { kind: 'remove', processorId: action.processorId });
       if (!chainResult.valid) return chainResult.errors[0];
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -339,7 +346,7 @@ export function prevalidateAction(
     case 'replace_processor': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       // Validate old processor exists
       const removeResult = validateChainMutation(track, { kind: 'remove', processorId: action.processorId });
       if (!removeResult.valid) return removeResult.errors[0];
@@ -357,7 +364,7 @@ export function prevalidateAction(
     case 'bypass_processor': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const proc = (track.processors ?? []).find(p => p.id === action.processorId);
       if (!proc) return `Processor not found: ${action.processorId}`;
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -369,7 +376,7 @@ export function prevalidateAction(
     case 'add_modulator': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const modResult = validateModulatorMutation(track, { kind: 'add', type: action.moduleType });
       if (!modResult.valid) return modResult.errors[0];
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -381,7 +388,7 @@ export function prevalidateAction(
     case 'remove_modulator': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const modResult = validateModulatorMutation(track, { kind: 'remove', modulatorId: action.modulatorId });
       if (!modResult.valid) return modResult.errors[0];
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -393,7 +400,7 @@ export function prevalidateAction(
     case 'connect_modulator': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const routeResult = validateModulationTarget(track, { modulatorId: action.modulatorId, target: action.target, depth: action.depth });
       if (!routeResult.valid) return routeResult.errors[0];
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -405,7 +412,7 @@ export function prevalidateAction(
     case 'disconnect_modulator': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const modulations = track.modulations ?? [];
       if (!modulations.some(m => m.id === action.modulationId)) return `Modulation routing not found: ${action.modulationId}`;
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
@@ -470,7 +477,7 @@ export function prevalidateAction(
     case 'mark_approved': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
       if (!validLevels.includes(action.level)) return `Invalid approval level: ${action.level}`;
       return null;
@@ -487,7 +494,7 @@ export function prevalidateAction(
     case 'remove_track': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       if (track.approval === 'anchor') return `Track ${action.trackId} has anchor approval — cannot remove`;
       return null;
     }
@@ -527,7 +534,6 @@ export function prevalidateAction(
     case 'set_portamento': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
       if (action.time !== undefined) {
         if (!Number.isFinite(action.time)) return `Non-finite portamento time: ${action.time}`;
         if (action.time < 0 || action.time > 1) return `Portamento time out of range (0.0-1.0): ${action.time}`;
@@ -553,21 +559,21 @@ export function prevalidateAction(
     case 'manage_pattern': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       return null;
     }
 
     case 'manage_sequence': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.trackId} has agency OFF`;
+
       return null;
     }
 
     case 'set_sidechain': {
       const targetTrack = session.tracks.find(v => v.id === action.targetTrackId);
       if (!targetTrack) return `Track not found: ${action.targetTrackId}`;
-      if (targetTrack.agency !== 'ON') return `${AGENCY_REJECTION_PREFIX} Track ${action.targetTrackId} has agency OFF`;
+
       if (action.sourceTrackId !== null) {
         const sourceTrack = session.tracks.find(v => v.id === action.sourceTrackId);
         if (!sourceTrack) return `Source track not found: ${action.sourceTrackId}`;
@@ -599,9 +605,16 @@ export function prevalidateAction(
     }
 
     case 'set_transport':
-    case 'set_master':
     case 'say':
       return null;
+
+    case 'set_master': {
+      // Master volume/pan changes require human permission
+      if (action.volume !== undefined || action.pan !== undefined) {
+        return `${MASTER_PERMISSION_PREFIX} AI wants to adjust master ${action.volume !== undefined ? 'volume' : 'pan'}`;
+      }
+      return null;
+    }
   }
 }
 
@@ -849,14 +862,13 @@ export function finalizeAITurn(
   if (combinedSay || log.length > 0 || (listenEvents && listenEvents.length > 0)) {
     const hasUndoEntries = next.undoStack.length > undoBaseline;
     // Derive scope tracks from log entries — deduplicate by trackId
-    const scopeMap = new Map<string, { trackId: string; name: string; agency: import('./types').Agency }>();
+    const scopeMap = new Map<string, { trackId: string; name: string }>();
     for (const entry of log) {
       if (!scopeMap.has(entry.trackId)) {
         const track = next.tracks.find(t => t.id === entry.trackId);
         scopeMap.set(entry.trackId, {
           trackId: entry.trackId,
           name: track?.name || entry.trackLabel || entry.trackId,
-          agency: track?.agency ?? 'OFF',
         });
       }
     }
@@ -925,7 +937,7 @@ function executeActionsInternal(
 
   for (const action of actions) {
     // Early rejection via shared validation (uses `next` so sequential
-    // actions see the effects of prior ones, e.g. agency changes)
+    // actions see the effects of prior ones)
     const rejection = prevalidateAction(next, action, adapter, arbitrator);
     if (rejection) {
       rejected.push({ op: action, reason: rejection });

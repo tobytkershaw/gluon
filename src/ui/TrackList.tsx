@@ -18,7 +18,6 @@ interface Props {
   onToggleTrackExpanded?: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
   onToggleSolo: (trackId: string, additive?: boolean) => void;
-  onToggleAgency: (trackId: string) => void;
   onRenameTrack?: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;
   onAddTrack?: (kind?: TrackKind) => void;
@@ -40,7 +39,7 @@ interface Props {
 
 export function TrackList({
   tracks, activeTrackId, expandedTrackIds, activityMap,
-  onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency,
+  onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo,
   onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetMusicalRole, onSetImportance,
   onAddSend, onRemoveSend, onSetSendLevel,
@@ -120,7 +119,7 @@ export function TrackList({
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
             onToggleSolo={(additive) => onToggleSolo(track.id, additive)}
-            onToggleAgency={() => onToggleAgency(track.id)}
+
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onCycleApproval={onCycleApproval ? () => onCycleApproval(track.id) : undefined}
             onRemove={onRemoveTrack && canRemoveAudio ? () => onRemoveTrack(track.id) : undefined}
@@ -153,7 +152,7 @@ export function TrackList({
             onClick={() => onSelectTrack(track.id)}
             onToggleMute={() => onToggleMute(track.id)}
             onToggleSolo={(additive) => onToggleSolo(track.id, additive)}
-            onToggleAgency={() => onToggleAgency(track.id)}
+
             onRename={onRenameTrack ? (name) => onRenameTrack(track.id, name) : undefined}
             onRemove={onRemoveTrack ? () => onRemoveTrack(track.id) : undefined}
             busTracks={allBusTracks}

@@ -6,7 +6,7 @@ import {
   getAllModuleDefs,
 } from '../../src/engine/surface-module-registry';
 import { executeOperations } from '../../src/engine/operation-executor';
-import { createSession, setAgency } from '../../src/engine/session';
+import { createSession } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import { applyUndo } from '../../src/engine/primitives';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
@@ -46,9 +46,7 @@ const adapter = createTestAdapter();
 const arbitrator = new Arbitrator();
 
 function setupSession() {
-  let session = createSession();
-  session = setAgency(session, 'v0', 'ON');
-  return session;
+  return createSession();
 }
 
 function getTrack(session: ReturnType<typeof createSession>, trackId = 'v0') {

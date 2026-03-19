@@ -26,7 +26,6 @@ import {
   removePattern,
   duplicatePattern,
   renameTrack,
-  setAgency,
   setApproval,
   addSend,
   removeSend,
@@ -811,13 +810,7 @@ describe('Undo adversarial tests', () => {
       expect(session.undoStack.length).toBe(stackBefore);
     });
 
-    it('undo agency change restores previous agency', () => {
-      let session = createSession();
-      const vid = session.activeTrackId;
-      session = setAgency(session, vid, 'OFF');
-      session = applyUndo(session);
-      expect(getTrack(session, vid).agency).toBe('ON');
-    });
+    // Agency undo test removed in #926 — agency system removed.
 
     it('undo approval change restores previous approval', () => {
       let session = createSession();

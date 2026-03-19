@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { executeOperations, prevalidateAction } from '../../src/engine/operation-executor';
-import { createSession, addTrack, setAgency } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 import type { AIAction, Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting } from '../../src/engine/types';
@@ -51,9 +51,7 @@ function createTestAdapter(): SourceAdapter {
 const adapter = createTestAdapter();
 
 function setupSession(): Session {
-  let session = createSession();
-  session = setAgency(session, 'v0', 'ON');
-  return session;
+  return createSession();
 }
 
 /** Add a processor to a track, returning updated session. */
@@ -195,7 +193,7 @@ describe('Operation executor adversarial tests', () => {
       expect(added).not.toBeNull();
       session = added!;
       const newTrackId = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!.id;
-      session = setAgency(session, newTrackId, 'ON');
+
 
       const report = run(session, [
         { type: 'remove_track', trackId: 'v0', description: 'remove' },
@@ -286,31 +284,22 @@ describe('Operation executor adversarial tests', () => {
       expect(report2.session.transport.swing).toBeLessThanOrEqual(1);
     });
 
-    it('clamps master volume to [0, 1]', () => {
+    it('rejects master volume changes (permission gate)', () => {
       const session = setupSession();
       const report = run(session, [
         { type: 'set_master', volume: -1 },
       ]);
-      expect(report.accepted).toHaveLength(1);
-      expect(report.session.master.volume).toBeGreaterThanOrEqual(0);
-
-      const report2 = run(session, [
-        { type: 'set_master', volume: 10 },
-      ]);
-      expect(report2.session.master.volume).toBeLessThanOrEqual(1);
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('Permission');
     });
 
-    it('clamps master pan to [-1, 1]', () => {
+    it('rejects master pan changes (permission gate)', () => {
       const session = setupSession();
       const report = run(session, [
         { type: 'set_master', pan: -5 },
       ]);
-      expect(report.session.master.pan).toBeGreaterThanOrEqual(-1);
-
-      const report2 = run(session, [
-        { type: 'set_master', pan: 5 },
-      ]);
-      expect(report2.session.master.pan).toBeLessThanOrEqual(1);
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('Permission');
     });
 
     it('clamps track mix volume and pan', () => {
@@ -437,16 +426,15 @@ describe('Operation executor adversarial tests', () => {
 
     it('valid operations succeed regardless of ordering within batch', () => {
       const session = setupSession();
-      // Multiple different params in arbitrary order
+      // Multiple different params in arbitrary order (set_master now permission-gated)
       const actions: AIAction[] = [
         { type: 'move', trackId: 'v0', param: 'morph', target: { absolute: 0.3 } },
         { type: 'set_transport', bpm: 140 },
         { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.7 } },
-        { type: 'set_master', volume: 0.6 },
         { type: 'move', trackId: 'v0', param: 'harmonics', target: { absolute: 0.1 } },
       ];
       const report = run(session, actions);
-      expect(report.accepted).toHaveLength(5);
+      expect(report.accepted).toHaveLength(4);
       expect(report.rejected).toHaveLength(0);
 
       const track = report.session.tracks.find(t => t.id === 'v0')!;
@@ -454,7 +442,6 @@ describe('Operation executor adversarial tests', () => {
       expect(track.params.timbre).toBeCloseTo(0.7);
       expect(track.params.harmonics).toBeCloseTo(0.1);
       expect(report.session.transport.bpm).toBe(140);
-      expect(report.session.master.volume).toBeCloseTo(0.6);
     });
   });
 
@@ -570,54 +557,7 @@ describe('Operation executor adversarial tests', () => {
   // 9. Agency enforcement
   // -------------------------------------------------------------------------
 
-  describe('agency enforcement', () => {
-    it('rejects all mutation types on agency-OFF tracks', () => {
-      let session = createSession();
-      session = setAgency(session, 'v0', 'OFF');
-
-      const mutatingActions: AIAction[] = [
-        { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.5 } },
-        { type: 'sketch', trackId: 'v0', description: 'test', events: [{ kind: 'trigger', at: 0, velocity: 0.8 }] },
-        { type: 'transform', trackId: 'v0', operation: 'reverse', description: 'test' },
-        { type: 'set_model', trackId: 'v0', model: 'analog-bass-drum' },
-        { type: 'manage_pattern', trackId: 'v0', action: 'add', description: 'test' },
-        { type: 'mark_approved', trackId: 'v0', level: 'liked', reason: 'test' },
-      ];
-
-      for (const action of mutatingActions) {
-        const report = run(session, [action]);
-        expect(report.rejected).toHaveLength(1);
-        expect(report.rejected[0].reason).toContain('agency OFF');
-      }
-    });
-
-    it('allows non-musical ops on agency-OFF tracks (views, surface, importance)', () => {
-      let session = createSession();
-      session = setAgency(session, 'v0', 'OFF');
-      // Add an XY Pad module so label_axes can succeed
-      const track = getTrack(session, 'v0');
-      session = updateTrack(session, 'v0', {
-        surface: {
-          ...track.surface,
-          modules: [
-            { type: 'xy-pad', id: 'xy-1', label: 'XY', bindings: [], position: { x: 0, y: 0, w: 4, h: 4 }, config: {} },
-          ],
-        },
-      });
-
-      const nonMusicalActions: AIAction[] = [
-        { type: 'add_view', trackId: 'v0', viewKind: 'step-grid', description: 'test' },
-        { type: 'set_importance', trackId: 'v0', importance: 0.8 },
-        { type: 'label_axes', trackId: 'v0', x: 'bright', y: 'dark', description: 'test' },
-      ];
-
-      for (const action of nonMusicalActions) {
-        const report = run(session, [action]);
-        expect(report.accepted).toHaveLength(1);
-        expect(report.rejected).toHaveLength(0);
-      }
-    });
-  });
+  // Agency enforcement removed in #926 — all tracks are freely editable.
 
   // -------------------------------------------------------------------------
   // 10. State consistency after rejection — no partial mutation
@@ -625,13 +565,13 @@ describe('Operation executor adversarial tests', () => {
 
   describe('no partial state mutation on rejection', () => {
     it('session state unchanged when all actions in batch are rejected', () => {
-      let session = createSession();
-      session = setAgency(session, 'v0', 'OFF');
+      const session = setupSession();
       const before = sessionFingerprint(session);
 
+      // Use non-existent track IDs to cause rejection without agency
       const report = run(session, [
-        { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.99 } },
-        { type: 'sketch', trackId: 'v0', description: 'test', events: [{ kind: 'trigger', at: 0, velocity: 0.8 }] },
+        { type: 'move', trackId: 'v99', param: 'timbre', target: { absolute: 0.99 } },
+        { type: 'sketch', trackId: 'v99', description: 'test', events: [{ kind: 'trigger', at: 0, velocity: 0.8 }] },
       ]);
 
       expect(report.rejected).toHaveLength(2);
@@ -1028,13 +968,12 @@ describe('Operation executor adversarial tests', () => {
     });
 
     it('returns non-empty reason for every rejection scenario', () => {
-      let session = createSession();
-      session = setAgency(session, 'v0', 'OFF');
+      const session = setupSession();
 
       const invalidActions: AIAction[] = [
-        { type: 'move', trackId: 'v0', param: 'timbre', target: { absolute: 0.5 } },
-        { type: 'sketch', trackId: 'v0', description: 'test', events: [] },
+        { type: 'move', trackId: 'no-track', param: 'timbre', target: { absolute: 0.5 } },
         { type: 'set_model', trackId: 'no-track', model: 'x' },
+        { type: 'set_master', volume: 0.5 },
       ];
 
       for (const action of invalidActions) {
@@ -1075,7 +1014,7 @@ describe('Operation executor adversarial tests', () => {
       expect(added).not.toBeNull();
       session = added!;
       const trackB = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!;
-      session = setAgency(session, trackB.id, 'ON');
+
 
       // Add compressor on v0 with sidechain from trackB
       session = addProcessorToTrack(session, 'v0', {
@@ -1111,13 +1050,13 @@ describe('Operation executor adversarial tests', () => {
       expect(added1).not.toBeNull();
       session = added1!;
       const trackB = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!;
-      session = setAgency(session, trackB.id, 'ON');
+
 
       const added2 = addTrack(session, 'audio');
       expect(added2).not.toBeNull();
       session = added2!;
       const trackC = session.tracks.find(t => t.id !== 'v0' && t.id !== trackB.id && t.kind !== 'bus')!;
-      session = setAgency(session, trackC.id, 'ON');
+
 
       // v0 has compressor with sidechain from trackB
       session = addProcessorToTrack(session, 'v0', {
@@ -1161,7 +1100,7 @@ describe('Operation executor adversarial tests', () => {
       expect(added).not.toBeNull();
       session = added!;
       const trackB = session.tracks.find(t => t.id !== 'v0' && t.kind !== 'bus')!;
-      session = setAgency(session, trackB.id, 'ON');
+
 
       session = addProcessorToTrack(session, trackB.id, {
         id: 'comp-b',
@@ -1197,18 +1136,7 @@ describe('Operation executor adversarial tests', () => {
       expect(result).toContain('Source track not found');
     });
 
-    it('rejects sidechain on agency-OFF track', () => {
-      let session = createSession();
-      session = setAgency(session, 'v0', 'OFF');
-      const result = prevalidateAction(
-        session,
-        { type: 'set_sidechain', targetTrackId: 'v0', sourceTrackId: null, description: 'test' },
-        adapter,
-        new Arbitrator(),
-      );
-      expect(result).not.toBeNull();
-      expect(result).toContain('agency OFF');
-    });
+    // Agency enforcement removed in #926 — sidechain no longer blocked by agency.
   });
 
   // -------------------------------------------------------------------------
@@ -1418,24 +1346,24 @@ describe('operation-executor adversarial — NaN and Infinity rejection (#892)',
     expect(report.rejected[0].reason).toContain('Non-finite');
   });
 
-  it('rejects NaN in set_master volume', () => {
+  it('rejects set_master volume via permission gate (even for NaN)', () => {
     const session = setupSession();
     const actions: AIAction[] = [
       { type: 'set_master', volume: NaN },
     ];
     const report = run(session, actions);
     expect(report.rejected).toHaveLength(1);
-    expect(report.rejected[0].reason).toContain('Non-finite');
+    expect(report.rejected[0].reason).toContain('Permission');
   });
 
-  it('rejects Infinity in set_master volume', () => {
+  it('rejects set_master volume via permission gate (even for Infinity)', () => {
     const session = setupSession();
     const actions: AIAction[] = [
       { type: 'set_master', volume: Infinity },
     ];
     const report = run(session, actions);
     expect(report.rejected).toHaveLength(1);
-    expect(report.rejected[0].reason).toContain('Non-finite');
+    expect(report.rejected[0].reason).toContain('Permission');
   });
 
   it('accepts valid finite values normally', () => {

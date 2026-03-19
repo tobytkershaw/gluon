@@ -567,7 +567,7 @@ describe('TransportController', () => {
         engine: 'plaits',
         model: 0,
         params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-        agency: 'ON',
+
         muted: false,
         solo: false,
         stepGrid: { steps: [], length: 16 },
@@ -715,7 +715,7 @@ describe('TransportController', () => {
         engine: 'plaits',
         model: 0,
         params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-        agency: 'ON',
+
         muted: false,
         solo: false,
         stepGrid: { steps: [], length: 16 },
@@ -811,7 +811,6 @@ describe('TransportController', () => {
       engine: 'plaits',
       model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-      agency: 'ON',
       muted: false,
       solo: false,
       stepGrid: { steps: [], length: 16 },
@@ -839,7 +838,7 @@ describe('TransportController', () => {
         engine: 'plaits',
         model: 0,
         params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-        agency: 'ON',
+
         muted: false,
         solo: false,
         stepGrid: { steps: [], length: 16 },

@@ -57,7 +57,6 @@ interface CompressedTrack {
   label: string;
   model: string;
   params: Record<string, number>;
-  agency: string;
   approval: ApprovalLevel;
   muted: boolean;
   solo: boolean;
@@ -497,7 +496,6 @@ export function compressState(
         morph: round2(track.params.morph),
         frequency: round2(track.params.note),
       },
-      agency: track.agency,
       approval: track.approval ?? 'exploratory',
       muted: track.muted,
       solo: track.solo,

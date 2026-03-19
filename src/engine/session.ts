@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, Agency, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, SequenceEditSnapshot, ABRestoreSnapshot } from './types';
+import type { Session, Track, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, SequenceEditSnapshot, ABRestoreSnapshot } from './types';
 import type { SourceAdapter, Pattern } from './canonical-types';
 import type { TransportMode } from './sequencer-types';
 import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
@@ -36,7 +36,6 @@ export function createBusTrack(trackId: string, name?: string): Track {
     engine: '',
     model: -1,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-    agency: 'ON',
     stepGrid: createDefaultStepGrid(16),
     patterns: [defaultPattern],
     sequence: [{ patternId: defaultPattern.id }],
@@ -54,11 +53,9 @@ export function createBusTrack(trackId: string, name?: string): Track {
   };
 }
 
-/** Create the master bus track. Master bus defaults to agency OFF. */
+/** Create the master bus track. */
 function createMasterBus(): Track {
-  const bus = createBusTrack(MASTER_BUS_ID, 'Master');
-  bus.agency = 'OFF';
-  return bus;
+  return createBusTrack(MASTER_BUS_ID, 'Master');
 }
 
 export function createSession(): Session {
@@ -125,7 +122,6 @@ export function createEmptyTrack(trackId: string): Track {
     engine: '',
     model: -1,
     params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
-    agency: 'ON',
     stepGrid: createDefaultStepGrid(16),
     patterns: [defaultPattern],
     sequence: [{ patternId: defaultPattern.id }],
@@ -262,13 +258,6 @@ export function removeTrack(session: Session, trackId: string): Session | null {
     activeTrackId: newActiveTrackId,
     undoStack: [...session.undoStack, snapshot],
   };
-}
-
-export function setAgency(session: Session, trackId: string, agency: Agency): Session {
-  const track = session.tracks.find(v => v.id === trackId);
-  if (!track || track.agency === agency) return session;
-  const withSnapshot = pushTrackPropertySnapshot(session, trackId, { agency: track.agency }, `Set agency to ${agency}`);
-  return updateTrack(withSnapshot, trackId, { agency });
 }
 
 export function updateTrackParams(

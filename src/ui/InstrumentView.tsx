@@ -1,6 +1,6 @@
 // src/ui/InstrumentView.tsx
 // Thin shell: ExpandedTrack (top bar moved to AppShell)
-import type { Session, Track, SequencerViewKind, Agency, SemanticControlDef } from '../engine/types';
+import type { Session, Track, SequencerViewKind, SemanticControlDef } from '../engine/types';
 import { ExpandedTrack } from './ExpandedTrack';
 
 interface Props {
@@ -14,7 +14,6 @@ interface Props {
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   onModelChange: (model: number) => void;
-  onAgencyChange: (agency: Agency) => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
   onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
@@ -64,7 +63,7 @@ export function InstrumentView({
   session, activeTrack,
   playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
-  onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
+  onModelChange, onNoteChange, onHarmonicsChange,
   onExtendedSourceParamChange,
   onPortamentoChange,
   selectedProcessorId, onSelectProcessor,
@@ -94,7 +93,6 @@ export function InstrumentView({
           onInteractionStart={onInteractionStart}
           onInteractionEnd={onInteractionEnd}
           onModelChange={onModelChange}
-          onAgencyChange={onAgencyChange}
           onNoteChange={onNoteChange}
           onHarmonicsChange={onHarmonicsChange}
           onExtendedSourceParamChange={onExtendedSourceParamChange}

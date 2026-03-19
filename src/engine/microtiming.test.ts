@@ -24,7 +24,6 @@ function makeSession(events: (TriggerEvent | NoteEvent | ParameterEvent)[], dura
       engine: 'plaits',
       model: 0,
       params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
-      agency: 'OFF',
       stepGrid: { steps: [], length: duration },
       patterns: [pattern],
       sequence: [{ patternId: pattern.id }],

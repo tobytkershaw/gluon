@@ -724,7 +724,7 @@ const manageViewTool: ToolSchema = {
 const setSurfaceTool: ToolSchema = {
   name: 'set_surface',
   description:
-    'Compose a track\'s UI surface from modules. Modules are composable UI building blocks — knob groups, macro knobs, XY pads, step grids, chain strips. Does not require agency. Takes effect after this response.',
+    'Compose a track\'s UI surface from modules. Modules are composable UI building blocks — knob groups, macro knobs, XY pads, step grids, chain strips. View-layer operation. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
@@ -800,7 +800,7 @@ const setSurfaceTool: ToolSchema = {
 const pinControlTool: ToolSchema = {
   name: 'pin_control',
   description:
-    'Pin or unpin a raw module control on the track\'s surface. Max 4 pins per track. Does not require agency.',
+    'Pin or unpin a raw module control on the track\'s surface. Max 4 pins per track. View-layer operation.',
   parameters: {
     type: 'object',
     properties: {
@@ -820,7 +820,7 @@ const pinControlTool: ToolSchema = {
 const labelAxesTool: ToolSchema = {
   name: 'label_axes',
   description:
-    'Set semantic labels for the track\'s XY pad axes. Does not require agency.',
+    'Set semantic labels for the track\'s XY pad axes. View-layer operation.',
   parameters: {
     type: 'object',
     properties: {
@@ -1029,7 +1029,7 @@ const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
     'Set track metadata and mix properties in a single call: name (rename), volume, pan, swing (per-track override), muted, solo, approval (editability), importance (mix priority 0-1), musicalRole, portamentoTime (0-1 = 0-500ms glide), and/or portamentoMode (off/always/legato). ' +
-    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", portamentoTime: 0.3, portamentoMode: "legato") for pitch glide. Use inheritSwing: true to revert to global transport swing. Approval requires agency ON and a reason.',
+    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", portamentoTime: 0.3, portamentoMode: "legato") for pitch glide. Use inheritSwing: true to revert to global transport swing. Approval requires a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -1725,7 +1725,7 @@ const loadPatchTool: ToolSchema = {
   name: 'load_patch',
   description:
     'Load a saved patch onto a track. Replaces the track\'s sound configuration (engine, params, processors, modulators, routings) ' +
-    'while preserving pattern data, track identity, agency, and mix settings. Undoable. ' +
+    'while preserving pattern data, track identity, and mix settings. Undoable. ' +
     `Built-in patches: ${BUILT_IN_PATCH_NAMES.map(n => `"${n}"`).join(', ')}. ` +
     'User-saved patches are also available by name or ID.',
   parameters: {

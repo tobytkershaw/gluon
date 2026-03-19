@@ -38,7 +38,6 @@ interface Props {
   onToggleTrackExpanded?: (trackId: string) => void;
   onToggleMute: (trackId: string) => void;
   onToggleSolo: (trackId: string, additive?: boolean) => void;
-  onToggleAgency: (trackId: string) => void;
   onRenameTrack: (trackId: string, name: string) => void;
   onCycleApproval?: (trackId: string) => void;
   onAddTrack?: (kind?: import('../engine/types').TrackKind) => void;
@@ -167,7 +166,7 @@ function getLatestFollowUpChips(messages: ChatMessage[]): FollowUpChip[] {
 
 export function AppShell({
   tracks, activeTrackId, expandedTrackIds, activityMap,
-  onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onToggleAgency, onRenameTrack, onCycleApproval,
+  onSelectTrack, onToggleTrackExpanded, onToggleMute, onToggleSolo, onRenameTrack, onCycleApproval,
   onAddTrack, onRemoveTrack, onSetMusicalRole, onSetImportance,
   onAddSend, onRemoveSend, onSetSendLevel,
   runtimeDegradation,
@@ -522,7 +521,7 @@ export function AppShell({
             onToggleTrackExpanded={onToggleTrackExpanded}
             onToggleMute={onToggleMute}
             onToggleSolo={onToggleSolo}
-            onToggleAgency={onToggleAgency}
+
             onRenameTrack={onRenameTrack}
             onCycleApproval={onCycleApproval}
             onAddTrack={onAddTrack}

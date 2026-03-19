@@ -1,6 +1,6 @@
 // src/ui/ExpandedTrack.tsx
 // Layer 2: expanded track layout with module-grouped controls.
-import type { Session, Track, Agency, SequencerViewKind, SemanticControlDef } from "../engine/types";
+import type { Session, Track, SequencerViewKind, SemanticControlDef } from "../engine/types";
 import { getActivePattern } from "../engine/types";
 import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
 import { getTrackLabel } from '../engine/track-labels';
@@ -27,7 +27,6 @@ interface ExpandedTrackProps {
   onInteractionStart: () => void;
   onInteractionEnd: () => void;
   onModelChange: (model: number) => void;
-  onAgencyChange: (agency: Agency) => void;
   onNoteChange: (note: number) => void;
   onHarmonicsChange: (harmonics: number) => void;
   onExtendedSourceParamChange: (runtimeParam: string, value: number) => void;
@@ -78,7 +77,7 @@ export function ExpandedTrack({
   activeTrack,
   playing, globalStep,
   onParamChange, onInteractionStart, onInteractionEnd,
-  onModelChange, onAgencyChange, onNoteChange, onHarmonicsChange,
+  onModelChange, onNoteChange, onHarmonicsChange,
   onExtendedSourceParamChange,
   onPortamentoChange,
   selectedProcessorId, onSelectProcessor,
@@ -109,7 +108,7 @@ export function ExpandedTrack({
 
   return (
     <div className="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-y-auto">
-      {/* Track header: label, engine, agency toggle */}
+      {/* Track header: label, engine */}
       <div
         className="flex items-center gap-3"
         onDoubleClick={() => onOpenDeepView('all')}
@@ -120,17 +119,6 @@ export function ExpandedTrack({
         <span className="text-[11px] text-zinc-500">
           {getModelName(activeTrack.model)}
         </span>
-        <button
-          onClick={() => onAgencyChange(activeTrack.agency === 'OFF' ? 'ON' : 'OFF')}
-          className={`text-[11px] px-2 py-0.5 rounded transition-colors ${
-            activeTrack.agency === 'ON'
-              ? 'bg-teal-400/20 text-teal-400'
-              : 'bg-zinc-800 text-zinc-500'
-          }`}
-        >
-          {activeTrack.agency === 'ON' ? 'Gluon ON' : 'Gluon OFF'}
-        </button>
-
       </div>
 
       {/* Chain strip (if processors or modulators exist) */}

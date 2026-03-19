@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- pure helper fns co-located with component */
 import { useRef, useEffect, useState } from 'react';
-import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry, Agency } from '../engine/types';
+import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 import { ListenEventView } from './ListenEventView';
@@ -30,23 +30,22 @@ export function getPhaseLabel(
 export function deriveScopeTracks(
   logEntries: ActionLogEntry[],
   tracks: Track[],
-): Array<{ trackId: string; name: string; agency: Agency }> {
-  const seen = new Map<string, { trackId: string; name: string; agency: Agency }>();
+): Array<{ trackId: string; name: string }> {
+  const seen = new Map<string, { trackId: string; name: string }>();
   for (const entry of logEntries) {
     if (!seen.has(entry.trackId)) {
       const track = tracks.find(t => t.id === entry.trackId);
       seen.set(entry.trackId, {
         trackId: entry.trackId,
         name: track?.name || entry.trackLabel || entry.trackId,
-        agency: track?.agency ?? 'OFF',
       });
     }
   }
   return [...seen.values()];
 }
 
-/** Compact badge showing which tracks the AI is targeting and their agency state. */
-function ScopeBadge({ scopeTracks }: { scopeTracks: Array<{ trackId: string; name: string; agency: Agency }> }) {
+/** Compact badge showing which tracks the AI is targeting. */
+function ScopeBadge({ scopeTracks }: { scopeTracks: Array<{ trackId: string; name: string }> }) {
   if (scopeTracks.length === 0) return null;
   return (
     <div
@@ -56,11 +55,8 @@ function ScopeBadge({ scopeTracks }: { scopeTracks: Array<{ trackId: string; nam
       <span className="text-zinc-600">Scope:</span>
       {scopeTracks.map((st, i) => (
         <span key={st.trackId} className="inline-flex items-baseline gap-0.5">
-          <span className={st.agency === 'ON' ? 'text-teal-500' : 'text-zinc-600'}>
+          <span className="text-teal-500">
             {st.name}
-          </span>
-          <span className={st.agency === 'ON' ? 'text-teal-700' : 'text-zinc-700'}>
-            ({st.agency}{st.agency === 'OFF' ? ' \u2014 will skip' : ''})
           </span>
           {i < scopeTracks.length - 1 && <span className="text-zinc-700">{' \u00b7 '}</span>}
         </span>

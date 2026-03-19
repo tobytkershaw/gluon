@@ -1,7 +1,7 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SurfaceModule, ModuleBinding, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
-import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
 import { getEngineById } from '../audio/instrument-registry-plaits';
@@ -915,73 +915,15 @@ export function inferBarsFromPatterns(session: Session, trackIds?: string[]): nu
 }
 
 /**
- * Check whether a rejection string is an agency-OFF block.
- * If so, return the track ID extracted from the message; otherwise null.
- */
-export function isAgencyRejection(rejection: string): string | null {
-  if (!rejection.startsWith(AGENCY_REJECTION_PREFIX)) return null;
-  // Format: "Agency: Track <trackId> has agency OFF"
-  const match = rejection.match(/Track\s+(\S+)\s+has agency OFF/);
-  return match ? match[1] : null;
-}
-
-/**
- * Build a structured agency-approval response and a raise_decision action
- * instead of a hard error when the AI tries to modify an agency-OFF track.
- */
-export function buildAgencyApproval(
-  session: Session,
-  blockedAction: AIAction,
-  trackId: string,
-  existingActions: AIAction[] = [],
-): { actions: AIAction[]; response: Record<string, unknown> } {
-  const track = session.tracks.find(t => t.id === trackId);
-  const label = track ? getTrackLabel(track) : trackId;
-  const existingDecision = existingActions.find((action): action is AIRaiseDecisionAction =>
-    action.type === 'raise_decision' &&
-    action.decisionId.startsWith('agency-approval-') &&
-    action.trackIds?.includes(trackId),
-  );
-  const decisionId = existingDecision?.decisionId ?? `agency-approval-${Date.now()}`;
-
-  const raiseAction: AIRaiseDecisionAction = {
-    type: 'raise_decision',
-    decisionId,
-    question: `The AI wants to modify ${label} which has agency OFF. Allow this change?`,
-    context: `Action: ${blockedAction.type}`,
-    options: ['Allow', 'Deny'],
-    trackIds: [trackId],
-  };
-
-  const approval: AgencyApprovalRequest = {
-    blocked: true,
-    reason: 'agency_off',
-    trackId,
-    trackLabel: label,
-    pendingAction: blockedAction,
-    decisionId,
-    message: `Track ${label} has agency OFF. A decision has been raised asking the human to allow this change. Wait for their response before retrying.`,
-  };
-
-  return {
-    actions: existingDecision ? [] : [raiseAction],
-    response: approval as unknown as Record<string, unknown>,
-  };
-}
-
-/**
- * Handle a validation rejection: if it's an agency-OFF block, convert to an
- * approval prompt instead of a hard error. Returns null if there's no rejection.
+ * Handle a validation rejection. Returns null if there's no rejection.
  */
 function handleRejection(
   rejection: string | null | undefined,
-  session: Session,
-  action: AIAction,
-  existingActions: AIAction[] = [],
+  _session: Session,
+  _action: AIAction,
+  _existingActions: AIAction[] = [],
 ): { actions: AIAction[]; response: Record<string, unknown> } | null {
   if (!rejection) return null;
-  const agencyTrackId = isAgencyRejection(rejection);
-  if (agencyTrackId) return buildAgencyApproval(session, action, agencyTrackId, existingActions);
 
   // Enrich common rejection patterns with recovery hints
   if (rejection.startsWith('Track not found')) {
@@ -4809,12 +4751,6 @@ export class GluonAI {
         const loadTrack = session.tracks.find(v => v.id === args.trackId);
         if (!loadTrack) {
           return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
-        }
-
-        // Agency gate: load_patch modifies the track, so agency must be ON
-        if (loadTrack.agency === 'OFF') {
-          const stubAction: AISetModelAction = { type: 'set_model', trackId: loadTrack.id, model: '' };
-          return buildAgencyApproval(session, stubAction, loadTrack.id);
         }
 
         // Lazy-load user patches from IndexedDB on first access

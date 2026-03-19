@@ -1,7 +1,7 @@
 // tests/engine/session.test.ts
 import { describe, it, expect } from 'vitest';
 import {
-  createSession, addTrack, setAgency, updateTrackParams, setModel,
+  createSession, addTrack, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
   setApproval, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
   setTimeSignature, setTransportMode, toggleMetronome, setMetronomeVolume,
@@ -42,22 +42,11 @@ describe('Session (Phase 2)', () => {
     }
   });
 
-  it('creates audio tracks with agency ON by default (bus tracks have agency OFF)', () => {
+  it('creates tracks without agency field (removed in #926)', () => {
     const s = createSession();
     for (const track of s.tracks) {
-      if (track.kind === 'bus') {
-        expect(track.agency).toBe('OFF');
-      } else {
-        expect(track.agency).toBe('ON');
-      }
+      expect(track.agency).toBeUndefined();
     }
-  });
-
-  it('sets agency on active track', () => {
-    let s = createSession();
-    s = setAgency(s, s.activeTrackId, 'OFF');
-    const track = s.tracks.find(v => v.id === s.activeTrackId)!;
-    expect(track.agency).toBe('OFF');
   });
 
   it('updates track params by trackId', () => {
@@ -787,20 +776,7 @@ describe('Undo contract: track mix helpers', () => {
     expect(s3.tracks.find(t => t.id === trackId)!.name).toBe(originalName);
   });
 
-  it('setAgency pushes a snapshot', () => {
-    const s1 = createSession();
-    const trackId = s1.tracks[0].id;
-    const s2 = setAgency(s1, trackId, 'OFF');
-    expect(s2.undoStack.length).toBe(1);
-  });
-
-  it('setAgency is undoable', () => {
-    const s1 = createSession();
-    const trackId = s1.tracks[0].id;
-    const s2 = setAgency(s1, trackId, 'OFF');
-    const s3 = applyUndo(s2);
-    expect(s3.tracks.find(t => t.id === trackId)!.agency).toBe('ON');
-  });
+  // setAgency tests removed in #926 — agency system removed.
 });
 
 describe('Undo contract: master helpers', () => {

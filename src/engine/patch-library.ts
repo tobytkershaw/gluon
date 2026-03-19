@@ -2,7 +2,7 @@
 //
 // A patch captures a track's sound configuration:
 //   source engine + model + params + processor chain + modulator chain + modulation routings.
-// It does NOT capture pattern data, track identity, agency, or mix settings.
+// It does NOT capture pattern data, track identity, or mix settings.
 //
 // Two sources: built-in patches (curated starting points) and user/AI-saved patches (from sessions).
 
