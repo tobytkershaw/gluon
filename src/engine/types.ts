@@ -7,6 +7,33 @@ import type { ParamShapes } from './param-shapes';
 /** Discriminates audio tracks (sound sources) from bus tracks (send/return mixing). */
 export type TrackKind = 'audio' | 'bus';
 
+// --- Drum Rack ---
+
+/** A single sound source within a drum rack. */
+export interface DrumPad {
+  id: string;               // stable identifier: "kick", "snare", "hat-closed"
+  name: string;             // human-readable: "Kick", "Snare", "Closed Hat"
+  source: {
+    engine: string;         // "plaits" (or future: "sampler")
+    model: number;          // Plaits model index
+    params: Record<string, number>;
+  };
+  chokeGroup?: number;      // pads in same group mute each other on trigger
+  level: number;            // 0.0–1.0, default 0.8
+  pan: number;              // 0.0–1.0 (0.5 = center), default 0.5
+}
+
+/**
+ * Drum rack configuration, stored on the Track when engine === 'drum-rack'.
+ * All mutations to pads must go through DrumPadSnapshot capture for undo support.
+ */
+export interface DrumRackConfig {
+  pads: DrumPad[];          // growable, max 16 for v1
+}
+
+/** Maximum number of pads in a drum rack. */
+export const MAX_DRUM_PADS = 16;
+
 /** A send from one track to a bus track, with a post-fader send level. */
 export interface Send {
   busId: string;
@@ -212,6 +239,8 @@ export interface Track {
   modulations?: ModulationRouting[];
   /** Visual identity for Surface rendering. AI-set, human-overridable. */
   visualIdentity?: TrackVisualIdentity;
+  /** Drum rack configuration. Present only when engine === 'drum-rack'. */
+  drumRack?: DrumRackConfig;
   /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
   surface: TrackSurface;
   /** Approval level for the track's current material. Default: 'exploratory'. */
@@ -490,6 +519,15 @@ export interface PatternCrudSnapshot {
   description: string;
 }
 
+/** Snapshot for drum rack pad mutations (add/remove/param change/model change/choke group). */
+export interface DrumPadSnapshot {
+  kind: 'drum-pad';
+  trackId: string;
+  prevPads: DrumPad[];
+  timestamp: number;
+  description: string;
+}
+
 /** Snapshot for discrete track-level property changes (mute, solo, volume, pan, name). */
 export interface TrackPropertySnapshot {
   kind: 'track-property';
@@ -534,7 +572,7 @@ export interface ChordProgressionSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot;
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot | DrumPadSnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
