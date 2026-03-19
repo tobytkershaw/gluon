@@ -2,6 +2,8 @@
 
 Implementation plan for the Surface north star (`docs/rfcs/surface-north-star.md`).
 
+**Status: COMPLETE** — All 6 layers shipped across issues #1051-#1067 (12 issues, 12 PRs).
+
 ## Strategy
 
 One clean contract cut (Layer 0), then build forward. No coexistence of semantic-controls and module-based representations. The old `TrackSurface.semanticControls` is replaced by `TrackSurface.modules` in a single atomic change.

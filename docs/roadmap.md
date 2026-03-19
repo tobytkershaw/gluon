@@ -6,13 +6,13 @@
 
 **As of:** 2026-03-19
 
-M0 through M6 are complete. Gluon has Plaits synthesis (16 models), Elements physical modelling, processor chains (Rings, Clouds, Beads, Warps, Ripples, EQ, Compressor, Chorus, Distortion, Stereo), Tides modulation, canonical event sequencing, four views (Surface, Rack, Patch, Tracker), project persistence, bus routing, offline listen, and a 40+ tool AI collaboration layer.
+M0 through M6 are complete. The Surface milestone is complete. Gluon has Plaits synthesis (16 models), Elements physical modelling, processor chains (Rings, Clouds, Beads, Warps, Ripples, EQ, Compressor, Chorus, Distortion, Stereo), Tides modulation, canonical event sequencing, four views (Surface, Rack, Patch, Tracker), project persistence, bus routing, offline listen, and a 46+ tool AI collaboration layer.
 
 **Current phase: Finalization.** The goal is to complete all implemented elements to full song composition capability — not new subsystems, but finishing what's started. The AI stack is Gemini-only (Gemini 3.1 Pro planner + Gemini Flash listener). GPT was tried but underperforms on music tasks.
 
 The critical path is: fix blocking bugs → fix AI reliability (#945 resilient agentic architecture) → ship chat UX improvements → agency redesign (#926). A full composition walkthrough (#527) remains the finalization gate but is deferred until significant backlog progress is made — multiple attempts generated more issues than they resolved.
 
-**Completed foundations:** Phases 1–3, M0 stabilisation, M5 workbench, M6 collaboration, Phase 4B (Tides modulation), Finalization waves 1–3, AI capability sprint (15 PRs, 30+ tools/features).
+**Completed foundations:** Phases 1–3, M0 stabilisation, M5 workbench, M6 collaboration, Phase 4B (Tides modulation), Finalization waves 1–3, AI capability sprint (15 PRs, 30+ tools/features), Surface milestone (12 issues: module-based canvas, 7 module types, visual identity, Stage cards, human editing, legacy cleanup).
 
 ---
 
@@ -92,23 +92,26 @@ The human needs to see and control everything the AI can touch.
 **Dependencies:** 5A (layout foundation). Canonical model's ControlSchema.
 **Enables:** Near-parity for canonical views — the human can inspect most of what the AI can modify through Tracker, Rack, Patch, and chat-visible state. Full parity is still incomplete where the AI can manipulate Surface metadata that the UI does not yet make real.
 
-### 5C: AI-Curated Surfaces (M5 Steps 5–7)
+### 5C: AI-Curated Surfaces (M5 Steps 5–7) ✓
 
 The AI configures what the human sees, not just what the instrument sounds like.
 
 | # | Issue | What |
 |---|-------|------|
-| 73 | Three-layer UI model | Structural foundation landed; the current Surface tab is still a placeholder/hybrid rather than the full curated-surface model |
+| 73 | Three-layer UI model | Structural foundation landed |
+| 1051-1067 | Surface milestone | Complete — module-based canvas, 7 module types, visual identity, Stage cards, human editing, legacy cleanup |
 
-**What this is intended to add:**
-- Semantic controls (AI-chosen names and ranges for the current context)
-- Pin mechanism (human or AI pins important controls to the surface)
-- AI surface curation tools (configure XY axes, choose which controls to show)
-- Thumbprint visualization from voice parameters
+**What shipped:**
+- Module-based Surface canvas (react-grid-layout, drag/resize)
+- 7 module types: Knob Group, Macro Knob, XY Pad, Step Grid, Chain Strip, Piano Roll, Level Meter
+- AI `set_surface` tool composes modules; AI `set_track_identity` sets visual identity
+- Human editing: Module Picker, Module Config panel, Pin-from-Rack
+- Stage compact cards for track selection in Surface tab
+- Visual identity primitives consumed by all module renderers
+- Legacy components deleted (ExpandedTrack, InstrumentView, SemanticControlsSection, SemanticInspector)
 
-**Design docs:** `docs/rfcs/ai-curated-surfaces.md`
+**Design docs:** `docs/rfcs/ai-curated-surfaces.md`, `docs/rfcs/surface-north-star.md`, `docs/briefs/surface-implementation-plan.md`
 **Dependencies:** 5B (ground-truth views must exist before projections over them).
-**Reality check:** parts of this state exist in the model and AI tools, but the current UI does not yet make pinned controls and custom XY axes fully real. Treat this section as the intended direction, not as a claim that the shipped Surface already meets it.
 
 ### 5D: Sequencer Polish & Listen Tool
 
@@ -293,20 +296,21 @@ Those are different bets and should not be collapsed into one phase heading.
 
 ## Surface Follow-On
 
-M5 delivered the structural Surface foundation: four-view navigation, semantic controls, surface templates, and AI surface tools. That does **not** mean the shipped Surface experience is yet the intended curated model.
+The Surface milestone (12 issues, #1051-#1067) shipped the module-based Surface view: react-grid-layout canvas, 7 module types (Knob Group, Macro Knob, XY Pad, Step Grid, Chain Strip, Piano Roll, Level Meter), visual identity primitives with AI `set_track_identity` tool, Stage compact cards for track selection, human editing (Module Picker, Module Config, Pin-from-Rack), and legacy component cleanup.
 
-The next Surface-specific work is partly expressivity and partly contract honesty: the product needs to either realize or narrow the current Surface claim before layering richer visual language on top.
+The next Surface-specific work is further expressivity and the full Score system:
 
 ### Surface Expression
 
-| What | Design doc |
-|------|-----------|
-| Advanced Surface module library and performance-oriented compositions | `docs/rfcs/view-architecture.md` |
-| Surface visual language / Surface Score | `docs/briefs/visual-language.md` |
+| What | Design doc | Status |
+|------|-----------|--------|
+| Module position locking (padlock + AI permission) | #1108 | Filed |
+| Full Surface Score system (palette, material, motion, atmosphere, relationships) | `docs/briefs/visual-language.md` | Designed, not implemented |
+| Performance Surface (cross-track view) | `docs/rfcs/surface-north-star.md` | Designed, not implemented |
+| Novel controls from modular parts (composed macro-mapped controls) | `docs/rfcs/surface-north-star.md` | Designed, not implemented |
+| Additional module types (ADSR Editor, Filter Display, Model Selector, etc.) | `docs/rfcs/view-architecture.md` | Follow-on |
 
-**Framing:** canonical views (Tracker, Rack, Patch) stay exact and trustworthy. Surface is where project-responsive visual identity, performative emphasis, and bounded AI-authored expression can evolve, but the current app still needs follow-on work to make Surface state real and trustworthy.
-
-**Why separate this from M5:** this is no longer foundational cockpit work. It is post-foundation Surface evolution that should not reopen the completed M5 exit criteria.
+**Framing:** The foundation is shipped and functional. Surface modules are interfaces to canonical data, not logic containers. Follow-on work is incremental: more module types, richer visual language, and the cross-track Performance Surface.
 
 ---
 
@@ -320,7 +324,7 @@ M5A: Project Foundation ✓ ─────────────────�
  │                                                     │
  ├──▶ M5B: Parameter & Patch Navigation ✓              │
  │     │                                               │
- │     ├──▶ M5C: AI-Curated Surfaces ✓                 │
+ │     ├──▶ M5C: AI-Curated Surfaces ✓ (Surface milestone complete) │
  │     │                                               │
  │     └──▶ M5E: Legibility ✓                          │
  │                                                     │
@@ -399,6 +403,11 @@ Documents that inform this roadmap, grouped by the phase they primarily serve.
 - `docs/ai/ai-musical-environment.md` — target AI environment (structured listening, environment legibility, layered actions)
 - `docs/principles/ai-collaboration-model.md` — collaboration phases and posture
 - `docs/principles/ai-capability-doctrine.md` — hard boundaries, maximum usefulness inside them
+
+### Surface
+- `docs/rfcs/surface-north-star.md` — Surface vision: musically useful abstraction, modules as interfaces, collaboration posture shift
+- `docs/briefs/surface-implementation-plan.md` — 6-layer implementation plan (all layers shipped)
+- `docs/briefs/visual-language.md` — Surface Score system (partial: visual identity primitives shipped, full Score system pending)
 
 ### Finalization
 - `docs/briefs/chat-ux.md` — chat UX collaboration loop (7 shippable improvements)
