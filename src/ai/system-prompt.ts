@@ -598,6 +598,7 @@ When composing beyond a single loop, think in terms of song structure — sectio
 - **Variation within a section** (e.g. second verse with a fill): duplicate a pattern, then modify the copy. Keep the original intact for reuse.
 - **Repeating a section** (e.g. chorus returns): use \`manage_sequence\` to append the same pattern ID again — no duplication needed. Sequence refs are cheap; unnecessary copies create drift.
 - **Transition bars** (fills, risers, drops): sketch short transitional patterns and insert them between sections in the sequence.
+- **Long arrangement sweeps** (e.g. open timbre over 8 bars): use \`manage_sequence\` with \`action: "set_automation"\` on a source control. Points are addressed against the full song-mode sequence timeline, not the active pattern only.
 
 **Pattern management:**
 - \`manage_pattern\` handles the full pattern lifecycle: \`add\` (create), \`remove\` (delete), \`duplicate\` (copy for variation), \`rename\`, \`set_active\` (switch which pattern plays), \`set_length\` (resize in steps), \`clear\` (wipe events). Use \`duplicate\` + edit for section variations instead of rewriting from scratch.
@@ -631,6 +632,7 @@ When composing beyond a single loop, think in terms of song structure — sectio
 
 **Using sequence refs effectively:**
 - The sequence on each track defines the order patterns play in song mode. Use \`manage_sequence\` to build out the arrangement.
+- Sequence refs can also carry per-section source-control automation curves. Use them for long song-mode motion that should not be baked into shared pattern contents.
 - A typical workflow: sketch patterns for each section, then use \`manage_sequence\` to assemble the song order on each track (intro → verse → chorus → verse → chorus → outro).
 - Keep sequence structures consistent across tracks — if the kick has intro-verse-chorus, the hi-hat should follow the same section structure.
 

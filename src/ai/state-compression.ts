@@ -65,6 +65,15 @@ interface CompressedTrack {
   pan: number;
   swing?: number | null;
   pattern: CompressedPattern;
+  sequence?: Array<{
+    index: number;
+    patternId: string;
+    length: number;
+    automation?: Array<{
+      controlId: string;
+      points: Array<{ at: number; value: number }>;
+    }>;
+  }>;
   regions?: CompressedPattern[];
   activePatternId?: string;
   views: string[];
@@ -514,6 +523,23 @@ export function compressState(
       pan: round2(track.pan),
       ...(track.swing != null ? { swing: round2(track.swing) } : {}),
       pattern: compressPattern(track),
+      sequence: track.sequence.map((ref, index) => {
+        const pattern = track.patterns.find(candidate => candidate.id === ref.patternId);
+        return {
+          index,
+          patternId: ref.patternId,
+          length: pattern?.duration ?? 0,
+          ...(ref.automation && ref.automation.length > 0 ? {
+            automation: ref.automation.map(lane => ({
+              controlId: lane.controlId,
+              points: lane.points.map(point => ({
+                at: round2(point.at),
+                value: round2(point.value),
+              })),
+            })),
+          } : {}),
+        };
+      }),
       ...(track.patterns.length > 1 ? {
         patterns: track.patterns.map(r => ({
           id: r.id,

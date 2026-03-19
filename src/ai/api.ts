@@ -12,7 +12,7 @@ import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport, groupSnapshots } from '../engine/operation-executor';
 import type { StepExecutionReport } from '../engine/operation-executor';
-import { addTrack, removeTrack } from '../engine/session';
+import { addTrack, removeTrack, addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
 import { MotifLibrary } from '../engine/motif';
 import type { Motif } from '../engine/motif';
@@ -45,7 +45,7 @@ import { getProfile, compareToProfile } from '../engine/reference-profiles';
 import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 import type { AudioMetricsSnapshot } from '../audio/live-audio-metrics';
-import { resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
+import { parsePosition, resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
 import { getChainRecipe, RECIPE_NAMES as CHAIN_RECIPE_NAMES } from '../engine/chain-recipes';
 import { savePatch, findPatch, getAllPatches, listPatches, BUILT_IN_PATCHES } from '../engine/patch-library';
 import type { Patch } from '../engine/patch-library';
@@ -100,6 +100,13 @@ type PatternEventSelector = {
 type RawPatternEditOp = Omit<PatternEditOp, 'step'> & {
   step?: number | string;
   select?: PatternEventSelector;
+};
+
+type RawSequenceAutomationPoint = {
+  at: number | string;
+  value: number;
+  interpolation?: 'step' | 'linear' | 'curve';
+  tension?: number;
 };
 
 const RETURN_BUS_WET_PARAM: Record<string, string> = {
@@ -3885,7 +3892,7 @@ export class GluonAI {
           return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
-        const validSeqActions = ['append', 'remove', 'reorder'];
+        const validSeqActions = ['append', 'remove', 'reorder', 'set_automation', 'clear_automation'];
         if (!validSeqActions.includes(seqSubAction)) {
           return { actions: [], response: errorPayload(`Invalid action: ${seqSubAction}`) };
         }
@@ -3904,6 +3911,55 @@ export class GluonAI {
             return { actions: [], response: errorPayload('action=reorder requires toIndex') };
           }
         }
+        if (seqSubAction === 'set_automation' || seqSubAction === 'clear_automation') {
+          if (typeof args.controlId !== 'string' || !args.controlId) {
+            return { actions: [], response: errorPayload(`action=${seqSubAction} requires controlId`) };
+          }
+          const validControlIds = new Set(plaitsInstrument.engines[0]?.controls.map(control => control.id) ?? []);
+          if (!validControlIds.has(args.controlId as string)) {
+            return { actions: [], response: errorPayload(`Unsupported sequence automation controlId: ${String(args.controlId)}`) };
+          }
+        }
+        if (seqSubAction === 'set_automation') {
+          if (!Array.isArray(args.points) || args.points.length === 0) {
+            return { actions: [], response: errorPayload('action=set_automation requires points') };
+          }
+        }
+
+        let resolvedPoints: AIManageSequenceAction['points'] | undefined;
+        if (seqSubAction === 'set_automation') {
+          const track = getTrack(session, seqTrackId);
+          let sequenceLength = 0;
+          for (const ref of track.sequence) {
+            const pattern = track.patterns.find(candidate => candidate.id === ref.patternId);
+            if (pattern) sequenceLength += pattern.duration;
+          }
+          if (sequenceLength <= 0) {
+            return { actions: [], response: errorPayload('Track sequence has no duration to automate') };
+          }
+
+          resolvedPoints = (args.points as RawSequenceAutomationPoint[]).map((point, index) => {
+            if (point == null || typeof point !== 'object') {
+              throw new Error(`points[${index}] must be an object`);
+            }
+            if (point.at === undefined) {
+              throw new Error(`points[${index}] is missing at`);
+            }
+            if (typeof point.value !== 'number' || !Number.isFinite(point.value)) {
+              throw new Error(`points[${index}] value must be a finite number`);
+            }
+            const at = parsePosition(point.at);
+            if (at < 0 || at > sequenceLength) {
+              throw new Error(`points[${index}] at=${at} is outside the current sequence length (${sequenceLength} steps)`);
+            }
+            return {
+              at,
+              value: Math.max(0, Math.min(1, point.value)),
+              ...(point.interpolation ? { interpolation: point.interpolation } : {}),
+              ...(point.tension !== undefined ? { tension: point.tension } : {}),
+            };
+          }).sort((a, b) => a.at - b.at);
+        }
 
         const manageSequenceAction: AIManageSequenceAction = {
           type: 'manage_sequence',
@@ -3912,18 +3968,55 @@ export class GluonAI {
           ...(args.patternId ? { patternId: args.patternId as string } : {}),
           ...(args.sequenceIndex !== undefined ? { sequenceIndex: args.sequenceIndex as number } : {}),
           ...(args.toIndex !== undefined ? { toIndex: args.toIndex as number } : {}),
+          ...(args.controlId ? { controlId: args.controlId as string } : {}),
+          ...(resolvedPoints ? { points: resolvedPoints } : {}),
           description: args.description as string,
         };
 
         const seqRejection = handleRejection(ctx?.validateAction?.(session, manageSequenceAction), session, manageSequenceAction, existingActions);
         if (seqRejection) return seqRejection;
 
-        // Compute resulting sequence for model context
-        const projectedAfterSeq = projectAction(session, manageSequenceAction);
+        let projectedAfterSeq = session;
+        switch (manageSequenceAction.action) {
+          case 'append':
+            projectedAfterSeq = manageSequenceAction.patternId
+              ? addPatternRef(session, seqTrackId, manageSequenceAction.patternId)
+              : session;
+            break;
+          case 'remove':
+            projectedAfterSeq = manageSequenceAction.sequenceIndex !== undefined
+              ? removePatternRef(session, seqTrackId, manageSequenceAction.sequenceIndex)
+              : session;
+            break;
+          case 'reorder':
+            projectedAfterSeq = (manageSequenceAction.sequenceIndex !== undefined && manageSequenceAction.toIndex !== undefined)
+              ? reorderPatternRef(session, seqTrackId, manageSequenceAction.sequenceIndex, manageSequenceAction.toIndex)
+              : session;
+            break;
+          case 'set_automation':
+            projectedAfterSeq = (manageSequenceAction.controlId && manageSequenceAction.points)
+              ? setSequenceAutomation(session, seqTrackId, manageSequenceAction.controlId, manageSequenceAction.points)
+              : session;
+            break;
+          case 'clear_automation':
+            projectedAfterSeq = manageSequenceAction.controlId
+              ? clearSequenceAutomation(session, seqTrackId, manageSequenceAction.controlId)
+              : session;
+            break;
+        }
         const seqTrack = projectedAfterSeq.tracks.find(v => v.id === seqTrackId);
         const currentSequence = seqTrack?.sequence.map((ref, i) => ({
           index: i,
           patternId: ref.patternId,
+          ...(ref.automation && ref.automation.length > 0 ? {
+            automation: ref.automation.map(lane => ({
+              controlId: lane.controlId,
+              points: lane.points.map(point => ({
+                at: point.at,
+                value: point.value,
+              })),
+            })),
+          } : {}),
         })) ?? [];
 
         return {

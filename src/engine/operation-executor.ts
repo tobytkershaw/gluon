@@ -29,7 +29,7 @@ import { editPatternEvents, validatePatternEditOps } from './pattern-primitives'
 import { getTrackLabel } from './track-labels';
 import { getEngineById, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getProcessorControlSchema, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { validateChainMutation, validateProcessorTarget, validateModulatorMutation, validateModulationTarget, validateModulatorTarget } from './chain-validation';
-import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef } from './session';
+import { addTrack, removeTrack, addSend, removeSend, setSendLevel, addPattern, removePattern, duplicatePattern, renamePattern, setActivePatternOnTrack, addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation } from './session';
 import { setPatternLength, clearPattern } from './pattern-primitives';
 import { quantizePitch, scaleToString } from './scale';
 import { normalizeChordProgression } from './chords';
@@ -2422,6 +2422,16 @@ function executeActionsInternal(
           case 'reorder':
             seqResult = (action.sequenceIndex !== undefined && action.toIndex !== undefined)
               ? reorderPatternRef(next, action.trackId, action.sequenceIndex, action.toIndex)
+              : next;
+            break;
+          case 'set_automation':
+            seqResult = (action.controlId && action.points)
+              ? setSequenceAutomation(next, action.trackId, action.controlId, action.points)
+              : next;
+            break;
+          case 'clear_automation':
+            seqResult = action.controlId
+              ? clearSequenceAutomation(next, action.trackId, action.controlId)
               : next;
             break;
         }

@@ -264,15 +264,17 @@ Add, remove, duplicate, rename, set active, set length, or clear a pattern on a 
 
 #### `manage_sequence`
 
-Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, or reorder references.
+Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, reorder references, or write sequence-level automation curves for source controls across the arranged song timeline.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `action` | string | yes | `append`, `remove`, or `reorder`. |
+| `action` | string | yes | `append`, `remove`, `reorder`, `set_automation`, or `clear_automation`. |
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
 | `patternId` | string | no | Required for `append`. The pattern ID to add to the sequence. |
 | `sequenceIndex` | integer | no | Required for `remove` and `reorder` (as fromIndex). Index into the sequence array. |
 | `toIndex` | integer | no | Required for `reorder`. Destination index. |
+| `controlId` | string | no | Required for `set_automation` and `clear_automation`. Track source control to automate in song mode: `frequency`, `harmonics`, `timbre`, or `morph`. |
+| `points` | array | no | Required for `set_automation`. Breakpoints across the full arranged song timeline. Each point has `at` (0-based step or `"bar.beat.sixteenth"`), `value` (0.0–1.0), and optional `interpolation` (`step`, `linear`, `curve`) and `tension` (-1.0 to 1.0). |
 | `description` | string | yes | Short description of the operation. |
 
 ### UI Curation
@@ -725,6 +727,7 @@ Fields:
 - **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
 - **volume** / **pan** — track mix levels (0.0–1.0)
 - **pattern** — canonical event summary with triggers (`{at, vel}`), notes (`{at, pitch, vel}`), accents, param locks, and density
+- **sequence** — ordered song-mode pattern refs with `index`, `patternId`, `length`, and optional sequence-level automation summaries per ref
 - **track_count** — total number of tracks in the session
 - **soft_track_cap** — maximum recommended track count (currently 16)
 - **activeTrackId** — the track the human currently has selected

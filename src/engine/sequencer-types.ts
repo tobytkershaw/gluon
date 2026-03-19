@@ -47,9 +47,22 @@ export interface TransportCommand {
   requestId: number;
 }
 
+export interface SequenceAutomationPoint {
+  at: number;
+  value: number;
+  interpolation?: 'step' | 'linear' | 'curve';
+  tension?: number;
+}
+
+export interface SequenceAutomationLane {
+  controlId: string;
+  points: SequenceAutomationPoint[];
+}
+
 /** A reference to a pattern within a track's sequence (arrangement). */
 export interface PatternRef {
   patternId: string;
+  automation?: SequenceAutomationLane[];
 }
 
 export interface ScheduledNote {

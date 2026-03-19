@@ -91,6 +91,17 @@ function makeRichSession(): Session {
   return session;
 }
 
+function makeSequenceSession(): Session {
+  const session = createSession();
+  const track = session.tracks[0];
+  track.patterns = [
+    { ...track.patterns[0], id: 'pat-a', duration: 16, events: [] },
+    { ...track.patterns[0], id: 'pat-b', duration: 16, events: [] },
+  ];
+  track.sequence = [{ patternId: 'pat-a' }, { patternId: 'pat-b' }];
+  return session;
+}
+
 // ---------------------------------------------------------------------------
 // move
 // ---------------------------------------------------------------------------
@@ -325,6 +336,43 @@ describe('move — adversarial', () => {
     });
 
     expect(response.error).toMatch(/Timed moves.*track volume/i);
+    expect(actions).toHaveLength(0);
+  });
+});
+
+describe('manage_sequence — automation', () => {
+  it('accepts sequence automation points across the arranged song timeline', async () => {
+    const session = makeSequenceSession();
+    const { response, actions } = await callTool(session, 'manage_sequence', {
+      action: 'set_automation',
+      trackId: session.tracks[0].id,
+      controlId: 'timbre',
+      points: [
+        { at: '1.1.1', value: 0.2, interpolation: 'linear' },
+        { at: '3.1.1', value: 0.8 },
+      ],
+      description: 'open timbre across the sequence',
+    });
+
+    expect(response.queued).toBe(true);
+    expect(actions).toHaveLength(1);
+    expect((actions[0] as { action: string }).action).toBe('set_automation');
+  });
+
+  it('rejects unsupported sequence automation controls', async () => {
+    const session = makeSequenceSession();
+    const { response, actions } = await callTool(session, 'manage_sequence', {
+      action: 'set_automation',
+      trackId: session.tracks[0].id,
+      controlId: 'cutoff',
+      points: [
+        { at: 0, value: 0.2, interpolation: 'linear' },
+        { at: 32, value: 0.8 },
+      ],
+      description: 'bad control',
+    });
+
+    expect(response.error).toMatch(/Unsupported sequence automation controlId/);
     expect(actions).toHaveLength(0);
   });
 });

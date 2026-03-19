@@ -6,6 +6,8 @@ import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, g
 import { getModelName } from '../audio/instrument-registry';
 import { createDefaultStepGrid } from './sequencer-helpers';
 import { createDefaultPattern } from './region-helpers';
+import type { SequenceAutomationPoint } from './sequencer-types';
+import { splitSequenceAutomationAcrossRefs } from './sequence-automation';
 
 function createDefaultTrack(index: number): Track {
   const trackId = `v${index}`;
@@ -943,6 +945,45 @@ export function reorderPatternRef(session: Session, trackId: string, fromIndex: 
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 
+export function setSequenceAutomation(
+  session: Session,
+  trackId: string,
+  controlId: string,
+  points: SequenceAutomationPoint[],
+): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  if (track.sequence.length === 0) return session;
+
+  const snapshot: SequenceEditSnapshot = {
+    kind: 'sequence-edit',
+    trackId,
+    prevSequence: track.sequence.map(ref => ({
+      ...ref,
+      ...(ref.automation ? {
+        automation: ref.automation.map(lane => ({
+          ...lane,
+          points: lane.points.map(point => ({ ...point })),
+        })),
+      } : {}),
+    })),
+    timestamp: Date.now(),
+    description: `Set sequence automation ${controlId} on ${trackId}`,
+  };
+
+  const newSequence = splitSequenceAutomationAcrossRefs(track.sequence, track.patterns, controlId, points);
+  const result = updateTrack(session, trackId, { sequence: newSequence, _patternDirty: true });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+export function clearSequenceAutomation(session: Session, trackId: string, controlId: string): Session {
+  const track = session.tracks.find(t => t.id === trackId);
+  if (!track) return session;
+  const hasAutomation = track.sequence.some(ref => ref.automation?.some(lane => lane.controlId === controlId));
+  if (!hasAutomation) return session;
+  return setSequenceAutomation(session, trackId, controlId, []);
+}
+
 
 // --- A/B comparison helpers ---
 
@@ -960,7 +1001,15 @@ function deepCopyTrack(track: Track): Track {
     params: { ...track.params },
     stepGrid: { ...track.stepGrid, steps: track.stepGrid.steps.map(s => ({ ...s })) },
     patterns: track.patterns.map(p => ({ ...p, events: p.events.map(e => ({ ...e })) })),
-    sequence: track.sequence.map(ref => ({ ...ref })),
+    sequence: track.sequence.map(ref => ({
+      ...ref,
+      ...(ref.automation ? {
+        automation: ref.automation.map(lane => ({
+          ...lane,
+          points: lane.points.map(point => ({ ...point })),
+        })),
+      } : {}),
+    })),
     processors: track.processors?.map(p => ({ ...p, params: { ...p.params } })),
     modulators: track.modulators?.map(m => ({ ...m, params: { ...m.params } })),
     modulations: track.modulations?.map(r => ({ ...r, target: { ...r.target } })),

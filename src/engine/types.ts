@@ -786,11 +786,13 @@ export interface AIManagePatternAction {
 
 export interface AIManageSequenceAction {
   type: 'manage_sequence';
-  action: 'append' | 'remove' | 'reorder';
+  action: 'append' | 'remove' | 'reorder' | 'set_automation' | 'clear_automation';
   trackId: string;
   patternId?: string;
   sequenceIndex?: number;
   toIndex?: number;
+  controlId?: string;
+  points?: import('./sequencer-types').SequenceAutomationPoint[];
   description: string;
 }
 

@@ -991,13 +991,13 @@ const managePatternTool: ToolSchema = {
 const manageSequenceTool: ToolSchema = {
   name: 'manage_sequence',
   description:
-    'Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, or reorder references. Takes effect after this response.',
+    'Manage the arrangement sequence on a track: append a pattern reference, remove a reference by index, reorder references, or write sequence-level automation curves for source controls across the arranged song timeline. Takes effect after this response.',
   parameters: {
     type: 'object',
     properties: {
       action: {
         type: 'string',
-        enum: ['append', 'remove', 'reorder'],
+        enum: ['append', 'remove', 'reorder', 'set_automation', 'clear_automation'],
         description: 'Operation to perform.',
       },
       trackId: {
@@ -1015,6 +1015,35 @@ const manageSequenceTool: ToolSchema = {
       toIndex: {
         type: 'integer',
         description: 'Destination index. Required for reorder.',
+      },
+      controlId: {
+        type: 'string',
+        description: `Source control to automate in song mode. Available: ${quoted(plaitsParamIds)}. Required for set_automation and clear_automation.`,
+      },
+      points: {
+        type: 'array',
+        description: 'Automation breakpoints across the arranged song timeline. Each point uses either a 0-based step or "bar.beat.sixteenth". Values are normalized 0.0-1.0. Required for set_automation.',
+        items: {
+          type: 'object',
+          properties: {
+            at: {
+              description: 'Song position as a 0-based step number or "bar.beat.sixteenth" string. Unlike sketch, this is relative to the full track sequence in song mode.',
+            },
+            value: {
+              type: 'number',
+              description: 'Normalized target value (0.0-1.0).',
+            },
+            interpolation: {
+              type: 'string',
+              description: 'How this point moves toward the next point: "step", "linear", or "curve".',
+            },
+            tension: {
+              type: 'number',
+              description: 'Curve tension for interpolation="curve" (-1.0 to 1.0).',
+            },
+          },
+          required: ['at', 'value'],
+        },
       },
       description: {
         type: 'string',
