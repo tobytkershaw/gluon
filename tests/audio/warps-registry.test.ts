@@ -37,7 +37,7 @@ describe('Warps instrument definition', () => {
 
   it('engine IDs match expected set', () => {
     const ids = warpsInstrument.engines.map(e => e.id);
-    expect(ids).toEqual(['crossfade', 'fold', 'ring', 'frequency_shift']);
+    expect(ids).toEqual(['crossfade', 'fold', 'ring', 'vocoder']);
   });
 
   it('each engine has 3 controls: algorithm, timbre, level', () => {
@@ -108,7 +108,7 @@ describe('Warps engine lookup helpers', () => {
     expect(getWarpsEngineByIndex(0)!.id).toBe('crossfade');
     expect(getWarpsEngineByIndex(1)!.id).toBe('fold');
     expect(getWarpsEngineByIndex(2)!.id).toBe('ring');
-    expect(getWarpsEngineByIndex(3)!.id).toBe('frequency_shift');
+    expect(getWarpsEngineByIndex(3)!.id).toBe('vocoder');
   });
 
   it('getWarpsEngineByIndex returns undefined for out of bounds', () => {
@@ -119,7 +119,7 @@ describe('Warps engine lookup helpers', () => {
     const list = getWarpsModelList();
     expect(list).toHaveLength(4);
     expect(list[0].name).toBe('Crossfade');
-    expect(list[3].name).toBe('Frequency Shift (Gluon)');
+    expect(list[3].name).toBe('Vocoder');
   });
 });
 
@@ -147,7 +147,13 @@ describe('Processor registry includes Warps', () => {
 
   it('getProcessorEngineName returns Warps mode name', () => {
     expect(getProcessorEngineName('warps', 0)).toBe('crossfade');
-    expect(getProcessorEngineName('warps', 3)).toBe('frequency_shift');
+    expect(getProcessorEngineName('warps', 3)).toBe('vocoder');
+  });
+
+  it('getProcessorEngineByName accepts the legacy frequency_shift alias', () => {
+    const result = getProcessorEngineByName('warps', 'frequency_shift');
+    expect(result).toBeDefined();
+    expect(result!.index).toBe(3);
   });
 });
 

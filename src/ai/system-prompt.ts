@@ -78,29 +78,34 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     harmonics: 'Amount of inharmonicity / material selection',
     timbre: 'Excitation brightness and dust density',
     morph: 'Decay time (energy absorption)',
+    note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
   },
   'modal-resonator': {
     harmonics: 'Amount of inharmonicity / material selection',
     timbre: 'Excitation brightness and dust density',
     morph: 'Decay time (energy absorption)',
+    note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
   },
   'analog-bass-drum': {
     harmonics: 'Attack sharpness and amount of overdrive',
     timbre: 'Brightness',
     morph: 'Decay time',
     frequency: 'Fundamental pitch. Deep sub-kick: 0.15–0.25 (~40–60Hz). Punchy mid-kick: 0.30–0.40. High tom-like: 0.45+. Below 0.10 is subsonic — inaudible on most speakers.',
+    note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
   },
   'analog-snare': {
     harmonics: 'Balance of harmonic and noisy components',
     timbre: 'Balance between different modes of the drum',
     morph: 'Decay time',
     frequency: 'Body pitch. Tight snare: 0.35–0.45. Deep snare: 0.20–0.30. Very low values produce toms.',
+    note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
   },
   'analog-hi-hat': {
     harmonics: 'Balance of metallic and filtered noise',
     timbre: 'High-pass filter cutoff',
     morph: 'Decay time',
     frequency: 'Fundamental pitch. Typical hi-hat: 0.55–0.75. Lower values sound more like a ride or cymbal wash.',
+    note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
   },
 };
 

@@ -26,7 +26,7 @@ describe('Beads instrument definition', () => {
 
   it('engine IDs match expected set', () => {
     const ids = beadsInstrument.engines.map(e => e.id);
-    expect(ids).toEqual(['granular', 'delay', 'reverb']);
+    expect(ids).toEqual(['granular', 'delay', 'wavetable-synth']);
   });
 
   it('each engine has 6 controls', () => {
@@ -74,10 +74,10 @@ describe('Beads engine lookup helpers', () => {
     expect(engine!.label).toBe('Delay');
   });
 
-  it('getBeadsEngineById finds reverb', () => {
-    const engine = getBeadsEngineById('reverb');
+  it('getBeadsEngineById finds wavetable synth', () => {
+    const engine = getBeadsEngineById('wavetable-synth');
     expect(engine).toBeDefined();
-    expect(engine!.label).toBe('Reverb');
+    expect(engine!.label).toBe('Wavetable Synth');
   });
 
   it('getBeadsEngineById returns undefined for invalid', () => {
@@ -87,7 +87,7 @@ describe('Beads engine lookup helpers', () => {
   it('getBeadsEngineByIndex returns correct engine', () => {
     expect(getBeadsEngineByIndex(0)!.id).toBe('granular');
     expect(getBeadsEngineByIndex(1)!.id).toBe('delay');
-    expect(getBeadsEngineByIndex(2)!.id).toBe('reverb');
+    expect(getBeadsEngineByIndex(2)!.id).toBe('wavetable-synth');
   });
 
   it('getBeadsModelList returns all 3 modes', () => {
@@ -114,14 +114,20 @@ describe('Processor registry includes Beads', () => {
   });
 
   it('getProcessorEngineByName finds Beads modes', () => {
-    const result = getProcessorEngineByName('beads', 'reverb');
+    const result = getProcessorEngineByName('beads', 'wavetable-synth');
     expect(result).toBeDefined();
     expect(result!.index).toBe(2);
   });
 
   it('getProcessorEngineName returns Beads mode name', () => {
     expect(getProcessorEngineName('beads', 0)).toBe('granular');
-    expect(getProcessorEngineName('beads', 2)).toBe('reverb');
+    expect(getProcessorEngineName('beads', 2)).toBe('wavetable-synth');
+  });
+
+  it('getProcessorEngineByName accepts the legacy reverb alias', () => {
+    const result = getProcessorEngineByName('beads', 'reverb');
+    expect(result).toBeDefined();
+    expect(result!.index).toBe(2);
   });
 });
 
@@ -149,7 +155,7 @@ describe('Chain validation accepts Beads', () => {
     };
     expect(validateProcessorTarget(track, 'beads-1', { param: 'time' }).valid).toBe(true);
     expect(validateProcessorTarget(track, 'beads-1', { param: 'density' }).valid).toBe(true);
-    expect(validateProcessorTarget(track, 'beads-1', { model: 'reverb' }).valid).toBe(true);
+    expect(validateProcessorTarget(track, 'beads-1', { model: 'wavetable-synth' }).valid).toBe(true);
     expect(validateProcessorTarget(track, 'beads-1', { param: 'invalid' }).valid).toBe(false);
   });
 });
