@@ -298,7 +298,7 @@ const editPatternTool: ToolSchema = {
             },
             select: {
               type: 'object',
-              description: 'Property-based selector for remove/modify when exact microtiming is unknown. Must resolve to exactly one existing event before execution. Example: { bar: 2, type: "note", pitchClass: "D", velocity: "max" }.',
+              description: 'Property-based selector for remove/modify when exact microtiming is unknown. Must resolve to exactly one existing event against the current pattern state at that point in the batch. Example: { bar: 2, type: "note", pitchClass: "D", velocity: "max" }.',
               properties: {
                 bar: {
                   type: 'integer',
@@ -320,7 +320,7 @@ const editPatternTool: ToolSchema = {
                 velocity: {
                   type: 'string',
                   enum: ['max', 'min'],
-                  description: 'Pick the loudest or softest matching trigger/note when several candidates exist.',
+                  description: 'Pick the loudest or softest non-disabled matching trigger/note when several candidates exist.',
                 },
                 accent: {
                   type: 'boolean',

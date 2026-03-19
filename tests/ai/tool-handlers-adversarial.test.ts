@@ -957,6 +957,59 @@ describe('edit_pattern — adversarial', () => {
     expect(response.error).toMatch(/multiple events/i);
     expect(actions).toHaveLength(0);
   });
+
+  it('resolves selectors against the evolving state of a multi-op batch', async () => {
+    let session = makeSession();
+    session = editPatternEvents(session, session.tracks[0].id, undefined, [
+      { action: 'add', step: 16.1, event: { type: 'note', pitch: 62, velocity: 0.8, duration: 1 } },
+      { action: 'add', step: 16.3, event: { type: 'note', pitch: 62, velocity: 0.4, duration: 1 } },
+    ], 'seed notes');
+
+    const { response, actions } = await callTool(session, 'edit_pattern', {
+      trackId: session.tracks[0].id,
+      description: 'remove the loud note then soften the remaining one',
+      operations: [
+        {
+          action: 'remove',
+          select: { bar: 2, type: 'note', pitchClass: 'D', velocity: 'max' },
+          event: { type: 'note' },
+        },
+        {
+          action: 'modify',
+          select: { bar: 2, type: 'note', pitchClass: 'D', velocity: 'max' },
+          event: { type: 'note', velocity: 0.2 },
+        },
+      ],
+    });
+
+    expect(response.applied).toBe(true);
+    const action = actions[0] as { operations: Array<{ step: number; event?: { velocity?: number } }> };
+    expect(action.operations[0].step).toBe(16.1);
+    expect(action.operations[1].step).toBe(16.3);
+    expect(action.operations[1].event?.velocity).toBe(0.2);
+  });
+
+  it('ignores disabled velocity-0 sentinel events for velocity=min selectors', async () => {
+    let session = makeSession();
+    session = editPatternEvents(session, session.tracks[0].id, undefined, [
+      { action: 'add', step: 16.1, event: { type: 'note', pitch: 62, velocity: 0, duration: 1 } },
+      { action: 'add', step: 16.3, event: { type: 'note', pitch: 62, velocity: 0.4, duration: 1 } },
+    ], 'seed sentinel and live note');
+
+    const { response, actions } = await callTool(session, 'edit_pattern', {
+      trackId: session.tracks[0].id,
+      description: 'soften the quiet live note',
+      operations: [{
+        action: 'modify',
+        select: { bar: 2, type: 'note', pitchClass: 'D', velocity: 'min' },
+        event: { type: 'note', velocity: 0.2 },
+      }],
+    });
+
+    expect(response.applied).toBe(true);
+    const action = actions[0] as { operations: Array<{ step: number }> };
+    expect(action.operations[0].step).toBe(16.3);
+  });
 });
 
 // ---------------------------------------------------------------------------

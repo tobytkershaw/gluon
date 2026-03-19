@@ -155,7 +155,7 @@ function matchesEventSelector(event: MusicalEvent, selector: PatternEventSelecto
 function applyVelocitySelector(events: MusicalEvent[], selector: PatternEventSelector): MusicalEvent[] {
   if (selector.velocity === undefined) return events;
   const velocityEvents = events.filter(
-    event => event.kind === 'trigger' || event.kind === 'note',
+    event => (event.kind === 'trigger' || event.kind === 'note') && (event.velocity ?? 0) !== 0,
   ) as Array<TriggerEvent | NoteEvent>;
   if (velocityEvents.length === 0) {
     throw new Error('velocity selector only applies to trigger or note events.');
@@ -197,18 +197,20 @@ function resolvePatternEditOperations(
   patternId: string | undefined,
   operations: RawPatternEditOp[],
 ): PatternEditOp[] {
-  const track = session.tracks.find(candidate => candidate.id === trackId);
-  if (!track) {
-    throw new Error(`Track not found: ${trackId}`);
-  }
-  const pattern = patternId
-    ? track.patterns.find(candidate => candidate.id === patternId)
-    : (track.patterns.length > 0 ? getActivePattern(track) : undefined);
-  if (!pattern) {
-    throw new Error(patternId ? `Pattern not found: ${patternId}` : `Track ${trackId} has no editable pattern.`);
-  }
+  let projectedSession = session;
 
   return operations.map((op, index) => {
+    const track = projectedSession.tracks.find(candidate => candidate.id === trackId);
+    if (!track) {
+      throw new Error(`Track not found: ${trackId}`);
+    }
+    const pattern = patternId
+      ? track.patterns.find(candidate => candidate.id === patternId)
+      : (track.patterns.length > 0 ? getActivePattern(track) : undefined);
+    if (!pattern) {
+      throw new Error(patternId ? `Pattern not found: ${patternId}` : `Track ${trackId} has no editable pattern.`);
+    }
+
     const hasStep = op.step !== undefined;
     const hasSelector = op.select !== undefined;
 
@@ -229,11 +231,15 @@ function resolvePatternEditOperations(
       ? resolvePatternEventSelector(pattern, op.select as PatternEventSelector)
       : { step: op.step as number, match: op.match };
 
-    return {
+    const resolvedOp = {
       ...op,
       step: resolved.step,
       ...(resolved.match ? { match: resolved.match } : {}),
     } as PatternEditOp;
+
+    projectedSession = editPatternEvents(projectedSession, trackId, patternId, [resolvedOp], '');
+
+    return resolvedOp;
   });
 }
 
