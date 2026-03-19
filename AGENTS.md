@@ -8,14 +8,14 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 
 - **Browser-based**: React + TypeScript + Vite
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
-- **AI (reasoning)**: Google Gemini API (`@google/genai`) for project state reasoning and structured edits
+- **AI (reasoning)**: Google Gemini (`@google/genai`) — Gemini 2.5 Pro (planner) + Gemini Flash (listener)
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
 - **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v05.md`)
 
 ## Key Concepts
 
-- **Voices**: Things that make sound, with parameters normalised 0.0-1.0
-- **Agency**: Per-voice AI permission (OFF / ON) — AI only modifies voices with agency ON, and only when asked
+- **Tracks**: Things that make sound (`audio`) or route signal (`bus`), with parameters normalised 0.0-1.0
+- **Agency**: Per-track AI permission (OFF / ON) — AI only modifies tracks with agency ON, and only when asked
 - **Arbitration**: Human's hands always win when both touch the same parameter
 - **Undo**: Reverses all actions (human and AI) in LIFO order, grouped by action groups
 - **Audio snapshots**: Rendered clips sent to multimodal model for AI self-evaluation
@@ -24,12 +24,16 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 
 ```
 src/
-  audio/       # WASM bridge, AudioWorklet, Web Audio setup
-  engine/      # Protocol types, session state, undo stack
-  ai/          # Gemini API, state compression, response parsing
-  ui/          # React components (parameter space, chat, controls)
+  audio/       # WASM bridge, AudioWorklet, Web Audio, offline render
+  engine/      # Protocol types, session state, undo stack, scheduler
+  ai/          # Gemini AI, state compression, tool schemas
+    providers/ # Provider adapters
+  ui/          # React components (views, chat, controls)
+  qa/          # QA test helpers
+scripts/       # Build scripts (WASM, worklets, QA)
 wasm/          # Plaits C++ source and Emscripten build
-docs/          # Architecture docs and protocol spec
+docs/          # Architecture docs, RFCs, briefs, principles
+tests/         # Test files (mirrors src/ structure)
 ```
 
 ## Tech Stack
@@ -43,7 +47,13 @@ docs/          # Architecture docs and protocol spec
 
 ```bash
 npm run dev          # Start dev server
-npm run build        # Production build
+npm run build        # Production build (tsc + vite)
+npm run lint         # ESLint
+npx tsc --noEmit     # Type check only
+npx vitest run       # Run all tests
+npx vitest run path  # Run single test file
+npm run qa:preflight # Pre-commit QA checks
+npm run qa:smoke     # Playwright smoke tests
 npm run wasm:build   # Compile Plaits to WASM
 ```
 
@@ -78,6 +88,7 @@ Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor ar
 - One task per branch, one agent per branch
 - Rebase onto `main` before opening a PR, not during parallel editing
 - Merge small PRs frequently rather than letting branches drift
+- **Clean up after merging:** after merging a PR, remove the worktree (`git worktree remove`) and delete the local branch (`git branch -d`). During consolidation passes, run `git worktree prune`, `git fetch --prune`, and delete all merged/gone local branches. Branch bloat slows git operations.
 
 ### Avoiding Conflicts
 - Split work by **module boundary** (`src/audio/`, `src/ai/`, `src/engine/`, `src/ui/`), not by task type
@@ -90,38 +101,51 @@ Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor ar
 - `npx vitest run` — all tests pass
 - Both checks must pass after rebase, before merge
 
+## PR Review
+
+After completing implementation, always open a PR. Choose the review level proportional to risk. Default to merging quickly when checks pass.
+
+| Level | When to use | What it does |
+|-------|------------|--------------|
+| **Just merge** | Renames, lint fixes, cosmetic UI, docs, config changes. Anything where the diff is obvious and checks pass. | No review tooling — merge after verification. |
+| **`/review`** | Non-trivial bug fixes, logic changes, state management, anything where a second pair of eyes adds value. | Single-pass code review checking for bugs and CLAUDE.md compliance. |
+| **`gluon-reviewer`** | Changes to core engine (`src/engine/`), AI contract (`src/ai/`), protocol types, or audio pipeline (`src/audio/`). | Checks Gluon-specific invariants and design principle adherence. |
+| **`/pr-review-toolkit:review-pr`** | Large refactors, new subsystems, changes to critical paths (persistence, audio rendering, undo). High blast radius. | Heavy multi-agent review (code, types, error handling, test coverage). |
+
+These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. Use judgement.
+
 ## GitHub Backlog Hygiene
 
 - When creating or updating issues, preserve the backlog structure already in GitHub.
-- Close issues that are already merged; do not leave done work open.
+- **Always use `Closes #NNN` in PR descriptions** to autoclose issues on merge. Never manually close issues with `gh issue close`.
 - For active implementation work, add:
-  - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, or `sequencer`
+  - one area label: `phase-3`, `phase-4a`, `canonical-model`, `ai-models`, `infrastructure`, `sequencer`, or `finalization`
   - one priority label: `priority:now`, `priority:next`, or `priority:later`
 - Issues use two ownership states: `provisional:codex`/`provisional:claude` (planned) and `active:codex`/`active:claude` (in progress).
 - **The first action when picking up an issue is to claim it.** Remove `provisional:*` and add `active:codex`. Do this before creating a worktree, before reading code, before planning. If reassigning from Claude, comment on the issue.
 - Never leave both `provisional:` and `active:` labels, or labels for both agents, on the same issue.
 - Use `audit` for QA, review, and assessment work rather than feature implementation.
 - Use milestones consistently:
-  - `M0–M4, Phase 4B` — complete (stabilization, sequencer, chains, modulation)
-  - `M0: Stabilization` (current) — pre-M5 QA bug fixes
-  - `M5: UI Layers` — project foundation, parameter/patch navigation, AI-curated surfaces, listen tool
-  - `M6: Collaboration` — preservation contracts, aesthetic direction, structured listening
-  - `M7: External Integration` — MIDI output, hardware profiles, DAW integration
+  - `M0–M6` — complete (stabilization, sequencer, chains, modulation, UI layers, AI collaboration)
+  - `Finalization` (current) — complete all implemented elements to full song composition capability
+  - `M7: External Integration` — MIDI output, hardware profiles, DAW integration (deprioritized)
   - See `docs/roadmap.md` for the full implementation roadmap
 - Do not create GitHub Projects or expand the label taxonomy unless explicitly asked.
 
 ## Reference Docs
 
-- `CONTRIBUTING.md` - Shared contribution workflow, provisional ownership labels, and Codex/Claude parallel execution model
+- `CONTRIBUTING.md` - Shared contribution workflow, issue ownership labels, and Codex/Claude execution model
 - `docs/roadmap.md` - **Implementation roadmap**: M0 → M5 → M6 → M7 with dependencies, design doc mapping, and exit criteria
 - `docs/gluon-architecture.md` - Full vision and architecture
+- `docs/design-references.md` - Design references from synths, DAWs, and related tools: Guitar Rig (rack + inline params), Bitwig (modulation, remote controls), Reason, VCV Rack, Ableton, Max, and others. Includes parameter ground truth analysis and modulation display comparison.
+- `docs/audio-software-patterns.md` - Established audio software implementation patterns (parameter smoothing, denormals, voice allocation, tempo maps, accessibility, etc.) with Gluon coverage status and key references
 - `docs/gluon-interaction-protocol-v05.md` - Protocol spec (v0.5.0)
-- `docs/roadmap.md` - Implementation roadmap and milestone tracking
 
 ### Principles (`docs/principles/`)
 - `docs/principles/ai-capability-doctrine.md` - Project-level doctrine for AI product posture: keep boundaries hard, then maximize AI usefulness inside them.
 - `docs/principles/ai-interface-design-principles.md` - **Read before changing anything in `src/ai/`**. Defines how the AI layer should expose state, tools, constraints, and feedback. Applies to prompts, tool declarations, state compression, and error handling.
 - `docs/principles/ai-collaboration-model.md` - What good human-AI collaboration looks like: phases, posture, roles, model evaluation criteria.
+- `docs/principles/human-capability-parity.md` - Anything the AI can do, the human should have a means to do.
 
 ### AI Contract (`docs/ai/`)
 - `docs/ai/ai-contract.md` - What the AI agent needs at inference time: tools, state format, validation rules.
@@ -130,12 +154,20 @@ Repository-wide workflow, backlog hygiene, and Codex/Claude division of labor ar
 
 ### RFCs (`docs/rfcs/`)
 - `docs/rfcs/canonical-musical-model.md` - Canonical musical model: Voice, Region, MusicalEvent, ControlSchema, SourceAdapter.
-- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, views, pins.
+- `docs/rfcs/view-architecture.md` - View architecture: three canonical views (Tracker, Rack, Patch) as data model ground truth, one custom view (Surface) composed from a library of surface modules. Full module taxonomy.
+- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, VoiceSurface state, AI curation operations. Foundation for the Surface view's module system.
 - `docs/rfcs/sequencer-view-layer.md` - Sequencer views as projections over canonical events.
 - `docs/rfcs/phase4a.md` - Phase 4A: constrained patch chains.
 - `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
+- `docs/rfcs/patch-view-layer.md` - Patch views as projections over chain/modulation data. Node graph is the ground-truth view (like tracker for sequencing); inline modulation, chain strips are projections.
+- `docs/rfcs/audio-analysis-tools.md` - Audio analysis tools: render, listen, spectral, dynamics, rhythm, diff. Composable primitives for AI self-evaluation with confidence signals and lazy before-snapshot reconstruction.
+- `docs/rfcs/parameter-automation-research.md` - Parameter automation research: absolute vs relative, inline vs lanes, interpolation, modulation vs automation, AI legibility. Informs #408, #432, #307, #463.
 
 ### Briefs (`docs/briefs/`)
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
 - `docs/briefs/sequencer.md` - Sequencing strategy and product boundaries.
 - `docs/briefs/offline-listen.md` - Offline audio rendering for the listen tool.
+- `docs/briefs/visual-language.md` - Surface Score: AI-generated visual identity for the Surface view.
+- `docs/briefs/cross-model-consultation.md` - Cross-model consultation patterns.
+- `docs/briefs/sampling.md` - Sampling strategy and implementation.
+- `docs/briefs/modular-roadmap.md` - Modular architecture roadmap.

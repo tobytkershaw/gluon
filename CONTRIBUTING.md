@@ -24,10 +24,11 @@ This document is the shared contribution contract for:
 - `main` is the shared integration checkout. Do not write code there.
 - Codex work happens in `.codex-worktrees/`.
 - Claude Code work happens in `.claude/worktrees/` or equivalent worktree isolation.
-- After merge:
-  - remove the worktree
-  - delete the merged local branch
-  - periodically run `git worktree prune` and `git fetch --prune`
+- **Clean up after merging** — do this immediately, not "later":
+  - `git worktree remove .codex-worktrees/<task>` (or `.claude/worktrees/<task>`)
+  - `git branch -d <branch-name>`
+  - Periodically run `git worktree prune`, `git fetch --prune`, and delete all merged/gone local branches
+  - Branch bloat slows git operations for every agent
 
 ## Backlog Structure
 
@@ -59,6 +60,16 @@ Implementation issues should be self-contained. Each issue body should include:
 - dependencies / sequencing
 
 Audit issues can be lighter, but implementation issues should not depend on a separate report for basic context.
+
+## Three-Tier Planning
+
+Match planning depth to the scope and risk of the change.
+
+| Tier | When | Planning |
+|------|------|----------|
+| **Trivial** | Renames, config, one-file fixes with obvious diffs | No plan — just implement |
+| **Standard** | Clear bug fixes, scoped features, isolated components | Agent starts in plan mode, lead reviews plan, then approves execution |
+| **Design** | New subsystems, cross-cutting changes, product decisions | Human and AI align on plan together before any code |
 
 ## Parallel Delivery Model
 
@@ -132,19 +143,22 @@ For each issue:
 4. run targeted verification during development
 5. rebase onto `main`
 6. run final verification
-7. open PR with `Closes #NNN`
+7. open PR with **`Closes #NNN` in the PR description** — this is mandatory, not optional. Never manually close issues with `gh issue close`; let GitHub autoclose them on merge.
 8. merge quickly once checks and review level are satisfied
 9. remove `active:*` label after merge or handoff
 
 ## Review Depth
 
-Match review depth to risk.
+After completing implementation, always open a PR. Choose the review level proportional to the risk of the change. Default to merging quickly when checks pass — don't add overhead to routine work.
 
-- low risk: obvious docs/config/small isolated fixes
-- medium risk: standard bug fixes and local state changes
-- high risk: audio runtime, undo, persistence, AI contract, protocol, scheduler
+| Level | When to use | What it does |
+|-------|------------|--------------|
+| **Just merge** | Renames, lint fixes, cosmetic UI, docs, config changes. Anything where the diff is obvious and checks pass. | No review tooling — merge after verification. |
+| **`/review`** | Non-trivial bug fixes, logic changes, state management, anything where a second pair of eyes adds value. | Single-pass code review checking for bugs and CLAUDE.md compliance. |
+| **`gluon-reviewer`** | Changes to core engine (`src/engine/`), AI contract (`src/ai/`), protocol types, or audio pipeline (`src/audio/`). | Checks Gluon-specific invariants and design principle adherence. |
+| **`/pr-review-toolkit:review-pr`** | Large refactors, new subsystems, changes to critical paths (persistence, audio rendering, undo). High blast radius. | Heavy multi-agent review (code, types, error handling, test coverage). |
 
-High-risk changes should usually get an explicit second pass before merge, even when the implementation issue is well-scoped.
+These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. Use judgement.
 
 ## Handoffs
 

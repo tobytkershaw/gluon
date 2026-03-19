@@ -8,7 +8,7 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 
 - **Browser-based**: React + TypeScript + Vite
 - **Audio**: Mutable Instruments Plaits DSP compiled to WebAssembly via Emscripten, running in an AudioWorklet
-- **AI (reasoning)**: Multi-provider — OpenAI (`openai`), Google Gemini (`@google/genai`), Anthropic (`@anthropic-ai/sdk`). Planner provider is configurable.
+- **AI (reasoning)**: Google Gemini (`@google/genai`) — Gemini 2.5 Pro (planner) + Gemini Flash (listener)
 - **AI (audio eval)**: Gemini native audio model for listening to rendered audio snapshots
 - **Protocol**: Custom interaction protocol (see `docs/gluon-interaction-protocol-v05.md`)
 
@@ -26,8 +26,8 @@ Gluon is the Claude Code of music: an open source platform built around an AI-le
 src/
   audio/       # WASM bridge, AudioWorklet, Web Audio, offline render
   engine/      # Protocol types, session state, undo stack, scheduler
-  ai/          # Multi-provider AI, state compression, tool schemas
-    providers/ # Gemini, OpenAI, Anthropic adapters
+  ai/          # Gemini AI, state compression, tool schemas
+    providers/ # Provider adapters
   ui/          # React components (views, chat, controls)
   qa/          # QA test helpers
 scripts/       # Build scripts (WASM, worklets, QA)
@@ -41,7 +41,7 @@ tests/         # Test files (mirrors src/ structure)
 - TypeScript, React, Vite, Tailwind CSS
 - Emscripten (C++ to WASM)
 - Web Audio API + AudioWorklet
-- Google GenAI SDK (`@google/genai`), OpenAI SDK (`openai`), Anthropic SDK (`@anthropic-ai/sdk`)
+- Google GenAI SDK (`@google/genai`)
 
 ## Development Commands
 
