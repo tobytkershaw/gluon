@@ -67,7 +67,11 @@ export function SemanticControlsSection({
 }: SemanticControlsSectionProps) {
   const [inspectedId, setInspectedId] = useState<string | null>(null);
 
-  const semanticControls = track.surface.semanticControls;
+  // Extract semantic controls from macro-knob modules
+  const semanticControls = track.surface.modules
+    .filter(m => m.type === 'macro-knob')
+    .map(m => m.config.semanticControl as SemanticControlDef)
+    .filter(Boolean);
 
   const handleClick = useCallback((defId: string) => {
     setInspectedId(prev => prev === defId ? null : defId);
