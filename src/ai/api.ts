@@ -477,6 +477,13 @@ interface ResolvedMoveTarget {
   tempoSyncLabel?: string;
 }
 
+function isTempoSyncableRateControl(args: Record<string, unknown>, param: string, semanticRole?: string): boolean {
+  if (typeof args.modulatorId === 'string' && args.modulatorId) {
+    return param === 'frequency';
+  }
+  return semanticRole === 'movement_rate';
+}
+
 function parseMusicalDivision(value: string): number | null {
   const match = value.trim().match(/^(\d+)\/(\d+)([dt])?$/i);
   if (!match) return null;
@@ -522,7 +529,7 @@ function resolveTempoSyncedMoveTarget(
   const trackId = (args.trackId as string) ?? session.activeTrackId;
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) {
-    return { error: trackNotFoundError(String(args.trackId), session).error as string };
+    return { error: trackNotFoundError(trackId, session).error as string };
   }
 
   const param = args.param as string;
@@ -534,7 +541,12 @@ function resolveTempoSyncedMoveTarget(
     if (!mod) return { error: `Modulator not found: ${args.modulatorId}` };
     const instrument = getModulatorInstrument(mod.type);
     const schema = instrument?.engines[mod.model]?.controls.find(c => c.id === param);
-    if (schema?.displayMapping && (schema.displayMapping.type === 'log' || schema.displayMapping.type === 'linear') && schema.displayMapping.unit === 'Hz') {
+    if (
+      schema?.displayMapping &&
+      (schema.displayMapping.type === 'log' || schema.displayMapping.type === 'linear') &&
+      schema.displayMapping.unit === 'Hz' &&
+      isTempoSyncableRateControl(args, param, schema.semanticRole)
+    ) {
       mapping = schema.displayMapping;
       targetLabel = `${mod.type}.${param}`;
     }
@@ -543,7 +555,12 @@ function resolveTempoSyncedMoveTarget(
     if (!proc) return { error: `Processor not found: ${args.processorId}` };
     const instrument = getProcessorInstrument(proc.type);
     const schema = instrument?.engines[proc.model]?.controls.find(c => c.id === param);
-    if (schema?.displayMapping && (schema.displayMapping.type === 'log' || schema.displayMapping.type === 'linear') && schema.displayMapping.unit === 'Hz') {
+    if (
+      schema?.displayMapping &&
+      (schema.displayMapping.type === 'log' || schema.displayMapping.type === 'linear') &&
+      schema.displayMapping.unit === 'Hz' &&
+      isTempoSyncableRateControl(args, param, schema.semanticRole)
+    ) {
       mapping = schema.displayMapping;
       targetLabel = `${proc.type}.${param}`;
     }

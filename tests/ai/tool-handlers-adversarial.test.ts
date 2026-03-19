@@ -252,6 +252,37 @@ describe('move — adversarial', () => {
     expect(response.error).toMatch(/Tempo-synced target\.value/);
     expect(actions).toHaveLength(0);
   });
+
+  it('rejects tempo-synced value strings for Hz-mapped non-rate controls', async () => {
+    const session = makeRichSession();
+    session.tracks[0].processors = [
+      { id: 'ripples-1', type: 'ripples', model: 0, params: { cutoff: 0.5, resonance: 0.2, drive: 0 } },
+    ];
+
+    const { response, actions } = await callTool(session, 'move', {
+      trackId: session.tracks[0].id,
+      processorId: 'ripples-1',
+      param: 'cutoff',
+      target: { value: '1/8d' },
+    });
+
+    expect(response.error).toMatch(/Tempo-synced target\.value/);
+    expect(actions).toHaveLength(0);
+  });
+
+  it('uses the resolved active track id in tempo-sync track errors', async () => {
+    const session = makeRichSession();
+    session.activeTrackId = 'missing-track';
+
+    const { response } = await callTool(session, 'move', {
+      modulatorId: 'tides-1',
+      param: 'frequency',
+      target: { value: '1/8d' },
+    });
+
+    expect(response.error).toContain('missing-track');
+    expect(response.error).not.toContain('undefined');
+  });
 });
 
 // ---------------------------------------------------------------------------
