@@ -2,6 +2,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSession } from '../../src/engine/session';
 import { useProjectLifecycle } from '../../src/ui/useProjectLifecycle';
+import { CURRENT_VERSION, stripForPersistence } from '../../src/engine/persistence';
 
 const storeMocks = vi.hoisted(() => ({
   listProjects: vi.fn(),
@@ -24,7 +25,6 @@ const {
   deleteProject,
   renameProject,
   duplicateProject,
-  exportProject,
   importProject,
   migrateLegacySession,
 } = storeMocks;
@@ -35,6 +35,16 @@ describe('useProjectLifecycle', () => {
   const session = createSession();
   const altSession = createSession();
   let storage: Record<string, string>;
+
+  function deferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+    return { promise, resolve, reject };
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,7 +63,6 @@ describe('useProjectLifecycle', () => {
     listProjects.mockResolvedValue([]);
     saveProject.mockResolvedValue(undefined);
     renameProject.mockResolvedValue(undefined);
-    exportProject.mockResolvedValue('{}');
     importProject.mockResolvedValue({ id: 'imported', name: 'Imported' });
   });
 
@@ -188,5 +197,110 @@ describe('useProjectLifecycle', () => {
     const restoredSession = setSession.mock.calls[0]?.[0];
     expect(restoredSession.undoStack).toEqual([]);
     expect(restoredSession.redoStack).toEqual([]);
+  });
+
+  it('ignores stale project loads when switching projects quickly', async () => {
+    localStorage.setItem('gluon-active-project', 'p1');
+    const p1 = { id: 'p1', meta: { id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }, session };
+    const p2 = { id: 'p2', meta: { id: 'p2', name: 'Two', createdAt: 3, updatedAt: 4 }, session: altSession };
+    const p3Session = { ...createSession(), bpm: 137 };
+    const p3 = { id: 'p3', meta: { id: 'p3', name: 'Three', createdAt: 5, updatedAt: 6 }, session: p3Session };
+    const loadP2 = deferred<typeof p2 | null>();
+    const loadP3 = deferred<typeof p3 | null>();
+
+    loadProject.mockImplementation(async (id: string) => {
+      if (id === 'p1') return p1;
+      if (id === 'p2') return loadP2.promise;
+      if (id === 'p3') return loadP3.promise;
+      return null;
+    });
+    listProjects.mockResolvedValue([{ id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }]);
+
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.projectId).toBe('p1'));
+
+    await act(async () => {
+      void result.current.switchProject('p2');
+      void result.current.switchProject('p3');
+    });
+
+    await act(async () => {
+      loadP3.resolve(p3);
+      await loadP3.promise;
+    });
+    await waitFor(() => expect(result.current.projectId).toBe('p3'));
+
+    await act(async () => {
+      loadP2.resolve(p2);
+      await loadP2.promise;
+    });
+
+    expect(result.current.projectId).toBe('p3');
+    expect(setSession).toHaveBeenCalledTimes(2);
+    expect(setSession.mock.calls[1]?.[0].bpm).toBe(137);
+  });
+
+  it('surfaces project load failures without switching away from the current project', async () => {
+    localStorage.setItem('gluon-active-project', 'p1');
+    loadProject.mockImplementation(async (id: string) => {
+      if (id === 'p1') return { id: 'p1', meta: { id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }, session };
+      return null;
+    });
+    listProjects.mockResolvedValue([{ id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }]);
+
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.projectId).toBe('p1'));
+
+    await act(async () => {
+      await result.current.switchProject('missing');
+    });
+
+    expect(result.current.projectId).toBe('p1');
+    expect(result.current.projectActionError).toBe('Project missing could not be loaded.');
+  });
+
+  it('exports the in-memory session even when persistence is degraded', async () => {
+    const originalCreateElement = document.createElement.bind(document);
+    const anchor = {
+      click: vi.fn(),
+      href: '',
+      download: '',
+    } as unknown as HTMLAnchorElement;
+    const createObjectURL = vi.fn(() => 'blob:gluon');
+    const revokeObjectURL = vi.fn();
+    const createElementSpy = vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'a') return anchor;
+      return originalCreateElement(tagName);
+    });
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+
+    listProjects.mockRejectedValue(new Error('IndexedDB down'));
+    createProject.mockRejectedValue(new Error('IndexedDB down'));
+    migrateLegacySession.mockRejectedValue(new Error('IndexedDB down'));
+
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.saveError).toBe(true));
+
+    await act(async () => {
+      await result.current.exportActiveProject();
+    });
+
+    expect(createObjectURL).toHaveBeenCalledOnce();
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const json = await blob.text();
+    expect(JSON.parse(json)).toEqual({
+      format: 'gluon-project',
+      version: CURRENT_VERSION,
+      name: 'Untitled',
+      exportedAt: expect.any(Number),
+      session: stripForPersistence(session),
+    });
+    expect(anchor.click).toHaveBeenCalledOnce();
+
+    createElementSpy.mockRestore();
+    vi.unstubAllGlobals();
   });
 });

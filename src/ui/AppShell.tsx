@@ -74,6 +74,7 @@ interface Props {
   projects: ProjectMeta[];
   saveError: boolean;
   saveStatus: SaveStatus;
+  projectActionError?: string | null;
   onProjectRename: (name: string) => void;
   onProjectNew: () => void;
   onProjectOpen: (id: string) => void;
@@ -169,7 +170,7 @@ export function AppShell({
   openDecisions = [], onDecisionRespond,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   chatOpen, onChatToggle, chatWidth, onChatResize,
-  projectName, projects, saveError, saveStatus,
+  projectName, projects, saveError, saveStatus, projectActionError = null,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
   onExportWav, exportingWav,
@@ -312,6 +313,7 @@ export function AppShell({
               projects={projects}
               saveError={saveError}
               saveStatus={saveStatus}
+              projectActionError={projectActionError}
               onRename={onProjectRename}
               onNew={onProjectNew}
               onOpen={onProjectOpen}
@@ -418,6 +420,7 @@ export function AppShell({
             projects={projects}
             saveError={saveError}
             saveStatus={saveStatus}
+            projectActionError={projectActionError}
             onRename={onProjectRename}
             onNew={onProjectNew}
             onOpen={onProjectOpen}

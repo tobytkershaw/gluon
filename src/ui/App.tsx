@@ -2275,6 +2275,7 @@ export default function App() {
       projects={project.projects}
       saveError={project.saveError}
       saveStatus={project.saveStatus}
+      projectActionError={project.projectActionError}
       onProjectRename={project.renameActiveProject}
       onProjectNew={() => project.createProject()}
       onProjectOpen={project.switchProject}
