@@ -3,6 +3,7 @@ import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry } from '..
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
 import { PromptStarters } from './PromptStarters';
+import { TurnSummaryCard } from './TurnSummaryCard';
 import { renderInlineMarkdown } from './inlineMarkdown';
 
 /**
@@ -113,6 +114,13 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
               )}
               {msg.toolCalls && msg.toolCalls.length > 0 && (
                 <ToolCallsView toolCalls={msg.toolCalls} />
+              )}
+              {hasActions && onStarterSelect && (
+                <TurnSummaryCard
+                  actions={msg.actions!}
+                  aiText={msg.text}
+                  onChipSelect={onStarterSelect}
+                />
               )}
               {hasActions && (onReaction || canUndo) && (
                 <div className="flex items-center gap-1 mt-1.5">
