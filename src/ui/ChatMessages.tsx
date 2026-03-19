@@ -1,7 +1,8 @@
 import { useRef, useEffect } from 'react';
-import type { ChatMessage, Reaction, UndoEntry, ActionLogEntry } from '../engine/types';
+import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';
 import { ToolCallsView } from './ToolCallsView';
+import { PromptStarters } from './PromptStarters';
 import { renderInlineMarkdown } from './inlineMarkdown';
 
 interface Props {
@@ -22,9 +23,15 @@ interface Props {
   undoStack?: UndoEntry[];
   /** Callback when user clicks the undo button on an AI message. */
   onUndoMessage?: (messageIndex: number) => void;
+  /** Current session tracks, used for context-aware prompt starters. */
+  tracks?: Track[];
+  /** All session messages (including previous), used for resume detection. */
+  sessionMessages?: ChatMessage[];
+  /** Callback when user clicks a prompt starter chip. */
+  onStarterSelect?: (prompt: string) => void;
 }
 
-export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingLogEntries = [], streamingRejections = [], reactions = [], onReaction, undoStack = [], onUndoMessage }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingLogEntries = [], streamingRejections = [], reactions = [], onReaction, undoStack = [], onUndoMessage, tracks = [], sessionMessages, onStarterSelect }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -35,12 +42,12 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
 
   return (
     <div ref={scrollRef} className="flex-1 overflow-y-auto chat-scroll p-3 space-y-2">
-      {messages.length === 0 && !isThinking && (
-        <div className="flex items-center justify-center h-full opacity-[0.04]">
-          <svg viewBox="0 0 24 24" className="w-16 h-16 text-zinc-100">
-            <path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
-          </svg>
-        </div>
+      {messages.length === 0 && !isThinking && !isListening && onStarterSelect && (
+        <PromptStarters
+          tracks={tracks}
+          messages={sessionMessages ?? messages}
+          onSelect={onStarterSelect}
+        />
       )}
 
       {messages.map((msg, i) => {

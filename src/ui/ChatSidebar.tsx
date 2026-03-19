@@ -3,7 +3,7 @@
 // Open: full sidebar with messages, composer, and bold visual identity.
 // Collapsed: renders nothing (floating composer pill appears in AppShell).
 import { useCallback, useRef } from 'react';
-import type { ChatMessage, Reaction, UndoEntry } from '../engine/types';
+import type { ChatMessage, Track, Reaction, UndoEntry } from '../engine/types';
 import type { ListenerMode } from '../ai/api';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
@@ -22,6 +22,8 @@ interface Props {
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
   undoStack?: UndoEntry[];
   onUndoMessage?: (messageIndex: number) => void;
+  tracks?: Track[];
+  sessionMessages?: ChatMessage[];
   apiConfigured: boolean;
   onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   currentOpenaiKey?: string;
@@ -35,6 +37,7 @@ interface Props {
 export function ChatSidebar({
   messages, onSend, isThinking = false, isListening = false, streamingText = '', streamingLogEntries, streamingRejections,
   reactions, onReaction, undoStack, onUndoMessage,
+  tracks, sessionMessages,
   apiConfigured, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   open, width, onResize,
 }: Props) {
@@ -88,7 +91,7 @@ export function ChatSidebar({
         {apiConfigured ? (
           <>
             <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-              <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} />
+              <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={sessionMessages} onStarterSelect={onSend} />
             </div>
 
             {/* Composer at bottom of sidebar */}
