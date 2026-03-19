@@ -32,7 +32,7 @@ import type { CloudsPatchParams } from './clouds-messages';
 import type { PlaitsExtendedParams } from './plaits-messages';
 import { controlIdToRuntimeParam } from './instrument-registry';
 import { recordQaAudioTrace } from '../qa/audio-trace';
-import { VoicePool, ACCENT_BASELINE } from './voice-pool';
+import { VoicePool, ACCENT_BASELINE, STEAL_RAMP_TIME } from './voice-pool';
 
 /** Duration (seconds) for the gain ramp used during chain rebuild to avoid clicks. */
 const CHAIN_RAMP_SEC = 0.002; // ~2ms
@@ -40,6 +40,8 @@ const CHAIN_RAMP_SEC = 0.002; // ~2ms
 const TRACK_TAIL_GRACE_SEC = 2.0;
 /** Number of synth voices per track for polyphonic overlap handling. */
 const VOICES_PER_TRACK = 4;
+/** Duration (seconds) for the gain ramp when choking a pad (avoids clicks). */
+const CHOKE_RAMP_TIME = 0.005;
 
 type ProcessorEngine = RingsEngine | CloudsEngine | RipplesEngine | EqEngine | CompressorEngine | StereoEngine | ChorusEngine | DistortionEngine | WarpsEngine | ElementsEngine | BeadsEngine | FramesEngine;
 
@@ -68,8 +70,22 @@ interface ModulationRoute {
   targetParam: string;  // "mod-timbre" etc.
 }
 
+/** A single pad within a drum rack: one synth instance + per-pad gain and panner. */
+interface DrumPadSlot {
+  id: string;
+  synth: import('./synth-interface').SynthEngine;
+  accentGain: GainNode;
+  padGain: GainNode;
+  padPanner: StereoPannerNode;
+  model: number;
+  params: Record<string, number>;
+  chokeGroup?: number;
+  lastNoteTime: number;
+  lastGateOffTime: number;
+}
+
 interface TrackSlot {
-  pool: VoicePool | null; // null for bus tracks (they have no voices)
+  pool: VoicePool | null; // null for bus tracks and drum rack tracks
   sourceOut: GainNode;   // routing node between source and processor chain
   chainOutGain: GainNode; // gain node at end of processor chain — ramped to 0 during rebuild to avoid clicks
   trackVolume: GainNode; // per-track volume (0.0–1.0)
@@ -84,6 +100,10 @@ interface TrackSlot {
   currentModel: number;
   /** Whether this is a bus track (no voice pool). */
   isBus: boolean;
+  /** Whether this is a drum rack track (pad pool instead of voice pool). */
+  isDrumRack: boolean;
+  /** Per-pad synth instances for drum rack tracks. */
+  drumPads: Map<string, DrumPadSlot>;
 }
 
 /** Per-track send routing: a gain node controlling send level, connected to a bus's busInput. */
@@ -334,7 +354,7 @@ export class AudioEngine {
     return this._isRunning;
   }
 
-  async start(trackIds: string[], busTrackIds: string[] = [], masterBusId?: string): Promise<void> {
+  async start(trackIds: string[], busTrackIds: string[] = [], masterBusId?: string, drumRackTrackIds: string[] = []): Promise<void> {
     if (this._isRunning) return;
     this.ctx = new AudioContext({ sampleRate: 48000 });
 
@@ -371,6 +391,7 @@ export class AudioEngine {
     this.metronomeGain.connect(this.ctx.destination);
 
     const allBusIds = new Set(busTrackIds);
+    const allDrumRackIds = new Set(drumRackTrackIds);
     this.masterBusId = masterBusId ?? null;
 
     // Create all bus tracks first so audio tracks can reference the master bus
@@ -378,10 +399,14 @@ export class AudioEngine {
       await this.createBusSlot(busId);
     }
 
-    // Create audio track slots
+    // Create audio and drum rack track slots
     for (const trackId of trackIds) {
       if (allBusIds.has(trackId)) continue; // already created as bus
-      await this.createAudioSlot(trackId);
+      if (allDrumRackIds.has(trackId)) {
+        await this.createDrumRackSlot(trackId);
+      } else {
+        await this.createAudioSlot(trackId);
+      }
     }
 
     // Route non-master tracks to the master bus if it exists
@@ -436,6 +461,8 @@ export class AudioEngine {
       currentParams: { ...DEFAULT_PARAMS },
       currentModel: 0,
       isBus: false,
+      isDrumRack: false,
+      drumPads: new Map(),
     });
   }
 
@@ -482,6 +509,8 @@ export class AudioEngine {
       currentParams: { ...DEFAULT_PARAMS },
       currentModel: 0,
       isBus: true,
+      isDrumRack: false,
+      drumPads: new Map(),
     });
   }
 
@@ -530,12 +559,19 @@ export class AudioEngine {
     }
     this.sendSlots.clear();
     this.masterBusId = null;
-    // Destroy processors and tracks
+    // Destroy processors, drum pads, and tracks
     for (const slot of this.tracks.values()) {
       for (const proc of slot.processors) {
         proc.engine.destroy();
       }
       if (slot.pool) slot.pool.destroy();
+      for (const padSlot of slot.drumPads.values()) {
+        padSlot.synth.destroy();
+        padSlot.accentGain.disconnect();
+        padSlot.padGain.disconnect();
+        padSlot.padPanner.disconnect();
+      }
+      slot.drumPads.clear();
     }
     this.tracks.clear();
     this.activeVoices.clear();
@@ -563,17 +599,61 @@ export class AudioEngine {
     this._isRunning = false;
   }
 
+  /** Create a drum rack track slot — no voice pool, pads added separately. */
+  private async createDrumRackSlot(trackId: string): Promise<void> {
+    if (!this.ctx || !this.mixer) return;
+
+    const sourceOut = this.ctx.createGain();
+    sourceOut.gain.value = 1.0;
+    const chainOutGain = this.ctx.createGain();
+    chainOutGain.gain.value = 1.0;
+    const trackVolume = this.ctx.createGain();
+    trackVolume.gain.value = 0.8;
+    const trackPanner = this.ctx.createStereoPanner();
+    trackPanner.pan.value = 0.0;
+    const muteGain = this.ctx.createGain();
+    muteGain.gain.value = 1.0;
+    const analyser = this.ctx.createAnalyser();
+    analyser.fftSize = 256;
+    sourceOut.connect(chainOutGain);
+    chainOutGain.connect(trackVolume);
+    trackVolume.connect(trackPanner);
+    trackPanner.connect(muteGain);
+    muteGain.connect(this.mixer);
+    muteGain.connect(analyser);
+
+    this.tracks.set(trackId, {
+      pool: null,
+      sourceOut,
+      chainOutGain,
+      trackVolume,
+      trackPanner,
+      muteGain,
+      busInput: null,
+      analyser,
+      processors: [],
+      currentParams: { ...DEFAULT_PARAMS },
+      currentModel: 0,
+      isBus: false,
+      isDrumRack: true,
+      drumPads: new Map(),
+    });
+  }
+
   /**
    * Dynamically add a new track slot to the running audio engine.
    * Creates a voice pool and the per-track gain/pan chain.
    * For bus tracks, pass isBus=true to skip voice pool creation.
+   * For drum rack tracks, pass isDrumRack=true — pads are added separately via addDrumPad().
    */
-  async addTrack(trackId: string, isBus = false): Promise<void> {
+  async addTrack(trackId: string, isBus = false, isDrumRack = false): Promise<void> {
     if (!this.ctx || !this.mixer) return;
     if (this.tracks.has(trackId)) return;
 
     if (isBus) {
       await this.createBusSlot(trackId);
+    } else if (isDrumRack) {
+      await this.createDrumRackSlot(trackId);
     } else {
       await this.createAudioSlot(trackId);
     }
@@ -648,8 +728,15 @@ export class AudioEngine {
     for (const [eventId, voice] of this.activeVoices) {
       if (voice.trackId === trackId) this.activeVoices.delete(eventId);
     }
-    // Destroy voice pool and disconnect audio nodes
+    // Destroy voice pool and drum pads, disconnect audio nodes
     if (slot.pool) slot.pool.destroy();
+    for (const padSlot of slot.drumPads.values()) {
+      padSlot.synth.destroy();
+      padSlot.accentGain.disconnect();
+      padSlot.padGain.disconnect();
+      padSlot.padPanner.disconnect();
+    }
+    slot.drumPads.clear();
     slot.sourceOut.disconnect();
     slot.chainOutGain.disconnect();
     slot.trackVolume.disconnect();
@@ -738,7 +825,15 @@ export class AudioEngine {
 
   scheduleNote(note: ScheduledNote, generation = this.generation): void {
     const slot = this.tracks.get(note.trackId);
-    if (!slot || !slot.pool) return;
+    if (!slot) return;
+
+    // Drum rack routing: route to the specific pad's synth
+    if (slot.isDrumRack && note.padId) {
+      this.scheduleDrumPadNote(slot, note, generation);
+      return;
+    }
+
+    if (!slot.pool) return;
     this.pruneInactiveVoices(note.time);
     const eventId = note.eventId ?? `manual:${note.trackId}:${note.time}:${note.gateOffTime}`;
     const voiceGeneration = note.generation ?? generation;
@@ -764,12 +859,78 @@ export class AudioEngine {
     });
   }
 
+  /** Schedule a note on a specific drum pad, with choke group handling. */
+  private scheduleDrumPadNote(slot: TrackSlot, note: ScheduledNote, generation: number): void {
+    const padSlot = slot.drumPads.get(note.padId!);
+    if (!padSlot) return;
+
+    this.pruneInactiveVoices(note.time);
+    const eventId = note.eventId ?? `manual:${note.trackId}:${note.padId}:${note.time}:${note.gateOffTime}`;
+    const voiceGeneration = note.generation ?? generation;
+
+    // Choke group logic: silence other pads in the same group
+    if (padSlot.chokeGroup != null) {
+      for (const otherPad of slot.drumPads.values()) {
+        if (otherPad.id === padSlot.id) continue;
+        if (otherPad.chokeGroup !== padSlot.chokeGroup) continue;
+        // Ramp the choked pad's accentGain to 0 over CHOKE_RAMP_TIME and gate-off
+        const rampStart = Math.max(0, note.time - CHOKE_RAMP_TIME);
+        otherPad.accentGain.gain.cancelAndHoldAtTime(rampStart);
+        otherPad.accentGain.gain.linearRampToValueAtTime(0, note.time);
+        otherPad.synth.silence(generation);
+      }
+    }
+
+    // Schedule the note on this pad's synth
+    const accentLevel = note.accent ? ACCENT_BASELINE * 2.0 : ACCENT_BASELINE;
+    // If the pad is still sustaining from a previous note, ramp down first
+    if (padSlot.lastGateOffTime > 0 && padSlot.lastGateOffTime >= note.time) {
+      const rampStart = Math.max(0, note.time - STEAL_RAMP_TIME);
+      padSlot.accentGain.gain.cancelAndHoldAtTime(rampStart);
+      padSlot.accentGain.gain.linearRampToValueAtTime(0, note.time);
+    }
+    padSlot.accentGain.gain.setValueAtTime(accentLevel, note.time);
+    if (note.accent) {
+      padSlot.accentGain.gain.setValueAtTime(ACCENT_BASELINE, note.gateOffTime);
+    }
+    padSlot.synth.scheduleNote(note, generation);
+    padSlot.lastNoteTime = note.time;
+    padSlot.lastGateOffTime = note.gateOffTime;
+
+    this.activeVoices.set(eventId, {
+      eventId,
+      generation: voiceGeneration,
+      trackId: note.trackId,
+      noteTime: note.time,
+      gateOffTime: note.gateOffTime,
+      state: 'scheduled',
+    });
+    recordQaAudioTrace({
+      type: 'audio.note',
+      eventId,
+      generation: voiceGeneration,
+      trackId: note.trackId,
+      time: note.time,
+      gateOffTime: note.gateOffTime,
+      accent: note.accent,
+      padId: note.padId,
+    });
+  }
+
   /** Silence a single track: close gate and reset accent gain. Used by keyboard piano for note-off. */
   releaseTrack(trackId: string): void {
     const slot = this.tracks.get(trackId);
-    if (!slot || !slot.pool) return;
+    if (!slot) return;
     const now = this.ctx?.currentTime ?? 0;
-    slot.pool.release(now);
+    if (slot.pool) {
+      slot.pool.release(now);
+    }
+    // Release drum rack pads
+    for (const padSlot of slot.drumPads.values()) {
+      padSlot.synth.silence();
+      padSlot.accentGain.gain.cancelAndHoldAtTime(now);
+      padSlot.accentGain.gain.setValueAtTime(ACCENT_BASELINE, now);
+    }
     for (const voice of this.activeVoices.values()) {
       if (voice.trackId === trackId) {
         voice.state = 'released';
@@ -782,6 +943,11 @@ export class AudioEngine {
     const now = this.ctx?.currentTime ?? 0;
     for (const slot of this.tracks.values()) {
       if (slot.pool) slot.pool.restoreBaseline(now);
+      // Restore drum rack pad accent gains
+      for (const padSlot of slot.drumPads.values()) {
+        padSlot.accentGain.gain.cancelAndHoldAtTime(now);
+        padSlot.accentGain.gain.setValueAtTime(ACCENT_BASELINE, now);
+      }
     }
     // Resume modulator output after pause
     for (const [, modSlots] of this.modulatorSlots) {
@@ -801,6 +967,12 @@ export class AudioEngine {
       const slot = this.tracks.get(trackId);
       if (!slot) continue;
       if (slot.pool) slot.pool.releaseAll(this.generation, now, fadeTime);
+      // Release drum rack pads
+      for (const padSlot of slot.drumPads.values()) {
+        padSlot.synth.silence(this.generation);
+        padSlot.accentGain.gain.cancelAndHoldAtTime(now);
+        padSlot.accentGain.gain.linearRampToValueAtTime(0, fadeTime);
+      }
       // Clear scheduled events in downstream processors (Rings/Clouds)
       // so their tails don't sustain indefinitely. Don't damp() Rings —
       // that's hard-stop behaviour; let the resonance decay naturally.
@@ -831,6 +1003,12 @@ export class AudioEngine {
       const slot = this.tracks.get(trackId);
       if (!slot) continue;
       if (slot.pool) slot.pool.silenceAll(this.generation, now);
+      // Silence drum rack pads
+      for (const padSlot of slot.drumPads.values()) {
+        padSlot.synth.silence(this.generation);
+        padSlot.accentGain.gain.cancelAndHoldAtTime(now);
+        padSlot.accentGain.gain.setValueAtTime(0, now);
+      }
       // Clear scheduled events in downstream processors and damp resonators
       for (const proc of slot.processors) {
         proc.engine.silence(this.generation);
@@ -1343,15 +1521,29 @@ export class AudioEngine {
 
   /**
    * Resolve a ModulationTarget to AudioWorkletNode(s) and AudioParam(s) for connection.
-   * Source targets connect to all worklet nodes in the voice pool.
+   * Source targets connect to all worklet nodes in the voice pool (or all drum pad worklet nodes).
    * Processor targets use the processor's inputNode.
    */
   private resolveModulationTargets(trackSlot: TrackSlot, target: ModulationTarget): { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam }[] {
     if (target.kind === 'source') {
       const results: { targetNode: AudioWorkletNode; paramName: string; audioParam: AudioParam }[] = [];
-      if (!trackSlot.pool) return results;
       const runtimeParam = controlIdToRuntimeParam[target.param] ?? target.param;
       const paramName = `mod-${runtimeParam}`;
+
+      // For drum rack tracks, route modulation to all pad worklet nodes
+      if (trackSlot.isDrumRack) {
+        for (const padSlot of trackSlot.drumPads.values()) {
+          const workletNode = padSlot.synth.workletNode;
+          if (!workletNode) continue;
+          const audioParam = workletNode.parameters.get(paramName);
+          if (audioParam) {
+            results.push({ targetNode: workletNode, paramName, audioParam });
+          }
+        }
+        return results;
+      }
+
+      if (!trackSlot.pool) return results;
       for (const workletNode of trackSlot.pool.workletNodes) {
         const audioParam = workletNode.parameters.get(paramName);
         if (audioParam) {
@@ -1545,5 +1737,151 @@ export class AudioEngine {
 
     osc.start(time);
     osc.stop(time + duration + 0.01);
+  }
+
+  // --- Drum rack pad management ---
+
+  /**
+   * Add a pad to a drum rack track. Creates a Plaits synth instance with
+   * per-pad gain and panner, connected to the track's sourceOut.
+   */
+  async addDrumPad(trackId: string, padId: string, model: number, params: Record<string, number>, level: number, pan: number, chokeGroup?: number): Promise<void> {
+    if (!this.ctx) return;
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    if (slot.drumPads.has(padId)) return;
+
+    const accentGain = this.ctx.createGain();
+    accentGain.gain.value = ACCENT_BASELINE;
+
+    const synth = await createPreferredSynth(this.ctx, accentGain);
+
+    const padGain = this.ctx.createGain();
+    padGain.gain.value = Math.max(0, Math.min(1, level));
+
+    const padPanner = this.ctx.createStereoPanner();
+    // Convert 0-1 pan (0.5=center) to -1..1 range
+    padPanner.pan.value = Math.max(-1, Math.min(1, (pan - 0.5) * 2));
+
+    // Wire: accentGain → padGain → padPanner → sourceOut
+    accentGain.connect(padGain);
+    padGain.connect(padPanner);
+    padPanner.connect(slot.sourceOut);
+
+    // Set model and params
+    synth.setModel(model);
+    synth.setParams({
+      harmonics: params.harmonics ?? 0.5,
+      timbre: params.timbre ?? 0.5,
+      morph: params.morph ?? 0.5,
+      note: params.note ?? 0.47,
+    });
+    if (synth.setExtended) {
+      synth.setExtended(toPlaitsExtendedParams(params as SynthParamValues));
+    }
+
+    slot.drumPads.set(padId, {
+      id: padId,
+      synth,
+      accentGain,
+      padGain,
+      padPanner,
+      model,
+      params: { ...params },
+      chokeGroup,
+      lastNoteTime: 0,
+      lastGateOffTime: 0,
+    });
+  }
+
+  /**
+   * Remove a pad from a drum rack track. Destroys the synth and disconnects audio nodes.
+   */
+  removeDrumPad(trackId: string, padId: string): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    const padSlot = slot.drumPads.get(padId);
+    if (!padSlot) return;
+
+    padSlot.synth.destroy();
+    padSlot.accentGain.disconnect();
+    padSlot.padGain.disconnect();
+    padSlot.padPanner.disconnect();
+    slot.drumPads.delete(padId);
+  }
+
+  /** Set the Plaits model for a specific drum pad. */
+  setDrumPadModel(trackId: string, padId: string, model: number): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    const padSlot = slot.drumPads.get(padId);
+    if (!padSlot) return;
+    padSlot.model = model;
+    padSlot.synth.setModel(model);
+  }
+
+  /** Set the synth params for a specific drum pad. */
+  setDrumPadParams(trackId: string, padId: string, params: Record<string, number>): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    const padSlot = slot.drumPads.get(padId);
+    if (!padSlot) return;
+    padSlot.params = { ...params };
+    padSlot.synth.setParams({
+      harmonics: params.harmonics ?? 0.5,
+      timbre: params.timbre ?? 0.5,
+      morph: params.morph ?? 0.5,
+      note: params.note ?? 0.47,
+    });
+    if (padSlot.synth.setExtended) {
+      padSlot.synth.setExtended(toPlaitsExtendedParams(params as SynthParamValues));
+    }
+  }
+
+  /** Set the per-pad level (gain) for a specific drum pad. */
+  setDrumPadLevel(trackId: string, padId: string, level: number): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    const padSlot = slot.drumPads.get(padId);
+    if (!padSlot) return;
+    padSlot.padGain.gain.value = Math.max(0, Math.min(1, level));
+  }
+
+  /** Set the per-pad pan for a specific drum pad (0-1, 0.5=center). */
+  setDrumPadPan(trackId: string, padId: string, pan: number): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    const padSlot = slot.drumPads.get(padId);
+    if (!padSlot) return;
+    // Convert 0-1 pan (0.5=center) to -1..1 range
+    padSlot.padPanner.pan.value = Math.max(-1, Math.min(1, (pan - 0.5) * 2));
+  }
+
+  /** Update the choke group assignment for a specific drum pad. */
+  setDrumPadChokeGroup(trackId: string, padId: string, chokeGroup: number | undefined): void {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return;
+    const padSlot = slot.drumPads.get(padId);
+    if (!padSlot) return;
+    padSlot.chokeGroup = chokeGroup;
+  }
+
+  /** Check whether a drum rack track has a specific pad. */
+  hasDrumPad(trackId: string, padId: string): boolean {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return false;
+    return slot.drumPads.has(padId);
+  }
+
+  /** Return the pad IDs for a drum rack track. */
+  getDrumPadIds(trackId: string): string[] {
+    const slot = this.tracks.get(trackId);
+    if (!slot || !slot.isDrumRack) return [];
+    return [...slot.drumPads.keys()];
+  }
+
+  /** Check whether a track slot is a drum rack. */
+  isTrackDrumRack(trackId: string): boolean {
+    return this.tracks.get(trackId)?.isDrumRack ?? false;
   }
 }

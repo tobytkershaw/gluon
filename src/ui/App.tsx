@@ -276,10 +276,19 @@ export default function App() {
       const s = sessionRef.current;
       const audioTrackIds = s.tracks.filter(t => getTrackKind(t) === 'audio').map(t => t.id);
       const busTrackIds = s.tracks.filter(t => getTrackKind(t) === 'bus').map(t => t.id);
+      const drumRackTrackIds = s.tracks.filter(t => t.engine === 'drum-rack').map(t => t.id);
       const masterBusId = s.tracks.find(t => t.id === MASTER_BUS_ID) ? MASTER_BUS_ID : undefined;
-      await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId);
+      await audioRef.current.start(audioTrackIds, busTrackIds, masterBusId, drumRackTrackIds);
       for (const track of s.tracks) {
-        if (track.model !== -1 && getTrackKind(track) === 'audio') {
+        if (track.engine === 'drum-rack' && track.drumRack) {
+          // Sync drum rack pads on startup
+          for (const pad of track.drumRack.pads) {
+            void audioRef.current.addDrumPad(
+              track.id, pad.id, pad.source.model, pad.source.params,
+              pad.level, pad.pan, pad.chokeGroup,
+            );
+          }
+        } else if (track.model !== -1 && getTrackKind(track) === 'audio') {
           audioRef.current.setTrackModel(track.id, track.model);
           audioRef.current.setTrackParams(track.id, track.params);
           const modeInt = track.portamentoMode === 'always' ? 1 : track.portamentoMode === 'legato' ? 2 : 0;
@@ -355,15 +364,25 @@ export default function App() {
     for (const track of session.tracks) {
       if (!audio.hasTrack(track.id)) {
         const isBus = getTrackKind(track) === 'bus';
-        void audio.addTrack(track.id, isBus).then(() => {
+        const isDrumRack = track.engine === 'drum-rack';
+        void audio.addTrack(track.id, isBus, isDrumRack).then(() => {
           // After the async add, sync model/params from current session
           const s = sessionRef.current;
           const t = s.tracks.find(v => v.id === track.id);
-          if (t && t.model !== -1 && !isBus) {
+          if (t && t.model !== -1 && !isBus && !isDrumRack) {
             audio.setTrackModel(t.id, t.model);
             audio.setTrackParams(t.id, t.params);
             const modeInt = t.portamentoMode === 'always' ? 1 : t.portamentoMode === 'legato' ? 2 : 0;
             audio.setTrackPortamento(t.id, t.portamentoTime ?? 0, modeInt);
+          }
+          // Sync drum rack pads after track creation
+          if (t && isDrumRack && t.drumRack) {
+            for (const pad of t.drumRack.pads) {
+              void audio.addDrumPad(
+                t.id, pad.id, pad.source.model, pad.source.params,
+                pad.level, pad.pan, pad.chokeGroup,
+              );
+            }
           }
           // If this is the master bus, set it as such
           if (track.id === MASTER_BUS_ID) {
@@ -415,6 +434,34 @@ export default function App() {
         model: track.model,
         params: { ...track.params },
       });
+
+      // Sync drum rack pads — add/remove/update as needed
+      if (track.engine === 'drum-rack' && track.drumRack && audioRef.current.isTrackDrumRack(track.id)) {
+        const desiredPadIds = new Set(track.drumRack.pads.map(p => p.id));
+        const currentPadIds = new Set(audioRef.current.getDrumPadIds(track.id));
+        // Remove pads that no longer exist
+        for (const existingId of currentPadIds) {
+          if (!desiredPadIds.has(existingId)) {
+            audioRef.current.removeDrumPad(track.id, existingId);
+          }
+        }
+        // Add or update pads
+        for (const pad of track.drumRack.pads) {
+          if (!currentPadIds.has(pad.id)) {
+            void audioRef.current.addDrumPad(
+              track.id, pad.id, pad.source.model, pad.source.params,
+              pad.level, pad.pan, pad.chokeGroup,
+            );
+          } else {
+            // Sync model, params, level, pan, choke group
+            audioRef.current.setDrumPadModel(track.id, pad.id, pad.source.model);
+            audioRef.current.setDrumPadParams(track.id, pad.id, pad.source.params);
+            audioRef.current.setDrumPadLevel(track.id, pad.id, pad.level);
+            audioRef.current.setDrumPadPan(track.id, pad.id, pad.pan);
+            audioRef.current.setDrumPadChokeGroup(track.id, pad.id, pad.chokeGroup);
+          }
+        }
+      }
     }
   }, [session.tracks, audioStarted, holdGeneration]);
 
