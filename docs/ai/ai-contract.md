@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has thirty-seven tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -517,6 +517,39 @@ Apply a pre-configured modulation recipe. Adds a Tides modulator with preset par
 | `processorId` | string | no | Specific processor ID for processor-targeted recipes. Auto-finds first matching type if omitted. |
 
 Compound tool — emits add_modulator, set_model, move, and connect_modulator actions. Undoable as an action group. For processor-targeted recipes (filter sweeps, wobble), the matching processor must already exist on the track.
+
+#### `save_patch`
+
+Save the current track's sound configuration (synthesis model + params + processor chain + modulators + routings) as a named patch. Does NOT save pattern data, track identity, or mix settings. Use to capture a sound for reuse later or on other tracks.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Source track — ordinal (e.g. "Track 1") or internal ID. |
+| `name` | string | yes | Name for the patch (e.g. "Warm Techno Bass"). |
+| `tags` | array | no | Tags for categorization (e.g. `["bass", "warm"]`). |
+
+Read-only from the session perspective — saves to the patch library (IndexedDB) but does not modify session state.
+
+#### `load_patch`
+
+Load a saved patch onto a track. Replaces the track's sound configuration while preserving pattern data, track identity, agency, and mix settings.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID. |
+| `patch` | string | yes | Patch name or ID. Case-insensitive name matching. |
+
+Built-in patches: Deep Sub Kick, Acid Bass, Warm Pad, Crisp Snare, Digital Lead, Metallic Hi-Hat, Swarm Texture, Resonant Bell. User-saved patches also available. Compound tool — emits remove/add/move/set_model actions. Undoable as an action group.
+
+#### `list_patches`
+
+List available patches (built-in and user-saved). Optionally filter by tag.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `tag` | string | no | Filter by tag (e.g. "kick", "bass", "pad"). Case-insensitive. |
+
+Read-only — does not modify session state.
 
 #### `suggest_reactions`
 
