@@ -205,6 +205,16 @@ describe('circuit breaker', () => {
     expect(isRepeatedSuccess(breaker, 'render', { scope: 'v0' })).toBe(false);
   });
 
+  it('does not flag analyze as a repeated success', () => {
+    let breaker = createCircuitBreaker();
+
+    breaker = recordStep(breaker, {
+      calls: [{ name: 'analyze', args: { snapshotId: 'snapshot_1', types: ['spectral'] }, errored: false }],
+    });
+
+    expect(isRepeatedSuccess(breaker, 'analyze', { snapshotId: 'snapshot_1', types: ['spectral'] })).toBe(false);
+  });
+
   it('does not flag failed calls as repeated successes', () => {
     let breaker = createCircuitBreaker();
 

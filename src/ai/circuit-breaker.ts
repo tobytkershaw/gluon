@@ -28,7 +28,7 @@ const DEFAULT_CONFIG: CircuitBreakerConfig = {
 
 /** Tools that are read-only / observational — safe to call repeatedly with same args. */
 const READ_ONLY_TOOLS = new Set([
-  'listen', 'render', 'spectral', 'dynamics', 'rhythm', 'audio_diff',
+  'listen', 'render', 'analyze', 'explain_chain', 'simplify_chain', 'report_bug',
 ]);
 
 export interface CircuitBreakerState {
