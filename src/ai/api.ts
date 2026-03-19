@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SemanticControlDef, SemanticControlWeight, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, SurfaceModule, ModuleBinding, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, AgencyApprovalRequest } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, AGENCY_REJECTION_PREFIX } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -2508,61 +2508,37 @@ export class GluonAI {
         if (typeof args.description !== 'string') {
           return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
-
-        const surfaceMode = args.action === 'auto_map' ? 'auto_map' : 'define';
-        const rawControls: Record<string, unknown>[] = surfaceMode === 'auto_map'
-          ? (() => {
-              if (!Array.isArray(args.params)) {
-                return [];
-              }
-              return (args.params as unknown[])
-                .filter((param): param is string => typeof param === 'string' && param.trim().length > 0)
-                .map(param => ({
-                  name: param,
-                  weights: [{ moduleId: 'source', controlId: param, weight: 1 }],
-                }));
-            })()
-          : Array.isArray(args.semanticControls)
-            ? (args.semanticControls as Record<string, unknown>[])
-            : [];
-
-        if (surfaceMode === 'auto_map') {
-          if (!Array.isArray(args.params) || rawControls.length === 0) {
-            return { actions: [], response: errorPayload('action=auto_map requires params (must be a non-empty array of parameter IDs)') };
-          }
-        } else if (!Array.isArray(args.semanticControls)) {
-          return { actions: [], response: errorPayload('Missing required parameter: semanticControls (must be an array)') };
+        if (!Array.isArray(args.modules)) {
+          return { actions: [], response: errorPayload('Missing required parameter: modules (must be an array)') };
         }
 
-        const semanticControls: SemanticControlDef[] = rawControls.map((sc, i) => {
-          const rawWeights = (sc.weights as Record<string, unknown>[]) ?? [];
-          const weights: SemanticControlWeight[] = rawWeights.map(w => ({
-            moduleId: (w.moduleId as string) ?? 'source',
-            controlId: (w.controlId as string) ?? '',
-            weight: (w.weight as number) ?? 0,
-            transform: ((w.transform as string) ?? 'linear') as SemanticControlWeight['transform'],
+        const modules: SurfaceModule[] = (args.modules as Record<string, unknown>[]).map((m, i) => {
+          const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
+          const bindings: ModuleBinding[] = rawBindings.map(b => ({
+            role: (b.role as string) ?? 'control',
+            trackId: args.trackId as string,
+            target: (b.target as string) ?? '',
           }));
-          const scName = (sc.name as string) ?? `control-${i}`;
-          const rawRange = sc.range as Record<string, number> | undefined;
+
+          const rawPosition = m.position as Record<string, number> | undefined;
+          const position = rawPosition
+            ? { x: rawPosition.x ?? 0, y: rawPosition.y ?? i * 2, w: rawPosition.w ?? 4, h: rawPosition.h ?? 2 }
+            : { x: 0, y: i * 2, w: 4, h: 2 };
+
           return {
-            id: scName.toLowerCase().replace(/\s+/g, '-'),
-            name: scName,
-            semanticRole: null,
-            description: '',
-            weights,
-            range: rawRange
-              ? { min: rawRange.min ?? 0, max: rawRange.max ?? 1, default: rawRange.default ?? 0.5 }
-              : { min: 0, max: 1, default: 0.5 },
+            type: (m.type as string) ?? 'knob-group',
+            id: (m.id as string) ?? `module-${i}`,
+            label: (m.label as string) ?? `Module ${i}`,
+            bindings,
+            position,
+            config: (m.config as Record<string, unknown>) ?? {},
           };
         });
-
-        const xyAxes = args.xyAxes as { x: string; y: string } | undefined;
 
         const setSurfaceAction: AISetSurfaceAction = {
           type: 'set_surface',
           trackId: args.trackId as string,
-          semanticControls,
-          ...(xyAxes ? { xyAxes } : {}),
+          modules,
           description: args.description as string,
         };
 
@@ -2574,8 +2550,8 @@ export class GluonAI {
           response: {
             applied: true,
             trackId: setSurfaceAction.trackId,
-            controlCount: semanticControls.length,
-            mode: surfaceMode,
+            moduleCount: modules.length,
+            moduleTypes: modules.map(m => m.type),
           },
         };
       }
