@@ -366,7 +366,7 @@ const listenTool: ToolSchema = {
   description:
     'Render audio offline and send to an evaluator for qualitative judgment. ' +
     'Works whether or not the transport is playing. ' +
-    'Changes you make in this turn aren\'t audible yet — listen in a follow-up turn to hear your edits. ' +
+    'Within a single turn, listen evaluates the current projected state, including edits made earlier in the same tool loop. ' +
     'Key modes: (1) basic — ask a question about the current sound, (2) lens — focus on low-end, rhythm, harmony, texture, or dynamics, ' +
     '(3) compare — render before/after audio to evaluate an edit (e.g. "did the bass get warmer?"). ' +
     'Compare mode is the recommended way to verify your changes improved the sound.',
@@ -947,7 +947,7 @@ const renderTool: ToolSchema = {
   description:
     'Capture an audio snapshot. Returns a snapshotId for use with analyze. ' +
     'Cheap — use freely. Scope to specific tracks for isolation (e.g. scope: "Track 1") or omit for full mix. ' +
-    'Changes you make in this turn aren\'t audible yet — render in a follow-up turn to capture your edits.',
+    'Within a single turn, render captures the current projected state, including edits made earlier in the same tool loop.',
   parameters: {
     type: 'object',
     properties: {
