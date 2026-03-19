@@ -4,7 +4,7 @@ import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
-import { scaleToString, scaleNoteNames } from '../engine/scale';
+import { scaleToString, scaleNoteNames, midiToNoteName } from '../engine/scale';
 import { getChordToneNames } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
@@ -15,10 +15,10 @@ import { eventsToGrid, eventsToKit, formatLegend, velocityToGridChar, DEFAULT_LE
 interface CompressedPattern {
   length: number;
   event_count: number;
-  triggers: { at: number; vel: number }[];
-  notes: { at: number; pitch: number; vel: number }[];
-  accents: number[];
-  param_locks: { at: number; params: Record<string, number> }[];
+  triggers?: { at: number; vel: number }[];
+  notes?: { at: number; pitch: string; vel: number; dur?: number }[];
+  accents?: number[];
+  param_locks?: { at: number; params: Record<string, number> }[];
   density: number;
 }
 
@@ -80,7 +80,7 @@ interface CompressedTrack {
   id: string;
   label: string;
   model: string;
-  params: Record<string, number>;
+  params?: Record<string, number>;
   approval: ApprovalLevel;
   muted: boolean;
   solo: boolean;
@@ -184,14 +184,9 @@ export interface CompressedState {
 
 interface CompressedGenreReferenceOverlay {
   genre: string;
-  profileId: string;
-  label: string;
-  description: string;
-  lufs: { min: number; max: number };
-  dynamicRange: { min: number; max: number };
-  crestFactor: { min: number; max: number };
-  spectralCentroidHz: { min: number; max: number };
-  frequencyBalance: { band: string; range: string; minDb: number; maxDb: number }[];
+  profile: string;
+  targetLufs: [number, number];
+  centroidHz: [number, number];
   mixNotes: string[];
 }
 
@@ -229,12 +224,12 @@ function sampleAutomationPoints<T>(points: T[], limit: number): T[] {
 function compressPattern(track: Track): CompressedPattern {
   const region = track.patterns.length > 0 ? getActivePattern(track) : undefined;
   if (!region) {
-    return { length: track.stepGrid.length, event_count: 0, triggers: [], notes: [], accents: [], param_locks: [], density: 0 };
+    return { length: track.stepGrid.length, event_count: 0, density: 0 };
   }
 
   const events = region.events;
   const triggers: { at: number; vel: number }[] = [];
-  const notes: { at: number; pitch: number; vel: number }[] = [];
+  const notes: { at: number; pitch: string; vel: number; dur?: number }[] = [];
   const accents: number[] = [];
   const paramMap = new Map<string, Record<string, number>>();
 
@@ -249,7 +244,12 @@ function compressPattern(track: Track): CompressedPattern {
         }
         break;
       case 'note':
-        notes.push({ at: round2(e.at), pitch: e.pitch, vel: round2(e.velocity) });
+        notes.push({
+          at: round2(e.at),
+          pitch: midiToNoteName(e.pitch),
+          vel: round2(e.velocity),
+          ...(e.duration !== undefined && round2(e.duration) !== 1 ? { dur: round2(e.duration) } : {}),
+        });
         if (e.velocity >= 0.95) {
           accents.push(round2(e.at));
         }
@@ -275,10 +275,10 @@ function compressPattern(track: Track): CompressedPattern {
   return {
     length: region.duration,
     event_count: events.length,
-    triggers,
-    notes,
-    accents,
-    param_locks,
+    ...(triggers.length > 0 ? { triggers } : {}),
+    ...(notes.length > 0 ? { notes } : {}),
+    ...(accents.length > 0 ? { accents } : {}),
+    ...(param_locks.length > 0 ? { param_locks } : {}),
     density,
   };
 }
@@ -610,19 +610,9 @@ function findGenreReferenceSpec(genre: string): GenreReferenceOverlaySpec | unde
 function compressGenreReferenceOverlay(genre: string, profile: ReferenceProfile, spec: GenreReferenceOverlaySpec): CompressedGenreReferenceOverlay {
   return {
     genre,
-    profileId: profile.id,
-    label: profile.label,
-    description: profile.description,
-    lufs: { min: profile.dynamics.lufsMin, max: profile.dynamics.lufsMax },
-    dynamicRange: { min: profile.dynamics.dynamicRangeMin, max: profile.dynamics.dynamicRangeMax },
-    crestFactor: { min: profile.dynamics.crestFactorMin, max: profile.dynamics.crestFactorMax },
-    spectralCentroidHz: spec.spectralCentroidHz,
-    frequencyBalance: profile.bands.map(band => ({
-      band: band.band,
-      range: band.range,
-      minDb: band.minDb,
-      maxDb: band.maxDb,
-    })),
+    profile: profile.id,
+    targetLufs: [profile.dynamics.lufsMin, profile.dynamics.lufsMax],
+    centroidHz: [spec.spectralCentroidHz.min, spec.spectralCentroidHz.max],
     mixNotes: spec.mixNotes,
   };
 }
@@ -665,7 +655,7 @@ export function compressState(
       label: getTrackOrdinalLabel(track, audioTracks, busTracks),
       ...(track.kind === 'bus' ? { kind: 'bus' as const } : {}),
       model: isDrumRack ? 'drum-rack' : modelName(track.model),
-      ...(isDrumRack ? {} : {
+      ...(isDrumRack || getTrackKind(track) === 'bus' ? {} : {
         params: {
           timbre: round2(track.params.timbre),
           harmonics: round2(track.params.harmonics),
@@ -683,24 +673,27 @@ export function compressState(
       pan: round2(track.pan),
       ...(track.swing != null ? { swing: round2(track.swing) } : {}),
       pattern: isDrumRack ? compressDrumRackPattern(track) : compressPattern(track),
-      sequence: track.sequence.map((ref, index) => {
-        const pattern = track.patterns.find(candidate => candidate.id === ref.patternId);
-        return {
-          index,
-          patternId: ref.patternId,
-          length: pattern?.duration ?? 0,
-          ...(ref.automation && ref.automation.length > 0 ? {
-            automation: ref.automation.map(lane => ({
-              controlId: lane.controlId,
-              point_count: lane.points.length,
-              points: sampleAutomationPoints(lane.points, AUTOMATION_POINT_PREVIEW_LIMIT).map(point => ({
-                at: round2(point.at),
-                value: round2(point.value),
+      ...(track.sequence.length > 0 ? {
+        sequence: track.sequence.map((ref, index) => {
+          const pattern = track.patterns.find(candidate => candidate.id === ref.patternId);
+          return {
+            index,
+            patternId: ref.patternId,
+            ...(pattern?.name ? { name: pattern.name } : {}),
+            length: pattern?.duration ?? 0,
+            ...(ref.automation && ref.automation.length > 0 ? {
+              automation: ref.automation.map(lane => ({
+                controlId: lane.controlId,
+                point_count: lane.points.length,
+                points: sampleAutomationPoints(lane.points, AUTOMATION_POINT_PREVIEW_LIMIT).map(point => ({
+                  at: round2(point.at),
+                  value: round2(point.value),
+                })),
               })),
-            })),
-          } : {}),
-        };
-      }),
+            } : {}),
+          };
+        }),
+      } : {}),
       ...(track.patterns.length > 1 ? {
         patterns: track.patterns.map(r => ({
           id: r.id,
@@ -713,24 +706,38 @@ export function compressState(
       views: (track.views ?? []).map(v => `${v.kind}:${v.id}`),
       processors: (track.processors ?? []).map(p => {
         const defaults = getProcessorDefaultParams(p.type, p.model);
-        const merged = { ...defaults, ...p.params };
+        const nonDefault = Object.fromEntries(
+          Object.entries(p.params)
+            .filter(([k, v]) => {
+              const def = defaults[k];
+              return def === undefined || round2(v) !== round2(def);
+            })
+            .map(([k, v]) => [k, round2(v)])
+        );
         return {
           id: p.id,
           type: p.type,
           model: getProcessorEngineName(p.type, p.model) ?? String(p.model),
-          params: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, round2(v)])),
+          params: nonDefault,
           ...(p.enabled === false ? { enabled: false } : {}),
           ...(p.sidechainSourceId ? { sidechainSourceId: p.sidechainSourceId } : {}),
         };
       }),
       modulators: (track.modulators ?? []).map(m => {
         const defaults = getModulatorDefaultParams(m.type, m.model);
-        const merged = { ...defaults, ...m.params };
+        const nonDefault = Object.fromEntries(
+          Object.entries(m.params)
+            .filter(([k, v]) => {
+              const def = defaults[k];
+              return def === undefined || round2(v) !== round2(def);
+            })
+            .map(([k, v]) => [k, round2(v)])
+        );
         return {
           id: m.id,
           type: m.type,
           model: getModulatorEngineName(m.type, m.model) ?? String(m.model),
-          params: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, round2(v)])),
+          params: nonDefault,
         };
       }),
       modulations: (track.modulations ?? []).map(r => ({
