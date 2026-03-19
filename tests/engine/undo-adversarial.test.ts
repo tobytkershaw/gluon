@@ -554,7 +554,7 @@ describe('Undo adversarial tests', () => {
       expect(getTrack(session, vid).params.harmonics).toBe(0.5);
     });
 
-    it('exclusive solo does not push to undo stack', () => {
+    it('exclusive solo pushes a group snapshot and is undoable', () => {
       let session = createSession();
       session = addTrack(session)!;
       session = addTrack(session)!;
@@ -562,10 +562,14 @@ describe('Undo adversarial tests', () => {
       const ids = audioTrackIds(session);
       const stackBefore = session.undoStack.length;
 
-      // Solo track 0 exclusively — should NOT push to undo stack
+      // Solo track 0 exclusively — should push to undo stack
       session = toggleSolo(session, ids[0], true);
       expect(getTrack(session, ids[0]).solo).toBe(true);
-      expect(session.undoStack.length).toBe(stackBefore);
+      expect(session.undoStack.length).toBe(stackBefore + 1);
+
+      // Undo restores previous solo state
+      session = applyUndo(session);
+      expect(getTrack(session, ids[0]).solo).toBe(false);
     });
   });
 
@@ -801,13 +805,15 @@ describe('Undo adversarial tests', () => {
       expect(getTrack(session, vid).name).toBe(prevName);
     });
 
-    it('mute toggle does not push to undo stack', () => {
+    it('mute toggle pushes to undo stack and is undoable', () => {
       let session = createSession();
       const vid = session.activeTrackId;
       const stackBefore = session.undoStack.length;
       session = toggleMute(session, vid);
       expect(getTrack(session, vid).muted).toBe(true);
-      expect(session.undoStack.length).toBe(stackBefore);
+      expect(session.undoStack.length).toBe(stackBefore + 1);
+      session = applyUndo(session);
+      expect(getTrack(session, vid).muted).toBe(false);
     });
 
     // Agency undo test removed in #926 — agency system removed.
