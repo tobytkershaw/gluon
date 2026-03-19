@@ -187,7 +187,7 @@ interface CompressedGenreReferenceOverlay {
   profile: string;
   targetLufs: [number, number];
   centroidHz: [number, number];
-  notes: string[];
+  mixNotes: string[];
 }
 
 interface CompressedAudioMetrics {
@@ -613,7 +613,7 @@ function compressGenreReferenceOverlay(genre: string, profile: ReferenceProfile,
     profile: profile.id,
     targetLufs: [profile.dynamics.lufsMin, profile.dynamics.lufsMax],
     centroidHz: [spec.spectralCentroidHz.min, spec.spectralCentroidHz.max],
-    notes: spec.mixNotes,
+    mixNotes: spec.mixNotes,
   };
 }
 
