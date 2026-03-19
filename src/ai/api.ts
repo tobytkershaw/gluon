@@ -1002,6 +1002,18 @@ export interface AskContext {
   onListenEvent?: (event: import('../engine/types').ListenEvent) => void;
 }
 
+function buildPlannerUserMessage(
+  stateJson: string,
+  humanMessage: string,
+  contextPrefix: string | null,
+  contextSummary: string | null,
+): string {
+  let contextBlock = '';
+  if (contextPrefix) contextBlock += `${contextPrefix}\n\n`;
+  if (contextSummary) contextBlock += `[Session memory — summarized from earlier conversation]\n${contextSummary}\n\n`;
+  return `${contextBlock}Project state:\n${stateJson}\n\nHuman says: ${humanMessage}`;
+}
+
 export type ListenerMode = 'gemini' | 'openai' | 'both';
 
 export class GluonAI {
@@ -1085,10 +1097,11 @@ export class GluonAI {
     executeActions: StepExecutor,
     onStep?: OnStepCallback,
   ): Promise<AIAction[]> {
-    await this.trimToTokenBudget(session, ctx);
+    const state = compressState(session, undefined, ctx?.userSelection);
+    const stateJson = JSON.stringify(state);
+    await this.trimToTokenBudget(session, humanMessage, stateJson, ctx);
 
     const systemPrompt = buildSystemPrompt(session);
-    const state = compressState(session, undefined, ctx?.userSelection);
     const contextPrefix = this.planner.consumeConversationContext?.() ?? null;
     // contextSummary is only populated by summarizeBeforeTrim, which is only
     // called from trimToTokenBudget when countContextTokens is available.
@@ -1096,11 +1109,7 @@ export class GluonAI {
     // only exists after exchanges have been dropped.
     const contextSummary = this.planner.getContextSummary?.() ?? null;
 
-    let contextBlock = '';
-    if (contextPrefix) contextBlock += `${contextPrefix}\n\n`;
-    if (contextSummary) contextBlock += `[Session memory — summarized from earlier conversation]\n${contextSummary}\n\n`;
-
-    const userMessage = `${contextBlock}Project state:\n${JSON.stringify(state)}\n\nHuman says: ${humanMessage}`;
+    const userMessage = buildPlannerUserMessage(stateJson, humanMessage, contextPrefix, contextSummary);
 
     let workingSession = session;
     const allActions: AIAction[] = [];
@@ -4858,7 +4867,12 @@ export class GluonAI {
    * For providers without token counting (e.g. OpenAI), we fall back to
    * the fixed exchange-count cap for backward compatibility.
    */
-  private async trimToTokenBudget(session: Session, _ctx?: AskContext): Promise<void> {
+  private async trimToTokenBudget(
+    session: Session,
+    humanMessage: string,
+    stateJson: string,
+    _ctx?: AskContext,
+  ): Promise<void> {
     const planner = this.planner;
 
     // If provider doesn't support token counting, use the fallback exchange cap
@@ -4875,9 +4889,20 @@ export class GluonAI {
     if (exchangeCount === 0) return;
 
     const systemPrompt = buildSystemPrompt(session);
+    const buildProjectedUserMessage = (): string =>
+      buildPlannerUserMessage(
+        stateJson,
+        humanMessage,
+        null,
+        planner.getContextSummary?.() ?? null,
+      );
 
     try {
-      let tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
+      let tokenCount = await planner.countContextTokens(
+        systemPrompt,
+        GLUON_TOOLS,
+        buildProjectedUserMessage(),
+      );
       console.debug(
         `[gluon-ai] context: ${tokenCount} tokens / ${budget} budget (${Math.round((tokenCount / budget) * 100)}%), ${exchangeCount} exchanges`,
       );
@@ -4904,7 +4929,11 @@ export class GluonAI {
       } else {
         planner.trimHistory(keepCount);
       }
-      tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
+      tokenCount = await planner.countContextTokens(
+        systemPrompt,
+        GLUON_TOOLS,
+        buildProjectedUserMessage(),
+      );
       console.debug(
         `[gluon-ai] trimmed to ${keepCount} exchanges, now ${tokenCount} tokens`,
       );
@@ -4929,7 +4958,11 @@ export class GluonAI {
         } else {
           planner.trimHistory(currentKeep);
         }
-        tokenCount = await planner.countContextTokens(systemPrompt, GLUON_TOOLS);
+        tokenCount = await planner.countContextTokens(
+          systemPrompt,
+          GLUON_TOOLS,
+          buildProjectedUserMessage(),
+        );
         console.debug(
           `[gluon-ai] fine-trim to ${currentKeep} exchanges, now ${tokenCount} tokens`,
         );

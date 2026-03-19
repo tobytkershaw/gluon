@@ -150,10 +150,13 @@ export class GeminiPlannerProvider implements PlannerProvider {
   // Token-budget-aware context management (Phase 1a, #785)
   // ---------------------------------------------------------------------------
 
-  async countContextTokens(systemPrompt: string, tools: ToolSchema[]): Promise<number> {
+  async countContextTokens(systemPrompt: string, tools: ToolSchema[], upcomingUserMessage?: string): Promise<number> {
     if (!this.ai) throw new ProviderError('API not configured.', 'auth');
 
     const contents = [...this.permanentContents, ...this.pendingContents];
+    if (upcomingUserMessage) {
+      contents.push({ role: 'user', parts: [{ text: upcomingUserMessage }] });
+    }
     const geminiDeclarations = toGeminiDeclarations(tools);
 
     // Count system prompt tokens separately — the countTokens endpoint on the

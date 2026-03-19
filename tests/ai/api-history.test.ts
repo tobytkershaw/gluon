@@ -656,6 +656,39 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
       expect(tokenPlanner.trimCalls).toEqual([]); // trimHistory should NOT be called directly
     });
 
+    it('recounts with injected session memory after summarization', async () => {
+      const tokenPlanner = createMockPlanner();
+      tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
+
+      let summary: string | null = null;
+      const countedMessages: string[] = [];
+      let callCount = 0;
+      tokenPlanner.countContextTokens = vi.fn(async (_systemPrompt, _tools, upcomingUserMessage?: string) => {
+        countedMessages.push(upcomingUserMessage ?? '');
+        callCount++;
+        return callCount === 1 ? 200_000 : 100_000;
+      });
+      tokenPlanner.getTokenBudget = () => 170_000;
+      tokenPlanner.getExchangeCount = () => 20;
+      tokenPlanner.getContextSummary = () => summary;
+      tokenPlanner.summarizeBeforeTrim = vi.fn(async () => {
+        summary = 'Track 1 is the kick anchor';
+      });
+
+      const tokenAI = new GluonAI(tokenPlanner, listener);
+      const session = createSession();
+      session.messages.push(
+        { role: 'human', text: 'make a beat', timestamp: 1 },
+        { role: 'ai', text: 'here is a beat', timestamp: 2 },
+      );
+
+      await tokenAI.ask(session, 'brighten it');
+
+      expect(countedMessages[0]).toContain('Human says: brighten it');
+      expect(countedMessages[1]).toContain('[Session memory — summarized from earlier conversation]');
+      expect(countedMessages[1]).toContain('Track 1 is the kick anchor');
+    });
+
     it('injects context summary into user message', async () => {
       const tokenPlanner = createMockPlanner();
       tokenPlanner.startTurnResults.push({ textParts: ['ok'], functionCalls: [] });
