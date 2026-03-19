@@ -14,6 +14,8 @@ export interface SurfaceModuleDef {
   defaultSize: { w: number; h: number };
   minSize?: { w: number; h: number };
   maxSize?: { w: number; h: number };
+  /** When true, the module is not shown in the module picker or AI tool schemas. */
+  hidden?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +88,7 @@ const moduleDefs: SurfaceModuleDef[] = [
     defaultSize: { w: 2, h: 4 },
     minSize: { w: 1, h: 3 },
     maxSize: { w: 3, h: 6 },
+    hidden: true, // Not wired to real audio data yet (#1152)
   },
   {
     type: 'pad-grid',
@@ -114,6 +117,13 @@ export function getModuleDef(type: string): SurfaceModuleDef | undefined {
  */
 export function getAllModuleDefs(): readonly SurfaceModuleDef[] {
   return moduleDefs;
+}
+
+/**
+ * Get module definitions available in the picker (excludes hidden modules).
+ */
+export function getPickableModuleDefs(): readonly SurfaceModuleDef[] {
+  return moduleDefs.filter(d => !d.hidden);
 }
 
 /**
