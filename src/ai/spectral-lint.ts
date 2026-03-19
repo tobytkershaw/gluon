@@ -4,7 +4,7 @@
 // have not been assigned, tool results include an informational warning
 // suggesting the AI consider spectral slotting. The AI is free to ignore it.
 
-import type { Session, Track } from '../engine/types';
+import type { Session } from '../engine/types';
 import { getTrackKind } from '../engine/types';
 import type { SpectralSlotManager } from '../engine/spectral-slots';
 

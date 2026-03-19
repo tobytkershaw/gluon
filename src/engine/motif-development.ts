@@ -16,7 +16,7 @@ function isNote(e: MusicalEvent): e is NoteEvent {
   return e.kind === 'note';
 }
 
-function isTrigger(e: MusicalEvent): e is TriggerEvent {
+function _isTrigger(e: MusicalEvent): e is TriggerEvent {
   return e.kind === 'trigger';
 }
 

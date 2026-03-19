@@ -1,6 +1,6 @@
 // src/engine/pattern-generator.ts — Composable pattern generators with layered transformations.
 
-import type { MusicalEvent, TriggerEvent, NoteEvent } from './canonical-types';
+import type { MusicalEvent, TriggerEvent } from './canonical-types';
 import { generateArchetypeEvents } from './pattern-archetypes';
 
 // ---------------------------------------------------------------------------

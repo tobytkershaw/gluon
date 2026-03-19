@@ -157,7 +157,7 @@ class TidesProcessor extends AudioWorkletProcessor {
     return null;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   process(_inputs: Float32Array[][], outputs: Float32Array[][], _parameters: Record<string, Float32Array>): boolean {
     const output = outputs[0];
     if (!output?.length) return true;

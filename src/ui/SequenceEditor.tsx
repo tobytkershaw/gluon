@@ -117,7 +117,7 @@ export function SequenceEditor({
   // Reset selection if it goes out of range
   useEffect(() => {
     if (selectedSlot !== null && selectedSlot >= track.sequence.length) {
-      setSelectedSlot(null);
+      setSelectedSlot(null); // eslint-disable-line react-hooks/set-state-in-effect -- clamping to valid range
     }
   }, [selectedSlot, track.sequence.length]);
 
@@ -129,7 +129,7 @@ export function SequenceEditor({
     // Add the same pattern ref, then move it into position after the selected slot
     onAddPatternRef(ref.patternId);
     // The new entry is appended at the end; move it to selectedSlot + 1
-    const fromIdx = track.sequence.length; // will be the new last index after add
+    const _fromIdx = track.sequence.length; // will be the new last index after add
     // We need to move it step by step (the API only supports swap-adjacent)
     // Actually, after add it's at the end. We schedule moves after render.
     // Simpler: just add — the user can reorder. This is the common pattern.

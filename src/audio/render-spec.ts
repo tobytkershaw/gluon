@@ -344,7 +344,7 @@ function pushMusicalEvent(
   out: RenderEvent[],
   event: MusicalEvent,
   beatTime: number,
-  baseParams: SynthParamValues,
+  _baseParams: SynthParamValues,
 ): void {
   switch (event.kind) {
     case 'trigger': {

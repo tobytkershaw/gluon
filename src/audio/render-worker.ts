@@ -448,7 +448,7 @@ async function renderTrack(
 
       // Render this segment through Plaits
       const segRendered = plaits._plaits_render(pHandle, pOutPtr, segment.length);
-      let heap = getHeapF32(plaits);
+      const heap = getHeapF32(plaits);
       const pOutStart = pOutPtr / Float32Array.BYTES_PER_ELEMENT;
       blockBuf.set(heap.subarray(pOutStart, pOutStart + segRendered), blockOffset);
       blockOffset += segRendered;

@@ -50,7 +50,7 @@ export function usePlayheadPosition(
 
   // Update when scheduler step changes
   useEffect(() => {
-    handleSchedulerUpdate(schedulerStep);
+    handleSchedulerUpdate(schedulerStep); // eslint-disable-line react-hooks/set-state-in-effect -- syncing external scheduler state
   }, [schedulerStep, handleSchedulerUpdate]);
 
   // rAF interpolation loop
@@ -124,7 +124,7 @@ export function usePlayheadPosition(
   useEffect(() => {
     if (!playing) {
       smoothPositionRef.current = schedulerStep;
-      setSmoothPosition(schedulerStep);
+      setSmoothPosition(schedulerStep); // eslint-disable-line react-hooks/set-state-in-effect -- syncing external scheduler state
     }
   }, [playing, schedulerStep]);
 

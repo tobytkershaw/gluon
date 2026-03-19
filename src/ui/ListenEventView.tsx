@@ -45,6 +45,7 @@ function ListenCard({ event }: { event: ListenEvent }) {
     const audio = audioRef.current;
     if (audio && !audio.paused) {
       setProgress(audio.duration > 0 ? audio.currentTime / audio.duration : 0);
+      // eslint-disable-next-line react-hooks/immutability -- self-referencing rAF loop is intentional
       rafRef.current = requestAnimationFrame(updateProgress);
     }
   }, []);

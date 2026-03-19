@@ -87,7 +87,7 @@ interface Props {
 }
 
 export function TransportStrip({
-  playing, bpm, swing, recordArmed, globalStep, patternLength,
+  playing, bpm, swing, recordArmed, globalStep, patternLength: _patternLength,
   transportMode, loop,
   onTogglePlay, onHardStop, onBpmChange, onSwingChange, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,

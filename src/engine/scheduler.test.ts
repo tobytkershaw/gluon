@@ -140,7 +140,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
   it('does not emit duplicate notes when the same window is rescanned', () => {
     const session = makeSession();
-    let audioTime = 0;
+    const audioTime = 0;
     const onNote = vi.fn();
 
     const scheduler = new Scheduler(
@@ -169,7 +169,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
     session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 0, velocity: 0.8, gate: 2 },
     ];
-    let audioTime = 0;
+    const audioTime = 0;
     const onNote = vi.fn();
 
     const scheduler = new Scheduler(
@@ -196,7 +196,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
     session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 0, velocity: 0.8 },
     ];
-    let audioTime = 0;
+    const audioTime = 0;
     const onNote = vi.fn();
 
     const scheduler = new Scheduler(
@@ -265,7 +265,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
       { kind: 'note', at: 1.5, pitch: 60, velocity: 0.8, duration: 1 },
     ];
     // Advance audio time so step 1.5 is within lookahead
-    let audioTime = 1.5 * 0.125;
+    const audioTime = 1.5 * 0.125;
     const onNote = vi.fn();
 
     const scheduler = new Scheduler(
@@ -462,7 +462,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
     session.tracks[0].patterns[0].events = [
       { kind: 'trigger', at: 7.5, velocity: 0.8 },
     ];
-    let audioTime = 0.9; // global step ~7.2 at 120 BPM
+    const audioTime = 0.9; // global step ~7.2 at 120 BPM
     const onNote = vi.fn();
 
     const scheduler = new Scheduler(
@@ -849,7 +849,7 @@ describe('Scheduler — AudioContext suspend handling', () => {
 
   it('globalStep is never negative (no position flicker)', () => {
     const session = makeSession();
-    let audioTime = 0;
+    const audioTime = 0;
     const positions: number[] = [];
     const onPosition = vi.fn((step: number) => positions.push(step));
 

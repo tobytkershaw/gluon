@@ -1,7 +1,7 @@
 // src/engine/primitives.ts
 import type {
   Session, ParamSnapshot, PatternSnapshot, Snapshot, UndoEntry,
-  SynthParamValues, ActionGroupSnapshot,
+  SynthParamValues,
 } from './types';
 import { getTrack, getActivePattern, updateTrack } from './types';
 import type { StepGridSketch } from './sequencer-types';

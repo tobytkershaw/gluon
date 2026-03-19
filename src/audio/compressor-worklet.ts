@@ -236,7 +236,7 @@ class CompressorProcessor extends AudioWorkletProcessor {
     const kneeWidthDb = isBus ? 6 : 0;
 
     const attackCoeff = timeToCoeff(attackSec, sampleRate);
-    let releaseCoeff = timeToCoeff(releaseSec, sampleRate);
+    const releaseCoeff = timeToCoeff(releaseSec, sampleRate);
 
     // RMS window for opto mode (approx 10ms)
     const rmsWindowSamples = Math.round(sampleRate * 0.01);

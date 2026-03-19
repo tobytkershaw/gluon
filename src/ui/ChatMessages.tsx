@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure helper fns co-located with component */
 import { useRef, useEffect, useState } from 'react';
 import type { ChatMessage, Track, Reaction, UndoEntry, ActionLogEntry, Agency } from '../engine/types';
 import { ActionDiffView } from './ActionDiffView';

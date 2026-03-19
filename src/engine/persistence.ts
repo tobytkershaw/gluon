@@ -173,7 +173,7 @@ export function migrateTrack(track: Track): Track {
   }
 
   // Hydrate per-track volume/pan for tracks without them
-  let migrated: Record<string, unknown> = { ...track, patterns, sequence };
+  const migrated: Record<string, unknown> = { ...track, patterns, sequence };
   if ((migrated.volume as number | undefined) == null) migrated.volume = 0.8;
   if ((migrated.pan as number | undefined) == null) migrated.pan = 0.0;
 

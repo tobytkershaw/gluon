@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- pure helper fn co-located with component */
 // src/ui/RoutingChip.tsx
 // Shared routing chip for modulation route display.
 // Configurable interactivity: read-only (ExpandedTrack/Surface) or
