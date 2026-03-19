@@ -555,7 +555,15 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
   if (snapshot.kind === 'surface') {
     const track = session.tracks.find(v => v.id === snapshot.trackId);
     if (!track) return { ...snapshot, timestamp: now };
-    return { ...snapshot, prevSurface: { ...track.surface }, timestamp: now };
+    return { ...snapshot, prevSurface: {
+      ...track.surface,
+      modules: track.surface.modules.map(m => ({
+        ...m,
+        bindings: m.bindings.map(b => ({ ...b })),
+        position: { ...m.position },
+        config: { ...m.config },
+      })),
+    }, timestamp: now };
   }
 
   if (snapshot.kind === 'approval') {
