@@ -85,6 +85,44 @@ describe('State compression: session intent', () => {
     const result = compressState(session);
     expect(result.intent).toEqual(session.intent);
   });
+
+  it('adds genre reference overlays for matched genres', () => {
+    const session = createSession();
+    session.intent = { genre: ['techno'] };
+
+    const result = compressState(session);
+
+    expect(result.genre_reference_overlays).toEqual([
+      expect.objectContaining({
+        genre: 'techno',
+        profileId: 'techno_minimal',
+        lufs: { min: -12, max: -7 },
+        dynamicRange: { min: 5, max: 12 },
+        crestFactor: { min: 5, max: 10 },
+        spectralCentroidHz: { min: 1200, max: 3000 },
+      }),
+    ]);
+    expect(result.genre_reference_overlays?.[0].frequencyBalance).toHaveLength(6);
+  });
+
+  it('dedupes overlays when multiple genre tags resolve to the same profile', () => {
+    const session = createSession();
+    session.intent = { genre: ['techno', 'minimal techno'] };
+
+    const result = compressState(session);
+
+    expect(result.genre_reference_overlays).toHaveLength(1);
+    expect(result.genre_reference_overlays?.[0].profileId).toBe('techno_minimal');
+  });
+
+  it('omits overlays when no genre tag matches a reference profile', () => {
+    const session = createSession();
+    session.intent = { genre: ['glitch folk'] };
+
+    const result = compressState(session);
+
+    expect('genre_reference_overlays' in result).toBe(false);
+  });
 });
 
 describe('State compression: section metadata', () => {
