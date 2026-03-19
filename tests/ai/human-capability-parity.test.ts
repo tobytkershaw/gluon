@@ -51,7 +51,6 @@ const PARITY_GAP_TOOLS = new Set([
   'set_intent',          // MODERATE: no UI for session intent (genre/mood/references)
   'set_section',         // MODERATE: no UI for section metadata (name/energy/density targets)
   'set_scale',           // MODERATE: no UI for global scale/key constraint
-  'set_chord_progression', // MODERATE: no UI for bar-based harmonic roadmap
   'apply_chain_recipe',  // LOW: compound tool — humans use individual processor controls instead
   'set_mix_role',        // LOW: compound tool — humans use volume/pan sliders directly
   'apply_modulation',    // LOW: compound tool — humans use individual modulator controls instead
@@ -91,8 +90,8 @@ describe('Human Capability Parity', () => {
   it('documents the expected number of parity gaps', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
-    // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale, set_chord_progression
-    expect(PARITY_GAP_TOOLS.size).toBe(21);
+    // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale
+    expect(PARITY_GAP_TOOLS.size).toBe(20);
   });
 
   it('documents the expected number of AI-only tools', () => {

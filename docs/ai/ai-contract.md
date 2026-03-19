@@ -2,13 +2,13 @@
 
 What the AI agent needs at inference time to interact with Gluon's canonical musical model.
 
-**Architecture:** The AI uses a multi-provider, provider-abstracted function-calling layer. The current default stack is Gemini 2.5 Pro as planner and Gemini Flash as listener, but the contract is expressed in neutral tool/state terms so providers can vary underneath it. The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
+**Architecture:** The AI uses a multi-provider, provider-abstracted function calling architecture (currently Gemini-only: Gemini 2.5 Pro as planner, Gemini Flash as listener). The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
 
 ---
 
 ## Tools
 
-The AI has forty-four tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-three tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -409,17 +409,6 @@ Set the global scale/key constraint. When set, note pitches in `sketch` and `edi
 
 Undoable. Produces a `ScaleSnapshot` for undo.
 
-#### `set_chord_progression`
-
-Set the bar-by-bar chord progression used for harmonic guidance. Replaces the entire progression. When active, the compressed state exposes the chord at each bar and derived chord tones so sketches and motifs can stay aligned to the harmony.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `chords` | array | conditional | Ordered bar-to-chord map. Each entry has `bar` (1-based) and `chord` (e.g. "Fm", "Eb", "Db", "C7"). Required unless `clear` is true. |
-| `clear` | boolean | no | Set to true to clear the chord progression. When true, `chords` is ignored. |
-
-Undoable. Produces a `ChordProgressionSnapshot` for undo.
-
 #### `set_tension`
 
 Set the tension/energy curve over the arrangement timeline. Defines an arc of energy and density that the AI uses as a compositional guide. Points are interpolated linearly. Optionally map individual tracks to the curve, defining how their parameters respond to energy levels. The curve is metadata/intent — it does not directly control audio parameters.
@@ -699,9 +688,6 @@ Each turn, the AI receives compressed session state as JSON:
   ],
   "observed_patterns": ["Human has approved 7 of last 10 AI actions — generally receptive"],
   "restraint_level": "adventurous",
-  "chord_progression": [
-    { "bar": 1, "chord": "Fm", "tones": ["F", "G#", "C"] }
-  ],
   "open_decisions": []
 }
 ```
@@ -735,10 +721,8 @@ Fields:
 - **surface_modules** — (optional per track) list of surface module types and labels (e.g. "knob-group:Timbre", "macro-knob:Warmth", "xy-pad") when set_surface has been used
 - **sends** — (optional per track) bus send levels
 - **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
-- **audioMetrics** — (optional) fresh live analyser measurements captured at request time. Contains `master` plus per-track entries under `tracks`, each with `rms` (dBFS), `peak` (dBFS), `centroid` (Hz spectral centroid), `crest` (dB peak minus RMS), and `onsetDensity` (onsets/second over a short recent window). Present only when metrics are fresh enough to be meaningful.
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
 - **scale** — (optional) global key/scale constraint: `root` (pitch class 0–11), `mode`, `label` (e.g. "C major"), `notes` (available note names). `null` when explicitly cleared.
-- **chord_progression** — (optional) ordered harmonic roadmap: bar-indexed `chord` labels with derived `tones`. `null` when explicitly cleared.
 - **userSelection** — (optional) active Tracker selection: `trackId`, `stepRange` ([start, end]), `eventCount`. Present only when the human has selected events.
 
 ---
