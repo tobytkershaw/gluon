@@ -272,3 +272,104 @@ describe('replace_processor', () => {
     });
   });
 });
+
+// --- Human-initiated replace (mirrors App.tsx handleReplaceProcessor) ---
+
+/** Simulate the handleReplaceProcessor state transform from App.tsx */
+function humanReplaceProcessor(
+  session: Session,
+  trackId: string,
+  processorId: string,
+  newModuleType: string,
+  newId = 'human-new-proc',
+): Session {
+  const track = getTrack(session, trackId);
+  const processors = track.processors ?? [];
+  const idx = processors.findIndex(p => p.id === processorId);
+  if (idx === -1) return session;
+  const prevModulations = track.modulations ?? [];
+  const filteredModulations = prevModulations.filter(
+    route => route.target.kind !== 'processor' || route.target.processorId !== processorId,
+  );
+  const newProcessor: ProcessorConfig = { id: newId, type: newModuleType, model: 0, params: {} };
+  const newProcessors = [...processors];
+  newProcessors[idx] = newProcessor;
+  const processorSnapshot = {
+    kind: 'processor' as const,
+    trackId,
+    prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
+    timestamp: Date.now(),
+    description: `Swap processor: ${processors[idx].type} → ${newModuleType}`,
+  };
+  const snapshots: Array<typeof processorSnapshot | { kind: 'modulation-routing'; trackId: string; prevModulations: ModulationRouting[]; timestamp: number; description: string }> = [processorSnapshot];
+  if (filteredModulations.length !== prevModulations.length) {
+    snapshots.push({
+      kind: 'modulation-routing',
+      trackId,
+      prevModulations: prevModulations.map(r => ({ ...r })),
+      timestamp: Date.now(),
+      description: 'Swap processor: clear dependent modulation routes',
+    });
+  }
+  const undoEntry = snapshots.length === 1 ? snapshots[0] : {
+    kind: 'group' as const,
+    snapshots,
+    timestamp: Date.now(),
+    description: `Swap processor: ${processors[idx].type} → ${newModuleType}`,
+  };
+  return {
+    ...session,
+    tracks: session.tracks.map(v => v.id === trackId ? {
+      ...track,
+      processors: newProcessors,
+      modulations: filteredModulations,
+    } : v),
+    undoStack: [...session.undoStack, undoEntry],
+  };
+}
+
+describe('human-initiated replace processor (Rack view swap)', () => {
+  it('preserves chain position', () => {
+    const session = {
+      ...sessionWithRings(),
+      tracks: (() => {
+        const s = sessionWithRings();
+        const track = getTrack(s, 'v0');
+        const proc2: ProcessorConfig = { id: 'clouds-test-1', type: 'clouds', model: 0, params: {} };
+        return s.tracks.map(v => v.id === 'v0' ? { ...v, processors: [...(track.processors ?? []), proc2] } : v);
+      })(),
+    };
+    const result = humanReplaceProcessor(session, 'v0', 'rings-test-1', 'ripples');
+    const track = getTrack(result, 'v0');
+    expect(track.processors).toHaveLength(2);
+    expect(track.processors![0].type).toBe('ripples');
+    expect(track.processors![1].id).toBe('clouds-test-1');
+  });
+
+  it('single undo restores original', () => {
+    const session = sessionWithRings();
+    const result = humanReplaceProcessor(session, 'v0', 'rings-test-1', 'clouds');
+    expect(result.undoStack.length).toBe(session.undoStack.length + 1);
+
+    const undone = applyUndo(result);
+    const track = getTrack(undone, 'v0');
+    expect(track.processors![0].type).toBe('rings');
+    expect(track.processors![0].id).toBe('rings-test-1');
+    expect(track.processors![0].params.structure).toBe(0.5);
+  });
+
+  it('cleans modulation routes and restores on undo', () => {
+    const session = sessionWithRingsAndRouting();
+    const result = humanReplaceProcessor(session, 'v0', 'rings-test-1', 'clouds');
+    const track = getTrack(result, 'v0');
+    expect(track.modulations ?? []).toHaveLength(0);
+
+    // Single undo step
+    expect(result.undoStack.length).toBe(session.undoStack.length + 1);
+
+    const undone = applyUndo(result);
+    const restoredTrack = getTrack(undone, 'v0');
+    expect(restoredTrack.modulations ?? []).toHaveLength(1);
+    expect(restoredTrack.processors![0].id).toBe('rings-test-1');
+  });
+});

@@ -45,6 +45,8 @@ interface RackViewProps {
   // Module browser
   onAddProcessor: (type: string) => void;
   onAddModulator: (type: string) => void;
+  // Processor replace
+  onReplaceProcessor?: (processorId: string, newModuleType: string) => void;
   // Navigation
   onNavigateToPatch?: () => void;
 }
@@ -109,9 +111,11 @@ export function RackView({
   onModulatorModelChange, onRemoveModulator,
   onModulationDepthChange, onModulationDepthCommit, onRemoveModulation,
   onAddProcessor, onAddModulator,
+  onReplaceProcessor,
   onNavigateToPatch,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [replacingProcessorId, setReplacingProcessorId] = useState<string | null>(null);
 
   const processors = activeTrack.processors ?? [];
   const modulators = activeTrack.modulators ?? [];
@@ -190,6 +194,7 @@ export function RackView({
               currentModel={proc.model}
               onModelChange={(model) => onProcessorModelChange(proc.id, model)}
               onRemove={() => onRemoveProcessor(proc.id)}
+              onReplace={onReplaceProcessor ? () => { setReplacingProcessorId(proc.id); setBrowserOpen(true); } : undefined}
               enabled={proc.enabled}
               onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
               modulationMap={processorModMaps.get(proc.id)}
@@ -263,7 +268,14 @@ export function RackView({
           activeTrack={activeTrack}
           onAddProcessor={onAddProcessor}
           onAddModulator={onAddModulator}
-          onClose={() => setBrowserOpen(false)}
+          onClose={() => { setBrowserOpen(false); setReplacingProcessorId(null); }}
+          replaceProcessorId={replacingProcessorId ?? undefined}
+          replaceProcessorType={replacingProcessorId ? (processors.find(p => p.id === replacingProcessorId)?.type) : undefined}
+          onReplaceProcessor={onReplaceProcessor && replacingProcessorId ? (newType: string) => {
+            onReplaceProcessor(replacingProcessorId, newType);
+            setBrowserOpen(false);
+            setReplacingProcessorId(null);
+          } : undefined}
         />
       )}
     </div>

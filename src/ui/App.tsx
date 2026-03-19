@@ -35,7 +35,7 @@ import { executeOperations, executeStepActions, finalizeAITurn, prevalidateActio
 import type { OnStepCallback, StepExecutor } from '../ai/types';
 import type { ExecutionReportLogEntry } from '../engine/canonical-types';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
-import { runtimeParamToControlId, controlIdToRuntimeParam } from '../audio/instrument-registry';
+import { runtimeParamToControlId, controlIdToRuntimeParam, getProcessorDefaultParams } from '../audio/instrument-registry';
 import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents, transposeEventsByIndices } from '../engine/event-primitives';
 import { rotateRegion, transposeRegion, reverseRegion, duplicateRegionEvents } from '../engine/transform-operations';
 import type { EventSelector } from '../engine/event-primitives';
@@ -2184,6 +2184,61 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  const handleReplaceProcessor = useCallback((processorId: string, newModuleType: string) => {
+    ensureAudio();
+    setSession((s) => {
+      const vid = s.activeTrackId;
+      const track = getTrack(s, vid);
+      const processors = track.processors ?? [];
+      const idx = processors.findIndex(p => p.id === processorId);
+      if (idx === -1) return s;
+      const prevModulations = track.modulations ?? [];
+      const filteredModulations = prevModulations.filter(
+        route => route.target.kind !== 'processor' || route.target.processorId !== processorId,
+      );
+      const newProcessor = {
+        id: crypto.randomUUID(),
+        type: newModuleType,
+        model: 0,
+        params: getProcessorDefaultParams(newModuleType, 0),
+      };
+      const newProcessors = [...processors];
+      newProcessors[idx] = newProcessor;
+      const processorSnapshot: ProcessorSnapshot = {
+        kind: 'processor',
+        trackId: vid,
+        prevProcessors: processors.map(p => ({ ...p, params: { ...p.params } })),
+        timestamp: Date.now(),
+        description: `Swap processor: ${processors[idx].type} → ${newModuleType}`,
+      };
+      const snapshots: UndoEntry[] = [processorSnapshot];
+      if (filteredModulations.length !== prevModulations.length) {
+        snapshots.push({
+          kind: 'modulation-routing',
+          trackId: vid,
+          prevModulations: prevModulations.map(route => ({ ...route })),
+          timestamp: Date.now(),
+          description: `Swap processor: clear dependent modulation routes`,
+        });
+      }
+      const undoEntry: UndoEntry = snapshots.length === 1 ? snapshots[0] : {
+        kind: 'group',
+        snapshots,
+        timestamp: Date.now(),
+        description: `Swap processor: ${processors[idx].type} → ${newModuleType}`,
+      } as ActionGroupSnapshot;
+      return {
+        ...s,
+        tracks: s.tracks.map(v => v.id === vid ? {
+          ...track,
+          processors: newProcessors,
+          modulations: filteredModulations,
+        } : v),
+        undoStack: [...s.undoStack, undoEntry],
+      };
+    });
+  }, [ensureAudio]);
+
   const handleAddModulator = useCallback((type: string) => {
     ensureAudio();
     setSession((s) => {
@@ -2486,6 +2541,7 @@ export default function App() {
             onRemoveModulation={handleRemoveModulation}
             onAddProcessor={handleAddProcessor}
             onAddModulator={handleAddModulator}
+            onReplaceProcessor={handleReplaceProcessor}
             onNavigateToPatch={() => setView('patch')}
           />
         )}
