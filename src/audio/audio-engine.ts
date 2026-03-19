@@ -878,6 +878,9 @@ export class AudioEngine {
         otherPad.accentGain.gain.cancelAndHoldAtTime(rampStart);
         otherPad.accentGain.gain.linearRampToValueAtTime(0, note.time);
         otherPad.synth.silence(generation);
+        // Update lastGateOffTime so the voice-stealing guard works correctly
+        // for the choked pad's next trigger
+        otherPad.lastGateOffTime = note.time;
       }
     }
 
