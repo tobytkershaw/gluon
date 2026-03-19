@@ -159,6 +159,7 @@ export function addTrack(session: Session, kind: TrackKind = 'audio'): Session |
   const snapshot: TrackAddSnapshot = {
     kind: 'track-add',
     trackId,
+    prevActiveTrackId: session.activeTrackId,
     timestamp: Date.now(),
     description: `Add ${kind} track ${trackId}`,
   };

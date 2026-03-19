@@ -466,6 +466,8 @@ export interface ApprovalSnapshot {
 export interface TrackAddSnapshot {
   kind: 'track-add';
   trackId: string;
+  /** The activeTrackId before the add, so undo can restore it. */
+  prevActiveTrackId?: string;
   timestamp: number;
   description: string;
 }
