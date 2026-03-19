@@ -354,6 +354,20 @@ describe('GeminiPlannerProvider', () => {
     expect(msgCall.config.systemInstruction).toBeUndefined();
   });
 
+  it('countContextTokens includes the projected upcoming user message', async () => {
+    mockCountTokens.mockResolvedValueOnce({ totalTokens: 2_000 });
+    mockCountTokens.mockResolvedValueOnce({ totalTokens: 500 });
+
+    const tokens = await planner.countContextTokens('system prompt', GLUON_TOOLS, 'Project state:\n{}\n\nHuman says: hello');
+
+    expect(tokens).toBe(2_500);
+    expect(mockCountTokens).toHaveBeenCalledTimes(2);
+    const msgCall = mockCountTokens.mock.calls[1][0];
+    expect(msgCall.contents).toEqual([
+      { role: 'user', parts: [{ text: 'Project state:\n{}\n\nHuman says: hello' }] },
+    ]);
+  });
+
   it('getTokenBudget returns the configured budget', () => {
     expect(planner.getTokenBudget()).toBe(170_000);
   });

@@ -125,7 +125,7 @@ export interface PlannerProvider {
    * native token counting API (e.g. Gemini countTokens).
    * Optional — providers that don't support it fall back to exchange-count trimming.
    */
-  countContextTokens?(systemPrompt: string, tools: ToolSchema[]): Promise<number>;
+  countContextTokens?(systemPrompt: string, tools: ToolSchema[], upcomingUserMessage?: string): Promise<number>;
 
   /**
    * Provider-specific token budget ceiling. Should stay under pricing thresholds
