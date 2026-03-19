@@ -3,6 +3,8 @@
 // Static templates selected by client-side logic — no model call, no latency.
 
 import type { Track, ChatMessage } from '../engine/types';
+import { MASTER_BUS_ID, getTrackKind } from '../engine/types';
+import { createBusTrack, createEmptyTrack } from '../engine/session';
 
 /** Starter pools keyed by project state. */
 const EMPTY_PROJECT_STARTERS = [
@@ -28,6 +30,41 @@ const RESUME_STARTERS = [
 
 export type ProjectState = 'empty' | 'tracks-exist' | 'resume';
 
+const EMPTY_AUDIO_TEMPLATE = createEmptyTrack('__template-audio__');
+const EMPTY_BUS_TEMPLATE = createBusTrack('__template-bus__');
+
+function hasTrackContent(track: Track): boolean {
+  if (track.id === MASTER_BUS_ID) return false;
+
+  const template = getTrackKind(track) === 'bus' ? EMPTY_BUS_TEMPLATE : EMPTY_AUDIO_TEMPLATE;
+
+  if ((track.patterns?.some(pattern => pattern.events.length > 0) ?? false) || (track._hiddenEvents?.length ?? 0) > 0) {
+    return true;
+  }
+  if ((track.processors?.length ?? 0) > 0 || (track.modulators?.length ?? 0) > 0 || (track.modulations?.length ?? 0) > 0) {
+    return true;
+  }
+  if ((track.sends?.length ?? 0) > 0) {
+    return true;
+  }
+  if (track.volume !== template.volume || track.pan !== template.pan) {
+    return true;
+  }
+  if (track.kind !== 'bus' && (track.engine !== template.engine || track.model !== template.model)) {
+    return true;
+  }
+  const paramKeys = new Set([...Object.keys(template.params), ...Object.keys(track.params ?? {})]);
+  for (const key of paramKeys) {
+    if ((track.params ?? {})[key] !== template.params[key]) {
+      return true;
+    }
+  }
+  if (track.controlProvenance && Object.keys(track.controlProvenance).length > 0) {
+    return true;
+  }
+  return false;
+}
+
 /** Determine project state and return appropriate starters. */
 export function selectStarters(
   tracks: Track[],
@@ -36,7 +73,7 @@ export function selectStarters(
   if (messages.length > 0) {
     return { state: 'resume', starters: RESUME_STARTERS };
   }
-  if (tracks.length > 0) {
+  if (tracks.some(hasTrackContent)) {
     return { state: 'tracks-exist', starters: TRACKS_EXIST_STARTERS };
   }
   return { state: 'empty', starters: EMPTY_PROJECT_STARTERS };

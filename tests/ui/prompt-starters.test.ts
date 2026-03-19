@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { selectStarters } from '../../src/ui/PromptStarters';
+import { createSession, addTrack, setTrackVolume } from '../../src/engine/session';
+import { getTrack, updateTrack } from '../../src/engine/types';
 import type { Track, ChatMessage } from '../../src/engine/types';
 
 /** Minimal track stub for testing. */
@@ -34,6 +36,23 @@ describe('selectStarters', () => {
     expect(result.starters).toContain('What can you do?');
   });
 
+  it('returns empty-project starters when only scaffold tracks exist', () => {
+    const session = createSession();
+    const result = selectStarters(session.tracks, []);
+    expect(result.state).toBe('empty');
+    expect(result.starters.length).toBeGreaterThanOrEqual(3);
+    expect(result.starters).toContain('What can you do?');
+  });
+
+  it('returns tracks-exist starters when tracks have musical content', () => {
+    let session = createSession();
+    session = updateTrack(session, 'v0', { patterns: [{ ...getTrack(session, 'v0').patterns[0], events: [{ kind: 'trigger', at: 0, velocity: 0.8 }] }] });
+    const result = selectStarters(session.tracks, []);
+    expect(result.state).toBe('tracks-exist');
+    expect(result.starters.length).toBeGreaterThanOrEqual(3);
+    expect(result.starters.some(s => s.toLowerCase().includes('listen'))).toBe(true);
+  });
+
   it('returns tracks-exist starters when tracks exist but no messages', () => {
     const tracks = [makeTrack('kick')];
     const result = selectStarters(tracks, []);
@@ -61,5 +80,13 @@ describe('selectStarters', () => {
     const result = selectStarters(tracks, []);
     expect(result.state).toBe('tracks-exist');
     expect(result.starters.some(s => s.toLowerCase().includes('mix'))).toBe(true);
+  });
+
+  it('tracks-exist starters when a blank extra track has non-default mix settings', () => {
+    let session = createSession();
+    session = addTrack(session)!;
+    session = setTrackVolume(session, 'v1', 0.6);
+    const result = selectStarters(session.tracks, []);
+    expect(result.state).toBe('tracks-exist');
   });
 });
