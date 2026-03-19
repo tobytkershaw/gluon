@@ -702,6 +702,177 @@ describe('drum-rack-actions', () => {
     });
   });
 
+  describe('edit_pattern with pad', () => {
+    it('adds a trigger scoped to a specific pad', () => {
+      const { session, trackId } = setupDrumRackSession();
+
+      // Set up 8-step pattern with a kick
+      let s = session;
+      const track = getTrack(s, trackId);
+      if (track.patterns.length > 0) {
+        const pattern = getActivePattern(track);
+        s = updateTrack(s, trackId, {
+          patterns: track.patterns.map(p => p.id === pattern.id ? { ...p, duration: 8 } : p),
+        });
+      }
+
+      // Sketch initial kick
+      const setupActions: AIAction[] = [{
+        type: 'sketch',
+        trackId,
+        description: 'initial kick',
+        kit: { 'kick': 'x.......' },
+      }];
+      const setupReport = executeOperations(s, setupActions, adapter, new Arbitrator());
+      expect(setupReport.accepted).toHaveLength(1);
+
+      // Add a snare trigger at step 4 using edit_pattern with pad scope
+      const actions: AIAction[] = [{
+        type: 'edit_pattern',
+        trackId,
+        pad: 'snare',
+        operations: [{ action: 'add', step: 4, event: { type: 'trigger', velocity: 0.9 } }],
+        description: 'add snare hit',
+      }];
+
+      const report = executeOperations(setupReport.session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+
+      const events = getActivePattern(getTrack(report.session, trackId)).events;
+      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
+      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+
+      expect(snares).toHaveLength(1);
+      expect(snares[0].at).toBe(4);
+      expect(kicks).toHaveLength(1); // kick preserved
+    });
+
+    it('removes a trigger scoped to a specific pad', () => {
+      const { session, trackId } = setupDrumRackSession();
+
+      let s = session;
+      const track = getTrack(s, trackId);
+      if (track.patterns.length > 0) {
+        const pattern = getActivePattern(track);
+        s = updateTrack(s, trackId, {
+          patterns: track.patterns.map(p => p.id === pattern.id ? { ...p, duration: 8 } : p),
+        });
+      }
+
+      // Sketch kick and snare at same step (0)
+      const setupActions: AIAction[] = [{
+        type: 'sketch',
+        trackId,
+        description: 'kick and snare on beat 1',
+        kit: { 'kick': 'x.......', 'snare': 'x.......' },
+      }];
+      const setupReport = executeOperations(s, setupActions, adapter, new Arbitrator());
+      expect(setupReport.accepted).toHaveLength(1);
+
+      // Remove only the snare at step 0
+      const actions: AIAction[] = [{
+        type: 'edit_pattern',
+        trackId,
+        pad: 'snare',
+        operations: [{ action: 'remove', step: 0, event: { type: 'trigger' } }],
+        description: 'remove snare at step 0',
+      }];
+
+      const report = executeOperations(setupReport.session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+
+      const events = getActivePattern(getTrack(report.session, trackId)).events;
+      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
+      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+
+      expect(snares).toHaveLength(0); // snare removed
+      expect(kicks).toHaveLength(1); // kick preserved
+    });
+
+    it('modifies a trigger scoped to a specific pad', () => {
+      const { session, trackId } = setupDrumRackSession();
+
+      let s = session;
+      const track = getTrack(s, trackId);
+      if (track.patterns.length > 0) {
+        const pattern = getActivePattern(track);
+        s = updateTrack(s, trackId, {
+          patterns: track.patterns.map(p => p.id === pattern.id ? { ...p, duration: 8 } : p),
+        });
+      }
+
+      // Sketch kick and snare at same step
+      const setupActions: AIAction[] = [{
+        type: 'sketch',
+        trackId,
+        description: 'kick and snare',
+        kit: { 'kick': 'x.......', 'snare': 'x.......' },
+      }];
+      const setupReport = executeOperations(s, setupActions, adapter, new Arbitrator());
+
+      // Modify only the kick's velocity at step 0
+      const actions: AIAction[] = [{
+        type: 'edit_pattern',
+        trackId,
+        pad: 'kick',
+        operations: [{ action: 'modify', step: 0, event: { type: 'trigger', velocity: 0.3 } }],
+        description: 'soften kick',
+      }];
+
+      const report = executeOperations(setupReport.session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+
+      const events = getActivePattern(getTrack(report.session, trackId)).events;
+      const kick = events.find(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const snare = events.find(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
+
+      expect(kick).toBeDefined();
+      expect((kick as any).velocity).toBeCloseTo(0.3);
+      // Snare unchanged
+      expect(snare).toBeDefined();
+      expect((snare as any).velocity).toBeCloseTo(0.95); // accent velocity from 'x'
+    });
+  });
+
+  describe('duplicate transform with pad rejection', () => {
+    it('rejects duplicate transform when pad is scoped', () => {
+      const { session, trackId } = setupDrumRackSession();
+      const actions: AIAction[] = [{
+        type: 'transform',
+        trackId,
+        pad: 'kick',
+        operation: 'duplicate',
+        description: 'duplicate kick only',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('Cannot duplicate');
+    });
+  });
+
+  describe('manage_drum_pad validation', () => {
+    it('rejects manage_drum_pad on track with engine but no drumRack config', () => {
+      let session = createSession();
+      const trackId = session.tracks[0].id;
+      // Set engine to drum-rack but don't set drumRack config
+      session = updateTrack(session, trackId, { engine: 'drum-rack' });
+
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'add',
+        padId: 'kick',
+        model: 'analog-bass-drum',
+        description: 'add to track without drumRack',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('not a drum rack');
+    });
+  });
+
   describe('validation: padId on drum rack triggers', () => {
     it('rejects sketch events without padId on drum rack track', () => {
       const { session, trackId } = setupDrumRackSession();

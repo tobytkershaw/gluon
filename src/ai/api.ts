@@ -25,6 +25,7 @@ import { generateArchetypeEvents, getArchetype, ARCHETYPE_NAMES } from '../engin
 import { generateFromGenerator } from '../engine/pattern-generator';
 import type { PatternGenerator, GeneratorBase, GeneratorLayer } from '../engine/pattern-generator';
 import { applyDynamicShape } from '../engine/dynamic-shapes';
+import { kitToEvents } from '../engine/drum-grid';
 import { setTensionPoints, setTrackTensionMapping, createTensionCurve } from '../engine/tension-curve';
 import { getArrangementArchetype, expandArchetype, ARRANGEMENT_ARCHETYPE_NAMES as ARRANGEMENT_NAMES } from '../engine/arrangement-archetypes';
 import type { TensionPoint, TrackTensionMapping } from '../engine/tension-curve';
@@ -344,8 +345,22 @@ function projectAction(session: Session, action: AIAction): Session {
       const track = getTrack(session, action.trackId);
       if ((!action.events && !action.kit) || track.patterns.length === 0) return session;
       const activeReg = getActivePattern(track);
+
+      // Resolve events: from kit grid strings or direct events
+      let sketchEvents: MusicalEvent[] | undefined;
+      if (action.kit && track.engine === 'drum-rack' && track.drumRack) {
+        // Kit sketch: convert grid strings to events, merge with existing
+        const kitEvents = kitToEvents(action.kit) as MusicalEvent[];
+        const mentionedPadIds = new Set(Object.keys(action.kit));
+        const keptEvents = activeReg.events.filter(e =>
+          e.kind !== 'trigger' || !('padId' in e) || !mentionedPadIds.has((e as { padId?: string }).padId ?? ''),
+        );
+        sketchEvents = [...keptEvents, ...kitEvents];
+      } else {
+        sketchEvents = action.events;
+      }
+
       // Apply groove template (before humanize)
-      let sketchEvents = action.events;
       if (action.groove && action.groove in GROOVE_TEMPLATES) {
         const grooveAmount = action.grooveAmount ?? 0.7;
         sketchEvents = applyGroove(sketchEvents, GROOVE_TEMPLATES[action.groove], grooveAmount, undefined, activeReg.duration);
@@ -706,6 +721,58 @@ function projectAction(session: Session, action: AIAction): Session {
         }
       }
       return { ...session, tensionCurve: curve };
+    }
+    case 'manage_drum_pad': {
+      const track = getTrack(session, action.trackId);
+      const pads = [...(track.drumRack?.pads ?? [])];
+      switch (action.action) {
+        case 'add': {
+          const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
+          const defaultParams: Record<string, number> = {};
+          if (engineIndex >= 0) {
+            for (const ctrl of plaitsInstrument.engines[engineIndex].controls) {
+              defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5;
+            }
+          }
+          const newPad: DrumPad = {
+            id: action.padId,
+            name: action.name ?? action.padId,
+            source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: defaultParams },
+            level: 0.8,
+            pan: 0.5,
+          };
+          if (action.chokeGroup != null) newPad.chokeGroup = action.chokeGroup as number;
+          pads.push(newPad);
+          break;
+        }
+        case 'remove':
+          return updateTrack(session, action.trackId, {
+            drumRack: { ...(track.drumRack ?? { pads: [] }), pads: pads.filter(p => p.id !== action.padId) },
+          });
+        case 'rename':
+          return updateTrack(session, action.trackId, {
+            drumRack: { ...(track.drumRack ?? { pads: [] }), pads: pads.map(p => p.id === action.padId ? { ...p, name: action.name! } : p) },
+          });
+        case 'set_choke_group':
+          return updateTrack(session, action.trackId, {
+            drumRack: {
+              ...(track.drumRack ?? { pads: [] }),
+              pads: pads.map(p => {
+                if (p.id !== action.padId) return p;
+                if (action.chokeGroup === null || action.chokeGroup === undefined) {
+                  const { chokeGroup: _, ...rest } = p;
+                  return rest as DrumPad;
+                }
+                return { ...p, chokeGroup: action.chokeGroup };
+              }),
+            },
+          });
+        default:
+          return session;
+      }
+      return updateTrack(session, action.trackId, {
+        drumRack: { ...(track.drumRack ?? { pads: [] }), pads },
+      });
     }
     case 'say':
     default:
@@ -1906,6 +1973,7 @@ export class GluonAI {
           operations: resolvedOperations,
           description: args.description as string,
           ...(args.patternId ? { patternId: args.patternId as string } : {}),
+          ...(args.pad ? { pad: args.pad as string } : {}),
         };
 
         const rejection = ctx?.validateAction?.(session, action);

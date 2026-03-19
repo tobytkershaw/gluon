@@ -357,6 +357,10 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
 
+      if (action.pad && action.operation === 'duplicate') {
+        return `Cannot duplicate a single pad's events — duplicate applies to the full pattern.`;
+      }
+
       const transformPreservation = checkPreservationForTransform(session, action.trackId, action.operation);
       if (transformPreservation) return transformPreservation;
       return null;
@@ -673,7 +677,7 @@ export function prevalidateAction(
     case 'manage_drum_pad': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.engine !== 'drum-rack' && !track.drumRack) return `Track ${action.trackId} is not a drum rack`;
+      if (track.engine !== 'drum-rack' || !track.drumRack) return `Track ${action.trackId} is not a drum rack`;
       const pads = track.drumRack?.pads ?? [];
       switch (action.action) {
         case 'add': {
@@ -1591,8 +1595,80 @@ function executeActionsInternal(
           });
         }
 
-        // Apply edits via pattern-primitives (includes undo snapshot)
-        next = editPatternEvents(next, action.trackId, action.patternId, editOps, action.description);
+        // Pad-scoped edit_pattern for drum rack tracks
+        if (action.pad && track.engine === 'drum-rack' && track.drumRack) {
+          const padId = action.pad;
+          const patternEvents = [...targetPattern.events];
+          const prevEvents = [...patternEvents];
+
+          for (const op of editOps) {
+            switch (op.action) {
+              case 'add': {
+                if (op.event?.type === 'trigger') {
+                  const newTrigger: MusicalEvent = {
+                    kind: 'trigger',
+                    at: op.step,
+                    velocity: op.event.velocity ?? 0.8,
+                    accent: op.event.accent ?? false,
+                    padId,
+                  } as MusicalEvent;
+                  // Check for existing trigger at this step for this pad
+                  const existingIdx = patternEvents.findIndex(
+                    e => e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
+                  );
+                  if (existingIdx >= 0) {
+                    patternEvents[existingIdx] = newTrigger;
+                  } else {
+                    const insertAt = patternEvents.findIndex(e => e.at > op.step);
+                    if (insertAt === -1) patternEvents.push(newTrigger);
+                    else patternEvents.splice(insertAt, 0, newTrigger);
+                  }
+                }
+                break;
+              }
+              case 'remove': {
+                // Only remove triggers matching this pad
+                for (let i = patternEvents.length - 1; i >= 0; i--) {
+                  const e = patternEvents[i];
+                  if (e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId) {
+                    patternEvents.splice(i, 1);
+                    break; // remove one at a time
+                  }
+                }
+                break;
+              }
+              case 'modify': {
+                // Only modify triggers matching this pad
+                const idx = patternEvents.findIndex(
+                  e => e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
+                );
+                if (idx >= 0 && op.event) {
+                  const existing = patternEvents[idx] as MusicalEvent & { velocity?: number; accent?: boolean };
+                  patternEvents[idx] = {
+                    ...existing,
+                    ...(op.event.velocity !== undefined ? { velocity: op.event.velocity } : {}),
+                    ...(op.event.accent !== undefined ? { accent: op.event.accent } : {}),
+                  } as MusicalEvent;
+                }
+                break;
+              }
+            }
+          }
+
+          // Update the pattern with scoped edits
+          const updatedRegion = normalizePatternEvents({ ...targetPattern, events: patternEvents });
+          const newRegions = track.patterns.map(r => r.id === targetPattern.id ? updatedRegion : r);
+          const inverseOpts = {
+            midiToPitch: adapter.midiToNormalisedPitch.bind(adapter),
+            canonicalToRuntime: (id: string) => { const binding = adapter.mapControl(id); const parts = binding.path.split('.'); return parts[parts.length - 1]; },
+          };
+          const pattern = projectPatternToStepGrid(updatedRegion, updatedRegion.duration, inverseOpts);
+          const snapshot: PatternEditSnapshot = { kind: 'pattern-edit', trackId: action.trackId, patternId: targetPattern.id, prevEvents, timestamp: Date.now(), description: action.description };
+          next = { ...updateTrack(next, action.trackId, { patterns: newRegions, stepGrid: pattern, _patternDirty: true }), undoStack: [...next.undoStack, snapshot] };
+        } else {
+          // Apply edits via pattern-primitives (includes undo snapshot)
+          next = editPatternEvents(next, action.trackId, action.patternId, editOps, action.description);
+        }
 
         const updatedTrack = getTrack(next, action.trackId);
         const updatedPattern = action.patternId
