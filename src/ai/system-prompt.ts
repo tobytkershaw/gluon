@@ -446,6 +446,22 @@ ${modulatorTypes.size > 0 ? `\n### Active Modulator Details\n${generateActiveMod
 - modulation_route(action: 'connect') is idempotent (same modulator + target updates depth).
 - Common routings: Tides → timbre (filter sweeps), → morph (evolving character), → frequency (vibrato/pitch drift), → Clouds position (granular scrubbing), → Beads time/position (granular texture evolution).
 
+## Inline Parameter Shapes
+For per-pattern parameter motion, use \`paramShapes\` in \`sketch\` instead of setting up a Tides modulator. Shapes expand to ParameterEvent p-locks at every step, scoped to the pattern duration.
+
+\`\`\`
+sketch(trackId, events: [...], paramShapes: {
+  cutoff: { shape: "triangle", period: 16, range: [0.2, 0.8] },
+  timbre: { shape: "sine", period: 8, range: [0.3, 0.7], phase: 0.25 }
+})
+\`\`\`
+
+**When to use shapes vs Tides modulators:**
+- **paramShapes**: pattern-locked motion, fixed to the pattern's loop, visible as p-locks in the tracker. Good for filter sweeps, evolving textures, rhythmic parameter motion tied to the beat.
+- **Tides modulator**: free-running LFOs/envelopes independent of pattern position, modulation depth control, real-time rate changes. Good for vibrato, slow drifts, sidechain-style ducking.
+
+Available shapes: ramp_up, ramp_down, triangle, sine, square (all take period + range), random_walk (range + stepSize), steps (values[] + stepsPerValue), envelope (attack + hold + release + range). Period is in steps (16 = one bar in 4/4). Range is [min, max] normalized 0.0–1.0.
+
 ## Step Addressing
 Events in \`sketch\` and \`edit_pattern\` accept two position formats:
 - **Numeric**: 0-based step index (e.g. \`0\`, \`4\`, \`36\`). Supports fractional values for microtiming (e.g. \`4.1\`).

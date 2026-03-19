@@ -56,6 +56,8 @@ import type { FrequencyBand } from '../engine/spectral-slots';
 import type { TimbralDirection } from '../engine/timbral-vocabulary';
 import { RUBRIC_CRITERIA, parseRubricResponse } from './listen-rubric';
 import { appendSpectralAdvisory } from './spectral-lint';
+import { expandParamShapes, validateParamShapes } from '../engine/param-shapes';
+import type { ParamShapes } from '../engine/param-shapes';
 
 /**
  * Infer spectral slot priority from a track's musicalRole string.
@@ -1586,6 +1588,28 @@ export class GluonAI {
           }
         }
 
+        // Validate and expand inline parameter shapes
+        let validatedParamShapes: ParamShapes | undefined;
+        if (args.paramShapes && typeof args.paramShapes === 'object') {
+          const shapeErr = validateParamShapes(args.paramShapes);
+          if (shapeErr) {
+            return { actions: [], response: errorPayload(shapeErr) };
+          }
+          validatedParamShapes = args.paramShapes as ParamShapes;
+
+          // Expand shapes to ParameterEvents and merge into resolvedEvents
+          const sketchTrackForShapes = session.tracks.find(v => v.id === args.trackId);
+          const shapeDuration = sketchTrackForShapes && sketchTrackForShapes.patterns.length > 0
+            ? getActivePattern(sketchTrackForShapes).duration
+            : 16;
+          const shapeEvents = expandParamShapes(validatedParamShapes, shapeDuration);
+          if (resolvedEvents) {
+            resolvedEvents = [...resolvedEvents, ...shapeEvents] as AISketchAction['events'];
+          } else {
+            resolvedEvents = shapeEvents as AISketchAction['events'];
+          }
+        }
+
         const action: AISketchAction = {
           type: 'sketch',
           trackId: args.trackId as string,
@@ -1595,6 +1619,7 @@ export class GluonAI {
           ...(typeof args.groove === 'string' && args.groove in GROOVE_TEMPLATES ? { groove: args.groove } : {}),
           ...(typeof args.groove_amount === 'number' ? { grooveAmount: Math.max(0, Math.min(1, args.groove_amount)) } : {}),
           ...(typeof args.dynamic === 'string' ? { dynamic: args.dynamic as string } : {}),
+          ...(validatedParamShapes ? { paramShapes: validatedParamShapes } : {}),
         };
 
         const rejection = ctx?.validateAction?.(session, action);
@@ -1662,6 +1687,7 @@ export class GluonAI {
             ...(generatorUsed ? { source: 'generator' } : {}),
             ...(archetypeUsed ? { source: 'archetype', archetype: args.archetype } : {}),
             ...(action.dynamic ? { dynamic: action.dynamic } : {}),
+            ...(validatedParamShapes ? { paramShapes: Object.keys(validatedParamShapes) } : {}),
             ...(verificationResult ?? {}),
           },
         };

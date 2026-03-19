@@ -256,6 +256,45 @@ const sketchTool: ToolSchema = {
           'Options: accent_downbeats, accent_backbeat, accent_offbeats, crescendo, decrescendo, ' +
           'ghost_verse, push_pull, swell. Applied after archetype/generator/groove/humanize.',
       },
+      paramShapes: {
+        type: 'object',
+        description:
+          'Inline parameter shapes — describe parameter changes over the pattern duration as functions. ' +
+          'Each key is a controlId, each value is a shape definition. Shapes expand to per-step ParameterEvent p-locks. ' +
+          'Simpler than adding a Tides modulator — use for pattern-scoped parameter motion. ' +
+          'Shape types: "ramp_up", "ramp_down" (period + range), "triangle" (period + range), ' +
+          '"sine" (period + range + optional phase), "square" (period + range), ' +
+          '"random_walk" (range + stepSize), "steps" (values[] + stepsPerValue), ' +
+          '"envelope" (attack + hold + release + range). ' +
+          'Period is in steps (16 = one bar in 4/4). Range is [min, max] normalized 0.0-1.0. ' +
+          'Example: { "cutoff": { "shape": "triangle", "period": 16, "range": [0.2, 0.8] } }',
+        additionalProperties: {
+          type: 'object',
+          properties: {
+            shape: {
+              type: 'string',
+              enum: ['ramp_up', 'ramp_down', 'triangle', 'sine', 'square', 'random_walk', 'steps', 'envelope'],
+              description: 'Shape type.',
+            },
+            period: { type: 'number', description: 'Period in steps (e.g. 16 = one bar). Used by ramp_up, ramp_down, triangle, sine, square.' },
+            range: {
+              type: 'array',
+              items: { type: 'number' },
+              minItems: 2,
+              maxItems: 2,
+              description: 'Value range [min, max], normalized 0.0-1.0.',
+            },
+            phase: { type: 'number', description: 'Phase offset 0.0-1.0 for sine shape. Default 0.' },
+            stepSize: { type: 'number', description: 'Max per-step delta for random_walk.' },
+            values: { type: 'array', items: { type: 'number' }, description: 'Explicit values for steps shape.' },
+            stepsPerValue: { type: 'number', description: 'Steps per value for steps shape.' },
+            attack: { type: 'number', description: 'Attack time in steps for envelope.' },
+            hold: { type: 'number', description: 'Hold time in steps for envelope.' },
+            release: { type: 'number', description: 'Release time in steps for envelope.' },
+          },
+          required: ['shape'],
+        },
+      },
       verify: {
         type: 'boolean',
         description:

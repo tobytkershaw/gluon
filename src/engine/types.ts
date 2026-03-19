@@ -2,6 +2,7 @@
 import type { StepGrid, StepGridSketch, Transport, TransportCommand, PatternRef } from './sequencer-types';
 import type { ControlState, Pattern, MusicalEvent as CanonicalMusicalEvent, SemanticRole } from './canonical-types';
 import type { TensionCurve, TensionPoint, TrackTensionMapping } from './tension-curve';
+import type { ParamShapes } from './param-shapes';
 
 export type Agency = 'OFF' | 'ON';
 
@@ -504,6 +505,9 @@ export interface AISketchAction {
   grooveAmount?: number;
   /** Dynamic shape name. Applied as velocity post-processing after groove/humanize. */
   dynamic?: string;
+  /** Inline parameter shapes — per-pattern parameter functions (ramps, triangles, etc.)
+   *  that expand to ParameterEvent p-locks. Keys are controlIds. */
+  paramShapes?: ParamShapes;
 }
 
 export interface AITransportAction {
