@@ -9,7 +9,7 @@ describe('ViewToggle', () => {
     render(<ViewToggle view="chat" onViewChange={onViewChange} />);
 
     const buttons = screen.getAllByRole('button');
-    expect(buttons.map((button) => button.textContent)).toEqual([
+    expect(buttons.map((btn) => btn.textContent)).toEqual([
       'Chat',
       'Surface',
       'Rack',

@@ -107,7 +107,7 @@ export function TransportStrip({
   const activelyRecording = recordArmed && playing;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3" role="toolbar" aria-label="Transport controls">
       {/* Transport controls: play/pause, hard stop, record */}
       <div className="flex items-center gap-1">
         <button
@@ -118,6 +118,7 @@ export function TransportStrip({
               : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-zinc-200'
           }`}
           title={playing ? 'Pause [Space]' : 'Play [Space]'}
+          aria-label={playing ? 'Pause' : 'Play'}
         >
           {playing ? (
             <svg viewBox="0 0 16 16" className="w-3 h-3 fill-current">
@@ -134,6 +135,7 @@ export function TransportStrip({
           onClick={onHardStop}
           className="w-6 h-6 rounded-full flex items-center justify-center transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
           title="Hard stop — silence all voices [Shift+Space]"
+          aria-label="Stop"
         >
           <svg viewBox="0 0 16 16" className="w-3 h-3 fill-current">
             <rect x="3" y="3" width="10" height="10" />
@@ -149,6 +151,8 @@ export function TransportStrip({
                 : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-red-400'
           }`}
           title={activelyRecording ? 'Disarm Recording' : recordArmed ? 'Disarm Recording' : 'Arm Recording'}
+          aria-label={activelyRecording ? 'Recording — click to disarm' : recordArmed ? 'Record armed — click to disarm' : 'Arm recording'}
+          aria-pressed={recordArmed}
         >
           <div className={`w-2 h-2 rounded-full ${
             activelyRecording ? 'bg-red-500' : recordArmed ? 'bg-red-400' : 'bg-current'
@@ -163,6 +167,8 @@ export function TransportStrip({
               : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
           } ${isPatternMode ? 'opacity-50 cursor-not-allowed' : ''}`}
           title={isPatternMode ? 'Loop locked in pattern mode' : loopEnabled ? 'Loop ON — click to disable' : 'Loop OFF — click to enable'}
+          aria-label={loopEnabled ? 'Loop enabled' : 'Loop disabled'}
+          aria-pressed={loopEnabled}
           disabled={isPatternMode}
         >
           {/* Loop icon: circular arrows */}
@@ -182,6 +188,7 @@ export function TransportStrip({
               : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
           }`}
           title={transportMode === 'pattern' ? 'Pattern mode (loops active pattern) — click for Song mode' : 'Song mode (plays sequence) — click for Pattern mode'}
+          aria-label={transportMode === 'pattern' ? 'Pattern mode' : 'Song mode'}
         >
           {transportMode === 'song' ? 'SONG' : 'PAT'}
         </button>
@@ -276,6 +283,8 @@ function MetronomeButton({ enabled, volume, onToggle, onVolumeChange }: {
             : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
         }`}
         title={`Metronome ${enabled ? 'ON' : 'OFF'} (right-click for volume)`}
+        aria-label={`Metronome ${enabled ? 'on' : 'off'}`}
+        aria-pressed={enabled}
       >
         {/* Metronome icon: simplified pendulum */}
         <svg viewBox="0 0 16 16" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">

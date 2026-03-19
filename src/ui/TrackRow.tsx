@@ -169,6 +169,9 @@ export function TrackRow({
   return (
     <div
       ref={rowRef}
+      role="listitem"
+      aria-selected={isActive}
+      aria-label={label}
       tabIndex={0}
       className={`group/row relative px-2.5 py-1.5 rounded cursor-pointer transition-colors outline-none ${
         isActive
