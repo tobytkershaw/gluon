@@ -26,6 +26,7 @@ import { generateFromGenerator } from '../engine/pattern-generator';
 import type { PatternGenerator, GeneratorBase, GeneratorLayer } from '../engine/pattern-generator';
 import { applyDynamicShape } from '../engine/dynamic-shapes';
 import { setTensionPoints, setTrackTensionMapping, createTensionCurve } from '../engine/tension-curve';
+import { getArrangementArchetype, expandArchetype, ARRANGEMENT_ARCHETYPE_NAMES as ARRANGEMENT_NAMES } from '../engine/arrangement-archetypes';
 import type { TensionPoint, TrackTensionMapping } from '../engine/tension-curve';
 import { compressState } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
@@ -767,6 +768,63 @@ function resolveTempoSyncedMoveTarget(
     target: { absolute: normalized },
     tempoSyncLabel: semanticValue,
   };
+}
+
+/**
+ * Generate events for a section based on density config.
+ * Produces trigger events distributed across the pattern length.
+ */
+function generateDensityEvents(
+  config: import('../engine/arrangement-archetypes').DensityConfig,
+  lengthSteps: number,
+  hasFill: boolean,
+): MusicalEvent[] {
+  const events: MusicalEvent[] = [];
+  if (config.eventDensity === 0) return events;
+
+  const totalSlots = lengthSteps;
+  const targetCount = Math.max(1, Math.round(totalSlots * config.eventDensity));
+  const spacing = Math.max(1, Math.floor(totalSlots / targetCount));
+
+  for (let i = 0; i < targetCount; i++) {
+    const at = i * spacing;
+    if (at >= lengthSteps) break;
+    // Slight velocity variation based on position
+    const beatPhase = at % 16;
+    const isDownbeat = beatPhase === 0;
+    const isBackbeat = beatPhase === 8;
+    let velocity = config.velocityBase;
+    if (isDownbeat) velocity = Math.min(1.0, velocity + config.velocityRange);
+    else if (isBackbeat) velocity = Math.min(1.0, velocity + config.velocityRange * 0.5);
+    else velocity = Math.max(0.1, velocity - config.velocityRange * 0.5);
+
+    events.push({
+      kind: 'trigger',
+      at,
+      velocity,
+      ...(isDownbeat ? { accent: true } : {}),
+    } as TriggerEvent);
+  }
+
+  // Add fill events in the last bar if requested
+  if (hasFill && lengthSteps >= 16) {
+    const fillStart = lengthSteps - 16;
+    // Add extra hits in the last bar for a fill
+    const fillPositions = [fillStart + 10, fillStart + 11, fillStart + 13, fillStart + 14, fillStart + 15];
+    for (const pos of fillPositions) {
+      if (pos < lengthSteps && !events.some(e => Math.abs(e.at - pos) < 0.5)) {
+        events.push({
+          kind: 'trigger',
+          at: pos,
+          velocity: Math.min(1.0, config.velocityBase + config.velocityRange),
+        } as TriggerEvent);
+      }
+    }
+  }
+
+  // Sort by position
+  events.sort((a, b) => a.at - b.at);
+  return events;
 }
 
 /** Build an error function response payload */
@@ -3531,6 +3589,118 @@ export class GluonAI {
             wet,
             sendLevel,
             ...(typeof args.name === 'string' && args.name ? { busLabel: args.name } : {}),
+          },
+        };
+      }
+
+      case 'apply_arrangement_archetype': {
+        if (typeof args.archetype !== 'string' || !args.archetype) {
+          return { actions: [], response: errorPayload('Missing required parameter: archetype') };
+        }
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.description !== 'string' || !args.description) {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+
+        const archetype = getArrangementArchetype(args.archetype as string);
+        if (!archetype) {
+          return {
+            actions: [],
+            response: enrichedError(`Unknown arrangement archetype: "${args.archetype}"`, {
+              hint: 'Use one of the built-in arrangement archetypes.',
+              available: ARRANGEMENT_NAMES,
+            }),
+          };
+        }
+
+        const archTrackId = resolveTrackId(args.trackId as string, session);
+        if (!archTrackId) {
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+        }
+
+        const archTrack = session.tracks.find(t => t.id === archTrackId);
+        if (!archTrack) {
+          return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+        }
+
+        const expandedSections = expandArchetype(archetype);
+        const archActions: AIAction[] = [];
+        const sectionPatternIds: { name: string; patternId: string; bars: number }[] = [];
+
+        // Phase 1: Create patterns for each section
+        for (const section of expandedSections) {
+          const patternId = `pat-${section.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+          // Add pattern
+          const addAction: AIManagePatternAction = {
+            type: 'manage_pattern',
+            action: 'add',
+            trackId: archTrackId,
+            description: `Add pattern for ${section.name} section`,
+          };
+
+          const addRejection = handleRejection(ctx?.validateAction?.(session, addAction), session, addAction, existingActions);
+          if (addRejection) return addRejection;
+          archActions.push(addAction);
+
+          // We need to project the session to get the actual pattern ID assigned
+          // The pattern ID is generated during execution, so we track section info for the response
+          sectionPatternIds.push({ name: section.name, patternId, bars: section.bars });
+
+          // Set pattern length
+          const lengthAction: AIManagePatternAction = {
+            type: 'manage_pattern',
+            action: 'set_length',
+            trackId: archTrackId,
+            length: section.lengthSteps,
+            description: `Set ${section.name} to ${section.bars} bars (${section.lengthSteps} steps)`,
+          };
+          archActions.push(lengthAction);
+
+          // Rename pattern
+          const renameAction: AIManagePatternAction = {
+            type: 'manage_pattern',
+            action: 'rename',
+            trackId: archTrackId,
+            name: section.name,
+            description: `Rename pattern to "${section.name}"`,
+          };
+          archActions.push(renameAction);
+
+          // Sketch events based on density (only if not silent)
+          if (section.density !== 'silent') {
+            const sketchAction: AISketchAction = {
+              type: 'sketch',
+              trackId: archTrackId,
+              description: `${section.name}: ${section.density} density (energy ${section.energy})`,
+              events: generateDensityEvents(section.densityConfig, section.lengthSteps, section.hasFill),
+            };
+            archActions.push(sketchAction);
+          }
+        }
+
+        // Phase 2: Build the sequence (append each section pattern in order)
+        // The sequence references will be built from the patterns that were added.
+        // Since pattern IDs are assigned during execution, we emit append actions
+        // that reference patterns by their creation order. The execution layer
+        // handles this — the newly-added patterns will be available on the track.
+
+        return {
+          actions: archActions,
+          response: {
+            applied: true,
+            archetype: archetype.name,
+            trackId: archTrackId,
+            totalBars: archetype.totalBars,
+            sections: expandedSections.map(s => ({
+              name: s.name,
+              bars: s.bars,
+              density: s.density,
+              energy: s.energy,
+            })),
+            note: 'Patterns created for each section. Use manage_sequence to arrange them in order, and set_transport mode: "song" to play through the full arrangement.',
           },
         };
       }
