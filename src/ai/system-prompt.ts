@@ -17,21 +17,24 @@ import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, g
  * Verified against official Plaits documentation:
  * https://pichenettes.github.io/mutable-instruments-documentation/modules/plaits/manual/
  */
-const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string; morph: string; note?: string; frequency?: string }> = {
+const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string; morph: string; note?: string; frequency?: string; sweetSpots?: string }> = {
   'virtual-analog': {
-    harmonics: 'Detuning between the two waves',
-    timbre: 'Variable square — narrow pulse to full square to hardsync formants',
-    morph: 'Variable saw — triangle to saw with increasingly wide notch',
+    harmonics: 'Detuning between the two waves. 0.0 = unison (clean). 0.1–0.3 = subtle chorus. 0.5+ = wide detune',
+    timbre: 'Variable square — narrow pulse to full square to hardsync formants. 0.0 = thin pulse. 0.3–0.5 = warm square. 0.7+ = hardsync',
+    morph: 'Variable saw — triangle to saw with notch. 0.0 = pure triangle (clean sub). 0.3 = rounded saw. 0.7+ = bright saw',
+    sweetSpots: 'Clean sub: morph 0.0, timbre 0.0, harmonics 0.0. Warm bass: morph 0.3, timbre 0.3, harmonics 0.1. Fat lead: morph 0.6, timbre 0.5, harmonics 0.2',
   },
   'waveshaping': {
-    harmonics: 'Waveshaper waveform',
-    timbre: 'Wavefolder amount',
-    morph: 'Waveform asymmetry',
+    harmonics: 'Waveshaper waveform. 0.0 = pure sine. 0.3 = gentle harmonics. 0.6+ = rich overtones',
+    timbre: 'Wavefolder amount. 0.0 = clean. 0.3 = subtle warmth. 0.6+ = aggressive folding',
+    morph: 'Waveform asymmetry. 0.5 = symmetric',
+    sweetSpots: 'Pure sine sub: harmonics 0.0, timbre 0.0, morph 0.5. Warm pad: harmonics 0.3, timbre 0.2, morph 0.4. Growl bass: harmonics 0.5, timbre 0.6, morph 0.3',
   },
   'fm': {
-    harmonics: 'Frequency ratio between modulator and carrier',
-    timbre: 'Modulation index — low = mellow, high = metallic/bell-like',
-    morph: 'Feedback — below center: chaotic (operator 1 phase mod), above center: rough (operator 2 self-phase mod)',
+    harmonics: 'Frequency ratio between modulator and carrier. 0.0 = 1:1 (mellow). 0.25 = 2:1. 0.5 = 3:1. Higher = metallic',
+    timbre: 'Modulation index — 0.0 = sine, 0.3 = warm, 0.5 = bright, 0.8+ = metallic/bell',
+    morph: 'Feedback — below 0.5: chaotic, above 0.5: rough. 0.5 = no feedback',
+    sweetSpots: 'E-piano: harmonics 0.25, timbre 0.3, morph 0.5. Bell: harmonics 0.5, timbre 0.6, morph 0.5. Bass: harmonics 0.0, timbre 0.2, morph 0.5',
   },
   'grain-formant': {
     harmonics: 'Frequency ratio between formant 1 and 2',
@@ -42,6 +45,7 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     harmonics: 'Number of bumps in the spectrum',
     timbre: 'Index of the most prominent harmonic',
     morph: 'Bump shape — flat and wide to peaked and narrow',
+    sweetSpots: 'Organ: harmonics 0.3, timbre 0.2, morph 0.5. Hollow pad: harmonics 0.1, timbre 0.5, morph 0.3',
   },
   'wavetable': {
     harmonics: 'Bank selection',
@@ -49,10 +53,11 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     morph: 'Column index — second axis of wavetable navigation',
   },
   'chords': {
-    harmonics: 'Chord type (sweeps through triads, 7ths, 9ths, etc.)',
-    timbre: 'Chord inversion and transposition',
-    morph: 'Waveform — first half: organ/string drawbar combinations, second half: wavetable scanning (16 waveforms)',
+    harmonics: 'Chord type. 0.0 = octave. 0.15 = 5th. 0.25 = minor triad. 0.35 = minor 7th. 0.45 = 9th. 0.55 = sus4. 0.7+ = stacked 5ths',
+    timbre: 'Chord inversion and transposition. 0.0–0.3 = root position. 0.3–0.6 = inversions. 0.6+ = higher voicings',
+    morph: 'Waveform — 0.0–0.5: organ/string drawbar (warm). 0.5–1.0: wavetable scanning (brighter)',
     note: 'Synthesizes full chords internally. Send single root notes only — do not stack pitches.',
+    sweetSpots: 'Dark minor stab: harmonics 0.25, timbre 0.2, morph 0.15. Dub techno chord: harmonics 0.25–0.35, timbre 0.2–0.3, morph 0.1–0.2. Lush 7th pad: harmonics 0.35, timbre 0.4, morph 0.3',
   },
   'vowel-speech': {
     harmonics: 'Crossfades between formant filtering, SAM, LPC vowels, then LPC word banks',
@@ -63,11 +68,13 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     harmonics: 'Amount of pitch randomization',
     timbre: 'Grain density',
     morph: 'Grain duration and overlap',
+    sweetSpots: 'Ambient texture: harmonics 0.3, timbre 0.4, morph 0.6. Dense swarm: harmonics 0.5, timbre 0.8, morph 0.3',
   },
   'filtered-noise': {
-    harmonics: 'Filter response — LP to BP to HP',
-    timbre: 'Clock frequency',
-    morph: 'Filter resonance',
+    harmonics: 'Filter response — 0.0 = LP (rumble). 0.5 = BP (snappy). 1.0 = HP (hiss)',
+    timbre: 'Clock frequency. Lower = gritty. Higher = smooth',
+    morph: 'Filter resonance. 0.0 = gentle. 0.8+ = screaming',
+    sweetSpots: 'Hi-hat texture: harmonics 0.7, timbre 0.6, morph 0.3. Vinyl crackle: harmonics 0.3, timbre 0.2, morph 0.1',
   },
   'particle-dust': {
     harmonics: 'Amount of frequency randomization',
@@ -87,53 +94,45 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
   },
   'analog-bass-drum': {
-    harmonics: 'Attack sharpness and amount of overdrive',
-    timbre: 'Brightness',
-    morph: 'Decay time',
-    frequency: 'Fundamental pitch. Deep sub-kick: 0.15–0.25 (~40–60Hz). Punchy mid-kick: 0.30–0.40. High tom-like: 0.45+. Below 0.10 is subsonic — inaudible on most speakers.',
+    harmonics: 'Attack sharpness and overdrive. 0.0 = soft thud. 0.2 = punchy click. 0.5+ = heavy distorted attack',
+    timbre: 'Brightness. 0.0 = dark/muffled. 0.2 = warm. 0.4 = present. 0.6+ = bright/snappy',
+    morph: 'Decay time. 0.0 = very short click. 0.3 = tight punch. 0.5 = medium body. 0.7+ = boomy',
+    frequency: 'Fundamental pitch. Deep sub-kick: 0.15–0.25 (~40–60Hz). Punchy mid-kick: 0.30–0.40. High tom-like: 0.45+. Below 0.10 is subsonic.',
     note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
+    sweetSpots: 'Dub techno kick: frequency 0.18, morph 0.35, harmonics 0.15, timbre 0.20. 808 sub-kick: frequency 0.15, morph 0.50, harmonics 0.10, timbre 0.15. Punchy techno: frequency 0.30, morph 0.30, harmonics 0.35, timbre 0.40',
   },
   'analog-snare': {
-    harmonics: 'Balance of harmonic and noisy components',
-    timbre: 'Balance between different modes of the drum',
-    morph: 'Decay time',
+    harmonics: 'Harmonic vs noise balance. 0.0 = pure tone (tom). 0.5 = balanced. 1.0 = all noise (clap)',
+    timbre: 'Mode balance. 0.0 = body-heavy. 0.5 = balanced. 1.0 = bright ring',
+    morph: 'Decay time. 0.0 = very tight. 0.3 = snappy. 0.5 = medium. 0.7+ = ringy',
     frequency: 'Body pitch. Tight snare: 0.35–0.45. Deep snare: 0.20–0.30. Very low values produce toms.',
     note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
+    sweetSpots: 'Tight techno snare: frequency 0.40, harmonics 0.4, timbre 0.3, morph 0.25. Deep snare: frequency 0.25, harmonics 0.3, timbre 0.4, morph 0.40. Clap: frequency 0.50, harmonics 0.8, timbre 0.5, morph 0.20',
   },
   'analog-hi-hat': {
-    harmonics: 'Balance of metallic and filtered noise',
-    timbre: 'High-pass filter cutoff',
-    morph: 'Decay time',
+    harmonics: 'Metallic vs noise balance. 0.0 = pure metallic ring. 0.5 = mixed. 1.0 = pure noise',
+    timbre: 'High-pass cutoff. 0.0 = dark. 0.5 = medium. 0.8+ = thin/bright',
+    morph: 'Decay time. 0.0 = ultra-tight closed. 0.15 = closed hat. 0.3 = semi-open. 0.5+ = open. 0.8+ = cymbal wash',
     frequency: 'Fundamental pitch. Typical hi-hat: 0.55–0.75. Lower values sound more like a ride or cymbal wash.',
     note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
+    sweetSpots: 'Closed hat: frequency 0.65, harmonics 0.4, timbre 0.5, morph 0.12. Open hat: frequency 0.60, harmonics 0.5, timbre 0.4, morph 0.50. Dusty hat: frequency 0.55, harmonics 0.7, timbre 0.3, morph 0.15',
   },
 };
 
 /**
- * Compact one-line index of all Plaits models. Always included so the AI
- * knows the full palette even when detailed semantics are elided.
+ * Parameter semantics for all Plaits models. Always included so the AI
+ * can make good sound design choices when selecting AND configuring a new engine
+ * in the same turn (before it becomes an "active" model).
  */
-function generateModelIndex(): string {
-  return getModelList()
-    .map(m => `${m.index}: ${m.name}`)
-    .join('\n');
-}
-
-/**
- * Detailed parameter semantics for Plaits models that are currently
- * assigned to at least one track in the session.
- */
-function generateActiveModelReference(activeModelIds: Set<number>): string {
-  if (activeModelIds.size === 0) return '';
+function generateModelReference(): string {
   const lines = getModelList()
-    .filter(m => activeModelIds.has(m.index))
     .map(m => {
       const semantics = MODEL_PARAM_SEMANTICS[getEngineByIndex(m.index)?.id ?? ''];
       if (!semantics) return `**${m.index}: ${m.name}**`;
       return `**${m.index}: ${m.name}**
   - harmonics: ${semantics.harmonics}
   - timbre: ${semantics.timbre}
-  - morph: ${semantics.morph}${semantics.frequency ? `\n  - frequency: ${semantics.frequency}` : ''}${semantics.note ? `\n  ⚠️ ${semantics.note}` : ''}`;
+  - morph: ${semantics.morph}${semantics.frequency ? `\n  - frequency: ${semantics.frequency}` : ''}${semantics.note ? `\n  ⚠️ ${semantics.note}` : ''}${semantics.sweetSpots ? `\n  🎯 ${semantics.sweetSpots}` : ''}`;
     });
   return lines.join('\n');
 }
@@ -296,7 +295,7 @@ function generateActiveModulatorReference(activeTypes: Set<string>): string {
 
 export function buildSystemPrompt(session: Session): string {
   const restraintLevel = deriveRestraintLevel(session.reactionHistory ?? []);
-  const { modelIds, processorTypes, modulatorTypes } = extractActiveModules(session);
+  const { processorTypes, modulatorTypes } = extractActiveModules(session);
   return `## The Instrument
 You are Gluon, a self-configuring intelligent instrument for human-AI music collaboration. Intelligence is at its core: the data model is designed to be legible and usable by an AI, and the full state of the music is available to you at all times.
 
@@ -405,9 +404,8 @@ When a common workflow has a one-step shortcut, prefer it over manual multi-tool
 - \`apply_modulation\` over manual \`manage_modulator\` + \`modulation_route\` setup — applies named modulation recipes (e.g. "vibrato", "slow_filter_sweep", "wobble", "wobble_bass", "pulsing_pad", "tremolo", "auto_wah", "ducking_sidechain", "drift"). Override depth, rate, shape, smoothness, or target to customize.
 - \`set_mix_role\` over manual volume/pan moves — applies role-appropriate mix defaults in one call.
 
-## Plaits Models (all available)
-${generateModelIndex()}
-${modelIds.size > 0 ? `\n### Active Model Details\nDetailed parameter semantics for models currently assigned to tracks:\n${generateActiveModelReference(modelIds)}` : ''}
+## Plaits Models
+${generateModelReference()}
 
 ## Parameter Space (semantic controls)
 ${generateParameterSection()}

@@ -172,37 +172,26 @@ describe('dynamic track setup', () => {
 });
 
 describe('dynamic prompt reference (#777)', () => {
-  it('always includes compact model index with all 16 models', () => {
-    // Even a single-track session should list all 16 models in the index
+  it('always includes all model semantics regardless of active models (#1012)', () => {
+    // All models should have detailed semantics so the AI can make good
+    // sound design choices when selecting AND configuring a new engine
     const prompt = defaultPrompt();
-    for (let i = 0; i <= 15; i++) {
-      expect(prompt).toMatch(new RegExp(`^${i}: `, 'm'));
-    }
-  });
-
-  it('only includes detailed semantics for active models', () => {
-    // Create a session with a specific model assigned
-    let session = createSession();
-    session = updateTrack(session, 'v0', { model: 13, engine: 'plaits:analog_bass_drum' });
-    const prompt = buildSystemPrompt(session);
-    // Active model (13) should have detailed semantics
-    expect(prompt).toContain('Active Model Details');
+    // All 16 models should be present with details
+    expect(prompt).toMatch(/\*\*0: Virtual Analog\*\*/);
+    expect(prompt).toMatch(/\*\*1: Waveshaper\*\*/);
     expect(prompt).toMatch(/\*\*13: Analog Bass Drum\*\*/);
-    expect(prompt).toContain('Attack sharpness'); // analog-bass-drum harmonics
-    // Inactive model (1 — Waveshaping) should NOT have detailed semantics
-    expect(prompt).not.toContain('Wavefolder amount'); // waveshaping timbre
+    // Detailed semantics for all models — not just active ones
+    expect(prompt).toContain('Detuning between the two waves'); // virtual-analog
+    expect(prompt).toContain('Wavefolder amount'); // waveshaping (was previously excluded when inactive)
+    expect(prompt).toContain('Attack sharpness'); // analog-bass-drum
+    expect(prompt).toContain('Modulation index'); // fm
   });
 
-  it('includes detailed semantics for multiple active models', () => {
-    const session = createLegacySession();
-    const prompt = buildSystemPrompt(session);
-    // Models 0, 2, 4, 13 are active
-    expect(prompt).toContain('Detuning between the two waves'); // virtual-analog harmonics
-    expect(prompt).toContain('Modulation index'); // fm timbre
-    expect(prompt).toContain('Index of the most prominent harmonic'); // harmonic timbre
-    expect(prompt).toContain('Attack sharpness'); // analog-bass-drum harmonics
-    // Model 1 (Waveshaping) is NOT active
-    expect(prompt).not.toContain('Wavefolder amount');
+  it('includes sweet spots for sound design guidance (#1012)', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('Dub techno kick:'); // analog-bass-drum sweet spot
+    expect(prompt).toContain('Clean sub:'); // virtual-analog sweet spot
+    expect(prompt).toContain('Dark minor stab:'); // chords sweet spot
   });
 
   it('always includes compact processor index', () => {
