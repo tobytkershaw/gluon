@@ -278,6 +278,14 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.targetTrackId, { processors });
   }
 
+  if (snapshot.kind === 'drum-pad') {
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track || !track.drumRack) return session;
+    return updateTrack(session, snapshot.trackId, {
+      drumRack: { ...track.drumRack, pads: snapshot.prevPads },
+    });
+  }
+
   if (snapshot.kind === 'track-property') {
     return updateTrack(session, snapshot.trackId, snapshot.prevProps);
   }
@@ -590,6 +598,19 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     const track = session.tracks.find(v => v.id === snapshot.trackId);
     if (!track) return { ...snapshot, timestamp: now };
     return { ...snapshot, prevSends: [...(track.sends ?? [])], timestamp: now };
+  }
+
+  if (snapshot.kind === 'drum-pad') {
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track || !track.drumRack) return { ...snapshot, timestamp: now };
+    return {
+      ...snapshot,
+      prevPads: track.drumRack.pads.map(p => ({
+        ...p,
+        source: { ...p.source, params: { ...p.source.params } },
+      })),
+      timestamp: now,
+    };
   }
 
   if (snapshot.kind === 'track-property') {

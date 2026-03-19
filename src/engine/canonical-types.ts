@@ -138,7 +138,8 @@ export interface NoteEvent extends BaseEvent {
  *
  * ## Invariants
  * 5. `velocity` in 0–1 when present
- * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001)
+ * 8. No duplicate TriggerEvents at the same `at` (tolerance 0.001) for the same `padId`
+ *    (or both undefined for non-drum-rack tracks)
  */
 export interface TriggerEvent extends BaseEvent {
   kind: 'trigger';
@@ -146,6 +147,8 @@ export interface TriggerEvent extends BaseEvent {
   accent?: boolean;
   /** Gate length in steps. Default: 1. */
   gate?: number;
+  /** For drum rack tracks: which pad this trigger belongs to. */
+  padId?: string;
 }
 
 /**
