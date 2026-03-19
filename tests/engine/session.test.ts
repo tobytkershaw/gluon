@@ -716,23 +716,43 @@ describe('Undo contract: transport helpers', () => {
 });
 
 describe('Undo contract: track mix helpers', () => {
-  it('toggleMute does not push a snapshot (not undoable)', () => {
+  it('toggleMute pushes a snapshot', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;
     const s2 = toggleMute(s1, trackId);
     expect(s2.tracks.find(t => t.id === trackId)!.muted).toBe(true);
-    expect(s2.undoStack.length).toBe(0);
+    expect(s2.undoStack.length).toBe(1);
   });
 
-  it('toggleSolo does not push a snapshot (not undoable)', () => {
+  it('toggleMute is undoable', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    expect(s1.tracks.find(t => t.id === trackId)!.muted).toBe(false);
+    const s2 = toggleMute(s1, trackId);
+    expect(s2.tracks.find(t => t.id === trackId)!.muted).toBe(true);
+    const s3 = applyUndo(s2);
+    expect(s3.tracks.find(t => t.id === trackId)!.muted).toBe(false);
+  });
+
+  it('toggleSolo pushes a snapshot', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;
     const s2 = toggleSolo(s1, trackId);
     expect(s2.tracks.find(t => t.id === trackId)!.solo).toBe(true);
-    expect(s2.undoStack.length).toBe(0);
+    expect(s2.undoStack.length).toBe(1);
   });
 
-  it('exclusive toggleSolo does not push a snapshot (not undoable)', () => {
+  it('toggleSolo is undoable', () => {
+    const s1 = createSession();
+    const trackId = s1.tracks[0].id;
+    expect(s1.tracks.find(t => t.id === trackId)!.solo).toBe(false);
+    const s2 = toggleSolo(s1, trackId);
+    expect(s2.tracks.find(t => t.id === trackId)!.solo).toBe(true);
+    const s3 = applyUndo(s2);
+    expect(s3.tracks.find(t => t.id === trackId)!.solo).toBe(false);
+  });
+
+  it('exclusive toggleSolo pushes a group snapshot and is undoable', () => {
     let s = createSession();
     s = addTrack(s)!;
     const stackAfterAdd = s.undoStack.length;
@@ -740,10 +760,15 @@ describe('Undo contract: track mix helpers', () => {
     const trackB = s.tracks[1].id;
     s = toggleSolo(s, trackA);
     expect(s.tracks.find(t => t.id === trackA)!.solo).toBe(true);
+    expect(s.undoStack.length).toBe(stackAfterAdd + 1);
     s = toggleSolo(s, trackB);
     expect(s.tracks.find(t => t.id === trackB)!.solo).toBe(true);
     expect(s.tracks.find(t => t.id === trackA)!.solo).toBe(false);
-    expect(s.undoStack.length).toBe(stackAfterAdd);
+    expect(s.undoStack.length).toBe(stackAfterAdd + 2);
+    // Undo should restore trackA solo and remove trackB solo
+    const undone = applyUndo(s);
+    expect(undone.tracks.find(t => t.id === trackA)!.solo).toBe(true);
+    expect(undone.tracks.find(t => t.id === trackB)!.solo).toBe(false);
   });
 
   it('setTrackVolume pushes a snapshot', () => {
