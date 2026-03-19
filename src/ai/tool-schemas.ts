@@ -740,7 +740,7 @@ const setSurfaceTool: ToolSchema = {
           properties: {
             type: {
               type: 'string',
-              enum: ['knob-group', 'macro-knob', 'xy-pad', 'step-grid', 'chain-strip', 'piano-roll'],
+              enum: ['knob-group', 'macro-knob', 'xy-pad', 'step-grid', 'chain-strip', 'piano-roll', 'level-meter'],
               description: 'Module type.',
             },
             id: {

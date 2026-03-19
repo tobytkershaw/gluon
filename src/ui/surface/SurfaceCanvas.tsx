@@ -10,6 +10,7 @@ import { XYPadModule } from './XYPadModule';
 import { StepGridModule } from './StepGridModule';
 import { ChainStripModule } from './ChainStripModule';
 import { PianoRollModule } from './PianoRollModule';
+import { LevelMeterModule } from './LevelMeterModule';
 
 interface SurfaceCanvasProps {
   track: Track;
@@ -30,6 +31,7 @@ const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> 
   'step-grid': StepGridModule,
   'chain-strip': ChainStripModule,
   'piano-roll': PianoRollModule,
+  'level-meter': LevelMeterModule,
 };
 
 export function SurfaceCanvas({
