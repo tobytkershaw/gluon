@@ -171,6 +171,7 @@ export function SurfaceCanvas({
       {pickerOpen && (
         <div className="fixed bottom-14 right-6 z-50">
           <ModulePicker
+            track={track}
             onAddModule={handleAddModule}
             onClose={() => setPickerOpen(false)}
           />

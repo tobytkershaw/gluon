@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { getPickableModuleDefs } from '../../engine/surface-module-registry';
-import type { SurfaceModule } from '../../engine/types';
+import type { SurfaceModule, ModuleBinding, Track } from '../../engine/types';
+import { getActivePattern } from '../../engine/types';
 
 interface ModulePickerProps {
+  track: Track;
   onAddModule: (module: SurfaceModule) => void;
   onClose: () => void;
 }
 
-export function ModulePicker({ onAddModule, onClose }: ModulePickerProps) {
+export function ModulePicker({ track, onAddModule, onClose }: ModulePickerProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on click-outside
@@ -38,6 +40,23 @@ export function ModulePicker({ onAddModule, onClose }: ModulePickerProps) {
 
   const defs = getPickableModuleDefs();
 
+  function seedDefaultBindings(type: string): ModuleBinding[] {
+    const bindings: ModuleBinding[] = [];
+
+    if (type === 'step-grid' || type === 'piano-roll') {
+      // Seed a region binding pointing to the track's active pattern
+      const pattern = track.patterns.length > 0 ? getActivePattern(track) : null;
+      if (pattern) {
+        bindings.push({ role: 'region', trackId: track.id, target: pattern.id });
+      }
+    } else if (type === 'chain-strip') {
+      // Seed a chain binding pointing to this track
+      bindings.push({ role: 'chain', trackId: track.id, target: track.id });
+    }
+
+    return bindings;
+  }
+
   function handleSelect(type: string) {
     const def = defs.find(d => d.type === type);
     if (!def) return;
@@ -46,7 +65,7 @@ export function ModulePicker({ onAddModule, onClose }: ModulePickerProps) {
       type: def.type,
       id: `${def.type}-${Date.now()}`,
       label: def.name,
-      bindings: [],
+      bindings: seedDefaultBindings(def.type),
       position: { x: 0, y: 0, w: def.defaultSize.w, h: def.defaultSize.h },
       config: {},
     };
