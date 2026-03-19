@@ -284,6 +284,49 @@ describe('move — adversarial', () => {
     expect(response.error).toContain('missing-track');
     expect(response.error).not.toContain('undefined');
   });
+
+  it('accepts track volume via move and routes it to track mix', async () => {
+    const session = makeSession();
+    const { response, actions } = await callTool(session, 'move', {
+      param: 'volume',
+      target: { absolute: 0.5 },
+      trackId: session.tracks[0].id,
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.param).toBe('volume');
+    expect(response.to).toBe(0.5);
+    expect(actions).toHaveLength(1);
+    expect((actions[0] as { type: string }).type).toBe('set_track_mix');
+  });
+
+  it('accepts relative track pan via move', async () => {
+    const session = makeSession();
+    const { response, actions } = await callTool(session, 'move', {
+      param: 'pan',
+      target: { relative: -0.25 },
+      trackId: session.tracks[0].id,
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.param).toBe('pan');
+    expect(response.to).toBe(-0.25);
+    expect(actions).toHaveLength(1);
+    expect((actions[0] as { type: string }).type).toBe('set_track_mix');
+  });
+
+  it('rejects timed move for track volume alias', async () => {
+    const session = makeSession();
+    const { response, actions } = await callTool(session, 'move', {
+      param: 'volume',
+      target: { absolute: 0.5 },
+      over: 500,
+      trackId: session.tracks[0].id,
+    });
+
+    expect(response.error).toMatch(/Timed moves.*track volume/i);
+    expect(actions).toHaveLength(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
