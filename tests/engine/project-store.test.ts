@@ -207,6 +207,56 @@ describe('project-store', () => {
     expect(restored.transport.mode).toBe('pattern');
   });
 
+  it('renameProject uses separate transactions for read and write', async () => {
+    const session = createSession();
+    await saveProject('p1', 'Original', session);
+
+    // Patch the fake so that each transaction() call returns an independent
+    // object store backed by the shared dbState — mimicking real IndexedDB
+    // where a transaction auto-commits after the microtask that created it.
+    const origIndexedDB = globalThis.indexedDB;
+    const origOpen = origIndexedDB.open.bind(origIndexedDB);
+
+    let txCount = 0;
+    const patchedOpen = () => {
+      const request = origOpen();
+      const origOnSuccess = () => {
+        // Wrap the db so we can count transaction() calls
+        const db = request.result;
+        const origTransaction = db.transaction.bind(db);
+        db.transaction = (...args: Parameters<typeof origTransaction>) => {
+          txCount++;
+          return origTransaction(...args);
+        };
+      };
+      const origOnsuccess = request.onsuccess;
+      request.onsuccess = null;
+      queueMicrotask(() => {
+        request.onupgradeneeded?.();
+        origOnSuccess();
+        if (origOnsuccess) origOnsuccess.call(request);
+        request.onsuccess?.();
+      });
+      return request;
+    };
+
+    Object.defineProperty(globalThis, 'indexedDB', {
+      configurable: true,
+      value: { ...origIndexedDB, open: patchedOpen },
+    });
+
+    txCount = 0;
+    await renameProject('p1', 'Renamed');
+
+    // Should use 2 separate transactions (one readonly get, one readwrite put)
+    expect(txCount).toBeGreaterThanOrEqual(2);
+
+    // Verify the rename actually worked
+    const loaded = await loadProject('p1');
+    expect(loaded).not.toBeNull();
+    expect(loaded!.meta.name).toBe('Renamed');
+  });
+
   it('keeps listProjects sorted by updatedAt after rename', async () => {
     const session = createSession();
     const modified = {
