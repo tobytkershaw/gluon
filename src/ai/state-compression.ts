@@ -12,7 +12,7 @@ import type { MixWarning } from './mix-warnings';
 import type { TriggerEvent } from '../engine/canonical-types';
 import { eventsToGrid, eventsToKit, formatLegend, velocityToGridChar, DEFAULT_LEGEND } from '../engine/drum-grid';
 
-interface CompressedPattern {
+interface CompressedGenericPattern {
   length: number;
   event_count: number;
   triggers?: { at: number; vel: number }[];
@@ -21,6 +21,26 @@ interface CompressedPattern {
   param_locks?: { at: number; params: Record<string, number> }[];
   density: number;
 }
+
+interface CompressedBassPattern {
+  length: number;
+  event_count: number;
+  density: number;
+  role: 'bass';
+  trackerRows: string;
+  param_locks?: { at: number; params: Record<string, number> }[];
+}
+
+interface CompressedPadPattern {
+  length: number;
+  event_count: number;
+  density: number;
+  role: 'pad';
+  chordBlocks: string;
+  param_locks?: { at: number; params: Record<string, number> }[];
+}
+
+type CompressedPattern = CompressedGenericPattern | CompressedBassPattern | CompressedPadPattern;
 
 /** Compressed drum pad metadata for AI state. */
 interface CompressedDrumPad {
@@ -221,6 +241,159 @@ function sampleAutomationPoints<T>(points: T[], limit: number): T[] {
   return [...indices].sort((a, b) => a - b).map(index => points[index]);
 }
 
+// ---------------------------------------------------------------------------
+// Role-aware compression helpers
+// ---------------------------------------------------------------------------
+
+/** Convert a step position to bar.beat.sixteenth (1-indexed).
+ *  Fractional steps are floored to the nearest sixteenth; a micro-timing
+ *  offset is appended as `+0.xx` when the fractional part is significant. */
+export function stepToPosition(step: number, stepsPerBar: number = 16): string {
+  const intStep = Math.floor(step);
+  const offset = round2(step - intStep);
+  const bar = Math.floor(intStep / stepsPerBar) + 1;
+  const withinBar = intStep % stepsPerBar;
+  const beat = Math.floor(withinBar / 4) + 1;
+  const sixteenth = (withinBar % 4) + 1;
+  const base = `${bar}.${beat}.${sixteenth}`;
+  return offset > 0 ? `${base}+${offset}` : base;
+}
+
+/** Chord interval dictionary — semitones from root → chord type suffix. */
+const CHORD_DICTIONARY: Array<{ intervals: number[]; name: string }> = [
+  // Extended chords first (more intervals = more specific match)
+  { intervals: [0, 4, 7, 11, 14], name: 'maj9' },
+  { intervals: [0, 4, 7, 10, 14], name: '9' },
+  { intervals: [0, 3, 7, 10, 14], name: 'min9' },
+  { intervals: [0, 3, 6, 9], name: 'dim7' },
+  { intervals: [0, 4, 7, 11], name: 'maj7' },
+  { intervals: [0, 3, 7, 10], name: 'min7' },
+  { intervals: [0, 4, 7, 10], name: '7' },
+  { intervals: [0, 3, 6, 10], name: 'm7b5' },
+  { intervals: [0, 4, 7, 9], name: '6' },
+  { intervals: [0, 3, 7, 9], name: 'm6' },
+  // Triads
+  { intervals: [0, 4, 7], name: 'maj' },
+  { intervals: [0, 3, 7], name: 'min' },
+  { intervals: [0, 3, 6], name: 'dim' },
+  { intervals: [0, 4, 8], name: 'aug' },
+  { intervals: [0, 2, 7], name: 'sus2' },
+  { intervals: [0, 5, 7], name: 'sus4' },
+];
+
+const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+/**
+ * Recognise a chord from a set of MIDI pitches.
+ * Returns a chord symbol (e.g. "Fm9") or null if no match.
+ */
+export function recogniseChord(pitches: number[]): string | null {
+  if (pitches.length < 2) return null;
+
+  // Reduce to unique pitch classes
+  const pitchClasses = [...new Set(pitches.map(p => p % 12))].sort((a, b) => a - b);
+  if (pitchClasses.length < 2) return null;
+
+  // Try each pitch class as potential root
+  for (const root of pitchClasses) {
+    const intervals = pitchClasses
+      .map(pc => (pc - root + 12) % 12)
+      .sort((a, b) => a - b);
+
+    for (const entry of CHORD_DICTIONARY) {
+      if (entry.intervals.length !== intervals.length) continue;
+      if (entry.intervals.every((iv, i) => iv === intervals[i])) {
+        const rootName = NOTE_NAMES_SHARP[root];
+        // Shorten chord type names for display
+        const suffix = entry.name
+          .replace(/^maj$/, '')
+          .replace(/^min/, 'm');
+        return `${rootName}${suffix}`;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Format a bass tracker-row string from note events.
+ */
+function formatBassTrackerRows(
+  notes: Array<{ at: number; pitch: number; velocity: number; duration: number }>,
+  stepsPerBar: number = 16,
+): string {
+  return notes
+    .slice()
+    .sort((a, b) => a.at - b.at)
+    .map(n => {
+      const pitchName = midiToNoteName(n.pitch);
+      const pos = stepToPosition(n.at, stepsPerBar);
+      const dur = round2(n.duration);
+      let entry = `${pitchName}@${pos}`;
+
+      // Omit duration when it equals 1.0
+      if (dur !== 1) {
+        entry += `(${dur})`;
+      }
+
+      // Velocity handling
+      if (n.velocity >= 0.95) {
+        // Accent suffix
+        if (dur !== 1) {
+          entry += '!';
+        } else {
+          entry += '!';
+        }
+      } else if (n.velocity < 0.6 || n.velocity > 0.9) {
+        // Outside normal range — append velocity
+        if (dur === 1) {
+          entry += `v${round2(n.velocity)}`;
+        } else {
+          entry += `v${round2(n.velocity)}`;
+        }
+      }
+
+      return entry;
+    })
+    .join(' ');
+}
+
+/**
+ * Format pad chord-block string from note events.
+ */
+function formatPadChordBlocks(
+  notes: Array<{ at: number; pitch: number; velocity: number; duration: number }>,
+  stepsPerBar: number = 16,
+): string {
+  // Group notes by position
+  const groups = new Map<number, Array<{ pitch: number; velocity: number; duration: number }>>();
+  for (const n of notes) {
+    const key = n.at;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push({ pitch: n.pitch, velocity: n.velocity, duration: n.duration });
+  }
+
+  // Sort groups by position
+  const sortedPositions = [...groups.keys()].sort((a, b) => a - b);
+
+  return sortedPositions
+    .map(pos => {
+      const group = groups.get(pos)!;
+      const pitches = group.map(g => g.pitch).sort((a, b) => a - b);
+      const voicing = pitches.map(p => midiToNoteName(p)).join(',');
+      const dur = round2(Math.max(...group.map(g => g.duration)));
+      const position = stepToPosition(pos, stepsPerBar);
+
+      const chordName = recogniseChord(pitches);
+      if (chordName) {
+        return `${chordName}[${voicing}]@${position}(${dur})`;
+      }
+      return `[${voicing}]@${position}(${dur})`;
+    })
+    .join(' | ');
+}
+
 function compressPattern(track: Track): CompressedPattern {
   const region = track.patterns.length > 0 ? getActivePattern(track) : undefined;
   if (!region) {
@@ -272,6 +445,50 @@ function compressPattern(track: Track): CompressedPattern {
   const soundEvents = triggers.length + notes.length;
   const density = region.duration > 0 ? round2(soundEvents / region.duration) : 0;
 
+  // --- Role detection ---
+  // Collect raw note data for role-specific formats
+  const rawNotes = events
+    .filter((e): e is import('../engine/canonical-types').NoteEvent => e.kind === 'note')
+    .map(e => ({ at: e.at, pitch: e.pitch, velocity: e.velocity, duration: e.duration }));
+
+  if (notes.length > 0 && triggers.length === 0 && rawNotes.length > 0) {
+    // Check polyphony: count max simultaneous notes at any position
+    const positionCounts = new Map<number, number>();
+    for (const n of rawNotes) {
+      const key = round2(n.at);
+      positionCounts.set(key, (positionCounts.get(key) ?? 0) + 1);
+    }
+    const maxSimultaneous = Math.max(...positionCounts.values());
+
+    // Check average duration
+    const avgDuration = rawNotes.reduce((sum, n) => sum + n.duration, 0) / rawNotes.length;
+
+    // Bass: monophonic (at most 1 note per position), varied durations
+    if (maxSimultaneous <= 1) {
+      return {
+        length: region.duration,
+        event_count: events.length,
+        density,
+        role: 'bass',
+        trackerRows: formatBassTrackerRows(rawNotes),
+        ...(param_locks.length > 0 ? { param_locks } : {}),
+      };
+    }
+
+    // Pad: polyphonic (≥3 simultaneous), long durations (avg ≥ 4 steps)
+    if (maxSimultaneous >= 3 && avgDuration >= 4) {
+      return {
+        length: region.duration,
+        event_count: events.length,
+        density,
+        role: 'pad',
+        chordBlocks: formatPadChordBlocks(rawNotes),
+        ...(param_locks.length > 0 ? { param_locks } : {}),
+      };
+    }
+  }
+
+  // --- Generic fallback ---
   return {
     length: region.duration,
     event_count: events.length,

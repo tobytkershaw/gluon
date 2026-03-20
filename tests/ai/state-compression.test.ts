@@ -1,6 +1,6 @@
 // tests/ai/state-compression.test.ts
 import { describe, it, expect } from 'vitest';
-import { compressState } from '../../src/ai/state-compression';
+import { compressState, stepToPosition, recogniseChord } from '../../src/ai/state-compression';
 import { createSession, addTrack, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
 import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session, UserSelection } from '../../src/engine/types';
@@ -91,11 +91,12 @@ describe('State Compression (Phase 2)', () => {
     s = toggleStepGate(s, vid, 12);
 
     const result = compressState(s);
-    // Empty tracks (model -1) are treated as pitched, producing NoteEvents
-    expect(result.tracks[0].pattern.notes).toHaveLength(4);
-    expect(result.tracks[0].pattern.event_count).toBe(4);
-    expect('triggers' in result.tracks[0].pattern).toBe(false);
-    expect(result.tracks[0].pattern.density).toBeGreaterThan(0);
+    const pattern = result.tracks[0].pattern;
+    // Monophonic notes without triggers → detected as bass role
+    expect(pattern.event_count).toBe(4);
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('trackerRows' in pattern).toBe(true);
+    expect(pattern.density).toBeGreaterThan(0);
   });
 
   it('compresses accented steps', () => {
@@ -105,7 +106,10 @@ describe('State Compression (Phase 2)', () => {
     s = toggleStepAccent(s, vid, 0);
 
     const result = compressState(s);
-    expect(result.tracks[0].pattern.accents).toEqual([0]);
+    const pattern = result.tracks[0].pattern;
+    // Monophonic note → bass role, accent appears as ! suffix in trackerRows
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('trackerRows' in pattern && (pattern as { trackerRows: string }).trackerRows).toMatch(/!/);
   });
 
   it('compresses parameter locks with semantic names', () => {
@@ -214,7 +218,7 @@ describe('State Compression (Phase 2)', () => {
     expect(result.restraint_level).toBe('adventurous');
   });
 
-  it('NoteEvent produces entry in notes array', () => {
+  it('NoteEvent produces entry in bass trackerRows (monophonic)', () => {
     const session = createSession();
     const track = session.tracks[0];
     if (track.patterns[0]) {
@@ -225,13 +229,16 @@ describe('State Compression (Phase 2)', () => {
     }
     const result = compressState(session);
     const pattern = result.tracks[0].pattern;
-    expect(pattern.notes).toEqual([
-      { at: 0, pitch: 'C4', vel: 0.8 },
-      { at: 2.5, pitch: 'C5', vel: 0.99, dur: 0.5 },
-    ]);
+    expect('role' in pattern && pattern.role).toBe('bass');
     expect(pattern.event_count).toBe(2);
-    // High velocity note should appear in accents
-    expect(pattern.accents).toEqual([2.5]);
+    // trackerRows should contain both notes
+    const rows = 'trackerRows' in pattern ? (pattern as { trackerRows: string }).trackerRows : '';
+    expect(rows).toContain('C4@');
+    expect(rows).toContain('C5@');
+    // C5 has velocity 0.99 (≥0.95) → accent marker
+    expect(rows).toMatch(/C5@.*!/);
+    // C5 has duration 0.5 → should show duration
+    expect(rows).toMatch(/C5@.*\(0\.5\)/);
   });
 
   it('events with fractional positions show in triggers and notes', () => {
@@ -811,5 +818,337 @@ describe('User selection in compressed state', () => {
     // Should have eventCount, not eventIndices
     expect(result.userSelection).toHaveProperty('eventCount');
     expect(result.userSelection).not.toHaveProperty('eventIndices');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Role-aware compression (#1098)
+// ---------------------------------------------------------------------------
+
+describe('Role-aware compression: bass detection', () => {
+  it('detects bass role for monophonic note pattern', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.8, duration: 2 },
+      { kind: 'note', at: 4, pitch: 44, velocity: 0.7, duration: 1.5 },
+      { kind: 'note', at: 8, pitch: 39, velocity: 0.85, duration: 3 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('trackerRows' in pattern).toBe(true);
+    expect(pattern.event_count).toBe(3);
+    expect(pattern.density).toBeGreaterThan(0);
+  });
+
+  it('bass trackerRows format: pitch, position, duration, velocity markers', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.8, duration: 0.5 },   // F2, normal vel, dur 0.5
+      { kind: 'note', at: 4, pitch: 44, velocity: 0.3, duration: 1 },     // G#2, low vel (outside 0.6-0.9)
+      { kind: 'note', at: 8, pitch: 39, velocity: 0.97, duration: 2 },    // D#2, accent (>=0.95)
+      { kind: 'note', at: 12, pitch: 48, velocity: 0.75, duration: 1 },   // C3, normal vel, dur=1 (omit)
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { trackerRows: string; role: string };
+    expect(pattern.role).toBe('bass');
+    const rows = pattern.trackerRows;
+
+    // F2@1.1.1(0.5) — dur shown, vel normal → omitted
+    expect(rows).toContain('F2@1.1.1(0.5)');
+    // G#2@1.2.1 — dur=1 omitted, vel 0.3 outside range → v0.3
+    expect(rows).toContain('G#2@1.2.1v0.3');
+    // D#2@1.3.1(2) — dur shown, accent → !
+    expect(rows).toContain('D#2@1.3.1(2)!');
+    // C3@1.4.1 — dur=1 omitted, vel normal → nothing extra
+    expect(rows).toMatch(/C3@1\.4\.1(?!\()/);
+  });
+});
+
+describe('Role-aware compression: pad detection', () => {
+  it('detects pad role for polyphonic long-duration pattern', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    // Fm chord voicing — 5 notes at same position, long duration
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 16 },  // F2
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 16 },  // G#2 = Ab2
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 16 },  // C3
+      { kind: 'note', at: 0, pitch: 51, velocity: 0.7, duration: 16 },  // D#3 = Eb3
+      { kind: 'note', at: 0, pitch: 55, velocity: 0.7, duration: 16 },  // G3
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('pad');
+    expect('chordBlocks' in pattern).toBe(true);
+  });
+
+  it('pad chord recognition: identifies Fm', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    // F minor: F, Ab, C
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 16 },  // F2
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 16 },  // G#2
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 16 },  // C3
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { chordBlocks: string; role: string };
+    expect(pattern.role).toBe('pad');
+    expect(pattern.chordBlocks).toContain('Fm');
+  });
+
+  it('pad chord recognition: identifies Cmaj7', () => {
+    // C major 7: C, E, G, B
+    expect(recogniseChord([48, 52, 55, 59])).toBe('Cmaj7');
+  });
+
+  it('pad chord recognition: identifies Dm7', () => {
+    // D minor 7: D, F, A, C
+    expect(recogniseChord([50, 53, 57, 60])).toBe('Dm7');
+  });
+
+  it('pad fallback: unrecognised chord grouping shows note list', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    // Cluster that doesn't match any chord: C, C#, D
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 16 },  // C3
+      { kind: 'note', at: 0, pitch: 49, velocity: 0.7, duration: 16 },  // C#3
+      { kind: 'note', at: 0, pitch: 50, velocity: 0.7, duration: 16 },  // D3
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { chordBlocks: string; role: string };
+    expect(pattern.role).toBe('pad');
+    // Should fall back to note list — no chord name before the bracket
+    expect(pattern.chordBlocks).toMatch(/^\[C3,C#3,D3\]@1\.1\.1\(16\)$/);
+  });
+
+  it('pad chord blocks use | separator between chords', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].duration = 32;
+    // Two chords: Fm at step 0, Eb at step 16
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 16, pitch: 39, velocity: 0.7, duration: 16 },  // D#2 = Eb2
+      { kind: 'note', at: 16, pitch: 43, velocity: 0.7, duration: 16 },  // G2
+      { kind: 'note', at: 16, pitch: 46, velocity: 0.7, duration: 16 },  // A#2 = Bb2
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { chordBlocks: string; role: string };
+    expect(pattern.role).toBe('pad');
+    expect(pattern.chordBlocks).toContain(' | ');
+  });
+});
+
+describe('Role-aware compression: generic fallback', () => {
+  it('pattern with both triggers and notes uses generic format (no role)', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'trigger', at: 0, velocity: 0.9 },
+      { kind: 'note', at: 4, pitch: 60, velocity: 0.8, duration: 1 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern).toBe(false);
+    expect('triggers' in pattern).toBe(true);
+    expect('notes' in pattern).toBe(true);
+  });
+
+  it('empty pattern returns minimal format (no role)', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern).toBe(false);
+    expect(pattern.event_count).toBe(0);
+    expect(pattern.density).toBe(0);
+  });
+
+  it('polyphonic notes with short avg duration uses generic format', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    // 3 simultaneous notes but avg duration < 4 → not pad
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 60, velocity: 0.7, duration: 1 },
+      { kind: 'note', at: 0, pitch: 64, velocity: 0.7, duration: 1 },
+      { kind: 'note', at: 0, pitch: 67, velocity: 0.7, duration: 1 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern).toBe(false);
+    expect('notes' in pattern).toBe(true);
+  });
+});
+
+describe('stepToPosition helper', () => {
+  it('converts step 0 to 1.1.1', () => {
+    expect(stepToPosition(0)).toBe('1.1.1');
+  });
+
+  it('converts step 4 to 1.2.1', () => {
+    expect(stepToPosition(4)).toBe('1.2.1');
+  });
+
+  it('converts step 16 to 2.1.1', () => {
+    expect(stepToPosition(16)).toBe('2.1.1');
+  });
+
+  it('converts step 7 to 1.2.4', () => {
+    expect(stepToPosition(7)).toBe('1.2.4');
+  });
+
+  it('converts step 15 to 1.4.4', () => {
+    expect(stepToPosition(15)).toBe('1.4.4');
+  });
+});
+
+describe('recogniseChord', () => {
+  it('recognises C major', () => {
+    expect(recogniseChord([48, 52, 55])).toBe('C');
+  });
+
+  it('recognises F minor', () => {
+    expect(recogniseChord([41, 44, 48])).toBe('Fm');
+  });
+
+  it('recognises G7', () => {
+    expect(recogniseChord([43, 47, 50, 53])).toBe('G7');
+  });
+
+  it('recognises Amaj7', () => {
+    expect(recogniseChord([45, 49, 52, 56])).toBe('Amaj7');
+  });
+
+  it('recognises Dsus4', () => {
+    expect(recogniseChord([50, 55, 57])).toBe('Dsus4');
+  });
+
+  it('recognises Bdim', () => {
+    expect(recogniseChord([47, 50, 53])).toBe('Bdim');
+  });
+
+  it('returns null for unrecognised cluster', () => {
+    // C, C#, D — no chord match
+    expect(recogniseChord([48, 49, 50])).toBeNull();
+  });
+
+  it('returns null for single note', () => {
+    expect(recogniseChord([60])).toBeNull();
+  });
+
+  it('handles octave-duplicated pitches', () => {
+    // C major with octave doubling: C3, E3, G3, C4
+    expect(recogniseChord([48, 52, 55, 60])).toBe('C');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression tests for review findings
+// ---------------------------------------------------------------------------
+
+describe('Role-aware compression: param_locks preserved (P1 regression)', () => {
+  it('bass pattern includes param_locks when present', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.8, duration: 2 },
+      { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.9 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('param_locks' in pattern).toBe(true);
+    expect((pattern as { param_locks: unknown[] }).param_locks).toEqual([
+      { at: 0, params: { timbre: 0.9 } },
+    ]);
+  });
+
+  it('pad pattern includes param_locks when present', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 16 },
+      { kind: 'parameter', at: 4, controlId: 'morph', value: 0.5 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('pad');
+    expect('param_locks' in pattern).toBe(true);
+    expect((pattern as { param_locks: unknown[] }).param_locks).toEqual([
+      { at: 4, params: { morph: 0.5 } },
+    ]);
+  });
+
+  it('bass pattern omits param_locks when none exist', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.8, duration: 2 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('param_locks' in pattern).toBe(false);
+  });
+});
+
+describe('Role-aware compression: fractional step positions (P2 regression)', () => {
+  it('stepToPosition handles fractional steps with offset', () => {
+    // Step 2.5 → 1.1.3+0.5
+    expect(stepToPosition(2.5)).toBe('1.1.3+0.5');
+    // Step 6.33 → 1.2.3+0.33
+    expect(stepToPosition(6.33)).toBe('1.2.3+0.33');
+    // Integer step — no offset
+    expect(stepToPosition(4)).toBe('1.2.1');
+  });
+
+  it('bass tracker rows show fractional timing correctly', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 2.5, pitch: 48, velocity: 0.8, duration: 1 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { trackerRows: string; role: string };
+    expect(pattern.role).toBe('bass');
+    expect(pattern.trackerRows).toContain('C3@1.1.3+0.5');
+  });
+});
+
+describe('Role-aware compression: intra-bar pad chord timing (P3 regression)', () => {
+  it('pad chords at different positions within same bar show distinct positions', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      // Chord at step 0
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 4 },
+      // Chord at step 4
+      { kind: 'note', at: 4, pitch: 43, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 4, pitch: 47, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 4, pitch: 50, velocity: 0.7, duration: 4 },
+      // Chord at step 12
+      { kind: 'note', at: 12, pitch: 39, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 12, pitch: 43, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 12, pitch: 46, velocity: 0.7, duration: 4 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { chordBlocks: string; role: string };
+    expect(pattern.role).toBe('pad');
+    // Each chord should have a distinct position, not all @1
+    expect(pattern.chordBlocks).toContain('@1.1.1(');
+    expect(pattern.chordBlocks).toContain('@1.2.1(');
+    expect(pattern.chordBlocks).toContain('@1.4.1(');
   });
 });
