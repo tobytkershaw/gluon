@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad, ProjectMemory } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -200,6 +200,7 @@ export interface CompressedState {
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
   chord_progression?: CompressedChordProgressionEntry[] | null;
   userSelection?: CompressedUserSelection;
+  projectMemory?: string;
 }
 
 interface CompressedGenreReferenceOverlay {
@@ -852,6 +853,57 @@ function deriveGenreReferenceOverlays(intent?: SessionIntent): CompressedGenreRe
   return overlays;
 }
 
+// ---------------------------------------------------------------------------
+// Project memory compression
+// ---------------------------------------------------------------------------
+
+/**
+ * Compress project memories into a natural-language summary section.
+ *
+ * Groups by type: directions first, then track narratives, then decisions.
+ * Returns null when the memories array is empty.
+ */
+export function compressMemories(memories: ProjectMemory[]): string | null {
+  if (!memories || memories.length === 0) return null;
+
+  const directions = memories.filter(m => m.type === 'direction');
+  const narratives = memories.filter(m => m.type === 'track-narrative');
+  const decisions = memories.filter(m => m.type === 'decision');
+
+  const lines: string[] = [];
+
+  // Directions: combine into a flowing summary
+  if (directions.length > 0) {
+    const parts = directions.map(m => {
+      const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+      return `${qualifier}${m.content}`;
+    });
+    lines.push(`Direction: ${parts.join('. ')}`);
+  }
+
+  // Track narratives: prefix with track ID and label if available
+  for (const m of narratives) {
+    const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+    const trackPrefix = m.trackId ? `Track ${m.trackId}` : 'Track';
+    lines.push(`${trackPrefix}: ${qualifier}${m.content}`);
+  }
+
+  // Decisions: prefix with "Structure:" or "Plan:"
+  for (const m of decisions) {
+    const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+    // Use "Structure:" for structural decisions, "Plan:" otherwise
+    const prefix = m.content.toLowerCase().match(/\b(bar|intro|drop|section|arrangement|structure)\b/)
+      ? 'Structure'
+      : 'Plan';
+    lines.push(`${prefix}: ${qualifier}${m.content}`);
+  }
+
+  if (lines.length === 0) return null;
+
+  const header = `## Project Memory (${memories.length} ${memories.length === 1 ? 'memory' : 'memories'})`;
+  return `${header}\n${lines.map(l => `- ${l}`).join('\n')}`;
+}
+
 export function compressState(
   session: Session,
   recentPreservationReports?: PreservationReport[],
@@ -864,6 +916,7 @@ export function compressState(
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const genreReferenceOverlays = deriveGenreReferenceOverlays(session.intent);
+  const memorySection = compressMemories(session.memories ?? []);
   const result: CompressedState = {
     tracks: session.tracks.map(track => {
       const isDrumRack = track.engine === 'drum-rack' && track.drumRack;
@@ -1000,6 +1053,7 @@ export function compressState(
     track_count: session.tracks.length,
     soft_track_cap: 16,
     activeTrackId: session.activeTrackId,
+    ...(memorySection ? { projectMemory: memorySection } : {}),
     transport: {
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),
