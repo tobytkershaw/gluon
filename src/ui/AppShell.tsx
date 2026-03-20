@@ -456,6 +456,56 @@ export function AppShell({
             <OpenDecisionsPanel decisions={openDecisions} onRespond={onDecisionRespond} />
           </div>
         )}
+
+        {/* Global footer bar (same as instrument tabs) */}
+        <div className="flex items-center h-7 border-t border-zinc-700/40 shrink-0">
+          <div className="flex-1 flex items-center gap-3 px-3">
+            <AudioLoadMeter audioContext={audioContext} />
+            <div className="w-px h-3 bg-zinc-800" />
+            <span className="text-[12px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
+              {(() => {
+                const beatsPerBar = timeSignatureNumerator || 4;
+                const currentBeat = Math.floor(globalStep) + 1;
+                const bar = Math.floor((currentBeat - 1) / beatsPerBar) + 1;
+                const beat = ((currentBeat - 1) % beatsPerBar) + 1;
+                return `${String(bar).padStart(3, '\u2007')}:${beat}`;
+              })()}
+            </span>
+            <div className="w-px h-3 bg-zinc-800" />
+            <span className="text-[11px] text-zinc-600 uppercase tracking-wider">
+              {transportMode === 'song' ? 'Song' : 'Pattern'}
+            </span>
+            <div className="w-px h-3 bg-zinc-800" />
+            <span className="text-[11px] text-zinc-600">
+              {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
+            </span>
+            <div className="w-px h-3 bg-zinc-800" />
+            <span className="text-[11px] text-zinc-600">
+              {Math.round(bpm)} BPM
+            </span>
+            <div className="flex-1" />
+            <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
+            <div className="w-px h-3 bg-zinc-800" />
+            {apiConfigured && (
+              <span
+                className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                  isListening
+                    ? 'bg-teal-400 animate-breathing'
+                    : isThinking
+                      ? 'bg-violet-500 animate-breathing'
+                      : 'bg-violet-500 opacity-40'
+                }`}
+                title={
+                  isListening
+                    ? 'Listening \u2014 evaluating audio'
+                    : isThinking
+                      ? 'Thinking\u2026'
+                      : 'AI connected'
+                }
+              />
+            )}
+          </div>
+        </div>
         <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} {...coinNotification} />
       </div>
     );
@@ -552,11 +602,7 @@ export function AppShell({
       <div className="flex-1 flex min-h-0">
         {/* Workstation: instrument + track list */}
         <div className="flex-1 flex min-h-0">
-          {/* Main content (instrument view) */}
-          <div ref={instrumentRef} tabIndex={-1} role="main" aria-label="Instrument view" data-shortcut-scope="instrument" className="flex-1 min-w-0 flex flex-col outline-none">
-            {children}
-          </div>
-          {/* Track sidebar */}
+          {/* Track sidebar (LEFT per mockup 09) */}
           <div ref={trackListRef} role="region" aria-label="Track list">
           <TrackList
             tracks={tracks}
@@ -585,6 +631,10 @@ export function AppShell({
             onMasterInteractionEnd={onMasterInteractionEnd}
             variant={view === 'surface' ? 'stage' : 'default'}
           />
+          </div>
+          {/* Main content (instrument view) */}
+          <div ref={instrumentRef} tabIndex={-1} role="main" aria-label="Instrument view" data-shortcut-scope="instrument" className="flex-1 min-w-0 flex flex-col outline-none">
+            {children}
           </div>
         </div>
 

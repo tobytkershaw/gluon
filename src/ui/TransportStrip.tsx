@@ -182,19 +182,33 @@ export function TransportStrip({
             <polyline points="7,11 5,13 7,15" />
           </svg>
         </button>
-        {/* Pattern / Song mode */}
-        <button
-          onClick={() => onTransportModeChange(transportMode === 'pattern' ? 'song' : 'pattern')}
-          className={`h-6 px-1.5 rounded-full flex items-center justify-center transition-colors text-[11px] font-bold tracking-wider ${
-            transportMode === 'song'
-              ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40'
-              : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
-          }`}
-          title={transportMode === 'pattern' ? 'Pattern mode (loops active pattern) — click for Song mode' : 'Song mode (plays sequence) — click for Pattern mode'}
-          aria-label={transportMode === 'pattern' ? 'Pattern mode' : 'Song mode'}
-        >
-          {transportMode === 'song' ? 'SONG' : 'PAT'}
-        </button>
+        {/* Pattern / Song dual toggle (segmented control) */}
+        <div className="flex border border-zinc-700/30 rounded overflow-hidden">
+          <button
+            onClick={() => onTransportModeChange('pattern')}
+            className={`px-2 py-[2px] text-[9px] font-mono uppercase tracking-[0.06em] transition-colors ${
+              transportMode === 'pattern'
+                ? 'bg-zinc-800 text-zinc-300'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+            title="Pattern mode (loops active pattern)"
+            aria-label="Pattern mode"
+          >
+            Pat
+          </button>
+          <button
+            onClick={() => onTransportModeChange('song')}
+            className={`px-2 py-[2px] text-[9px] font-mono uppercase tracking-[0.06em] transition-colors ${
+              transportMode === 'song'
+                ? 'bg-zinc-800 text-zinc-300'
+                : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+            title="Song mode (plays sequence)"
+            aria-label="Song mode"
+          >
+            Song
+          </button>
+        </div>
       </div>
 
       {/* Playhead position — prominent bar:beat display */}
@@ -233,7 +247,7 @@ export function TransportStrip({
 
       {/* Swing */}
       <div className="flex items-baseline gap-1">
-        <span className="text-[11px] uppercase tracking-wider text-zinc-600">Swing</span>
+        <span className="text-[11px] uppercase tracking-wider text-zinc-600">Sw</span>
         <DraggableNumber
           value={Math.round(swing * 100)}
           min={0}
