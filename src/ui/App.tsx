@@ -740,7 +740,7 @@ export default function App() {
   /** Record a parameter automation event if recording is active (armed + playing). */
   const maybeRecordAutomation = useCallback((trackId: string, runtimeParam: string, value: number) => {
     const s = sessionRef.current;
-    if (!recordArmedRef.current || !s.transport.status === 'playing') return;
+    if (!recordArmedRef.current || s.transport.status !== 'playing') return;
     const controlId = runtimeParamToControlId[runtimeParam] ?? runtimeParam;
     const at = globalStepRef.current;
     setSession(prev => insertAutomationEvent(prev, trackId, at, controlId, value));
