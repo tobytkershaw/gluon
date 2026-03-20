@@ -564,6 +564,7 @@ export function restoreSession(session: Session, persistedVersion: number = CURR
     reactionHistory: session.reactionHistory ?? [],
     expandedTrackIds,
     openDecisions,
+    memories: session.memories ?? [],
   };
 }
 

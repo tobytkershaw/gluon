@@ -286,6 +286,10 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     });
   }
 
+  if (snapshot.kind === 'memory') {
+    return { ...session, memories: snapshot.prevMemories };
+  }
+
   if (snapshot.kind === 'track-property') {
     return updateTrack(session, snapshot.trackId, snapshot.prevProps);
   }
@@ -639,6 +643,10 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
       })),
       timestamp: now,
     };
+  }
+
+  if (snapshot.kind === 'memory') {
+    return { ...snapshot, prevMemories: [...(session.memories ?? [])], timestamp: now };
   }
 
   if (snapshot.kind === 'track-property') {
