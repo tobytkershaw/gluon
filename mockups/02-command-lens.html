@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Permutation 2: Command Lens</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Layout: Command Lens ──
+       Instrument is truly full-screen with minimal chrome.
+       Hitting invoke key opens a centered overlay (like Spotlight).
+       Full chat mode exists separately for longer dialogue.
+       AI presence felt through instrument effects only.
+    */
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── Minimal top bar (instrument mode only) ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-md);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .topbar-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Modes */
+    .mode {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      transition: transform 400ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease;
+    }
+
+    .mode.hidden-down {
+      transform: translateY(100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mode.hidden-up {
+      transform: translateY(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mode.visible {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* ── Instrument Mode ── */
+    .instrument-mode {
+      background: var(--bg-deep);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .view-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      height: 32px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      gap: var(--space-sm);
+    }
+
+    .instrument-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Track sidebar */
+    .track-sidebar {
+      width: 180px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .track-sidebar-header {
+      padding: var(--space-md);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .track-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-sm);
+    }
+
+    .track-sidebar-footer {
+      padding: var(--space-sm) var(--space-md);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* View canvas */
+    .view-canvas {
+      flex: 1;
+      overflow: auto;
+      padding: var(--space-lg);
+    }
+
+    /* Rack layout */
+    .rack-chain {
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+    }
+
+    .rack-arrow {
+      display: flex;
+      align-items: center;
+      padding-top: 40px;
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* ── Command Lens Overlay ── */
+    .lens-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 14, 12, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 20vh;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+    }
+
+    .lens-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .lens {
+      width: 560px;
+      max-width: 90vw;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(139, 92, 246, 0.08);
+      overflow: hidden;
+      transform: translateY(-10px) scale(0.98);
+      transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .lens-backdrop.open .lens {
+      transform: translateY(0) scale(1);
+    }
+
+    .lens-input-row {
+      display: flex;
+      align-items: center;
+      padding: var(--space-md) var(--space-lg);
+      gap: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .lens-icon {
+      color: var(--violet-400);
+      font-size: 16px;
+      opacity: 0.7;
+    }
+
+    .lens-input {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      outline: none;
+    }
+
+    .lens-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .lens-hint {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      padding: 2px 6px;
+      background: var(--bg-raised);
+      border-radius: 4px;
+    }
+
+    .lens-history {
+      max-height: 240px;
+      overflow-y: auto;
+      padding: var(--space-sm) 0;
+    }
+
+    .lens-history-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-lg);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .lens-history-item:hover {
+      background: var(--bg-raised);
+    }
+
+    .lens-history-role {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-top: 2px;
+      min-width: 32px;
+    }
+
+    .lens-history-role.user { color: var(--text-muted); }
+    .lens-history-role.ai { color: var(--violet-400); opacity: 0.7; }
+
+    .lens-history-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .lens-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-lg);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .lens-footer-text {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    .lens-open-chat {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--violet-400);
+      opacity: 0.7;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: all var(--transition-fast);
+    }
+
+    .lens-open-chat:hover {
+      opacity: 1;
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    /* ── Chat Mode (full screen, accessed via lens "Open Chat" or shortcut) ── */
+    .chat-mode {
+      background: var(--ai-bg);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: rgba(19, 17, 28, 0.95);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .chat-topbar-title {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--violet-400);
+    }
+
+    .chat-back {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all var(--transition-fast);
+    }
+
+    .chat-back:hover {
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0;
+    }
+
+    .chat-composer {
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+
+    .chat-composer .composer-input {
+      background: rgba(40, 37, 35, 0.6);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    .chat-composer .composer-input:focus {
+      border-color: rgba(139, 92, 246, 0.5);
+    }
+
+    /* Change previews */
+    .change-preview {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-md);
+      margin: var(--space-sm) var(--space-lg);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    .change-preview-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .change-preview-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .change-preview-detail {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── AI activity indicator (instrument mode) ── */
+    .ai-activity {
+      position: fixed;
+      bottom: var(--space-lg);
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 6px 14px;
+      background: rgba(19, 17, 28, 0.9);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 20px;
+      backdrop-filter: blur(8px);
+      z-index: 50;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--violet-400);
+      opacity: 0.8;
+      transition: opacity var(--transition-normal);
+    }
+
+    .ai-activity:hover {
+      opacity: 1;
+    }
+
+    .ai-activity-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--violet-400);
+      animation: presence-breathe 3s ease-in-out infinite;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .footer-spacer { flex: 1; }
+
+    /* Module highlight (simulating AI-just-changed) */
+    .rack-module.ai-touched {
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.3), 0 0 12px rgba(139, 92, 246, 0.08);
+    }
+
+    .rack-module.ai-touched .rack-module-header {
+      background: rgba(139, 92, 246, 0.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ── Top bar ── -->
+    <div class="topbar">
+      <span class="topbar-logo">gluon</span>
+      <div class="transport-divider"></div>
+
+      <button class="transport-btn active">&#9654;</button>
+      <button class="transport-btn">&#9632;</button>
+      <button class="transport-btn">&#9679;</button>
+      <div class="transport-divider"></div>
+      <span class="transport-time">1:01</span>
+      <span class="transport-bpm">128 BPM</span>
+      <div class="transport-divider"></div>
+      <div class="peak-meter">
+        <div class="peak-meter-bar" style="height: 12px;"></div>
+        <div class="peak-meter-bar" style="height: 10px;"></div>
+      </div>
+
+      <div class="topbar-spacer"></div>
+
+      <div class="view-tabs">
+        <button class="view-tab" onclick="showView('surface')">Surface</button>
+        <button class="view-tab active" onclick="showView('rack')">Rack</button>
+        <button class="view-tab" onclick="showView('patch')">Patch</button>
+        <button class="view-tab" onclick="showView('tracker')">Tracker</button>
+      </div>
+    </div>
+
+    <!-- ── Content ── -->
+    <div class="content">
+      <!-- Instrument Mode -->
+      <div class="mode visible" id="instrument-mode">
+        <div class="instrument-mode">
+          <div class="instrument-body">
+            <div class="track-sidebar">
+              <div class="track-sidebar-header">Tracks</div>
+              <div class="track-list">
+                <div class="track-item selected">
+                  <div class="track-accent" style="background: var(--amber-400);"></div>
+                  <div>
+                    <div class="track-name">Kick</div>
+                    <div class="track-role">bass drum</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--cyan-400);"></div>
+                  <div>
+                    <div class="track-name">Hi-Hats</div>
+                    <div class="track-role">percussion</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--violet-400);"></div>
+                  <div>
+                    <div class="track-name">Bass</div>
+                    <div class="track-role">bass synth</div>
+                  </div>
+                  <div class="agency-dot off"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--emerald-400);"></div>
+                  <div>
+                    <div class="track-name">Pad</div>
+                    <div class="track-role">atmosphere</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+              </div>
+              <div class="track-sidebar-footer">
+                <div class="flex items-center justify-between">
+                  <span class="type-mono-sm">MASTER</span>
+                  <div class="peak-meter">
+                    <div class="peak-meter-bar" style="height: 14px;"></div>
+                    <div class="peak-meter-bar" style="height: 11px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rack View (with AI-touched highlight on Ripples) -->
+            <div class="view-canvas">
+              <div class="rack-chain">
+                <div class="rack-module" style="min-width: 200px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Plaits</span>
+                    <span class="rack-module-type">Source</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Freq</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">52 Hz</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Morph</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.35</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Timbre</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 26 7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.62</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Decay</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 10 15" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.28</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <!-- AI-touched module -->
+                <div class="rack-module ai-touched" style="min-width: 220px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Ripples</span>
+                    <span class="rack-module-type">Filter</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Cutoff</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">380 Hz</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Reso</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.58</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Drive</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.72</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Env Amt</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 22 5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.55</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <div class="rack-module" style="min-width: 240px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Compressor</span>
+                    <span class="rack-module-type">Dynamics &middot; Punch</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Thresh</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">-12 dB</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Ratio</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">4:1</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Attack</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">2 ms</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Release</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">80 ms</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Makeup</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 15 7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">3 dB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <div class="rack-module" style="min-width: 100px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Output</span>
+                    <span class="rack-module-type">Master</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Level</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.0 dB</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Pan</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">C</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Mode -->
+      <div class="mode hidden-down" id="chat-mode">
+        <div class="chat-mode">
+          <div class="chat-topbar">
+            <button class="chat-back" onclick="showMode('instrument')">
+              <span class="key" style="width: 14px; height: 12px; font-size: 8px;">esc</span>
+              Back to instrument
+            </button>
+            <div class="topbar-spacer"></div>
+            <div class="ai-presence">
+              <div class="ai-presence-dot"></div>
+              <span class="ai-presence-label">Gluon AI</span>
+            </div>
+          </div>
+
+          <div class="chat-area chat-scroll">
+            <div class="chat-msg">
+              <div class="chat-msg-role user">You</div>
+              <div class="chat-msg-user">Make me a heavy kick drum with some grit. Think warehouse techno.</div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">I've set up a kick using Plaits in bass drum mode with a short, punchy decay. Added a Ripples filter for some resonant grit and a Compressor in "punch" mode to tighten the transient.</div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9679;</div>
+              <div>
+                <div class="change-preview-text">Kick &mdash; Plaits (Bass Drum)</div>
+                <div class="change-preview-detail">morph 0.35 &middot; timbre 0.62 &middot; decay 0.28</div>
+              </div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9830;</div>
+              <div>
+                <div class="change-preview-text">+ Ripples &mdash; LP 380 Hz, res 0.45</div>
+                <div class="change-preview-detail">drive 0.30 &middot; env amount 0.55</div>
+              </div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role user">You</div>
+              <div class="chat-msg-user">More drive on the filter. I want it to bite.</div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">Pushed the Ripples drive to 0.72 and bumped resonance to 0.58. It'll have a lot more harmonic saturation now.</div>
+            </div>
+          </div>
+
+          <div class="chat-composer">
+            <input class="composer-input" type="text" placeholder="Describe what you want to change...">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>gluon v0.5</span>
+      <div class="footer-spacer"></div>
+      <span>Gemini 3.1 Pro</span>
+      <span>&middot;</span>
+      <span>4 tracks</span>
+      <span>&middot;</span>
+      <span>128 BPM</span>
+    </div>
+  </div>
+
+  <!-- AI activity pill (instrument mode) -->
+  <div class="ai-activity" id="ai-pill" onclick="openLens()">
+    <div class="ai-activity-dot"></div>
+    <span>Idle &middot; Ripples drive &rarr; 0.72</span>
+    <span style="opacity: 0.5; margin-left: 4px;">&#8984;K</span>
+  </div>
+
+  <!-- Command Lens Overlay -->
+  <div class="lens-backdrop" id="lens-backdrop" onclick="closeLens(event)">
+    <div class="lens" onclick="event.stopPropagation()">
+      <div class="lens-input-row">
+        <span class="lens-icon">&#9671;</span>
+        <input class="lens-input" type="text" placeholder="Ask Gluon anything..." id="lens-input" autofocus>
+        <span class="lens-hint">esc to close</span>
+      </div>
+
+      <div class="lens-history chat-scroll">
+        <div class="lens-history-item">
+          <span class="lens-history-role user">You</span>
+          <span class="lens-history-text">More drive on the filter. I want it to bite.</span>
+        </div>
+        <div class="lens-history-item">
+          <span class="lens-history-role ai">AI</span>
+          <span class="lens-history-text">Pushed Ripples drive to 0.72 and resonance to 0.58.</span>
+        </div>
+        <div class="lens-history-item">
+          <span class="lens-history-role user">You</span>
+          <span class="lens-history-text">Make me a heavy kick drum with some grit.</span>
+        </div>
+        <div class="lens-history-item">
+          <span class="lens-history-role ai">AI</span>
+          <span class="lens-history-text">Set up Plaits in bass drum mode with Ripples and Compressor.</span>
+        </div>
+      </div>
+
+      <div class="lens-footer">
+        <span class="lens-footer-text">Recent conversation</span>
+        <button class="lens-open-chat" onclick="showMode('chat'); closeLensDirect();">Open full chat &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentMode = 'instrument';
+
+    function showMode(mode) {
+      currentMode = mode;
+      const chatMode = document.getElementById('chat-mode');
+      const instrumentMode = document.getElementById('instrument-mode');
+      const aiPill = document.getElementById('ai-pill');
+
+      if (mode === 'chat') {
+        chatMode.className = 'mode visible';
+        instrumentMode.className = 'mode hidden-up';
+        aiPill.style.display = 'none';
+      } else {
+        chatMode.className = 'mode hidden-down';
+        instrumentMode.className = 'mode visible';
+        aiPill.style.display = 'flex';
+      }
+    }
+
+    function toggleMode() {
+      showMode(currentMode === 'chat' ? 'instrument' : 'chat');
+    }
+
+    function openLens() {
+      if (currentMode !== 'instrument') return;
+      document.getElementById('lens-backdrop').classList.add('open');
+      setTimeout(() => document.getElementById('lens-input').focus(), 100);
+    }
+
+    function closeLens(e) {
+      if (e && e.target !== document.getElementById('lens-backdrop')) return;
+      document.getElementById('lens-backdrop').classList.remove('open');
+    }
+
+    function closeLensDirect() {
+      document.getElementById('lens-backdrop').classList.remove('open');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        if (e.key === 'Escape') {
+          closeLensDirect();
+          e.target.blur();
+        }
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openLens();
+      }
+
+      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleMode();
+      }
+
+      if (e.key === 'Escape') {
+        if (document.getElementById('lens-backdrop').classList.contains('open')) {
+          closeLensDirect();
+        } else if (currentMode === 'chat') {
+          showMode('instrument');
+        }
+      }
+    });
+  </script>
+</body>
+</html>

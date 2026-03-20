@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Chat Tab</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── App shell ── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── Top bar (from Phase A — Chat Active state) ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: var(--topbar-height);
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    .project-menu {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
+    }
+    .project-menu:hover { background: var(--bg-raised); }
+    .project-menu-name {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-primary);
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .project-menu-chevron { font-size: 12px; color: var(--text-muted); }
+    .project-menu-saved {
+      width: 5px; height: 5px; border-radius: 50%;
+    }
+    .project-menu-saved.clean { background: var(--emerald-400); opacity: 0.5; }
+
+    .topbar-spacer { flex: 1; }
+
+    .topbar-zone-left,
+    .topbar-zone-center,
+    .topbar-zone-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .view-tab.chat-active {
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .transport-group { display: flex; align-items: center; gap: 4px; width: 112px; flex-shrink: 0; }
+    .mode-group { display: flex; align-items: center; gap: 4px; width: 72px; flex-shrink: 0; }
+    .time-group { display: flex; align-items: center; gap: var(--space-sm); width: 200px; flex-shrink: 0; }
+    .meter-group { display: flex; align-items: center; width: 24px; flex-shrink: 0; }
+    .ab-group-fixed { display: flex; align-items: center; gap: 2px; width: 76px; flex-shrink: 0; }
+    .undo-group { display: flex; align-items: center; gap: 4px; width: 56px; flex-shrink: 0; }
+
+    .pattern-song-toggle {
+      display: flex;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .pattern-song-toggle button {
+      padding: 2px 8px; border: none; background: none;
+      color: var(--text-muted); font-family: var(--font-mono);
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+      cursor: pointer; transition: all var(--transition-fast);
+    }
+    .pattern-song-toggle button.active { background: var(--bg-raised); color: var(--text-secondary); }
+
+    .swing-display { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); min-width: 42px; }
+
+    .undo-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 24px; height: 22px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle); background: none;
+      color: var(--text-muted); cursor: pointer; transition: all var(--transition-fast);
+    }
+    .undo-btn:hover { color: var(--text-secondary); border-color: var(--border); background: var(--bg-raised); }
+    .undo-btn.disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+    .undo-btn svg { width: 12px; height: 12px; }
+
+    .ab-btn {
+      padding: 3px 8px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle); background: none;
+      color: var(--text-muted); font-family: var(--font-mono);
+      font-size: var(--text-sm); cursor: pointer; transition: all var(--transition-fast);
+    }
+
+    .gluon-wordmark {
+      font-family: var(--font-sans); font-weight: 700; font-size: 11px;
+      color: var(--text-muted); letter-spacing: -0.02em;
+      text-transform: lowercase; flex-shrink: 0;
+    }
+
+    .status-dot {
+      width: var(--dot-size); height: var(--dot-size);
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.active {
+      background: var(--violet-400);
+      animation: presence-breathe 3s ease-in-out infinite;
+    }
+
+    /* ── Main body ── */
+    .body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* ── Chat content area (full width, no sidebar) ── */
+    .chat-mode {
+      flex: 1;
+      display: flex;
+      background: var(--ai-bg);
+      min-width: 0;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .chat-scroll {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .chat-area {
+      max-width: var(--chat-max-width);
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0 var(--space-lg);
+    }
+
+    /* ── Message types ── */
+    .msg-user {
+      padding: var(--space-md) var(--space-lg);
+    }
+    .msg-user-label {
+      font-family: var(--font-mono); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--text-muted); margin-bottom: 4px;
+    }
+    .msg-user-text {
+      font-size: 14px; color: var(--text-primary); line-height: 1.6;
+    }
+
+    .msg-ai-label {
+      font-family: var(--font-mono); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--violet-400); margin-bottom: 4px;
+      padding: var(--space-sm) var(--space-lg) 0;
+    }
+
+    .msg-ai {
+      padding: var(--space-sm) var(--space-lg);
+    }
+    .msg-ai-text {
+      font-size: 14px; color: var(--zinc-300); line-height: 1.6;
+    }
+    .msg-ai-text strong {
+      color: var(--text-primary); font-weight: 600;
+    }
+
+    /* ── Gluon options list (framing phase) ── */
+    .gluon-options {
+      list-style: none;
+      padding: 0;
+      margin: var(--space-sm) 0 0 0;
+    }
+    .gluon-options li {
+      padding: 3px 0;
+      font-size: 14px;
+      color: var(--zinc-300);
+      line-height: 1.6;
+    }
+    .gluon-options li strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    /* ── Tool use blocks ── */
+    .tool-group {
+      display: flex; flex-direction: column; gap: 2px;
+      margin: var(--space-xs) var(--space-lg);
+    }
+    .tool-group .tool-use { margin: 0; }
+
+    .tool-use {
+      margin: var(--space-xs) var(--space-lg);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .tool-use-header {
+      display: flex; align-items: center; gap: var(--space-sm);
+      padding: 5px var(--space-md);
+      cursor: pointer; transition: background var(--transition-fast);
+    }
+    .tool-use-header:hover { background: rgba(61, 57, 53, 0.3); }
+
+    .tool-use-icon {
+      width: 14px; text-align: center; flex-shrink: 0;
+      font-size: 9px; transition: transform var(--transition-fast);
+    }
+    .tool-use-icon.expanded { transform: rotate(90deg); }
+
+    .tool-use-type { width: 3px; height: 14px; border-radius: 2px; flex-shrink: 0; }
+    .tool-use-type.source { background: var(--tool-source); }
+    .tool-use-type.processor { background: var(--tool-processor); }
+    .tool-use-type.pattern { background: var(--tool-pattern); }
+    .tool-use-type.param { background: var(--tool-param); }
+    .tool-use-type.surface { background: var(--tool-surface); }
+
+    .tool-use-name { color: var(--text-secondary); flex: 1; }
+    .tool-use-check { color: var(--emerald-400); font-size: 10px; }
+
+    .tool-use-undo {
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-muted); background: none;
+      border: 1px solid transparent; border-radius: 3px;
+      padding: 1px 5px; cursor: pointer;
+      opacity: 0; transition: all var(--transition-fast);
+    }
+    .tool-use-header:hover .tool-use-undo { opacity: 1; border-color: var(--border); }
+    .tool-use-undo:hover { color: var(--text-secondary); background: var(--bg-surface); }
+
+    .tool-use-detail {
+      border-top: 1px solid var(--border-subtle);
+      padding: 0 var(--space-md);
+      color: var(--text-muted); font-size: 10px; line-height: 1.5;
+      max-height: 0; overflow: hidden;
+      transition: max-height 200ms ease, padding 200ms ease;
+    }
+    .tool-use-detail.expanded { max-height: 200px; padding: var(--space-sm) var(--space-md); }
+    .tool-use-detail .param-line { display: flex; gap: var(--space-sm); }
+    .tool-use-detail .param-key { color: var(--text-muted); min-width: 60px; }
+    .tool-use-detail .param-val { color: var(--text-secondary); }
+
+    /* ── Audition control (live transport macro) ── */
+    .audition-control {
+      margin: var(--space-sm) var(--space-lg);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--amber-400);
+      border-radius: 8px;
+      padding: 8px var(--space-md);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+    .audition-play-btn {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(251, 191, 36, 0.12);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      color: var(--amber-400);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0;
+      transition: all var(--transition-fast);
+    }
+    .audition-play-btn:hover {
+      background: rgba(251, 191, 36, 0.2);
+      border-color: rgba(251, 191, 36, 0.5);
+    }
+    .audition-tracks {
+      display: flex; gap: 4px; flex-wrap: wrap; align-items: center;
+    }
+    .audition-pill {
+      font-family: var(--font-mono); font-size: 9px;
+      padding: 2px 7px; border-radius: 10px;
+      letter-spacing: 0.02em; font-weight: 500;
+      line-height: 1.3;
+    }
+    .audition-meta {
+      margin-left: auto;
+      display: flex; align-items: center; gap: var(--space-sm);
+      flex-shrink: 0;
+    }
+    .audition-range {
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+    }
+    .audition-mode {
+      font-family: var(--font-mono); font-size: 8px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      padding: 2px 5px; border-radius: 3px;
+      background: rgba(251, 191, 36, 0.1);
+      color: var(--amber-400); border: 1px solid rgba(251, 191, 36, 0.2);
+    }
+
+    /* ── Listen event card (rendered audio review) ── */
+    .listen-card {
+      margin: var(--space-sm) var(--space-lg);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--violet-400);
+      border-radius: 8px;
+      padding: var(--space-md);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+    .listen-play-btn {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: rgba(139, 92, 246, 0.15);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: var(--violet-400);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .listen-waveform {
+      flex: 1; height: 24px; position: relative;
+      border-radius: 2px; overflow: hidden;
+    }
+    .listen-waveform-bg {
+      width: 100%; height: 100%;
+      background: repeating-linear-gradient(
+        90deg,
+        var(--zinc-700) 0px, var(--zinc-700) 2px,
+        transparent 2px, transparent 4px
+      );
+      mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 24'%3E%3Cpath d='M0 12 Q5 8 10 12 Q15 4 20 12 Q25 6 30 12 Q35 2 40 12 Q45 8 50 12 Q55 3 60 12 Q65 7 70 12 Q75 1 80 12 Q85 5 90 12 Q95 9 100 12 Q105 4 110 12 Q115 7 120 12 Q125 2 130 12 Q135 6 140 12 Q145 10 150 12 Q155 3 160 12 Q165 8 170 12 Q175 5 180 12 Q185 9 190 12 Q195 6 200 12 L200 24 L0 24 Z' fill='white'/%3E%3C/svg%3E");
+      -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 24'%3E%3Cpath d='M0 12 Q5 8 10 12 Q15 4 20 12 Q25 6 30 12 Q35 2 40 12 Q45 8 50 12 Q55 3 60 12 Q65 7 70 12 Q75 1 80 12 Q85 5 90 12 Q95 9 100 12 Q105 4 110 12 Q115 7 120 12 Q125 2 130 12 Q135 6 140 12 Q145 10 150 12 Q155 3 160 12 Q165 8 170 12 Q175 5 180 12 Q185 9 190 12 Q195 6 200 12 L200 24 L0 24 Z' fill='white'/%3E%3C/svg%3E");
+      mask-size: 100% 100%;
+      -webkit-mask-size: 100% 100%;
+    }
+    .listen-meta {
+      flex-shrink: 0;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+    }
+    .listen-duration {
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);
+    }
+    .listen-scope {
+      font-family: var(--font-mono); font-size: 8px; color: var(--text-faint);
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .listen-assessment {
+      margin: var(--space-xs) var(--space-lg);
+      padding: 0 0 0 calc(28px + var(--space-md));
+      font-size: 13px; font-style: italic;
+      color: var(--zinc-400); line-height: 1.6;
+    }
+
+    /* ── Inline Audio Reference section ── */
+    .audio-ref-section {
+      display: flex; gap: var(--space-xl);
+      max-width: 800px;
+    }
+    .audio-ref-item {
+      flex: 1; display: flex; flex-direction: column; gap: var(--space-sm);
+    }
+    .audio-ref-label {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .audio-ref-sublabel {
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-faint);
+    }
+
+    /* ── Streaming cursor ── */
+    .streaming-cursor {
+      display: inline-block; width: 2px; height: 14px;
+      background: var(--violet-400); margin-left: 2px;
+      animation: cursor-blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes cursor-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── Composer ── */
+    .chat-composer {
+      max-width: var(--chat-max-width);
+      margin: 0 auto; width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+    .chat-composer-row {
+      display: flex; align-items: flex-end; gap: var(--space-sm);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+      transition: border-color var(--transition-fast);
+    }
+    .chat-composer-row:focus-within {
+      border-color: rgba(139, 92, 246, 0.4);
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.08);
+    }
+    .chat-composer-input {
+      flex: 1; background: none; border: none;
+      color: var(--text-primary); font-family: var(--font-sans);
+      font-size: 15px; line-height: 1.5; outline: none;
+      padding: var(--space-xs) 0; min-height: 24px; resize: none;
+    }
+    .chat-composer-input::placeholder { color: var(--text-muted); }
+
+    .chat-composer-send {
+      width: 32px; height: 32px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-surface);
+      color: var(--text-muted); display: flex; align-items: center;
+      justify-content: center; cursor: pointer; flex-shrink: 0;
+      transition: all var(--transition-fast); font-size: 12px;
+    }
+    .chat-composer-send:hover { background: var(--bg-hover); color: var(--text-secondary); border-color: var(--zinc-600); }
+    .chat-composer-send.ready { background: var(--violet-500); border-color: var(--violet-500); color: white; }
+    .chat-composer-send.ready:hover { background: var(--violet-600); border-color: var(--violet-600); }
+
+    /* ── Live Controls panel ── */
+    .live-controls {
+      width: var(--live-controls-width);
+      flex-shrink: 0;
+      background: rgba(15, 14, 12, 0.6);
+      border-left: 1px solid rgba(139, 92, 246, 0.15);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .live-controls-header {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+      display: flex; align-items: center; gap: var(--space-sm);
+    }
+    .live-controls-title {
+      font-family: var(--font-mono); font-size: 10px;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--violet-400); opacity: 0.7;
+    }
+    .live-controls-body {
+      flex: 1; padding: var(--space-md);
+      display: flex; flex-direction: column; gap: var(--space-md);
+    }
+
+    .lc-module {
+      background: var(--bg-surface);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 10px; overflow: hidden;
+    }
+    .lc-module-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: rgba(139, 92, 246, 0.06);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+    }
+    .lc-module-title {
+      font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+      color: var(--text-primary); display: flex; align-items: center; gap: 6px;
+    }
+    .lc-module-title .ai-tag {
+      font-family: var(--font-mono); font-size: 8px;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      color: var(--violet-400); background: rgba(139, 92, 246, 0.12);
+      padding: 1px 5px; border-radius: 3px;
+    }
+    .lc-add-btn {
+      font-family: var(--font-mono); font-size: 9px;
+      padding: 3px 8px; border-radius: 4px;
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      background: var(--bg-raised); color: var(--amber-400); cursor: pointer;
+    }
+    .lc-module-body { padding: var(--space-md); }
+
+    .lc-knobs {
+      display: flex; gap: var(--space-lg);
+      padding: var(--space-sm) 0; justify-content: center;
+    }
+
+    /* Mini piano roll for Bass Notes module */
+    .lc-piano-roll {
+      position: relative;
+      height: 48px;
+      background: var(--bg-raised);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .lc-piano-roll-grid {
+      position: absolute;
+      inset: 0;
+      display: flex;
+    }
+    .lc-piano-roll-beat {
+      flex: 1;
+      border-right: 1px solid rgba(61, 57, 53, 0.3);
+    }
+    .lc-piano-roll-beat:nth-child(odd) {
+      background: rgba(61, 57, 53, 0.15);
+    }
+    .lc-piano-roll-note {
+      position: absolute;
+      height: 6px;
+      border-radius: 2px;
+      bottom: 8px;
+    }
+    .lc-piano-roll-label {
+      position: absolute;
+      bottom: 2px;
+      left: 4px;
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .lc-empty-hint {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--text-faint); text-align: center;
+      padding: var(--space-xl) var(--space-md);
+      line-height: 1.6;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      height: var(--footer-height);
+      display: flex; align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-muted); gap: var(--space-md);
+      flex-shrink: 0;
+    }
+    .footer-spacer { flex: 1; }
+    .footer-divider { color: var(--text-faint); }
+    .cpu-meter { display: flex; align-items: center; gap: 4px; }
+    .cpu-label { color: var(--text-faint); font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .cpu-bar { width: 40px; height: 4px; background: var(--zinc-800); border-radius: var(--radius-xs); overflow: hidden; }
+    .cpu-bar-fill { height: 100%; border-radius: var(--radius-xs); }
+    .cpu-bar-fill.low { background: var(--emerald-400); }
+    .footer-position { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .footer-mode { text-transform: uppercase; letter-spacing: 0.06em; font-size: 8px; color: var(--text-faint); }
+    .footer-tracks { color: var(--text-faint); }
+    .footer-peak { display: flex; gap: 1px; align-items: flex-end; height: 10px; }
+    .footer-peak-bar { width: 3px; border-radius: 0.5px; }
+    .ai-dot { width: 4px; height: 4px; border-radius: var(--radius-full); }
+    .ai-dot.idle { background: var(--violet-400); opacity: 0.4; }
+
+    /* ── Turn separator ── */
+    .turn-sep {
+      height: 1px; background: var(--border-subtle);
+      margin: var(--space-lg) var(--space-lg);
+    }
+
+    /* ═══════════════════════════════════════
+       ISOLATED STATES (below main example)
+       ═══════════════════════════════════════ */
+    .states-section {
+      background: var(--bg-deep);
+      padding: var(--space-2xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3xl);
+    }
+
+    .state-label {
+      font-family: var(--font-mono); font-size: var(--text-sm);
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: var(--space-sm);
+    }
+    .state-sublabel {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      color: var(--text-faint); margin-bottom: var(--space-sm);
+    }
+
+    .state-frame {
+      background: var(--ai-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    /* Onboarding */
+    .onboard-container {
+      max-width: var(--chat-max-width);
+      margin: 0 auto; width: 100%;
+      padding: 80px var(--space-lg) var(--space-xl);
+      display: flex; flex-direction: column;
+      align-items: center; gap: var(--space-xl);
+    }
+    .onboard-logo {
+      font-family: var(--font-sans); font-weight: 700;
+      font-size: 28px; color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+    .onboard-subtitle {
+      font-family: var(--font-sans); font-size: 15px;
+      color: var(--text-muted); text-align: center; max-width: 400px;
+    }
+
+    .starters {
+      display: flex; gap: var(--space-sm); flex-wrap: wrap;
+      justify-content: center; max-width: 500px;
+    }
+    .starter-chip {
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-raised); border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      font-family: var(--font-sans); font-size: 13px;
+      color: var(--text-secondary); cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .starter-chip:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--zinc-600); }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN EXAMPLE — Full Chat Tab at 1440x900
+     ═══════════════════════════════════════════════════════ -->
+<div class="app" id="main-view">
+  <!-- ── Top bar (Chat Active) ── -->
+  <div class="topbar">
+    <div class="topbar-zone-left">
+      <div class="project-menu">
+        <div class="project-menu-saved clean"></div>
+        <span class="project-menu-name">Dark Techno</span>
+        <span class="project-menu-chevron">&#9662;</span>
+      </div>
+      <div class="transport-divider"></div>
+      <button class="view-tab chat-active">Chat</button>
+      <div class="transport-divider"></div>
+      <div class="view-tabs">
+        <button class="view-tab">Surface</button>
+        <button class="view-tab">Rack</button>
+        <button class="view-tab">Patch</button>
+        <button class="view-tab">Tracker</button>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-zone-center">
+      <div class="transport-group">
+        <button class="transport-btn active" title="Playing"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+        <button class="transport-btn" title="Stop"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+        <button class="transport-btn" title="Record"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+        <button class="transport-btn" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="mode-group">
+        <div class="pattern-song-toggle">
+          <button class="active">Pat</button>
+          <button>Song</button>
+        </div>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="time-group">
+        <span class="transport-time">1:01</span>
+        <span class="transport-bpm">128 BPM</span>
+        <span class="swing-display">Sw 50%</span>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="meter-group">
+        <div class="peak-meter">
+          <div class="peak-meter-bar" style="height: 12px;"></div>
+          <div class="peak-meter-bar" style="height: 10px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-zone-right">
+      <div class="ab-group-fixed">
+        <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="undo-group">
+        <button class="undo-btn" title="Undo: Added snare hits">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+        </button>
+        <button class="undo-btn disabled" title="Nothing to redo">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+        </button>
+      </div>
+      <div class="transport-divider"></div>
+      <span class="gluon-wordmark">gluon</span>
+      <div class="transport-divider"></div>
+      <div class="status-dot active" title="Active"></div>
+    </div>
+  </div>
+
+  <!-- ── Body: chat (full width) + live controls ── -->
+  <div class="body">
+    <div class="chat-mode">
+      <div class="chat-main">
+        <div class="chat-scroll">
+          <div class="chat-area">
+
+            <!-- ══ Turn 1: User — broad brief ══ -->
+            <div class="msg-user">
+              <div class="msg-user-label">You</div>
+              <div class="msg-user-text">I want to make something dark and heavy</div>
+            </div>
+
+            <!-- ══ Turn 2: Gluon — framing (asks to narrow) ══ -->
+            <div class="msg-ai-label">Gluon</div>
+            <div class="msg-ai">
+              <div class="msg-ai-text">What kind of dark and heavy? There's a few directions we could go:</div>
+            </div>
+            <div class="msg-ai">
+              <ul class="gluon-options">
+                <li><strong>Pressure cooker</strong> &mdash; tight 4/4, relentless kick and bass, industrial textures</li>
+                <li><strong>Low and slow</strong> &mdash; half-time, sub-heavy, lots of space between hits</li>
+                <li><strong>Chaotic</strong> &mdash; breakbeats, distortion, dense layers</li>
+              </ul>
+            </div>
+            <div class="msg-ai">
+              <div class="msg-ai-text">Which feels closest? Or describe what you're hearing in your head.</div>
+            </div>
+
+            <div class="turn-sep"></div>
+
+            <!-- ══ Turn 3: User — narrows the space ══ -->
+            <div class="msg-user">
+              <div class="msg-user-label">You</div>
+              <div class="msg-user-text">Pressure cooker. Techno-ish, but not clean &mdash; gritty</div>
+            </div>
+
+            <!-- ══ Turn 4: Gluon — sketches ONE musical idea ══ -->
+            <div class="msg-ai-label">Gluon</div>
+            <div class="msg-ai">
+              <div class="msg-ai-text">Nice. Let me start with the foundation &mdash; a kick and bass loop to set the feel.</div>
+            </div>
+
+            <!-- 3 focused tool blocks -->
+            <div class="tool-group">
+              <div class="tool-use">
+                <div class="tool-use-header" onclick="toggleTool(this)">
+                  <span class="tool-use-icon">&#9656;</span>
+                  <div class="tool-use-type pattern"></div>
+                  <span class="tool-use-name">Created 2-bar kick pattern, 4 on the floor with a ghost hit on the and-of-3</span>
+                  <span class="tool-use-check">&#10003;</span>
+                  <button class="tool-use-undo">undo</button>
+                </div>
+                <div class="tool-use-detail">
+                  <div class="param-line"><span class="param-key">hits</span><span class="param-val">1, 5, 9, 11.5, 13</span></div>
+                  <div class="param-line"><span class="param-key">accents</span><span class="param-val">1, 9 (vel 0.95)</span></div>
+                  <div class="param-line"><span class="param-key">ghost</span><span class="param-val">11.5 (vel 0.35)</span></div>
+                </div>
+              </div>
+              <div class="tool-use">
+                <div class="tool-use-header" onclick="toggleTool(this)">
+                  <span class="tool-use-icon">&#9656;</span>
+                  <div class="tool-use-type source"></div>
+                  <span class="tool-use-name">Built bass using Plaits in bass drum mode, detuned for grit</span>
+                  <span class="tool-use-check">&#10003;</span>
+                  <button class="tool-use-undo">undo</button>
+                </div>
+                <div class="tool-use-detail">
+                  <div class="param-line"><span class="param-key">mode</span><span class="param-val">bass_drum</span></div>
+                  <div class="param-line"><span class="param-key">freq</span><span class="param-val">0.14 (41 Hz, E1)</span></div>
+                  <div class="param-line"><span class="param-key">morph</span><span class="param-val">0.62</span></div>
+                </div>
+              </div>
+              <div class="tool-use">
+                <div class="tool-use-header" onclick="toggleTool(this)">
+                  <span class="tool-use-icon">&#9656;</span>
+                  <div class="tool-use-type pattern"></div>
+                  <span class="tool-use-name">Wrote a single-note bass pulse, E1, locked to the kick</span>
+                  <span class="tool-use-check">&#10003;</span>
+                  <button class="tool-use-undo">undo</button>
+                </div>
+                <div class="tool-use-detail"></div>
+              </div>
+            </div>
+
+            <div class="msg-ai">
+              <div class="msg-ai-text">Here's your foundation. Have a listen &mdash; I've put some controls in the canvas so you can shape the kick and bass tone.</div>
+            </div>
+
+            <!-- Audition control (live transport macro) -->
+            <div class="audition-control">
+              <div class="audition-play-btn">
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><polygon points="0,0 10,6 0,12"/></svg>
+              </div>
+              <div class="audition-tracks">
+                <span class="audition-pill" style="background: rgba(230, 126, 34, 0.15); color: #e67e22; border: 1px solid rgba(230, 126, 34, 0.3);">Kick</span>
+                <span class="audition-pill" style="background: rgba(139, 92, 246, 0.15); color: var(--violet-400); border: 1px solid rgba(139, 92, 246, 0.3);">Bass</span>
+              </div>
+              <div class="audition-meta">
+                <span class="audition-range">bars 1&ndash;2</span>
+                <span class="audition-mode">LOOP</span>
+              </div>
+            </div>
+
+            <div class="turn-sep"></div>
+
+            <!-- ══ Turn 5: User — reacts to sketch ══ -->
+            <div class="msg-user">
+              <div class="msg-user-label">You</div>
+              <div class="msg-user-text">The kick needs more attack, and can you add a snare on 2 and 4?</div>
+            </div>
+
+            <!-- ══ Turn 6: Gluon — guided iteration ══ -->
+            <div class="msg-ai-label">Gluon</div>
+            <div class="msg-ai">
+              <div class="msg-ai-text">Pushing the kick attack up and adding a snare.</div>
+            </div>
+
+            <div class="tool-group">
+              <div class="tool-use">
+                <div class="tool-use-header" onclick="toggleTool(this)">
+                  <span class="tool-use-icon">&#9656;</span>
+                  <div class="tool-use-type param"></div>
+                  <span class="tool-use-name">Set kick attack to 0.8, punch to 0.9</span>
+                  <span class="tool-use-check">&#10003;</span>
+                  <button class="tool-use-undo">undo</button>
+                </div>
+                <div class="tool-use-detail"></div>
+              </div>
+              <div class="tool-use">
+                <div class="tool-use-header" onclick="toggleTool(this)">
+                  <span class="tool-use-icon">&#9656;</span>
+                  <div class="tool-use-type pattern"></div>
+                  <span class="tool-use-name">Added snare hits on beats 2 and 4, tight with short decay</span>
+                  <span class="tool-use-check">&#10003;</span>
+                  <button class="tool-use-undo">undo</button>
+                </div>
+                <div class="tool-use-detail"></div>
+              </div>
+            </div>
+
+            <div class="msg-ai">
+              <div class="msg-ai-text">Snare's in. I've added a Snare control to the canvas too.</div>
+            </div>
+
+            <!-- Audition control (live transport macro) -->
+            <div class="audition-control">
+              <div class="audition-play-btn">
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><polygon points="0,0 10,6 0,12"/></svg>
+              </div>
+              <div class="audition-tracks">
+                <span class="audition-pill" style="background: rgba(230, 126, 34, 0.15); color: #e67e22; border: 1px solid rgba(230, 126, 34, 0.3);">Kick</span>
+                <span class="audition-pill" style="background: rgba(34, 211, 238, 0.15); color: var(--cyan-400); border: 1px solid rgba(34, 211, 238, 0.3);">Snare</span>
+                <span class="audition-pill" style="background: rgba(139, 92, 246, 0.15); color: var(--violet-400); border: 1px solid rgba(139, 92, 246, 0.3);">Bass</span>
+              </div>
+              <div class="audition-meta">
+                <span class="audition-range">bars 1&ndash;2</span>
+                <span class="audition-mode">LOOP</span>
+              </div>
+            </div>
+
+            <!-- Gluon listens to its own work -->
+            <div class="msg-ai">
+              <div class="msg-ai-text">Let me have a quick listen to the full mix...</div>
+            </div>
+
+            <!-- Listen card (rendered audio review) -->
+            <div class="listen-card">
+              <div class="listen-play-btn">
+                <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><polygon points="0,0 10,6 0,12"/></svg>
+              </div>
+              <div class="listen-waveform">
+                <div class="listen-waveform-bg"></div>
+              </div>
+              <div class="listen-meta">
+                <span class="listen-duration">4.0s</span>
+                <span class="listen-scope">full mix</span>
+              </div>
+            </div>
+            <div class="listen-assessment">Kick and snare lock well together. The bass could use a touch more grit &mdash; try pushing the Growl knob up.</div>
+
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div class="chat-composer">
+          <div class="chat-composer-row">
+            <input class="chat-composer-input" type="text" placeholder="Ask Gluon anything...">
+            <button class="chat-composer-send" title="Send">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 13V3l10 5-10 5z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Controls panel -->
+      <div class="live-controls">
+        <div class="live-controls-header">
+          <div class="ai-presence-dot" style="width: 5px; height: 5px;"></div>
+          <span class="live-controls-title">Live Controls</span>
+        </div>
+        <div class="live-controls-body">
+          <!-- Kick Character module (orange accent) -->
+          <div class="lc-module">
+            <div class="lc-module-header">
+              <div class="lc-module-title">Kick Character <span class="ai-tag">Live</span></div>
+              <button class="lc-add-btn">Add to Surface</button>
+            </div>
+            <div class="lc-module-body">
+              <div class="lc-knobs">
+                <div class="knob-container"><span class="knob-label">Punch</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 23 6" fill="none" stroke="#e67e22" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.90</span></div>
+                <div class="knob-container"><span class="knob-label">Grit</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="#e67e22" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.45</span></div>
+                <div class="knob-container"><span class="knob-label">Decay</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 11 13" fill="none" stroke="#e67e22" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.28</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bass Tone module (purple accent) -->
+          <div class="lc-module">
+            <div class="lc-module-header">
+              <div class="lc-module-title">Bass Tone <span class="ai-tag">Live</span></div>
+              <button class="lc-add-btn">Add to Surface</button>
+            </div>
+            <div class="lc-module-body">
+              <div class="lc-knobs">
+                <div class="knob-container"><span class="knob-label">Sub</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 26 8" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.75</span></div>
+                <div class="knob-container"><span class="knob-label">Growl</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 11 13" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.38</span></div>
+                <div class="knob-container"><span class="knob-label">Tightness</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.52</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bass Notes module (mini piano roll) -->
+          <div class="lc-module">
+            <div class="lc-module-header">
+              <div class="lc-module-title">Bass Notes <span class="ai-tag">Live</span></div>
+              <button class="lc-add-btn">Add to Surface</button>
+            </div>
+            <div class="lc-module-body">
+              <div class="lc-piano-roll">
+                <div class="lc-piano-roll-grid">
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                  <div class="lc-piano-roll-beat"></div>
+                </div>
+                <!-- E1 bass note blocks locked to kick hits -->
+                <div class="lc-piano-roll-note" style="left: 0%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 12.5%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 25%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 37.5%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 50%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 62.5%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 75%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <div class="lc-piano-roll-note" style="left: 87.5%; width: 11%; background: var(--violet-400); opacity: 0.8;"></div>
+                <span class="lc-piano-roll-label">E1</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Snare module (appeared in Turn 6) -->
+          <div class="lc-module">
+            <div class="lc-module-header">
+              <div class="lc-module-title">Snare <span class="ai-tag">Live</span></div>
+              <button class="lc-add-btn">Add to Surface</button>
+            </div>
+            <div class="lc-module-body">
+              <div class="lc-knobs">
+                <div class="knob-container"><span class="knob-label">Snap</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 26 8" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.70</span></div>
+                <div class="knob-container"><span class="knob-label">Body</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.40</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Empty state hint -->
+          <div class="lc-empty-hint">Controls appear here as Gluon works</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="cpu-meter">
+      <span class="cpu-label">CPU</span>
+      <div class="cpu-bar"><div class="cpu-bar-fill low" style="width: 28%;"></div></div>
+    </div>
+    <span class="footer-divider">&middot;</span>
+    <span class="footer-position">1:01</span>
+    <span class="footer-divider">&middot;</span>
+    <span class="footer-mode">Pattern</span>
+    <span class="footer-divider">&middot;</span>
+    <span class="footer-tracks">3 tracks</span>
+    <span class="footer-divider">&middot;</span>
+    <span style="color: var(--text-faint);">128 BPM</span>
+    <div class="footer-spacer"></div>
+    <div class="footer-peak">
+      <div class="footer-peak-bar" style="height: 8px; background: linear-gradient(to top, var(--emerald-400) 60%, var(--amber-400));"></div>
+      <div class="footer-peak-bar" style="height: 6px; background: linear-gradient(to top, var(--emerald-400) 60%, var(--amber-400));"></div>
+    </div>
+    <span class="footer-divider">&middot;</span>
+    <div class="ai-dot idle"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     ISOLATED STATES (below the main 900px view)
+     ═══════════════════════════════════════════════════════ -->
+<div class="states-section">
+
+  <!-- ── STATE: Empty / Onboarding ── -->
+  <div>
+    <div class="state-label">Empty / Onboarding State</div>
+    <div class="state-sublabel">No messages yet. Wordmark, question, and starter chips.</div>
+    <div class="state-frame">
+      <div class="onboard-container">
+        <div class="onboard-logo">gluon</div>
+        <div class="onboard-subtitle">What do you want to make?</div>
+
+        <div class="starters">
+          <div class="starter-chip">Something dark and heavy</div>
+          <div class="starter-chip">A bright pop beat</div>
+          <div class="starter-chip">Ambient textures</div>
+        </div>
+
+        <!-- Composer at bottom -->
+        <div style="width: 100%; max-width: var(--chat-max-width);">
+          <div class="chat-composer-row">
+            <input class="chat-composer-input" type="text" placeholder="Ask Gluon anything...">
+            <button class="chat-composer-send" title="Send">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 13V3l10 5-10 5z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATE: Streaming ── -->
+  <div>
+    <div class="state-label">Streaming State</div>
+    <div class="state-sublabel">Partial Gluon response with blinking cursor while thinking/working.</div>
+    <div class="state-frame" style="padding: var(--space-xl);">
+      <div style="max-width: var(--chat-max-width); margin: 0 auto;">
+        <div class="msg-ai-label">Gluon</div>
+        <div class="msg-ai">
+          <div class="msg-ai-text">Pushing the kick attack up and adding a snare.<span class="streaming-cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── REFERENCE: Inline Audio Elements ── -->
+  <div>
+    <div class="state-label">Inline Audio Elements</div>
+    <div class="state-sublabel">Two distinct inline audio types that appear in conversation.</div>
+    <div class="audio-ref-section" style="margin-top: var(--space-md);">
+      <!-- Audition reference -->
+      <div class="audio-ref-item">
+        <div class="audio-ref-label">Audition &mdash; live transport playback</div>
+        <div class="audio-ref-sublabel">Configures transport to play a section with tracks soloed. No waveform &mdash; this is live, not rendered.</div>
+        <div class="audition-control" style="margin: 0;">
+          <div class="audition-play-btn">
+            <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><polygon points="0,0 10,6 0,12"/></svg>
+          </div>
+          <div class="audition-tracks">
+            <span class="audition-pill" style="background: rgba(230, 126, 34, 0.15); color: #e67e22; border: 1px solid rgba(230, 126, 34, 0.3);">Kick</span>
+            <span class="audition-pill" style="background: rgba(139, 92, 246, 0.15); color: var(--violet-400); border: 1px solid rgba(139, 92, 246, 0.3);">Bass</span>
+          </div>
+          <div class="audition-meta">
+            <span class="audition-range">bars 1&ndash;2</span>
+            <span class="audition-mode">LOOP</span>
+          </div>
+        </div>
+      </div>
+      <!-- Listen reference -->
+      <div class="audio-ref-item">
+        <div class="audio-ref-label">Listen &mdash; rendered audio review</div>
+        <div class="audio-ref-sublabel">Pre-rendered audio snapshot that Gluon uses to evaluate its own work. Includes waveform and assessment.</div>
+        <div class="listen-card" style="margin: 0;">
+          <div class="listen-play-btn">
+            <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor"><polygon points="0,0 10,6 0,12"/></svg>
+          </div>
+          <div class="listen-waveform">
+            <div class="listen-waveform-bg"></div>
+          </div>
+          <div class="listen-meta">
+            <span class="listen-duration">4.0s</span>
+            <span class="listen-scope">full mix</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  function toggleTool(header) {
+    const icon = header.querySelector('.tool-use-icon');
+    const detail = header.nextElementSibling;
+    const isExpanded = detail.classList.contains('expanded');
+    if (isExpanded) {
+      detail.classList.remove('expanded');
+      icon.classList.remove('expanded');
+    } else {
+      detail.classList.add('expanded');
+      icon.classList.add('expanded');
+    }
+  }
+</script>
+</body>
+</html>

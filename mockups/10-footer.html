@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Footer Bar</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .app {
+      height: 100vh;
+      overflow-y: auto;
+      padding: var(--space-2xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3xl);
+    }
+
+    .demo-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-sm);
+    }
+
+    .demo-sublabel {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-faint);
+      margin-bottom: var(--space-sm);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      height: var(--footer-height);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .footer-spacer { flex: 1; }
+
+    .footer-divider {
+      color: var(--text-faint);
+    }
+
+    /* CPU meter */
+    .cpu-meter {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cpu-label {
+      color: var(--text-faint);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .cpu-bar {
+      width: 40px;
+      height: 4px;
+      background: var(--zinc-800);
+      border-radius: var(--radius-xs);
+      overflow: hidden;
+    }
+
+    .cpu-bar-fill {
+      height: 100%;
+      border-radius: var(--radius-xs);
+      transition: width var(--transition-normal);
+    }
+
+    .cpu-bar-fill.low {
+      background: var(--emerald-400);
+    }
+
+    .cpu-bar-fill.medium {
+      background: var(--amber-400);
+    }
+
+    .cpu-bar-fill.high {
+      background: var(--rose-400);
+    }
+
+    /* Playback position */
+    .footer-position {
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Transport mode badge */
+    .footer-mode {
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 8px;
+      color: var(--text-faint);
+    }
+
+    /* Track count */
+    .footer-tracks {
+      color: var(--text-faint);
+    }
+
+    /* AI activity dot */
+    .ai-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: var(--radius-full);
+    }
+
+    .ai-dot.idle {
+      background: var(--violet-400);
+      opacity: 0.4;
+    }
+
+    .ai-dot.thinking {
+      background: var(--violet-400);
+      animation: ai-dot-pulse 1.5s ease-in-out infinite;
+    }
+
+    .ai-dot.listening {
+      background: var(--teal-400);
+      animation: ai-dot-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes ai-dot-pulse {
+      0%, 100% { opacity: 0.4; box-shadow: none; }
+      50% { opacity: 1; box-shadow: 0 0 6px currentColor; }
+    }
+
+    /* Content placeholder above footer */
+    .content-placeholder {
+      height: 40px;
+      background: var(--bg-deep);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      border: 1px solid var(--border);
+      border-bottom: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-faint);
+    }
+
+    /* Full-width footer for 2x detail */
+    .footer-detail {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-xl);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div>
+      <h1 style="font-family: var(--font-sans); font-weight: 700; font-size: 28px; color: var(--text-primary); letter-spacing: -0.03em; margin-bottom: var(--space-xs);">Footer Bar</h1>
+      <p style="font-family: var(--font-mono); font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-xl);">Persistent 24px footer showing system status. All states.</p>
+    </div>
+
+    <!-- ═══ STATE 1: Playing, 4 tracks, AI thinking ═══ -->
+    <div>
+      <div class="demo-label">Playing &mdash; 4 Tracks &mdash; AI Thinking</div>
+      <div class="content-placeholder">View content</div>
+      <div class="footer">
+        <div class="cpu-meter">
+          <span class="cpu-label">CPU</span>
+          <div class="cpu-bar"><div class="cpu-bar-fill low" style="width: 35%;"></div></div>
+        </div>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-position">1:01</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-mode">Pattern</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-tracks">4 tracks</span>
+        <span class="footer-divider">&middot;</span>
+        <span style="color: var(--text-faint);">128 BPM</span>
+        <div class="footer-spacer"></div>
+        <div class="ai-dot thinking"></div>
+      </div>
+    </div>
+
+    <!-- ═══ STATE 2: Stopped, 8 tracks, AI idle ═══ -->
+    <div>
+      <div class="demo-label">Stopped &mdash; 8 Tracks &mdash; AI Idle</div>
+      <div class="content-placeholder">View content</div>
+      <div class="footer">
+        <div class="cpu-meter">
+          <span class="cpu-label">CPU</span>
+          <div class="cpu-bar"><div class="cpu-bar-fill low" style="width: 5%;"></div></div>
+        </div>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-position" style="color: var(--text-faint);">0:00</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-mode">Song</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-tracks">8 tracks</span>
+        <span class="footer-divider">&middot;</span>
+        <span style="color: var(--text-faint);">120 BPM</span>
+        <div class="footer-spacer"></div>
+        <div class="ai-dot idle"></div>
+      </div>
+    </div>
+
+    <!-- ═══ STATE 3: Playing loud, high CPU, AI listening ═══ -->
+    <div>
+      <div class="demo-label">Playing &mdash; High Load &mdash; AI Listening</div>
+      <div class="content-placeholder">View content</div>
+      <div class="footer">
+        <div class="cpu-meter">
+          <span class="cpu-label">CPU</span>
+          <div class="cpu-bar"><div class="cpu-bar-fill medium" style="width: 72%;"></div></div>
+        </div>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-position">8:42</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-mode">Song</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-tracks">12 tracks</span>
+        <span class="footer-divider">&middot;</span>
+        <span style="color: var(--text-faint);">140 BPM</span>
+        <div class="footer-spacer"></div>
+        <div class="ai-dot listening"></div>
+      </div>
+    </div>
+
+    <!-- ═══ STATE 4: CPU overload ═══ -->
+    <div>
+      <div class="demo-label">CPU Overload</div>
+      <div class="content-placeholder">View content</div>
+      <div class="footer">
+        <div class="cpu-meter">
+          <span class="cpu-label" style="color: var(--rose-400);">CPU</span>
+          <div class="cpu-bar"><div class="cpu-bar-fill high" style="width: 95%;"></div></div>
+        </div>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-position">3:17</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-mode">Pattern</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-tracks">16 tracks</span>
+        <span class="footer-divider">&middot;</span>
+        <span style="color: var(--text-faint);">128 BPM</span>
+        <div class="footer-spacer"></div>
+        <div class="ai-dot idle"></div>
+      </div>
+    </div>
+
+    <!-- ═══ STATE 5: No AI ═══ -->
+    <div>
+      <div class="demo-label">No AI Connected</div>
+      <div class="content-placeholder">View content</div>
+      <div class="footer">
+        <div class="cpu-meter">
+          <span class="cpu-label">CPU</span>
+          <div class="cpu-bar"><div class="cpu-bar-fill low" style="width: 15%;"></div></div>
+        </div>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-position" style="color: var(--text-faint);">0:00</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-mode">Pattern</span>
+        <span class="footer-divider">&middot;</span>
+        <span class="footer-tracks">2 tracks</span>
+        <span class="footer-divider">&middot;</span>
+        <span style="color: var(--text-faint);">120 BPM</span>
+        <div class="footer-spacer"></div>
+        <!-- No AI dot when disconnected -->
+      </div>
+    </div>
+
+    <!-- ═══ ELEMENT REFERENCE ═══ -->
+    <div>
+      <div class="demo-label">Element Reference</div>
+      <div class="demo-sublabel">Individual footer elements at 2x scale.</div>
+      <div class="footer-detail">
+        <div style="display: flex; gap: var(--space-3xl); flex-wrap: wrap; align-items: flex-start;">
+
+          <!-- CPU meter states -->
+          <div>
+            <div class="demo-sublabel">CPU Meter States</div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="cpu-meter"><span class="cpu-label">CPU</span><div class="cpu-bar" style="width: 60px;"><div class="cpu-bar-fill low" style="width: 15%;"></div></div></div>
+                <span class="type-mono-sm">Low (green)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="cpu-meter"><span class="cpu-label">CPU</span><div class="cpu-bar" style="width: 60px;"><div class="cpu-bar-fill low" style="width: 45%;"></div></div></div>
+                <span class="type-mono-sm">Normal (green)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="cpu-meter"><span class="cpu-label">CPU</span><div class="cpu-bar" style="width: 60px;"><div class="cpu-bar-fill medium" style="width: 70%;"></div></div></div>
+                <span class="type-mono-sm">Elevated (amber)</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="cpu-meter"><span class="cpu-label" style="color: var(--rose-400);">CPU</span><div class="cpu-bar" style="width: 60px;"><div class="cpu-bar-fill high" style="width: 92%;"></div></div></div>
+                <span class="type-mono-sm">Overload (red + red label)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- AI dot states -->
+          <div>
+            <div class="demo-sublabel">AI Activity Dot</div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-md);">
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="ai-dot idle" style="width: 8px; height: 8px;"></div>
+                <span class="type-mono-sm">Idle &mdash; violet, opacity 0.4</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="ai-dot thinking" style="width: 8px; height: 8px;"></div>
+                <span class="type-mono-sm">Thinking &mdash; violet, pulsing</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: var(--space-md);">
+                <div class="ai-dot listening" style="width: 8px; height: 8px;"></div>
+                <span class="type-mono-sm">Listening &mdash; teal, pulsing</span>
+              </div>
+            </div>
+          </div>
+
+
+</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

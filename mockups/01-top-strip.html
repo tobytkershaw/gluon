@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Permutation 1: Top Strip</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Layout: Top Strip ──
+       A thin persistent strip across the top of both modes.
+       Chat mode: strip shows transport + meters.
+       Instrument mode: strip shows AI status + last result.
+       Mode toggle lives in the strip.
+    */
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── The Strip ── */
+    .strip {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-md);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .strip-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+      margin-right: var(--space-sm);
+    }
+
+    .strip-spacer { flex: 1; }
+
+    /* ── Content area ── */
+    .content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── Modes ── */
+    .mode {
+      position: absolute;
+      inset: 0;
+      transition: transform var(--transition-slow), opacity var(--transition-slow);
+    }
+
+    .mode.hidden-left {
+      transform: translateX(-100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mode.hidden-right {
+      transform: translateX(100%);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mode.visible {
+      transform: translateX(0);
+      opacity: 1;
+    }
+
+    /* ── Chat Mode ── */
+    .chat-mode {
+      display: flex;
+      flex-direction: column;
+      background: var(--ai-bg);
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0;
+    }
+
+    .chat-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-lg);
+      text-align: center;
+      padding: var(--space-3xl);
+    }
+
+    .chat-empty-title {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 24px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+
+    .chat-empty-sub {
+      font-size: 14px;
+      color: var(--text-muted);
+      max-width: 400px;
+    }
+
+    .chat-composer {
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+
+    .chat-composer .composer-input {
+      background: rgba(40, 37, 35, 0.6);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    .chat-composer .composer-input:focus {
+      border-color: rgba(139, 92, 246, 0.5);
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.1);
+    }
+
+    /* Inline change preview in chat */
+    .change-preview {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-md);
+      margin: var(--space-sm) var(--space-lg);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    .change-preview-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .change-preview-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .change-preview-detail {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Instrument Mode ── */
+    .instrument-mode {
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-deep);
+    }
+
+    /* View tabs bar inside instrument mode */
+    .view-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      height: 32px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      gap: var(--space-sm);
+    }
+
+    /* Main instrument content: sidebar + view */
+    .instrument-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Track sidebar */
+    .track-sidebar {
+      width: 180px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .track-sidebar-header {
+      padding: var(--space-md);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .track-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-sm);
+    }
+
+    .track-sidebar-footer {
+      padding: var(--space-sm) var(--space-md);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    /* View canvas */
+    .view-canvas {
+      flex: 1;
+      overflow: auto;
+      padding: var(--space-lg);
+    }
+
+    /* ── Rack view content ── */
+    .rack-chain {
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+    }
+
+    .rack-arrow {
+      display: flex;
+      align-items: center;
+      padding-top: 40px;
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* ── Surface view content ── */
+    .surface-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-md);
+      max-width: 900px;
+    }
+
+    .surface-module.span-2 {
+      grid-column: span 2;
+    }
+
+    /* ── Strip content variants ── */
+    .strip-instrument-info {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .strip-last-action {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .strip-unread {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.12);
+      padding: 2px 6px;
+      border-radius: 8px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    /* ── Mode toggle buttons ── */
+    .mode-toggles {
+      display: flex;
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      gap: var(--space-sm);
+      z-index: 100;
+      background: var(--bg-raised);
+      padding: var(--space-xs);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+
+    .mode-toggle-btn {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      background: none;
+      color: var(--text-muted);
+    }
+
+    .mode-toggle-btn:hover {
+      color: var(--text-secondary);
+    }
+
+    .mode-toggle-btn.active-chat {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--violet-400);
+    }
+
+    .mode-toggle-btn.active-instrument {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--amber-400);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ── The Strip ── -->
+    <div class="strip">
+      <span class="strip-logo">gluon</span>
+      <div class="transport-divider"></div>
+
+      <!-- Transport (always visible) -->
+      <button class="transport-btn active">&#9654;</button>
+      <button class="transport-btn">&#9632;</button>
+      <button class="transport-btn">&#9679;</button>
+      <div class="transport-divider"></div>
+      <span class="transport-time">1:01</span>
+      <span class="transport-bpm">128 BPM</span>
+      <div class="transport-divider"></div>
+      <div class="peak-meter">
+        <div class="peak-meter-bar" style="height: 12px;"></div>
+        <div class="peak-meter-bar" style="height: 10px;"></div>
+      </div>
+
+      <div class="strip-spacer"></div>
+
+      <!-- AI presence (always visible) -->
+      <div class="ai-presence">
+        <div class="ai-presence-dot"></div>
+        <span class="ai-presence-label">Idle</span>
+      </div>
+
+      <div class="transport-divider"></div>
+
+      <!-- Context info (changes per mode) -->
+      <div class="strip-instrument-info" id="strip-context">
+        <span class="strip-last-action">Added Ripples filter to Kick</span>
+        <span class="strip-unread">2 new</span>
+      </div>
+
+      <div class="transport-divider"></div>
+
+      <button class="mode-switch" onclick="toggleMode()">
+        <span class="key">`</span>
+        <span id="switch-label">Chat</span>
+      </button>
+    </div>
+
+    <!-- ── Content Area ── -->
+    <div class="content">
+
+      <!-- ═══ Chat Mode ═══ -->
+      <div class="mode visible" id="chat-mode">
+        <div class="chat-mode">
+          <div class="chat-area chat-scroll">
+
+            <!-- User message -->
+            <div class="chat-msg">
+              <div class="chat-msg-role user">You</div>
+              <div class="chat-msg-user">Make me a heavy kick drum with some grit. Think warehouse techno.</div>
+            </div>
+
+            <!-- AI response with change previews -->
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">I've set up a kick using Plaits in bass drum mode with a short, punchy decay. Added a Ripples filter for some resonant grit and a Compressor in "punch" mode to tighten the transient.</div>
+            </div>
+
+            <!-- Inline change preview cards -->
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9679;</div>
+              <div>
+                <div class="change-preview-text">Kick &mdash; Plaits (Bass Drum)</div>
+                <div class="change-preview-detail">morph 0.35 &middot; timbre 0.62 &middot; decay 0.28</div>
+              </div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9830;</div>
+              <div>
+                <div class="change-preview-text">+ Ripples &mdash; LP 380 Hz, res 0.45</div>
+                <div class="change-preview-detail">drive 0.30 &middot; env amount 0.55</div>
+              </div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9644;</div>
+              <div>
+                <div class="change-preview-text">+ Compressor &mdash; Punch mode</div>
+                <div class="change-preview-detail">ratio 4:1 &middot; attack 2ms &middot; release 80ms</div>
+              </div>
+            </div>
+
+            <!-- Follow-up -->
+            <div class="chat-msg">
+              <div class="chat-msg-role user">You</div>
+              <div class="chat-msg-user">More drive on the filter. I want it to bite.</div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">Pushed the Ripples drive to 0.72 and bumped resonance to 0.58. It'll have a lot more harmonic saturation now.</div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9830;</div>
+              <div>
+                <div class="change-preview-text">Ripples &mdash; drive 0.30 &rarr; 0.72, res 0.45 &rarr; 0.58</div>
+                <div class="change-preview-detail">Increased harmonic saturation</div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Composer -->
+          <div class="chat-composer">
+            <input class="composer-input" type="text" placeholder="Describe what you want to change...">
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Instrument Mode (Rack view shown) ═══ -->
+      <div class="mode hidden-right" id="instrument-mode">
+        <div class="instrument-mode">
+          <!-- View tabs -->
+          <div class="view-bar">
+            <div class="view-tabs">
+              <button class="view-tab" onclick="showView('surface')">Surface</button>
+              <button class="view-tab active" onclick="showView('rack')">Rack</button>
+              <button class="view-tab" onclick="showView('patch')">Patch</button>
+              <button class="view-tab" onclick="showView('tracker')">Tracker</button>
+            </div>
+          </div>
+
+          <div class="instrument-body">
+            <!-- Track sidebar -->
+            <div class="track-sidebar">
+              <div class="track-sidebar-header">Tracks</div>
+              <div class="track-list">
+                <div class="track-item selected">
+                  <div class="track-accent" style="background: var(--amber-400);"></div>
+                  <div>
+                    <div class="track-name">Kick</div>
+                    <div class="track-role">bass drum</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--cyan-400);"></div>
+                  <div>
+                    <div class="track-name">Hi-Hats</div>
+                    <div class="track-role">percussion</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--violet-400);"></div>
+                  <div>
+                    <div class="track-name">Bass</div>
+                    <div class="track-role">bass synth</div>
+                  </div>
+                  <div class="agency-dot off"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--emerald-400);"></div>
+                  <div>
+                    <div class="track-name">Pad</div>
+                    <div class="track-role">atmosphere</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+              </div>
+              <div class="track-sidebar-footer">
+                <div class="flex items-center justify-between">
+                  <span class="type-mono-sm">MASTER</span>
+                  <div class="peak-meter">
+                    <div class="peak-meter-bar" style="height: 14px;"></div>
+                    <div class="peak-meter-bar" style="height: 11px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rack View -->
+            <div class="view-canvas" id="view-rack">
+              <div class="rack-chain">
+                <!-- Source -->
+                <div class="rack-module" style="min-width: 200px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Plaits</span>
+                    <span class="rack-module-type">Source</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Freq</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="12" y1="12" x2="8.7" y2="8.7" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">52 Hz</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Morph</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="14" y1="14" x2="11.5" y2="12.5" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.35</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Timbre</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 26 7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="22" y1="10" x2="26" y2="7" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.62</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Decay</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 10 15" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="13" y1="15.5" x2="10" y2="15" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.28</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <!-- Ripples -->
+                <div class="rack-module" style="min-width: 220px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Ripples</span>
+                    <span class="rack-module-type">Filter</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Cutoff</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="14" y1="14" x2="11.5" y2="12.5" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">380 Hz</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Reso</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="20" y1="8" x2="20" y2="4" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.58</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Drive</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="24" y1="12" x2="28" y2="10" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.72</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Env Amt</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 22 5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="21" y1="9" x2="22" y2="5" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.55</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <!-- Compressor -->
+                <div class="rack-module" style="min-width: 240px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Compressor</span>
+                    <span class="rack-module-type">Dynamics &middot; Punch</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Thresh</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="24" y1="12" x2="28" y2="10" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">-12 dB</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Ratio</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="14" y1="14" x2="11.5" y2="12.5" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">4:1</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Attack</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="12" y1="12" x2="8.7" y2="8.7" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">2 ms</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Release</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="14" y1="14" x2="11.5" y2="12.5" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">80 ms</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Makeup</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 0 1 15 7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="16" y1="10" x2="15" y2="7" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">3 dB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <!-- Output -->
+                <div class="rack-module" style="min-width: 100px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Output</span>
+                    <span class="rack-module-type">Master</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Level</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="24" y1="12" x2="28" y2="10" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">0.0 dB</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Pan</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/>
+                        <path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/>
+                        <line x1="20" y1="8" x2="20" y2="4" stroke="var(--zinc-400)" stroke-width="1.5" stroke-linecap="round"/>
+                      </svg>
+                      <span class="knob-value">C</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>gluon v0.5</span>
+      <div class="strip-spacer"></div>
+      <span>Gemini 3.1 Pro</span>
+      <span>&middot;</span>
+      <span>4 tracks</span>
+      <span>&middot;</span>
+      <span>128 BPM</span>
+    </div>
+  </div>
+
+  <!-- Floating mode toggle -->
+  <div class="mode-toggles">
+    <button class="mode-toggle-btn active-chat" id="btn-chat" onclick="showMode('chat')">Chat</button>
+    <button class="mode-toggle-btn" id="btn-instrument" onclick="showMode('instrument')">Instrument</button>
+  </div>
+
+  <script>
+    let currentMode = 'chat';
+
+    function showMode(mode) {
+      currentMode = mode;
+      const chatMode = document.getElementById('chat-mode');
+      const instrumentMode = document.getElementById('instrument-mode');
+      const btnChat = document.getElementById('btn-chat');
+      const btnInstrument = document.getElementById('btn-instrument');
+      const switchLabel = document.getElementById('switch-label');
+
+      if (mode === 'chat') {
+        chatMode.className = 'mode visible';
+        instrumentMode.className = 'mode hidden-right';
+        btnChat.className = 'mode-toggle-btn active-chat';
+        btnInstrument.className = 'mode-toggle-btn';
+        switchLabel.textContent = 'Instrument';
+      } else {
+        chatMode.className = 'mode hidden-left';
+        instrumentMode.className = 'mode visible';
+        btnChat.className = 'mode-toggle-btn';
+        btnInstrument.className = 'mode-toggle-btn active-instrument';
+        switchLabel.textContent = 'Chat';
+      }
+    }
+
+    function toggleMode() {
+      showMode(currentMode === 'chat' ? 'instrument' : 'chat');
+    }
+
+    // Keyboard shortcut
+    document.addEventListener('keydown', (e) => {
+      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        e.preventDefault();
+        toggleMode();
+      }
+    });
+  </script>
+</body>
+</html>

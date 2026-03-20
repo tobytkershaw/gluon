@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Refined: Floating Dock + Transient Surface</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Layout: Refined Floating Dock ──
+       - Dock is richer (not just a circle), shows AI state + last action
+       - Dock stays in SAME position in both modes (flip without moving)
+       - Cmd+K command lens for quick invoke
+       - Transient Surface modules appear inline in chat
+    */
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-md);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .topbar-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    /* ── Content ── */
+    .content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      perspective: 1200px;
+    }
+
+    /* Modes — card flip */
+    .mode {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      transition: transform 500ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease;
+      backface-visibility: hidden;
+    }
+
+    .mode.hidden-flip {
+      transform: rotateY(180deg);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mode.visible {
+      transform: rotateY(0deg);
+      opacity: 1;
+    }
+
+    /* ── Instrument Mode ── */
+    .instrument-mode {
+      background: var(--bg-deep);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .view-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      height: 32px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      gap: var(--space-sm);
+    }
+
+    .instrument-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    .track-sidebar {
+      width: 180px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .track-sidebar-header {
+      padding: var(--space-md);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .track-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-sm);
+    }
+
+    .track-sidebar-footer {
+      padding: var(--space-sm) var(--space-md);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .view-canvas {
+      flex: 1;
+      overflow: auto;
+      padding: var(--space-lg);
+    }
+
+    .rack-chain {
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+    }
+
+    .rack-arrow {
+      display: flex;
+      align-items: center;
+      padding-top: 40px;
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* ── Chat Mode ── */
+    .chat-mode {
+      background: var(--ai-bg);
+      flex: 1;
+      display: flex;
+      flex-direction: row; /* chat + transient panel side by side */
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ── Transient Surface Panel (right side of chat) ── */
+    .transient-panel {
+      width: 340px;
+      flex-shrink: 0;
+      background: rgba(15, 14, 12, 0.6);
+      border-left: 1px solid rgba(139, 92, 246, 0.15);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .transient-panel-header {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .transient-panel-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--violet-400);
+      opacity: 0.7;
+    }
+
+    .transient-panel-body {
+      flex: 1;
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .chat-topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: rgba(19, 17, 28, 0.95);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .chat-topbar-title {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--violet-400);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .chat-transport {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-left: auto;
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0;
+    }
+
+    .chat-composer {
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+
+    .chat-composer .composer-input {
+      background: rgba(40, 37, 35, 0.6);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    .chat-composer .composer-input:focus {
+      border-color: rgba(139, 92, 246, 0.5);
+    }
+
+    /* Change previews */
+    .change-preview {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-md);
+      margin: var(--space-sm) var(--space-lg);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    .change-preview-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .change-preview-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .change-preview-detail {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Transient Surface Module (inline in chat) ── */
+    .transient-module {
+      margin: var(--space-md) var(--space-lg);
+      background: var(--bg-surface);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(139, 92, 246, 0.06);
+    }
+
+    .transient-module-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: rgba(139, 92, 246, 0.06);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+    }
+
+    .transient-module-title {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .transient-module-title .ai-tag {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.12);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .transient-module-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .transient-module-action {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg-raised);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .transient-module-action:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .transient-module-action.primary {
+      border-color: rgba(251, 191, 36, 0.3);
+      color: var(--amber-400);
+    }
+
+    .transient-module-action.primary:hover {
+      background: rgba(251, 191, 36, 0.1);
+    }
+
+    .transient-module-body {
+      padding: var(--space-md);
+    }
+
+    /* Step generator controls */
+    .step-generator {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .step-generator-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .step-generator-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      min-width: 60px;
+    }
+
+    /* Inline step grid (transient) */
+    .transient-step-grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 3px;
+    }
+
+    .transient-step-cell {
+      aspect-ratio: 1;
+      border-radius: 2px;
+      background: var(--bg-raised);
+      min-height: 18px;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .transient-step-cell:hover {
+      background: var(--bg-hover);
+    }
+
+    .transient-step-cell.active {
+      background: var(--amber-400);
+      box-shadow: 0 0 6px rgba(251, 191, 36, 0.3);
+    }
+
+    .transient-step-cell.ghost {
+      background: rgba(251, 191, 36, 0.2);
+      border: 1px solid rgba(251, 191, 36, 0.3);
+    }
+
+    /* Inline knob row */
+    .transient-knobs {
+      display: flex;
+      gap: var(--space-lg);
+      padding: var(--space-sm) 0;
+    }
+
+    /* ── The Floating Dock (richer, same position both modes) ── */
+    .dock {
+      position: fixed;
+      bottom: var(--space-xl);
+      right: var(--space-xl);
+      z-index: 100;
+      display: flex;
+      align-items: flex-end;
+      gap: var(--space-sm);
+    }
+
+    .dock-card {
+      background: rgba(19, 17, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: 12px;
+      box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 16px rgba(139, 92, 246, 0.06);
+      overflow: hidden;
+      min-width: 200px;
+      max-width: 280px;
+      cursor: pointer;
+      transition: all var(--transition-normal);
+    }
+
+    .dock-card:hover {
+      border-color: rgba(139, 92, 246, 0.4);
+      box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 24px rgba(139, 92, 246, 0.12);
+    }
+
+    /* Dock top section: presence + flip control */
+    .dock-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+    }
+
+    .dock-presence {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--violet-400);
+      animation: dock-breathe 3s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes dock-breathe {
+      0%, 100% { opacity: 0.4; box-shadow: 0 0 6px rgba(139, 92, 246, 0.15); }
+      50% { opacity: 0.85; box-shadow: 0 0 12px rgba(139, 92, 246, 0.35); }
+    }
+
+    .dock-status {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--violet-400);
+      opacity: 0.8;
+      flex: 1;
+    }
+
+    .dock-flip-hint {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .dock-flip-hint .key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 14px;
+      border-radius: 3px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      font-size: 9px;
+    }
+
+    /* Dock body: last action */
+    .dock-body {
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .dock-action-text {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--zinc-300);
+      line-height: 1.4;
+    }
+
+    .dock-action-time {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Dock footer: quick actions */
+    .dock-footer {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-xs) var(--space-md) var(--space-sm);
+    }
+
+    .dock-quick-btn {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 0;
+      transition: color var(--transition-fast);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .dock-quick-btn:hover {
+      color: var(--violet-400);
+    }
+
+    /* Unread badge on dock */
+    .dock-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--violet-500);
+      color: white;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(19, 17, 28, 0.92);
+    }
+
+    /* ── Command Lens Overlay ── */
+    .lens-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 14, 12, 0.7);
+      backdrop-filter: blur(8px);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 20vh;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+    }
+
+    .lens-backdrop.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+
+    .lens {
+      width: 560px;
+      max-width: 90vw;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 48px rgba(0, 0, 0, 0.6), 0 0 24px rgba(139, 92, 246, 0.08);
+      overflow: hidden;
+      transform: translateY(-10px) scale(0.98);
+      transition: transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .lens-backdrop.open .lens {
+      transform: translateY(0) scale(1);
+    }
+
+    .lens-input-row {
+      display: flex;
+      align-items: center;
+      padding: var(--space-md) var(--space-lg);
+      gap: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .lens-icon {
+      color: var(--violet-400);
+      font-size: 16px;
+      opacity: 0.7;
+    }
+
+    .lens-input {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 16px;
+      outline: none;
+    }
+
+    .lens-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .lens-hint {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      padding: 2px 6px;
+      background: var(--bg-raised);
+      border-radius: 4px;
+    }
+
+    .lens-history {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: var(--space-sm) 0;
+    }
+
+    .lens-history-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-lg);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .lens-history-item:hover {
+      background: var(--bg-raised);
+    }
+
+    .lens-history-role {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding-top: 2px;
+      min-width: 32px;
+    }
+
+    .lens-history-role.user { color: var(--text-muted); }
+    .lens-history-role.ai { color: var(--violet-400); opacity: 0.7; }
+
+    .lens-history-text {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .lens-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-lg);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .lens-footer-text {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    .lens-open-chat {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--violet-400);
+      opacity: 0.7;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: all var(--transition-fast);
+    }
+
+    .lens-open-chat:hover {
+      opacity: 1;
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    /* ── Footer ── */
+    .footer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .footer-spacer { flex: 1; }
+
+    /* ── Slider (for transient module) ── */
+    .inline-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+      height: 16px;
+      width: 100%;
+    }
+
+    .inline-slider::-webkit-slider-track {
+      height: 3px;
+      border-radius: 2px;
+      background: var(--zinc-700);
+    }
+
+    .inline-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--amber-400);
+      border: 2px solid var(--zinc-900);
+      margin-top: -3.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Top bar -->
+    <div class="topbar" id="topbar">
+      <span class="topbar-logo">gluon</span>
+      <div class="transport-divider"></div>
+
+      <button class="transport-btn active">&#9654;</button>
+      <button class="transport-btn">&#9632;</button>
+      <button class="transport-btn">&#9679;</button>
+      <div class="transport-divider"></div>
+      <span class="transport-time">1:01</span>
+      <span class="transport-bpm">128 BPM</span>
+      <div class="transport-divider"></div>
+      <div class="peak-meter">
+        <div class="peak-meter-bar" style="height: 12px;"></div>
+        <div class="peak-meter-bar" style="height: 10px;"></div>
+      </div>
+
+      <div class="topbar-spacer"></div>
+
+      <!-- View tabs (instrument mode) / Chat label (chat mode) -->
+      <div id="topbar-right-instrument">
+        <div class="view-tabs">
+          <button class="view-tab">Surface</button>
+          <button class="view-tab active">Rack</button>
+          <button class="view-tab">Patch</button>
+          <button class="view-tab">Tracker</button>
+        </div>
+      </div>
+      <div id="topbar-right-chat" style="display: none;">
+        <div class="chat-topbar-title">
+          <div class="ai-presence-dot" style="width: 6px; height: 6px;"></div>
+          Gluon AI
+        </div>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- ═══ Instrument Mode ═══ -->
+      <div class="mode visible" id="instrument-mode">
+        <div class="instrument-mode">
+          <div class="instrument-body">
+            <div class="track-sidebar">
+              <div class="track-sidebar-header">Tracks</div>
+              <div class="track-list">
+                <div class="track-item selected">
+                  <div class="track-accent" style="background: var(--amber-400);"></div>
+                  <div>
+                    <div class="track-name">Kick</div>
+                    <div class="track-role">bass drum</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--cyan-400);"></div>
+                  <div>
+                    <div class="track-name">Hi-Hats</div>
+                    <div class="track-role">percussion</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--violet-400);"></div>
+                  <div>
+                    <div class="track-name">Bass</div>
+                    <div class="track-role">bass synth</div>
+                  </div>
+                  <div class="agency-dot off"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--emerald-400);"></div>
+                  <div>
+                    <div class="track-name">Pad</div>
+                    <div class="track-role">atmosphere</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+              </div>
+              <div class="track-sidebar-footer">
+                <div class="flex items-center justify-between">
+                  <span class="type-mono-sm">MASTER</span>
+                  <div class="peak-meter">
+                    <div class="peak-meter-bar" style="height: 14px;"></div>
+                    <div class="peak-meter-bar" style="height: 11px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rack View -->
+            <div class="view-canvas">
+              <div class="rack-chain">
+                <div class="rack-module" style="min-width: 200px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Plaits</span>
+                    <span class="rack-module-type">Source</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container"><span class="knob-label">Freq</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">52 Hz</span></div>
+                    <div class="knob-container"><span class="knob-label">Morph</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.35</span></div>
+                    <div class="knob-container"><span class="knob-label">Timbre</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 26 7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.62</span></div>
+                    <div class="knob-container"><span class="knob-label">Decay</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 10 15" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.28</span></div>
+                  </div>
+                </div>
+                <div class="rack-arrow">&rarr;</div>
+                <div class="rack-module" style="min-width: 220px;">
+                  <div class="rack-module-header"><span class="rack-module-name">Ripples</span><span class="rack-module-type">Filter</span></div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container"><span class="knob-label">Cutoff</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">380 Hz</span></div>
+                    <div class="knob-container"><span class="knob-label">Reso</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.58</span></div>
+                    <div class="knob-container"><span class="knob-label">Drive</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.72</span></div>
+                    <div class="knob-container"><span class="knob-label">Env Amt</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 22 5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.55</span></div>
+                  </div>
+                </div>
+                <div class="rack-arrow">&rarr;</div>
+                <div class="rack-module" style="min-width: 240px;">
+                  <div class="rack-module-header"><span class="rack-module-name">Compressor</span><span class="rack-module-type">Dynamics &middot; Punch</span></div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container"><span class="knob-label">Thresh</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">-12 dB</span></div>
+                    <div class="knob-container"><span class="knob-label">Ratio</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">4:1</span></div>
+                    <div class="knob-container"><span class="knob-label">Attack</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">2 ms</span></div>
+                    <div class="knob-container"><span class="knob-label">Release</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">80 ms</span></div>
+                    <div class="knob-container"><span class="knob-label">Makeup</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 15 7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">3 dB</span></div>
+                  </div>
+                </div>
+                <div class="rack-arrow">&rarr;</div>
+                <div class="rack-module" style="min-width: 100px;">
+                  <div class="rack-module-header"><span class="rack-module-name">Output</span><span class="rack-module-type">Master</span></div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container"><span class="knob-label">Level</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">0.0 dB</span></div>
+                    <div class="knob-container"><span class="knob-label">Pan</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">C</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ Chat Mode ═══ -->
+      <div class="mode hidden-flip" id="chat-mode">
+        <div class="chat-mode">
+          <!-- Chat conversation (left/center) -->
+          <div class="chat-main">
+            <div class="chat-area chat-scroll">
+
+              <!-- Earlier conversation -->
+              <div class="chat-msg">
+                <div class="chat-msg-role user">You</div>
+                <div class="chat-msg-user">Make me a heavy kick drum with some grit. Think warehouse techno.</div>
+              </div>
+
+              <div class="chat-msg">
+                <div class="chat-msg-role ai">Gluon</div>
+                <div class="chat-msg-ai">I've set up a kick using Plaits in bass drum mode with a short, punchy decay. Added a Ripples filter for some resonant grit and a Compressor in "punch" mode.</div>
+              </div>
+
+              <div class="change-preview">
+                <div class="change-preview-icon">&#9679;</div>
+                <div>
+                  <div class="change-preview-text">Kick &mdash; Plaits (Bass Drum)</div>
+                  <div class="change-preview-detail">morph 0.35 &middot; timbre 0.62 &middot; decay 0.28</div>
+                </div>
+              </div>
+
+              <!-- User asks for hi-hats -->
+              <div class="chat-msg">
+                <div class="chat-msg-role user">You</div>
+                <div class="chat-msg-user">Now add a hi-hat pattern. Something with a bit of swing.</div>
+              </div>
+
+              <div class="chat-msg">
+                <div class="chat-msg-role ai">Gluon</div>
+                <div class="chat-msg-ai">Here's a pattern generator for the hi-hats. I've set it to a classic offbeat pattern with some swing. Dial in the density and sound in the panel &mdash; when you're happy, pin it to your Surface.</div>
+              </div>
+
+            </div>
+
+            <!-- Composer -->
+            <div class="chat-composer">
+              <input class="composer-input" type="text" placeholder="Describe what you want to change...">
+            </div>
+          </div>
+
+          <!-- Transient Surface Panel (right side) -->
+          <div class="transient-panel">
+            <div class="transient-panel-header">
+              <div class="ai-presence-dot" style="width: 5px; height: 5px;"></div>
+              <span class="transient-panel-title">Live Controls</span>
+            </div>
+            <div class="transient-panel-body">
+
+              <!-- Transient Module: Hi-Hat Pattern -->
+              <div class="transient-module" style="margin: 0; border-color: rgba(139, 92, 246, 0.2);">
+                <div class="transient-module-header">
+                  <div class="transient-module-title">
+                    Hi-Hat Pattern
+                    <span class="ai-tag">Live</span>
+                  </div>
+                  <div class="transient-module-actions">
+                    <button class="transient-module-action primary">Add to Surface</button>
+                  </div>
+                </div>
+                <div class="transient-module-body">
+                  <div class="step-generator">
+                    <!-- Step grid -->
+                    <div class="transient-step-grid">
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell active"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell ghost"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell active"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell active"></div>
+                      <div class="transient-step-cell ghost"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell"></div>
+                      <div class="transient-step-cell active"></div>
+                      <div class="transient-step-cell"></div>
+                    </div>
+
+                    <!-- Generator controls -->
+                    <div class="step-generator-row">
+                      <span class="step-generator-label">Density</span>
+                      <input type="range" class="inline-slider" min="0" max="100" value="45" style="flex: 1;">
+                      <span class="type-mono-sm" style="min-width: 28px; text-align: right;">45%</span>
+                    </div>
+                    <div class="step-generator-row">
+                      <span class="step-generator-label">Swing</span>
+                      <input type="range" class="inline-slider" min="0" max="100" value="62" style="flex: 1;">
+                      <span class="type-mono-sm" style="min-width: 28px; text-align: right;">62%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Transient Module: Hi-Hat Sound -->
+              <div class="transient-module" style="margin: 0; border-color: rgba(139, 92, 246, 0.2);">
+                <div class="transient-module-header">
+                  <div class="transient-module-title">
+                    Hi-Hat Sound
+                    <span class="ai-tag">Live</span>
+                  </div>
+                  <div class="transient-module-actions">
+                    <button class="transient-module-action primary">Add to Surface</button>
+                  </div>
+                </div>
+                <div class="transient-module-body">
+                  <div class="transient-knobs" style="justify-content: center;">
+                    <div class="knob-container"><span class="knob-label">Pitch</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 26 7" fill="none" stroke="var(--cyan-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">8.2 kHz</span></div>
+                    <div class="knob-container"><span class="knob-label">Decay</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 10 15" fill="none" stroke="var(--cyan-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">Short</span></div>
+                    <div class="knob-container"><span class="knob-label">Tone</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--cyan-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">Bright</span></div>
+                    <div class="knob-container"><span class="knob-label">Level</span><svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--cyan-400)" stroke-width="3" stroke-linecap="round"/></svg><span class="knob-value">-3 dB</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Empty slot hint -->
+              <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--space-xl);">
+                <span class="type-mono-sm" style="text-align: center; opacity: 0.5;">Controls appear here as the AI suggests them.<br>Add to Surface to keep permanently.</span>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>gluon v0.5</span>
+      <div class="footer-spacer"></div>
+      <span>Gemini 3.1 Pro</span>
+      <span>&middot;</span>
+      <span>4 tracks</span>
+      <span>&middot;</span>
+      <span>128 BPM</span>
+    </div>
+  </div>
+
+  <!-- ── The Floating Dock (same position both modes) ── -->
+  <div class="dock" id="dock">
+    <div class="dock-card" onclick="toggleMode()" style="position: relative;">
+      <div class="dock-badge" id="dock-badge" style="display: none;">2</div>
+      <div class="dock-header">
+        <div class="dock-presence"></div>
+        <span class="dock-status" id="dock-status">Idle</span>
+        <div class="dock-flip-hint">
+          <span class="key">`</span>
+          <span id="dock-flip-label">Chat</span>
+        </div>
+      </div>
+      <div class="dock-body">
+        <div class="dock-action-text" id="dock-action">Ripples drive &rarr; 0.72, res &rarr; 0.58</div>
+        <div class="dock-action-time">2 min ago</div>
+      </div>
+      <div class="dock-footer">
+        <button class="dock-quick-btn" onclick="event.stopPropagation(); openLens();">
+          <span class="key" style="width: 14px; height: 12px; font-size: 8px;">&#8984;K</span>
+          Quick ask
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Command Lens Overlay -->
+  <div class="lens-backdrop" id="lens-backdrop" onclick="closeLens(event)">
+    <div class="lens" onclick="event.stopPropagation()">
+      <div class="lens-input-row">
+        <span class="lens-icon">&#9671;</span>
+        <input class="lens-input" type="text" placeholder="Ask Gluon anything..." id="lens-input">
+        <span class="lens-hint">esc to close</span>
+      </div>
+      <div class="lens-history chat-scroll">
+        <div class="lens-history-item">
+          <span class="lens-history-role user">You</span>
+          <span class="lens-history-text">Now add a hi-hat pattern. Something with a bit of swing.</span>
+        </div>
+        <div class="lens-history-item">
+          <span class="lens-history-role ai">AI</span>
+          <span class="lens-history-text">Here's a pattern generator for the hi-hats with swing.</span>
+        </div>
+        <div class="lens-history-item">
+          <span class="lens-history-role user">You</span>
+          <span class="lens-history-text">Make me a heavy kick drum with some grit.</span>
+        </div>
+        <div class="lens-history-item">
+          <span class="lens-history-role ai">AI</span>
+          <span class="lens-history-text">Set up Plaits in bass drum mode with Ripples and Compressor.</span>
+        </div>
+      </div>
+      <div class="lens-footer">
+        <span class="lens-footer-text">Recent conversation</span>
+        <button class="lens-open-chat" onclick="showMode('chat'); closeLensDirect();">Open full chat &rarr;</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentMode = 'instrument';
+
+    function showMode(mode) {
+      currentMode = mode;
+      const chatMode = document.getElementById('chat-mode');
+      const instrumentMode = document.getElementById('instrument-mode');
+      const dockFlipLabel = document.getElementById('dock-flip-label');
+      const dockBadge = document.getElementById('dock-badge');
+      const topbarInstrument = document.getElementById('topbar-right-instrument');
+      const topbarChat = document.getElementById('topbar-right-chat');
+
+      if (mode === 'chat') {
+        chatMode.className = 'mode visible';
+        instrumentMode.className = 'mode hidden-flip';
+        dockFlipLabel.textContent = 'Instrument';
+        dockBadge.style.display = 'none';
+        topbarInstrument.style.display = 'none';
+        topbarChat.style.display = 'block';
+      } else {
+        chatMode.className = 'mode hidden-flip';
+        instrumentMode.className = 'mode visible';
+        dockFlipLabel.textContent = 'Chat';
+        topbarInstrument.style.display = 'block';
+        topbarChat.style.display = 'none';
+      }
+    }
+
+    function toggleMode() {
+      showMode(currentMode === 'chat' ? 'instrument' : 'chat');
+    }
+
+    function openLens() {
+      document.getElementById('lens-backdrop').classList.add('open');
+      setTimeout(() => document.getElementById('lens-input').focus(), 100);
+    }
+
+    function closeLens(e) {
+      if (e && e.target !== document.getElementById('lens-backdrop')) return;
+      document.getElementById('lens-backdrop').classList.remove('open');
+    }
+
+    function closeLensDirect() {
+      document.getElementById('lens-backdrop').classList.remove('open');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        if (e.key === 'Escape') {
+          closeLensDirect();
+          e.target.blur();
+        }
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        openLens();
+      }
+
+      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleMode();
+      }
+
+      if (e.key === 'Escape') {
+        if (document.getElementById('lens-backdrop').classList.contains('open')) {
+          closeLensDirect();
+        }
+      }
+    });
+  </script>
+</body>
+</html>

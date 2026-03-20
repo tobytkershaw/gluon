@@ -1,0 +1,1455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Surface Palette System</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .app {
+      height: 100vh;
+      overflow-y: auto;
+      padding: var(--space-2xl);
+    }
+
+    .section {
+      margin-bottom: var(--space-3xl);
+    }
+
+    .section-title {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: var(--text-3xl);
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-xl);
+      padding-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .subsection-title {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: var(--text-lg);
+      color: var(--text-secondary);
+      margin-bottom: var(--space-md);
+      margin-top: var(--space-xl);
+    }
+
+    /* ── Section 1: The 5 Roles with tonal depth ── */
+    .role-strip {
+      display: flex;
+      gap: var(--space-xl);
+      margin-bottom: var(--space-lg);
+    }
+
+    .role-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-sm);
+      flex: 1;
+      min-width: 0;
+    }
+
+    .role-tonal-row {
+      display: flex;
+      gap: 6px;
+      align-items: flex-end;
+    }
+
+    .role-tonal-swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .role-tonal-circle {
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .role-tonal-label {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+    }
+
+    .role-name {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: var(--text-base);
+      color: var(--text-primary);
+      text-align: center;
+    }
+
+    .role-desc {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .role-rule {
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      color: var(--text-faint);
+      text-align: center;
+      line-height: 1.4;
+      max-width: 200px;
+    }
+
+    /* ── Principle callout ── */
+    .principle-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+
+    .principle-card-title {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: var(--text-md);
+      color: var(--text-primary);
+      margin-bottom: var(--space-sm);
+    }
+
+    .principle-card-body {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .principle-card-note {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-faint);
+      margin-top: var(--space-sm);
+      line-height: 1.5;
+    }
+
+    /* ── Section 2: Example Palettes ── */
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-xl);
+    }
+
+    .palette-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-lg);
+    }
+
+    .palette-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .palette-track-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .palette-track-name {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: var(--text-base);
+      color: var(--text-primary);
+    }
+
+    .palette-track-hue {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .palette-swatches {
+      display: flex;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-lg);
+    }
+
+    .palette-swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      flex: 1;
+    }
+
+    .palette-swatch-tonal {
+      display: flex;
+      gap: 3px;
+      align-items: flex-end;
+    }
+
+    .palette-swatch-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+    }
+
+    .palette-swatch-circle.muted {
+      width: 20px;
+      height: 20px;
+    }
+
+    .palette-swatch-circle.tint {
+      width: 16px;
+      height: 16px;
+    }
+
+    .palette-swatch-label {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .palette-swatch-hex {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--text-faint);
+    }
+
+    /* Mini module mockups */
+    .mini-modules {
+      display: flex;
+      gap: var(--space-sm);
+      align-items: flex-start;
+    }
+
+    .mini-module {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm);
+      flex: 1;
+      min-width: 0;
+    }
+
+    .mini-module-label {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: var(--space-xs);
+    }
+
+    .mini-knob-row {
+      display: flex;
+      gap: var(--space-xs);
+      justify-content: center;
+    }
+
+    .mini-knob {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .mini-knob-arc {
+      position: relative;
+      width: 24px;
+      height: 24px;
+    }
+
+    .mini-knob-arc svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .mini-knob-name {
+      font-family: var(--font-mono);
+      font-size: 6px;
+      color: var(--text-faint);
+      text-transform: uppercase;
+    }
+
+    /* Mini XY pad */
+    .mini-xy {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1;
+      background: var(--bg-deep);
+      border-radius: var(--radius-xs);
+      min-height: 48px;
+    }
+
+    .mini-xy-cursor {
+      position: absolute;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .mini-xy-crosshair-h {
+      position: absolute;
+      height: 1px;
+      left: 0;
+      right: 0;
+      opacity: 0.2;
+    }
+
+    .mini-xy-crosshair-v {
+      position: absolute;
+      width: 1px;
+      top: 0;
+      bottom: 0;
+      opacity: 0.2;
+    }
+
+    /* Mini chain strip */
+    .mini-chain {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .mini-chain-pill {
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .mini-chain-arrow {
+      font-size: 7px;
+      color: var(--text-faint);
+    }
+
+    /* Mini step grid */
+    .mini-steps {
+      display: flex;
+      gap: 2px;
+    }
+
+    .mini-step {
+      width: 7px;
+      height: 7px;
+      border-radius: 1px;
+      background: var(--bg-deep);
+    }
+
+    /* ── Section 3: Application Rules ── */
+    .rules-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: var(--space-lg);
+    }
+
+    .rules-table th {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      text-align: left;
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .rules-table td {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .rules-table td:first-child {
+      color: var(--text-primary);
+      font-size: var(--text-md);
+    }
+
+    .rules-table .role-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .donot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-sm);
+    }
+
+    .donot-item {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-sm);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      padding: var(--space-sm) var(--space-md);
+      background: var(--bg-surface);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .donot-x {
+      color: var(--rose-400);
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+
+    /* ── Section 4: Performance Mode ── */
+    .perf-grid {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-lg);
+    }
+
+    .perf-section-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-md);
+      flex: 1;
+    }
+
+    .perf-section-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+      padding-bottom: var(--space-sm);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .perf-section-name {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: var(--text-md);
+      color: var(--text-primary);
+    }
+
+    .perf-section-base {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .perf-control-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 3px 0;
+    }
+
+    .perf-control-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .perf-control-name {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .perf-control-role {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .global-gestures {
+      display: flex;
+      gap: var(--space-lg);
+      margin-top: var(--space-md);
+    }
+
+    .gesture-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      flex: 1;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .gesture-bar {
+      width: 40px;
+      height: 4px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .gesture-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .gesture-color {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    /* ── Saturation rules ── */
+    .sat-grid {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: var(--space-xs) var(--space-md);
+      align-items: center;
+      margin-bottom: var(--space-lg);
+    }
+
+    .sat-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+
+    .sat-bar-track {
+      height: 8px;
+      background: var(--bg-raised);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .sat-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+
+    .sat-value {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-muted);
+      min-width: 60px;
+      text-align: right;
+    }
+
+    /* ── Separation rule diagram ── */
+    .hue-wheel {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      margin: 0 auto;
+    }
+
+    .sep-rule-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-lg);
+    }
+
+    .sep-rule-text {
+      flex: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <h1 style="font-family: var(--font-sans); font-weight: 700; font-size: 28px; color: var(--text-primary); letter-spacing: -0.03em; margin-bottom: var(--space-xs);">Surface Palette System</h1>
+    <p style="font-family: var(--font-mono); font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-xl);">How the AI generates a coherent color palette for any track's Surface from its base color.</p>
+
+    <div style="display: flex; gap: var(--space-xl); margin-bottom: var(--space-lg); max-width: 800px;">
+      <div style="flex: 1;">
+        <div style="font-family: var(--font-sans); font-weight: 600; font-size: var(--text-md); color: var(--text-secondary); margin-bottom: var(--space-xs);">Identity</div>
+        <div style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5;">Which track am I looking at? The base color answers this.</div>
+      </div>
+      <div style="flex: 1;">
+        <div style="font-family: var(--font-sans); font-weight: 600; font-size: var(--text-md); color: var(--text-secondary); margin-bottom: var(--space-xs);">Function</div>
+        <div style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5;">What kind of control is this? Accent roles answer this.</div>
+      </div>
+      <div style="flex: 1;">
+        <div style="font-family: var(--font-sans); font-weight: 600; font-size: var(--text-md); color: var(--text-secondary); margin-bottom: var(--space-xs);">Hierarchy</div>
+        <div style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5;">What's primary vs secondary? Saturation and brightness answer this.</div>
+      </div>
+    </div>
+
+    <!-- Lineage note -->
+    <div class="principle-card" style="max-width: 800px; margin-bottom: var(--space-3xl);">
+      <div class="principle-card-title">Influenced by Material Design 3</div>
+      <div class="principle-card-body">Like MD3, a single seed color generates a full scheme via algorithmic hue rotation, and tonal palettes provide hierarchy within each role. But our roles are functional -- tied to the purpose of the control (generative, tonal, spatial) rather than generic container semantics (primary, secondary, tertiary).</div>
+    </div>
+
+    <!-- ═══ SECTION 1: THE 5 ROLES ═══ -->
+    <div class="section">
+      <h2 class="section-title">The 5 Color Roles</h2>
+
+      <div class="role-strip">
+        <!-- Base -->
+        <div class="role-card">
+          <div class="role-tonal-row">
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 48px; height: 48px; background: var(--amber-400);"></div>
+              <span class="role-tonal-label">Full</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 32px; height: 32px; background: rgba(251, 191, 36, 0.6);"></div>
+              <span class="role-tonal-label">Muted</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 24px; height: 24px; background: rgba(251, 191, 36, 0.15);"></div>
+              <span class="role-tonal-label">Tint</span>
+            </div>
+          </div>
+          <div class="role-name">Base</div>
+          <div class="role-desc">Track identity color</div>
+          <div class="role-rule">From track assignment. Most vivid color on screen. Each track gets a unique hue.</div>
+        </div>
+        <!-- Generative -->
+        <div class="role-card">
+          <div class="role-tonal-row">
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 48px; height: 48px; background: var(--cyan-400);"></div>
+              <span class="role-tonal-label">Full</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 32px; height: 32px; background: rgba(34, 211, 238, 0.6);"></div>
+              <span class="role-tonal-label">Muted</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 24px; height: 24px; background: rgba(34, 211, 238, 0.15);"></div>
+              <span class="role-tonal-label">Tint</span>
+            </div>
+          </div>
+          <div class="role-name">Generative</div>
+          <div class="role-desc">Pattern, randomness, algorithms</div>
+          <div class="role-rule">Always cool. +150 to +180 from base (complement). Slightly desaturated vs base.</div>
+        </div>
+        <!-- Tonal -->
+        <div class="role-card">
+          <div class="role-tonal-row">
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 48px; height: 48px; background: var(--rose-400);"></div>
+              <span class="role-tonal-label">Full</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 32px; height: 32px; background: rgba(251, 113, 133, 0.6);"></div>
+              <span class="role-tonal-label">Muted</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 24px; height: 24px; background: rgba(251, 113, 133, 0.15);"></div>
+              <span class="role-tonal-label">Tint</span>
+            </div>
+          </div>
+          <div class="role-name">Tonal</div>
+          <div class="role-desc">Timbre, filtering, sound character</div>
+          <div class="role-rule">Warm shift. +30 to +60 from base (analogous warm). Slightly desaturated vs base.</div>
+        </div>
+        <!-- Spatial -->
+        <div class="role-card">
+          <div class="role-tonal-row">
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 48px; height: 48px; background: var(--emerald-400);"></div>
+              <span class="role-tonal-label">Full</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 32px; height: 32px; background: rgba(52, 211, 153, 0.6);"></div>
+              <span class="role-tonal-label">Muted</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 24px; height: 24px; background: rgba(52, 211, 153, 0.15);"></div>
+              <span class="role-tonal-label">Tint</span>
+            </div>
+          </div>
+          <div class="role-name">Spatial</div>
+          <div class="role-desc">Space, movement, modulation depth</div>
+          <div class="role-rule">Cool shift. -30 to -60 from base (analogous cool). Slightly desaturated vs base.</div>
+        </div>
+        <!-- Neutral -->
+        <div class="role-card">
+          <div class="role-tonal-row">
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 48px; height: 48px; background: var(--zinc-500);"></div>
+              <span class="role-tonal-label">Full</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 32px; height: 32px; background: var(--zinc-600);"></div>
+              <span class="role-tonal-label">Muted</span>
+            </div>
+            <div class="role-tonal-swatch">
+              <div class="role-tonal-circle" style="width: 24px; height: 24px; background: var(--zinc-700);"></div>
+              <span class="role-tonal-label">Tint</span>
+            </div>
+          </div>
+          <div class="role-name">Neutral</div>
+          <div class="role-desc">Utility, bypass, non-expressive</div>
+          <div class="role-rule">Always warm zinc. No hue. zinc-500 / zinc-600 / zinc-700.</div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Tonal Depth per Role</h3>
+      <div style="display: grid; grid-template-columns: auto 1fr 1fr 1fr; gap: var(--space-xs) var(--space-lg); align-items: center; margin-bottom: var(--space-xl);">
+        <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-faint);"></span>
+        <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Full</span>
+        <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Muted (~60%)</span>
+        <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">Tint (~15%)</span>
+
+        <span style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-secondary);">Use for</span>
+        <span style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted);">Knob arcs, active steps, indicators</span>
+        <span style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted);">Labels, attribution text, chain pills</span>
+        <span style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted);">Module border tints, pill backgrounds</span>
+      </div>
+
+      <h3 class="subsection-title">Desaturation Rule</h3>
+      <div class="principle-card" style="max-width: 800px;">
+        <div class="principle-card-body">The base color is the most vivid thing on screen -- it is the track's identity, the anchor. Accent roles (Generative, Tonal, Spatial) should be slightly less saturated than the base to avoid visual competition. The base wins the saturation contest.</div>
+        <div style="display: flex; gap: var(--space-md); align-items: center; margin-top: var(--space-md);">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
+            <div style="width: 40px; height: 12px; border-radius: 3px; background: #fbbf24;"></div>
+            <span style="font-family: var(--font-mono); font-size: 7px; color: var(--text-muted);">BASE 100%</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-faint);">&gt;</span>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
+            <div style="width: 40px; height: 12px; border-radius: 3px; background: #22d3ee; opacity: 0.85;"></div>
+            <span style="font-family: var(--font-mono); font-size: 7px; color: var(--text-muted);">ACCENT ~85%</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-faint);">&gt;</span>
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 3px;">
+            <div style="width: 40px; height: 12px; border-radius: 3px; background: var(--zinc-500);"></div>
+            <span style="font-family: var(--font-mono); font-size: 7px; color: var(--text-muted);">NEUTRAL 0%</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Separation Rule</h3>
+      <div class="principle-card" style="max-width: 800px;">
+        <div class="principle-card-body">When two roles' derived hues land within 30 degrees of each other, push them apart until the minimum gap is restored. The system guarantees at least 30 degrees of hue separation between all non-neutral roles.</div>
+        <div style="display: flex; gap: var(--space-lg); align-items: center; margin-top: var(--space-md);">
+          <!-- Bad example -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: var(--space-xs);">
+            <div style="display: flex; gap: 3px; align-items: center;">
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: #22d3ee;"></div>
+              <span style="font-family: var(--font-mono); font-size: 8px; color: var(--text-faint); width: 20px; text-align: center;">18</span>
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: #2dd4bf;"></div>
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 8px; color: var(--rose-400);">too close</span>
+          </div>
+          <span style="font-family: var(--font-mono); font-size: var(--text-lg); color: var(--text-faint);">&rarr;</span>
+          <!-- Good example -->
+          <div style="display: flex; flex-direction: column; align-items: center; gap: var(--space-xs);">
+            <div style="display: flex; gap: 3px; align-items: center;">
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: #22d3ee;"></div>
+              <span style="font-family: var(--font-mono); font-size: 8px; color: var(--text-faint); width: 20px; text-align: center;">38</span>
+              <div style="width: 20px; height: 20px; border-radius: 50%; background: #34d399;"></div>
+            </div>
+            <span style="font-family: var(--font-mono); font-size: 8px; color: var(--emerald-400);">pushed apart</span>
+          </div>
+          <div style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); flex: 1; line-height: 1.5;">Minimum 30 degrees between any two non-neutral role hues. If hue rotation from base produces overlap, widen the gap symmetrically.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ SECTION 2: EXAMPLE PALETTES ═══ -->
+    <div class="section">
+      <h2 class="section-title">Example Palettes</h2>
+      <p style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xl);">Four tracks, four base colors, four complete palettes. Each shows Full / Muted / Tint per role.</p>
+
+      <div class="palette-grid">
+
+        <!-- Lead — Amber -->
+        <div class="palette-card">
+          <div class="palette-header">
+            <div class="palette-track-dot" style="background: #fbbf24;"></div>
+            <span class="palette-track-name">Lead</span>
+            <span class="palette-track-hue">hue ~38</span>
+          </div>
+          <div class="palette-swatches">
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #fbbf24;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(251, 191, 36, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(251, 191, 36, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Base</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #22d3ee;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(34, 211, 238, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(34, 211, 238, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Generative</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #fb7185;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(251, 113, 133, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(251, 113, 133, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Tonal</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #34d399;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(52, 211, 153, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(52, 211, 153, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Spatial</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #7c776e;"></div>
+                <div class="palette-swatch-circle muted" style="background: #57534e;"></div>
+                <div class="palette-swatch-circle tint" style="background: #3d3935;"></div>
+              </div>
+              <span class="palette-swatch-label">Neutral</span>
+            </div>
+          </div>
+          <!-- Mini modules -->
+          <div class="mini-modules">
+            <div class="mini-module" style="border-color: rgba(34, 211, 238, 0.15);">
+              <div class="mini-module-label">Character</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 16 19.8" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Rand</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 5.4 5.4" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Spread</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(251, 113, 133, 0.15);">
+              <div class="mini-module-label">Tone</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 18.6 5.4" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Cutoff</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 12 3" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Res</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(52, 211, 153, 0.15);">
+              <div class="mini-module-label">Space</div>
+              <div class="mini-xy">
+                <div class="mini-xy-crosshair-h" style="top: 35%; background: #34d399;"></div>
+                <div class="mini-xy-crosshair-v" style="left: 60%; background: #34d399;"></div>
+                <div class="mini-xy-cursor" style="top: 35%; left: 60%; background: rgba(52, 211, 153, 0.3); border: 1.5px solid #34d399;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-sm);">
+            <div class="mini-chain">
+              <div class="mini-chain-pill" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">Plaits</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(251, 113, 133, 0.12); color: rgba(251, 113, 133, 0.7);">Ripples</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(87, 83, 78, 0.3); color: var(--zinc-400);">Comp</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(34, 211, 238, 0.12); color: rgba(34, 211, 238, 0.7);">Marbles</div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-xs);">
+            <div class="mini-steps">
+              <div class="mini-step" style="background: #fbbf24;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fbbf24;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: rgba(251, 191, 36, 0.5);"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fbbf24;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fbbf24;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: rgba(251, 191, 36, 0.5);"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fbbf24;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: rgba(251, 191, 36, 0.3);"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bass — Indigo -->
+        <div class="palette-card">
+          <div class="palette-header">
+            <div class="palette-track-dot" style="background: #818cf8;"></div>
+            <span class="palette-track-name">Bass</span>
+            <span class="palette-track-hue">hue ~235</span>
+          </div>
+          <div class="palette-swatches">
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #818cf8;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(129, 140, 248, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(129, 140, 248, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Base</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #34d399;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(52, 211, 153, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(52, 211, 153, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Generative</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #a78bfa;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(167, 139, 250, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(167, 139, 250, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Tonal</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #38bdf8;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(56, 189, 248, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(56, 189, 248, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Spatial</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #7c776e;"></div>
+                <div class="palette-swatch-circle muted" style="background: #57534e;"></div>
+                <div class="palette-swatch-circle tint" style="background: #3d3935;"></div>
+              </div>
+              <span class="palette-swatch-label">Neutral</span>
+            </div>
+          </div>
+          <div class="mini-modules">
+            <div class="mini-module" style="border-color: rgba(52, 211, 153, 0.15);">
+              <div class="mini-module-label">Character</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 16 19.8" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Rand</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 5.4 5.4" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Spread</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(167, 139, 250, 0.15);">
+              <div class="mini-module-label">Tone</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 18.6 5.4" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Cutoff</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 12 3" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Res</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(56, 189, 248, 0.15);">
+              <div class="mini-module-label">Space</div>
+              <div class="mini-xy">
+                <div class="mini-xy-crosshair-h" style="top: 55%; background: #38bdf8;"></div>
+                <div class="mini-xy-crosshair-v" style="left: 40%; background: #38bdf8;"></div>
+                <div class="mini-xy-cursor" style="top: 55%; left: 40%; background: rgba(56, 189, 248, 0.3); border: 1.5px solid #38bdf8;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-sm);">
+            <div class="mini-chain">
+              <div class="mini-chain-pill" style="background: rgba(129, 140, 248, 0.15); color: #818cf8;">Plaits</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(167, 139, 250, 0.12); color: rgba(167, 139, 250, 0.7);">Ripples</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(87, 83, 78, 0.3); color: var(--zinc-400);">Comp</div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-xs);">
+            <div class="mini-steps">
+              <div class="mini-step" style="background: #818cf8;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #818cf8;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #818cf8;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #818cf8;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kick — Rose -->
+        <div class="palette-card">
+          <div class="palette-header">
+            <div class="palette-track-dot" style="background: #fb7185;"></div>
+            <span class="palette-track-name">Kick</span>
+            <span class="palette-track-hue">hue ~350</span>
+          </div>
+          <div class="palette-swatches">
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #fb7185;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(251, 113, 133, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(251, 113, 133, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Base</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #2dd4bf;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(45, 212, 191, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(45, 212, 191, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Generative</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #fbbf24;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(251, 191, 36, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(251, 191, 36, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Tonal</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #a78bfa;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(167, 139, 250, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(167, 139, 250, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Spatial</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #7c776e;"></div>
+                <div class="palette-swatch-circle muted" style="background: #57534e;"></div>
+                <div class="palette-swatch-circle tint" style="background: #3d3935;"></div>
+              </div>
+              <span class="palette-swatch-label">Neutral</span>
+            </div>
+          </div>
+          <div class="mini-modules">
+            <div class="mini-module" style="border-color: rgba(45, 212, 191, 0.15);">
+              <div class="mini-module-label">Character</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 16 19.8" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Rand</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 5.4 5.4" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Spread</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(251, 191, 36, 0.15);">
+              <div class="mini-module-label">Tone</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 18.6 5.4" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Cutoff</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 12 3" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Res</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(167, 139, 250, 0.15);">
+              <div class="mini-module-label">Space</div>
+              <div class="mini-xy">
+                <div class="mini-xy-crosshair-h" style="top: 70%; background: #a78bfa;"></div>
+                <div class="mini-xy-crosshair-v" style="left: 30%; background: #a78bfa;"></div>
+                <div class="mini-xy-cursor" style="top: 70%; left: 30%; background: rgba(167, 139, 250, 0.3); border: 1.5px solid #a78bfa;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-sm);">
+            <div class="mini-chain">
+              <div class="mini-chain-pill" style="background: rgba(251, 113, 133, 0.15); color: #fb7185;">Plaits</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(251, 191, 36, 0.12); color: rgba(251, 191, 36, 0.7);">EQ</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(87, 83, 78, 0.3); color: var(--zinc-400);">Comp</div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-xs);">
+            <div class="mini-steps">
+              <div class="mini-step" style="background: #fb7185;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fb7185;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fb7185;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step" style="background: #fb7185;"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+              <div class="mini-step"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pad — Emerald -->
+        <div class="palette-card">
+          <div class="palette-header">
+            <div class="palette-track-dot" style="background: #34d399;"></div>
+            <span class="palette-track-name">Pad</span>
+            <span class="palette-track-hue">hue ~160</span>
+          </div>
+          <div class="palette-swatches">
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #34d399;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(52, 211, 153, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(52, 211, 153, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Base</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #fb7185;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(251, 113, 133, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(251, 113, 133, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Generative</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #fbbf24;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(251, 191, 36, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(251, 191, 36, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Tonal</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #22d3ee;"></div>
+                <div class="palette-swatch-circle muted" style="background: rgba(34, 211, 238, 0.6);"></div>
+                <div class="palette-swatch-circle tint" style="background: rgba(34, 211, 238, 0.15);"></div>
+              </div>
+              <span class="palette-swatch-label">Spatial</span>
+            </div>
+            <div class="palette-swatch">
+              <div class="palette-swatch-tonal">
+                <div class="palette-swatch-circle" style="background: #7c776e;"></div>
+                <div class="palette-swatch-circle muted" style="background: #57534e;"></div>
+                <div class="palette-swatch-circle tint" style="background: #3d3935;"></div>
+              </div>
+              <span class="palette-swatch-label">Neutral</span>
+            </div>
+          </div>
+          <div class="mini-modules">
+            <div class="mini-module" style="border-color: rgba(251, 113, 133, 0.15);">
+              <div class="mini-module-label">Character</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 16 19.8" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Rand</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 5.4 5.4" fill="none" stroke="#fb7185" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Spread</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(251, 191, 36, 0.15);">
+              <div class="mini-module-label">Tone</div>
+              <div class="mini-knob-row">
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 1 1 18.6 5.4" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Cutoff</span>
+                </div>
+                <div class="mini-knob">
+                  <div class="mini-knob-arc">
+                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--zinc-700)" stroke-width="2"/><path d="M 5.4 18.6 A 9 9 0 0 1 12 3" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3" fill="var(--zinc-700)"/></svg>
+                  </div>
+                  <span class="mini-knob-name">Res</span>
+                </div>
+              </div>
+            </div>
+            <div class="mini-module" style="border-color: rgba(34, 211, 238, 0.15);">
+              <div class="mini-module-label">Space</div>
+              <div class="mini-xy">
+                <div class="mini-xy-crosshair-h" style="top: 25%; background: #22d3ee;"></div>
+                <div class="mini-xy-crosshair-v" style="left: 75%; background: #22d3ee;"></div>
+                <div class="mini-xy-cursor" style="top: 25%; left: 75%; background: rgba(34, 211, 238, 0.3); border: 1.5px solid #22d3ee;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-sm);">
+            <div class="mini-chain">
+              <div class="mini-chain-pill" style="background: rgba(52, 211, 153, 0.15); color: #34d399;">Plaits</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(251, 191, 36, 0.12); color: rgba(251, 191, 36, 0.7);">Ripples</div>
+              <span class="mini-chain-arrow">&rarr;</span>
+              <div class="mini-chain-pill" style="background: rgba(251, 113, 133, 0.12); color: rgba(251, 113, 133, 0.7);">Marbles</div>
+            </div>
+          </div>
+          <div style="margin-top: var(--space-xs);">
+            <div class="mini-steps">
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.5);"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.5);"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.5);"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.5);"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: #34d399;"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.3);"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.3);"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.3);"></div>
+              <div class="mini-step" style="background: rgba(52, 211, 153, 0.3);"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ═══ SECTION 3: APPLICATION RULES ═══ -->
+    <div class="section">
+      <h2 class="section-title">Application Rules</h2>
+
+      <h3 class="subsection-title">Module to Role Mapping</h3>
+      <table class="rules-table">
+        <thead>
+          <tr>
+            <th>Module / Element</th>
+            <th>Color Role</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Pattern viz (steps)</td>
+            <td><span class="role-dot" style="background: var(--amber-400);"></span>Base</td>
+            <td>Shows the track's output</td>
+          </tr>
+          <tr>
+            <td>Knob Group (Marbles params)</td>
+            <td><span class="role-dot" style="background: var(--cyan-400);"></span>Generative</td>
+            <td>Controls algorithmic / random behavior</td>
+          </tr>
+          <tr>
+            <td>Knob Group (filter / timbre)</td>
+            <td><span class="role-dot" style="background: var(--rose-400);"></span>Tonal</td>
+            <td>Shapes the sound character</td>
+          </tr>
+          <tr>
+            <td>XY Pad cursor</td>
+            <td><span class="role-dot" style="background: var(--emerald-400);"></span>Spatial</td>
+            <td>Exploration / navigation control</td>
+          </tr>
+          <tr>
+            <td>Chain strip: source</td>
+            <td><span class="role-dot" style="background: var(--amber-400);"></span>Base</td>
+            <td>The track's fundamental identity</td>
+          </tr>
+          <tr>
+            <td>Chain strip: processors</td>
+            <td><span class="role-dot" style="background: var(--rose-400);"></span>Tonal <span style="color: var(--text-muted);">or</span> <span class="role-dot" style="background: var(--zinc-600);"></span>Neutral</td>
+            <td>Musical vs utility role</td>
+          </tr>
+          <tr>
+            <td>Chain strip: modulators</td>
+            <td><span class="role-dot" style="background: var(--cyan-400);"></span>Generative</td>
+            <td>Modulation sources</td>
+          </tr>
+          <tr>
+            <td>Kill switches (Perf mode)</td>
+            <td><span class="role-dot" style="background: var(--amber-400);"></span>Section Base</td>
+            <td>Section identity</td>
+          </tr>
+          <tr>
+            <td>Filter knobs (Perf mode)</td>
+            <td><span class="role-dot" style="background: var(--rose-400);"></span>Tonal</td>
+            <td>Timbral shaping</td>
+          </tr>
+          <tr>
+            <td>Global gesture sliders</td>
+            <td style="color: var(--text-muted);">Own fixed colors</td>
+            <td>Energy=emerald, Tension=amber, Scene=violet</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 class="subsection-title">What NOT to Color</h3>
+      <div class="donot-grid">
+        <div class="donot-item"><span class="donot-x">x</span> Module card backgrounds -- always bg-surface</div>
+        <div class="donot-item"><span class="donot-x">x</span> Text labels -- always text-secondary or text-muted</div>
+        <div class="donot-item"><span class="donot-x">x</span> Module borders -- border-subtle, optional 15% role tint</div>
+        <div class="donot-item"><span class="donot-x">x</span> Footer, topbar, sidebar -- never affected by palette</div>
+        <div class="donot-item"><span class="donot-x">x</span> Canonical views (Rack, Patch, Tracker) -- deliberately neutral, structural</div>
+        <div class="donot-item"><span class="donot-x">x</span> Chat tab -- conversation, not an instrument panel</div>
+      </div>
+      <p style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); margin-top: var(--space-md); line-height: 1.6;">The Surface palette is Surface-specific. Canonical views stay precise, sparse, and neutral -- the contrast between Surface (expressive) and Rack/Patch/Tracker (x-ray) is intentional. The sidebar track accent dots are the connection point: the same colors that identify tracks in the sidebar become the seed colors for their Surface palettes.</p>
+    </div>
+
+    <!-- ═══ SECTION 4: PERFORMANCE MODE ═══ -->
+    <div class="section">
+      <h2 class="section-title">Performance Mode Palette</h2>
+      <p style="font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-xl);">Each section has its own base color. Controls within derive from the section's palette, not individual track palettes.</p>
+
+      <div class="perf-grid">
+        <div class="perf-section-card" style="border-top: 2px solid #fb7185;">
+          <div class="perf-section-header">
+            <div class="palette-track-dot" style="background: #fb7185;"></div>
+            <span class="perf-section-name">Drums</span>
+            <span class="perf-section-base">rose base</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #fb7185;"></div>
+            <span class="perf-control-name">Kill switch</span>
+            <span class="perf-control-role">Base</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #fbbf24;"></div>
+            <span class="perf-control-name">Filter</span>
+            <span class="perf-control-role">Tonal</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #57534e;"></div>
+            <span class="perf-control-name">Level</span>
+            <span class="perf-control-role">Neutral</span>
+          </div>
+        </div>
+
+        <div class="perf-section-card" style="border-top: 2px solid #818cf8;">
+          <div class="perf-section-header">
+            <div class="palette-track-dot" style="background: #818cf8;"></div>
+            <span class="perf-section-name">Bass</span>
+            <span class="perf-section-base">indigo base</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #818cf8;"></div>
+            <span class="perf-control-name">Kill switch</span>
+            <span class="perf-control-role">Base</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #a78bfa;"></div>
+            <span class="perf-control-name">Filter</span>
+            <span class="perf-control-role">Tonal</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #57534e;"></div>
+            <span class="perf-control-name">Level</span>
+            <span class="perf-control-role">Neutral</span>
+          </div>
+        </div>
+
+        <div class="perf-section-card" style="border-top: 2px solid #fbbf24;">
+          <div class="perf-section-header">
+            <div class="palette-track-dot" style="background: #fbbf24;"></div>
+            <span class="perf-section-name">Melodic</span>
+            <span class="perf-section-base">amber base</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #fbbf24;"></div>
+            <span class="perf-control-name">Kill switch</span>
+            <span class="perf-control-role">Base</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #fb7185;"></div>
+            <span class="perf-control-name">Filter</span>
+            <span class="perf-control-role">Tonal</span>
+          </div>
+          <div class="perf-control-row">
+            <div class="perf-control-dot" style="background: #57534e;"></div>
+            <span class="perf-control-name">Level</span>
+            <span class="perf-control-role">Neutral</span>
+          </div>
+        </div>
+      </div>
+
+      <h3 class="subsection-title">Global Gesture Sliders (Fixed Colors)</h3>
+      <div class="global-gestures">
+        <div class="gesture-item">
+          <div class="gesture-bar" style="background: var(--emerald-400);"></div>
+          <span class="gesture-label">Energy</span>
+          <span class="gesture-color">emerald-400</span>
+        </div>
+        <div class="gesture-item">
+          <div class="gesture-bar" style="background: var(--amber-400);"></div>
+          <span class="gesture-label">Tension</span>
+          <span class="gesture-color">amber-400</span>
+        </div>
+        <div class="gesture-item">
+          <div class="gesture-bar" style="background: var(--violet-400);"></div>
+          <span class="gesture-label">Scene</span>
+          <span class="gesture-color">violet-400</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

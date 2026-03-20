@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Multi-Tool Action Chat UX</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .topbar-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    /* Chat mode layout */
+    .chat-mode {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      background: var(--ai-bg);
+      overflow: hidden;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0;
+    }
+
+    .chat-composer {
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+
+    .chat-composer .composer-input {
+      background: rgba(40, 37, 35, 0.6);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    .chat-composer .composer-input:focus {
+      border-color: rgba(139, 92, 246, 0.5);
+    }
+
+    /* Transient panel */
+    .transient-panel {
+      width: 340px;
+      flex-shrink: 0;
+      background: rgba(15, 14, 12, 0.6);
+      border-left: 1px solid rgba(139, 92, 246, 0.15);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .transient-panel-header {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .transient-panel-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--violet-400);
+      opacity: 0.7;
+    }
+
+    .transient-panel-body {
+      flex: 1;
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    /* Change previews */
+    .change-preview {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-md);
+      margin: var(--space-sm) var(--space-lg);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    .change-preview-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .change-preview-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .change-preview-detail {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Action Stream (the multi-tool-use UX) ── */
+
+    /* The whole AI turn: summary up top, collapsible detail below */
+    .ai-turn {
+      margin: var(--space-sm) 0;
+    }
+
+    /* Phase indicator — what the AI is doing right now */
+    .ai-phase {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-lg);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--violet-400);
+    }
+
+    .ai-phase-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--violet-400);
+      animation: phase-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes phase-pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; box-shadow: 0 0 8px rgba(139, 92, 246, 0.4); }
+    }
+
+    .ai-phase-text {
+      opacity: 0.8;
+    }
+
+    .ai-phase-scope {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: 4px;
+    }
+
+    /* Action summary — the collapsed view of what happened */
+    .action-summary {
+      margin: var(--space-xs) var(--space-lg);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .action-summary-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .action-summary-header:hover {
+      background: rgba(61, 57, 53, 0.3);
+    }
+
+    .action-summary-icon {
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform var(--transition-fast);
+      width: 12px;
+    }
+
+    .action-summary-icon.expanded {
+      transform: rotate(90deg);
+    }
+
+    .action-summary-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .action-summary-count {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      background: var(--bg-surface);
+      padding: 1px 6px;
+      border-radius: 8px;
+    }
+
+    .action-summary-duration {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    /* Expanded action detail */
+    .action-detail {
+      border-top: 1px solid var(--border-subtle);
+      padding: var(--space-sm) var(--space-md);
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 300ms ease, padding 300ms ease;
+    }
+
+    .action-detail.expanded {
+      max-height: 600px;
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .action-detail-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--space-sm);
+      padding: 3px 0;
+      font-family: var(--font-mono);
+      font-size: 10px;
+    }
+
+    .action-detail-bullet {
+      color: var(--text-muted);
+      width: 12px;
+      text-align: center;
+      flex-shrink: 0;
+      padding-top: 1px;
+    }
+
+    .action-detail-bullet.source { color: var(--amber-400); }
+    .action-detail-bullet.processor { color: var(--sky-400); }
+    .action-detail-bullet.pattern { color: var(--emerald-400); }
+    .action-detail-bullet.param { color: var(--zinc-400); }
+    .action-detail-bullet.surface { color: var(--violet-400); }
+
+    .action-detail-text {
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .action-detail-text .param-change {
+      color: var(--text-muted);
+    }
+
+    /* Track scope badge */
+    .scope-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(251, 191, 36, 0.08);
+      border: 1px solid rgba(251, 191, 36, 0.15);
+      color: var(--amber-400);
+      margin-left: 4px;
+    }
+
+    .scope-badge-dot {
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+    }
+
+    /* Grouped change cards (after AI response) */
+    .change-group {
+      margin: var(--space-sm) var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .change-group-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      padding: 0 var(--space-sm);
+      margin-bottom: 2px;
+    }
+
+    .change-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: var(--space-sm) var(--space-md);
+      display: flex;
+      gap: var(--space-sm);
+      align-items: center;
+    }
+
+    .change-card-accent {
+      width: 3px;
+      height: 20px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .change-card-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .change-card-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .change-card-detail {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .change-card-undo {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 2px 6px;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+      flex-shrink: 0;
+    }
+
+    .change-card:hover .change-card-undo {
+      opacity: 1;
+    }
+
+    .change-card-undo:hover {
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+
+    /* Transient module */
+    .transient-module {
+      background: var(--bg-surface);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .transient-module-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: rgba(139, 92, 246, 0.06);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+    }
+
+    .transient-module-title {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .transient-module-title .ai-tag {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.12);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .transient-module-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .transient-module-action {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg-raised);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .transient-module-action.primary {
+      border-color: rgba(251, 191, 36, 0.3);
+      color: var(--amber-400);
+    }
+
+    .transient-module-body {
+      padding: var(--space-md);
+    }
+
+    .transient-knobs {
+      display: flex;
+      gap: var(--space-lg);
+      padding: var(--space-sm) 0;
+    }
+
+    /* Step grid in panel */
+    .transient-step-grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 3px;
+    }
+
+    .transient-step-cell {
+      aspect-ratio: 1;
+      border-radius: 2px;
+      background: var(--bg-raised);
+      min-height: 16px;
+    }
+
+    .transient-step-cell.active {
+      background: var(--cyan-400);
+      box-shadow: 0 0 4px rgba(34, 211, 238, 0.3);
+    }
+
+    .transient-step-cell.accent {
+      background: var(--amber-400);
+      box-shadow: 0 0 4px rgba(251, 191, 36, 0.3);
+    }
+
+    /* Slider */
+    .inline-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+      height: 16px;
+      width: 100%;
+    }
+
+    .inline-slider::-webkit-slider-track {
+      height: 3px;
+      border-radius: 2px;
+      background: var(--zinc-700);
+    }
+
+    .inline-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--amber-400);
+      border: 2px solid var(--zinc-900);
+      margin-top: -3.5px;
+    }
+
+    .step-generator-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .step-generator-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      min-width: 50px;
+    }
+
+    /* Footer */
+    .footer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .footer-spacer { flex: 1; }
+
+    /* Dock */
+    .dock {
+      position: fixed;
+      bottom: var(--space-xl);
+      right: var(--space-xl);
+      z-index: 100;
+    }
+
+    .dock-card {
+      background: rgba(19, 17, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(139, 92, 246, 0.06);
+      min-width: 200px;
+      max-width: 280px;
+      cursor: pointer;
+    }
+
+    .dock-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+    }
+
+    .dock-presence {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--violet-400);
+      animation: phase-pulse 1.5s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    .dock-status {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--violet-400);
+      opacity: 0.8;
+      flex: 1;
+    }
+
+    .dock-flip-hint {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    .dock-body {
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .dock-action-text {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--zinc-300);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Top bar -->
+    <div class="topbar">
+      <span class="topbar-logo">gluon</span>
+      <div class="transport-divider"></div>
+      <button class="transport-btn active">&#9654;</button>
+      <button class="transport-btn">&#9632;</button>
+      <div class="transport-divider"></div>
+      <span class="transport-time">1:01</span>
+      <span class="transport-bpm">128 BPM</span>
+      <div class="transport-divider"></div>
+      <div class="peak-meter">
+        <div class="peak-meter-bar" style="height: 12px;"></div>
+        <div class="peak-meter-bar" style="height: 10px;"></div>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div class="ai-presence-dot" style="width: 6px; height: 6px;"></div>
+        <span style="font-family: var(--font-sans); font-size: 13px; font-weight: 600; color: var(--violet-400);">Gluon AI</span>
+      </div>
+    </div>
+
+    <!-- Chat mode -->
+    <div class="chat-mode">
+      <div class="chat-main">
+        <div class="chat-area chat-scroll">
+
+          <!-- ══ Earlier context ══ -->
+          <div class="chat-msg">
+            <div class="chat-msg-role user">You</div>
+            <div class="chat-msg-user">I want a full 4-track techno setup. Kick, hi-hats, bass, and a dark pad. Give it all some character. 128 BPM, minor key.</div>
+          </div>
+
+          <!-- ══ AI turn: long multi-tool action ══ -->
+          <div class="ai-turn">
+
+            <!-- Phase indicator (would animate during execution) -->
+            <div class="ai-phase">
+              <div class="ai-phase-dot" style="animation: none; opacity: 1; background: var(--emerald-400);"></div>
+              <span class="ai-phase-text" style="color: var(--emerald-400);">Done</span>
+              <span class="ai-phase-scope">&mdash; 4 tracks, 23 changes</span>
+            </div>
+
+            <!-- AI natural language response FIRST -->
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">Built you a warehouse techno kit in E minor. The kick has a resonant filter sweep on the low end, hi-hats have some shuffle with velocity variation, bass is a dark square wave with the filter just cracked open, and the pad is a slow evolving texture. Everything's compressed and leveled. I've put up controls for the parts that matter most &mdash; tweak to taste.</div>
+            </div>
+
+            <!-- Grouped change cards by track -->
+            <div class="change-group">
+              <div class="change-group-label">Kick</div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--amber-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">Plaits &rarr; Ripples &rarr; Compressor</div>
+                  <div class="change-card-detail">Bass drum mode &middot; LP 320 Hz res 0.52 &middot; Punch 4:1</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--amber-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">16-step pattern</div>
+                  <div class="change-card-detail">4-on-the-floor &middot; velocity accents on 1 &amp; 9</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+            </div>
+
+            <div class="change-group">
+              <div class="change-group-label">Hi-Hats</div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--cyan-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">Plaits &rarr; EQ</div>
+                  <div class="change-card-detail">Noise mode &middot; high shelf +3 dB at 8 kHz</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--cyan-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">16-step pattern with swing</div>
+                  <div class="change-card-detail">Offbeat 8ths + ghost 16ths &middot; swing 58% &middot; velocity variation</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+            </div>
+
+            <div class="change-group">
+              <div class="change-group-label">Bass</div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--violet-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">Plaits &rarr; Ripples &rarr; Compressor</div>
+                  <div class="change-card-detail">Square wave &middot; LP 480 Hz res 0.38 &middot; Glue 3:1</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--violet-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">4-bar bass line in E minor</div>
+                  <div class="change-card-detail">Syncopated &middot; octave jumps on bar 3 &middot; slides</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+            </div>
+
+            <div class="change-group">
+              <div class="change-group-label">Pad</div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--emerald-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">Plaits &rarr; Ripples &rarr; EQ</div>
+                  <div class="change-card-detail">Chord mode &middot; LP sweep 200&ndash;1200 Hz &middot; low cut 180 Hz</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--emerald-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">Sustained chord &mdash; Em7</div>
+                  <div class="change-card-detail">4-bar sustain &middot; slow filter automation</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+            </div>
+
+            <!-- Collapsible raw action log -->
+            <div class="action-summary">
+              <div class="action-summary-header" onclick="toggleDetail(this)">
+                <span class="action-summary-icon">&#9656;</span>
+                <span class="action-summary-title">23 actions executed</span>
+                <span class="action-summary-count">4 tracks</span>
+                <span class="action-summary-duration">3.2s</span>
+              </div>
+              <div class="action-detail">
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet source">&#9679;</span>
+                  <span class="action-detail-text">create_track "Kick" &mdash; Plaits bass_drum</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet processor">&#9830;</span>
+                  <span class="action-detail-text">add_processor Kick &mdash; Ripples</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet processor">&#9830;</span>
+                  <span class="action-detail-text">add_processor Kick &mdash; Compressor (punch)</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet param">&#8226;</span>
+                  <span class="action-detail-text">set_params Kick.Ripples <span class="param-change">cutoff 0.26 res 0.52 drive 0.45</span></span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet pattern">&#9632;</span>
+                  <span class="action-detail-text">write_pattern Kick &mdash; 16 steps, 4 events</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet source">&#9679;</span>
+                  <span class="action-detail-text">create_track "Hi-Hats" &mdash; Plaits noise</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet processor">&#9830;</span>
+                  <span class="action-detail-text">add_processor Hi-Hats &mdash; EQ</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet param">&#8226;</span>
+                  <span class="action-detail-text">set_params Hi-Hats.source <span class="param-change">timbre 0.82 morph 0.15</span></span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet pattern">&#9632;</span>
+                  <span class="action-detail-text">write_pattern Hi-Hats &mdash; 16 steps, 10 events, swing 58%</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet source">&#9679;</span>
+                  <span class="action-detail-text">create_track "Bass" &mdash; Plaits square</span>
+                </div>
+                <div class="action-detail-item">
+                  <span class="action-detail-bullet">&#8230;</span>
+                  <span class="action-detail-text" style="color: var(--text-muted);">+13 more actions</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Follow-up -->
+          <div class="chat-msg">
+            <div class="chat-msg-role user">You</div>
+            <div class="chat-msg-user">The hi-hats are too busy. Thin them out and make them darker.</div>
+          </div>
+
+          <!-- Smaller AI turn -->
+          <div class="ai-turn">
+            <div class="ai-phase">
+              <div class="ai-phase-dot" style="animation: none; opacity: 1; background: var(--emerald-400);"></div>
+              <span class="ai-phase-text" style="color: var(--emerald-400);">Done</span>
+              <span class="ai-phase-scope">&mdash; Hi-Hats, 4 changes</span>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">Removed the ghost notes and pulled the high shelf down. Should sit further back now.</div>
+            </div>
+
+            <div class="change-group">
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--cyan-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">Hi-Hats pattern &mdash; removed ghost 16ths</div>
+                  <div class="change-card-detail">10 events &rarr; 4 events &middot; offbeat 8ths only</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+              <div class="change-card">
+                <div class="change-card-accent" style="background: var(--cyan-400);"></div>
+                <div class="change-card-content">
+                  <div class="change-card-title">EQ high shelf &mdash; +3 dB &rarr; -2 dB</div>
+                  <div class="change-card-detail">Darkened top end</div>
+                </div>
+                <button class="change-card-undo">Undo</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Composer -->
+        <div class="chat-composer">
+          <input class="composer-input" type="text" placeholder="Describe what you want to change...">
+        </div>
+      </div>
+
+      <!-- Transient panel with macro controls -->
+      <div class="transient-panel">
+        <div class="transient-panel-header">
+          <div class="ai-presence-dot" style="width: 5px; height: 5px;"></div>
+          <span class="transient-panel-title">Live Controls</span>
+        </div>
+        <div class="transient-panel-body">
+
+          <!-- Kick macro -->
+          <div class="transient-module">
+            <div class="transient-module-header">
+              <div class="transient-module-title">
+                Kick Character
+                <span class="ai-tag">Live</span>
+              </div>
+              <div class="transient-module-actions">
+                <button class="transient-module-action primary">Pin</button>
+              </div>
+            </div>
+            <div class="transient-module-body">
+              <div class="transient-knobs" style="justify-content: center;">
+                <div class="knob-container"><span class="knob-label">Punch</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 26 8" fill="none" stroke="var(--amber-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.72</span></div>
+                <div class="knob-container"><span class="knob-label">Grit</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="var(--amber-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.45</span></div>
+                <div class="knob-container"><span class="knob-label">Tail</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 11 13" fill="none" stroke="var(--amber-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.28</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hi-Hat pattern + sound -->
+          <div class="transient-module">
+            <div class="transient-module-header">
+              <div class="transient-module-title">
+                Hi-Hats
+                <span class="ai-tag">Live</span>
+              </div>
+              <div class="transient-module-actions">
+                <button class="transient-module-action primary">Pin</button>
+              </div>
+            </div>
+            <div class="transient-module-body">
+              <div class="transient-step-grid" style="margin-bottom: 8px;">
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell active"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell active"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell active"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div>
+                <div class="transient-step-cell active"></div>
+                <div class="transient-step-cell"></div>
+              </div>
+              <div class="transient-knobs" style="justify-content: center;">
+                <div class="knob-container"><span class="knob-label">Bright</span><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.5 24.5 A 12 12 0 0 1 8 11" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">Dark</span></div>
+                <div class="knob-container"><span class="knob-label">Decay</span><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.5 24.5 A 12 12 0 0 1 9 13" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">Short</span></div>
+                <div class="knob-container"><span class="knob-label">Level</span><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.5 24.5 A 12 12 0 1 1 22 6" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">-4 dB</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bass character -->
+          <div class="transient-module">
+            <div class="transient-module-header">
+              <div class="transient-module-title">
+                Bass Tone
+                <span class="ai-tag">Live</span>
+              </div>
+              <div class="transient-module-actions">
+                <button class="transient-module-action primary">Pin</button>
+              </div>
+            </div>
+            <div class="transient-module-body">
+              <div class="transient-knobs" style="justify-content: center;">
+                <div class="knob-container"><span class="knob-label">Growl</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 11 13" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.38</span></div>
+                <div class="knob-container"><span class="knob-label">Sub</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 26 8" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.75</span></div>
+                <div class="knob-container"><span class="knob-label">Slide</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.22</span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>gluon v0.5</span>
+      <div class="footer-spacer"></div>
+      <span>Gemini 3.1 Pro</span>
+      <span>&middot;</span>
+      <span>4 tracks</span>
+      <span>&middot;</span>
+      <span>128 BPM</span>
+    </div>
+  </div>
+
+  <!-- Dock -->
+  <div class="dock">
+    <div class="dock-card">
+      <div class="dock-header">
+        <div class="dock-presence" style="background: var(--emerald-400); animation: none; opacity: 0.8;"></div>
+        <span class="dock-status" style="color: var(--emerald-400);">Done</span>
+        <span class="dock-flip-hint">` Instrument</span>
+      </div>
+      <div class="dock-body">
+        <div class="dock-action-text">Built 4-track techno kit in E minor</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleDetail(header) {
+      const icon = header.querySelector('.action-summary-icon');
+      const detail = header.nextElementSibling;
+      const isExpanded = detail.classList.contains('expanded');
+
+      if (isExpanded) {
+        detail.classList.remove('expanded');
+        icon.classList.remove('expanded');
+      } else {
+        detail.classList.add('expanded');
+        icon.classList.add('expanded');
+      }
+    }
+  </script>
+</body>
+</html>
