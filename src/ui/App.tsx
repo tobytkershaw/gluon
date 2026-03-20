@@ -70,7 +70,7 @@ import { useTransportController } from './useTransportController';
 import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
 import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from '../audio/runtime-events';
 import { validateSurface } from '../engine/surface-templates';
-import { AITurnEpoch } from './ai-turn-epoch';
+import { useAiTurnBoundary } from './useAiTurnBoundary';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -157,11 +157,6 @@ export default function App() {
 
   const project = useProjectLifecycle(session, setSession);
 
-  // Restore AI conversation context when a project loads or switches.
-  // Watches project.projectId — on change, clears provider history and
-  // reconstructs from the persisted ChatMessage array in the session.
-  const prevProjectIdRef = useRef<string | null>(null);
-  const aiTurnEpochRef = useRef(new AITurnEpoch());
 
   useEffect(() => {
     if (!project.projectId) return;
@@ -1468,41 +1463,30 @@ export default function App() {
   const [streamingText, setStreamingText] = useState('');
   const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
   const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
-  const invalidateActiveAITurn = useCallback(() => {
-    aiTurnEpochRef.current.invalidate();
-    setIsThinking(false);
-    setIsListening(false);
-    setStreamingText('');
-    setStreamingLogEntries([]);
-    setStreamingRejections([]);
-  }, []);
-
-  useEffect(() => {
-    if (!project.projectId) return;
-    // Skip the very first render where projectId hasn't settled yet
-    if (prevProjectIdRef.current === project.projectId) return;
-    prevProjectIdRef.current = project.projectId;
-
-    invalidateActiveAITurn();
-
-    // Clear project-scoped ephemera that should never leak across sessions.
-    setAbSnapshot(null);
-    setAbActive(null);
-    setAudioDegradedMessage(null);
-    setActivityMap({});
-    setSelectedProcessorId(null);
-    setSelectedModulatorId(null);
-    setDeepViewModuleId(null);
-    trackerSelectionRef.current = null;
-    trackerCursorStepRef.current = null;
-    audioMetricsRef.current.clear();
-
-    // Clear stale history from any previous project, then restore
-    aiRef.current.clearHistory();
-    if (session.messages.length > 0) {
-      aiRef.current.restoreHistory(session.messages);
-    }
-  }, [project.projectId, invalidateActiveAITurn]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { beginTurn, invalidateActiveTurn: invalidateActiveAITurn, isCurrentTurn, runWithTurnInvalidation, wrapProjectBoundaryAction } = useAiTurnBoundary({
+    projectId: project.projectId,
+    sessionMessages: session.messages,
+    ai: aiRef.current,
+    onInvalidateActiveTurn: () => {
+      setIsThinking(false);
+      setIsListening(false);
+      setStreamingText('');
+      setStreamingLogEntries([]);
+      setStreamingRejections([]);
+    },
+    onProjectBoundaryReset: () => {
+      setAbSnapshot(null);
+      setAbActive(null);
+      setAudioDegradedMessage(null);
+      setActivityMap({});
+      setSelectedProcessorId(null);
+      setSelectedModulatorId(null);
+      setDeepViewModuleId(null);
+      trackerSelectionRef.current = null;
+      trackerCursorStepRef.current = null;
+      audioMetricsRef.current.clear();
+    },
+  });
 
   useEffect(() => {
     if (!audioStarted) {
@@ -1521,7 +1505,7 @@ export default function App() {
 
   const handleSend = useCallback(async (message: string) => {
     if (!aiRef.current.isPlannerConfigured()) return;
-    const thisRequest = aiTurnEpochRef.current.begin();
+    const thisRequest = beginTurn();
     setIsThinking(true);
     setStreamingText('');
     setStreamingLogEntries([]);
@@ -1562,25 +1546,25 @@ export default function App() {
         renderOfflinePcm: (s: Session, vIds: string[], bars: number) => renderOfflinePcm(s, vIds, bars),
         onListening: setIsListening,
       },
-      isStale: () => !aiTurnEpochRef.current.isCurrent(thisRequest),
+      isStale: () => !isCurrentTurn(thisRequest),
       validateAction: (sess: Session, action: AIAction) => prevalidateAction(
         sess, action, plaitsAdapter, arbRef.current,
       ),
       onStreamText: (chunk: string) => {
-        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
+        if (!isCurrentTurn(thisRequest)) return;
         accumulated += chunk;
         setStreamingText(accumulated);
       },
       onToolCall: (name: string, args: Record<string, unknown>) => {
-        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
+        if (!isCurrentTurn(thisRequest)) return;
         collectedToolCalls.push({ name, args });
       },
       onListenEvent: (event: ListenEvent) => {
-        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
+        if (!isCurrentTurn(thisRequest)) return;
         collectedListenEvents.push(event);
       },
       onActionsExecuted: (report: { log: import('../engine/types').ActionLogEntry[]; rejected: { op: import('../engine/types').AIAction; reason: string }[] }) => {
-        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
+        if (!isCurrentTurn(thisRequest)) return;
         if (report.log.length > 0) setStreamingLogEntries(prev => [...prev, ...report.log]);
         if (report.rejected.length > 0) setStreamingRejections(prev => [...prev, ...report.rejected.map(r => ({ reason: r.reason }))]);
       },
@@ -1596,7 +1580,7 @@ export default function App() {
     // Step callback: GluonAI calls this after each step for UI rendering.
     const onStep: OnStepCallback = (stepResult, updatedSession) => {
       // Guard: if a new request superseded this one, don't push stale state
-      if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
+      if (!isCurrentTurn(thisRequest)) return;
 
       // Collect say texts for the final ChatMessage
       for (const a of stepResult.actions) {
@@ -1658,7 +1642,7 @@ export default function App() {
     } catch {
       // Error already handled by GluonAI.handleError
       } finally {
-        if (aiTurnEpochRef.current.isCurrent(thisRequest)) {
+        if (isCurrentTurn(thisRequest)) {
           // Finalize: create ChatMessage without collapsing — per-step groups are already in place
           setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions, collectedListenEvents));
           clearSnapshots();
@@ -1669,7 +1653,7 @@ export default function App() {
         setStreamingRejections([]);
       }
     }
-  }, [ensureAudio]);
+  }, [beginTurn, ensureAudio, isCurrentTurn]);
 
   const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => {
     setSession((s) => {
@@ -1727,45 +1711,44 @@ export default function App() {
   }, [project]);
 
   const handleProjectNew = useCallback(async () => {
-    invalidateActiveAITurn();
-    return project.createProject();
-  }, [invalidateActiveAITurn, project]);
+    return wrapProjectBoundaryAction(() => project.createProject());
+  }, [project, wrapProjectBoundaryAction]);
 
   const handleProjectOpen = useCallback(async (id: string) => {
-    invalidateActiveAITurn();
-    return project.switchProject(id);
-  }, [invalidateActiveAITurn, project]);
+    return wrapProjectBoundaryAction(() => project.switchProject(id));
+  }, [project, wrapProjectBoundaryAction]);
 
   const handleProjectDuplicate = useCallback(async () => {
-    invalidateActiveAITurn();
-    return project.duplicateActiveProject();
-  }, [invalidateActiveAITurn, project]);
+    return wrapProjectBoundaryAction(() => project.duplicateActiveProject());
+  }, [project, wrapProjectBoundaryAction]);
 
   const handleProjectDelete = useCallback(async () => {
-    invalidateActiveAITurn();
-    return project.deleteActiveProject();
-  }, [invalidateActiveAITurn, project]);
+    return wrapProjectBoundaryAction(() => project.deleteActiveProject());
+  }, [project, wrapProjectBoundaryAction]);
 
   const handleProjectImport = useCallback(async (file: File) => {
-    invalidateActiveAITurn();
-    return project.importProject(file);
-  }, [invalidateActiveAITurn, project]);
+    return wrapProjectBoundaryAction(() => project.importProject(file));
+  }, [project, wrapProjectBoundaryAction]);
 
   const handleTogglePlay = useCallback(async () => {
-    if (!await ensureAudio()) return;
-    // Resume AudioContext if browser auto-suspended it after idle.
-    // Must happen during user gesture to satisfy autoplay policy.
-    await audioRef.current.resume();
-    setSession((s) => s.transport.status === 'playing' ? pauseTransport(s) : playTransport(s));
-  }, [ensureAudio]);
+    return runWithTurnInvalidation(async () => {
+      if (!await ensureAudio()) return;
+      // Resume AudioContext if browser auto-suspended it after idle.
+      // Must happen during user gesture to satisfy autoplay policy.
+      await audioRef.current.resume();
+      setSession((s) => s.transport.status === 'playing' ? pauseTransport(s) : playTransport(s));
+    });
+  }, [ensureAudio, runWithTurnInvalidation]);
 
   const handlePlayFromCursor = useCallback(async () => {
-    if (!await ensureAudio()) return;
-    await audioRef.current.resume();
-    const cursorStep = trackerCursorStepRef.current;
-    // Always start playing from cursor (TransportController handles restart if already playing)
-    setSession((s) => playTransport(s, cursorStep ?? 0));
-  }, [ensureAudio]);
+    return runWithTurnInvalidation(async () => {
+      if (!await ensureAudio()) return;
+      await audioRef.current.resume();
+      const cursorStep = trackerCursorStepRef.current;
+      // Always start playing from cursor (TransportController handles restart if already playing)
+      setSession((s) => playTransport(s, cursorStep ?? 0));
+    });
+  }, [ensureAudio, runWithTurnInvalidation]);
 
   const handleCursorStepChange = useCallback((step: number) => {
     trackerCursorStepRef.current = step;
@@ -1787,17 +1770,45 @@ export default function App() {
 
   /** Play from a specific row step (e.g. double-click in tracker). */
   const handlePlayFromRow = useCallback(async (step: number) => {
-    await ensureAudio();
-    await audioRef.current.resume();
-    setSession((s) => playTransport(s, step));
-  }, [ensureAudio]);
+    return runWithTurnInvalidation(async () => {
+      await ensureAudio();
+      await audioRef.current.resume();
+      setSession((s) => playTransport(s, step));
+    });
+  }, [ensureAudio, runWithTurnInvalidation]);
 
   /** Hard stop: stop sequencing AND immediately silence all voices/tails. */
   const handleHardStop = useCallback(async () => {
-    await ensureAudio();
-    transportControllerRef.current?.requestHardStop();
-    setSession((s) => stopTransport(s));
-  }, [ensureAudio]);
+    return runWithTurnInvalidation(async () => {
+      await ensureAudio();
+      transportControllerRef.current?.requestHardStop();
+      setSession((s) => stopTransport(s));
+    });
+  }, [ensureAudio, runWithTurnInvalidation]);
+
+  const handleToggleTransportMode = useCallback(() => {
+    void runWithTurnInvalidation(() => {
+      setSession(s => setTransportMode(s, (s.transport.mode ?? 'pattern') === 'pattern' ? 'song' : 'pattern'));
+    });
+  }, [runWithTurnInvalidation]);
+
+  const handleTransportModeChange = useCallback((mode: import('../engine/sequencer-types').TransportMode) => {
+    void runWithTurnInvalidation(() => {
+      setSession(s => setTransportMode(s, mode));
+    });
+  }, [runWithTurnInvalidation]);
+
+  const handleLoopChange = useCallback((loop: boolean) => {
+    void runWithTurnInvalidation(() => {
+      setSession(s => setTransportLoop(s, loop));
+    });
+  }, [runWithTurnInvalidation]);
+
+  const handleTimeSignatureChange = useCallback((num: number, den: number) => {
+    void runWithTurnInvalidation(() => {
+      setSession(s => setTimeSignature(s, num, den));
+    });
+  }, [runWithTurnInvalidation]);
 
   const handleToggleRecord = useCallback(() => {
     setRecordArmed(prev => {
@@ -3035,7 +3046,7 @@ export default function App() {
     onTrackUp: handleTrackUp,
     onTrackDown: handleTrackDown,
     onBpmNudge: handleBpmNudge,
-    onToggleTransportMode: () => setSession(s => setTransportMode(s, (s.transport.mode ?? 'pattern') === 'pattern' ? 'song' : 'pattern')),
+    onToggleTransportMode: handleToggleTransportMode,
     setView,
   });
 
@@ -3149,11 +3160,11 @@ export default function App() {
       onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
       transportMode={session.transport.mode ?? 'pattern'}
       loop={session.transport.loop ?? true}
-      onTransportModeChange={(mode: import('../engine/sequencer-types').TransportMode) => setSession(s => setTransportMode(s, mode))}
-      onLoopChange={(loop: boolean) => setSession(s => setTransportLoop(s, loop))}
+      onTransportModeChange={handleTransportModeChange}
+      onLoopChange={handleLoopChange}
       timeSignatureNumerator={session.transport.timeSignature?.numerator ?? 4}
       timeSignatureDenominator={session.transport.timeSignature?.denominator ?? 4}
-      onTimeSignatureChange={(num, den) => setSession(s => setTimeSignature(s, num, den))}
+      onTimeSignatureChange={handleTimeSignatureChange}
       view={view}
       onViewChange={setView}
       undoStack={session.undoStack}
