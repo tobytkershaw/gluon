@@ -124,7 +124,10 @@ export async function duplicateProject(id: string, newName?: string): Promise<st
   if (!existing) throw new Error(`Project ${id} not found`);
   const newId = crypto.randomUUID();
   const name = newName ?? `${existing.meta.name} (copy)`;
-  await saveProject(newId, name, existing.session);
+  // Normalize session through restoreSession so the duplicate is fully migrated
+  // even if the source project was saved by an older version (#1195)
+  const migratedSession = restoreSession(existing.session, existing.version);
+  await saveProject(newId, name, migratedSession);
   return newId;
 }
 
@@ -133,12 +136,15 @@ export async function exportProject(id: string): Promise<string> {
   const project = await req<PersistedProject | undefined>(tx(db, 'readonly').get(id));
   db.close();
   if (!project) throw new Error(`Project ${id} not found`);
+  // Normalize session through restoreSession so the export is fully migrated
+  // even if the stored project was saved by an older version (#1194)
+  const migratedSession = restoreSession(project.session, project.version);
   return JSON.stringify({
     format: 'gluon-project',
     version: CURRENT_VERSION,
     name: project.meta.name,
     exportedAt: Date.now(),
-    session: project.session,
+    session: stripForPersistence(migratedSession),
   }, null, 2);
 }
 
