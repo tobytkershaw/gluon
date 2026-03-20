@@ -4,6 +4,7 @@ import type { ListenerMode } from '../ai/api';
 interface Props {
   onSubmit: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
   isConfigured: boolean;
+  disabled?: boolean;
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
@@ -17,7 +18,16 @@ const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
   { value: 'both', label: 'Both (side by side)' },
 ];
 
-export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '', listenerMode: currentListenerMode = 'gemini', plannerStatus, listenerStatus }: Props) {
+export function ApiKeyInput({
+  onSubmit,
+  isConfigured,
+  disabled = false,
+  currentOpenaiKey = '',
+  currentGeminiKey = '',
+  listenerMode: currentListenerMode = 'gemini',
+  plannerStatus,
+  listenerStatus,
+}: Props) {
   const [openaiKey, setOpenaiKey] = useState(currentOpenaiKey);
   const [geminiKey, setGeminiKey] = useState(currentGeminiKey);
   const [listener, setListener] = useState<ListenerMode>(currentListenerMode);
@@ -27,12 +37,18 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
     return (
       <button
         onClick={() => {
+          if (disabled) return;
           setOpenaiKey(currentOpenaiKey);
           setGeminiKey(currentGeminiKey);
           setListener(currentListenerMode);
           setExpanded(true);
         }}
-        className="flex items-center gap-2 px-3 py-2 bg-zinc-900/50 border border-zinc-800/50 rounded-lg text-[11px] font-mono text-zinc-500 hover:border-zinc-700 transition-colors"
+        disabled={disabled}
+        className={`flex items-center gap-2 px-3 py-2 bg-zinc-900/50 border rounded-lg text-[11px] font-mono transition-colors ${
+          disabled
+            ? 'border-zinc-800/40 text-zinc-700 cursor-not-allowed'
+            : 'border-zinc-800/50 text-zinc-500 hover:border-zinc-700'
+        }`}
       >
         <span className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse" />
         API Connected
@@ -47,6 +63,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          if (disabled) return;
           if (canSubmit) {
             onSubmit(openaiKey.trim(), geminiKey.trim(), listener);
             setExpanded(false);
@@ -61,6 +78,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
           <input
             type="password"
             value={openaiKey}
+            disabled={disabled}
             onChange={(e) => setOpenaiKey(e.target.value)}
             placeholder="sk-..."
             className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
@@ -73,6 +91,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
           <input
             type="password"
             value={geminiKey}
+            disabled={disabled}
             onChange={(e) => setGeminiKey(e.target.value)}
             placeholder="AIza..."
             className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
@@ -84,6 +103,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
           </div>
           <select
             value={listener}
+            disabled={disabled}
             onChange={(e) => setListener(e.target.value as ListenerMode)}
             className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
           >
@@ -106,7 +126,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
         )}
         <button
           type="submit"
-          disabled={!canSubmit}
+          disabled={!canSubmit || disabled}
           className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:text-zinc-700 disabled:hover:bg-zinc-800 rounded transition-colors self-end"
         >
           {isConfigured ? 'Update' : 'Connect'}
