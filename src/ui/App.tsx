@@ -1379,11 +1379,12 @@ export default function App() {
     beginTurn,
     invalidateActiveTurn: invalidateActiveAITurn,
     isCurrentTurn,
-    runWithTurnInvalidation,
+    runWithActiveTurnInvalidation,
     wrapProjectBoundaryAction,
   } = useAiTurnBoundary({
     projectId: project.projectId,
     sessionMessages: session.messages,
+    isTurnActive: isThinking || isListening,
     ai: aiRef.current,
     onInvalidateActiveTurn: handleInvalidateActiveTurn,
     onProjectBoundaryReset: handleProjectBoundaryReset,
@@ -1721,24 +1722,24 @@ export default function App() {
   }, [project, wrapProjectBoundaryAction]);
 
   const handleTogglePlay = useCallback(async () => {
-    return runWithTurnInvalidation(async () => {
+    return runWithActiveTurnInvalidation(async () => {
       if (!await ensureAudio()) return;
       // Resume AudioContext if browser auto-suspended it after idle.
       // Must happen during user gesture to satisfy autoplay policy.
       await audioRef.current.resume();
       setSession((s) => s.transport.status === 'playing' ? pauseTransport(s) : playTransport(s));
     });
-  }, [ensureAudio, runWithTurnInvalidation]);
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handlePlayFromCursor = useCallback(async () => {
-    return runWithTurnInvalidation(async () => {
+    return runWithActiveTurnInvalidation(async () => {
       if (!await ensureAudio()) return;
       await audioRef.current.resume();
       const cursorStep = trackerCursorStepRef.current;
       // Always start playing from cursor (TransportController handles restart if already playing)
       setSession((s) => playTransport(s, cursorStep ?? 0));
     });
-  }, [ensureAudio, runWithTurnInvalidation]);
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleCursorStepChange = useCallback((step: number) => {
     trackerCursorStepRef.current = step;
@@ -1760,45 +1761,45 @@ export default function App() {
 
   /** Play from a specific row step (e.g. double-click in tracker). */
   const handlePlayFromRow = useCallback(async (step: number) => {
-    return runWithTurnInvalidation(async () => {
+    return runWithActiveTurnInvalidation(async () => {
       await ensureAudio();
       await audioRef.current.resume();
       setSession((s) => playTransport(s, step));
     });
-  }, [ensureAudio, runWithTurnInvalidation]);
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   /** Hard stop: stop sequencing AND immediately silence all voices/tails. */
   const handleHardStop = useCallback(async () => {
-    return runWithTurnInvalidation(async () => {
+    return runWithActiveTurnInvalidation(async () => {
       await ensureAudio();
       transportControllerRef.current?.requestHardStop();
       setSession((s) => stopTransport(s));
     });
-  }, [ensureAudio, runWithTurnInvalidation]);
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleToggleTransportMode = useCallback(() => {
-    void runWithTurnInvalidation(() => {
+    void runWithActiveTurnInvalidation(() => {
       setSession(s => setTransportMode(s, (s.transport.mode ?? 'pattern') === 'pattern' ? 'song' : 'pattern'));
     });
-  }, [runWithTurnInvalidation]);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleTransportModeChange = useCallback((mode: import('../engine/sequencer-types').TransportMode) => {
-    void runWithTurnInvalidation(() => {
+    void runWithActiveTurnInvalidation(() => {
       setSession(s => setTransportMode(s, mode));
     });
-  }, [runWithTurnInvalidation]);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleLoopChange = useCallback((loop: boolean) => {
-    void runWithTurnInvalidation(() => {
+    void runWithActiveTurnInvalidation(() => {
       setSession(s => setTransportLoop(s, loop));
     });
-  }, [runWithTurnInvalidation]);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleTimeSignatureChange = useCallback((num: number, den: number) => {
-    void runWithTurnInvalidation(() => {
+    void runWithActiveTurnInvalidation(() => {
       setSession(s => setTimeSignature(s, num, den));
     });
-  }, [runWithTurnInvalidation]);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleToggleRecord = useCallback(() => {
     setRecordArmed(prev => {
@@ -1936,53 +1937,63 @@ export default function App() {
   }, []);
 
   const handleToggleMute = useCallback((trackId: string) => {
-    ensureAudio();
-    setSession((s) => toggleMute(s, trackId));
-  }, [ensureAudio]);
+    void runWithActiveTurnInvalidation(() => {
+      ensureAudio();
+      setSession((s) => toggleMute(s, trackId));
+    });
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleToggleSolo = useCallback((trackId: string, additive?: boolean) => {
-    ensureAudio();
-    setSession((s) => toggleSolo(s, trackId, !additive));
-  }, [ensureAudio]);
+    void runWithActiveTurnInvalidation(() => {
+      ensureAudio();
+      setSession((s) => toggleSolo(s, trackId, !additive));
+    });
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleRenameTrack = useCallback((trackId: string, name: string) => {
-    setSession((s) => renameTrack(s, trackId, name));
-  }, []);
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => renameTrack(s, trackId, name));
+    });
+  }, [runWithActiveTurnInvalidation]);
 
   const handleSetMusicalRole = useCallback((trackId: string, role: string) => {
-    setSession((s) => {
-      const track = s.tracks.find(t => t.id === trackId);
-      if (!track) return s;
-      const snapshot: TrackPropertySnapshot = {
-        kind: 'track-property',
-        trackId,
-        prevProps: { importance: track.importance, musicalRole: track.musicalRole },
-        timestamp: Date.now(),
-        description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
-      };
-      // Default importance to 0.5 if unset — AI's set_track_meta requires importance before musicalRole
-      const importance = track.importance ?? 0.5;
-      const next = setTrackImportance(s, trackId, importance, role);
-      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => {
+        const track = s.tracks.find(t => t.id === trackId);
+        if (!track) return s;
+        const snapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId,
+          prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+          timestamp: Date.now(),
+          description: `Set musical role: ${track.musicalRole ?? 'unset'} → ${role}`,
+        };
+        // Default importance to 0.5 if unset — AI's set_track_meta requires importance before musicalRole
+        const importance = track.importance ?? 0.5;
+        const next = setTrackImportance(s, trackId, importance, role);
+        return { ...next, undoStack: [...next.undoStack, snapshot] };
+      });
     });
-  }, []);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleSetImportance = useCallback((trackId: string, importance: number) => {
-    arbRef.current.humanTouched(trackId, 'importance', importance, 'meta');
-    setSession((s) => {
-      const track = s.tracks.find(t => t.id === trackId);
-      if (!track) return s;
-      const snapshot: TrackPropertySnapshot = {
-        kind: 'track-property',
-        trackId,
-        prevProps: { importance: track.importance, musicalRole: track.musicalRole },
-        timestamp: Date.now(),
-        description: `Set importance: ${Math.round((track.importance ?? 0.5) * 100)}% → ${Math.round(importance * 100)}%`,
-      };
-      const next = setTrackImportance(s, trackId, importance);
-      return { ...next, undoStack: [...next.undoStack, snapshot] };
+    void runWithActiveTurnInvalidation(() => {
+      arbRef.current.humanTouched(trackId, 'importance', importance, 'meta');
+      setSession((s) => {
+        const track = s.tracks.find(t => t.id === trackId);
+        if (!track) return s;
+        const snapshot: TrackPropertySnapshot = {
+          kind: 'track-property',
+          trackId,
+          prevProps: { importance: track.importance, musicalRole: track.musicalRole },
+          timestamp: Date.now(),
+          description: `Set importance: ${Math.round((track.importance ?? 0.5) * 100)}% → ${Math.round(importance * 100)}%`,
+        };
+        const next = setTrackImportance(s, trackId, importance);
+        return { ...next, undoStack: [...next.undoStack, snapshot] };
+      });
     });
-  }, []);
+  }, [runWithActiveTurnInvalidation]);
 
   // --- Track mix strip gesture-level undo ---
   const mixStripUndoRef = useRef<{
@@ -1992,23 +2003,27 @@ export default function App() {
   } | null>(null);
 
   const handleChangeVolume = useCallback((trackId: string, value: number) => {
-    ensureAudio();
-    // During a gesture, suppress per-frame undo snapshots
-    if (mixStripUndoRef.current) {
-      setSession((s) => setTrackVolumeNoUndo(s, trackId, value));
-    } else {
-      setSession((s) => setTrackVolume(s, trackId, value));
-    }
-  }, [ensureAudio]);
+    void runWithActiveTurnInvalidation(() => {
+      ensureAudio();
+      // During a gesture, suppress per-frame undo snapshots
+      if (mixStripUndoRef.current) {
+        setSession((s) => setTrackVolumeNoUndo(s, trackId, value));
+      } else {
+        setSession((s) => setTrackVolume(s, trackId, value));
+      }
+    });
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleChangePan = useCallback((trackId: string, value: number) => {
-    ensureAudio();
-    if (mixStripUndoRef.current) {
-      setSession((s) => setTrackPanNoUndo(s, trackId, value));
-    } else {
-      setSession((s) => setTrackPan(s, trackId, value));
-    }
-  }, [ensureAudio]);
+    void runWithActiveTurnInvalidation(() => {
+      ensureAudio();
+      if (mixStripUndoRef.current) {
+        setSession((s) => setTrackPanNoUndo(s, trackId, value));
+      } else {
+        setSession((s) => setTrackPan(s, trackId, value));
+      }
+    });
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleMixStripInteractionStart = useCallback(() => {
     const s = sessionRef.current;
@@ -2046,41 +2061,51 @@ export default function App() {
   }, []);
 
   const handleAddTrack = useCallback((kind?: import('../engine/types').TrackKind) => {
-    setSession((s) => {
-      const result = addTrack(s, kind ?? 'audio');
-      if (!result) return s;
-      // Audio engine slot is provisioned by the sync effect watching session.tracks
-      return result;
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => {
+        const result = addTrack(s, kind ?? 'audio');
+        if (!result) return s;
+        // Audio engine slot is provisioned by the sync effect watching session.tracks
+        return result;
+      });
+      setSelectedProcessorId(null);
+      setSelectedModulatorId(null);
+      setDeepViewModuleId(null);
+      setView((current) => (current === 'chat' ? 'surface' : current));
     });
-    setSelectedProcessorId(null);
-    setSelectedModulatorId(null);
-    setDeepViewModuleId(null);
-    setView((current) => (current === 'chat' ? 'surface' : current));
-  }, []);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleRemoveTrack = useCallback((trackId: string) => {
-    setSession((s) => {
-      const result = removeTrack(s, trackId);
-      if (!result) return s;
-      // Audio engine slot is torn down by the sync effect watching session.tracks
-      return result;
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => {
+        const result = removeTrack(s, trackId);
+        if (!result) return s;
+        // Audio engine slot is torn down by the sync effect watching session.tracks
+        return result;
+      });
+      setSelectedProcessorId(null);
+      setSelectedModulatorId(null);
+      setDeepViewModuleId(null);
     });
-    setSelectedProcessorId(null);
-    setSelectedModulatorId(null);
-    setDeepViewModuleId(null);
-  }, []);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleAddSend = useCallback((trackId: string, busId: string, level?: number) => {
-    setSession((s) => addSend(s, trackId, busId, level) ?? s);
-  }, []);
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => addSend(s, trackId, busId, level) ?? s);
+    });
+  }, [runWithActiveTurnInvalidation]);
 
   const handleRemoveSend = useCallback((trackId: string, busId: string) => {
-    setSession((s) => removeSend(s, trackId, busId) ?? s);
-  }, []);
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => removeSend(s, trackId, busId) ?? s);
+    });
+  }, [runWithActiveTurnInvalidation]);
 
   const handleSetSendLevel = useCallback((trackId: string, busId: string, level: number) => {
-    setSession((s) => setSendLevel(s, trackId, busId, level));
-  }, []);
+    void runWithActiveTurnInvalidation(() => {
+      setSession((s) => setSendLevel(s, trackId, busId, level));
+    });
+  }, [runWithActiveTurnInvalidation]);
 
   // --- Master strip gesture-level undo ---
   const masterStripUndoRef = useRef<{
@@ -2089,22 +2114,26 @@ export default function App() {
   } | null>(null);
 
   const handleMasterVolumeChange = useCallback((v: number) => {
-    ensureAudio();
-    if (masterStripUndoRef.current) {
-      setSession((s) => setMasterNoUndo(s, { volume: v }));
-    } else {
-      setSession((s) => setMaster(s, { volume: v }));
-    }
-  }, [ensureAudio]);
+    void runWithActiveTurnInvalidation(() => {
+      ensureAudio();
+      if (masterStripUndoRef.current) {
+        setSession((s) => setMasterNoUndo(s, { volume: v }));
+      } else {
+        setSession((s) => setMaster(s, { volume: v }));
+      }
+    });
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleMasterPanChange = useCallback((p: number) => {
-    ensureAudio();
-    if (masterStripUndoRef.current) {
-      setSession((s) => setMasterNoUndo(s, { pan: p }));
-    } else {
-      setSession((s) => setMaster(s, { pan: p }));
-    }
-  }, [ensureAudio]);
+    void runWithActiveTurnInvalidation(() => {
+      ensureAudio();
+      if (masterStripUndoRef.current) {
+        setSession((s) => setMasterNoUndo(s, { pan: p }));
+      } else {
+        setSession((s) => setMaster(s, { pan: p }));
+      }
+    });
+  }, [ensureAudio, runWithActiveTurnInvalidation]);
 
   const handleMasterInteractionStart = useCallback(() => {
     const s = sessionRef.current;

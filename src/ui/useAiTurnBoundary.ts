@@ -10,6 +10,7 @@ interface AiHistoryLike {
 interface UseAiTurnBoundaryOptions {
   projectId: string | null;
   sessionMessages: ChatMessage[];
+  isTurnActive: boolean;
   ai: AiHistoryLike;
   onInvalidateActiveTurn: () => void;
   onProjectBoundaryReset: () => void;
@@ -18,16 +19,19 @@ interface UseAiTurnBoundaryOptions {
 export function useAiTurnBoundary({
   projectId,
   sessionMessages,
+  isTurnActive,
   ai,
   onInvalidateActiveTurn,
   onProjectBoundaryReset,
 }: UseAiTurnBoundaryOptions) {
   const prevProjectIdRef = useRef<string | null>(null);
   const turnEpochRef = useRef(new AITurnEpoch());
+  const isTurnActiveRef = useRef(isTurnActive);
   const sessionMessagesRef = useRef(sessionMessages);
   const onInvalidateActiveTurnRef = useRef(onInvalidateActiveTurn);
   const onProjectBoundaryResetRef = useRef(onProjectBoundaryReset);
 
+  isTurnActiveRef.current = isTurnActive;
   sessionMessagesRef.current = sessionMessages;
   onInvalidateActiveTurnRef.current = onInvalidateActiveTurn;
   onProjectBoundaryResetRef.current = onProjectBoundaryReset;
@@ -59,12 +63,22 @@ export function useAiTurnBoundary({
     },
     [invalidateActiveTurn],
   );
+  const runWithActiveTurnInvalidation = useCallback(
+    async <T,>(action: () => Promise<T> | T): Promise<T> => {
+      if (isTurnActiveRef.current) {
+        invalidateActiveTurn();
+      }
+      return await action();
+    },
+    [invalidateActiveTurn],
+  );
 
   return {
     beginTurn,
     invalidateActiveTurn,
     isCurrentTurn,
     runWithTurnInvalidation: wrapProjectBoundaryAction,
+    runWithActiveTurnInvalidation,
     wrapProjectBoundaryAction,
   };
 }
