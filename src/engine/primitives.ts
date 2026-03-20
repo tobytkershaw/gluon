@@ -294,6 +294,12 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     if (snapshot.prevPatterns) {
       update.patterns = snapshot.prevPatterns;
     }
+    // Revert auto-promotion: restore original engine/model and remove drum rack
+    if (snapshot.prevEngine !== undefined) {
+      update.engine = snapshot.prevEngine;
+      update.model = snapshot.prevModel ?? -1;
+      update.drumRack = undefined;
+    }
     return updateTrack(session, snapshot.trackId, update);
   }
 
@@ -664,6 +670,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     // Snapshot current patterns if the original snapshot had pattern data (pad removal with event cleanup)
     if (snapshot.prevPatterns) {
       result.prevPatterns = track.patterns.map(p => ({ ...p, events: [...p.events] }));
+    }
+    // Capture current engine/model for promotion snapshots (redo needs the current state)
+    if (snapshot.prevEngine !== undefined) {
+      result.prevEngine = track.engine;
+      result.prevModel = track.model;
     }
     return result;
   }

@@ -1939,8 +1939,8 @@ const applyArrangementArchetypeTool: ToolSchema = {
 const manageDrumPadTool: ToolSchema = {
   name: 'manage_drum_pad',
   description:
-    'Add, remove, rename, or set choke group on a drum rack pad. Drum rack tracks (engine: drum-rack) hold ' +
-    'up to 16 pads, each with its own Plaits model and params. Adding pads mid-session is the expected workflow.',
+    'Add, remove, rename, or set choke group on a drum rack pad. Adding the first pad to an empty audio track ' +
+    'automatically converts it to a drum rack. Drum rack tracks hold up to 16 pads, each with its own Plaits model and params.',
   parameters: {
     type: 'object',
     properties: {
@@ -1951,7 +1951,7 @@ const manageDrumPadTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target drum rack track.',
+        description: 'Target track. For add: can be an empty audio track (auto-promotes to drum rack). For other actions: must already be a drum rack.',
       },
       padId: {
         type: 'string',

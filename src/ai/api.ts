@@ -771,7 +771,11 @@ export function projectAction(session: Session, action: AIAction): Session {
     }
     case 'manage_drum_pad': {
       const track = getTrack(session, action.trackId);
-      const pads = [...(track.drumRack?.pads ?? [])];
+      // Auto-promote: if the track isn't a drum rack yet, project the promotion
+      const isAutoPromote = track.engine !== 'drum-rack';
+      const promotionFields = isAutoPromote ? { engine: 'drum-rack' as const, model: -1, drumRack: { pads: [] as DrumPad[] } } : {};
+      const effectiveDrumRack = isAutoPromote ? { pads: [] as DrumPad[] } : (track.drumRack ?? { pads: [] });
+      const pads = [...effectiveDrumRack.pads];
       switch (action.action) {
         case 'add': {
           const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
@@ -794,16 +798,19 @@ export function projectAction(session: Session, action: AIAction): Session {
         }
         case 'remove':
           return updateTrack(session, action.trackId, {
-            drumRack: { ...(track.drumRack ?? { pads: [] }), pads: pads.filter(p => p.id !== action.padId) },
+            ...promotionFields,
+            drumRack: { ...effectiveDrumRack, pads: pads.filter(p => p.id !== action.padId) },
           });
         case 'rename':
           return updateTrack(session, action.trackId, {
-            drumRack: { ...(track.drumRack ?? { pads: [] }), pads: pads.map(p => p.id === action.padId ? { ...p, name: action.name! } : p) },
+            ...promotionFields,
+            drumRack: { ...effectiveDrumRack, pads: pads.map(p => p.id === action.padId ? { ...p, name: action.name! } : p) },
           });
         case 'set_choke_group':
           return updateTrack(session, action.trackId, {
+            ...promotionFields,
             drumRack: {
-              ...(track.drumRack ?? { pads: [] }),
+              ...effectiveDrumRack,
               pads: pads.map(p => {
                 if (p.id !== action.padId) return p;
                 if (action.chokeGroup === null || action.chokeGroup === undefined) {
@@ -818,7 +825,8 @@ export function projectAction(session: Session, action: AIAction): Session {
           return session;
       }
       return updateTrack(session, action.trackId, {
-        drumRack: { ...(track.drumRack ?? { pads: [] }), pads },
+        ...promotionFields,
+        drumRack: { ...effectiveDrumRack, pads },
       });
     }
     case 'save_memory': {

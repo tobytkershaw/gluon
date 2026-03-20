@@ -362,6 +362,18 @@ export default function App() {
   useEffect(() => {
     if (!audioStarted) return;
     const audio = audioRef.current;
+    // Slot type (audio vs drum-rack) is baked at creation time by addTrack().
+    // Pad sync (line 442) only fires when isTrackDrumRack() is true.
+    // When promotion or undo changes the engine type, recreate the slot.
+    for (const track of session.tracks) {
+      if (!audio.hasTrack(track.id)) continue;
+      const wantsDrumRack = track.engine === 'drum-rack';
+      const isDrumRack = audio.isTrackDrumRack(track.id);
+      if (wantsDrumRack !== isDrumRack) {
+        audio.removeTrack(track.id);
+        // Will be re-added with correct type in the add loop below
+      }
+    }
     // Add engine slots for tracks not yet in the audio engine
     for (const track of session.tracks) {
       if (!audio.hasTrack(track.id)) {
