@@ -1,5 +1,5 @@
 // src/engine/session.ts
-import type { Session, Track, ApprovalLevel, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ApprovalSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, SequenceEditSnapshot, ABRestoreSnapshot, ActionGroupSnapshot } from './types';
+import type { Session, Track, MusicalContext, SynthParamValues, ModelSnapshot, MasterChannel, MasterSnapshot, ClaimSnapshot, TrackAddSnapshot, TrackRemoveSnapshot, SendSnapshot, Send, Reaction, OpenDecision, TrackKind, PatternCrudSnapshot, TransportSnapshot, TrackPropertySnapshot, SequenceEditSnapshot, ABRestoreSnapshot, ActionGroupSnapshot } from './types';
 import type { SourceAdapter, Pattern } from './canonical-types';
 import type { TransportMode } from './sequencer-types';
 import { updateTrack, DEFAULT_MASTER, MAX_TRACKS, MASTER_BUS_ID, getTrackKind, getActivePattern } from './types';
@@ -51,7 +51,7 @@ export function createBusTrack(trackId: string, name?: string): Track {
       modules: [],
       thumbprint: { type: 'static-color' },
     },
-    approval: 'exploratory',
+    claimed: false,
   };
 }
 
@@ -137,7 +137,7 @@ export function createEmptyTrack(trackId: string): Track {
       modules: [],
       thumbprint: { type: 'static-color' },
     },
-    approval: 'exploratory',
+    claimed: false,
   };
 }
 
@@ -676,24 +676,43 @@ export function resolveDecision(session: Session, decisionId: string): Session {
   return { ...session, openDecisions: unresolved };
 }
 
-// --- Approval helpers ---
+// --- Claim helpers ---
 
-export function setApproval(session: Session, trackId: string, level: ApprovalLevel, description?: string): Session {
+export function toggleClaim(session: Session, trackId: string, description?: string): Session {
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return session;
 
-  const prevApproval = track.approval ?? 'exploratory';
-  if (prevApproval === level) return session; // no-op
+  const prevClaimed = track.claimed ?? false;
+  const newClaimed = !prevClaimed;
 
-  const snapshot: ApprovalSnapshot = {
-    kind: 'approval',
+  const snapshot: ClaimSnapshot = {
+    kind: 'claim',
     trackId,
-    prevApproval,
+    prevClaimed,
     timestamp: Date.now(),
-    description: description ?? `Set approval: ${prevApproval} → ${level}`,
+    description: description ?? `${newClaimed ? 'Claim' : 'Unclaim'} track`,
   };
 
-  const result = updateTrack(session, trackId, { approval: level });
+  const result = updateTrack(session, trackId, { claimed: newClaimed });
+  return { ...result, undoStack: [...result.undoStack, snapshot] };
+}
+
+export function setClaim(session: Session, trackId: string, claimed: boolean, description?: string): Session {
+  const track = session.tracks.find(v => v.id === trackId);
+  if (!track) return session;
+
+  const prevClaimed = track.claimed ?? false;
+  if (prevClaimed === claimed) return session; // no-op
+
+  const snapshot: ClaimSnapshot = {
+    kind: 'claim',
+    trackId,
+    prevClaimed,
+    timestamp: Date.now(),
+    description: description ?? `${claimed ? 'Claim' : 'Unclaim'} track`,
+  };
+
+  const result = updateTrack(session, trackId, { claimed });
   return { ...result, undoStack: [...result.undoStack, snapshot] };
 }
 

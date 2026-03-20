@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad, ProjectMemory } from '../engine/types';
+import type { Session, Track, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad, ProjectMemory } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -101,7 +101,7 @@ interface CompressedTrack {
   label: string;
   model: string;
   params?: Record<string, number>;
-  approval: ApprovalLevel;
+  claimed: boolean;
   muted: boolean;
   solo: boolean;
   volume: number;
@@ -164,7 +164,7 @@ interface CompressedChordProgressionEntry {
 /** Compressed summary of a preservation report for inclusion in AI state. */
 interface CompressedPreservationReport {
   trackId: string;
-  approval: ApprovalLevel;
+  claimed: boolean;
   preserved: string[];   // e.g. ["rhythm", "event_count"]
   changed: string[];     // from PreservationReport.changed
 }
@@ -764,7 +764,7 @@ function compressPreservationReport(report: PreservationReport): CompressedPrese
   if (report.preserved.pitchContour) preserved.push('pitch_contour');
   return {
     trackId: report.trackId,
-    approval: report.approvalLevel,
+    claimed: report.claimed,
     preserved,
     changed: report.changed,
   };
@@ -938,7 +938,7 @@ export function compressState(
       ...(isDrumRack ? {
         pads: track.drumRack!.pads.map(compressDrumPad),
       } : {}),
-      approval: track.approval ?? 'exploratory',
+      claimed: track.claimed ?? false,
       muted: track.muted,
       solo: track.solo,
       volume: round2(track.volume),

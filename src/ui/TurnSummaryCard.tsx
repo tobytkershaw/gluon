@@ -76,8 +76,8 @@ function summariseDiff(diff: ActionDiff, trackLabel: string): string {
       return `unpin ${diff.controlId}`;
     case 'surface-label-axes':
       return `axes ${diff.x}/${diff.y}`;
-    case 'approval-change':
-      return `approval \u2192 ${diff.to}`;
+    case 'claim-change':
+      return `claim \u2192 ${diff.to ? 'claimed' : 'unclaimed'}`;
     default:
       return '';
   }
@@ -135,7 +135,7 @@ function categoriseDiff(diff: ActionDiff): ChangeCategory {
     case 'surface-pin':
     case 'surface-unpin':
     case 'surface-label-axes': return 'surface';
-    case 'approval-change': return 'other';
+    case 'claim-change': return 'other';
     default: return 'other';
   }
 }

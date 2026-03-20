@@ -3,14 +3,14 @@ import { describe, it, expect } from 'vitest';
 import {
   createSession, addTrack, updateTrackParams, setModel,
   setActiveTrack, toggleMute, toggleSolo, setTransportBpm, setTransportSwing, playTransport, pauseTransport, stopTransport,
-  setApproval, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
+  toggleClaim, setClaim, addReaction, addDecision, resolveDecision, setTrackImportance, setMaster, renameTrack,
   setTimeSignature, setTransportMode, toggleMetronome, setMetronomeVolume,
   setTrackVolume, setTrackPan, setMasterVolume, setMasterPan,
   captureABSnapshot, restoreABSnapshot,
   MAX_REACTION_HISTORY, MAX_OPEN_DECISIONS,
 } from '../../src/engine/session';
 import { applyUndo } from '../../src/engine/primitives';
-import type { Reaction, OpenDecision, ApprovalLevel, Session } from '../../src/engine/types';
+import type { Reaction, OpenDecision, Session } from '../../src/engine/types';
 import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
 
 describe('Session (Phase 2)', () => {
@@ -174,48 +174,51 @@ describe('Session (Phase 2)', () => {
 // M6 Session Helpers
 // ---------------------------------------------------------------------------
 
-describe('setApproval', () => {
-  it('creates an ApprovalSnapshot on undoStack', () => {
+describe('toggleClaim', () => {
+  it('creates a ClaimSnapshot on undoStack', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;
-    const s2 = setApproval(s1, trackId, 'liked');
+    const s2 = toggleClaim(s1, trackId);
     expect(s2.undoStack.length).toBe(1);
     const snap = s2.undoStack[0];
-    expect(snap.kind).toBe('approval');
-    if (snap.kind === 'approval') {
+    expect(snap.kind).toBe('claim');
+    if (snap.kind === 'claim') {
       expect(snap.trackId).toBe(trackId);
-      expect(snap.prevApproval).toBe('exploratory');
+      expect(snap.prevClaimed).toBe(false);
     }
-    expect(s2.tracks.find(t => t.id === trackId)!.approval).toBe('liked');
+    expect(s2.tracks.find(t => t.id === trackId)!.claimed).toBe(true);
   });
 
-  it('no-op when level === existing level', () => {
+  it('toggles claimed back to false', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;
-    // Default approval is 'exploratory'
-    const s2 = setApproval(s1, trackId, 'exploratory');
-    expect(s2).toBe(s1); // same reference — no change
+    const s2 = toggleClaim(s1, trackId);
+    const s3 = toggleClaim(s2, trackId);
+    expect(s3.tracks.find(t => t.id === trackId)!.claimed).toBe(false);
   });
 
   it('returns unchanged session for missing trackId', () => {
     const s1 = createSession();
-    const s2 = setApproval(s1, 'nonexistent', 'anchor');
+    const s2 = toggleClaim(s1, 'nonexistent');
     expect(s2).toBe(s1);
   });
+});
 
-  it('description defaults to "Set approval: X → Y"', () => {
+describe('setClaim', () => {
+  it('no-op when setting same value', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;
-    const s2 = setApproval(s1, trackId, 'anchor');
-    const snap = s2.undoStack[0];
-    expect(snap.description).toBe('Set approval: exploratory → anchor');
+    // Default claimed is false
+    const s2 = setClaim(s1, trackId, false);
+    expect(s2).toBe(s1); // same reference — no change
   });
 
-  it('uses custom description when provided', () => {
+  it('sets claim to true with description', () => {
     const s1 = createSession();
     const trackId = s1.tracks[0].id;
-    const s2 = setApproval(s1, trackId, 'liked', 'Human liked the groove');
-    expect(s2.undoStack[0].description).toBe('Human liked the groove');
+    const s2 = setClaim(s1, trackId, true, 'Human claimed the groove');
+    expect(s2.undoStack[0].description).toBe('Human claimed the groove');
+    expect(s2.tracks.find(t => t.id === trackId)!.claimed).toBe(true);
   });
 });
 

@@ -257,8 +257,14 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     return updateTrack(session, snapshot.trackId, { surface: snapshot.prevSurface });
   }
 
+  if (snapshot.kind === 'claim') {
+    return updateTrack(session, snapshot.trackId, { claimed: snapshot.prevClaimed });
+  }
+
+  // Legacy approval snapshots — convert to claim
   if (snapshot.kind === 'approval') {
-    return updateTrack(session, snapshot.trackId, { approval: snapshot.prevApproval });
+    const prevClaimed = snapshot.prevApproval !== 'exploratory';
+    return updateTrack(session, snapshot.trackId, { claimed: prevClaimed });
   }
 
   if (snapshot.kind === 'send') {
@@ -624,6 +630,13 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     }, timestamp: now };
   }
 
+  if (snapshot.kind === 'claim') {
+    const track = session.tracks.find(v => v.id === snapshot.trackId);
+    if (!track) return { ...snapshot, timestamp: now };
+    return { ...snapshot, prevClaimed: track.claimed ?? false, timestamp: now };
+  }
+
+  // Legacy approval snapshots
   if (snapshot.kind === 'approval') {
     const track = session.tracks.find(v => v.id === snapshot.trackId);
     if (!track) return { ...snapshot, timestamp: now };

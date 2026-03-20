@@ -1412,35 +1412,24 @@ describe('set_track_meta — adversarial', () => {
     expect(r2.applied).toContain('pan');
   });
 
-  it('rejects approval without reason', async () => {
+  it('rejects claimed change without reason', async () => {
     const session = makeSession();
     const { response } = await callTool(session, 'set_track_meta', {
       trackId: session.tracks[0].id,
-      approval: 'liked',
+      claimed: true,
     });
     expect(response.errors).toBeDefined();
     expect((response.errors as string[]).some((e: string) => /reason/i.test(e))).toBe(true);
   });
 
-  it('rejects invalid approval level', async () => {
+  it('accepts valid claimed change with reason', async () => {
     const session = makeSession();
     const { response } = await callTool(session, 'set_track_meta', {
       trackId: session.tracks[0].id,
-      approval: 'superb',
-      reason: 'because',
-    });
-    expect(response.errors).toBeDefined();
-    expect((response.errors as string[]).some((e: string) => /invalid approval/i.test(e))).toBe(true);
-  });
-
-  it('accepts valid approval with reason', async () => {
-    const session = makeSession();
-    const { response } = await callTool(session, 'set_track_meta', {
-      trackId: session.tracks[0].id,
-      approval: 'liked',
+      claimed: true,
       reason: 'good groove',
     });
-    expect(response.applied).toContain('approval');
+    expect(response.applied).toContain('claimed');
   });
 
   it('rejects empty name string', async () => {

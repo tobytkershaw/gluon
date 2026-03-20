@@ -160,7 +160,7 @@ Change what the instrument is — its modules, signal chain, and configuration.
 
 #### `manage_track`
 
-Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Removing requires that the track must not have anchor approval.
+Add or remove a track. Audio tracks produce sound; bus tracks receive audio via sends. Removing requires that the track must not be claimed.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -387,7 +387,7 @@ Set per-track visual identity for the Surface view. All visual properties are op
 
 #### `set_track_meta`
 
-Set track metadata and mix properties in a single call: name, volume, pan, swing (per-track override), muted, solo, approval, importance, musicalRole, portamentoTime, and/or portamentoMode. At least one field required. Approval requires a reason.
+Set track metadata and mix properties in a single call: name, volume, pan, swing (per-track override), muted, solo, claimed (protection toggle), importance, musicalRole, portamentoTime, and/or portamentoMode. At least one field required. Claim changes require a reason.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -399,12 +399,12 @@ Set track metadata and mix properties in a single call: name, volume, pan, swing
 | `inheritSwing` | boolean | no | Set to true to clear per-track swing and inherit global transport swing. Mutually exclusive with `swing`. |
 | `muted` | boolean | no | Set the track muted state. true = muted (silent), false = unmuted. |
 | `solo` | boolean | no | Set the track solo state. true = solo (only this track audible), false = unsolo. |
-| `approval` | string | no | Approval level: `exploratory`, `liked`, `approved`, `anchor`. |
+| `claimed` | boolean | no | Whether the track is claimed by the human. true = AI must ask before modifying, false = free to edit. |
 | `importance` | number | no | How important this track is to the mix (0.0-1.0). |
 | `musicalRole` | string | no | Brief description of the track's musical role (e.g. "driving rhythm"). |
 | `portamentoTime` | number | no | Pitch glide time, normalised 0.0–1.0 (0–500ms). 0 = no glide. |
 | `portamentoMode` | string | no | Portamento mode: `off`, `always`, or `legato` (glide only on overlapping notes). |
-| `reason` | string | no | Required when setting approval. Why this approval level is appropriate. |
+| `reason` | string | no | Required when changing claim state. Why this claim change is appropriate. |
 
 ### Decision
 
@@ -736,7 +736,7 @@ Each turn, the AI receives compressed session state as JSON:
       "label": "Track 1 (Kick)",
       "model": "analog_bass_drum",
       "params": { "timbre": 0.65, "harmonics": 0.30, "morph": 0.20, "frequency": 0.40 },
-      "approval": "exploratory",
+      "claimed": false,
       "muted": false,
       "solo": false,
       "volume": 0.80,
@@ -805,11 +805,11 @@ Each turn, the AI receives compressed session state as JSON:
 ```
 
 Fields:
-- **tracks[]** — each track's current state (1–16 tracks, variable), with a human-readable `label` (e.g. "Track 1 (Kick)"), parameters (control IDs), approval, pattern, views, processor chain, modulators, modulation routings, importance, and musical role
+- **tracks[]** — each track's current state (1–16 tracks, variable), with a human-readable `label` (e.g. "Track 1 (Kick)"), parameters (control IDs), claimed state, pattern, views, processor chain, modulators, modulation routings, importance, and musical role
 - **label** — 1-indexed ordinal label with engine or user-assigned name (e.g. "Track 1 (Kick)", "Track 2 (My Lead)"). Bus tracks show "Master Bus" or "Bus".
 - **kind** — (bus tracks only) `"bus"`. Absent for audio tracks.
 - **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`. Only non-default values shown. Omitted for drum rack and bus tracks.
-- **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
+- **claimed** — whether the human has claimed this track (true = ask before modifying, false = free to edit)
 - **volume** / **pan** — track mix levels (0.0–1.0)
 - **swing** — (optional) per-track swing override (0.0–1.0). Present only when the track overrides global transport swing.
 - **pattern** — canonical event summary. For generic tracks: triggers (`{at, vel}`), notes (`{at, pitch, vel, dur?}`), accents, param locks, and density. For bass tracks: role-aware compression with `trackerRows` (e.g. "C3@1.1.1 Eb3@1.3.1(2)"). For pad tracks: `chordBlocks` (e.g. "Cm[C3,Eb3,G3]@1.1.1(8)"). For drum rack tracks, pattern uses stacked grid lane format (see below).
@@ -1178,7 +1178,7 @@ analyze({ snapshotId: "snap-1710342000000", types: ["spectral", "dynamics"] })
 ### Example 9: "Mark the bass as important"
 
 ```
-set_track_meta({ trackId: "v0", importance: 0.9, musicalRole: "driving bass", approval: "liked", reason: "Human is happy with the bass sound" })
+set_track_meta({ trackId: "v0", importance: 0.9, musicalRole: "driving bass", claimed: true, reason: "Human is happy with the bass sound" })
 ```
 
 ---

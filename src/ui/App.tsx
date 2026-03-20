@@ -6,7 +6,7 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import { clearSnapshots } from '../audio/snapshot-store';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface, LiveControlModule } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface, LiveControlModule } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -14,7 +14,7 @@ import { shouldSkipTrackModelSync } from './track-sync';
 import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
-  createSession, setApproval, updateTrackParams, setModel,
+  createSession, toggleClaim, updateTrackParams, setModel,
   setActiveTrack, toggleTrackExpanded, toggleMute, toggleSolo, setTransportBpm, setTransportBpmNoUndo, setTransportSwing, setTransportSwingNoUndo, playTransport, pauseTransport, stopTransport,
   renameTrack, setMaster, setMasterNoUndo, setTrackVolume, setTrackVolumeNoUndo, setTrackPan, setTrackPanNoUndo,
   addTrack, removeTrack,
@@ -3261,15 +3261,8 @@ export default function App() {
       onToggleMute={handleToggleMute}
       onToggleSolo={handleToggleSolo}
       onRenameTrack={handleRenameTrack}
-      onCycleApproval={(trackId) => {
-        const cycle: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
-        setSession(s => {
-          const track = s.tracks.find(v => v.id === trackId);
-          if (!track) return s;
-          const current = track.approval ?? 'exploratory';
-          const nextIdx = (cycle.indexOf(current) + 1) % cycle.length;
-          return setApproval(s, trackId, cycle[nextIdx]);
-        });
+      onToggleClaim={(trackId) => {
+        setSession(s => toggleClaim(s, trackId));
       }}
       onAddTrack={handleAddTrack}
       onRemoveTrack={handleRemoveTrack}

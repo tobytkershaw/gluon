@@ -54,6 +54,7 @@ describe('Tool Schemas', () => {
     expect(names).not.toContain('unpin');
     expect(names).not.toContain('set_importance');
     expect(names).not.toContain('mark_approved');
+    expect(names).not.toContain('set_claim');
     expect(names).not.toContain('spectral');
     expect(names).not.toContain('dynamics');
     expect(names).not.toContain('rhythm');

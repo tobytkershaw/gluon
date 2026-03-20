@@ -174,12 +174,12 @@ describe('AI track-metadata undo contract', () => {
     expect(underReport.session.tracks.find(t => t.id === 'v0')!.importance).toBe(0);
   });
 
-  // --- Consistency with mark_approved ---
+  // --- Consistency with set_claim ---
 
-  it('mark_approved and set_importance both produce undo snapshots', () => {
+  it('set_claim and set_importance both produce undo snapshots', () => {
     const session = setupSession();
     const actions: AIAction[] = [
-      { type: 'mark_approved', trackId: 'v0', level: 'liked', reason: 'test' },
+      { type: 'set_claim', trackId: 'v0', claimed: true, reason: 'test' },
       { type: 'set_importance', trackId: 'v0', importance: 0.8 },
     ];
     const report = executeOperations(session, actions, adapter, makeArbitrator());
@@ -188,13 +188,12 @@ describe('AI track-metadata undo contract', () => {
     // Both should be undoable in a single group
     const top = report.session.undoStack[report.session.undoStack.length - 1];
     const snaps = flatSnapshots(top);
-    // At least 2 snapshots: one for approval, one for importance
+    // At least 2 snapshots: one for claim, one for importance
     expect(snaps.length).toBeGreaterThanOrEqual(2);
 
     // Undo should revert both
     const undone = applyUndo(report.session);
-    // mark_approved stores prevApproval as track.approval ?? 'exploratory', so undo restores 'exploratory'
-    expect(undone.tracks.find(t => t.id === 'v0')!.approval).toBe('exploratory');
+    expect(undone.tracks.find(t => t.id === 'v0')!.claimed).toBe(false);
     expect(undone.tracks.find(t => t.id === 'v0')!.importance).toBeUndefined();
   });
 });

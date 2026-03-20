@@ -21,7 +21,7 @@ function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): App
     onToggleMute: noop,
     onToggleSolo: noop,
     onRenameTrack: noop,
-    onCycleApproval: noop,
+    onToggleClaim: noop,
     onAddTrack: noop,
     onRemoveTrack: noop,
     onSetMusicalRole: noop,

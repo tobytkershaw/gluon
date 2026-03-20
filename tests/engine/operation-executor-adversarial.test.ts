@@ -634,58 +634,48 @@ describe('Operation executor adversarial tests', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 12. Preservation / approval blocking
+  // 12. Claim blocking
   // -------------------------------------------------------------------------
 
-  describe('preservation and approval constraints', () => {
-    it('rejects sketch on anchor-approved track', () => {
+  describe('claim constraints', () => {
+    it('rejects sketch on claimed track', () => {
       let session = setupSession();
-      session = updateTrack(session, 'v0', { approval: 'anchor' });
+      session = updateTrack(session, 'v0', { claimed: true });
       const report = run(session, [
         { type: 'sketch', trackId: 'v0', description: 'test', events: [{ kind: 'trigger', at: 0, velocity: 0.8 }] },
       ]);
       expect(report.rejected).toHaveLength(1);
-      expect(report.rejected[0].reason).toContain('anchored');
+      expect(report.rejected[0].reason).toContain('Claimed');
     });
 
-    it('rejects transform on anchor-approved track', () => {
+    it('rejects transform on claimed track', () => {
       let session = setupSession();
-      session = updateTrack(session, 'v0', { approval: 'anchor' });
+      session = updateTrack(session, 'v0', { claimed: true });
       const report = run(session, [
         { type: 'transform', trackId: 'v0', operation: 'reverse', description: 'test' },
       ]);
       expect(report.rejected).toHaveLength(1);
-      expect(report.rejected[0].reason).toContain('anchored');
+      expect(report.rejected[0].reason).toContain('Claimed');
     });
 
-    it('rejects remove_track on anchor-approved track', () => {
+    it('rejects remove_track on claimed track', () => {
       let session = setupSession();
-      session = updateTrack(session, 'v0', { approval: 'anchor' });
+      session = updateTrack(session, 'v0', { claimed: true });
       const report = run(session, [
         { type: 'remove_track', trackId: 'v0', description: 'test' },
       ]);
       expect(report.rejected).toHaveLength(1);
-      expect(report.rejected[0].reason).toContain('anchor');
+      expect(report.rejected[0].reason).toContain('claimed');
     });
 
-    it('allows transpose on approved track (preserves rhythm)', () => {
+    it('allows all transforms on unclaimed track', () => {
       let session = setupSession();
-      session = updateTrack(session, 'v0', { approval: 'approved' });
+      session = updateTrack(session, 'v0', { claimed: false });
       const report = run(session, [
         { type: 'transform', trackId: 'v0', operation: 'transpose', semitones: 3, description: 'test' },
       ]);
       expect(report.accepted).toHaveLength(1);
       expect(report.rejected).toHaveLength(0);
-    });
-
-    it('rejects non-transpose transform on approved track', () => {
-      let session = setupSession();
-      session = updateTrack(session, 'v0', { approval: 'approved' });
-      const report = run(session, [
-        { type: 'transform', trackId: 'v0', operation: 'rotate', steps: 2, description: 'test' },
-      ]);
-      expect(report.rejected).toHaveLength(1);
-      expect(report.rejected[0].reason).toContain('approved');
     });
   });
 
@@ -1211,17 +1201,26 @@ describe('Operation executor adversarial tests', () => {
   });
 
   // -------------------------------------------------------------------------
-  // 24. Mark approved with invalid level
+  // 24. Set claim edge cases
   // -------------------------------------------------------------------------
 
-  describe('mark_approved edge cases', () => {
-    it('rejects mark_approved with invalid approval level', () => {
+  describe('set_claim edge cases', () => {
+    it('accepts set_claim with valid boolean', () => {
       const session = setupSession();
       const report = run(session, [
-        { type: 'mark_approved', trackId: 'v0', level: 'super-approved' as any, reason: 'test' },
+        { type: 'set_claim', trackId: 'v0', claimed: true, reason: 'test' },
+      ]);
+      expect(report.accepted).toHaveLength(1);
+      expect(report.rejected).toHaveLength(0);
+    });
+
+    it('rejects set_claim with invalid claimed value', () => {
+      const session = setupSession();
+      const report = run(session, [
+        { type: 'set_claim', trackId: 'v0', claimed: 'yes' as any, reason: 'test' },
       ]);
       expect(report.rejected).toHaveLength(1);
-      expect(report.rejected[0].reason).toContain('Invalid approval level');
+      expect(report.rejected[0].reason).toContain('Invalid claim value');
     });
   });
 

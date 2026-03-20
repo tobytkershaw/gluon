@@ -221,7 +221,7 @@ function handleGetSessionState(): ToolResult {
         eventCount: p.events.length,
       })),
       activePatternId: t.activePatternId,
-      approval: t.approval ?? 'exploratory',
+      claimed: t.claimed ?? false,
       importance: t.importance,
       musicalRole: t.musicalRole,
     })),
@@ -274,7 +274,7 @@ function handleManageTrack(args: Record<string, unknown>): ToolResult {
           xyAxes: { x: 'timbre', y: 'morph' },
           thumbprint: { type: 'static-color' as const },
         },
-        approval: 'exploratory' as const,
+        claimed: false,
       };
     }
     // Insert at correct position
@@ -648,7 +648,7 @@ function handleSetTrackMeta(args: Record<string, unknown>): ToolResult {
   if (args.pan !== undefined) updates.pan = args.pan as number;
   if (args.muted !== undefined) updates.muted = args.muted as boolean;
   if (args.solo !== undefined) updates.solo = args.solo as boolean;
-  if (args.approval !== undefined) updates.approval = args.approval as Track['approval'];
+  if (args.claimed !== undefined) updates.claimed = !!args.claimed;
   if (args.importance !== undefined) updates.importance = args.importance as number;
   if (args.musicalRole !== undefined) updates.musicalRole = args.musicalRole as string;
   session = updateTrack(session, trackId, updates);
