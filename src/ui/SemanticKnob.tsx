@@ -67,6 +67,14 @@ export function SemanticKnob({
     onPointerUp();
   }, [onPointerUp]);
 
+  // Pointer cancel — treat as end-of-gesture to capture undo snapshot
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    onPointerUp();
+  }, [onPointerUp]);
+
   const handleClick = useCallback((e: React.MouseEvent) => {
     // Only open inspector on click without drag
     if (Math.abs(startY.current - e.clientY) < 3) {
@@ -79,13 +87,17 @@ export function SemanticKnob({
     if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
       e.preventDefault();
       e.nativeEvent.stopImmediatePropagation();
+      onPointerDown();
       onChange(Math.min(1, value + step));
+      onPointerUp();
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
       e.preventDefault();
       e.nativeEvent.stopImmediatePropagation();
+      onPointerDown();
       onChange(Math.max(0, value - step));
+      onPointerUp();
     }
-  }, [onChange, value]);
+  }, [onChange, value, onPointerDown, onPointerUp]);
 
   const size = (KNOB_RADIUS + STROKE_WIDTH) * 2;
 
@@ -105,6 +117,7 @@ export function SemanticKnob({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
       >

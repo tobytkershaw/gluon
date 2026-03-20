@@ -835,6 +835,11 @@ export default function App() {
       const prevValue = track.params[runtimeParam] ?? 0;
       const next = updateTrackParams(s, vid, { [runtimeParam]: value }, true, plaitsAdapter);
       if (Math.abs(value - prevValue) < 0.001) return next;
+
+      // If a gesture is in progress (interactionUndoRef active), skip per-change
+      // undo push — the gesture end handler will capture the entire diff as one entry.
+      if (interactionUndoRef.current) return next;
+
       const controlId = plaitsAdapter.mapRuntimeParamKey(runtimeParam);
       const prevProvenance: Partial<ControlState> = {};
       if (controlId && track.controlProvenance?.[controlId]) {
@@ -898,16 +903,17 @@ export default function App() {
     const track = getActiveTrack(s);
     const prevProvenance: Partial<ControlState> = {};
     if (track.controlProvenance) {
-      for (const key of ['timbre', 'morph']) {
+      for (const key of Object.keys(track.params)) {
         const controlId = plaitsAdapter.mapRuntimeParamKey(key);
         if (controlId && track.controlProvenance[controlId]) {
           prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
         }
       }
     }
+    // Capture ALL source params so that any knob (not just XY pad) gets single-gesture undo
     interactionUndoRef.current = {
       trackId: s.activeTrackId,
-      prevParams: { timbre: track.params.timbre, morph: track.params.morph },
+      prevParams: { ...track.params },
       prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
       prevEvents: track.patterns.length > 0 ? [...getActivePattern(track).events] : undefined,
     };
@@ -922,11 +928,16 @@ export default function App() {
         const track = getTrack(s, captured.trackId);
         const snapshots: (ParamSnapshot | PatternEditSnapshot)[] = [];
 
-        // Check if params changed
+        // Check if params changed (union of prev + current keys to catch new params)
         const currentValues: Partial<SynthParamValues> = {};
-        for (const [param, prevValue] of Object.entries(captured.prevParams)) {
+        const allParamKeys = new Set([
+          ...Object.keys(captured.prevParams),
+          ...Object.keys(track.params),
+        ]);
+        for (const param of allParamKeys) {
+          const prev = (captured.prevParams as Record<string, number>)[param] ?? 0;
           const cur = track.params[param] ?? 0;
-          if (Math.abs(cur - (prevValue as number)) > 0.001) {
+          if (Math.abs(cur - prev) > 0.001) {
             currentValues[param] = cur;
           }
         }
@@ -1023,11 +1034,16 @@ export default function App() {
       const track = getTrack(s, captured.trackId);
       const snapshots: Snapshot[] = [];
 
-      // Check source params
+      // Check source params (union of prev + current keys to catch new params)
       const changedSource: Record<string, number> = {};
-      for (const [param, prevValue] of Object.entries(captured.prevSourceParams)) {
+      const allSourceKeys = new Set([
+        ...Object.keys(captured.prevSourceParams),
+        ...Object.keys(track.params),
+      ]);
+      for (const param of allSourceKeys) {
+        const prev = captured.prevSourceParams[param] ?? 0;
         const cur = track.params[param] ?? 0;
-        if (Math.abs(cur - prevValue) > 0.001) {
+        if (Math.abs(cur - prev) > 0.001) {
           changedSource[param] = cur;
         }
       }
@@ -2676,12 +2692,17 @@ export default function App() {
       const track = getTrack(s, captured.trackId);
       const snapshots: Snapshot[] = [];
 
-      // Check source param changes
+      // Check source param changes (union of prev + current keys)
       if (Object.keys(captured.prevSourceParams).length > 0) {
         const currentValues: Partial<SynthParamValues> = {};
-        for (const [param, prevValue] of Object.entries(captured.prevSourceParams)) {
+        const allSrcKeys = new Set([
+          ...Object.keys(captured.prevSourceParams),
+          ...Object.keys(track.params),
+        ]);
+        for (const param of allSrcKeys) {
+          const prev = (captured.prevSourceParams as Record<string, number>)[param] ?? 0;
           const cur = track.params[param] ?? 0;
-          if (Math.abs(cur - (prevValue as number)) > 0.001) {
+          if (Math.abs(cur - prev) > 0.001) {
             currentValues[param] = cur;
           }
         }
@@ -2698,11 +2719,12 @@ export default function App() {
         }
       }
 
-      // Check processor param changes
+      // Check processor param changes (union of prev + current keys)
       for (const [procId, prevParams] of captured.prevProcessorParams) {
         const proc = (track.processors ?? []).find(p => p.id === procId);
         if (!proc) continue;
-        const changed = Object.keys(prevParams).some(
+        const allProcKeys = new Set([...Object.keys(prevParams), ...Object.keys(proc.params)]);
+        const changed = [...allProcKeys].some(
           k => Math.abs((proc.params[k] ?? 0) - (prevParams[k] ?? 0)) > 0.001
         );
         if (changed) {

@@ -23,6 +23,8 @@ interface KnobProps {
   onChange: (value: number) => void;
   onPointerDown?: () => void;
   onPointerUp?: () => void;
+  /** Called on keyboard-initiated value change for undo capture */
+  onKeyboardEdit?: () => void;
   size?: number;          // diameter in px, default 40
   /** Active modulation routings targeting this control */
   modulations?: KnobModulationInfo[];
@@ -83,7 +85,8 @@ function indicatorPosition(cx: number, cy: number, r: number, fraction: number) 
 
 export function Knob({
   value, label, accentColor, onChange,
-  onPointerDown, onPointerUp, size = DEFAULT_SIZE,
+  onPointerDown, onPointerUp, onKeyboardEdit,
+  size = DEFAULT_SIZE,
   modulations, onModulationClick, displayMapping,
   onModulationDepthChange, onModulationDepthCommit,
   onRampRequest,
@@ -137,6 +140,16 @@ export function Knob({
     onPointerUp?.();
   }, [onPointerUp]);
 
+  // Pointer cancel (e.g. touch interrupted, browser gesture) — treat as end-of-gesture
+  // to ensure the undo snapshot is captured. Mirrors XYPadModule pattern.
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    setIsDragging(false);
+    svgRef.current?.releasePointerCapture(e.pointerId);
+    onPointerUp?.();
+  }, [onPointerUp]);
+
   // Indicator line: short line segment from ~60% of radius to the arc edge
   const ind = indicatorPosition(cx, cy, r, value);
   const indInner = indicatorPosition(cx, cy, r * 0.55, value);
@@ -155,13 +168,20 @@ export function Knob({
     if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
       e.preventDefault();
       e.nativeEvent.stopImmediatePropagation();
+      // Capture gesture start before the first keyboard edit, then commit after
+      onPointerDown?.();
       onChange(Math.min(1, value + step));
+      onPointerUp?.();
+      onKeyboardEdit?.();
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
       e.preventDefault();
       e.nativeEvent.stopImmediatePropagation();
+      onPointerDown?.();
       onChange(Math.max(0, value - step));
+      onPointerUp?.();
+      onKeyboardEdit?.();
     }
-  }, [onChange, value]);
+  }, [onChange, value, onPointerDown, onPointerUp, onKeyboardEdit]);
 
   return (
     <div
@@ -191,6 +211,7 @@ export function Knob({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onKeyDown={handleKeyDown}
       >
         {/* Invisible hit target — ensures pointer events register on the full knob area,
