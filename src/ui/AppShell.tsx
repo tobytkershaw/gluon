@@ -656,28 +656,31 @@ export function AppShell({
           <span className="text-[11px] text-zinc-600">
             {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
           </span>
+          <div className="w-px h-3 bg-zinc-800" />
+          {/* BPM */}
+          <span className="text-[11px] text-zinc-600">
+            {Math.round(bpm)} BPM
+          </span>
           <div className="flex-1" />
           <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
-        </div>
-        <div className="shrink-0 flex items-center px-3 border-l border-zinc-800/30">
-          <button
-            onClick={onChatToggle}
-            className="group shrink-0 p-1.5 rounded hover:bg-zinc-800/50 transition-colors mr-2"
-            title={chatOpen ? 'Collapse chat sidebar' : 'Expand chat sidebar'}
-          >
-            <svg viewBox="0 0 16 16" className="w-3 h-3 text-zinc-600 group-hover:text-violet-400 transition-colors">
-              {chatOpen ? (
-                <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              ) : (
-                <path d="M10 4l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-              )}
-            </svg>
-          </button>
-          {isActive && (
+          <div className="w-px h-3 bg-zinc-800" />
+          {/* AI activity dot */}
+          {apiConfigured && (
             <span
-              className="shrink-0 w-2 h-2 rounded-full bg-violet-400"
-              style={{ animation: 'pulse-soft 1.5s ease-in-out infinite' }}
-              title={isListening ? 'Listening \u2014 evaluating audio' : (streamingLogEntries && streamingLogEntries.length > 0 ? `Applying ${streamingLogEntries.length} ${streamingLogEntries.length === 1 ? 'change' : 'changes'}` : 'Thinking\u2026')}
+              className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                isListening
+                  ? 'bg-teal-400 animate-breathing'
+                  : isThinking
+                    ? 'bg-violet-500 animate-breathing'
+                    : 'bg-violet-500 opacity-40'
+              }`}
+              title={
+                isListening
+                  ? 'Listening \u2014 evaluating audio'
+                  : isThinking
+                    ? 'Thinking\u2026'
+                    : 'AI connected'
+              }
             />
           )}
         </div>
