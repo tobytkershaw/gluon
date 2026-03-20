@@ -11,6 +11,7 @@ import type {
   RenderSynthPatch,
   RenderPlaitsExtended,
   RenderModulatorSpec,
+  RenderPadSpec,
 } from './render-spec';
 import { applyProcessorModulations, applySourceModulations, averageSignal } from './render-modulation';
 import { applyStereoGain, applyStereoPan, downmixStereoToMono, mixStereoBuffers, monoToStereo } from './render-mix';
@@ -320,6 +321,289 @@ function processOfflineCompressor(
 
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Drum-rack rendering — one Plaits instance per pad, mixed together
+// ---------------------------------------------------------------------------
+
+interface PadHandle {
+  id: string;
+  plaits: PlaitsWasm;
+  handle: number;
+  outPtr: number;
+  currentPatch: RenderSynthPatch;
+  currentExtended: RenderPlaitsExtended;
+  extendedDirty: boolean;
+  level: number;
+  pan: number;
+  chokeGroup?: number;
+}
+
+async function renderDrumRackTrack(
+  track: RenderTrackSpec,
+  sampleRate: number,
+  bpm: number,
+  totalSteps: number,
+  sidechainBuffers?: Map<string, Float32Array>,
+): Promise<Float32Array> {
+  const pads = track.pads ?? [];
+  if (pads.length === 0) {
+    // No pads — return silence
+    const framesPerStep = (60 / bpm) * sampleRate / 4;
+    return new Float32Array(Math.ceil(totalSteps * framesPerStep));
+  }
+
+  const framesPerStep = (60 / bpm) * sampleRate / 4;
+  const totalFrames = Math.ceil(totalSteps * framesPerStep);
+
+  // Create one Plaits handle per pad
+  const plaits = await loadPlaitsModule();
+  const padHandles = new Map<string, PadHandle>();
+
+  for (const padSpec of pads) {
+    const pHandle = plaits._plaits_create(sampleRate);
+    const pOutPtr = plaits._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
+    plaits._plaits_set_model(pHandle, padSpec.model);
+    const currentPatch = { ...padSpec.params };
+    plaits._plaits_set_patch(pHandle, currentPatch.harmonics, currentPatch.timbre, currentPatch.morph, currentPatch.note);
+    const currentExtended = { ...padSpec.extendedParams };
+    plaits._plaits_set_extended(pHandle, currentExtended.fm_amount, currentExtended.timbre_mod_amount, currentExtended.morph_mod_amount, currentExtended.decay, currentExtended.lpg_colour);
+
+    padHandles.set(padSpec.id, {
+      id: padSpec.id,
+      plaits,
+      handle: pHandle,
+      outPtr: pOutPtr,
+      currentPatch,
+      currentExtended,
+      extendedDirty: false,
+      level: padSpec.level,
+      pan: padSpec.pan,
+      chokeGroup: padSpec.chokeGroup,
+    });
+  }
+
+  // Build choke group map: chokeGroup -> padIds in that group
+  const chokeGroups = new Map<number, string[]>();
+  for (const padSpec of pads) {
+    if (padSpec.chokeGroup !== undefined) {
+      const group = chokeGroups.get(padSpec.chokeGroup) ?? [];
+      group.push(padSpec.id);
+      chokeGroups.set(padSpec.chokeGroup, group);
+    }
+  }
+
+  // --- Load and init processors (shared across all pads) ---
+  interface WasmProcessorHandle {
+    type: 'rings' | 'clouds';
+    wasm: RingsWasm | CloudsWasm;
+    handle: number;
+    inPtr: number;
+    outPtr: number;
+    spec: RenderProcessorSpec;
+  }
+  interface CompressorHandle {
+    type: 'compressor';
+    state: OfflineCompressorState;
+    spec: RenderProcessorSpec;
+  }
+  type ProcessorHandle = WasmProcessorHandle | CompressorHandle;
+  const procHandles: ProcessorHandle[] = [];
+
+  for (const proc of track.processors) {
+    if (proc.type === 'rings') {
+      const rings = await loadRingsModule();
+      const rHandle = rings._rings_create();
+      rings._rings_set_model(rHandle, proc.model);
+      const p = proc.params;
+      rings._rings_set_patch(rHandle, p.structure ?? 0.5, p.brightness ?? 0.5, p.damping ?? 0.7, p.position ?? 0.5);
+      const inPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
+      const outPtr = rings._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
+      procHandles.push({ type: 'rings', wasm: rings, handle: rHandle, inPtr, outPtr, spec: proc });
+    } else if (proc.type === 'clouds') {
+      const clouds = await loadCloudsModule();
+      const cHandle = clouds._clouds_create();
+      clouds._clouds_set_mode(cHandle, proc.model);
+      const p = proc.params;
+      (clouds as CloudsWasm)._clouds_set_parameters(cHandle, p.position ?? 0.5, p.size ?? 0.5, p.density ?? 0.5, p.feedback ?? 0.0);
+      (clouds as CloudsWasm)._clouds_set_extended(cHandle, p.texture ?? 0.5, p.pitch ?? 0.5, p['dry-wet'] ?? 0.5, p['stereo-spread'] ?? 0.0, p.reverb ?? 0.0);
+      const inPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
+      const outPtr = clouds._malloc(BLOCK_SIZE * Float32Array.BYTES_PER_ELEMENT);
+      procHandles.push({ type: 'clouds', wasm: clouds, handle: cHandle, inPtr, outPtr, spec: proc });
+    } else if (proc.type === 'compressor') {
+      procHandles.push({
+        type: 'compressor',
+        state: createOfflineCompressor(proc.model, sampleRate),
+        spec: proc,
+      });
+    }
+  }
+
+  const modHandles: ModulatorHandle[] = [];
+  for (const mod of track.modulators) {
+    modHandles.push(await createTidesHandle(mod));
+  }
+
+  // --- Sort events and prepare ---
+  const sortedEvents = [...track.events].sort((a, b) => a.beatTime - b.beatTime);
+  let eventIndex = 0;
+
+  const output = new Float32Array(totalFrames);
+  const blockBuf = new Float32Array(BLOCK_SIZE);
+  const padBlockBuf = new Float32Array(BLOCK_SIZE);
+
+  // --- Render loop ---
+  for (let frame = 0; frame < totalFrames; frame += BLOCK_SIZE) {
+    blockBuf.fill(0);
+    const framesToRender = Math.min(BLOCK_SIZE, totalFrames - frame);
+    const blockBeatEnd = (frame + framesToRender) / framesPerStep;
+
+    // Collect events in this block
+    const blockEvents: RenderEvent[] = [];
+    while (eventIndex < sortedEvents.length && sortedEvents[eventIndex].beatTime < blockBeatEnd) {
+      blockEvents.push(sortedEvents[eventIndex]);
+      eventIndex++;
+    }
+
+    // Apply trigger/gate events per pad, handling choke groups
+    for (const ev of blockEvents) {
+      const padId = ev.padId;
+      if (!padId) continue; // drum-rack events should always have padId
+      const ph = padHandles.get(padId);
+      if (!ph) continue;
+
+      if (ev.type === 'trigger') {
+        // Choke group: gate-off all other pads in the same group
+        if (ph.chokeGroup !== undefined) {
+          const siblings = chokeGroups.get(ph.chokeGroup) ?? [];
+          for (const sibId of siblings) {
+            if (sibId !== padId) {
+              const sib = padHandles.get(sibId);
+              if (sib) sib.plaits._plaits_set_gate(sib.handle, 0);
+            }
+          }
+        }
+        ph.plaits._plaits_trigger(ph.handle, ev.accentLevel ?? 0.8);
+      } else if (ev.type === 'gate-on') {
+        ph.plaits._plaits_set_gate(ph.handle, 1);
+      } else if (ev.type === 'gate-off') {
+        ph.plaits._plaits_set_gate(ph.handle, 0);
+      } else if (ev.type === 'set-patch' && ev.patch) {
+        Object.assign(ph.currentPatch, ev.patch);
+        ph.plaits._plaits_set_patch(ph.handle, ph.currentPatch.harmonics, ph.currentPatch.timbre, ph.currentPatch.morph, ph.currentPatch.note);
+      } else if (ev.type === 'set-extended' && ev.extended) {
+        Object.assign(ph.currentExtended, ev.extended);
+        ph.extendedDirty = true;
+      } else if (ev.type === 'set-note' && ev.note !== undefined) {
+        ph.currentPatch.note = ev.note;
+        ph.plaits._plaits_set_patch(ph.handle, ph.currentPatch.harmonics, ph.currentPatch.timbre, ph.currentPatch.morph, ph.currentPatch.note);
+      }
+    }
+
+    // Flush extended params for all dirty pads
+    for (const ph of padHandles.values()) {
+      if (ph.extendedDirty) {
+        ph.plaits._plaits_set_extended(ph.handle, ph.currentExtended.fm_amount, ph.currentExtended.timbre_mod_amount, ph.currentExtended.morph_mod_amount, ph.currentExtended.decay, ph.currentExtended.lpg_colour);
+        ph.extendedDirty = false;
+      }
+    }
+
+    // Render modulation once per block
+    const modulatorValues = renderModulationBlock(modHandles, framesToRender);
+
+    // Render each pad and mix into blockBuf with level/pan (mono sum for now)
+    for (const ph of padHandles.values()) {
+      const rendered = ph.plaits._plaits_render(ph.handle, ph.outPtr, framesToRender);
+      const heap = getHeapF32(ph.plaits);
+      const outStart = ph.outPtr / Float32Array.BYTES_PER_ELEMENT;
+      padBlockBuf.fill(0);
+      padBlockBuf.set(heap.subarray(outStart, outStart + rendered));
+
+      // Apply per-pad level
+      const gain = ph.level;
+      for (let i = 0; i < framesToRender; i++) {
+        blockBuf[i] += padBlockBuf[i] * gain;
+      }
+    }
+
+    // Chain through processors (shared across all pads, post-mix)
+    for (const ph of procHandles) {
+      const effectiveProcessorParams = applyProcessorModulations(ph.spec, track.modulations, modulatorValues);
+      if (ph.type === 'rings') {
+        const rings = ph.wasm as RingsWasm;
+        rings._rings_set_patch(
+          ph.handle,
+          effectiveProcessorParams.structure ?? 0.5,
+          effectiveProcessorParams.brightness ?? 0.5,
+          effectiveProcessorParams.damping ?? 0.7,
+          effectiveProcessorParams.position ?? 0.5,
+        );
+        let rHeap = getHeapF32(rings);
+        const rInStart = ph.inPtr / Float32Array.BYTES_PER_ELEMENT;
+        rHeap.set(blockBuf.subarray(0, framesToRender), rInStart);
+        const rRendered = rings._rings_render(ph.handle, ph.inPtr, ph.outPtr, framesToRender);
+        rHeap = getHeapF32(rings);
+        const rOutStart = ph.outPtr / Float32Array.BYTES_PER_ELEMENT;
+        blockBuf.set(rHeap.subarray(rOutStart, rOutStart + rRendered));
+      } else if (ph.type === 'clouds') {
+        const clouds = ph.wasm as CloudsWasm;
+        clouds._clouds_set_parameters(
+          ph.handle,
+          effectiveProcessorParams.position ?? 0.5,
+          effectiveProcessorParams.size ?? 0.5,
+          effectiveProcessorParams.density ?? 0.5,
+          effectiveProcessorParams.feedback ?? 0.0,
+        );
+        clouds._clouds_set_extended(
+          ph.handle,
+          effectiveProcessorParams.texture ?? 0.5,
+          effectiveProcessorParams.pitch ?? 0.5,
+          effectiveProcessorParams['dry-wet'] ?? 0.5,
+          effectiveProcessorParams['stereo-spread'] ?? 0.0,
+          effectiveProcessorParams.reverb ?? 0.0,
+        );
+        let cHeap = getHeapF32(clouds);
+        const cInStart = ph.inPtr / Float32Array.BYTES_PER_ELEMENT;
+        cHeap.set(blockBuf.subarray(0, framesToRender), cInStart);
+        const cRendered = clouds._clouds_render(ph.handle, ph.inPtr, ph.outPtr, framesToRender);
+        cHeap = getHeapF32(clouds);
+        const cOutStart = ph.outPtr / Float32Array.BYTES_PER_ELEMENT;
+        blockBuf.set(cHeap.subarray(cOutStart, cOutStart + cRendered));
+      } else if (ph.type === 'compressor') {
+        const scSourceId = ph.spec.sidechainSourceTrackId;
+        const scBuf = scSourceId && sidechainBuffers ? sidechainBuffers.get(scSourceId) : undefined;
+        processOfflineCompressor(ph.state, effectiveProcessorParams, blockBuf, framesToRender, scBuf, frame);
+      }
+    }
+
+    output.set(blockBuf.subarray(0, framesToRender), frame);
+  }
+
+  // --- Cleanup ---
+  for (const ph of padHandles.values()) {
+    ph.plaits._free(ph.outPtr);
+    ph.plaits._plaits_destroy(ph.handle);
+  }
+  for (const ph of procHandles) {
+    if (ph.type === 'rings') {
+      const rings = ph.wasm as RingsWasm;
+      rings._free(ph.inPtr);
+      rings._free(ph.outPtr);
+      rings._rings_destroy(ph.handle);
+    } else if (ph.type === 'clouds') {
+      const clouds = ph.wasm as CloudsWasm;
+      clouds._free(ph.inPtr);
+      clouds._free(ph.outPtr);
+      clouds._clouds_destroy(ph.handle);
+    }
+  }
+  for (const mod of modHandles) {
+    mod.wasm._free(mod.outPtr);
+    mod.wasm._tides_destroy(mod.handle);
+  }
+
+  return output;
+}
+
 async function renderTrack(
   track: RenderTrackSpec,
   sampleRate: number,
@@ -328,6 +612,10 @@ async function renderTrack(
   /** Pre-rendered PCM buffers for sidechain sources, keyed by source track ID. */
   sidechainBuffers?: Map<string, Float32Array>,
 ): Promise<Float32Array> {
+  // Delegate to drum-rack renderer when applicable
+  if (track.isDrumRack && track.pads && track.pads.length > 0) {
+    return renderDrumRackTrack(track, sampleRate, bpm, totalSteps, sidechainBuffers);
+  }
   const framesPerStep = (60 / bpm) * sampleRate / 4; // one 16th note
   const totalFrames = Math.ceil(totalSteps * framesPerStep);
 
