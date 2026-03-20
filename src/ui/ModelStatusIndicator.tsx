@@ -11,11 +11,11 @@ export function ModelStatusIndicator({ plannerConfigured, listenerConfigured }: 
   let label: string;
 
   if (plannerConfigured && listenerConfigured) {
-    // Both available
-    dotClass = 'bg-teal-500';
+    // Both available — breathing animation while idle
+    dotClass = 'bg-teal-500 animate-breathing';
     label = 'AI Connected';
   } else if (!plannerConfigured && !listenerConfigured) {
-    // Both unavailable
+    // Both unavailable — static low-opacity dot
     dotClass = 'bg-zinc-600';
     label = 'No AI';
   } else if (!plannerConfigured) {
@@ -23,8 +23,8 @@ export function ModelStatusIndicator({ plannerConfigured, listenerConfigured }: 
     dotClass = 'bg-amber-500';
     label = 'Manual mode';
   } else {
-    // Planner available, listener unavailable
-    dotClass = 'bg-teal-500 ring-1 ring-amber-500/60';
+    // Planner available, listener unavailable — breathing with amber ring
+    dotClass = 'bg-teal-500 ring-1 ring-amber-500/60 animate-breathing';
     label = 'AI Connected (no audio eval)';
   }
 
