@@ -483,15 +483,10 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const durEditReq = (isCursorRow && cursorColumnType === 'dur') ? editRequestCounter : undefined;
     const fxEditReq = (isCursorRow && cursorColumnType === 'fx') ? editRequestCounter : undefined;
 
-    // Cursor cell highlight — amber outline per mockup spec
-    const cursorCellClass = (colType: string) =>
-      isCursorRow && cursorColumnType === colType ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1 rounded-[2px]' : '';
-
-    const cursorNoteCellClass = (colIdx: number) =>
-      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1 rounded-[2px]' : '';
-
-    const cursorFxCellClass = (fxIdx: number) =>
-      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1 rounded-[2px]' : '';
+    // Cursor — row-level highlight, not per-cell
+    const cursorCellClass = (_colType: string) => '';
+    const cursorNoteCellClass = (_colIdx: number) => '';
+    const cursorFxCellClass = (_fxIdx: number) => '';
 
     // Row text color: primary for steps with content, muted for empty
     const rowColor = (hasNotes || slot.hasGate) ? '' : '';
@@ -619,6 +614,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         ref={ref}
         className={`
           group text-[11px] font-mono leading-5 relative border-b border-zinc-700/20 ${rowColor}
+          ${isCursorRow ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1' : ''}
           ${isSelected ? 'bg-indigo-500/25' : ''}
           ${isAtPlayhead ? 'bg-amber-400/[0.08]' : ''}
           ${!isAtPlayhead && !isSelected && hasContent ? 'bg-emerald-400/[0.04]' : ''}
