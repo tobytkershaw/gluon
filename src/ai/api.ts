@@ -43,7 +43,7 @@ import type { StepOutcome } from './circuit-breaker';
 import { analyzeSpectral, analyzeDynamics, analyzeRhythm, analyzeMasking, analyzeDiff, computeBandEnergies } from '../audio/audio-analysis';
 import type { TrackAudio } from '../audio/audio-analysis';
 import { getProfile, compareToProfile } from '../engine/reference-profiles';
-import { getSnapshot, storeSnapshot, nextSnapshotId } from '../audio/snapshot-store';
+import { getSnapshot, storeSnapshot, nextSnapshotId, clearSnapshots } from '../audio/snapshot-store';
 import type { PcmRenderResult } from '../audio/render-offline';
 import type { AudioMetricsSnapshot } from '../audio/live-audio-metrics';
 import { parsePosition, resolveSketchPositions, resolveEditPatternPositions } from './bar-beat-sixteenth';
@@ -3589,6 +3589,42 @@ export class GluonAI {
           }
         }
 
+        let compareSnapshot: ReturnType<typeof getSnapshot> | undefined;
+        if (hasDiff && compareSnapshotId) {
+          compareSnapshot = getSnapshot(compareSnapshotId);
+          if (!compareSnapshot) {
+            return { actions: [], response: errorPayload(`Compare snapshot not found: ${compareSnapshotId}. Call render first.`) };
+          }
+          if (snapshot) {
+            const sameScope = snapshot.scope.length === compareSnapshot.scope.length
+              && snapshot.scope.every((trackId, index) => trackId === compareSnapshot.scope[index]);
+            if (!sameScope) {
+              return {
+                actions: [],
+                response: errorPayload(
+                  `Diff analysis requires snapshots with the same render scope. Got after=${snapshot.scope.length === 0 ? 'full_mix' : snapshot.scope.join(',')} and before=${compareSnapshot.scope.length === 0 ? 'full_mix' : compareSnapshot.scope.join(',')}.`,
+                ),
+              };
+            }
+            if (snapshot.bars !== compareSnapshot.bars) {
+              return {
+                actions: [],
+                response: errorPayload(
+                  `Diff analysis requires snapshots rendered for the same number of bars. Got after=${snapshot.bars}, before=${compareSnapshot.bars}.`,
+                ),
+              };
+            }
+            if (snapshot.sampleRate !== compareSnapshot.sampleRate) {
+              return {
+                actions: [],
+                response: errorPayload(
+                  `Diff analysis requires snapshots with the same sample rate. Got after=${snapshot.sampleRate}, before=${compareSnapshot.sampleRate}.`,
+                ),
+              };
+            }
+          }
+        }
+
         const results: Record<string, unknown> = {};
         const analysisErrors: string[] = [];
 
@@ -3611,6 +3647,7 @@ export class GluonAI {
               if (!snapshotIds) break;
               // Resolve all snapshots and build TrackAudio entries
               const trackAudios: TrackAudio[] = [];
+              const seenTrackIds = new Set<string>();
               for (const sid of snapshotIds) {
                 const snap = getSnapshot(sid);
                 if (!snap) {
@@ -3621,6 +3658,11 @@ export class GluonAI {
                   analysisErrors.push(`Snapshot ${sid} must have exactly one track in scope (got ${snap.scope.length}). Render each track separately.`);
                   continue;
                 }
+                if (seenTrackIds.has(snap.scope[0])) {
+                  analysisErrors.push(`Masking analysis requires snapshots for different tracks. Duplicate track scope: ${snap.scope[0]}.`);
+                  continue;
+                }
+                seenTrackIds.add(snap.scope[0]);
                 trackAudios.push({
                   trackId: snap.scope[0],
                   pcm: snap.pcm,
@@ -5827,6 +5869,11 @@ export class GluonAI {
   }
 
   clearHistory(): void {
+    clearSnapshots();
+    this.spectralSlots = new SpectralSlotManager();
+    this.motifLibrary.clear();
+    this.recentAutoDiffs = [];
+    this.turnAutoDiffs = [];
     this.planner.clearHistory();
     // Clear project-scoped AI state so it doesn't leak across projects
     this.spectralSlots.clear();

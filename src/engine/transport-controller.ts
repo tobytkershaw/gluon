@@ -47,6 +47,7 @@ export class TransportController {
   private trackSeen = new Set<string>();
   private lastHandledTransportCommandId: number | null = null;
   private parameterEventTimers = new Map<ReturnType<typeof setTimeout>, string>();
+  private lastTransport: Session['transport'];
 
   constructor({
     audio,
@@ -61,6 +62,7 @@ export class TransportController {
     this.getSession = getSession;
     this.onPositionChange = onPositionChange;
     this.runtime = createRuntimeTransport(getSession().transport);
+    this.lastTransport = normalizeTransport(getSession().transport);
     const handlePositionChange = (step: number) => {
       this.lastStep = step;
       this.runtime = { ...this.runtime, playheadBeats: step / 4 };
@@ -112,6 +114,7 @@ export class TransportController {
 
   sync(): void {
     const transport = normalizeTransport(this.getSession().transport);
+    const structuralTransportChange = this.hasStructuralTransportChange(this.lastTransport, transport);
     this.runtime = {
       ...this.runtime,
       bpm: transport.bpm,
@@ -123,7 +126,8 @@ export class TransportController {
       const hasFreshPlayFromStep = transportCommand?.kind === 'play-from-step'
         && transportCommand.requestId !== this.lastHandledTransportCommandId;
       const needsRestart = this.runtime.status !== 'playing'
-        || hasFreshPlayFromStep;
+        || hasFreshPlayFromStep
+        || structuralTransportChange;
       if (needsRestart) {
         // Stop the current scheduler if already playing (play-from-cursor restart)
         if (this.runtime.status === 'playing') {
@@ -136,6 +140,8 @@ export class TransportController {
         if (transportCommand?.kind === 'play-from-step') {
           startStep = transportCommand.step;
           this.lastHandledTransportCommandId = transportCommand.requestId;
+        } else if (structuralTransportChange && this.runtime.status === 'playing') {
+          startStep = this.lastStep;
         } else if (this.runtime.status === 'paused') {
           startStep = this.runtime.playheadBeats * 4;
         } else {
@@ -144,7 +150,7 @@ export class TransportController {
         // On resume from pause, skip the start offset — the audio worklet is
         // already running and the offset would push globalStep backward by
         // ~0.5 steps on the first tick, causing a visible/audible position jump.
-        const isResume = this.runtime.status === 'paused';
+        const isResume = this.runtime.status === 'paused' || (structuralTransportChange && this.runtime.status === 'playing');
         const offset = isResume ? 0 : START_OFFSET_SEC;
         this.audio.restoreBaseline();
         // Restore metronome volume after silenceMetronome() zeroed it on stop/pause.
@@ -215,6 +221,7 @@ export class TransportController {
       swing: transport.swing,
       generation: this.runtime.generation,
     });
+    this.lastTransport = transport;
   }
 
   requestHardStop(): void {
@@ -263,5 +270,19 @@ export class TransportController {
   dispose(): void {
     this.scheduler.stop();
     this.clearParameterEventTimers();
+  }
+
+  private hasStructuralTransportChange(prev: Session['transport'], next: Session['transport']): boolean {
+    const prevMode = prev.mode ?? 'pattern';
+    const nextMode = next.mode ?? 'pattern';
+    if (prevMode !== nextMode) return true;
+
+    const prevLoop = prev.loop ?? true;
+    const nextLoop = next.loop ?? true;
+    if (prevLoop !== nextLoop) return true;
+
+    const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
+    const nextTs = next.timeSignature ?? { numerator: 4, denominator: 4 };
+    return prevTs.numerator !== nextTs.numerator || prevTs.denominator !== nextTs.denominator;
   }
 }
