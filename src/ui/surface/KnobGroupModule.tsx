@@ -3,6 +3,7 @@ import type { Track } from '../../engine/types';
 import { Knob } from '../Knob';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getAccentColor } from './visual-utils';
+// Palette-aware: roleColor.full for knob arcs, roleColor.muted for labels
 
 /** Parse a binding target into moduleId + controlId. */
 function parseTarget(target: string): { moduleId: string; controlId: string } {
@@ -32,6 +33,7 @@ export function KnobGroupModule({
   module,
   track,
   visualContext,
+  roleColor,
   onParamChange,
   onProcessorParamChange,
   onInteractionStart,
@@ -39,7 +41,9 @@ export function KnobGroupModule({
 }: ModuleRendererProps) {
   const controlBindings = module.bindings.filter(b => b.role === 'control');
   const isPinned = module.config.pinned === true;
-  const accentColor = getAccentColor(visualContext);
+  // Use palette role color when available, fall back to legacy accent
+  const arcColor = roleColor?.full ?? getAccentColor(visualContext);
+  const labelColor = roleColor?.muted ?? arcColor;
 
   const handleChange = useCallback(
     (target: string, value: number) => {
@@ -56,7 +60,7 @@ export function KnobGroupModule({
   return (
     <div className="h-full flex flex-col p-2">
       <div className="flex items-center gap-1 mb-2">
-        <span className="text-xs font-medium truncate" style={{ color: accentColor }}>
+        <span className="text-xs font-medium truncate" style={{ color: labelColor }}>
           {module.label}
         </span>
         {isPinned && (
@@ -74,7 +78,7 @@ export function KnobGroupModule({
               key={binding.target}
               value={value}
               label={controlId}
-              accentColor={accentColor}
+              accentColor={arcColor}
               onChange={v => handleChange(binding.target, v)}
               onPointerDown={onInteractionStart}
               onPointerUp={onInteractionEnd}

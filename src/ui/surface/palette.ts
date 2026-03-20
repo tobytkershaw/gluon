@@ -135,6 +135,65 @@ function enforceSeparation(
  * - Neutral: zinc-equivalent grays (hue 30°, saturation 5%)
  * - 30° minimum hue separation between all non-neutral roles
  */
+// ── Module-type to role mapping ──────────────────────────────
+
+/**
+ * Map a Surface module type to its palette role.
+ *
+ * - Source modules (chain-strip source node, step-grid, piano-roll, pad-grid) → base
+ * - Pattern/generative modules → generative
+ * - Filter/tonal modules → tonal
+ * - Spatial/FX modules → spatial
+ * - Utility/other → neutral
+ *
+ * For knob-group and macro-knob, the role is determined by the module's
+ * config.paletteRole field (set by the AI or user), defaulting to 'base'.
+ */
+export function getPaletteRole(
+  moduleType: string,
+  config?: Record<string, unknown>,
+): PaletteRole {
+  // If the module carries an explicit paletteRole in config, use it
+  const explicitRole = config?.paletteRole as string | undefined;
+  if (
+    explicitRole === 'base' ||
+    explicitRole === 'generative' ||
+    explicitRole === 'tonal' ||
+    explicitRole === 'spatial' ||
+    explicitRole === 'neutral'
+  ) {
+    return explicitRole;
+  }
+
+  switch (moduleType) {
+    // Source identity / pattern output
+    case 'step-grid':
+    case 'piano-roll':
+    case 'pad-grid':
+      return 'base';
+
+    // Chain strip uses base for the overall strip
+    case 'chain-strip':
+      return 'base';
+
+    // XY pad → spatial (exploration / navigation)
+    case 'xy-pad':
+      return 'spatial';
+
+    // Level meter → neutral (utility)
+    case 'level-meter':
+      return 'neutral';
+
+    // Knob groups and macro knobs default to base if no explicit role
+    case 'knob-group':
+    case 'macro-knob':
+      return 'base';
+
+    default:
+      return 'neutral';
+  }
+}
+
 export function derivePalette(baseHue: number): SurfacePalette {
   const rawBase = normalizeHue(baseHue);
   const rawGenerative = normalizeHue(rawBase + 160);

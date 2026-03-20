@@ -18,13 +18,15 @@ export function MacroKnobModule({
   module,
   track,
   visualContext,
+  roleColor,
   onParamChange,
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
 }: ModuleRendererProps) {
   const semanticControl = module.config.semanticControl as SemanticControlDef | undefined;
-  const accentColor = getAccentColor(visualContext);
+  // Use palette role color when available, fall back to legacy accent
+  const arcColor = roleColor?.full ?? getAccentColor(visualContext);
 
   if (!semanticControl) {
     return (
@@ -55,7 +57,7 @@ export function MacroKnobModule({
       <Knob
         value={displayValue}
         label={semanticControl.name}
-        accentColor={accentColor}
+        accentColor={arcColor}
         onChange={handleChange}
         onPointerDown={onInteractionStart}
         onPointerUp={onInteractionEnd}

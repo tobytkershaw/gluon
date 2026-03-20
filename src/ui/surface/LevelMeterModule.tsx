@@ -16,8 +16,9 @@ function dbToFraction(db: number): number {
   return (db + 48) / 48;
 }
 
-export function LevelMeterModule({ module, track, visualContext }: ModuleRendererProps) {
-  const accent = getAccentColor(visualContext);
+export function LevelMeterModule({ module, track, visualContext, roleColor }: ModuleRendererProps) {
+  // Level meter uses neutral role — utility element
+  const accent = roleColor?.full ?? getAccentColor(visualContext);
   const levelFraction = dbToFraction(STATIC_LEVEL_DB);
   const peakFraction = dbToFraction(STATIC_PEAK_DB);
 

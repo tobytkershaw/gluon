@@ -76,6 +76,33 @@ export function getAccentRgba(ctx: ModuleVisualContext | undefined, alpha: numbe
 }
 
 /**
+ * Convert an HSL palette color string to an rgba string with the given alpha.
+ * Palette colors are in the format "hsl(H, S%, L%)".
+ * Canvas APIs need rgb/rgba strings. This parses and converts.
+ */
+export function hslStringToRgba(hslStr: string, alpha: number): string {
+  const match = hslStr.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+  if (!match) return `rgba(161,161,170,${alpha})`; // zinc-400 fallback
+  const h = parseInt(match[1]);
+  const s = parseInt(match[2]) / 100;
+  const l = parseInt(match[3]) / 100;
+  // HSL → RGB conversion
+  const a2 = s * Math.min(l, 1 - l);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    return l - a2 * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+  };
+  return `rgba(${Math.round(f(0) * 255)},${Math.round(f(8) * 255)},${Math.round(f(4) * 255)},${alpha})`;
+}
+
+/**
+ * Convert an HSL palette color string to an rgb string.
+ */
+export function hslStringToRgb(hslStr: string): string {
+  return hslStringToRgba(hslStr, 1).replace(/rgba\(([^)]+),1\)/, 'rgb($1)');
+}
+
+/**
  * Generate container styles for a module based on its visual context.
  * Returns an empty object when no context is provided (graceful fallback).
  */

@@ -12,8 +12,10 @@ import { getAccentColor } from './visual-utils';
  * - Activity indicator (lit when a trigger exists in the active pattern)
  * - Tap to audition (fires the pad's source via onParamChange)
  */
-export function PadGridModule({ module, track, visualContext, onParamChange: _onParamChange, onInteractionStart: _onInteractionStart, onInteractionEnd: _onInteractionEnd }: ModuleRendererProps) {
-  const accent = getAccentColor(visualContext);
+export function PadGridModule({ module, track, visualContext, roleColor, onParamChange: _onParamChange, onInteractionStart: _onInteractionStart, onInteractionEnd: _onInteractionEnd }: ModuleRendererProps) {
+  // Pad grid uses base role — track identity
+  const accent = roleColor?.full ?? getAccentColor(visualContext);
+  const labelColor = roleColor?.muted ?? accent;
   const [activePadId, setActivePadId] = useState<string | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -57,7 +59,7 @@ export function PadGridModule({ module, track, visualContext, onParamChange: _on
   if (pads.length === 0) {
     return (
       <div className="h-full flex flex-col p-2">
-        <span className="text-xs font-medium truncate" style={{ color: accent }}>
+        <span className="text-xs font-medium truncate" style={{ color: labelColor }}>
           {module.label}
         </span>
         <div className="flex-1 flex items-center justify-center text-zinc-600 text-xs">
@@ -69,7 +71,7 @@ export function PadGridModule({ module, track, visualContext, onParamChange: _on
 
   return (
     <div className="h-full flex flex-col p-2">
-      <span className="text-xs font-medium truncate mb-1" style={{ color: accent }}>
+      <span className="text-xs font-medium truncate mb-1" style={{ color: labelColor }}>
         {module.label}
       </span>
       <div
