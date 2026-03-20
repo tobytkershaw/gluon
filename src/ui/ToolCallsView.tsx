@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ToolCallEntry } from '../engine/types';
+import { getToolColor } from './tool-colors';
 
 /** Map raw tool names to short, human-friendly labels. */
 const FRIENDLY_NAMES: Record<string, string> = {
@@ -69,6 +70,22 @@ const LISTEN_TOOL_NAMES = new Set(['listen']);
 /** Tool names that are UI scaffolding and should not appear in the tool call log. */
 const HIDDEN_TOOLS = new Set(['suggest_reactions']);
 
+/** Flatten tool args into presentable key/value pairs, skipping very large values. */
+function flattenArgs(args: Record<string, unknown>): Array<{ key: string; value: string }> {
+  const pairs: Array<{ key: string; value: string }> = [];
+  for (const [key, val] of Object.entries(args)) {
+    if (val === undefined || val === null) continue;
+    const str = typeof val === 'string' ? val : JSON.stringify(val);
+    // Skip very long values (e.g. full event arrays) to keep detail section scannable
+    if (str.length > 120) {
+      pairs.push({ key, value: str.slice(0, 117) + '...' });
+    } else {
+      pairs.push({ key, value: str });
+    }
+  }
+  return pairs;
+}
+
 interface Props {
   toolCalls: ToolCallEntry[];
   /** When true, listen calls are filtered out (promoted to ListenEventView). */
@@ -76,8 +93,6 @@ interface Props {
 }
 
 export function ToolCallsView({ toolCalls, hasListenEvents = false }: Props) {
-  const [expanded, setExpanded] = useState(false);
-
   // Filter out UI scaffolding tools and promoted listen tools
   const visible = toolCalls.filter(tc =>
     !HIDDEN_TOOLS.has(tc.name) &&
@@ -97,38 +112,66 @@ export function ToolCallsView({ toolCalls, hasListenEvents = false }: Props) {
   }
 
   return (
-    <div className="mt-1.5">
+    <div className="mt-1.5 space-y-0.5">
+      {grouped.map((g, i) => (
+        <ToolBlock key={i} name={g.name} count={g.count} args={g.args} />
+      ))}
+    </div>
+  );
+}
+
+function ToolBlock({ name, count, args }: { name: string; count: number; args: Record<string, unknown> }) {
+  const [expanded, setExpanded] = useState(false);
+  const colors = getToolColor(name);
+  const summary = argsSummary(name, args);
+  const details = flattenArgs(args);
+
+  return (
+    <div
+      className={`border-l-4 rounded ${colors.border} ${colors.bg} font-mono text-[11px] overflow-hidden`}
+    >
+      {/* Header — always visible */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1 text-[11px] font-mono text-zinc-600 hover:text-zinc-500 transition-colors"
+        className="group flex items-center gap-1.5 w-full px-2 py-1 text-left cursor-pointer hover:bg-white/[0.02] transition-colors"
       >
+        {/* Chevron */}
         <span
-          className="inline-block transition-transform duration-150"
+          className="inline-block text-zinc-600 transition-transform duration-150 text-[9px] w-3 text-center flex-shrink-0"
           style={{ transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
         >
           &#9656;
         </span>
-        <span>
-          {visible.length} tool call{visible.length !== 1 ? 's' : ''}
+
+        {/* Summary text */}
+        <span className="text-zinc-400 truncate flex-1 min-w-0">
+          {friendlyName(name)}
+          {count > 1 && (
+            <span className="text-zinc-600 ml-1">&times;{count}</span>
+          )}
+          {summary && (
+            <span className="text-zinc-600 ml-1.5">&mdash; {summary}</span>
+          )}
+        </span>
+
+        {/* Checkmark */}
+        <span className={`${colors.accent} text-[10px] flex-shrink-0`}>&#10003;</span>
+
+        {/* Undo button — visible on hover */}
+        <span className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-zinc-400 text-[9px] border border-transparent group-hover:border-zinc-700 rounded px-1 transition-all flex-shrink-0">
+          undo
         </span>
       </button>
 
-      {expanded && (
-        <div className="mt-1 ml-2.5 space-y-px">
-          {grouped.map((g, i) => {
-            const summary = argsSummary(g.name, g.args);
-            return (
-              <div key={i} className="flex items-baseline gap-1.5 text-[11px] font-mono">
-                <span className="text-zinc-500">{friendlyName(g.name)}</span>
-                {g.count > 1 && (
-                  <span className="text-zinc-600">&times;{g.count}</span>
-                )}
-                {summary && (
-                  <span className="text-zinc-600 truncate max-w-[180px]">{summary}</span>
-                )}
-              </div>
-            );
-          })}
+      {/* Detail — expanded */}
+      {expanded && details.length > 0 && (
+        <div className="border-t border-white/[0.04] px-2 py-1.5 space-y-0.5">
+          {details.map((d, i) => (
+            <div key={i} className="flex gap-2">
+              <span className="text-zinc-600 min-w-[60px] flex-shrink-0">{d.key}</span>
+              <span className="text-zinc-400 truncate">{d.value}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>
