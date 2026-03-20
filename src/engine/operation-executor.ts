@@ -1,5 +1,5 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad, MemorySnapshot, ProjectMemory } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ClaimSnapshot, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad, MemorySnapshot, ProjectMemory } from './types';
 import { MAX_DRUM_PADS, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES } from './types';
 import { getDefaultVisualIdentity } from './visual-identity';
 import { kitToEvents, gridLength } from './drum-grid';
@@ -69,69 +69,41 @@ export function rhythmsMatch(a: number[], b: number[]): boolean {
 }
 
 /**
- * Check whether a mutation would violate preservation constraints on a track.
+ * Check whether a mutation would violate claim constraints on a track.
  * Returns null if the mutation is allowed, or a rejection reason string.
  *
  * Rules:
- * - 'anchor' tracks block all rhythm/event mutations (sketch, transform).
- * - 'approved' tracks with preserve_exact intent allow parameter-only changes
- *   but block rhythm changes (different `at` positions for note/trigger events).
- * - 'exploratory' and 'liked' tracks are unrestricted.
- * - 'move' (parameter) actions are never blocked by preservation.
+ * - Claimed tracks block all event mutations (sketch, transform).
+ *   The AI must ask permission first.
+ * - Unclaimed tracks are unrestricted.
+ * - 'move' (parameter) actions are never blocked by claims.
  */
-function checkPreservationForSketch(
+function checkClaimForSketch(
   session: Session,
   trackId: string,
-  newEvents?: MusicalEvent[],
+  _newEvents?: MusicalEvent[],
 ): string | null {
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return null; // track-not-found is handled elsewhere
-  const approval = track.approval ?? 'exploratory';
-  if (approval !== 'approved' && approval !== 'anchor') return null;
+  const claimed = track.claimed ?? false;
+  if (!claimed) return null;
 
   const trackLabel = getTrackLabel(track).toUpperCase();
-
-  if (approval === 'anchor') {
-    return `Preservation: track ${trackLabel} (${trackId}) is anchored — all event mutations are blocked. Change its approval level first.`;
-  }
-
-  // approval === 'approved': check rhythm preservation
-  if (!newEvents) {
-    // Legacy pattern sketch — we can't reliably diff rhythm, so block
-    return `Preservation: track ${trackLabel} (${trackId}) is approved — legacy pattern sketches are blocked. Use canonical events instead.`;
-  }
-
-  const existingEvents = track.patterns.length > 0 ? getActivePattern(track).events : [];
-  const existingRhythm = extractRhythmPositions(existingEvents);
-  const newRhythm = extractRhythmPositions(newEvents);
-
-  if (!rhythmsMatch(existingRhythm, newRhythm)) {
-    return `Preservation: track ${trackLabel} (${trackId}) is approved with preserve_exact rhythm — the proposed sketch changes rhythm positions. Change its approval level first, or preserve the same rhythm.`;
-  }
-
-  return null;
+  return `Claimed: track ${trackLabel} (${trackId}) is claimed by the human — ask permission before modifying. Unclaim it first with set_track_meta.`;
 }
 
-function checkPreservationForTransform(
+function checkClaimForTransform(
   session: Session,
   trackId: string,
-  operation: string,
+  _operation: string,
 ): string | null {
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return null;
-  const approval = track.approval ?? 'exploratory';
-  if (approval !== 'approved' && approval !== 'anchor') return null;
+  const claimed = track.claimed ?? false;
+  if (!claimed) return null;
 
   const trackLabel = getTrackLabel(track).toUpperCase();
-
-  if (approval === 'anchor') {
-    return `Preservation: track ${trackLabel} (${trackId}) is anchored — all transforms are blocked. Change its approval level first.`;
-  }
-
-  // approval === 'approved': transpose is allowed (pitch-only), others change rhythm
-  if (operation === 'transpose') return null;
-
-  return `Preservation: track ${trackLabel} (${trackId}) is approved with preserve_exact rhythm — '${operation}' would change rhythm positions. Only 'transpose' is allowed on approved tracks.`;
+  return `Claimed: track ${trackLabel} (${trackId}) is claimed by the human — ask permission before modifying. Unclaim it first with set_track_meta.`;
 }
 
 export interface OperationExecutionReport {
@@ -280,7 +252,7 @@ export function prevalidateAction(
         }
       }
 
-      const sketchPreservation = checkPreservationForSketch(session, action.trackId, action.events);
+      const sketchPreservation = checkClaimForSketch(session, action.trackId, action.events);
       if (sketchPreservation) return sketchPreservation;
       return null;
     }
@@ -345,7 +317,7 @@ export function prevalidateAction(
       const opErrors = validatePatternEditOps(targetPattern, action.operations);
       if (opErrors.length > 0) return opErrors[0];
       // Check preservation
-      const editPreservation = checkPreservationForSketch(session, action.trackId, undefined);
+      const editPreservation = checkClaimForSketch(session, action.trackId, undefined);
       if (editPreservation) return editPreservation;
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
         return `Arbitration: human is currently interacting with track ${action.trackId}`;
@@ -361,7 +333,7 @@ export function prevalidateAction(
         return `Cannot duplicate a single pad's events — duplicate applies to the full pattern.`;
       }
 
-      const transformPreservation = checkPreservationForTransform(session, action.trackId, action.operation);
+      const transformPreservation = checkClaimForTransform(session, action.trackId, action.operation);
       if (transformPreservation) return transformPreservation;
       return null;
     }
@@ -544,12 +516,17 @@ export function prevalidateAction(
       return null;
     }
 
-    case 'mark_approved': {
+    case 'set_claim': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
+      if (typeof action.claimed !== 'boolean') return `Invalid claim value: ${action.claimed}`;
+      return null;
+    }
 
-      const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
-      if (!validLevels.includes(action.level)) return `Invalid approval level: ${action.level}`;
+    case 'mark_approved': {
+      // Legacy — kept for backwards compatibility
+      const track = session.tracks.find(v => v.id === action.trackId);
+      if (!track) return `Track not found: ${action.trackId}`;
       return null;
     }
 
@@ -565,7 +542,7 @@ export function prevalidateAction(
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
 
-      if (track.approval === 'anchor') return `Track ${action.trackId} has anchor approval — cannot remove`;
+      if (track.claimed) return `Track ${action.trackId} is claimed — cannot remove without unclaiming first`;
       return null;
     }
 
@@ -765,16 +742,13 @@ export function prevalidateAction(
 // Preservation report generation
 // ---------------------------------------------------------------------------
 
-/** Approval levels that trigger preservation report generation. */
-const PRESERVATION_LEVELS: ReadonlySet<ApprovalLevel> = new Set(['liked', 'approved', 'anchor']);
-
 /**
  * Generate a PreservationReport comparing old and new events for a track.
- * Only called for tracks with approval >= 'liked'.
+ * Only called for claimed tracks.
  */
 export function generatePreservationReport(
   trackId: string,
-  approvalLevel: ApprovalLevel,
+  claimed: boolean,
   oldEvents: MusicalEvent[],
   newEvents: MusicalEvent[],
 ): PreservationReport {
@@ -870,7 +844,7 @@ export function generatePreservationReport(
     trackId,
     preserved: { rhythmPositions, eventCount, pitchContour },
     changed,
-    approvalLevel,
+    claimed,
   };
 }
 
@@ -1246,7 +1220,7 @@ function executeActionsInternal(
         const activeReg = track.patterns.length > 0 ? getActivePattern(track) : undefined;
         const eventsBefore = activeReg?.events?.length ?? 0;
         const oldEventsForReport = activeReg?.events ?? [];
-        const trackApproval = track.approval ?? 'exploratory';
+        const trackClaimed = track.claimed ?? false;
         let eventsAfter = eventsBefore;
         let newEventsForReport: MusicalEvent[] | undefined;
 
@@ -1382,10 +1356,10 @@ function executeActionsInternal(
           break;
         }
 
-        // Generate preservation report for tracks with approval >= 'liked'
-        if (PRESERVATION_LEVELS.has(trackApproval) && newEventsForReport) {
+        // Generate preservation report for claimed tracks
+        if (trackClaimed && newEventsForReport) {
           preservationReports.push(
-            generatePreservationReport(action.trackId, trackApproval, oldEventsForReport, newEventsForReport),
+            generatePreservationReport(action.trackId, trackClaimed, oldEventsForReport, newEventsForReport),
           );
         }
 
@@ -2230,22 +2204,44 @@ function executeActionsInternal(
         break;
       }
 
-      case 'mark_approved': {
+      case 'set_claim': {
         const track = getTrack(next, action.trackId);
-        const prevApproval = track.approval ?? 'exploratory';
-        const approvalSnapshot: ApprovalSnapshot = {
-          kind: 'approval',
+        const prevClaimed = track.claimed ?? false;
+        const claimSnapshot: ClaimSnapshot = {
+          kind: 'claim',
           trackId: action.trackId,
-          prevApproval,
+          prevClaimed,
           timestamp: Date.now(),
-          description: `AI mark_approved: ${prevApproval} → ${action.level} (${action.reason})`,
+          description: `AI set_claim: ${prevClaimed} → ${action.claimed} (${action.reason})`,
         };
         next = {
-          ...updateTrack(next, action.trackId, { approval: action.level }),
-          undoStack: [...next.undoStack, approvalSnapshot],
+          ...updateTrack(next, action.trackId, { claimed: action.claimed }),
+          undoStack: [...next.undoStack, claimSnapshot],
+        };
+        const claimLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
+        log.push({ trackId: action.trackId, trackLabel: claimLabel, description: `claim: ${prevClaimed} → ${action.claimed}`, diff: { kind: 'claim-change', from: prevClaimed, to: action.claimed } });
+        accepted.push(action);
+        break;
+      }
+
+      case 'mark_approved': {
+        // Legacy support — convert to claim toggle
+        const track = getTrack(next, action.trackId);
+        const prevClaimed = track.claimed ?? false;
+        const newClaimed = action.level !== 'exploratory';
+        const claimSnapshot: ClaimSnapshot = {
+          kind: 'claim',
+          trackId: action.trackId,
+          prevClaimed,
+          timestamp: Date.now(),
+          description: `AI mark_approved (legacy): ${action.level} (${action.reason})`,
+        };
+        next = {
+          ...updateTrack(next, action.trackId, { claimed: newClaimed }),
+          undoStack: [...next.undoStack, claimSnapshot],
         };
         const approvalLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
-        log.push({ trackId: action.trackId, trackLabel: approvalLabel, description: `approval: ${prevApproval} → ${action.level}`, diff: { kind: 'approval-change', from: prevApproval, to: action.level } });
+        log.push({ trackId: action.trackId, trackLabel: approvalLabel, description: `claim: ${prevClaimed} → ${newClaimed}`, diff: { kind: 'claim-change', from: prevClaimed, to: newClaimed } });
         accepted.push(action);
         break;
       }

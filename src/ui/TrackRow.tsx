@@ -1,16 +1,14 @@
 // src/ui/TrackRow.tsx
 // Horizontal track row for the vertical track sidebar.
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { Track, ApprovalLevel, Send } from '../engine/types';
+import type { Track, Send } from '../engine/types';
 import { getTrackLabel } from '../engine/track-labels';
 import { computeThumbprintColor } from './thumbprint';
 import { TrackLevelMeter } from './TrackLevelMeter';
 
-const APPROVAL_DISPLAY: Record<ApprovalLevel, { label: string; color: string; title: string; humanLabel: string }> = {
-  exploratory: { label: '\u25CB', color: 'bg-zinc-700/30 text-zinc-600', title: 'Draft — Gluon may freely edit (click to promote)', humanLabel: 'Draft' },
-  liked: { label: '\u2661', color: 'bg-amber-500/20 text-amber-400', title: 'Keeper — Gluon preserves unless asked (click to promote)', humanLabel: 'Keeper' },
-  approved: { label: '\u25C9', color: 'bg-teal-500/20 text-teal-400', title: 'Locked — Gluon preserves during expansion (click to promote)', humanLabel: 'Locked' },
-  anchor: { label: '\u2693', color: 'bg-purple-500/20 text-purple-400', title: 'Anchor — core identity, changes need confirmation (click to cycle)', humanLabel: 'Anchor' },
+const CLAIM_DISPLAY = {
+  unclaimed: { label: '\u25CB', color: 'text-zinc-600 hover:text-zinc-400', title: 'Unclaimed — Gluon may freely edit (click to claim)', humanLabel: 'Unclaimed' },
+  claimed: { label: '\u270B', color: 'text-orange-400', title: 'Claimed — Gluon will ask before modifying (click to unclaim)', humanLabel: 'Claimed' },
 };
 
 /** Map importance 0-1 to a 3-tier display: low / mid / high. */
@@ -52,7 +50,7 @@ interface Props {
   onToggleMute: () => void;
   onToggleSolo: (additive?: boolean) => void;
   onRename?: (name: string) => void;
-  onCycleApproval?: () => void;
+  onToggleClaim?: () => void;
   onRemove?: () => void;
   onSetMusicalRole?: (role: string) => void;
   onSetImportance?: (importance: number) => void;
@@ -68,7 +66,7 @@ interface Props {
 export function TrackRow({
   track, label, isActive, isExpanded, onToggleExpand, isBus, isMasterBus, analyser,
   activityTimestamp,
-  onClick, onToggleMute, onToggleSolo, onRename, onCycleApproval,
+  onClick, onToggleMute, onToggleSolo, onRename, onToggleClaim,
   onRemove, onSetMusicalRole, onSetImportance,
   busTracks, onAddSend, onRemoveSend, onSetSendLevel,
   variant = 'default',
@@ -169,8 +167,8 @@ export function TrackRow({
   }, [onRemove, editing, editingRole]);
 
   const thumbColor = computeThumbprintColor(track);
-  const approval = track.approval ?? 'exploratory';
-  const approvalInfo = APPROVAL_DISPLAY[approval];
+  const isClaimed = track.claimed ?? false;
+  const claimInfo = isClaimed ? CLAIM_DISPLAY.claimed : CLAIM_DISPLAY.unclaimed;
 
   const moduleCount = track.surface.modules.length;
 
@@ -333,7 +331,7 @@ export function TrackRow({
           </span>
         )}
 
-        {/* M / S / Approval buttons */}
+        {/* M / S / Claim buttons */}
         <div className="flex gap-0.5 shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
@@ -353,14 +351,14 @@ export function TrackRow({
           >
             S
           </button>
-          {onCycleApproval && (
+          {onToggleClaim && (
             <button
-              onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
-              title={approvalInfo.title}
-              className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${approvalInfo.color}`}
-              aria-label={`Protection: ${approvalInfo.humanLabel}`}
+              onClick={(e) => { e.stopPropagation(); onToggleClaim(); }}
+              title={claimInfo.title}
+              className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${claimInfo.color}`}
+              aria-label={`Protection: ${claimInfo.humanLabel}`}
             >
-              {approvalInfo.label}
+              {claimInfo.label}
             </button>
           )}
           {/* Track removal: select track then press Delete/Backspace */}
@@ -379,20 +377,20 @@ export function TrackRow({
         />
       )}
 
-      {/* Expanded metadata: approval, importance, musical role (expanded non-bus tracks only) */}
+      {/* Expanded metadata: claim, importance, musical role (expanded non-bus tracks only) */}
       {isExpanded && !isBus && !isMasterBus && (
         <div className="mt-1.5 space-y-1 px-0.5">
-          {/* Approval level — full label with cycle control */}
-          {onCycleApproval && (
+          {/* Claim state — toggle control */}
+          {onToggleClaim && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Protection level — how much Gluon should preserve this track">Prot</span>
+              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Claim — whether Gluon should ask before modifying this track">Claim</span>
               <button
-                onClick={(e) => { e.stopPropagation(); onCycleApproval(); }}
-                className={`text-[10px] font-mono px-1 py-0 rounded cursor-pointer transition-colors ${approvalInfo.color} hover:brightness-125`}
-                title={approvalInfo.title}
-                aria-label={`Protection: ${approvalInfo.humanLabel}`}
+                onClick={(e) => { e.stopPropagation(); onToggleClaim(); }}
+                className={`text-[10px] font-mono px-1 py-0 rounded cursor-pointer transition-colors ${claimInfo.color} hover:brightness-125`}
+                title={claimInfo.title}
+                aria-label={`Protection: ${claimInfo.humanLabel}`}
               >
-                {approvalInfo.humanLabel}
+                {claimInfo.humanLabel}
               </button>
             </div>
           )}

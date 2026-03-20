@@ -157,7 +157,7 @@ describe('AI Contract alignment with live implementation', () => {
   // ── State format includes track-level fields ────────────────────────────
   it('contract state example includes track metadata fields', () => {
     const json = contractText.match(/```json[\s\S]*?```/)![0];
-    expect(json).toContain('"approval"');
+    expect(json).toContain('"claimed"');
     expect(json).toContain('"volume"');
     expect(json).toContain('"pan"');
     expect(json).toContain('"importance"');

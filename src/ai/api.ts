@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, AIRecallMemoriesAction, AIForgetMemoryAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AISetClaimAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, AIRecallMemoriesAction, AIForgetMemoryAction, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES, PROJECT_MEMORY_TYPES } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -659,8 +659,13 @@ export function projectAction(session: Session, action: AIAction): Session {
       };
       return { ...session, openDecisions: [...decisions, newDecision].slice(-20) };
     }
+    case 'set_claim': {
+      return updateTrack(session, action.trackId, { claimed: action.claimed });
+    }
     case 'mark_approved': {
-      return updateTrack(session, action.trackId, { approval: action.level });
+      // Legacy support — convert to claim
+      const newClaimed = action.level !== 'exploratory';
+      return updateTrack(session, action.trackId, { claimed: newClaimed });
     }
     case 'report_bug': {
       const existing = session.bugReports ?? [];
@@ -1953,17 +1958,15 @@ export class GluonAI {
         const rhythmChanged = prevOnsets.length !== newOnsets.length ||
           prevOnsets.some((t, i) => Math.abs(t - newOnsets[i]) > 0.001);
 
-        // Check if track has approval above exploratory
-        const approval = sketchTrack?.approval ?? 'exploratory';
-        const hasApprovalLock = approval !== 'exploratory';
+        // Check if track is claimed
+        const isClaimed = sketchTrack?.claimed ?? false;
 
-        // Generate preservation report for tracks with approval >= 'liked'
-        const preservationLevels = new Set(['liked', 'approved', 'anchor']);
+        // Generate preservation report for claimed tracks
         let preservationReport: PreservationReport | undefined;
-        if (preservationLevels.has(approval) && action.events && sketchTrack && sketchTrack.patterns.length > 0) {
+        if (isClaimed && action.events && sketchTrack && sketchTrack.patterns.length > 0) {
           preservationReport = generatePreservationReport(
             action.trackId,
-            approval,
+            isClaimed,
             getActivePattern(sketchTrack).events,
             action.events,
           );
@@ -1993,7 +1996,7 @@ export class GluonAI {
             eventsModified,
             rhythmChanged,
             ...(patternLength !== undefined ? { patternLength } : {}),
-            ...(hasApprovalLock ? { approvalLevel: approval } : {}),
+            ...(isClaimed ? { claimed: true } : {}),
             ...(preservationReport ? { preservation: preservationReport } : {}),
             ...(generatorUsed ? { source: 'generator' } : {}),
             ...(archetypeUsed ? { source: 'archetype', archetype: args.archetype } : {}),
@@ -2881,15 +2884,15 @@ export class GluonAI {
         const hasVolume = typeof args.volume === 'number';
         const hasPan = typeof args.pan === 'number';
         const hasSwing = args.swing !== undefined || args.inheritSwing === true;
-        const hasApproval = args.approval !== undefined;
+        const hasClaimed = args.claimed !== undefined;
         const hasImportance = args.importance !== undefined;
         const hasRole = args.musicalRole !== undefined;
         const hasMuted = args.muted !== undefined;
         const hasSolo = args.solo !== undefined;
         const hasPortamentoTime = args.portamentoTime !== undefined;
         const hasPortamentoMode = args.portamentoMode !== undefined;
-        if (!hasName && !hasVolume && !hasPan && !hasSwing && !hasApproval && !hasImportance && !hasRole && !hasMuted && !hasSolo && !hasPortamentoTime && !hasPortamentoMode) {
-          return { actions: [], response: errorPayload('At least one of name, volume, pan, swing, approval, importance, musicalRole, muted, solo, portamentoTime, portamentoMode required') };
+        if (!hasName && !hasVolume && !hasPan && !hasSwing && !hasClaimed && !hasImportance && !hasRole && !hasMuted && !hasSolo && !hasPortamentoTime && !hasPortamentoMode) {
+          return { actions: [], response: errorPayload('At least one of name, volume, pan, swing, claimed, importance, musicalRole, muted, solo, portamentoTime, portamentoMode required') };
         }
 
         const metaActions: AIAction[] = [];
@@ -2953,26 +2956,23 @@ export class GluonAI {
           }
         }
 
-        if (hasApproval) {
-          const level = args.approval as string;
-          const validLevels: ApprovalLevel[] = ['exploratory', 'liked', 'approved', 'anchor'];
-          if (!validLevels.includes(level as ApprovalLevel)) {
-            errors.push(`Invalid approval level: ${level}`);
-          } else if (!args.reason) {
-            errors.push('approval requires reason');
+        if (hasClaimed) {
+          const claimedValue = !!args.claimed;
+          if (!args.reason) {
+            errors.push('claimed change requires reason');
           } else {
-            const markApprovedAction: AIMarkApprovedAction = {
-              type: 'mark_approved',
+            const setClaimAction: AISetClaimAction = {
+              type: 'set_claim',
               trackId: args.trackId as string,
-              level: level as ApprovalLevel,
+              claimed: claimedValue,
               reason: args.reason as string,
             };
-            const markRejection = handleRejection(ctx?.validateAction?.(session, markApprovedAction), session, markApprovedAction, existingActions);
-            if (markRejection) {
-              errors.push(markRejection.response.error as string ?? markRejection.response.message as string ?? 'Rejected');
+            const claimRejection = handleRejection(ctx?.validateAction?.(session, setClaimAction), session, setClaimAction, existingActions);
+            if (claimRejection) {
+              errors.push(claimRejection.response.error as string ?? claimRejection.response.message as string ?? 'Rejected');
             } else {
-              metaActions.push(markApprovedAction);
-              applied.push('approval');
+              metaActions.push(setClaimAction);
+              applied.push('claimed');
             }
           }
         }

@@ -41,14 +41,13 @@ export interface Send {
 }
 
 /**
- * Approval level for a track's current material.
- * Controls how the AI should treat the material during edits.
- * See docs/rfcs/preservation-contracts.md for full semantics.
+ * @deprecated Use `claimed: boolean` on Track instead. Kept temporarily for persistence migration.
+ * Old 4-state approval system — any non-'exploratory' value maps to `claimed: true`.
  */
 export type ApprovalLevel = 'exploratory' | 'liked' | 'approved' | 'anchor';
 
 /**
- * Report generated after a sketch edit on a track with approval level 'liked' or higher.
+ * Report generated after a sketch edit on a claimed track.
  * Informational only — does not block operations.
  */
 export interface PreservationReport {
@@ -62,8 +61,8 @@ export interface PreservationReport {
   };
   /** What changed */
   changed: string[];  // Human-readable list of changes (e.g., "2 velocity values modified")
-  /** Track's approval level at time of edit */
-  approvalLevel: ApprovalLevel;
+  /** Whether the track was claimed at time of edit */
+  claimed: boolean;
 }
 
 // --- Sequencer views (presentation state, not musical) ---
@@ -262,7 +261,9 @@ export interface Track {
   drumRack?: DrumRackConfig;
   /** UI surface configuration (Layer model). Semantic controls activated in Steps 5+. */
   surface: TrackSurface;
-  /** Approval level for the track's current material. Default: 'exploratory'. */
+  /** Whether this track is claimed by the human. Claimed = AI must ask before modifying. Default: false. */
+  claimed?: boolean;
+  /** @deprecated Old approval field, kept for persistence migration. */
   approval?: ApprovalLevel;
   /** AI-assigned importance of this track in the current mix context.
    *  Higher = more prominent/essential. Range: 0.0-1.0. */
@@ -515,6 +516,17 @@ export interface SurfaceSnapshot {
   description: string;
 }
 
+export interface ClaimSnapshot {
+  kind: 'claim';
+  trackId: string;
+  prevClaimed: boolean;
+  timestamp: number;
+  description: string;
+}
+
+/**
+ * @deprecated Kept for undo stack backwards-compatibility with old snapshots.
+ */
 export interface ApprovalSnapshot {
   kind: 'approval';
   trackId: string;
@@ -646,7 +658,7 @@ export interface ChordProgressionSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot | DrumPadSnapshot | MemorySnapshot;
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ClaimSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot | DrumPadSnapshot | MemorySnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -963,6 +975,18 @@ export interface AIRaiseDecisionAction {
   trackIds?: string[];
 }
 
+/**
+ * AI action to set claim state on a track.
+ * The AI can only unclaim — claiming is human-only.
+ */
+export interface AISetClaimAction {
+  type: 'set_claim';
+  trackId: string;
+  claimed: boolean;
+  reason: string;
+}
+
+/** @deprecated Kept for backwards compatibility during migration. */
 export interface AIMarkApprovedAction {
   type: 'mark_approved';
   trackId: string;
@@ -1095,7 +1119,7 @@ export interface AIForgetMemoryAction {
   reason: string;
 }
 
-export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetPortamentoAction | AISetTrackIdentityAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction | AIManageDrumPadAction | AISaveMemoryAction | AIRecallMemoriesAction | AIForgetMemoryAction;
+export type AIAction = AIMoveAction | AISayAction | AISketchAction | AITransportAction | AISetModelAction | AITransformAction | AIEditPatternAction | AIAddViewAction | AIRemoveViewAction | AIAddProcessorAction | AIRemoveProcessorAction | AIReplaceProcessorAction | AIBypassProcessorAction | AIAddModulatorAction | AIRemoveModulatorAction | AIConnectModulatorAction | AIDisconnectModulatorAction | AISetMasterAction | AISetMuteSoloAction | AISetTrackMixAction | AIManageSendAction | AISetSidechainAction | AIManagePatternAction | AIManageSequenceAction | AISetSurfaceAction | AIPinAction | AIUnpinAction | AILabelAxesAction | AISetImportanceAction | AIRaiseDecisionAction | AISetClaimAction | AIMarkApprovedAction | AIReportBugAction | AIAddTrackAction | AIRemoveTrackAction | AIRenameTrackAction | AISetPortamentoAction | AISetTrackIdentityAction | AISetIntentAction | AISetSectionAction | AISetScaleAction | AISetChordProgressionAction | AIAssignSpectralSlotAction | AIManageMotifAction | AISetTensionAction | AIManageDrumPadAction | AISaveMemoryAction | AIRecallMemoriesAction | AIForgetMemoryAction;
 
 // --- Reaction History ---
 
@@ -1227,7 +1251,7 @@ export type ActionDiff =
   | { kind: 'surface-pin'; moduleId: string; controlId: string }
   | { kind: 'surface-unpin'; moduleId: string; controlId: string }
   | { kind: 'surface-label-axes'; x: string; y: string }
-  | { kind: 'approval-change'; from: ApprovalLevel; to: ApprovalLevel };
+  | { kind: 'claim-change'; from: boolean; to: boolean };
 
 export interface ActionLogEntry {
   trackId: string;

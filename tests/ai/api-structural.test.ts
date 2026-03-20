@@ -286,32 +286,17 @@ describe('API Structural Integrity', () => {
     expect((response!.result as Record<string, unknown>).error).toContain('At least one');
   });
 
-  it('set_track_meta: approval fails without reason, importance still applied', async () => {
+  it('set_track_meta: claimed fails without reason, importance still applied', async () => {
     planner.startTurnResults.push({
       textParts: [],
-      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', approval: 'liked', importance: 0.8 } }],
+      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', claimed: true, importance: 0.8 } }],
     });
     planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
 
     await ai.ask(createSession(), 'test');
     const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
     const result = response!.result as Record<string, unknown>;
-    expect(result.errors).toContain('approval requires reason');
-    expect(result.applied).toContain('importance');
-  });
-
-  it('set_track_meta: approval fails with bad enum, importance still applied', async () => {
-    planner.startTurnResults.push({
-      textParts: [],
-      functionCalls: [{ id: 'test', name: 'set_track_meta', args: { trackId: 'v0', approval: 'bogus', reason: 'test', importance: 0.7 } }],
-    });
-    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
-
-    await ai.ask(createSession(), 'test');
-    const response = planner.lastFunctionResponses.find(r => r.name === 'set_track_meta');
-    const result = response!.result as Record<string, unknown>;
-    expect(result.errors).toBeDefined();
-    expect((result.errors as string[])[0]).toContain('Invalid approval level');
+    expect(result.errors).toContain('claimed change requires reason');
     expect(result.applied).toContain('importance');
   });
 

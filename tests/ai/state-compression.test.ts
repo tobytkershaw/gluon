@@ -1,9 +1,9 @@
 // tests/ai/state-compression.test.ts
 import { describe, it, expect } from 'vitest';
 import { compressState, compressMemories, stepToPosition, recogniseChord } from '../../src/ai/state-compression';
-import { createSession, addTrack, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
+import { createSession, addTrack, setClaim, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
-import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session, UserSelection, ProjectMemory } from '../../src/engine/types';
+import type { Reaction, OpenDecision, PreservationReport, Session, UserSelection, ProjectMemory } from '../../src/engine/types';
 import { resolveTrackId, getTrackOrdinalLabel } from '../../src/engine/track-labels';
 import { getTrackKind, updateTrack } from '../../src/engine/types';
 
@@ -325,24 +325,24 @@ describe('State Compression (Phase 2)', () => {
 // M6 Compression Features
 // ---------------------------------------------------------------------------
 
-describe('Track approval in compressed output', () => {
-  it('approval field appears on every compressed track', () => {
+describe('Track claim in compressed output', () => {
+  it('claimed field appears on every compressed track', () => {
     const session = createSession();
     const result = compressState(session);
     for (const track of result.tracks) {
-      expect(track).toHaveProperty('approval');
-      expect(track.approval).toBe('exploratory'); // default
+      expect(track).toHaveProperty('claimed');
+      expect(track.claimed).toBe(false); // default
     }
   });
 
-  it("non-default approval ('anchor') is correctly compressed", () => {
+  it('claimed track is correctly compressed', () => {
     let session = createSession();
     const trackId = session.tracks[0].id;
-    session = setApproval(session, trackId, 'anchor');
+    session = setClaim(session, trackId, true);
     const result = compressState(session);
-    expect(result.tracks[0].approval).toBe('anchor');
+    expect(result.tracks[0].claimed).toBe(true);
     // Other tracks remain at default
-    expect(result.tracks[1].approval).toBe('exploratory');
+    expect(result.tracks[1].claimed).toBe(false);
   });
 });
 
@@ -474,7 +474,7 @@ describe('Recent preservation reports', () => {
     trackId: 'v0',
     preserved: { rhythmPositions: true, eventCount: true, pitchContour: false },
     changed: ['2 velocity values modified'],
-    approvalLevel: 'liked',
+    claimed: true,
   };
 
   it('recent_preservation appears when reports provided', () => {
@@ -483,7 +483,7 @@ describe('Recent preservation reports', () => {
     expect(result.recent_preservation).toBeDefined();
     expect(result.recent_preservation).toHaveLength(1);
     expect(result.recent_preservation![0].trackId).toBe('v0');
-    expect(result.recent_preservation![0].approval).toBe('liked');
+    expect(result.recent_preservation![0].claimed).toBe(true);
     expect(result.recent_preservation![0].preserved).toEqual(['rhythm', 'event_count']);
     expect(result.recent_preservation![0].changed).toEqual(['2 velocity values modified']);
   });

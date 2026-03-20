@@ -1072,8 +1072,8 @@ const manageSequenceTool: ToolSchema = {
 const setTrackMetaTool: ToolSchema = {
   name: 'set_track_meta',
   description:
-    'Set track metadata and mix properties in a single call: name (rename), volume, pan, swing (per-track override), muted, solo, approval (editability), importance (mix priority 0-1), musicalRole, portamentoTime (0-1 = 0-500ms glide), and/or portamentoMode (off/always/legato). ' +
-    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", portamentoTime: 0.3, portamentoMode: "legato") for pitch glide. Use inheritSwing: true to revert to global transport swing. Approval requires a reason.',
+    'Set track metadata and mix properties in a single call: name (rename), volume, pan, swing (per-track override), muted, solo, claimed (protection toggle), importance (mix priority 0-1), musicalRole, portamentoTime (0-1 = 0-500ms glide), and/or portamentoMode (off/always/legato). ' +
+    'Example: set_track_meta(trackId: "Track 1", name: "Kick", volume: 0.85) or set_track_meta(trackId: "Track 1", portamentoTime: 0.3, portamentoMode: "legato") for pitch glide. Use inheritSwing: true to revert to global transport swing. Claim changes require a reason.',
   parameters: {
     type: 'object',
     properties: {
@@ -1101,10 +1101,9 @@ const setTrackMetaTool: ToolSchema = {
         type: 'boolean',
         description: 'Set to true to clear per-track swing override and inherit global transport swing. Mutually exclusive with swing.',
       },
-      approval: {
-        type: 'string',
-        enum: ['exploratory', 'liked', 'approved', 'anchor'],
-        description: 'Approval level. exploratory=freely editable, liked=preserve unless asked, approved=preserve during expansion, anchor=core identity.',
+      claimed: {
+        type: 'boolean',
+        description: 'Whether the track is claimed by the human. true = AI must ask before modifying, false = AI can freely edit.',
       },
       importance: {
         type: 'number',
@@ -1124,7 +1123,7 @@ const setTrackMetaTool: ToolSchema = {
       },
       reason: {
         type: 'string',
-        description: 'Required when setting approval. Why this approval level is appropriate.',
+        description: 'Required when changing claim state. Why this claim change is appropriate.',
       },
       portamentoTime: {
         type: 'number',

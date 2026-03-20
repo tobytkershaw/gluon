@@ -542,7 +542,7 @@ describe('persistence', () => {
 
   // --- M6 field persistence tests ---
 
-  it('round-trips all M6 fields (approval, importance, musicalRole, reactionHistory, openDecisions)', () => {
+  it('round-trips all M6 fields (claimed, importance, musicalRole, reactionHistory, openDecisions)', () => {
     const session = createSession();
     const reactions: Reaction[] = [
       { actionGroupIndex: 0, verdict: 'approved', rationale: 'nice kick', timestamp: 100 },
@@ -556,7 +556,7 @@ describe('persistence', () => {
       messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
       tracks: session.tracks.map((t, i) =>
         i === 0
-          ? { ...t, approval: 'anchor' as const, importance: 0.8, musicalRole: 'driving rhythm' }
+          ? { ...t, claimed: true, importance: 0.8, musicalRole: 'driving rhythm' }
           : t,
       ),
       reactionHistory: reactions,
@@ -569,7 +569,7 @@ describe('persistence', () => {
 
     // Track-level M6 fields
     const track = getTrack(loaded!, 'v0');
-    expect(track.approval).toBe('anchor');
+    expect(track.claimed).toBe(true);
     expect(track.importance).toBe(0.8);
     expect(track.musicalRole).toBe('driving rhythm');
 
@@ -594,6 +594,7 @@ describe('persistence', () => {
     // Strip M6 fields from tracks
     rawSession.tracks = rawSession.tracks.map((t: any) => {
       const copy = { ...t };
+      delete copy.claimed;
       delete copy.approval;
       delete copy.importance;
       delete copy.musicalRole;
@@ -613,9 +614,9 @@ describe('persistence', () => {
     const loaded = loadSession();
     expect(loaded).not.toBeNull();
 
-    // Track-level: approval migrated to 'exploratory', optional fields stay undefined
+    // Track-level: claimed defaults to false, optional fields stay undefined
     const track = getTrack(loaded!, 'v0');
-    expect(track.approval).toBe('exploratory');
+    expect(track.claimed).toBe(false);
     expect(track.importance).toBeUndefined();
     expect(track.musicalRole).toBeUndefined();
 
@@ -626,14 +627,14 @@ describe('persistence', () => {
 
   it('isNonDefault does not detect M6-only changes (accepted heuristic limitation)', () => {
     // isNonDefault is a save-avoidance heuristic. It checks messages, transport, params,
-    // and pattern edits — but NOT approval, importance, musicalRole, reactionHistory, or
+    // and pattern edits — but NOT claimed, importance, musicalRole, reactionHistory, or
     // openDecisions. This is an accepted limitation: worst case is an unnecessary no-op save,
     // not data loss. See NOTE(#215) in isNonDefault's docstring.
     const session = createSession();
     const modified = {
       ...session,
       tracks: session.tracks.map((t, i) =>
-        i === 0 ? { ...t, approval: 'anchor' as const } : t,
+        i === 0 ? { ...t, claimed: true } : t,
       ),
     };
     // No messages, no pattern changes — isNonDefault should return false
@@ -654,7 +655,7 @@ describe('persistence', () => {
       messages: [{ role: 'human' as const, text: 'hi', timestamp: 1 }],
       tracks: session.tracks.map((t, i) =>
         i === 0
-          ? { ...t, approval: 'liked' as const, importance: 0.6, musicalRole: 'ambient pad' }
+          ? { ...t, claimed: true, importance: 0.6, musicalRole: 'ambient pad' }
           : t,
       ),
       reactionHistory: reactions,
@@ -668,7 +669,7 @@ describe('persistence', () => {
     expect(stripped.openDecisions).toEqual(decisions);
 
     // Track-level M6 fields preserved
-    expect(stripped.tracks[0].approval).toBe('liked');
+    expect(stripped.tracks[0].claimed).toBe(true);
     expect(stripped.tracks[0].importance).toBe(0.6);
     expect(stripped.tracks[0].musicalRole).toBe('ambient pad');
   });

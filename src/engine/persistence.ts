@@ -315,9 +315,13 @@ export function migrateTrack(track: Track): Track {
     };
   }
 
-  // Hydrate approval for tracks without one
-  if (!surfaced.approval) {
-    surfaced = { ...surfaced, approval: 'exploratory' };
+  // Migrate old approval field to claimed boolean
+  if (surfaced.approval && surfaced.approval !== 'exploratory' && surfaced.claimed === undefined) {
+    surfaced = { ...surfaced, claimed: true };
+  }
+  // Hydrate claimed for tracks without one
+  if (surfaced.claimed === undefined) {
+    surfaced = { ...surfaced, claimed: false };
   }
 
   // Hydrate kind — only infer master bus here; non-master legacy tracks
