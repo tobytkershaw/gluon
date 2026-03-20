@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { getChainSignature, getTemplateForChain, applySurfaceTemplate, validateSurface, migrateLegacySurface } from '../../src/engine/surface-templates';
-import type { Track, TrackSurface, SemanticControlDef, SurfaceModule } from '../../src/engine/types';
+import { getChainSignature, getTemplateForChain, applySurfaceTemplate, validateSurface, migrateLegacySurface, maybeApplySurfaceTemplate } from '../../src/engine/surface-templates';
+import type { Track, TrackSurface, SemanticControlDef, SurfaceModule, Session } from '../../src/engine/types';
+import { createSession } from '../../src/engine/session';
 
 function makeTrack(overrides: Partial<Track> = {}): Track {
   return {
@@ -371,5 +372,172 @@ describe('migrateLegacySurface', () => {
     };
     const result = migrateLegacySurface(legacy, 'track-1');
     expect(result.modules.find(m => m.type === 'xy-pad')).toBeUndefined();
+  });
+});
+
+describe('maybeApplySurfaceTemplate', () => {
+  function makeSessionWithTrack(trackOverrides: Partial<Track> = {}): Session {
+    const session = createSession();
+    const track = session.tracks[0];
+    return {
+      ...session,
+      tracks: session.tracks.map(t =>
+        t.id === track.id ? { ...t, ...trackOverrides } : t,
+      ),
+    };
+  }
+
+  it('applies surface template after adding a processor (rings)', () => {
+    const session = makeSessionWithTrack({
+      processors: [{ id: 'rings-1', type: 'rings', model: 0, params: {} }],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    });
+    // Add an undo entry to group with
+    const withUndo: Session = {
+      ...session,
+      undoStack: [{
+        kind: 'processor',
+        trackId: session.activeTrackId,
+        prevProcessors: [],
+        timestamp: Date.now(),
+        description: 'Add rings processor',
+      }],
+    };
+    const result = maybeApplySurfaceTemplate(withUndo, session.activeTrackId, 'Add rings processor');
+    const track = result.tracks.find(t => t.id === session.activeTrackId)!;
+    // Surface should now have modules from the plaits:rings template
+    expect(track.surface.modules.length).toBeGreaterThan(0);
+    expect(track.surface.modules.some(m => m.type === 'macro-knob')).toBe(true);
+  });
+
+  it('groups surface snapshot with the previous undo entry', () => {
+    const session = makeSessionWithTrack({
+      processors: [{ id: 'rings-1', type: 'rings', model: 0, params: {} }],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    });
+    const withUndo: Session = {
+      ...session,
+      undoStack: [{
+        kind: 'processor',
+        trackId: session.activeTrackId,
+        prevProcessors: [],
+        timestamp: Date.now(),
+        description: 'Add rings processor',
+      }],
+    };
+    const result = maybeApplySurfaceTemplate(withUndo, session.activeTrackId, 'Add rings processor');
+    // Should still be exactly 1 undo entry (grouped)
+    expect(result.undoStack).toHaveLength(1);
+    expect(result.undoStack[0].kind).toBe('group');
+    if (result.undoStack[0].kind === 'group') {
+      expect(result.undoStack[0].snapshots).toHaveLength(2);
+      expect(result.undoStack[0].snapshots[1].kind).toBe('surface');
+    }
+  });
+
+  it('returns session unchanged when no template matches', () => {
+    const session = makeSessionWithTrack({
+      processors: [{ id: 'unknown-1', type: 'unknown' as 'rings', model: 0, params: {} }],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    });
+    const withUndo: Session = {
+      ...session,
+      undoStack: [{
+        kind: 'processor',
+        trackId: session.activeTrackId,
+        prevProcessors: [],
+        timestamp: Date.now(),
+        description: 'Add unknown processor',
+      }],
+    };
+    const result = maybeApplySurfaceTemplate(withUndo, session.activeTrackId, 'Add unknown processor');
+    expect(result).toBe(withUndo);
+  });
+
+  it('returns session unchanged when surface already matches template', () => {
+    // First apply the template
+    const session = makeSessionWithTrack({
+      processors: [{ id: 'rings-1', type: 'rings', model: 0, params: {} }],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    });
+    const withUndo: Session = {
+      ...session,
+      undoStack: [{
+        kind: 'processor',
+        trackId: session.activeTrackId,
+        prevProcessors: [],
+        timestamp: Date.now(),
+        description: 'Add rings processor',
+      }],
+    };
+    const first = maybeApplySurfaceTemplate(withUndo, session.activeTrackId, 'Add rings processor');
+    // Now try again — surface should already match
+    const second = maybeApplySurfaceTemplate(first, session.activeTrackId, 'Add rings processor');
+    expect(second).toBe(first);
+  });
+
+  it('updates surface after removing a processor (back to plaits-only)', () => {
+    // Start with plaits:rings surface applied
+    const session = makeSessionWithTrack({
+      processors: [{ id: 'rings-1', type: 'rings', model: 0, params: {} }],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    });
+    const withTemplate = maybeApplySurfaceTemplate(
+      { ...session, undoStack: [{ kind: 'processor', trackId: session.activeTrackId, prevProcessors: [], timestamp: Date.now(), description: 'setup' }] },
+      session.activeTrackId,
+      'setup',
+    );
+    // Now simulate removing the processor
+    const afterRemove: Session = {
+      ...withTemplate,
+      tracks: withTemplate.tracks.map(t =>
+        t.id === session.activeTrackId ? { ...t, processors: [] } : t,
+      ),
+      undoStack: [...withTemplate.undoStack, {
+        kind: 'processor' as const,
+        trackId: session.activeTrackId,
+        prevProcessors: [{ id: 'rings-1', type: 'rings' as const, model: 0, params: {} }],
+        timestamp: Date.now(),
+        description: 'Remove processor',
+      }],
+    };
+    const result = maybeApplySurfaceTemplate(afterRemove, session.activeTrackId, 'Remove processor');
+    const track = result.tracks.find(t => t.id === session.activeTrackId)!;
+    // Should now have the plaits-only template (knob-group + step-grid, no macro-knob)
+    expect(track.surface.modules.some(m => m.type === 'knob-group')).toBe(true);
+    expect(track.surface.modules.some(m => m.type === 'macro-knob')).toBe(false);
+  });
+
+  it('updates surface after replacing a processor', () => {
+    // Start with plaits:rings
+    const session = makeSessionWithTrack({
+      processors: [{ id: 'rings-1', type: 'rings', model: 0, params: {} }],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    });
+    const withTemplate = maybeApplySurfaceTemplate(
+      { ...session, undoStack: [{ kind: 'processor', trackId: session.activeTrackId, prevProcessors: [], timestamp: Date.now(), description: 'setup' }] },
+      session.activeTrackId,
+      'setup',
+    );
+    // Replace rings with clouds
+    const afterReplace: Session = {
+      ...withTemplate,
+      tracks: withTemplate.tracks.map(t =>
+        t.id === session.activeTrackId ? { ...t, processors: [{ id: 'clouds-1', type: 'clouds' as const, model: 0, params: {} }] } : t,
+      ),
+      undoStack: [...withTemplate.undoStack, {
+        kind: 'processor' as const,
+        trackId: session.activeTrackId,
+        prevProcessors: [{ id: 'rings-1', type: 'rings' as const, model: 0, params: {} }],
+        timestamp: Date.now(),
+        description: 'Swap processor: rings → clouds',
+      }],
+    };
+    const result = maybeApplySurfaceTemplate(afterReplace, session.activeTrackId, 'Swap processor: rings → clouds');
+    const track = result.tracks.find(t => t.id === session.activeTrackId)!;
+    // Should have plaits:clouds template
+    expect(track.surface.modules.some(m => m.type === 'macro-knob')).toBe(true);
+    // The space macro-knob should exist (specific to clouds template)
+    expect(track.surface.modules.find(m => m.id === 'space')).toBeDefined();
   });
 });

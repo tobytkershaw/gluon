@@ -10,7 +10,7 @@ import { kitToEvents, gridLength } from './drum-grid';
  * and shows a permission toast.
  */
 export const MASTER_PERMISSION_PREFIX = 'Permission:';
-import { applySurfaceTemplate, validateSurface } from './surface-templates';
+import { applySurfaceTemplate, validateSurface, maybeApplySurfaceTemplate } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getTrack, getActivePattern, updateTrack } from './types';
@@ -722,47 +722,6 @@ export function prevalidateAction(
       return null;
     }
   }
-}
-
-/**
- * Auto-apply a surface template after a chain mutation.
- * If a template matches the track's new chain, applies it and pushes a SurfaceSnapshot.
- * The snapshot is grouped with the preceding chain mutation on undo.
- */
-function maybeApplySurfaceTemplate(session: Session, trackId: string, description: string): Session {
-  const track = getTrack(session, trackId);
-  const newSurface = applySurfaceTemplate(track);
-  if (!newSurface) return session;
-
-  const surfaceSnapshot: SurfaceSnapshot = {
-    kind: 'surface',
-    trackId,
-    prevSurface: track.surface,
-    timestamp: Date.now(),
-    description: `${description} (auto-apply surface template)`,
-  };
-
-  // Group the surface snapshot with the most recent undo entry
-  const undoStack = [...session.undoStack];
-  const lastEntry = undoStack[undoStack.length - 1];
-  if (lastEntry) {
-    const existingSnapshots: Snapshot[] = lastEntry.kind === 'group'
-      ? lastEntry.snapshots
-      : [lastEntry as Snapshot];
-    undoStack[undoStack.length - 1] = {
-      kind: 'group',
-      snapshots: [...existingSnapshots, surfaceSnapshot],
-      timestamp: Date.now(),
-      description,
-    };
-  } else {
-    undoStack.push(surfaceSnapshot);
-  }
-
-  return {
-    ...updateTrack(session, trackId, { surface: newSurface }),
-    undoStack,
-  };
 }
 
 // ---------------------------------------------------------------------------
