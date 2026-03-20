@@ -273,7 +273,8 @@ function resolvePatternEditOperations(
  * No undo entries or messages — just updates the values so later
  * tool calls in the same turn can validate against current state.
  */
-function projectAction(session: Session, action: AIAction): Session {
+/** @visibleForTesting — exported for unit tests only. */
+export function projectAction(session: Session, action: AIAction): Session {
   switch (action.type) {
     case 'move': {
       const trackId = action.trackId ?? session.activeTrackId;
@@ -313,6 +314,28 @@ function projectAction(session: Session, action: AIAction): Session {
         const newProcessors = [...processors];
         newProcessors[procIndex] = updatedProc;
         return updateTrack(session, trackId, { processors: newProcessors });
+      }
+
+      // Drum rack per-pad param path: "padId.param"
+      if (action.param.includes('.') && track.engine === 'drum-rack' && track.drumRack) {
+        const dotIdx = action.param.indexOf('.');
+        const padId = action.param.slice(0, dotIdx);
+        const padParam = action.param.slice(dotIdx + 1);
+        const pad = track.drumRack.pads.find(p => p.id === padId);
+        if (!pad) return session;
+        const currentVal = padParam === 'level' ? pad.level : padParam === 'pan' ? pad.pan : pad.source.params[padParam] ?? 0;
+        const rawTarget = 'absolute' in action.target
+          ? action.target.absolute
+          : currentVal + action.target.relative;
+        if (!Number.isFinite(rawTarget)) return session;
+        const value = Math.max(0, Math.min(1, rawTarget));
+        const newPads = track.drumRack.pads.map(p => {
+          if (p.id !== padId) return p;
+          if (padParam === 'level') return { ...p, level: value };
+          if (padParam === 'pan') return { ...p, pan: value };
+          return { ...p, source: { ...p.source, params: { ...p.source.params, [padParam]: value } } };
+        });
+        return updateTrack(session, trackId, { drumRack: { ...track.drumRack, pads: newPads } });
       }
 
       // Source path
@@ -447,6 +470,24 @@ function projectAction(session: Session, action: AIAction): Session {
         const newProcessors = [...processors];
         newProcessors[procIndex] = updatedProc;
         return updateTrack(session, action.trackId, { processors: newProcessors });
+      }
+
+      // Drum rack pad path: switch a pad's Plaits model
+      if (action.pad) {
+        const track = getTrack(session, action.trackId);
+        if (!track.drumRack) return session;
+        const pad = track.drumRack.pads.find(p => p.id === action.pad);
+        if (!pad) return session;
+        const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
+        if (engineIndex < 0) return session;
+        const defaultParams: Record<string, number> = {};
+        for (const ctrl of plaitsInstrument.engines[engineIndex].controls) {
+          defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5;
+        }
+        const newPads = track.drumRack.pads.map(p =>
+          p.id === action.pad ? { ...p, source: { ...p.source, model: engineIndex, params: defaultParams } } : p,
+        );
+        return updateTrack(session, action.trackId, { drumRack: { ...track.drumRack, pads: newPads } });
       }
 
       // Source path
