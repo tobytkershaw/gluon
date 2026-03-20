@@ -269,8 +269,11 @@ export const DEFAULT_MASTER: MasterChannel = { volume: 0.8, pan: 0.0 };
 
 // --- Project Memory ---
 
+/** Canonical list of memory type discriminators (single source of truth). */
+export const PROJECT_MEMORY_TYPES = ['direction', 'track-narrative', 'decision'] as const;
+
 /** Memory type discriminator for per-project AI memories. */
-export type ProjectMemoryType = 'direction' | 'track-narrative' | 'decision';
+export type ProjectMemoryType = (typeof PROJECT_MEMORY_TYPES)[number];
 
 /** A single AI memory scoped to a project. */
 export interface ProjectMemory {
@@ -290,12 +293,14 @@ export const MAX_PROJECT_MEMORIES = 30;
 /** Maximum character length for a memory's content field. */
 export const MAX_MEMORY_CONTENT_LENGTH = 500;
 
-/** Valid memory type values. */
-const VALID_MEMORY_TYPES: ReadonlySet<string> = new Set<string>(['direction', 'track-narrative', 'decision']);
-
 /** Check whether a string is a valid ProjectMemoryType. */
 export function isValidMemoryType(type: string): type is ProjectMemoryType {
-  return VALID_MEMORY_TYPES.has(type);
+  return (PROJECT_MEMORY_TYPES as readonly string[]).includes(type);
+}
+
+/** Check whether a number is a valid confidence value (0.0–1.0). */
+export function isValidConfidence(value: number): boolean {
+  return typeof value === 'number' && value >= 0 && value <= 1;
 }
 
 /** Check whether a string is valid memory content (non-empty, max 500 chars). */

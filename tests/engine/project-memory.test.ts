@@ -2,13 +2,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { saveSession, loadSession, clearSavedSession, restoreSession } from '../../src/engine/persistence';
 import { createSession } from '../../src/engine/session';
+import { applyUndo, applyRedo } from '../../src/engine/primitives';
 import {
   MAX_PROJECT_MEMORIES,
   MAX_MEMORY_CONTENT_LENGTH,
+  PROJECT_MEMORY_TYPES,
   isValidMemoryType,
   isValidMemoryContent,
+  isValidConfidence,
 } from '../../src/engine/types';
-import type { ProjectMemory, MemorySnapshot } from '../../src/engine/types';
+import type { ProjectMemory, MemorySnapshot, Session } from '../../src/engine/types';
 
 // Mock localStorage for Node/Vitest environment
 const store = new Map<string, string>();
@@ -93,6 +96,40 @@ describe('ProjectMemory types and validation', () => {
   });
 });
 
+describe('PROJECT_MEMORY_TYPES const array', () => {
+  it('contains all expected types', () => {
+    expect(PROJECT_MEMORY_TYPES).toContain('direction');
+    expect(PROJECT_MEMORY_TYPES).toContain('track-narrative');
+    expect(PROJECT_MEMORY_TYPES).toContain('decision');
+    expect(PROJECT_MEMORY_TYPES).toHaveLength(3);
+  });
+
+  it('isValidMemoryType agrees with PROJECT_MEMORY_TYPES', () => {
+    for (const t of PROJECT_MEMORY_TYPES) {
+      expect(isValidMemoryType(t)).toBe(true);
+    }
+  });
+});
+
+describe('isValidConfidence', () => {
+  it('accepts values within [0, 1]', () => {
+    expect(isValidConfidence(0)).toBe(true);
+    expect(isValidConfidence(0.5)).toBe(true);
+    expect(isValidConfidence(1)).toBe(true);
+  });
+
+  it('rejects values outside [0, 1]', () => {
+    expect(isValidConfidence(-0.1)).toBe(false);
+    expect(isValidConfidence(1.1)).toBe(false);
+  });
+
+  it('rejects non-finite values', () => {
+    expect(isValidConfidence(NaN)).toBe(false);
+    expect(isValidConfidence(Infinity)).toBe(false);
+    expect(isValidConfidence(-Infinity)).toBe(false);
+  });
+});
+
 describe('MemorySnapshot type', () => {
   it('has the correct kind discriminator', () => {
     const snapshot: MemorySnapshot = {
@@ -103,6 +140,70 @@ describe('MemorySnapshot type', () => {
     };
     expect(snapshot.kind).toBe('memory');
     expect(snapshot.prevMemories).toHaveLength(1);
+  });
+});
+
+describe('MemorySnapshot undo contract', () => {
+  function sessionWithMemories(memories: ProjectMemory[]): Session {
+    const session = createSession();
+    return { ...session, memories };
+  }
+
+  it('undo restores previous memories from MemorySnapshot', () => {
+    const oldMemories = [makeMemory({ id: 'mem-old' })];
+    const newMemories = [makeMemory({ id: 'mem-old' }), makeMemory({ id: 'mem-new', content: 'New direction.' })];
+
+    // Build session with new memories and a MemorySnapshot on the undo stack
+    const snapshot: MemorySnapshot = {
+      kind: 'memory',
+      prevMemories: oldMemories,
+      timestamp: Date.now(),
+      description: 'save memory: mem-new',
+    };
+    const session = sessionWithMemories(newMemories);
+    const withUndo: Session = { ...session, undoStack: [snapshot] };
+
+    const undone = applyUndo(withUndo);
+    expect(undone.memories).toEqual(oldMemories);
+    expect(undone.undoStack).toHaveLength(0);
+    expect(undone.redoStack).toHaveLength(1);
+  });
+
+  it('redo restores memories after undo (round-trip)', () => {
+    const oldMemories = [makeMemory({ id: 'mem-old' })];
+    const newMemories = [makeMemory({ id: 'mem-old' }), makeMemory({ id: 'mem-new', content: 'New direction.' })];
+
+    const snapshot: MemorySnapshot = {
+      kind: 'memory',
+      prevMemories: oldMemories,
+      timestamp: Date.now(),
+      description: 'save memory: mem-new',
+    };
+    const session = sessionWithMemories(newMemories);
+    const withUndo: Session = { ...session, undoStack: [snapshot] };
+
+    const undone = applyUndo(withUndo);
+    expect(undone.memories).toEqual(oldMemories);
+
+    const redone = applyRedo(undone);
+    expect(redone.memories).toEqual(newMemories);
+    expect(redone.undoStack).toHaveLength(1);
+    expect(redone.redoStack).toHaveLength(0);
+  });
+
+  it('undo with empty prevMemories clears memories', () => {
+    const newMemories = [makeMemory({ id: 'mem-1' })];
+    const snapshot: MemorySnapshot = {
+      kind: 'memory',
+      prevMemories: [],
+      timestamp: Date.now(),
+      description: 'save first memory',
+    };
+    const session = sessionWithMemories(newMemories);
+    const withUndo: Session = { ...session, undoStack: [snapshot] };
+
+    const undone = applyUndo(withUndo);
+    expect(undone.memories).toEqual([]);
   });
 });
 
