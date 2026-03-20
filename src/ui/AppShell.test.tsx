@@ -43,6 +43,7 @@ function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): App
     currentGeminiKey: '',
     listenerMode: 'gemini' as const,
     onCoinFlip: noop,
+    coinNotification: { isThinking: false, openDecisions: [], lastCompletionSummary: null },
     projectName: 'Test Project',
     projects: [] as ProjectMeta[],
     saveError: false,

@@ -1359,6 +1359,8 @@ export default function App() {
   const [streamingText, setStreamingText] = useState('');
   const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
   const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
+  const [lastCompletionSummary, setLastCompletionSummary] = useState<string | null>(null);
+  const completionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleInvalidateActiveTurn = useCallback(() => {
     setIsThinking(false);
     setIsListening(false);
@@ -1504,6 +1506,9 @@ export default function App() {
     setStreamingText('');
     setStreamingLogEntries([]);
     setStreamingRejections([]);
+    // Clear any lingering completion card from previous turn
+    if (completionTimerRef.current) { clearTimeout(completionTimerRef.current); completionTimerRef.current = null; }
+    setLastCompletionSummary(null);
     if (!await ensureAudio()) {
       setIsThinking(false);
       return;
@@ -1643,9 +1648,22 @@ export default function App() {
           setIsThinking(false);
           setIsListening(false);
           setStreamingText('');
-        setStreamingLogEntries([]);
-        setStreamingRejections([]);
-      }
+          setStreamingLogEntries([]);
+          setStreamingRejections([]);
+
+          // Show completion card if there were tool calls (i.e. the AI did something)
+          if (collectedToolCalls.length > 0) {
+            const summary = allSayTexts.length > 0
+              ? allSayTexts[allSayTexts.length - 1].slice(0, 80)
+              : `${collectedToolCalls.length} action${collectedToolCalls.length === 1 ? '' : 's'} completed`;
+            if (completionTimerRef.current) clearTimeout(completionTimerRef.current);
+            setLastCompletionSummary(summary);
+            completionTimerRef.current = setTimeout(() => {
+              setLastCompletionSummary(null);
+              completionTimerRef.current = null;
+            }, 5000);
+          }
+        }
     }
   }, [beginTurn, ensureAudio, isCurrentTurn]);
 
@@ -3131,6 +3149,11 @@ export default function App() {
       currentGeminiKey={geminiKey}
       listenerMode={listenerMode}
       onCoinFlip={handleCoinFlip}
+      coinNotification={{
+        isThinking,
+        openDecisions: (session.openDecisions ?? []).filter(d => !d.resolved),
+        lastCompletionSummary,
+      }}
       projectName={project.projectName}
       projects={project.projects}
       saveError={project.saveError}

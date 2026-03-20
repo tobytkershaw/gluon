@@ -10,6 +10,7 @@ import type { SaveStatus } from './useProjectLifecycle';
 import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
 import { Coin } from './Coin';
+import type { CoinNotificationProps } from './Coin';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -71,6 +72,8 @@ interface Props {
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
   onCoinFlip: () => void;
+  // Coin notification card state
+  coinNotification: CoinNotificationProps;
   // Project
   projectName: string;
   projects: ProjectMeta[];
@@ -178,6 +181,7 @@ export function AppShell({
   openDecisions = [], onDecisionRespond,
   apiConfigured, listenerConfigured = false, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   onCoinFlip,
+  coinNotification,
   projectName, projects, saveError, saveStatus, projectActionError = null,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -419,7 +423,7 @@ export function AppShell({
             <OpenDecisionsPanel decisions={openDecisions} onRespond={onDecisionRespond} />
           </div>
         )}
-        <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} />
+        <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} {...coinNotification} />
       </div>
     );
   }
@@ -612,7 +616,7 @@ export function AppShell({
           )}
         </div>
       </div>
-      <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} />
+      <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} {...coinNotification} />
     </div>
   );
 }
