@@ -124,6 +124,38 @@ input[type="range"]::-moz-range-thumb {
   50% { opacity: 1; }
 }
 
+/* ── Design Token Animations ─────────────────────────────────────────────── */
+
+/* Slow opacity oscillation for status dots (3s cycle) */
+@keyframes breathing {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.7; }
+}
+
+/* Emerald glow pulse for Coin working state */
+@keyframes coin-pulse-emerald {
+  0%, 100% { box-shadow: 0 0 8px rgba(52, 211, 153, 0.2); }
+  50% { box-shadow: 0 0 16px rgba(52, 211, 153, 0.5); }
+}
+
+/* Amber glow pulse for Coin attention state */
+@keyframes coin-pulse-amber {
+  0%, 100% { box-shadow: 0 0 8px rgba(251, 191, 36, 0.2); }
+  50% { box-shadow: 0 0 16px rgba(251, 191, 36, 0.5); }
+}
+
+/* Fade in for card transitions */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Fade out for card transitions */
+@keyframes fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
