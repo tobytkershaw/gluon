@@ -2,7 +2,7 @@
 // Layout shell: view-driven workstation with chat as a first-class tab.
 // Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
-import { useEffect, useMemo, useRef, useCallback, type ReactNode, type MutableRefObject } from 'react';
+import { useEffect, useMemo, useRef, useCallback, type ReactNode, type MutableRefObject, type RefObject } from 'react';
 import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
@@ -120,6 +120,8 @@ interface Props {
   // View
   view: ViewMode;
   onViewChange: (v: ViewMode) => void;
+  /** Ref tracking the last non-chat view, managed by App. Used by Escape to return to instrument. */
+  lastNonChatViewRef?: RefObject<ViewMode>;
   // Undo / Redo
   undoStack: UndoEntry[];
   redoStack: UndoEntry[];
@@ -190,7 +192,7 @@ export function AppShell({
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   transportMode, loop, onTransportModeChange, onLoopChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
-  view, onViewChange,
+  view, onViewChange, lastNonChatViewRef: lastNonChatViewProp,
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
   cancelEditRef,
   abActive, onAbCapture, onAbToggle, onAbClear,
@@ -206,18 +208,21 @@ export function AppShell({
   const prevChatOpenRef = useRef(chatOpen);
   const pendingComposerFocusRef = useRef<{ selectAll: boolean } | null>(null);
   const pendingInstrumentFocusRef = useRef(false);
-  const lastNonChatViewRef = useRef<ViewMode>(view === 'chat' ? 'surface' : view);
+  // Use the App-provided ref when available; fall back to a local ref for standalone usage.
+  const localLastNonChatViewRef = useRef<ViewMode>(view === 'chat' ? 'surface' : view);
+  const lastNonChatViewRef = lastNonChatViewProp ?? localLastNonChatViewRef;
 
   const isActive = isThinking || isListening;
   const hasRuntimeDegradation = Boolean(runtimeDegradation);
   const lastHumanMessage = useMemo(() => getLastHumanMessage(messages), [messages]);
   const followUpChips = useMemo(() => getLatestFollowUpChips(messages), [messages]);
 
+  // Keep local fallback ref in sync (only fires when no prop ref is provided).
   useEffect(() => {
-    if (view !== 'chat') {
-      lastNonChatViewRef.current = view;
+    if (!lastNonChatViewProp && view !== 'chat') {
+      localLastNonChatViewRef.current = view;
     }
-  }, [view]);
+  }, [lastNonChatViewProp, view]);
 
   useEffect(() => {
     const pending = pendingComposerFocusRef.current;

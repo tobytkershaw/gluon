@@ -235,6 +235,17 @@ export default function App() {
     prevEvents?: CanonicalMusicalEvent[];
   } | null>(null);
 
+  // Track the last non-chat view for Cmd+K "coin flip" toggle.
+  // Promoted from AppShell so it's accessible to sibling components (e.g. The Coin).
+  const lastNonChatViewRef = useRef<ViewMode>(view === 'chat' ? 'surface' : view);
+  useEffect(() => {
+    if (view !== 'chat') lastNonChatViewRef.current = view;
+  }, [view]);
+
+  const handleCoinFlip = useCallback(() => {
+    setView(v => v === 'chat' ? lastNonChatViewRef.current : 'chat');
+  }, []);
+
   // Persist view and chat state to localStorage
   useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
   useEffect(() => { localStorage.setItem('gluon-chat-open', String(chatOpen)); }, [chatOpen]);
@@ -3068,6 +3079,7 @@ export default function App() {
     onTrackDown: handleTrackDown,
     onBpmNudge: handleBpmNudge,
     onToggleTransportMode: handleToggleTransportMode,
+    onCoinFlip: handleCoinFlip,
     setView,
   });
 
@@ -3188,6 +3200,7 @@ export default function App() {
       onTimeSignatureChange={handleTimeSignatureChange}
       view={view}
       onViewChange={setView}
+      lastNonChatViewRef={lastNonChatViewRef}
       undoStack={session.undoStack}
       redoStack={session.redoStack ?? []}
       onUndo={handleUndo}

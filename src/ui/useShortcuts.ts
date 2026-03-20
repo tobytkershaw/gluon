@@ -16,6 +16,7 @@ interface ShortcutActions {
   onTrackDown: () => void;
   onBpmNudge: (delta: number) => void;
   onToggleTransportMode?: () => void;
+  onCoinFlip?: () => void;
   setView: (updater: ViewMode | ((prev: ViewMode) => ViewMode)) => void;
 }
 
@@ -63,6 +64,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { key: 'Tab', label: 'Cycle views', section: 'view' },
   { key: 'F6', label: 'Cycle focus between regions', section: 'view' },
   { key: 'Shift+F6', label: 'Cycle focus (reverse)', section: 'view' },
+  { key: `${mod}K`, label: 'Flip between Chat and instrument', section: 'view' },
   { key: `${mod}?`, label: 'Shortcuts reference', section: 'view' },
   // Mixing
   { key: 'M', label: 'Mute active track', section: 'mixing' },
@@ -98,7 +100,7 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
 export function useShortcuts({
   onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
   onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
-  onToggleTransportMode, setView,
+  onToggleTransportMode, onCoinFlip, setView,
 }: ShortcutActions) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const toggleShortcuts = useCallback(() => setShowShortcuts(o => !o), []);
@@ -116,6 +118,12 @@ export function useShortcuts({
       if (isMod && e.key === 'z') {
         e.preventDefault();
         onUndo();
+        return;
+      }
+      // Cmd+K = coin flip: toggle between chat and last instrument view
+      if (isMod && e.key === 'k' && !isEditable()) {
+        e.preventDefault();
+        onCoinFlip?.();
         return;
       }
       // Cmd+? (Cmd+Shift+/) toggles shortcuts reference
@@ -245,7 +253,7 @@ export function useShortcuts({
     return () => window.removeEventListener('keydown', handler);
   }, [onUndo, onRedo, onTogglePlay, onPlayFromCursor, onHardStop, onToggleRecord,
       onToggleMute, onToggleSolo, onTrackUp, onTrackDown, onBpmNudge,
-      onToggleTransportMode, setView]);
+      onToggleTransportMode, onCoinFlip, setView]);
 
   return { showShortcuts, toggleShortcuts };
 }
