@@ -3590,6 +3590,7 @@ export class GluonAI {
         }
 
         let compareSnapshot: ReturnType<typeof getSnapshot> | undefined;
+        const diffCompatibilityErrors: string[] = [];
         if (hasDiff && compareSnapshotId) {
           compareSnapshot = getSnapshot(compareSnapshotId);
           if (!compareSnapshot) {
@@ -3599,34 +3600,25 @@ export class GluonAI {
             const sameScope = snapshot.scope.length === compareSnapshot.scope.length
               && snapshot.scope.every((trackId, index) => trackId === compareSnapshot.scope[index]);
             if (!sameScope) {
-              return {
-                actions: [],
-                response: errorPayload(
-                  `Diff analysis requires snapshots with the same render scope. Got after=${snapshot.scope.length === 0 ? 'full_mix' : snapshot.scope.join(',')} and before=${compareSnapshot.scope.length === 0 ? 'full_mix' : compareSnapshot.scope.join(',')}.`,
-                ),
-              };
+              diffCompatibilityErrors.push(
+                `Diff analysis requires snapshots with the same render scope. Got after=${snapshot.scope.length === 0 ? 'full_mix' : snapshot.scope.join(',')} and before=${compareSnapshot.scope.length === 0 ? 'full_mix' : compareSnapshot.scope.join(',')}.`,
+              );
             }
             if (snapshot.bars !== compareSnapshot.bars) {
-              return {
-                actions: [],
-                response: errorPayload(
-                  `Diff analysis requires snapshots rendered for the same number of bars. Got after=${snapshot.bars}, before=${compareSnapshot.bars}.`,
-                ),
-              };
+              diffCompatibilityErrors.push(
+                `Diff analysis requires snapshots rendered for the same number of bars. Got after=${snapshot.bars}, before=${compareSnapshot.bars}.`,
+              );
             }
             if (snapshot.sampleRate !== compareSnapshot.sampleRate) {
-              return {
-                actions: [],
-                response: errorPayload(
-                  `Diff analysis requires snapshots with the same sample rate. Got after=${snapshot.sampleRate}, before=${compareSnapshot.sampleRate}.`,
-                ),
-              };
+              diffCompatibilityErrors.push(
+                `Diff analysis requires snapshots with the same sample rate. Got after=${snapshot.sampleRate}, before=${compareSnapshot.sampleRate}.`,
+              );
             }
           }
         }
 
         const results: Record<string, unknown> = {};
-        const analysisErrors: string[] = [];
+        const analysisErrors: string[] = [...diffCompatibilityErrors];
 
         for (const t of types) {
           switch (t) {

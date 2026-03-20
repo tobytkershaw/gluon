@@ -107,7 +107,34 @@ describe('Snapshot compatibility contract', () => {
       types: ['diff'],
     });
 
-    expect(response.error).toContain('same render scope');
+    expect(response.errors).toContain('Diff analysis requires snapshots with the same render scope. Got after=v1 and before=v0.');
+  });
+
+  it('returns compatible analysis types even when diff compatibility fails', async () => {
+    storeSnapshot({
+      id: 'after',
+      pcm: new Float32Array([0, 0.2, -0.2, 0]),
+      sampleRate: 44100,
+      scope: ['v0'],
+      bars: 2,
+    });
+    storeSnapshot({
+      id: 'before',
+      pcm: new Float32Array([0, 0.1, -0.1, 0]),
+      sampleRate: 44100,
+      scope: ['v1'],
+      bars: 2,
+    });
+
+    const response = await callTool(ai, planner, createSession(), 'analyze', {
+      snapshotId: 'after',
+      compareSnapshotId: 'before',
+      types: ['spectral', 'diff'],
+    });
+
+    expect(response.results).toHaveProperty('spectral');
+    expect(response.results).not.toHaveProperty('diff');
+    expect(response.errors).toContain('Diff analysis requires snapshots with the same render scope. Got after=v0 and before=v1.');
   });
 
   it('rejects diff analysis when before/after snapshots have different bar counts', async () => {
@@ -135,7 +162,7 @@ describe('Snapshot compatibility contract', () => {
       types: ['diff'],
     });
 
-    expect(response.error).toContain('same number of bars');
+    expect(response.errors).toContain('Diff analysis requires snapshots rendered for the same number of bars. Got after=4, before=2.');
   });
 
   it('does not produce masking results when duplicate snapshots target the same track', async () => {

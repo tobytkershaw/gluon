@@ -199,7 +199,7 @@ describe('AppShell smoke render', () => {
     expect(screen.getByTestId('model-status-label').textContent).toContain('no audio eval');
   });
 
-  it('disables undo and redo controls while an AI turn is active', () => {
+  it('keeps undo and redo controls available while an AI turn is active', () => {
     render(<AppShell {...buildProps('surface', {
       apiConfigured: true,
       isThinking: true,
@@ -207,7 +207,7 @@ describe('AppShell smoke render', () => {
       redoStack: [{ kind: 'transport', transport: session.transport, timestamp: 2, description: 'Redoable' }],
     })} />);
 
-    expect(screen.getByTitle('Undo: Undoable (⌘Z)')).toHaveProperty('disabled', true);
-    expect(screen.getByTitle('Redo: Redoable (⌘⇧Z)')).toHaveProperty('disabled', true);
+    expect(screen.getByTitle('Undo: Undoable (⌘Z)')).toHaveProperty('disabled', false);
+    expect(screen.getByTitle('Redo: Redoable (⌘⇧Z)')).toHaveProperty('disabled', false);
   });
 });

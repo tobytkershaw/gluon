@@ -1375,7 +1375,7 @@ export default function App() {
   }, []);
 
   const handleUndo = useCallback(() => {
-    if (isThinking || isListening) return;
+    if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
     // Cancel active automations for params being undone (side-effect hoisted out of setSession)
     const currentSession = sessionRef.current;
@@ -1398,10 +1398,10 @@ export default function App() {
         ].slice(-20),
       };
     });
-  }, [ensureAudio, cancelAutomationsForEntry]);
+  }, [ensureAudio, cancelAutomationsForEntry, invalidateActiveAITurn, isListening, isThinking]);
 
   const handleUndoMessage = useCallback((messageIndex: number) => {
-    if (isThinking || isListening) return;
+    if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
     // Cancel active automations for all entries being undone (side-effect hoisted out of setSession)
     const currentSession = sessionRef.current;
@@ -1442,10 +1442,10 @@ export default function App() {
         messages: updatedMessages,
       };
     });
-  }, [ensureAudio, cancelAutomationsForEntry]);
+  }, [ensureAudio, cancelAutomationsForEntry, invalidateActiveAITurn, isListening, isThinking]);
 
   const handleRedo = useCallback(() => {
-    if (isThinking || isListening) return;
+    if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
     setSession((s) => {
       if ((s.redoStack ?? []).length === 0) return s;
@@ -1461,7 +1461,7 @@ export default function App() {
         ].slice(-20),
       };
     });
-  }, [ensureAudio, isListening, isThinking]);
+  }, [ensureAudio, invalidateActiveAITurn, isListening, isThinking]);
 
   const [isThinking, setIsThinking] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -1496,7 +1496,6 @@ export default function App() {
     trackerSelectionRef.current = null;
     trackerCursorStepRef.current = null;
     audioMetricsRef.current.clear();
-    clearSnapshots();
 
     // Clear stale history from any previous project, then restore
     aiRef.current.clearHistory();
@@ -1724,9 +1723,8 @@ export default function App() {
   }, []);
 
   const handleProjectRename = useCallback(async (name: string) => {
-    invalidateActiveAITurn();
     return project.renameActiveProject(name);
-  }, [invalidateActiveAITurn, project]);
+  }, [project]);
 
   const handleProjectNew = useCallback(async () => {
     invalidateActiveAITurn();

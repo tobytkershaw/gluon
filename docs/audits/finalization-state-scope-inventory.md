@@ -55,6 +55,8 @@ If a state bucket cannot be assigned clearly, that is itself a design problem.
 
 ## Strongest Structural Rule
 
+Any mutable non-session state that can influence AI behavior, user-visible truth, or runtime behavior must have a declared scope, reset trigger, rebuild path, and contract test. Otherwise it is not an optimization or implementation detail; it is an unowned source of drift.
+
 ## Current Branch Status
 
 Partially implemented on `codex/hardening-plan`:

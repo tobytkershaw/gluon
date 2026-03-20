@@ -1,7 +1,7 @@
 import type { Session, SynthParamValues } from './types';
 import type { AudioEngine } from '../audio/audio-engine';
 import { Scheduler, START_OFFSET_SEC } from './scheduler';
-import type { ScheduledParameterEvent } from './sequencer-types';
+import type { ScheduledParameterEvent, Transport } from './sequencer-types';
 import {
   createRuntimeTransport,
   normalizeTransport,
@@ -47,7 +47,7 @@ export class TransportController {
   private trackSeen = new Set<string>();
   private lastHandledTransportCommandId: number | null = null;
   private parameterEventTimers = new Map<ReturnType<typeof setTimeout>, string>();
-  private lastTransport: Session['transport'];
+  private lastTransport: Transport;
 
   constructor({
     audio,
@@ -272,7 +272,7 @@ export class TransportController {
     this.clearParameterEventTimers();
   }
 
-  private hasStructuralTransportChange(prev: Session['transport'], next: Session['transport']): boolean {
+  private hasStructuralTransportChange(prev: Transport, next: Transport): boolean {
     const prevMode = prev.mode ?? 'pattern';
     const nextMode = next.mode ?? 'pattern';
     if (prevMode !== nextMode) return true;

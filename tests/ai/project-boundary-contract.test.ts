@@ -96,7 +96,12 @@ describe('Project boundary contract: GluonAI project-scoped state', () => {
     session = addTrack(session, 'audio');
 
     const firstTrackId = session.tracks[0].id;
-    const secondTrackId = session.tracks.find(track => track.id !== firstTrackId && track.id !== 'master-bus')!.id;
+    const candidateTrackIds = session.tracks
+      .filter(track => track.id !== 'master-bus')
+      .map(track => track.id);
+    expect(candidateTrackIds.length).toBeGreaterThanOrEqual(2);
+    const secondTrackId = candidateTrackIds.find(trackId => trackId !== firstTrackId);
+    expect(secondTrackId).toBeDefined();
 
     const firstResponse = await callTool(ai, planner, session, 'assign_spectral_slot', {
       trackId: firstTrackId,
@@ -108,14 +113,14 @@ describe('Project boundary contract: GluonAI project-scoped state', () => {
     ai.clearHistory();
 
     const secondResponse = await callTool(ai, planner, session, 'assign_spectral_slot', {
-      trackId: secondTrackId,
+      trackId: secondTrackId as string,
       bands: ['sub'],
       priority: 8,
     });
 
     expect(planner.clearCalls).toBe(1);
     expect(secondResponse.allSlots).toEqual([
-      expect.objectContaining({ trackId: secondTrackId, primaryBands: ['sub'], priority: 8 }),
+      expect.objectContaining({ trackId: secondTrackId as string, primaryBands: ['sub'], priority: 8 }),
     ]);
     expect(secondResponse.collisions).toBeUndefined();
   });

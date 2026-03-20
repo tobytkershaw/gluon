@@ -393,13 +393,13 @@ export function AppShell({
           <div className="shrink-0 flex items-center gap-1 px-3 border-l border-zinc-800/30">
             <UndoButton
               onClick={onUndo}
-              disabled={isActive || undoStack.length === 0}
+              disabled={undoStack.length === 0}
               description={undoStack.length > 0 ? undoStack[undoStack.length - 1].description : undefined}
               undoStack={undoStack}
             />
             <RedoButton
               onClick={onRedo}
-              disabled={isActive || redoStack.length === 0}
+              disabled={redoStack.length === 0}
               description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
             />
           </div>
@@ -510,13 +510,13 @@ export function AppShell({
         <div className="shrink-0 flex items-center gap-1 px-3 border-l border-zinc-800/30">
           <UndoButton
             onClick={onUndo}
-            disabled={isActive || undoStack.length === 0}
+            disabled={undoStack.length === 0}
             description={undoStack.length > 0 ? undoStack[undoStack.length - 1].description : undefined}
             undoStack={undoStack}
           />
           <RedoButton
             onClick={onRedo}
-            disabled={isActive || redoStack.length === 0}
+            disabled={redoStack.length === 0}
             description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
           />
           <div className="w-px h-4 bg-zinc-800" />
