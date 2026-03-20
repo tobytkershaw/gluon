@@ -56,7 +56,7 @@ describe('TrackerRow', () => {
     const row = container.querySelector('tr');
     expect(row).toBeTruthy();
     expect(row?.getAttribute('style')).toBeNull();
-    expect(row?.className).toContain('bg-amber-500/15');
+    expect(row?.className).toContain('bg-amber-400/[0.08]');
   });
 
   it('renders a note event and allows editing velocity', () => {

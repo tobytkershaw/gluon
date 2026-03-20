@@ -19,6 +19,8 @@ interface Props {
   showBeatSeparator: boolean;
   /** Which beat this row belongs to (0-based), for alternating beat tints. */
   beatIndex: number;
+  /** Steps per beat for beat-row tinting. Default: 4. */
+  stepsPerBeat?: number;
   onUpdate?: (selector: EventSelector, updates: Partial<MusicalEvent>) => void;
   onDelete?: (selector: EventSelector) => void;
   /** Callback to add a new parameter event (for empty FX cell picker). */
@@ -304,7 +306,7 @@ function NoteColumnCell({
   if (!note && trigger) {
     const _selector = selectorFromEvent(trigger);
     return (
-      <span className="text-amber-400 font-bold">
+      <span className="text-amber-400 font-medium">
         TRG
       </span>
     );
@@ -316,7 +318,7 @@ function NoteColumnCell({
       return (
         <EditableCell
           value="---"
-          className="text-zinc-700"
+          className="text-zinc-600"
           onCommit={(pitch) => onAddNote(step, Math.max(0, Math.min(127, pitch)))}
           parse={parseNoteName}
           validate={(s) => {
@@ -332,7 +334,7 @@ function NoteColumnCell({
         />
       );
     }
-    return <span className="text-zinc-700">---</span>;
+    return <span className="text-zinc-600">---</span>;
   }
 
   // --- Existing note: edit pitch, clear to delete ---
@@ -406,7 +408,7 @@ function FxCell({
     // Empty FX cell — clickable to add
     return (
       <span
-        className={`text-zinc-700 ${onAddParamEvent ? 'cursor-pointer hover:text-blue-400' : ''}`}
+        className={`text-zinc-600 ${onAddParamEvent ? 'cursor-pointer hover:text-sky-400' : ''}`}
         onClick={onAddParamEvent ? () => onAddParamEvent(step, controlId, 0.5) : undefined}
         title={onAddParamEvent ? `Add ${controlId} lock at step ${step}` : undefined}
       >
@@ -417,7 +419,7 @@ function FxCell({
 
   const value = paramEvent.value;
   if (typeof value !== 'number') {
-    return <span className="text-blue-300">{String(value).slice(0, 3)}</span>;
+    return <span className="text-sky-400">{String(value).slice(0, 3)}</span>;
   }
 
   // Display as 0-100 integer (compact format)
@@ -429,7 +431,7 @@ function FxCell({
     return (
       <EditableCell
         value={displayStr}
-        className="text-blue-300"
+        className="text-sky-400"
         onCommit={(v) => {
           const clamped = Math.max(0, Math.min(100, Math.round(v)));
           onUpdate(selector, { value: clamped / 100 } as Partial<MusicalEvent>);
@@ -453,7 +455,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
   function TrackerRow({
     slot, maxNoteColumns, fxColumns,
     cursorNoteColumn, cursorFxColumn,
-    isAtPlayhead, showBeatSeparator, beatIndex,
+    isAtPlayhead, showBeatSeparator, beatIndex, stepsPerBeat = 4,
     onUpdate, onDelete, onAddParamEvent, onAddNote,
     cancelEditRef,
     isCursorRow, cursorColumnType, editRequestCounter,
@@ -481,18 +483,18 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     const durEditReq = (isCursorRow && cursorColumnType === 'dur') ? editRequestCounter : undefined;
     const fxEditReq = (isCursorRow && cursorColumnType === 'fx') ? editRequestCounter : undefined;
 
-    // Cursor cell highlight
+    // Cursor cell highlight — amber outline per mockup spec
     const cursorCellClass = (colType: string) =>
-      isCursorRow && cursorColumnType === colType ? 'ring-1 ring-sky-400/70 rounded-sm bg-sky-500/10' : '';
+      isCursorRow && cursorColumnType === colType ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1 rounded-[2px]' : '';
 
     const cursorNoteCellClass = (colIdx: number) =>
-      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'ring-1 ring-sky-400/70 rounded-sm bg-sky-500/10' : '';
+      isCursorRow && cursorColumnType === 'note' && cursorNoteColumn === colIdx ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1 rounded-[2px]' : '';
 
     const cursorFxCellClass = (fxIdx: number) =>
-      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'ring-1 ring-sky-400/70 rounded-sm bg-sky-500/10' : '';
+      isCursorRow && cursorColumnType === 'fx' && cursorFxColumn === fxIdx ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1 rounded-[2px]' : '';
 
-    // Row color: emerald for steps with notes or active triggers, neutral for empty
-    const rowColor = (hasNotes || slot.hasGate) ? 'text-emerald-300' : 'text-zinc-500';
+    // Row text color: primary for steps with content, muted for empty
+    const rowColor = (hasNotes || slot.hasGate) ? '' : '';
 
     // Build note column cells
     const noteColumnCells: React.ReactNode[] = [];
@@ -501,7 +503,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       noteColumnCells.push(
         <td
           key={`nc-${c}`}
-          className={`px-1 py-0 w-10 tabular-nums text-emerald-300 ${cursorNoteCellClass(c)}`}
+          className={`px-1 py-0 w-10 tabular-nums text-zinc-200 font-medium ${cursorNoteCellClass(c)}`}
         >
           <NoteColumnCell
             note={note}
@@ -543,7 +545,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     });
 
     // Velocity column — show note velocity, or trigger velocity if no note
-    let velNode: React.ReactNode = '--';
+    let velNode: React.ReactNode = <span className="text-zinc-600">--</span>;
     /** Validate velocity: must be a number in 0.0-1.0 range. */
     const validateVelocity = (s: string): boolean => {
       const trimmed = s.trim();
@@ -581,7 +583,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     }
 
     // Duration column — show note duration, or trigger gate if no note
-    let durNode: React.ReactNode = '--';
+    let durNode: React.ReactNode = <span className="text-zinc-600">--</span>;
     if (firstNote) {
       const dur = firstNote.duration;
       const selector = selectorFromEvent(firstNote);
@@ -608,30 +610,30 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       ) : gate.toFixed(2);
     }
 
-    // Alternating beat tint: odd beats get a subtle lighter background
-    const oddBeat = beatIndex % 2 === 1;
-    const beatTint = (!isSelected && !isAtPlayhead && !isCursorRow && oddBeat) ? 'bg-zinc-800/25' : '';
+    // Beat row tint: every 4 steps gets a subtle bg per mockup
+    const isBeatRow = slot.step % stepsPerBeat === 0;
+    const hasContent = hasNotes || slot.hasGate;
 
     return (
       <tr
         ref={ref}
         className={`
-          group text-[11px] font-mono leading-5 relative ${rowColor}
+          group text-[11px] font-mono leading-5 relative border-b border-zinc-700/20 ${rowColor}
           ${isSelected ? 'bg-indigo-500/25' : ''}
-          ${isAtPlayhead ? 'bg-amber-500/15' : ''}
-          ${isAtPlayhead ? 'border-l-2 border-l-amber-400' : ''}
-          ${isCursorRow && !isAtPlayhead && !isSelected ? 'bg-sky-500/10' : ''}
-          ${!isAtPlayhead && !isCursorRow && !isSelected ? `hover:bg-zinc-800/30 ${beatTint}` : ''}
-          ${showBeatSeparator ? 'border-t-2 border-zinc-500/50' : ''}
+          ${isAtPlayhead ? 'bg-amber-400/[0.08]' : ''}
+          ${!isAtPlayhead && !isSelected && hasContent ? 'bg-emerald-400/[0.04]' : ''}
+          ${!isAtPlayhead && !isSelected && !hasContent && isBeatRow ? 'bg-[rgba(61,57,53,0.08)]' : ''}
+          ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
+          ${showBeatSeparator ? 'border-t border-zinc-700/40' : ''}
         `}
         onClick={(e) => onRowClick?.(e.shiftKey)}
         onDoubleClick={() => onRowDoubleClick?.()}
       >
-        {/* POS column — left-aligned */}
-        <td className={`px-1 py-0 text-left text-zinc-500 tabular-nums w-8 ${cursorCellClass('pos')}`}>
-          {String(slot.step).padStart(2, '\u2007')}
+        {/* POS column — right-aligned, hex format, text-faint per mockup */}
+        <td className={`pl-0.5 pr-1.5 py-0 text-right text-zinc-600 text-[9px] tabular-nums w-8 select-none ${cursorCellClass('pos')}`}>
+          {slot.step.toString(16).toUpperCase().padStart(2, '0')}
           {microOffset !== null && (
-            <span className="ml-0.5 text-[11px] text-zinc-600" title="Micro-timing offset from grid">
+            <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">
               {formatMicroOffset(microOffset)}
             </span>
           )}
@@ -639,11 +641,11 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         {/* Note columns */}
         {noteColumnCells}
         {/* Vel column */}
-        <td className={`px-1 py-0 text-right w-9 tabular-nums text-zinc-400 ${cursorCellClass('vel')}`}>
+        <td className={`px-1 py-0 text-center w-9 tabular-nums text-zinc-400 ${cursorCellClass('vel')}`}>
           {velNode}
         </td>
         {/* Dur column */}
-        <td className={`px-1 py-0 text-right w-10 tabular-nums text-zinc-500 ${cursorCellClass('dur')}`}>
+        <td className={`px-1 py-0 text-center w-10 tabular-nums text-zinc-500 ${cursorCellClass('dur')}`}>
           {durNode}
         </td>
         {/* FX columns */}

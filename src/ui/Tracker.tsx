@@ -616,7 +616,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
     const headers: React.ReactNode[] = [];
     for (let c = 0; c < maxNoteColumns; c++) {
       headers.push(
-        <th key={`note-${c}`} className="px-1 py-1 text-left w-10 font-mono">
+        <th key={`note-${c}`} className="px-1 py-0.5 text-center w-10 whitespace-nowrap">
           Ch{c + 1}
         </th>
       );
@@ -627,7 +627,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   // Build FX column headers
   const fxColumnHeaders = useMemo(() => {
     return fxColumns.map((fx, i) => (
-      <th key={`fx-${i}`} className="px-1 py-1 text-right w-8 font-mono" title={fx.fullName}>
+      <th key={`fx-${i}`} className="px-1 py-0.5 text-center w-8 whitespace-nowrap" title={fx.fullName}>
         {fx.label}
       </th>
     ));
@@ -644,13 +644,13 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       <div className="flex items-center gap-2 px-1 py-0.5 text-[9px] text-zinc-500 font-mono sticky top-0 bg-zinc-900/95 backdrop-blur-sm z-10">
         <span title="Base octave for keyboard-as-piano entry (-/= to shift)">Oct:{Math.floor(BASE_MIDI_LOWER / OCTAVE) - 1 + octaveOffset}</span>
       </div>
-      <table className="w-full border-collapse select-none font-mono">
+      <table className="w-full border-collapse select-none font-mono text-[11px]">
         <thead>
-          <tr className="text-[11px] text-zinc-600 uppercase tracking-widest sticky top-0 bg-zinc-900/95 backdrop-blur-sm border-b border-zinc-800/50">
-            <th className="px-1 py-1 text-left w-8">Pos</th>
+          <tr className="text-[9px] text-zinc-500 uppercase tracking-wider font-medium sticky top-0 bg-zinc-900 border-b border-zinc-700/60 z-[2]">
+            <th className="px-1 py-0.5 text-center w-8 whitespace-nowrap">Pos</th>
             {noteColumnHeaders}
-            <th className="px-1 py-1 text-right w-9">Vel</th>
-            <th className="px-1 py-1 text-right w-10">Dur</th>
+            <th className="px-1 py-0.5 text-center w-9 whitespace-nowrap">Vel</th>
+            <th className="px-1 py-0.5 text-center w-10 whitespace-nowrap">Dur</th>
             {fxColumnHeaders}
           </tr>
         </thead>
@@ -679,6 +679,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
                 isAtPlayhead={isAtPlayhead}
                 showBeatSeparator={showBeatSep}
                 beatIndex={beatIndex}
+                stepsPerBeat={stepsPerBeat}
                 onUpdate={onUpdate}
                 onDelete={onDelete}
                 onAddParamEvent={onAddParamEvent}
