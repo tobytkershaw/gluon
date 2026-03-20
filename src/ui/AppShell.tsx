@@ -407,6 +407,8 @@ export function AppShell({
               disabled={redoStack.length === 0}
               description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
             />
+            <div className="w-px h-4 bg-zinc-800" />
+            <span className="text-[11px] font-semibold text-zinc-500 tracking-tight lowercase select-none shrink-0">gluon</span>
           </div>
         </div>
 
@@ -538,6 +540,8 @@ export function AppShell({
             onAbToggle={onAbToggle}
             onAbClear={onAbClear}
           />
+          <div className="w-px h-4 bg-zinc-800" />
+          <span className="text-[11px] font-semibold text-zinc-500 tracking-tight lowercase select-none shrink-0">gluon</span>
         </div>
       </div>
 
