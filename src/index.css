@@ -5,6 +5,8 @@
   --font-sans: 'Syne', system-ui, sans-serif;
   --font-mono: 'DM Mono', ui-monospace, monospace;
 
+  --animate-breathing: breathing 3s ease-in-out infinite;
+
   /* Warm dark theme — shift zinc palette toward warm stone/brown tint */
   /* Keeps the dark studio feel but adds intentional warmth like Bitwig/M8 */
   --color-zinc-50: #faf9f7;
