@@ -1374,6 +1374,20 @@ export default function App() {
     }
   }, []);
 
+  const [isThinking, setIsThinking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
+  const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
+  const invalidateActiveAITurn = useCallback(() => {
+    aiTurnEpochRef.current.invalidate();
+    setIsThinking(false);
+    setIsListening(false);
+    setStreamingText('');
+    setStreamingLogEntries([]);
+    setStreamingRejections([]);
+  }, []);
+
   const handleUndo = useCallback(() => {
     if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
@@ -1462,20 +1476,6 @@ export default function App() {
       };
     });
   }, [ensureAudio, invalidateActiveAITurn, isListening, isThinking]);
-
-  const [isThinking, setIsThinking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
-  const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
-  const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
-  const invalidateActiveAITurn = useCallback(() => {
-    aiTurnEpochRef.current.invalidate();
-    setIsThinking(false);
-    setIsListening(false);
-    setStreamingText('');
-    setStreamingLogEntries([]);
-    setStreamingRejections([]);
-  }, []);
 
   useEffect(() => {
     if (!project.projectId) return;
