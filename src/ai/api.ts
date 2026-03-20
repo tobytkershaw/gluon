@@ -1,7 +1,7 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
-import { getTrack, getActivePattern, updateTrack, getTrackKind } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import { getTrack, getActivePattern, updateTrack, getTrackKind, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES, PROJECT_MEMORY_TYPES } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
 import { getEngineById } from '../audio/instrument-registry-plaits';
@@ -814,6 +814,23 @@ export function projectAction(session: Session, action: AIAction): Session {
       return updateTrack(session, action.trackId, {
         drumRack: { ...(track.drumRack ?? { pads: [] }), pads },
       });
+    }
+    case 'save_memory': {
+      const prevMemories = session.memories ?? [];
+      const newMemory = {
+        id: `mem-${Date.now()}`,
+        type: action.memoryType,
+        content: action.content,
+        confidence: 1.0,
+        evidence: action.evidence,
+        ...(action.trackId ? { trackId: action.trackId } : {}),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      if (action.supersedes) {
+        return { ...session, memories: prevMemories.map(m => m.id === action.supersedes ? newMemory : m) };
+      }
+      return { ...session, memories: [...prevMemories, newMemory] };
     }
     case 'say':
     default:
@@ -5645,6 +5662,59 @@ export class GluonAI {
         return {
           actions: [],
           response: { applied: true, reactions },
+        };
+      }
+
+      case 'save_memory': {
+        if (typeof args.type !== 'string' || !isValidMemoryType(args.type)) {
+          return { actions: [], response: errorPayload(`Invalid memory type: ${args.type}. Must be one of: ${PROJECT_MEMORY_TYPES.join(', ')}`) };
+        }
+        if (typeof args.content !== 'string' || !isValidMemoryContent(args.content)) {
+          return { actions: [], response: errorPayload('Invalid content: must be a non-empty string of max 500 characters') };
+        }
+        if (typeof args.evidence !== 'string' || !args.evidence) {
+          return { actions: [], response: errorPayload('Missing required parameter: evidence') };
+        }
+
+        let resolvedMemoryTrackId: string | undefined;
+        if (args.trackId !== undefined && args.trackId !== null) {
+          resolvedMemoryTrackId = resolveTrackId(args.trackId as string, session);
+          if (!resolvedMemoryTrackId) {
+            return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+          }
+        }
+
+        const memories = session.memories ?? [];
+        if (args.supersedes !== undefined && args.supersedes !== null) {
+          const supersedesId = String(args.supersedes);
+          if (!memories.some(m => m.id === supersedesId)) {
+            return { actions: [], response: errorPayload(`Memory not found for supersedes: ${supersedesId}`) };
+          }
+        } else if (memories.length >= MAX_PROJECT_MEMORIES) {
+          return { actions: [], response: errorPayload(`Memory cap reached: ${MAX_PROJECT_MEMORIES} memories maximum. Use supersedes to replace an existing memory.`) };
+        }
+
+        const saveMemoryAction: AISaveMemoryAction = {
+          type: 'save_memory',
+          memoryType: args.type as AISaveMemoryAction['memoryType'],
+          content: args.content as string,
+          evidence: args.evidence as string,
+          ...(resolvedMemoryTrackId ? { trackId: resolvedMemoryTrackId } : {}),
+          ...(args.supersedes !== undefined && args.supersedes !== null ? { supersedes: String(args.supersedes) } : {}),
+        };
+
+        const memoryRejection = handleRejection(ctx?.validateAction?.(session, saveMemoryAction), session, saveMemoryAction, existingActions);
+        if (memoryRejection) return memoryRejection;
+
+        return {
+          actions: [saveMemoryAction],
+          response: {
+            applied: true,
+            memoryType: args.type,
+            content: args.content,
+            ...(resolvedMemoryTrackId ? { trackId: resolvedMemoryTrackId } : {}),
+            ...(args.supersedes ? { superseded: args.supersedes } : {}),
+          },
         };
       }
 

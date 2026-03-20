@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-seven tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-eight tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -397,6 +397,18 @@ Report a bug or issue encountered during operation. Use sparingly, only for thin
 | `context` | string | no | Relevant state at the time (e.g. track config, parameter values, tool args). |
 
 Duplicate detection: reports with identical summaries within the same session are rejected.
+
+#### `save_memory`
+
+Save a persistent memory about this project. Memories survive context rotation and persist across sessions. Max 30 per project. Use `supersedes` to replace an existing memory.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `type` | string | yes | `direction`, `track-narrative`, or `decision`. |
+| `content` | string | yes | Natural language, 1-3 sentences, max 500 chars. |
+| `evidence` | string | yes | What produced this memory. |
+| `trackId` | string | no | Target track if memory is track-specific. |
+| `supersedes` | string | no | Memory ID to replace (count stays the same). |
 
 ### Session Context
 

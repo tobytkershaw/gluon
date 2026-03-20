@@ -1982,6 +1982,41 @@ const manageDrumPadTool: ToolSchema = {
   },
 };
 
+const saveMemoryTool: ToolSchema = {
+  name: 'save_memory',
+  description:
+    'Save a persistent memory about this project. Use to record creative direction, track narratives, and key decisions so they survive context rotation. ' +
+    'Memories are project-scoped and persist across sessions. Max 30 memories per project. ' +
+    'To update an existing memory, set supersedes to the memory ID being replaced.',
+  parameters: {
+    type: 'object',
+    properties: {
+      type: {
+        type: 'string',
+        enum: ['direction', 'track-narrative', 'decision'],
+        description: '"direction" for overall creative direction, "track-narrative" for per-track character/role notes, "decision" for key choices made during the session.',
+      },
+      content: {
+        type: 'string',
+        description: 'Natural language memory, 1-3 sentences. Max 500 characters.',
+      },
+      evidence: {
+        type: 'string',
+        description: 'What produced this memory — e.g. "human said X", "listen result showed Y", "decided during mixing".',
+      },
+      trackId: {
+        type: 'string',
+        description: 'Target track if memory is track-specific (e.g. for track-narrative). Use ordinal label or internal ID.',
+      },
+      supersedes: {
+        type: 'string',
+        description: 'Memory ID to replace. When set, the old memory is removed and the new one takes its place — count stays the same.',
+      },
+    },
+    required: ['type', 'content', 'evidence'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -2030,4 +2065,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   applyArrangementArchetypeTool,
   setTrackIdentityTool,
   manageDrumPadTool,
+  saveMemoryTool,
 ];

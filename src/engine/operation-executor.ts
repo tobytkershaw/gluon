@@ -1,6 +1,6 @@
 // src/engine/operation-executor.ts
-import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad } from './types';
-import { MAX_DRUM_PADS } from './types';
+import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ApprovalSnapshot, ApprovalLevel, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad, MemorySnapshot, ProjectMemory } from './types';
+import { MAX_DRUM_PADS, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES } from './types';
 import { getDefaultVisualIdentity } from './visual-identity';
 import { kitToEvents, gridLength } from './drum-grid';
 
@@ -706,6 +706,23 @@ export function prevalidateAction(
       }
       if (!arbitrator.canAIActOnTrack(action.trackId)) {
         return `Arbitration: human is currently interacting with track ${action.trackId}`;
+      }
+      return null;
+    }
+
+    case 'save_memory': {
+      if (!isValidMemoryType(action.memoryType)) return `Invalid memory type: ${action.memoryType}`;
+      if (!isValidMemoryContent(action.content)) return `Invalid memory content: must be non-empty and max 500 characters`;
+      if (typeof action.evidence !== 'string' || !action.evidence) return `Missing required field: evidence`;
+      if (action.trackId !== undefined) {
+        const track = session.tracks.find(v => v.id === action.trackId);
+        if (!track) return `Track not found: ${action.trackId}`;
+      }
+      const memories = session.memories ?? [];
+      if (action.supersedes !== undefined) {
+        if (!memories.some(m => m.id === action.supersedes)) return `Memory not found for supersedes: ${action.supersedes}`;
+      } else if (memories.length >= MAX_PROJECT_MEMORIES) {
+        return `Memory cap reached: ${MAX_PROJECT_MEMORIES} memories maximum. Use supersedes to replace an existing memory.`;
       }
       return null;
     }
@@ -2736,6 +2753,34 @@ function executeActionsInternal(
         next = { ...updateTrack(next, action.trackId, { drumRack: { ...(track.drumRack ?? { pads: [] }), pads: newPads } }), undoStack: [...next.undoStack, drumPadSnapshot] };
         const padLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: padLabel, description: `drum pad ${action.action}: ${action.padId}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'save_memory': {
+        const prevMemories = [...(next.memories ?? [])];
+        const memorySnapshot: MemorySnapshot = { kind: 'memory', prevMemories, timestamp: Date.now(), description: `save_memory (${action.memoryType}): ${action.content.slice(0, 60)}` };
+
+        const newMemory: ProjectMemory = {
+          id: `mem-${Date.now()}`,
+          type: action.memoryType,
+          content: action.content,
+          confidence: 1.0,
+          evidence: action.evidence,
+          ...(action.trackId ? { trackId: action.trackId } : {}),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+
+        let newMemories: ProjectMemory[];
+        if (action.supersedes) {
+          newMemories = prevMemories.map(m => m.id === action.supersedes ? newMemory : m);
+        } else {
+          newMemories = [...prevMemories, newMemory];
+        }
+
+        next = { ...next, memories: newMemories, undoStack: [...next.undoStack, memorySnapshot] };
+        log.push({ trackId: action.trackId ?? '', trackLabel: '', description: `memory saved (${action.memoryType}): ${action.content.slice(0, 80)}` });
         accepted.push(action);
         break;
       }
