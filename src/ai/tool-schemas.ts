@@ -66,6 +66,13 @@ export const REGISTRY_CONTROL_IDS = {
   tides: tidesParamIds,
 } as const;
 
+// ── Shared description constants ──────────────────────────────────
+const TRACK_ID_DESC = 'Target track — use ordinal label (e.g. "Track 1") or internal ID.';
+const TRACK_ID_OPTIONAL_DESC = `${TRACK_ID_DESC} Defaults to active track if omitted.`;
+const SOURCE_TRACK_DESC = 'Source track — use ordinal label (e.g. "Track 1") or internal ID.';
+const ACTION_DESC = 'Operation to perform.';
+const DESCRIPTION_DESC = 'Short description of the operation.';
+
 const moveTool: ToolSchema = {
   name: 'move',
   description:
@@ -94,7 +101,7 @@ const moveTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID. Defaults to active track if omitted.',
+        description: TRACK_ID_OPTIONAL_DESC,
       },
       processorId: {
         type: 'string',
@@ -124,7 +131,7 @@ const sketchTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       description: {
         type: 'string',
@@ -304,7 +311,7 @@ const editPatternTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       patternId: {
         type: 'string',
@@ -523,7 +530,7 @@ const setModelTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       model: {
         type: 'string',
@@ -593,7 +600,7 @@ const manageProcessorTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       moduleType: {
         type: 'string',
@@ -626,11 +633,11 @@ const manageModulatorTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['add', 'remove'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       moduleType: {
         type: 'string',
@@ -659,11 +666,11 @@ const modulationRouteTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['connect', 'disconnect'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       modulatorId: {
         type: 'string',
@@ -711,11 +718,11 @@ const manageViewTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['add', 'remove'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       viewKind: {
         type: 'string',
@@ -743,7 +750,7 @@ const setSurfaceTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       modules: {
         type: 'array',
@@ -820,7 +827,7 @@ const pinControlTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['pin', 'unpin'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: { type: 'string', description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.' },
       moduleId: { type: 'string', description: '"source" for track params, or a processor ID.' },
@@ -855,11 +862,11 @@ const manageSendTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['add', 'remove', 'set_level'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
-        description: 'Source track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: SOURCE_TRACK_DESC,
       },
       busId: {
         type: 'string',
@@ -975,11 +982,11 @@ const managePatternTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['add', 'remove', 'duplicate', 'rename', 'set_active', 'set_length', 'clear'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       patternId: {
         type: 'string',
@@ -995,7 +1002,7 @@ const managePatternTool: ToolSchema = {
       },
       description: {
         type: 'string',
-        description: 'Short description of the operation.',
+        description: DESCRIPTION_DESC,
       },
     },
     required: ['action', 'trackId', 'description'],
@@ -1012,11 +1019,11 @@ const manageSequenceTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['append', 'remove', 'reorder', 'set_automation', 'clear_automation'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       patternId: {
         type: 'string',
@@ -1062,7 +1069,7 @@ const manageSequenceTool: ToolSchema = {
       },
       description: {
         type: 'string',
-        description: 'Short description of the operation.',
+        description: DESCRIPTION_DESC,
       },
     },
     required: ['action', 'trackId', 'description'],
@@ -1079,7 +1086,7 @@ const setTrackMetaTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       name: {
         type: 'string',
@@ -1211,7 +1218,7 @@ const explainChainTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
     },
     required: ['trackId'],
@@ -1227,7 +1234,7 @@ const simplifyChainTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
     },
     required: ['trackId'],
@@ -1244,7 +1251,7 @@ const manageTrackTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['add', 'remove'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       kind: {
         type: 'string',
@@ -1526,7 +1533,7 @@ const applyChainRecipeTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       recipe: {
         type: 'string',
@@ -1548,7 +1555,7 @@ const setMixRoleTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       role: {
         type: 'string',
@@ -1571,7 +1578,7 @@ const applyModulationTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       recipe: {
         type: 'string',
@@ -1647,7 +1654,7 @@ const assignSpectralSlotTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       bands: {
         type: 'array',
@@ -1792,7 +1799,7 @@ const savePatchTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Source track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: SOURCE_TRACK_DESC,
       },
       name: {
         type: 'string',
@@ -1820,7 +1827,7 @@ const loadPatchTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       patch: {
         type: 'string',
@@ -1878,7 +1885,7 @@ const setTrackIdentityTool: ToolSchema = {
     properties: {
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       colour: {
         type: 'object',
@@ -1925,7 +1932,7 @@ const applyArrangementArchetypeTool: ToolSchema = {
       },
       trackId: {
         type: 'string',
-        description: 'Target track — use ordinal label (e.g. "Track 1") or internal ID.',
+        description: TRACK_ID_DESC,
       },
       description: {
         type: 'string',
@@ -1947,7 +1954,7 @@ const manageDrumPadTool: ToolSchema = {
       action: {
         type: 'string',
         enum: ['add', 'remove', 'rename', 'set_choke_group'],
-        description: 'Operation to perform.',
+        description: ACTION_DESC,
       },
       trackId: {
         type: 'string',
@@ -1974,7 +1981,7 @@ const manageDrumPadTool: ToolSchema = {
       },
       description: {
         type: 'string',
-        description: 'Short description of the operation.',
+        description: DESCRIPTION_DESC,
       },
     },
     required: ['action', 'trackId', 'padId', 'description'],
