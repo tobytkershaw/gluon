@@ -28,6 +28,7 @@ interface CompressedBassPattern {
   density: number;
   role: 'bass';
   trackerRows: string;
+  param_locks?: { at: number; params: Record<string, number> }[];
 }
 
 interface CompressedPadPattern {
@@ -36,6 +37,7 @@ interface CompressedPadPattern {
   density: number;
   role: 'pad';
   chordBlocks: string;
+  param_locks?: { at: number; params: Record<string, number> }[];
 }
 
 type CompressedPattern = CompressedGenericPattern | CompressedBassPattern | CompressedPadPattern;
@@ -243,13 +245,18 @@ function sampleAutomationPoints<T>(points: T[], limit: number): T[] {
 // Role-aware compression helpers
 // ---------------------------------------------------------------------------
 
-/** Convert a step position to bar.beat.sixteenth (1-indexed). */
+/** Convert a step position to bar.beat.sixteenth (1-indexed).
+ *  Fractional steps are floored to the nearest sixteenth; a micro-timing
+ *  offset is appended as `+0.xx` when the fractional part is significant. */
 export function stepToPosition(step: number, stepsPerBar: number = 16): string {
-  const bar = Math.floor(step / stepsPerBar) + 1;
-  const withinBar = step % stepsPerBar;
+  const intStep = Math.floor(step);
+  const offset = round2(step - intStep);
+  const bar = Math.floor(intStep / stepsPerBar) + 1;
+  const withinBar = intStep % stepsPerBar;
   const beat = Math.floor(withinBar / 4) + 1;
   const sixteenth = (withinBar % 4) + 1;
-  return `${bar}.${beat}.${sixteenth}`;
+  const base = `${bar}.${beat}.${sixteenth}`;
+  return offset > 0 ? `${base}+${offset}` : base;
 }
 
 /** Chord interval dictionary — semitones from root → chord type suffix. */
@@ -376,13 +383,13 @@ function formatPadChordBlocks(
       const pitches = group.map(g => g.pitch).sort((a, b) => a - b);
       const voicing = pitches.map(p => midiToNoteName(p)).join(',');
       const dur = round2(Math.max(...group.map(g => g.duration)));
-      const bar = Math.floor(pos / stepsPerBar) + 1;
+      const position = stepToPosition(pos, stepsPerBar);
 
       const chordName = recogniseChord(pitches);
       if (chordName) {
-        return `${chordName}[${voicing}]@${bar}(${dur})`;
+        return `${chordName}[${voicing}]@${position}(${dur})`;
       }
-      return `[${voicing}]@${bar}(${dur})`;
+      return `[${voicing}]@${position}(${dur})`;
     })
     .join(' | ');
 }
@@ -464,6 +471,7 @@ function compressPattern(track: Track): CompressedPattern {
         density,
         role: 'bass',
         trackerRows: formatBassTrackerRows(rawNotes),
+        ...(param_locks.length > 0 ? { param_locks } : {}),
       };
     }
 
@@ -475,6 +483,7 @@ function compressPattern(track: Track): CompressedPattern {
         density,
         role: 'pad',
         chordBlocks: formatPadChordBlocks(rawNotes),
+        ...(param_locks.length > 0 ? { param_locks } : {}),
       };
     }
   }

@@ -923,7 +923,7 @@ describe('Role-aware compression: pad detection', () => {
     const pattern = result.tracks[0].pattern as { chordBlocks: string; role: string };
     expect(pattern.role).toBe('pad');
     // Should fall back to note list — no chord name before the bracket
-    expect(pattern.chordBlocks).toMatch(/^\[C3,C#3,D3\]@1\(16\)$/);
+    expect(pattern.chordBlocks).toMatch(/^\[C3,C#3,D3\]@1\.1\.1\(16\)$/);
   });
 
   it('pad chord blocks use | separator between chords', () => {
@@ -1047,5 +1047,108 @@ describe('recogniseChord', () => {
   it('handles octave-duplicated pitches', () => {
     // C major with octave doubling: C3, E3, G3, C4
     expect(recogniseChord([48, 52, 55, 60])).toBe('C');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression tests for review findings
+// ---------------------------------------------------------------------------
+
+describe('Role-aware compression: param_locks preserved (P1 regression)', () => {
+  it('bass pattern includes param_locks when present', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.8, duration: 2 },
+      { kind: 'parameter', at: 0, controlId: 'timbre', value: 0.9 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('param_locks' in pattern).toBe(true);
+    expect((pattern as { param_locks: unknown[] }).param_locks).toEqual([
+      { at: 0, params: { timbre: 0.9 } },
+    ]);
+  });
+
+  it('pad pattern includes param_locks when present', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 16 },
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 16 },
+      { kind: 'parameter', at: 4, controlId: 'morph', value: 0.5 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('pad');
+    expect('param_locks' in pattern).toBe(true);
+    expect((pattern as { param_locks: unknown[] }).param_locks).toEqual([
+      { at: 4, params: { morph: 0.5 } },
+    ]);
+  });
+
+  it('bass pattern omits param_locks when none exist', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.8, duration: 2 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern;
+    expect('role' in pattern && pattern.role).toBe('bass');
+    expect('param_locks' in pattern).toBe(false);
+  });
+});
+
+describe('Role-aware compression: fractional step positions (P2 regression)', () => {
+  it('stepToPosition handles fractional steps with offset', () => {
+    // Step 2.5 → 1.1.3+0.5
+    expect(stepToPosition(2.5)).toBe('1.1.3+0.5');
+    // Step 6.33 → 1.2.3+0.33
+    expect(stepToPosition(6.33)).toBe('1.2.3+0.33');
+    // Integer step — no offset
+    expect(stepToPosition(4)).toBe('1.2.1');
+  });
+
+  it('bass tracker rows show fractional timing correctly', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      { kind: 'note', at: 2.5, pitch: 48, velocity: 0.8, duration: 1 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { trackerRows: string; role: string };
+    expect(pattern.role).toBe('bass');
+    expect(pattern.trackerRows).toContain('C3@1.1.3+0.5');
+  });
+});
+
+describe('Role-aware compression: intra-bar pad chord timing (P3 regression)', () => {
+  it('pad chords at different positions within same bar show distinct positions', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    track.patterns[0].events = [
+      // Chord at step 0
+      { kind: 'note', at: 0, pitch: 41, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 0, pitch: 44, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 0, pitch: 48, velocity: 0.7, duration: 4 },
+      // Chord at step 4
+      { kind: 'note', at: 4, pitch: 43, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 4, pitch: 47, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 4, pitch: 50, velocity: 0.7, duration: 4 },
+      // Chord at step 12
+      { kind: 'note', at: 12, pitch: 39, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 12, pitch: 43, velocity: 0.7, duration: 4 },
+      { kind: 'note', at: 12, pitch: 46, velocity: 0.7, duration: 4 },
+    ];
+    const result = compressState(session);
+    const pattern = result.tracks[0].pattern as { chordBlocks: string; role: string };
+    expect(pattern.role).toBe('pad');
+    // Each chord should have a distinct position, not all @1
+    expect(pattern.chordBlocks).toContain('@1.1.1(');
+    expect(pattern.chordBlocks).toContain('@1.2.1(');
+    expect(pattern.chordBlocks).toContain('@1.4.1(');
   });
 });
