@@ -144,7 +144,7 @@ describe('project-store', () => {
     const exported = await exportProject('p1');
     const imported = await importProject(exported);
 
-    expect(imported.name).toBe('Project One (imported)');
+    expect(imported.name).toBe('Project One (2)');
 
     const importedProject = await loadProject(imported.id);
     expect(importedProject).not.toBeNull();
@@ -153,6 +153,31 @@ describe('project-store', () => {
     const restoredImported = restoreSession(importedProject!.session, importedProject!.version);
     const restoredOriginal = restoreSession((await loadProject('p1'))!.session, (await loadProject('p1'))!.version);
     expect(restoredImported).toEqual(restoredOriginal);
+  });
+
+  it('assigns unique names when the same project is imported multiple times (#1226)', async () => {
+    const session = createSession();
+    await saveProject('p1', 'My Song', session);
+    const exportJson = JSON.stringify({
+      format: 'gluon-project',
+      version: 1,
+      name: 'My Song',
+      session,
+    });
+
+    const import1 = await importProject(exportJson);
+    expect(import1.name).toBe('My Song (2)');
+
+    const import2 = await importProject(exportJson);
+    expect(import2.name).toBe('My Song (3)');
+
+    const import3 = await importProject(exportJson);
+    expect(import3.name).toBe('My Song (4)');
+
+    // Verify all names are unique in the project list
+    const projects = await listProjects();
+    const names = projects.map(p => p.name);
+    expect(new Set(names).size).toBe(names.length);
   });
 
   it('imports an older project file and preserves restore invariants across the stored project path', async () => {
