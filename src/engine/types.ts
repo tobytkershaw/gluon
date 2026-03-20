@@ -196,6 +196,21 @@ export interface TrackSurface {
   thumbprint: ThumbprintConfig;
 }
 
+/**
+ * A transient control module proposed by the AI during conversation.
+ * Displayed in the Live Controls panel (right side of Chat tab).
+ * Untouched modules are cleared when the next AI turn begins.
+ */
+export interface LiveControlModule {
+  id: string;
+  /** The track this module is bound to (explicit trackId). */
+  trackId: string;
+  /** True if the user has interacted with any control in this module. */
+  touched: boolean;
+  /** Reuses the existing SurfaceModule type for module definition. */
+  module: SurfaceModule;
+}
+
 export interface Track {
   id: string;
   /** Human-assigned display name. When absent, derived from the engine model. */

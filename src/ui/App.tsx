@@ -6,7 +6,7 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import { clearSnapshots } from '../audio/snapshot-store';
-import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface } from '../engine/types';
+import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface, LiveControlModule } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
@@ -205,6 +205,8 @@ export default function App() {
   const arbRef = useRef(new Arbitrator());
   const [holdGeneration, setHoldGeneration] = useState(0);
   const autoRef = useRef(new AutomationEngine());
+  // Live Controls panel state — transient modules proposed by AI during conversation
+  const [liveControlModules, setLiveControlModules] = useState<LiveControlModule[]>([]);
   const sessionRef = useRef(session);
   sessionRef.current = session;
 
@@ -1198,6 +1200,58 @@ export default function App() {
     });
   }, []);
 
+  // ── Live Controls panel handlers ────────────────────────────────────────
+
+  /** Mark a live control module as touched (user interacted with a knob). */
+  const handleLiveModuleTouch = useCallback((moduleId: string) => {
+    setLiveControlModules(prev =>
+      prev.map(m => m.id === moduleId ? { ...m, touched: true } : m),
+    );
+  }, []);
+
+  /** Copy a live module to its bound track's surface. */
+  const handleLiveModuleAddToSurface = useCallback((liveModule: LiveControlModule) => {
+    setSession((s) => {
+      const track = getTrack(s, liveModule.trackId);
+      const newSurface: TrackSurface = {
+        ...track.surface,
+        modules: [...track.surface.modules, liveModule.module],
+      };
+      const validationError = validateSurface(newSurface, track);
+      if (validationError) {
+        console.warn(`[live-controls] Add to surface rejected: ${validationError}`);
+        return s;
+      }
+      const prevSurface: TrackSurface = {
+        ...track.surface,
+        modules: track.surface.modules.map(m => ({
+          ...m,
+          bindings: [...m.bindings],
+          position: { ...m.position },
+          config: structuredClone(m.config),
+        })),
+      };
+      const snapshot: SurfaceSnapshot = {
+        kind: 'surface',
+        trackId: liveModule.trackId,
+        prevSurface,
+        timestamp: Date.now(),
+        description: `Added ${liveModule.module.label} from Live Controls`,
+      };
+      return {
+        ...updateTrack(s, liveModule.trackId, { surface: newSurface }),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+    // Remove the module from the live panel after adding to surface
+    setLiveControlModules(prev => prev.filter(m => m.id !== liveModule.id));
+  }, []);
+
+  /** Clear untouched live modules — called at AI turn start. */
+  const clearUntouchedLiveModules = useCallback(() => {
+    setLiveControlModules(prev => prev.filter(m => m.touched));
+  }, []);
+
   /** Pin/unpin a control to/from the Surface view. Toggle behaviour. */
   const handlePinControl = useCallback((moduleId: string, controlId: string) => {
     setSession((s) => {
@@ -1376,6 +1430,7 @@ export default function App() {
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
+    setLiveControlModules([]);
     trackerSelectionRef.current = null;
     trackerCursorStepRef.current = null;
     audioMetricsRef.current.clear();
@@ -1502,6 +1557,7 @@ export default function App() {
   const handleSend = useCallback(async (message: string) => {
     if (!aiRef.current.isPlannerConfigured()) return;
     const thisRequest = beginTurn();
+    clearUntouchedLiveModules();
     setIsThinking(true);
     setStreamingText('');
     setStreamingLogEntries([]);
@@ -1665,7 +1721,7 @@ export default function App() {
           }
         }
     }
-  }, [beginTurn, ensureAudio, isCurrentTurn]);
+  }, [beginTurn, clearUntouchedLiveModules, ensureAudio, isCurrentTurn]);
 
   const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => {
     setSession((s) => {
@@ -3227,6 +3283,9 @@ export default function App() {
       onAbCapture={handleAbCapture}
       onAbToggle={handleAbToggle}
       onAbClear={handleAbClear}
+      liveControlModules={liveControlModules}
+      onLiveModuleTouch={handleLiveModuleTouch}
+      onLiveModuleAddToSurface={handleLiveModuleAddToSurface}
     >
         <TrackMixStrip
           activeTrack={activeTrack}

@@ -98,6 +98,9 @@ function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): App
     audioEngine: null,
     onMasterVolumeChange: noop,
     onMasterPanChange: noop,
+    liveControlModules: [],
+    onLiveModuleTouch: noop,
+    onLiveModuleAddToSurface: noop,
     children: <div>instrument body</div>,
     ...overrides,
   };
