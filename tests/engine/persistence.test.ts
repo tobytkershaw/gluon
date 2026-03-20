@@ -887,8 +887,9 @@ describe('persistence', () => {
 
     it('#1161: deduplicates sends to the same bus', () => {
       const session = makeSession();
-      const send1: Send = { busId: 'bus-1', level: 0.5 };
-      const send2: Send = { busId: 'bus-1', level: 0.8 };
+      // Use the master bus (which actually exists) as the send target
+      const send1: Send = { busId: MASTER_BUS_ID, level: 0.5 };
+      const send2: Send = { busId: MASTER_BUS_ID, level: 0.8 };
       const withDups = {
         ...session,
         tracks: session.tracks.map((t, i) =>
@@ -1144,6 +1145,287 @@ describe('persistence', () => {
       expect(pos.y).toBe(0);
       expect(pos.w).toBe(2);
       expect(pos.h).toBe(2);
+    });
+  });
+
+  // --- Restore validation batch (#1141-#1145) ---
+
+  describe('restore validation batch (#1141-#1145)', () => {
+    function makeSession(): ReturnType<typeof createSession> {
+      const session = createSession();
+      return {
+        ...session,
+        messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      };
+    }
+
+    it('#1141: resets stale activeTrackId to first track', () => {
+      const session = makeSession();
+      const withStaleId = {
+        ...session,
+        activeTrackId: 'nonexistent-track',
+      };
+      const restored = restoreSession(withStaleId);
+      // Should reset to the first track, not stay as the stale ID
+      expect(restored.tracks.some(t => t.id === restored.activeTrackId)).toBe(true);
+      expect(restored.activeTrackId).toBe(restored.tracks[0].id);
+    });
+
+    it('#1141: keeps valid activeTrackId unchanged', () => {
+      const session = makeSession();
+      // activeTrackId is already valid (session.tracks[0].id)
+      const restored = restoreSession(session);
+      expect(restored.activeTrackId).toBe(session.activeTrackId);
+    });
+
+    it('#1142: reclassifies legacy non-master bus tracks that receive sends', () => {
+      const session = makeSession();
+      // Simulate a legacy bus track saved without kind (engine='', model=-1)
+      const legacyBus: Track = {
+        ...session.tracks[0],
+        id: 'fx-bus',
+        engine: '',
+        model: -1,
+        kind: undefined,
+      };
+      // Another track sends to it
+      const withLegacyBus = {
+        ...session,
+        tracks: [
+          { ...session.tracks[0], sends: [{ busId: 'fx-bus', level: 0.5 }] },
+          legacyBus,
+          ...session.tracks.slice(1),
+        ],
+      };
+      const restored = restoreSession(withLegacyBus);
+      const bus = getTrack(restored, 'fx-bus');
+      expect(bus.kind).toBe('bus');
+    });
+
+    it('#1142: does not misclassify empty audio tracks as bus', () => {
+      const session = makeSession();
+      // An empty audio track (engine='', model=-1) but no sends targeting it
+      const emptyTrack: Track = {
+        ...session.tracks[0],
+        id: 'new-track',
+        engine: '',
+        model: -1,
+        kind: undefined,
+      };
+      const withEmpty = {
+        ...session,
+        tracks: [...session.tracks, emptyTrack],
+      };
+      const restored = restoreSession(withEmpty);
+      const track = getTrack(restored, 'new-track');
+      expect(track.kind).toBe('audio');
+    });
+
+    it('#1142: does not misclassify audio tracks with engine as bus', () => {
+      const session = makeSession();
+      const audioTrack: Track = {
+        ...session.tracks[0],
+        id: 'audio-track',
+        engine: 'plaits:analog_bass_drum',
+        model: 0,
+        kind: undefined,
+      };
+      const withAudio = {
+        ...session,
+        tracks: [...session.tracks, audioTrack],
+      };
+      const restored = restoreSession(withAudio);
+      const track = getTrack(restored, 'audio-track');
+      expect(track.kind).toBe('audio');
+    });
+
+    it('#1143: strips dangling patternId refs from sequence', () => {
+      const session = makeSession();
+      const track = session.tracks[0];
+      const withDanglingSeq = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? {
+                ...t,
+                sequence: [
+                  { patternId: t.patterns[0].id },
+                  { patternId: 'nonexistent-pattern' },
+                ],
+              }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withDanglingSeq);
+      const restoredTrack = getTrack(restored, track.id);
+      // Should only keep the valid ref
+      expect(restoredTrack.sequence).toHaveLength(1);
+      expect(restoredTrack.sequence[0].patternId).toBe(track.patterns[0].id);
+    });
+
+    it('#1143: rebuilds sequence from all patterns when all refs are dangling', () => {
+      const session = makeSession();
+      const track = session.tracks[0];
+      const withAllDangling = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? {
+                ...t,
+                sequence: [
+                  { patternId: 'gone-1' },
+                  { patternId: 'gone-2' },
+                ],
+              }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withAllDangling);
+      const restoredTrack = getTrack(restored, track.id);
+      // Should rebuild from all pattern IDs
+      expect(restoredTrack.sequence.length).toBe(restoredTrack.patterns.length);
+      expect(restoredTrack.sequence[0].patternId).toBe(restoredTrack.patterns[0].id);
+    });
+
+    it('#1144: strips sends targeting non-existent bus tracks', () => {
+      const session = makeSession();
+      const withStaleSends = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? {
+                ...t,
+                sends: [
+                  { busId: MASTER_BUS_ID, level: 0.5 },
+                  { busId: 'deleted-bus', level: 0.8 },
+                ],
+              }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withStaleSends);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.sends).toHaveLength(1);
+      expect(track.sends![0].busId).toBe(MASTER_BUS_ID);
+    });
+
+    it('#1144: strips sends targeting audio tracks (not buses)', () => {
+      const session = makeSession();
+      // Add an audio track with a real engine (so it can't be reclassified as bus)
+      const audioTarget: Track = {
+        ...session.tracks[0],
+        id: 'audio-target',
+        engine: 'plaits:analog_bass_drum',
+        model: 0,
+      };
+      const withAudioSend = {
+        ...session,
+        tracks: [
+          ...session.tracks,
+          audioTarget,
+        ].map(t =>
+          t.id === MASTER_BUS_ID
+            ? { ...t, sends: [{ busId: 'audio-target', level: 0.5 }] }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withAudioSend);
+      const masterBus = getTrack(restored, MASTER_BUS_ID);
+      expect(masterBus.sends).toHaveLength(0);
+    });
+
+    it('#1144: clears stale sidechainSourceId on compressor processors', () => {
+      const session = makeSession();
+      const compressor: ProcessorConfig = {
+        id: 'comp-1',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.6 },
+        sidechainSourceId: 'deleted-track',
+      };
+      const withStaleSidechain = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, processors: [compressor] } : t,
+        ),
+      };
+      const restored = restoreSession(withStaleSidechain);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.processors).toHaveLength(1);
+      expect(track.processors![0].sidechainSourceId).toBeUndefined();
+    });
+
+    it('#1144: keeps valid sidechainSourceId', () => {
+      const session = makeSession();
+      const compressor: ProcessorConfig = {
+        id: 'comp-1',
+        type: 'compressor',
+        model: 0,
+        params: { threshold: 0.6 },
+        sidechainSourceId: 'v0', // v0 exists
+      };
+      const withValidSidechain = {
+        ...session,
+        tracks: session.tracks.map(t =>
+          t.id === MASTER_BUS_ID ? { ...t, processors: [compressor] } : t,
+        ),
+      };
+      const restored = restoreSession(withValidSidechain);
+      const bus = getTrack(restored, MASTER_BUS_ID);
+      expect(bus.processors![0].sidechainSourceId).toBe('v0');
+    });
+
+    it('#1145: strips modulation routes targeting missing processors', () => {
+      const session = makeSession();
+      const mod: ModulatorConfig = { id: 'mod-1', type: 'tides', model: 0, params: {} };
+      const validRoute: ModulationRouting = {
+        id: 'route-1',
+        modulatorId: 'mod-1',
+        target: { kind: 'source', param: 'timbre' },
+        depth: 0.5,
+      };
+      const danglingRoute: ModulationRouting = {
+        id: 'route-2',
+        modulatorId: 'mod-1',
+        target: { kind: 'processor', processorId: 'deleted-proc', param: 'frequency' },
+        depth: 0.3,
+      };
+      const withDanglingRoute = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, modulators: [mod], modulations: [validRoute, danglingRoute] }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withDanglingRoute);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.modulations).toHaveLength(1);
+      expect(track.modulations![0].id).toBe('route-1');
+    });
+
+    it('#1145: keeps modulation routes targeting existing processors', () => {
+      const session = makeSession();
+      const proc: ProcessorConfig = { id: 'proc-1', type: 'ripples', model: 0, params: {} };
+      const mod: ModulatorConfig = { id: 'mod-1', type: 'tides', model: 0, params: {} };
+      const route: ModulationRouting = {
+        id: 'route-1',
+        modulatorId: 'mod-1',
+        target: { kind: 'processor', processorId: 'proc-1', param: 'frequency' },
+        depth: 0.5,
+      };
+      const withValidRoute = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, processors: [proc], modulators: [mod], modulations: [route] }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withValidRoute);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.modulations).toHaveLength(1);
+      expect(track.modulations![0].target).toEqual({ kind: 'processor', processorId: 'proc-1', param: 'frequency' });
     });
   });
 });

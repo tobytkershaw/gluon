@@ -190,6 +190,17 @@ export function migrateTrack(track: Track): Track {
     sequence = patterns.map(p => ({ patternId: p.id }));
   }
 
+  // #1143: Filter dangling pattern sequence refs — only keep entries whose patternId exists.
+  {
+    const patternIds = new Set(patterns.map(p => p.id));
+    const filtered = sequence.filter(ref => patternIds.has(ref.patternId));
+    if (filtered.length !== sequence.length) {
+      console.warn(`[persistence] Track ${track.id}: stripped ${sequence.length - filtered.length} dangling sequence ref(s)`);
+    }
+    // If sequence is now empty, rebuild from all pattern IDs
+    sequence = filtered.length > 0 ? filtered : patterns.map(p => ({ patternId: p.id }));
+  }
+
   // Validate patterns have events arrays
   if (patterns[0] && (!patterns[0].events || !Array.isArray(patterns[0].events))) {
     console.warn(`[persistence] Track ${track.id}: invalid patterns, hydrating from step-grid`);
@@ -309,9 +320,13 @@ export function migrateTrack(track: Track): Track {
     surfaced = { ...surfaced, approval: 'exploratory' };
   }
 
-  // Hydrate kind and sends
+  // Hydrate kind — only infer master bus here; non-master legacy tracks
+  // get classified in restoreSession with cross-track context (#1142).
   if (!surfaced.kind) {
-    surfaced = { ...surfaced, kind: surfaced.id === MASTER_BUS_ID ? 'bus' : 'audio' };
+    if (surfaced.id === MASTER_BUS_ID) {
+      surfaced = { ...surfaced, kind: 'bus' as const };
+    }
+    // else: leave kind undefined — restoreSession will classify with send context
   }
   if (!surfaced.sends) {
     surfaced = { ...surfaced, sends: [] };
@@ -333,8 +348,17 @@ export function migrateTrack(track: Track): Track {
     (m: ModulatorConfig) => registeredModTypes.includes(m.type),
   );
   const validModulatorIds = new Set(validModulators.map((m: ModulatorConfig) => m.id));
+  const validProcessorIds = new Set(validProcessors.map((p: ProcessorConfig) => p.id));
   const validModulations = (surfaced.modulations ?? []).filter(
-    (r: ModulationRouting) => validModulatorIds.has(r.modulatorId),
+    (r: ModulationRouting) => {
+      if (!validModulatorIds.has(r.modulatorId)) return false;
+      // #1145: Filter modulation routes targeting missing processors
+      if (r.target.kind === 'processor' && !validProcessorIds.has(r.target.processorId)) {
+        console.warn(`[persistence] Track ${surfaced.id}: stripping modulation route "${r.id}" targeting missing processor "${r.target.processorId}"`);
+        return false;
+      }
+      return true;
+    },
   );
   surfaced = { ...surfaced, modulators: validModulators, modulations: validModulations };
 
@@ -439,6 +463,67 @@ export function restoreSession(session: Session, persistedVersion: number = CURR
     migratedTracks = [...migratedTracks, createBusTrack(MASTER_BUS_ID, 'Master')];
   }
 
+  // #1142: Classify legacy tracks that were saved without `kind`.
+  // migrateTrack leaves kind undefined for non-master tracks when the persisted data
+  // had no kind field. Use cross-track context to detect buses: a track with no source
+  // engine (engine === '', model === -1) that receives sends from other tracks is a bus.
+  // All remaining undefined-kind tracks default to 'audio'.
+  {
+    const sendTargetIds = new Set<string>();
+    for (const t of migratedTracks) {
+      for (const s of t.sends ?? []) {
+        sendTargetIds.add(s.busId);
+      }
+    }
+    migratedTracks = migratedTracks.map(t => {
+      if (t.kind) return t; // already classified
+      if (t.engine === '' && t.model === -1 && sendTargetIds.has(t.id)) {
+        console.warn(`[persistence] Reclassifying track "${t.id}" as bus (no source, receives sends)`);
+        return { ...t, kind: 'bus' as const };
+      }
+      return { ...t, kind: 'audio' as const }; // default
+    });
+  }
+
+  // #1141: Reset stale activeTrackId — if it doesn't match any track, fall back to first track.
+  let activeTrackId = session.activeTrackId;
+  if (!migratedTracks.some(t => t.id === activeTrackId)) {
+    console.warn(`[persistence] Stale activeTrackId "${activeTrackId}" — resetting to "${migratedTracks[0].id}"`);
+    activeTrackId = migratedTracks[0].id;
+  }
+
+  // #1144: Validate send targets and sidechain refs now that all tracks are migrated.
+  const allTrackIds = new Set(migratedTracks.map(t => t.id));
+  const busTrackIds = new Set(migratedTracks.filter(t => t.kind === 'bus').map(t => t.id));
+  migratedTracks = migratedTracks.map(t => {
+    let changed = false;
+    // Filter sends to only those targeting existing bus tracks
+    let sends = t.sends;
+    if (sends && sends.length > 0) {
+      const filtered = sends.filter(s => busTrackIds.has(s.busId));
+      if (filtered.length !== sends.length) {
+        console.warn(`[persistence] Track ${t.id}: stripped ${sends.length - filtered.length} send(s) targeting non-existent bus`);
+        sends = filtered;
+        changed = true;
+      }
+    }
+    // Clear sidechainSourceId on compressor processors when source track doesn't exist
+    let processors = t.processors;
+    if (processors) {
+      const fixedProcessors = processors.map(p => {
+        if (p.sidechainSourceId && !allTrackIds.has(p.sidechainSourceId)) {
+          console.warn(`[persistence] Track ${t.id}: clearing stale sidechainSourceId "${p.sidechainSourceId}" on processor "${p.id}"`);
+          changed = true;
+          const { sidechainSourceId: _, ...rest } = p;
+          return rest as ProcessorConfig;
+        }
+        return p;
+      });
+      if (changed) processors = fixedProcessors;
+    }
+    return changed ? { ...t, sends, processors } : t;
+  });
+
   // Clear undo/redo on v5→v6 migration (old snapshots reference removed fields).
   const clearUndo = persistedVersion < 6;
   if (clearUndo) {
@@ -447,6 +532,7 @@ export function restoreSession(session: Session, persistedVersion: number = CURR
 
   return {
     ...session,
+    activeTrackId,
     transport: {
       ...session.transport,
       status: session.transport.status ?? (session.transport.playing ? 'playing' : 'stopped'),
