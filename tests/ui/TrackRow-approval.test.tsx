@@ -82,7 +82,7 @@ describe('TrackRow claim controls', () => {
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it('shows claim label in expanded section', () => {
+  it('shows claimed toggle in top row when expanded', () => {
     render(
       <TrackRow
         track={makeTrack({ claimed: true })}
@@ -96,8 +96,8 @@ describe('TrackRow claim controls', () => {
         onToggleClaim={noop}
       />,
     );
-    // The expanded section should show the human label
-    expect(screen.getByText('Claimed')).toBeTruthy();
+    // The claim toggle is always visible in the top row (not a separate expanded section)
+    expect(screen.getByLabelText(/protection: claimed/i)).toBeTruthy();
   });
 });
 

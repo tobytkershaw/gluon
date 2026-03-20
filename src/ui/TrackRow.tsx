@@ -1,14 +1,16 @@
 // src/ui/TrackRow.tsx
 // Horizontal track row for the vertical track sidebar.
+// Restyled to match mockup 09-track-sidebar.html.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { Track, Send } from '../engine/types';
 import { getTrackLabel } from '../engine/track-labels';
 import { computeThumbprintColor } from './thumbprint';
 import { TrackLevelMeter } from './TrackLevelMeter';
+import { Knob } from './Knob';
 
 const CLAIM_DISPLAY = {
-  unclaimed: { label: '\u25CB', color: 'text-zinc-600 hover:text-zinc-400', title: 'Unclaimed — Gluon may freely edit (click to claim)', humanLabel: 'Unclaimed' },
-  claimed: { label: '\u270B', color: 'text-orange-400', title: 'Claimed — Gluon will ask before modifying (click to unclaim)', humanLabel: 'Claimed' },
+  unclaimed: { label: '\u25CB', color: '', title: 'Unclaimed \u2014 Gluon may freely edit (click to claim)', humanLabel: 'Unclaimed' },
+  claimed: { label: '\u270B', color: '', title: 'Claimed \u2014 Gluon will ask before modifying (click to unclaim)', humanLabel: 'Claimed' },
 };
 
 /** Map importance 0-1 to a 3-tier display: low / mid / high. */
@@ -30,6 +32,22 @@ function tierToValue(tier: 0 | 1 | 2): number {
 
 /** Display variant for track rows. 'default' = full sidebar row, 'stage' = compact identity card. */
 export type TrackRowVariant = 'default' | 'stage';
+
+/** Convert a 0-1 normalised volume to dB display string. */
+function volumeToDb(v: number): string {
+  if (v <= 0) return '-\u221E';
+  const db = 20 * Math.log10(v);
+  if (db <= -60) return '-\u221E';
+  const rounded = Math.round(db);
+  return rounded >= 0 ? `+${rounded} dB` : `${rounded} dB`;
+}
+
+/** Convert a 0-1 normalised pan to L/C/R display string. */
+function panToDisplay(v: number): string {
+  const centered = Math.round((v - 0.5) * 100);
+  if (Math.abs(centered) <= 2) return 'C';
+  return centered < 0 ? `${Math.abs(centered)}L` : `${centered}R`;
+}
 
 interface Props {
   track: Track;
@@ -54,11 +72,31 @@ interface Props {
   onRemove?: () => void;
   onSetMusicalRole?: (role: string) => void;
   onSetImportance?: (importance: number) => void;
+  /** Whether this track is record-armed. */
+  recordArmed?: boolean;
+  onToggleRecordArm?: () => void;
+  /** Whether this track is frozen. */
+  frozen?: boolean;
+  onToggleFreeze?: () => void;
   /** Available bus tracks for send routing. */
   busTracks?: Track[];
   onAddSend?: (busId: string, level?: number) => void;
   onRemoveSend?: (busId: string) => void;
   onSetSendLevel?: (busId: string, level: number) => void;
+  /** Volume (0-1). */
+  volume?: number;
+  onVolumeChange?: (v: number) => void;
+  onVolumeInteractionStart?: () => void;
+  onVolumeInteractionEnd?: () => void;
+  /** Pan (0-1, 0.5=center). */
+  pan?: number;
+  onPanChange?: (v: number) => void;
+  onPanInteractionStart?: () => void;
+  onPanInteractionEnd?: () => void;
+  /** Whether this track belongs to a group (renders indented). */
+  grouped?: boolean;
+  /** Bus input sources display (e.g. "Kick, Lead"). */
+  busInputSources?: string;
   /** Display variant. Defaults to 'default'. */
   variant?: TrackRowVariant;
 }
@@ -68,7 +106,13 @@ export function TrackRow({
   activityTimestamp,
   onClick, onToggleMute, onToggleSolo, onRename, onToggleClaim,
   onRemove, onSetMusicalRole, onSetImportance,
+  recordArmed, onToggleRecordArm,
+  frozen, onToggleFreeze,
   busTracks, onAddSend, onRemoveSend, onSetSendLevel,
+  volume, onVolumeChange, onVolumeInteractionStart, onVolumeInteractionEnd,
+  pan, onPanChange, onPanInteractionStart, onPanInteractionEnd,
+  grouped,
+  busInputSources,
   variant = 'default',
 }: Props) {
   const [pulsing, setPulsing] = useState(false);
@@ -243,7 +287,7 @@ export function TrackRow({
     );
   }
 
-  // ── Default variant ─────────────────────────────────────────────────
+  // ── Default variant (mockup 09 spec) ─────────────────────────────────
   return (
     <div
       ref={rowRef}
@@ -251,153 +295,272 @@ export function TrackRow({
       aria-selected={isActive}
       aria-label={label}
       tabIndex={0}
-      className={`group/row relative px-2.5 py-1.5 rounded cursor-pointer transition-colors outline-none ${
-        isActive
-          ? 'bg-zinc-800 border border-zinc-700 focus:border-zinc-600'
-          : isBus
-            ? 'bg-zinc-900/60 hover:bg-zinc-800/40 border border-zinc-800/30'
-            : 'bg-transparent hover:bg-zinc-800/40 border border-transparent'
-      }${isBus && !isMasterBus ? ' ml-1.5 border-l-2 border-l-zinc-700/50' : ''}`}
+      className={`group/row relative flex flex-col rounded-md cursor-pointer mb-px outline-none transition-colors ${
+        isActive ? 'bg-zinc-800' : 'hover:bg-zinc-800/50'
+      }${grouped ? '' : ''}`}
       onClick={onClick}
       onKeyDown={handleRowKeyDown}
     >
-      {/* Activity pulse overlay */}
-      <div
-        className="absolute inset-0 rounded bg-amber-400/15 pointer-events-none"
-        style={{
-          opacity: pulsing ? 1 : 0,
-          transition: 'opacity 2s ease-out',
-        }}
-      />
+      {/* Activity pulse overlay — amber flash fading over 2s */}
+      {pulsing && (
+        <div
+          className="absolute inset-0 rounded-md pointer-events-none"
+          style={{
+            background: 'rgba(251, 191, 36, 0.08)',
+            animation: 'activity-fade 2s ease-out forwards',
+          }}
+        />
+      )}
 
-      {/* Main row: chevron + meter + dot + label + controls */}
-      <div className="flex items-center gap-2">
+      {/* Top line: expand + meter + thumb + name/role + controls */}
+      <div
+        className="flex items-center gap-[5px]"
+        style={{ padding: `5px 8px${grouped ? ' 5px 14px' : ''}` }}
+      >
         {/* Expand/collapse chevron */}
         {onToggleExpand && !isMasterBus && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
-            className="text-[8px] text-zinc-600 hover:text-zinc-400 w-3 h-3 flex items-center justify-center shrink-0 cursor-pointer transition-colors"
+            className="text-[8px] w-[10px] shrink-0 text-center cursor-pointer transition-transform"
+            style={{
+              color: 'var(--text-faint, #57534e)',
+              transform: isExpanded ? 'rotate(90deg)' : 'none',
+            }}
             title={isExpanded ? 'Collapse' : 'Expand'}
             aria-label={isExpanded ? 'Collapse track details' : 'Expand track details'}
           >
-            {isExpanded ? '\u25BC' : '\u25B6'}
+            {'\u25B8'}
           </button>
         )}
 
-        {/* Per-track vertical level meter — always visible */}
+        {/* Vertical level meter */}
         {analyser && <TrackLevelMeter analyser={analyser} orientation="vertical" />}
 
-        {/* Thumbprint dot — bus tracks show a different shape + bus badge */}
+        {/* Thumbprint dot — round for audio, square for bus */}
         {isBus ? (
-          <>
-            <div
-              className={`w-2 h-2 shrink-0 ${isMasterBus ? 'rounded-sm bg-zinc-500' : 'rounded-sm bg-zinc-600'}`}
-              style={{ transition: 'background-color 1s ease' }}
-            />
-            {!isMasterBus && (
-              <span className="text-[8px] font-mono uppercase text-zinc-600 tracking-wider shrink-0 leading-none">
-                bus
-              </span>
-            )}
-          </>
+          <div
+            className="w-2 h-2 shrink-0 rounded-[2px]"
+            style={{ backgroundColor: 'var(--zinc-600, #57534e)' }}
+          />
         ) : (
           <div
             className="w-2 h-2 rounded-full shrink-0"
-            style={{ backgroundColor: thumbColor, transition: 'background-color 1s ease' }}
+            style={{ backgroundColor: thumbColor }}
           />
         )}
 
-        {/* Track label */}
-        {editing ? (
-          <input
-            ref={inputRef}
-            className="text-[12px] font-mono uppercase tracking-wider flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none"
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            onBlur={commitRename}
-            onKeyDown={handleKeyDown}
-            onClick={(e) => e.stopPropagation()}
-            maxLength={20}
-          />
-        ) : (
-          <span
-            className={`text-[12px] font-mono uppercase tracking-wider flex-1 truncate ${
-              track.muted ? 'text-zinc-600 opacity-50' : isActive ? 'text-zinc-200' : isBus ? 'text-zinc-500 italic' : 'text-zinc-500'
-            }`}
-            title={label}
-            onDoubleClick={handleDoubleClick}
-          >
-            {label}
-          </span>
-        )}
+        {/* Track name + role label */}
+        <div className="flex-1 min-w-0">
+          {editing ? (
+            <input
+              ref={inputRef}
+              className="text-[11px] font-sans font-medium flex-1 min-w-0 w-full bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-200 outline-none leading-tight"
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              maxLength={20}
+            />
+          ) : (
+            <div
+              className="leading-tight truncate text-[11px] font-sans font-medium"
+              style={{
+                color: track.muted
+                  ? 'var(--text-muted, #7c776e)'
+                  : isBus
+                    ? 'var(--text-secondary, #a8a39a)'
+                    : 'var(--text-primary, #e5e2dc)',
+                textDecoration: track.muted ? 'line-through' : 'none',
+              }}
+              title={label}
+              onDoubleClick={handleDoubleClick}
+            >
+              {label}
+            </div>
+          )}
+          {/* Role label */}
+          {editingRole ? (
+            <input
+              ref={roleInputRef}
+              className="text-[8px] font-mono w-full min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 outline-none leading-tight"
+              style={{ color: 'var(--text-faint, #57534e)' }}
+              value={roleEditValue}
+              onChange={(e) => setRoleEditValue(e.target.value)}
+              onBlur={commitRole}
+              onKeyDown={handleRoleKeyDown}
+              onClick={(e) => e.stopPropagation()}
+              maxLength={40}
+              placeholder="e.g. bass drum"
+            />
+          ) : (
+            <div
+              className="text-[8px] font-mono uppercase tracking-[0.04em] leading-tight truncate cursor-pointer"
+              style={{ color: 'var(--text-faint, #57534e)' }}
+              onClick={(e) => {
+                if (!onSetMusicalRole) return;
+                e.stopPropagation();
+                setRoleEditValue(track.musicalRole ?? '');
+                setEditingRole(true);
+              }}
+              title={isBus ? 'bus' : (track.musicalRole || 'Click to set role')}
+            >
+              {isBus ? 'bus' : (track.musicalRole || '\u2014')}
+            </div>
+          )}
+        </div>
 
-        {/* M / S / Claim buttons */}
-        <div className="flex gap-0.5 shrink-0">
+        {/* Control buttons: M S R + claim */}
+        <div className="flex gap-0.5 items-center shrink-0">
+          {/* Mute */}
           <button
             onClick={(e) => { e.stopPropagation(); onToggleMute(); }}
-            className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
-              track.muted ? 'bg-red-500/20 text-red-400' : 'text-zinc-600 hover:text-zinc-400'
-            }`}
+            className="w-4 h-3.5 rounded-[2px] border border-transparent font-mono text-[7px] flex items-center justify-center cursor-pointer transition-all"
+            style={track.muted ? {
+              color: 'var(--rose-400, #fb7185)',
+              background: 'rgba(251, 113, 133, 0.1)',
+            } : {
+              color: 'var(--text-faint, #57534e)',
+            }}
             title="Mute"
           >
             M
           </button>
+          {/* Solo */}
           <button
             onClick={(e) => { e.stopPropagation(); onToggleSolo(e.shiftKey); }}
-            className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${
-              track.solo ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-600 hover:text-zinc-400'
-            }`}
+            className="w-4 h-3.5 rounded-[2px] border border-transparent font-mono text-[7px] flex items-center justify-center cursor-pointer transition-all"
+            style={track.solo ? {
+              color: 'var(--amber-400, #fbbf24)',
+              background: 'rgba(251, 191, 36, 0.1)',
+            } : {
+              color: 'var(--text-faint, #57534e)',
+            }}
             title="Solo"
           >
             S
           </button>
-          {onToggleClaim && (
+          {/* Record arm — audio tracks only */}
+          {!isBus && onToggleRecordArm && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleRecordArm(); }}
+              className="w-4 h-3.5 rounded-[2px] font-mono text-[7px] flex items-center justify-center cursor-pointer transition-all"
+              style={recordArmed ? {
+                color: 'var(--rose-400, #fb7185)',
+                background: 'rgba(251, 113, 133, 0.12)',
+                border: '1px solid rgba(251, 113, 133, 0.2)',
+              } : {
+                color: 'var(--text-faint, #57534e)',
+                border: '1px solid transparent',
+              }}
+              title="Record arm"
+            >
+              R
+            </button>
+          )}
+          {/* Claim toggle — audio tracks only (buses don't need it) */}
+          {!isBus && onToggleClaim && (
             <button
               onClick={(e) => { e.stopPropagation(); onToggleClaim(); }}
               title={claimInfo.title}
-              className={`text-[11px] font-mono w-4 h-4 flex items-center justify-center rounded cursor-pointer transition-colors ${claimInfo.color}`}
+              className="w-4 h-3.5 rounded-[2px] border border-transparent flex items-center justify-center cursor-pointer transition-all text-[10px]"
+              style={isClaimed ? {
+                color: '#e07840',
+              } : {
+                color: 'var(--text-faint, #57534e)',
+              }}
               aria-label={`Protection: ${claimInfo.humanLabel}`}
             >
               {claimInfo.label}
             </button>
           )}
-          {/* Track removal: select track then press Delete/Backspace */}
         </div>
       </div>
 
-      {/* Expanded sends section (expanded non-master tracks only) */}
-      {isExpanded && !isMasterBus && onAddSend && busTracks && (
-        <SendSection
-          sends={track.sends ?? []}
-          busTracks={busTracks}
-          trackId={track.id}
-          onAddSend={onAddSend}
-          onRemoveSend={onRemoveSend}
-          onSetSendLevel={onSetSendLevel}
-        />
-      )}
+      {/* Expanded section */}
+      {isExpanded && !isMasterBus && (
+        <div className="flex flex-col gap-2" style={{ padding: '2px 8px 8px 26px' }}>
+          {/* Vol + Pan knobs */}
+          <div className="flex gap-3 items-end">
+            {onVolumeChange && (
+              <div className="flex flex-col items-center gap-px">
+                <span className="text-[7px] font-mono uppercase tracking-[0.04em]" style={{ color: 'var(--text-faint, #57534e)' }}>Vol</span>
+                <Knob
+                  value={volume ?? 0.8}
+                  label=""
+                  accentColor="zinc"
+                  onChange={onVolumeChange}
+                  onPointerDown={onVolumeInteractionStart}
+                  onPointerUp={onVolumeInteractionEnd}
+                  size={22}
+                />
+                <span className="text-[7px] font-mono" style={{ color: 'var(--text-faint, #57534e)' }}>
+                  {volumeToDb(volume ?? 0.8)}
+                </span>
+              </div>
+            )}
+            {onPanChange && (
+              <div className="flex flex-col items-center gap-px">
+                <span className="text-[7px] font-mono uppercase tracking-[0.04em]" style={{ color: 'var(--text-faint, #57534e)' }}>Pan</span>
+                <Knob
+                  value={pan ?? 0.5}
+                  label=""
+                  accentColor="zinc"
+                  onChange={onPanChange}
+                  onPointerDown={onPanInteractionStart}
+                  onPointerUp={onPanInteractionEnd}
+                  size={22}
+                />
+                <span className="text-[7px] font-mono" style={{ color: 'var(--text-faint, #57534e)' }}>
+                  {panToDisplay(pan ?? 0.5)}
+                </span>
+              </div>
+            )}
+          </div>
 
-      {/* Expanded metadata: claim, importance, musical role (expanded non-bus tracks only) */}
-      {isExpanded && !isBus && !isMasterBus && (
-        <div className="mt-1.5 space-y-1 px-0.5">
-          {/* Claim state — toggle control */}
-          {onToggleClaim && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Claim — whether Gluon should ask before modifying this track">Claim</span>
-              <button
-                onClick={(e) => { e.stopPropagation(); onToggleClaim(); }}
-                className={`text-[10px] font-mono px-1 py-0 rounded cursor-pointer transition-colors ${claimInfo.color} hover:brightness-125`}
-                title={claimInfo.title}
-                aria-label={`Protection: ${claimInfo.humanLabel}`}
-              >
-                {claimInfo.humanLabel}
-              </button>
+          {/* Sends — audio tracks only */}
+          {!isBus && onAddSend && busTracks && (
+            <SendSection
+              sends={track.sends ?? []}
+              busTracks={busTracks}
+              trackId={track.id}
+              onAddSend={onAddSend}
+              onRemoveSend={onRemoveSend}
+              onSetSendLevel={onSetSendLevel}
+            />
+          )}
+
+          {/* Bus input sources indicator — bus tracks only */}
+          {isBus && busInputSources && (
+            <div className="text-[7px] font-mono" style={{ color: 'var(--text-faint, #57534e)' }}>
+              {'\u2190'} {busInputSources}
             </div>
           )}
-          {/* Importance — 3-tier selector */}
-          {onSetImportance && (
+
+          {/* Freeze button — audio tracks only */}
+          {!isBus && onToggleFreeze && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleFreeze(); }}
+              className="flex items-center gap-1 py-0.5 px-1.5 rounded border font-mono text-[7px] uppercase tracking-[0.04em] cursor-pointer transition-all self-start"
+              style={frozen ? {
+                color: 'var(--cyan-400, #22d3ee)',
+                borderColor: 'rgba(34, 211, 238, 0.25)',
+                background: 'rgba(34, 211, 238, 0.06)',
+              } : {
+                color: 'var(--text-faint, #57534e)',
+                borderColor: 'var(--border-subtle, rgba(61, 57, 53, 0.3))',
+                background: 'none',
+              }}
+              title={frozen ? 'Unfreeze track' : 'Freeze track'}
+            >
+              {'\u2744'} {frozen ? 'Frozen' : 'Freeze'}
+            </button>
+          )}
+
+          {/* Expanded metadata: importance (kept for functional parity) */}
+          {!isBus && onSetImportance && (
             <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Importance — how prominent this track is in the mix">Imp</span>
+              <span className="text-[7px] font-mono uppercase tracking-[0.04em] shrink-0" style={{ color: 'var(--text-faint, #57534e)' }} title="Importance">Imp</span>
               <div className="flex gap-0.5">
                 {IMPORTANCE_TIERS.map((tier, i) => {
                   const currentTier = importanceTier(track.importance ?? 0.5);
@@ -406,11 +569,13 @@ export function TrackRow({
                     <button
                       key={tier.label}
                       onClick={(e) => { e.stopPropagation(); onSetImportance(tierToValue(i as 0 | 1 | 2)); }}
-                      className={`text-[9px] font-mono px-1 py-0 rounded cursor-pointer transition-colors ${
-                        isSelected
-                          ? 'bg-zinc-600/40 text-zinc-300'
-                          : 'text-zinc-600 hover:text-zinc-400'
-                      }`}
+                      className="text-[7px] font-mono px-1 py-0 rounded cursor-pointer transition-colors"
+                      style={isSelected ? {
+                        background: 'rgba(87, 83, 78, 0.4)',
+                        color: 'var(--text-secondary, #a8a39a)',
+                      } : {
+                        color: 'var(--text-faint, #57534e)',
+                      }}
                       title={`${tier.label} importance (${Math.round(tierToValue(i as 0 | 1 | 2) * 100)}%)`}
                       aria-label={`Set importance to ${tier.label.toLowerCase()}`}
                     >
@@ -421,44 +586,13 @@ export function TrackRow({
               </div>
             </div>
           )}
-          {/* Musical role */}
-          {onSetMusicalRole && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-mono uppercase text-zinc-600 w-6 shrink-0" title="Musical Role — what this track contributes (e.g. driving rhythm, bass, lead)">Role</span>
-              {editingRole ? (
-                <input
-                  ref={roleInputRef}
-                  className="text-[10px] font-mono flex-1 min-w-0 bg-zinc-900 border border-zinc-600 rounded px-1 py-0 text-zinc-300 outline-none"
-                  value={roleEditValue}
-                  onChange={(e) => setRoleEditValue(e.target.value)}
-                  onBlur={commitRole}
-                  onKeyDown={handleRoleKeyDown}
-                  onClick={(e) => e.stopPropagation()}
-                  maxLength={40}
-                  placeholder="e.g. driving rhythm"
-                />
-              ) : (
-                <span
-                  className="text-[10px] font-mono text-zinc-500 flex-1 truncate cursor-pointer hover:text-zinc-400"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setRoleEditValue(track.musicalRole ?? '');
-                    setEditingRole(true);
-                  }}
-                  title={track.musicalRole || 'Click to set musical role'}
-                >
-                  {track.musicalRole || '\u2014'}
-                </span>
-              )}
-            </div>
-          )}
         </div>
       )}
     </div>
   );
 }
 
-// --- Send routing section ---
+// --- Send routing section (restyled to match mockup) ---
 
 interface SendSectionProps {
   sends: Send[];
@@ -478,58 +612,55 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
   );
 
   return (
-    <div className="mt-1.5 px-0.5 space-y-0.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] font-mono uppercase text-zinc-600 tracking-wider">Sends</span>
-        {availableBuses.length > 0 && onAddSend && (
-          <button
-            onClick={(e) => { e.stopPropagation(); setAddOpen(!addOpen); }}
-            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 cursor-pointer transition-colors"
-            title="Add send"
-          >
-            +
-          </button>
-        )}
-      </div>
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[7px] font-mono uppercase tracking-[0.04em] mb-px" style={{ color: 'var(--text-faint, #57534e)' }}>Sends</span>
 
       {/* Existing sends */}
       {sends.map((send) => {
         const bus = busTracks.find((b) => b.id === send.busId);
         const busLabel = bus ? getTrackLabel(bus) : send.busId;
         return (
-          <div key={send.busId} className="flex items-center gap-1">
-            <span className="text-[10px] font-mono text-zinc-500 w-10 truncate shrink-0" title={busLabel}>
+          <div key={send.busId} className="group/send flex items-center gap-2">
+            <span className="text-[8px] font-mono min-w-[32px] truncate" style={{ color: 'var(--text-muted, #7c776e)' }} title={busLabel}>
               {busLabel}
             </span>
             {onSetSendLevel && (
-              <input
-                type="range"
-                min={0}
-                max={1}
-                step={0.01}
+              <Knob
                 value={send.level}
-                onChange={(e) => { e.stopPropagation(); onSetSendLevel(send.busId, parseFloat(e.target.value)); }}
-                onClick={(e) => e.stopPropagation()}
-                className="flex-1 h-1 accent-zinc-500 cursor-pointer"
-                title={`Send level: ${Math.round(send.level * 100)}%`}
-                aria-label={`Send level to ${busLabel}`}
+                label=""
+                accentColor="zinc"
+                onChange={(v) => onSetSendLevel(send.busId, v)}
+                size={18}
               />
             )}
-            <span className="text-[9px] font-mono text-zinc-600 w-4 text-right shrink-0 tabular-nums">
-              {Math.round(send.level * 100)}
+            <span className="text-[7px] font-mono" style={{ color: 'var(--text-faint, #57534e)' }}>
+              {Math.round(send.level * 100) - 100}
             </span>
             {onRemoveSend && (
-              <button
+              <span
+                className="text-[8px] cursor-pointer opacity-0 group-hover/send:opacity-100 transition-opacity ml-0.5"
+                style={{ color: 'var(--text-faint, #57534e)' }}
                 onClick={(e) => { e.stopPropagation(); onRemoveSend(send.busId); }}
-                className="text-[10px] font-mono text-zinc-700 hover:text-red-400 cursor-pointer transition-colors shrink-0"
-                title={`Remove send to ${busLabel}`}
               >
-                x
-              </button>
+                {'\u00D7'}
+              </span>
             )}
           </div>
         );
       })}
+
+      {/* + Add send link */}
+      {availableBuses.length > 0 && onAddSend && !addOpen && (
+        <span
+          className="text-[8px] font-mono cursor-pointer py-px"
+          style={{ color: 'var(--text-faint, #57534e)' }}
+          onClick={(e) => { e.stopPropagation(); setAddOpen(true); }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLSpanElement).style.color = 'var(--text-muted, #7c776e)'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLSpanElement).style.color = 'var(--text-faint, #57534e)'; }}
+        >
+          + Add send
+        </span>
+      )}
 
       {/* Add send dropdown */}
       {addOpen && availableBuses.length > 0 && (
@@ -542,7 +673,8 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
                 onAddSend?.(bus.id);
                 setAddOpen(false);
               }}
-              className="w-full text-left text-[10px] font-mono text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded px-1 py-0.5 cursor-pointer transition-colors"
+              className="w-full text-left text-[8px] font-mono hover:bg-zinc-800 rounded px-1 py-0.5 cursor-pointer transition-colors"
+              style={{ color: 'var(--text-muted, #7c776e)' }}
             >
               {getTrackLabel(bus)}
             </button>
@@ -551,8 +683,8 @@ function SendSection({ sends, busTracks, trackId, onAddSend, onRemoveSend, onSet
       )}
 
       {/* Empty state */}
-      {sends.length === 0 && !addOpen && (
-        <span className="text-[9px] font-mono text-zinc-700 italic">No sends</span>
+      {sends.length === 0 && !addOpen && !(availableBuses.length > 0 && onAddSend) && (
+        <span className="text-[7px] font-mono italic" style={{ color: 'var(--text-faint, #57534e)' }}>No sends</span>
       )}
     </div>
   );

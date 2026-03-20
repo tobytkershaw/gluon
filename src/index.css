@@ -163,6 +163,12 @@ input[type="range"]::-moz-range-thumb {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Track sidebar — activity pulse (AI just modified this track) */
+@keyframes activity-fade {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
 /* AI collaborator — the curved left edge glows as the membrane */
 
 /* AI breathing animation — subtle background pulse when active */
