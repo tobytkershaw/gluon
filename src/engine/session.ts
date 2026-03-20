@@ -222,15 +222,45 @@ export function removeTrack(session: Session, trackId: string): Session | null {
     }
   }
 
-  // Remove sends targeting this track from all other tracks
+  // Collect compressor processors whose sidechain points at the removed track
+  const affectedSidechains: Array<{ trackId: string; processorId: string; prevSourceId: string }> = [];
+  for (const t of session.tracks) {
+    if (t.id === trackId) continue;
+    for (const p of t.processors ?? []) {
+      if (p.type === 'compressor' && p.sidechainSourceId === trackId) {
+        affectedSidechains.push({ trackId: t.id, processorId: p.id, prevSourceId: p.sidechainSourceId });
+      }
+    }
+  }
+
+  // Remove sends targeting this track and clear dangling sidechain references
   const newTracks = session.tracks
     .filter(t => t.id !== trackId)
     .map(t => {
+      let updated = t;
+      // Strip sends pointing at the removed track
       const sends = t.sends;
-      if (!sends || sends.length === 0) return t;
-      const filtered = sends.filter(s => s.busId !== trackId);
-      if (filtered.length === sends.length) return t;
-      return { ...t, sends: filtered };
+      if (sends && sends.length > 0) {
+        const filtered = sends.filter(s => s.busId !== trackId);
+        if (filtered.length !== sends.length) {
+          updated = { ...updated, sends: filtered };
+        }
+      }
+      // Clear sidechain references pointing at the removed track
+      const procs = updated.processors;
+      if (procs && procs.some(p => p.type === 'compressor' && p.sidechainSourceId === trackId)) {
+        updated = {
+          ...updated,
+          processors: procs.map(p => {
+            if (p.type === 'compressor' && p.sidechainSourceId === trackId) {
+              const { sidechainSourceId: _, ...rest } = p;
+              return rest;
+            }
+            return p;
+          }),
+        };
+      }
+      return updated;
     });
 
   // If the removed track was active, switch to an adjacent audio track
@@ -251,6 +281,7 @@ export function removeTrack(session: Session, trackId: string): Session | null {
     removedIndex: index,
     prevActiveTrackId: session.activeTrackId,
     affectedSends: affectedSends.length > 0 ? affectedSends : undefined,
+    affectedSidechains: affectedSidechains.length > 0 ? affectedSidechains : undefined,
     timestamp: Date.now(),
     description: `Remove track ${trackId}`,
   };

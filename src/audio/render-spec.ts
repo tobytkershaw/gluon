@@ -142,7 +142,15 @@ export function buildRenderSpec(
   bars = 2,
 ): RenderSpec {
   const selectedTracks = selectTracks(session, trackIds);
+  const selectedIdSet = new Set(selectedTracks.map(t => t.id));
   const mode: TransportMode = session.transport.mode ?? 'pattern';
+
+  // When rendering a subset, strip sidechain references whose source track
+  // is not in the rendered set.  This avoids silent broken references and
+  // logs a warning so callers can diagnose unexpected mix differences.
+  const sanitisedTracks = trackIds
+    ? selectedTracks.map(t => sanitiseSidechainRefs(t, selectedIdSet))
+    : selectedTracks;
 
   return {
     sampleRate: 48000,
@@ -152,13 +160,38 @@ export function buildRenderSpec(
       volume: session.master.volume,
       pan: session.master.pan,
     },
-    tracks: selectedTracks.map(v => buildTrackSpec(v, bars, mode)),
+    tracks: sanitisedTracks.map(v => buildTrackSpec(v, bars, mode)),
   };
 }
 
 // ---------------------------------------------------------------------------
 // Internals
 // ---------------------------------------------------------------------------
+
+/**
+ * Strip sidechain source references from compressor processors when the
+ * source track is not present in the rendered track set.  Logs a warning
+ * so that callers know the sidechain was dropped for this render pass.
+ */
+function sanitiseSidechainRefs(track: Track, renderedIds: Set<string>): Track {
+  const procs = track.processors;
+  if (!procs || procs.length === 0) return track;
+
+  let changed = false;
+  const newProcs = procs.map(p => {
+    if (p.type === 'compressor' && p.sidechainSourceId && !renderedIds.has(p.sidechainSourceId)) {
+      console.warn(
+        `[render-spec] Track "${track.id}" compressor "${p.id}": sidechain source "${p.sidechainSourceId}" excluded from render subset — disabling sidechain for this pass`,
+      );
+      const { sidechainSourceId: _, ...rest } = p;
+      changed = true;
+      return rest;
+    }
+    return p;
+  });
+
+  return changed ? { ...track, processors: newProcs } : track;
+}
 
 function selectTracks(session: Session, trackIds?: string[]): Track[] {
   if (trackIds && trackIds.length > 0) {
