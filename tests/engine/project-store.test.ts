@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createSession } from '../../src/engine/session';
 import { loadSession, restoreSession, saveSession } from '../../src/engine/persistence';
 import {
+  duplicateProject,
   exportProject,
   importProject,
   listProjects,
@@ -255,6 +256,103 @@ describe('project-store', () => {
     const loaded = await loadProject('p1');
     expect(loaded).not.toBeNull();
     expect(loaded!.meta.name).toBe('Renamed');
+  });
+
+  it('exportProject normalizes unmigrated v5 session via restoreSession (#1194)', async () => {
+    const session = createSession();
+    // Build a v5-shaped session: no master bus, missing transport fields, has undo
+    const v5Session = {
+      ...session,
+      tracks: session.tracks.filter(t => t.id !== MASTER_BUS_ID),
+      transport: {
+        ...session.transport,
+        status: undefined,
+        metronome: undefined,
+        timeSignature: undefined,
+        mode: undefined,
+      },
+      undoStack: [{
+        kind: 'param',
+        trackId: 'v0',
+        prevValues: { timbre: 0.1 },
+        aiTargetValues: { timbre: 0.9 },
+        timestamp: 1,
+        description: 'stale',
+      }],
+      messages: [{ role: 'human' as const, text: 'v5 data', timestamp: 1 }],
+    };
+
+    // Store directly into the fake DB as a v5 project (bypassing saveProject which stamps CURRENT_VERSION)
+    const now = Date.now();
+    dbState.set('v5proj', {
+      id: 'v5proj',
+      version: 5,
+      meta: { id: 'v5proj', name: 'V5 Project', createdAt: now, updatedAt: now },
+      session: v5Session as unknown as ReturnType<typeof createSession>,
+    });
+
+    const exported = await exportProject('v5proj');
+    const parsed = JSON.parse(exported);
+
+    // The exported session should be fully migrated:
+    // - master bus present
+    // - transport fields hydrated
+    // - undo/redo cleared (v5→v6 migration)
+    expect(parsed.session.tracks.some((t: { id: string }) => t.id === MASTER_BUS_ID)).toBe(true);
+    expect(parsed.session.transport.status).toBe('stopped');
+    expect(parsed.session.transport.metronome).toEqual({ enabled: false, volume: 0.5 });
+    expect(parsed.session.transport.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+    expect(parsed.session.transport.mode).toBe('pattern');
+    expect(parsed.session.undoStack).toEqual([]);
+    expect(parsed.session.redoStack).toEqual([]);
+  });
+
+  it('duplicateProject normalizes unmigrated v5 session via restoreSession (#1195)', async () => {
+    const session = createSession();
+    // Build a v5-shaped session: no master bus, missing transport fields
+    const v5Session = {
+      ...session,
+      tracks: session.tracks.filter(t => t.id !== MASTER_BUS_ID),
+      transport: {
+        ...session.transport,
+        status: undefined,
+        metronome: undefined,
+        timeSignature: undefined,
+        mode: undefined,
+      },
+      undoStack: [{
+        kind: 'param',
+        trackId: 'v0',
+        prevValues: { timbre: 0.1 },
+        aiTargetValues: { timbre: 0.9 },
+        timestamp: 1,
+        description: 'stale',
+      }],
+      messages: [{ role: 'human' as const, text: 'v5 data', timestamp: 1 }],
+    };
+
+    // Store directly into the fake DB as a v5 project
+    const now = Date.now();
+    dbState.set('v5dup', {
+      id: 'v5dup',
+      version: 5,
+      meta: { id: 'v5dup', name: 'V5 To Duplicate', createdAt: now, updatedAt: now },
+      session: v5Session as unknown as ReturnType<typeof createSession>,
+    });
+
+    const newId = await duplicateProject('v5dup', 'V5 Copy');
+    const duplicated = await loadProject(newId);
+    expect(duplicated).not.toBeNull();
+
+    const restored = restoreSession(duplicated!.session, duplicated!.version);
+    // The duplicated project should be fully migrated:
+    expect(restored.tracks.some(t => t.id === MASTER_BUS_ID)).toBe(true);
+    expect(restored.transport.status).toBe('stopped');
+    expect(restored.transport.metronome).toEqual({ enabled: false, volume: 0.5 });
+    expect(restored.transport.timeSignature).toEqual({ numerator: 4, denominator: 4 });
+    expect(restored.transport.mode).toBe('pattern');
+    expect(restored.undoStack).toEqual([]);
+    expect(restored.redoStack).toEqual([]);
   });
 
   it('keeps listProjects sorted by updatedAt after rename', async () => {
