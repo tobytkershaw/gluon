@@ -1,13 +1,41 @@
 // tests/audio/compressor-sidechain.test.ts
 // Tests for the compressor worklet sidechain input behavior.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { AudioEngine } from '../../src/audio/audio-engine';
 
 /**
  * These tests verify the offline compressor's sidechain behavior
  * by directly testing the processOfflineCompressor function signature
  * and the render-spec sidechain field.
  */
+
+function mockGainNode() {
+  return {
+    gain: {
+      value: 1,
+      setValueAtTime: vi.fn(),
+      cancelScheduledValues: vi.fn(),
+      linearRampToValueAtTime: vi.fn(),
+    },
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  };
+}
+
+function makeTrackSlot(processors: unknown[] = []) {
+  return {
+    pool: null,
+    sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+    chainOutGain: mockGainNode(),
+    muteGain: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+    processors,
+    currentParams: {},
+    currentModel: 0,
+    isDrumRack: false,
+    drumPads: new Map(),
+  };
+}
 
 describe('Compressor sidechain', () => {
   it('RenderProcessorSpec includes sidechainSourceTrackId field', async () => {
@@ -81,5 +109,42 @@ describe('Compressor sidechain', () => {
     // Check that CompressorSynth class exists and has the expected shape
     expect(mod.CompressorSynth).toBeDefined();
     expect(typeof mod.CompressorSynth.create).toBe('function');
+  });
+
+  it('setSidechain is a no-op when compressor is degraded', () => {
+    const engine = new AudioEngine();
+    const inputNode = mockGainNode();
+    const degradedProc = {
+      id: 'comp-degraded',
+      type: 'compressor',
+      engine: {
+        role: 'processor' as const,
+        inputNode,
+        outputNode: mockGainNode(),
+        setPatch: vi.fn(),
+        setModel: vi.fn(),
+        sendCommand: vi.fn(),
+        silence: vi.fn(),
+        destroy: vi.fn(),
+      },
+      enabled: true,
+      degraded: true,
+    };
+
+    const sourceSlot = makeTrackSlot();
+    const targetSlot = makeTrackSlot([degradedProc]);
+
+    const internal = engine as unknown as { tracks: Map<string, unknown>; ctx: unknown };
+    internal.ctx = {}; // truthy — setSidechain early-returns if ctx is falsy
+    internal.tracks.set('source-track', sourceSlot);
+    internal.tracks.set('target-track', targetSlot);
+
+    // This should not throw — degraded processor has only 1 input
+    expect(() => {
+      engine.setSidechain('source-track', 'target-track', 'comp-degraded');
+    }).not.toThrow();
+
+    // Should not have tried to connect to the sidechain input
+    expect(inputNode.connect).not.toHaveBeenCalled();
   });
 });
