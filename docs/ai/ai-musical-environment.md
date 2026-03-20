@@ -239,9 +239,9 @@ Especially important for loop-native structure.
 
 ### E. Collaboration and memory
 
-Staged human-AI work rather than direct sound changes: `set_track_meta(approval: ...)`, `set_intent(...)`, `set_section(...)`, `set_tension(...)`, `raise_decision(...)`.
+Staged human-AI work rather than direct sound changes: `set_track_meta(approval: ...)`, `set_intent(...)`, `set_section(...)`, `set_tension(...)`, `raise_decision(...)`, `save_memory(...)`, `recall_memories(...)`, `forget_memory(...)`.
 
-Partially landed: `set_track_meta` covers approval levels and importance. `set_intent` and `set_section` cover project phase and direction. Preservation constraints are enforced by the approval system. Remaining gap: explicit `preserve_material(...)` and `name_structure_role(...)` tools for fine-grained preservation annotations.
+Landed: `set_track_meta` covers approval levels, importance, per-track swing, and portamento. `set_intent` and `set_section` cover project phase and direction. Preservation constraints are enforced by the approval system. `save_memory`/`recall_memories`/`forget_memory` provide persistent per-project memory that survives context rotation and spans sessions. Remaining gap: explicit `preserve_material(...)` and `name_structure_role(...)` tools for fine-grained preservation annotations.
 
 ---
 
@@ -430,7 +430,7 @@ The AI's working environment exists at three levels. Each is documented, each is
 
 | Layer | What it is | Document | Status |
 |-------|-----------|----------|--------|
-| **Current contract** | The tools, state format, and validation rules the AI operates with today. ~40 tools, up to 16 tracks, multiple Plaits engines and processor/modulator types, canonical events, semantic controls. | [ai-contract.md](./ai-contract.md) | Implemented |
+| **Current contract** | The tools, state format, and validation rules the AI operates with today. 50 tools across programming, observation, transport, structure, mixing, arrangement, UI curation, track metadata, decision, session context, and memory categories. Up to 16 tracks with multiple Plaits engines, 11 processor types, Tides modulator, drum rack with pad grid, canonical events, semantic controls, role-aware state compression, per-project memory, motif development, and chain/modulation/arrangement recipes. | [ai-contract.md](./ai-contract.md) | Implemented |
 | **Canonical model** | The data model that all current and future tools operate on. Voices, regions, events, control schemas, adapters, provenance. Defines the stable internal vocabulary. | [canonical-musical-model.md](../rfcs/canonical-musical-model.md) | Partially implemented (regions, events, provenance landed; adapters, full schema in progress) |
 | **Musical environment** (this document) | The target environment where the AI reasons about project phase, track roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — not yet implemented |
 
@@ -442,9 +442,9 @@ Each layer subsumes the one below it: the musical environment will be expressed 
 
 ## Migration Strategy
 
-Status as of Finalization phase (M0–M6 complete):
+Status as of Finalization phase (M0–M6 complete, Surface milestone shipped):
 
-Much of what was planned for M4 and M5 has landed: the current contract includes approval levels, preservation constraints, reaction history, restraint guidance, pattern management, sequence management, motif development, and arrangement tools. The remaining gap is phrase-level editing (extend a 4-bar idea into 16 bars, create controlled variation cycles) and the full track-layer summaries described above. These are post-Finalization work.
+Much of what was planned for M4 and M5 has landed: the current contract includes approval levels, preservation constraints, reaction history, restraint guidance, pattern management, sequence management, motif development, arrangement archetypes, chain/modulation/mix-role recipes, drum rack with pad grid notation, per-project memory (direction/track-narrative/decision), role-aware state compression (bass tracker rows, pad chord blocks), inline parameter shapes, per-track swing, audio sidechaining, spectral slot management, timbral shaping, track relationships, and Surface view curation (7 module types, visual identity, pin controls). The remaining gap is phrase-level editing (extend a 4-bar idea into 16 bars, create controlled variation cycles) and the full track-layer summaries described above. These are post-Finalization work.
 
 ---
 
