@@ -366,7 +366,14 @@ export function AppShell({
               onTimeSignatureChange={onTimeSignatureChange}
             />
           </div>
-          <div className="shrink-0 flex items-center gap-1 px-3 border-l border-zinc-800/30">
+          <div className="shrink-0 flex items-center gap-2 px-3">
+            <ABControls
+              abActive={abActive}
+              onAbCapture={onAbCapture}
+              onAbToggle={onAbToggle}
+              onAbClear={onAbClear}
+            />
+            <div className="w-px h-4 bg-zinc-800/60" />
             <UndoButton
               onClick={onUndo}
               disabled={undoStack.length === 0}
@@ -378,8 +385,10 @@ export function AppShell({
               disabled={redoStack.length === 0}
               description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
             />
-            <div className="w-px h-4 bg-zinc-800" />
+            <div className="w-px h-4 bg-zinc-800/60" />
             <span className="text-[11px] font-semibold text-zinc-500 tracking-tight lowercase select-none shrink-0">gluon</span>
+            <div className="w-px h-4 bg-zinc-800/60" />
+            <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} compact />
           </div>
         </div>
 
@@ -503,8 +512,15 @@ export function AppShell({
             onTimeSignatureChange={onTimeSignatureChange}
           />
         </div>
-        {/* Right zone: collaboration controls (undo/redo + A/B) */}
-        <div className="shrink-0 flex items-center gap-1 px-3 border-l border-zinc-800/30">
+        {/* Right zone: A/B + undo/redo + wordmark + status dot */}
+        <div className="shrink-0 flex items-center gap-2 px-3">
+          <ABControls
+            abActive={abActive}
+            onAbCapture={onAbCapture}
+            onAbToggle={onAbToggle}
+            onAbClear={onAbClear}
+          />
+          <div className="w-px h-4 bg-zinc-800/60" />
           <UndoButton
             onClick={onUndo}
             disabled={undoStack.length === 0}
@@ -516,15 +532,10 @@ export function AppShell({
             disabled={redoStack.length === 0}
             description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
           />
-          <div className="w-px h-4 bg-zinc-800" />
-          <ABControls
-            abActive={abActive}
-            onAbCapture={onAbCapture}
-            onAbToggle={onAbToggle}
-            onAbClear={onAbClear}
-          />
-          <div className="w-px h-4 bg-zinc-800" />
+          <div className="w-px h-4 bg-zinc-800/60" />
           <span className="text-[11px] font-semibold text-zinc-500 tracking-tight lowercase select-none shrink-0">gluon</span>
+          <div className="w-px h-4 bg-zinc-800/60" />
+          <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} compact />
         </div>
       </div>
 

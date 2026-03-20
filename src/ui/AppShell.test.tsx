@@ -201,7 +201,7 @@ describe('AppShell smoke render', () => {
 
   it('shows model status indicator', () => {
     render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: true })} />);
-    expect(screen.getByTestId('model-status-label').textContent).toBe('AI Connected');
+    expect(screen.getByTestId('model-status-label').textContent).toBe('Connected');
   });
 
   it('shows "no audio eval" when listener is unconfigured', () => {
