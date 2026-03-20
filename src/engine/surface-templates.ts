@@ -365,6 +365,42 @@ function resolveModule(module: SurfaceModule, track: Track): SurfaceModule {
 }
 
 // ---------------------------------------------------------------------------
+// Module equality
+// ---------------------------------------------------------------------------
+
+/**
+ * Serialise the parts of a SurfaceModule that matter for equality:
+ * id, type, bindings, and semantic-control weights (which contain resolved
+ * processor IDs). Position and label changes are cosmetic and ignored.
+ */
+function moduleFingerprint(m: SurfaceModule): string {
+  const bindingsKey = m.bindings
+    .map(b => `${b.role}:${b.trackId}:${b.target}`)
+    .join('|');
+  let weightsKey = '';
+  if (m.type === 'macro-knob' && m.config.semanticControl) {
+    const sc = m.config.semanticControl as SemanticControlDef;
+    weightsKey = sc.weights
+      .map(w => `${w.moduleId}:${w.controlId}:${w.weight}:${w.transform}`)
+      .join('|');
+  }
+  return `${m.id}::${m.type}::${bindingsKey}::${weightsKey}`;
+}
+
+/**
+ * Compare two module arrays for functional equality.
+ * Catches processor-ID changes inside semantic control weights that a simple
+ * ID-list comparison would miss.
+ */
+function surfaceModulesEqual(a: SurfaceModule[], b: SurfaceModule[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (moduleFingerprint(a[i]) !== moduleFingerprint(b[i])) return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Template application
 // ---------------------------------------------------------------------------
 
@@ -379,10 +415,10 @@ export function applySurfaceTemplate(track: Track): TrackSurface | null {
 
   const resolvedModules = template.modules.map(m => resolveModule(m, track));
 
-  // Skip if the surface wouldn't actually change
-  const currentIds = track.surface.modules.map(m => m.id).join(',');
-  const newIds = resolvedModules.map(m => m.id).join(',');
-  if (currentIds === newIds) return null;
+  // Skip if the surface wouldn't actually change.
+  // Compare module IDs and resolved configs (especially semantic control weights
+  // which contain processor IDs that change when the chain is rebuilt).
+  if (surfaceModulesEqual(track.surface.modules, resolvedModules)) return null;
 
   return {
     ...track.surface,
