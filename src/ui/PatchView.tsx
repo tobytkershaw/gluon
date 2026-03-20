@@ -45,12 +45,11 @@ const OUTPUT_NODE_H = NODE_HEADER_H + 8;
 
 // --- Port signal type colors ---
 
-function portSignalColor(signal: PortSignalType): string {
-  switch (signal) {
-    case 'audio': return 'bg-amber-400/80 border-amber-300';
-    case 'cv':    return 'bg-emerald-400/60 border-emerald-300';
-    case 'gate':  return 'bg-rose-400/60 border-rose-300';
-  }
+// portSignalColor is no longer used — port circles now use inline styles with
+// portSignalStroke() for the fill and #1c1917 border (matching the mockup).
+// Kept as a reference only.
+function portSignalColor(_signal: PortSignalType): string {
+  return '';
 }
 
 function portSignalStroke(signal: PortSignalType): string {
@@ -61,12 +60,8 @@ function portSignalStroke(signal: PortSignalType): string {
   }
 }
 
-function portSignalLabelColor(signal: PortSignalType): string {
-  switch (signal) {
-    case 'audio': return 'text-amber-300';
-    case 'cv':    return 'text-emerald-300';
-    case 'gate':  return 'text-rose-300';
-  }
+function portSignalLabelColor(_signal: PortSignalType): string {
+  return 'text-[#a8a39a]';
 }
 
 // --- Helpers ---
@@ -261,63 +256,43 @@ function computeTargetPorts(nodes: NodePos[], track: Track): PortInfo[] {
 
 // --- Node type styling ---
 
-/** Background style per node kind (subtle gradient) */
-function nodeBgStyle(kind: NodePos['kind']): React.CSSProperties {
+/** Background style per node kind — flat dark card matching mockup */
+function nodeBgStyle(_kind: NodePos['kind']): React.CSSProperties {
+  return { background: '#1c1917' };
+}
+
+/** Accent bar color per node kind (4px left bar on header) */
+function accentBarColor(kind: NodePos['kind']): string {
   switch (kind) {
-    case 'source': return { background: 'linear-gradient(180deg, rgba(120,53,15,0.18) 0%, rgba(39,39,42,1) 40%)' };
-    case 'processor': return { background: 'linear-gradient(180deg, rgba(76,29,149,0.15) 0%, rgba(39,39,42,1) 40%)' };
-    case 'modulator': return { background: 'linear-gradient(180deg, rgba(8,145,178,0.15) 0%, rgba(39,39,42,1) 40%)' };
-    default: return {};
+    case 'source': return '#fbbf24';     // amber
+    case 'processor': return '#38bdf8';  // sky
+    case 'modulator': return '#a78bfa';  // violet
+    default: return '#3d3935';
   }
 }
 
-/** Header strip color per node kind */
-function headerStripColor(kind: NodePos['kind']): string {
-  switch (kind) {
-    case 'source': return 'bg-amber-600/60';
-    case 'processor': return 'bg-violet-600/50';
-    case 'modulator': return 'bg-cyan-600/50';
-    default: return 'bg-zinc-700/50';
-  }
+/** Header text color — uniform across all node kinds per mockup */
+function headerTextColor(_kind: NodePos['kind']): string {
+  return 'text-[#e5e2dc]';
 }
 
-/** Header text color per node kind */
-function headerTextColor(kind: NodePos['kind']): string {
-  switch (kind) {
-    case 'source': return 'text-amber-100';
-    case 'processor': return 'text-violet-100';
-    case 'modulator': return 'text-cyan-100';
-    default: return 'text-zinc-200';
-  }
-}
-
-// Border color per node kind
-function accentColor(kind: NodePos['kind']): string {
-  switch (kind) {
-    case 'source': return 'border-amber-700/60';
-    case 'processor': return 'border-violet-700/50';
-    case 'modulator': return 'border-cyan-700/50';
-    default: return '';
-  }
+// Border color per node kind — matches mockup stroke rgba(61,57,53,0.6)
+function accentColor(_kind: NodePos['kind']): string {
+  return 'border-[rgba(61,57,53,0.6)]';
 }
 
 function selectedBorderColor(kind: NodePos['kind']): string {
   switch (kind) {
     case 'source': return 'border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.35)]';
-    case 'processor': return 'border-violet-500 shadow-[0_0_12px_rgba(139,92,246,0.35)]';
-    case 'modulator': return 'border-cyan-500 shadow-[0_0_12px_rgba(6,182,212,0.35)]';
+    case 'processor': return 'border-sky-500 shadow-[0_0_12px_rgba(56,189,248,0.35)]';
+    case 'modulator': return 'border-violet-500 shadow-[0_0_12px_rgba(167,139,250,0.35)]';
     default: return '';
   }
 }
 
 /** Default shadow for unselected nodes */
-function defaultShadow(kind: NodePos['kind']): string {
-  switch (kind) {
-    case 'source': return 'shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_1px_rgba(245,158,11,0.15)]';
-    case 'processor': return 'shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_1px_rgba(139,92,246,0.12)]';
-    case 'modulator': return 'shadow-[0_2px_8px_rgba(0,0,0,0.4),0_0_1px_rgba(6,182,212,0.12)]';
-    default: return 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]';
-  }
+function defaultShadow(_kind: NodePos['kind']): string {
+  return 'shadow-[0_2px_8px_rgba(0,0,0,0.3)]';
 }
 
 // --- Bezier helpers ---
@@ -514,11 +489,17 @@ function InputPortColumn({ ports, nodeH: _nodeH }: { ports: ResolvedPort[]; node
           style={{ left: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
           <div
-            className={`rounded-full border-[1.5px] ${portSignalColor(port.def.signal)} shadow-[0_0_3px_rgba(0,0,0,0.3)]`}
-            style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
+            className="rounded-full"
+            style={{
+              width: PORT_CIRCLE_R * 2,
+              height: PORT_CIRCLE_R * 2,
+              flexShrink: 0,
+              backgroundColor: portSignalStroke(port.def.signal),
+              border: '2px solid #1c1917',
+            }}
           />
           <span
-            className={`text-[10px] font-medium leading-none truncate ${portSignalLabelColor(port.def.signal)}`}
+            className={`font-mono text-[9px] leading-none truncate ${portSignalLabelColor(port.def.signal)}`}
             style={{ maxWidth: 60 }}
             title={port.def.name}
           >
@@ -542,15 +523,21 @@ function OutputPortColumn({ ports, nodeW: _nodeW }: { ports: ResolvedPort[]; nod
           style={{ right: -PORT_CIRCLE_R, top: port.yOffset - PORT_CIRCLE_R }}
         >
           <span
-            className={`text-[10px] font-medium leading-none truncate ${portSignalLabelColor(port.def.signal)}`}
+            className={`font-mono text-[9px] leading-none truncate ${portSignalLabelColor(port.def.signal)}`}
             style={{ maxWidth: 60 }}
             title={port.def.name}
           >
             {port.def.name}
           </span>
           <div
-            className={`rounded-full border-[1.5px] ${portSignalColor(port.def.signal)} shadow-[0_0_3px_rgba(0,0,0,0.3)]`}
-            style={{ width: PORT_CIRCLE_R * 2, height: PORT_CIRCLE_R * 2, flexShrink: 0 }}
+            className="rounded-full"
+            style={{
+              width: PORT_CIRCLE_R * 2,
+              height: PORT_CIRCLE_R * 2,
+              flexShrink: 0,
+              backgroundColor: portSignalStroke(port.def.signal),
+              border: '2px solid #1c1917',
+            }}
           />
         </div>
       ))}
@@ -583,15 +570,32 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
           onDragStart?.(e, node.id, node.x, node.y);
         }}
       >
-        {/* Input port on left side */}
+        {/* Input port on left side — audio amber */}
         <div
-          className="absolute w-3.5 h-3.5 rounded-full bg-zinc-600 border-[1.5px] border-zinc-400"
-          style={{ left: -7, top: OUTPUT_R - 7 }}
+          className="absolute rounded-full"
+          style={{
+            left: -PORT_CIRCLE_R,
+            top: OUTPUT_R - PORT_CIRCLE_R,
+            width: PORT_CIRCLE_R * 2,
+            height: PORT_CIRCLE_R * 2,
+            backgroundColor: '#fbbf24',
+            border: '2px solid #282523',
+          }}
         />
-        <div className={`w-9 h-9 rounded-full border-2 shadow-[0_2px_8px_rgba(0,0,0,0.4)] ${selected ? 'bg-zinc-600 border-zinc-300 shadow-[0_0_12px_rgba(161,161,170,0.4)]' : 'bg-zinc-700 border-zinc-500'}`} />
-        <span className="text-[11px] font-medium text-zinc-400 mt-1 whitespace-nowrap select-none">
-          {node.label}
-        </span>
+        <div
+          className={`rounded-full ${selected ? 'shadow-[0_0_12px_rgba(161,161,170,0.4)]' : ''}`}
+          style={{
+            width: OUTPUT_R * 2,
+            height: OUTPUT_R * 2,
+            background: '#282523',
+            border: `1px solid rgba(61,57,53,0.6)`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <span className="font-mono text-[8px] text-[#7c776e] select-none">OUT</span>
+        </div>
       </div>
     );
   }
@@ -614,16 +618,23 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
         onDragStart?.(e, node.id, node.x, node.y);
       }}
     >
-      {/* Colored header strip */}
-      <div className={`${headerStripColor(node.kind)} rounded-t-[5px] px-3 py-1.5`}>
-        <div className={`text-[11px] font-semibold truncate leading-tight ${node.bypassed ? 'text-zinc-500 line-through' : headerTextColor(node.kind)}`} title={node.label}>
-          {node.label}
-        </div>
-        {node.sublabel && (
-          <div className="text-[11px] text-zinc-400 truncate leading-tight mt-0.5" title={node.sublabel}>
-            {node.sublabel}
+      {/* Header with accent bar on left edge */}
+      <div className="relative rounded-t-lg" style={{ borderBottom: '1px solid rgba(61,57,53,0.3)' }}>
+        {/* Accent bar */}
+        <div
+          className="absolute left-0 top-0 rounded-tl-lg"
+          style={{ width: 4, height: NODE_HEADER_H, backgroundColor: accentBarColor(node.kind), borderRadius: '8px 0 0 0' }}
+        />
+        <div className="px-4 py-1.5">
+          <div className={`text-[12px] font-semibold truncate leading-tight font-[Syne] ${node.bypassed ? 'text-zinc-500 line-through' : headerTextColor(node.kind)}`} title={node.label}>
+            {node.label}
           </div>
-        )}
+          {node.sublabel && (
+            <div className="font-mono text-[9px] text-[#7c776e] truncate leading-tight mt-0.5 uppercase" title={node.sublabel}>
+              {node.sublabel}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Named I/O ports */}
@@ -637,7 +648,7 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
           style={{ left: NODE_W / 2 - 10, top: -10 }}
         >
           {/* Visual port */}
-          <div className="absolute w-3.5 h-3.5 rounded-full bg-cyan-500/50 border-[1.5px] border-cyan-400 shadow-[0_0_4px_rgba(6,182,212,0.3)]" />
+          <div className="absolute w-3.5 h-3.5 rounded-full bg-emerald-500/50 border-[1.5px] border-emerald-400 shadow-[0_0_4px_rgba(52,211,153,0.3)]" />
           {/* Hit area */}
           <div
             className="absolute w-5 h-5 rounded-full cursor-crosshair"
@@ -672,14 +683,14 @@ function NodeCard({ node, selected, onDragStart, isDragging, onModulatorPortMous
                 <div
                   className={`rounded-full border transition-transform ${
                     isHovered && dragState
-                      ? 'w-3 h-3 bg-cyan-400/60 border-cyan-300 scale-125'
-                      : 'w-2 h-2 bg-cyan-400/30 border-cyan-400/50'
+                      ? 'w-3 h-3 bg-emerald-400/60 border-emerald-300 scale-125'
+                      : 'w-2 h-2 bg-emerald-400/30 border-emerald-400/50'
                   }`}
                   style={{ pointerEvents: 'none' }}
                 />
                 {/* Param label */}
                 <span
-                  className="text-[9px] text-cyan-400/50 mt-0.5 leading-none truncate text-center"
+                  className="text-[9px] text-emerald-400/50 mt-0.5 leading-none truncate text-center"
                   style={{ pointerEvents: 'none', maxWidth: 56 }}
                   title={port.paramLabel}
                 >
@@ -746,7 +757,7 @@ function AudioEdgeSvg({ edge }: { edge: AudioEdge }) {
       stroke={edge.stroke}
       strokeWidth={2}
       fill="none"
-      opacity={0.7}
+      opacity={0.6}
     />
   );
 }
@@ -781,12 +792,12 @@ function ModEdgeSvg({ edge, selected, onSelect, onContextMenu }: {
           onContextMenu?.(edge.routeId, e.clientX, e.clientY);
         }}
       />
-      {/* Visible edge */}
+      {/* Visible edge — emerald dashed per mockup */}
       <path
         d={pathD}
-        stroke={selected ? '#67e8f9' : '#22d3ee'}
-        strokeWidth={selected ? 1.5 : 1}
-        strokeDasharray="4 3"
+        stroke={selected ? '#6ee7b7' : '#34d399'}
+        strokeWidth={1.5}
+        strokeDasharray="6 3"
         fill="none"
         opacity={selected ? 1 : 0.7}
         markerEnd={selected ? 'url(#mod-arrow-selected)' : 'url(#mod-arrow)'}
@@ -826,7 +837,7 @@ function ModDepthOverlay({ edge, onDepthChange, onDepthCommit }: {
         max={1}
         step={0.01}
         decimals={2}
-        className="text-[11px] text-cyan-300/80 hover:text-cyan-200"
+        className="text-[11px] text-emerald-300/80 hover:text-emerald-200"
         onChange={(v) => onDepthChange(edge.routeId, v)}
         onCommit={onDepthCommit ? (v) => onDepthCommit(edge.routeId, v) : undefined}
       />
@@ -852,22 +863,22 @@ function DragPreviewEdge({ drag, snapped }: { drag: DragState; snapped: boolean 
     >
       <path
         d={pathD}
-        stroke={snapped ? '#67e8f9' : '#22d3ee'}
-        strokeWidth={snapped ? 1.5 : 1}
-        strokeDasharray="4 3"
+        stroke={snapped ? '#6ee7b7' : '#34d399'}
+        strokeWidth={1.5}
+        strokeDasharray="4 4"
         fill="none"
-        opacity={snapped ? 0.9 : 0.5}
+        opacity={snapped ? 0.9 : 0.4}
       />
       {/* Snap indicator circle at cursor position */}
       {snapped && (
         <circle
           cx={drag.mouseX}
           cy={drag.mouseY}
-          r={5}
+          r={4}
           fill="none"
-          stroke="#67e8f9"
+          stroke="#34d399"
           strokeWidth={1.5}
-          opacity={0.8}
+          opacity={0.4}
         />
       )}
     </svg>
@@ -1336,16 +1347,78 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
   const selectedNode = selectedNodeId ? nodes.find(n => n.id === selectedNodeId) : null;
   const zoomPercent = Math.round(panZoom.zoom * 100);
 
+  // Snap toggle state (local UI only)
+  const [snapEnabled, setSnapEnabled] = useState(true);
+
   if (!track) return <EmptyState />;
 
   return (
-    <div className="flex-1 flex flex-col h-full">
-      {/* Track header */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-        <span className="text-[12px] font-medium tracking-wider uppercase text-zinc-300">
-          {getTrackLabel(track)}
-        </span>
-        <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Patch</span>
+    <div className="flex-1 flex flex-col h-full" style={{ background: '#0f0e0c' }}>
+      {/* Toolbar — zoom controls, snap, auto-layout */}
+      <div
+        className="flex items-center gap-3 flex-shrink-0"
+        style={{
+          padding: '8px 16px',
+          background: '#1c1917',
+          borderBottom: '1px solid rgba(61,57,53,0.6)',
+        }}
+      >
+        {/* Zoom controls */}
+        <div className="flex items-center gap-1">
+          <button
+            className="px-2 py-0.5 rounded font-mono text-[9px] border cursor-pointer hover:bg-[#282523] hover:text-[#a8a39a] hover:border-[rgba(61,57,53,0.6)] transition-colors"
+            style={{ background: 'none', color: '#7c776e', borderColor: 'rgba(61,57,53,0.3)' }}
+            onClick={() => setPanZoom(prev => {
+              const newZoom = Math.max(MIN_ZOOM, prev.zoom - 0.1);
+              return { ...prev, zoom: newZoom };
+            })}
+          >
+            -
+          </button>
+          <span className="font-mono text-[9px] text-[#7c776e] min-w-[32px] text-center select-none">
+            {zoomPercent}%
+          </span>
+          <button
+            className="px-2 py-0.5 rounded font-mono text-[9px] border cursor-pointer hover:bg-[#282523] hover:text-[#a8a39a] hover:border-[rgba(61,57,53,0.6)] transition-colors"
+            style={{ background: 'none', color: '#7c776e', borderColor: 'rgba(61,57,53,0.3)' }}
+            onClick={() => setPanZoom(prev => {
+              const newZoom = Math.min(MAX_ZOOM, prev.zoom + 0.1);
+              return { ...prev, zoom: newZoom };
+            })}
+          >
+            +
+          </button>
+        </div>
+        {/* Divider */}
+        <div style={{ width: 1, height: 16, background: 'rgba(61,57,53,0.6)' }} />
+        {/* Snap toggle */}
+        <button
+          className="px-2 py-0.5 rounded font-mono text-[9px] border cursor-pointer transition-colors"
+          style={snapEnabled ? {
+            background: 'rgba(251,191,36,0.1)',
+            color: '#fbbf24',
+            borderColor: 'rgba(251,191,36,0.3)',
+          } : {
+            background: 'none',
+            color: '#7c776e',
+            borderColor: 'rgba(61,57,53,0.3)',
+          }}
+          onClick={() => setSnapEnabled(prev => !prev)}
+        >
+          Snap
+        </button>
+        {/* Auto-layout */}
+        <button
+          className="px-2 py-0.5 rounded font-mono text-[9px] border cursor-pointer hover:bg-[#282523] hover:text-[#a8a39a] hover:border-[rgba(61,57,53,0.6)] transition-colors"
+          style={{ background: 'none', color: '#7c776e', borderColor: 'rgba(61,57,53,0.3)' }}
+          onClick={() => {
+            setNodeOffsets({});
+            hasAutoFitRef.current = false;
+            requestAnimationFrame(() => handleFitToView());
+          }}
+        >
+          Auto-layout
+        </button>
       </div>
 
       {/* Graph area */}
@@ -1369,13 +1442,20 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
             style={{ width: maxX, height: maxY }}
             onMouseDown={handleCanvasMouseDown}
           >
-            {/* SVG audio edge layer (non-interactive, behind nodes) */}
+            {/* SVG background grid + audio edge layer (non-interactive, behind nodes) */}
             <svg
               className="absolute inset-0"
               width={maxX}
               height={maxY}
               style={{ pointerEvents: 'none' }}
             >
+              {/* Background grid pattern — 20px spacing per mockup */}
+              <defs>
+                <pattern id="patch-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(61,57,53,0.15)" strokeWidth="0.5" />
+                </pattern>
+              </defs>
+              <rect width={maxX} height={maxY} fill="url(#patch-grid)" />
               {audioEdges.map((e, i) => (
                 <AudioEdgeSvg key={`audio-${i}`} edge={e} />
               ))}
@@ -1442,7 +1522,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
                   markerHeight="6"
                   orient="auto-start-reverse"
                 >
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#22d3ee" opacity="0.7" />
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#34d399" opacity="0.7" />
                 </marker>
                 <marker
                   id="mod-arrow-selected"
@@ -1453,7 +1533,7 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
                   markerHeight="6"
                   orient="auto-start-reverse"
                 >
-                  <polygon points="0 0, 10 3.5, 0 7" fill="#67e8f9" />
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#6ee7b7" />
                 </marker>
               </defs>
               {modEdges.map((e) => (
@@ -1489,32 +1569,36 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </div>
         </div>
 
-        {/* Toolbar buttons (outside transform) */}
-        <div className="absolute bottom-3 right-3 flex items-center gap-2">
-          {(onAddProcessor || onAddModulator) && (
+        {/* Port legend (bottom-right, outside transform) */}
+        <div className="absolute bottom-3 right-3 flex flex-col gap-1 select-none">
+          <div className="flex items-center gap-1.5">
+            <div className="rounded-full" style={{ width: 8, height: 8, backgroundColor: '#fbbf24' }} />
+            <span className="font-mono text-[8px] text-[#7c776e]">Audio</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="rounded-full" style={{ width: 8, height: 8, backgroundColor: '#34d399' }} />
+            <span className="font-mono text-[8px] text-[#7c776e]">CV</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="rounded-full" style={{ width: 8, height: 8, backgroundColor: '#fb7185' }} />
+            <span className="font-mono text-[8px] text-[#7c776e]">Gate</span>
+          </div>
+        </div>
+
+        {/* Add module button (bottom-left) */}
+        {(onAddProcessor || onAddModulator) && (
+          <div className="absolute bottom-3 left-3">
             <button
-              className="h-6 px-2 flex items-center gap-1 rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors text-[11px] font-mono uppercase tracking-wider"
+              className="h-6 px-2 flex items-center gap-1 rounded border cursor-pointer transition-colors text-[11px] font-mono uppercase tracking-wider"
+              style={{ background: '#282523', borderColor: 'rgba(61,57,53,0.6)', color: '#a8a39a' }}
               title="Add module"
               onClick={() => setBrowserOpen(true)}
             >
               <span className="text-sm leading-none">+</span>
               <span>Module</span>
             </button>
-          )}
-          <span className="text-[11px] text-zinc-500 font-mono tabular-nums select-none">
-            {zoomPercent}%
-          </span>
-          <button
-            className="w-6 h-6 flex items-center justify-center rounded bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
-            title="Fit to view"
-            onClick={handleFitToView}
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <rect x="2" y="2" width="10" height="10" rx="1" />
-              <path d="M2 5H5V2M9 2V5H12M12 9H9V12M5 12V9H2" />
-            </svg>
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Right-click context menu on modulation cable */}
