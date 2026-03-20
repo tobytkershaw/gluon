@@ -95,14 +95,12 @@ describe('State compression: session intent', () => {
     expect(result.genre_reference_overlays).toEqual([
       expect.objectContaining({
         genre: 'techno',
-        profileId: 'techno_minimal',
-        lufs: { min: -12, max: -7 },
-        dynamicRange: { min: 5, max: 12 },
-        crestFactor: { min: 5, max: 10 },
-        spectralCentroidHz: { min: 1200, max: 3000 },
+        profile: 'techno_minimal',
+        targetLufs: [-12, -7],
+        centroidHz: [1200, 3000],
       }),
     ]);
-    expect(result.genre_reference_overlays?.[0].frequencyBalance).toHaveLength(6);
+    expect(result.genre_reference_overlays?.[0].mixNotes).toBeDefined();
   });
 
   it('dedupes overlays when multiple genre tags resolve to the same profile', () => {
@@ -112,7 +110,7 @@ describe('State compression: session intent', () => {
     const result = compressState(session);
 
     expect(result.genre_reference_overlays).toHaveLength(1);
-    expect(result.genre_reference_overlays?.[0].profileId).toBe('techno_minimal');
+    expect(result.genre_reference_overlays?.[0].profile).toBe('techno_minimal');
   });
 
   it('omits overlays when no genre tag matches a reference profile', () => {

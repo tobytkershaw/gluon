@@ -208,7 +208,7 @@ describe('analyze tool validation', () => {
 
       const errors = result.errors as string[] | undefined;
       expect(errors).toBeDefined();
-      expect(errors!.some(e => e.includes('duplicate snapshots for track'))).toBe(true);
+      expect(errors!.some(e => e.includes('Duplicate track scope'))).toBe(true);
       expect((result.results as Record<string, unknown>).masking).toBeUndefined();
     });
 
@@ -246,7 +246,7 @@ describe('analyze tool validation', () => {
 
       // masking should error
       const errors = result.errors as string[];
-      expect(errors.some(e => e.includes('duplicate snapshots'))).toBe(true);
+      expect(errors.some(e => e.includes('Duplicate track scope'))).toBe(true);
 
       // spectral should still succeed
       const results = result.results as Record<string, unknown>;

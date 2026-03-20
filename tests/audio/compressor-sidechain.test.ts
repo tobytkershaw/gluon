@@ -93,7 +93,7 @@ describe('Compressor sidechain', () => {
       ),
     };
 
-    const spec = buildRenderSpec(session, [bassId], 1);
+    const spec = buildRenderSpec(session, [kickId, bassId], 1);
     const bassTrack = spec.tracks.find(t => t.id === bassId);
     expect(bassTrack).toBeDefined();
     const compProc = bassTrack!.processors.find(p => p.id === 'comp-sc');
