@@ -10,6 +10,7 @@ import type { Session, AIAction, ApprovalLevel, ParamSnapshot, PatternEditSnapsh
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
 import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
+import { shouldSkipTrackModelSync } from './track-sync';
 import { reprojectTrackStepGrid } from '../engine/region-projection';
 import { createPlaitsAdapter } from '../audio/plaits-adapter';
 import {
@@ -394,8 +395,9 @@ export default function App() {
       const key = track.id;
       const prev = prevTrackStateRef.current.get(key);
 
-      // Skip model/param sync for empty tracks (model -1 = no source module)
-      if (track.model === -1) {
+      // Skip model/param sync for empty tracks (model -1 = no source module),
+      // but NOT for drum-rack tracks whose pads still need reconciliation (#1129).
+      if (shouldSkipTrackModelSync(track)) {
         prevTrackStateRef.current.set(key, {
           model: track.model,
           params: { ...track.params },
