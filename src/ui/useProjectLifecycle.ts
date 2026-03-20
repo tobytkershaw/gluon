@@ -292,10 +292,10 @@ export function useProjectLifecycle(
     let remaining: ProjectMeta[];
     try {
       remaining = await listProjects();
-    } catch (err) {
-      loadingRef.current = false;
-      setActionError('Project deleted, but failed to refresh the remaining project list.', err);
-      return false;
+    } catch {
+      // listProjects failed — fall back to creating a fresh project so the
+      // app is never stranded with projectId === null (see #1199).
+      remaining = [];
     }
     if (remaining.length > 0) {
       return loadProjectById(remaining[0].id);

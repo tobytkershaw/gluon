@@ -241,6 +241,31 @@ describe('useProjectLifecycle', () => {
     expect(setSession.mock.calls[1]?.[0].bpm).toBe(137);
   });
 
+  it('recovers with a fresh project when listProjects fails after deletion (#1199)', async () => {
+    localStorage.setItem('gluon-active-project', 'p1');
+    loadProject.mockResolvedValue({ id: 'p1', meta: { id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }, session });
+    listProjects
+      .mockResolvedValueOnce([{ id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }])
+      // After deletion, listProjects throws — simulates IndexedDB failure
+      .mockRejectedValueOnce(new Error('IndexedDB read failed'))
+      .mockResolvedValueOnce([{ id: 'recovery', name: 'Untitled', createdAt: 7, updatedAt: 8 }]);
+    createProject.mockResolvedValue({ id: 'recovery', session: altSession });
+
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.projectId).toBe('p1'));
+
+    await act(async () => {
+      await result.current.deleteActiveProject();
+    });
+
+    // Key invariant: projectId must be non-null after deleteActiveProject returns
+    expect(result.current.projectId).toBe('recovery');
+    expect(result.current.projectName).toBe('Untitled');
+    expect(createProject).toHaveBeenCalledWith('Untitled');
+    expect(localStorage.getItem('gluon-active-project')).toBe('recovery');
+  });
+
   it('surfaces project load failures without switching away from the current project', async () => {
     localStorage.setItem('gluon-active-project', 'p1');
     loadProject.mockImplementation(async (id: string) => {
