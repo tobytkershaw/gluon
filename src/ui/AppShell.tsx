@@ -64,6 +64,10 @@ interface Props {
   streamingRejections?: { reason: string }[];
   reactions?: Reaction[];
   onReaction?: (messageIndex: number, verdict: 'approved' | 'rejected') => void;
+  // Audition (inline chat previews)
+  onAuditionStart?: (config: import('./AuditionControl').AuditionConfig) => void;
+  onAuditionStop?: () => void;
+  activeAuditionId?: string | null;
   openDecisions?: OpenDecision[];
   onDecisionRespond?: (decision: OpenDecision, response: string) => void;
   apiConfigured: boolean;
@@ -183,6 +187,7 @@ export function AppShell({
   setupDismissed = false,
   messages, onSend, isThinking, isListening, streamingText, streamingLogEntries, streamingRejections,
   reactions, onReaction,
+  onAuditionStart, onAuditionStop, activeAuditionId,
   openDecisions = [], onDecisionRespond,
   apiConfigured, listenerConfigured = false, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
   onCoinFlip,
@@ -407,7 +412,7 @@ export function AppShell({
               {(apiConfigured || setupDismissed) ? (
                 <>
                   <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                    <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} />
+                    <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} onAuditionStart={onAuditionStart} onAuditionStop={onAuditionStop} activeAuditionId={activeAuditionId} />
                   </div>
 
                   <div className="shrink-0 border-t border-zinc-800/40 pb-2">
