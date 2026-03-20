@@ -20,11 +20,10 @@ const EMPTY_PROJECT_STARTERS = [
 ];
 
 const TRACKS_EXIST_STARTERS = [
-  'Make the hats looser',
-  'Listen and tell me what clashes',
-  'Give me two directions for the bass',
-  'Add some variation to the pattern',
-  'What would you change about this mix?',
+  'Listen and tell me what you hear',
+  'What would you change?',
+  'Add something that complements this',
+  'Make it more interesting',
 ];
 
 const RESUME_STARTERS = [
