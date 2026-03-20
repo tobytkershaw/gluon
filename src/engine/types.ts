@@ -1282,6 +1282,8 @@ export interface ChatMessage {
   /** AI-suggested contextual reaction chips (e.g. "more tense", "brighter").
    *  Generated per-turn by the planner via the suggest_reactions tool. */
   suggestedReactions?: string[];
+  /** Audition metadata — when present, an inline audition control is rendered. */
+  audition?: { trackIds: string[]; barRange: [number, number]; loop: boolean };
 }
 
 // --- Helpers ---

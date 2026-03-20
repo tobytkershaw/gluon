@@ -202,6 +202,16 @@ export default function App() {
   // A/B comparison state
   const [abSnapshot, setAbSnapshot] = useState<ABSnapshot | null>(null);
   const [abActive, setAbActive] = useState<'a' | 'b' | null>(null);
+
+  // Audition state — snapshot/restore transport for inline chat audition controls
+  const [activeAuditionId, setActiveAuditionId] = useState<string | null>(null);
+  const auditionSnapshotRef = useRef<{
+    soloStates: Record<string, boolean>;
+    loopEnabled: boolean;
+    transportMode: 'pattern' | 'song';
+    wasPlaying: boolean;
+  } | null>(null);
+
   const arbRef = useRef(new Arbitrator());
   const [holdGeneration, setHoldGeneration] = useState(0);
   const autoRef = useRef(new AutomationEngine());
@@ -1872,6 +1882,90 @@ export default function App() {
     });
   }, [runWithActiveTurnInvalidation]);
 
+  // --- Audition handlers (chat inline preview) ---
+
+  const handleAuditionStart = useCallback(async (config: import('./AuditionControl').AuditionConfig) => {
+    if (!await ensureAudio()) return;
+    await audioRef.current.resume();
+    const s = sessionRef.current;
+
+    // Snapshot current transport state
+    const soloStates: Record<string, boolean> = {};
+    for (const t of s.tracks) soloStates[t.id] = t.solo;
+    auditionSnapshotRef.current = {
+      soloStates,
+      loopEnabled: s.transport.loop ?? true,
+      transportMode: (s.transport.mode ?? 'pattern') as 'pattern' | 'song',
+      wasPlaying: s.transport.status === 'playing',
+    };
+
+    // Create a unique ID for this audition
+    const auditionId = `${config.trackIds.join('-')}-${config.barRange[0]}-${config.barRange[1]}`;
+    setActiveAuditionId(auditionId);
+
+    // Apply audition state: solo only listed tracks, set loop, start playback
+    setSession(prev => {
+      let next = { ...prev };
+      // Solo only audition tracks
+      next = {
+        ...next,
+        tracks: next.tracks.map(t => ({
+          ...t,
+          solo: config.trackIds.includes(t.id),
+        })),
+      };
+      // Enable loop and set to pattern mode
+      next = {
+        ...next,
+        transport: {
+          ...next.transport,
+          loop: config.loop,
+          mode: 'pattern' as const,
+          status: 'playing' as const,
+        },
+      };
+      return next;
+    });
+  }, [ensureAudio]);
+
+  const handleAuditionStop = useCallback(() => {
+    const snapshot = auditionSnapshotRef.current;
+    if (!snapshot) {
+      setActiveAuditionId(null);
+      return;
+    }
+
+    // Stop playback first
+    transportControllerRef.current?.requestHardStop();
+
+    // Restore snapshot
+    setSession(prev => {
+      let next = { ...prev };
+      // Restore solo states
+      next = {
+        ...next,
+        tracks: next.tracks.map(t => ({
+          ...t,
+          solo: snapshot.soloStates[t.id] ?? false,
+        })),
+      };
+      // Restore transport settings
+      next = {
+        ...next,
+        transport: {
+          ...next.transport,
+          loop: snapshot.loopEnabled,
+          mode: snapshot.transportMode,
+          status: snapshot.wasPlaying ? 'playing' as const : 'stopped' as const,
+        },
+      };
+      return next;
+    });
+
+    auditionSnapshotRef.current = null;
+    setActiveAuditionId(null);
+  }, []);
+
   const handleTimeSignatureChange = useCallback((num: number, den: number) => {
     void runWithActiveTurnInvalidation(() => {
       setSession(s => setTimeSignature(s, num, den));
@@ -3194,6 +3288,9 @@ export default function App() {
       streamingRejections={streamingRejections}
       reactions={session.reactionHistory}
       onReaction={handleReaction}
+      onAuditionStart={handleAuditionStart}
+      onAuditionStop={handleAuditionStop}
+      activeAuditionId={activeAuditionId}
       openDecisions={(session.openDecisions ?? []).filter(d => !d.resolved)}
       onDecisionRespond={handleDecisionRespond}
       apiConfigured={apiConfigured}

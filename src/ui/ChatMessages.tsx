@@ -7,6 +7,7 @@ import { ListenEventView } from './ListenEventView';
 import { PromptStarters } from './PromptStarters';
 import { TurnSummaryCard } from './TurnSummaryCard';
 import { renderInlineMarkdown } from './inlineMarkdown';
+import { AuditionControl, type AuditionConfig } from './AuditionControl';
 
 /**
  * Derive a collaboration phase label from authoritative streaming state.
@@ -89,9 +90,14 @@ interface Props {
   sessionMessages?: ChatMessage[];
   /** Callback when user clicks a prompt starter chip. */
   onStarterSelect?: (prompt: string) => void;
+  /** Audition callbacks for inline chat preview controls. */
+  onAuditionStart?: (config: AuditionConfig) => void;
+  onAuditionStop?: () => void;
+  /** ID of the currently-active audition (null when none). */
+  activeAuditionId?: string | null;
 }
 
-export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingLogEntries = [], streamingRejections = [], reactions = [], onReaction, undoStack = [], onUndoMessage, tracks = [], sessionMessages, onStarterSelect }: Props) {
+export function ChatMessages({ messages, isThinking = false, isListening = false, streamingText = '', streamingLogEntries = [], streamingRejections = [], reactions = [], onReaction, undoStack = [], onUndoMessage, tracks = [], sessionMessages, onStarterSelect, onAuditionStart, onAuditionStop, activeAuditionId }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -170,6 +176,17 @@ export function ChatMessages({ messages, isThinking = false, isListening = false
                 <div className="text-sm leading-[1.6] break-words text-zinc-300 mt-2">
                   {renderInlineMarkdown(msg.text)}
                 </div>
+              )}
+              {msg.audition && onAuditionStart && onAuditionStop && (
+                <AuditionControl
+                  trackIds={msg.audition.trackIds}
+                  barRange={msg.audition.barRange}
+                  loop={msg.audition.loop}
+                  tracks={tracks}
+                  onStart={onAuditionStart}
+                  onStop={onAuditionStop}
+                  isPlaying={activeAuditionId === `${msg.audition.trackIds.join('-')}-${msg.audition.barRange[0]}-${msg.audition.barRange[1]}`}
+                />
               )}
               {hasActions && onStarterSelect && (
                 <TurnSummaryCard
