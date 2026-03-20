@@ -517,12 +517,17 @@ export class AudioEngine {
         this.sendSlots.set(otherTrackId, filtered);
       }
     }
-    // Clean up sidechain slots involving this track (as source or target)
+    // Clean up sidechain slots involving this track (as source or target).
+    // Use removeSidechainByKey so the surviving compressor's sidechain-enabled
+    // flag is properly cleared (sends 'sidechain-enabled: false' to the worklet).
+    const sidechainKeysToRemove: string[] = [];
     for (const [key, sc] of this.sidechainSlots) {
       if (sc.sourceTrackId === trackId || sc.targetTrackId === trackId) {
-        sc.tapGain.disconnect();
-        this.sidechainSlots.delete(key);
+        sidechainKeysToRemove.push(key);
       }
+    }
+    for (const key of sidechainKeysToRemove) {
+      this.removeSidechainByKey(key);
     }
     // Clean up active voices for this track
     for (const [eventId, voice] of this.activeVoices) {
