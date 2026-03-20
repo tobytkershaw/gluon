@@ -169,11 +169,16 @@ export async function importProject(json: string): Promise<{ id: string; name: s
   }
 
   const id = crypto.randomUUID();
-  // Check for name collision and suffix if needed
+  // Check for name collision and suffix with incrementing counter until unique
   const projects = await listProjects();
+  const existingNames = new Set(projects.map(p => p.name));
   let name = parsed.name ?? 'Imported';
-  if (projects.some(p => p.name === name)) {
-    name = `${name} (imported)`;
+  if (existingNames.has(name)) {
+    let counter = 2;
+    while (existingNames.has(`${parsed.name ?? 'Imported'} (${counter})`)) {
+      counter++;
+    }
+    name = `${parsed.name ?? 'Imported'} (${counter})`;
   }
   const migratedSession = restoreSession(parsed.session as Session, parsed.version ?? 0);
   await saveProject(id, name, migratedSession);
