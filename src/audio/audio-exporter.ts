@@ -99,12 +99,26 @@ export class AudioExporter {
     recorder.start();
 
     return new Promise((resolve, reject) => {
-      let stopped = false;
+      let settled = false;
       const stopRecorder = () => {
-        if (!stopped && recorder.state === 'recording') {
-          stopped = true;
+        if (recorder.state === 'recording') {
           recorder.stop();
+        } else if (!settled) {
+          // Recorder isn't recording (already errored or inactive) —
+          // onstop won't fire, so clear capturing and reject to avoid wedging.
+          settled = true;
+          this.capturing = false;
+          reject(new Error('MediaRecorder was not recording when stop was requested'));
         }
+      };
+
+      // Handle recorder errors — clear capturing so the exporter isn't wedged
+      recorder.onerror = (event) => {
+        if (settled) return;
+        settled = true;
+        this.capturing = false;
+        const errorEvent = event as MediaRecorderErrorEvent;
+        reject(errorEvent.error ?? new Error('MediaRecorder error'));
       };
 
       // --- Timing strategy ---
@@ -132,6 +146,8 @@ export class AudioExporter {
         recorder.onstop = async () => {
           clearInterval(poll);
           clearTimeout(fallback);
+          if (settled) return;
+          settled = true;
           this.capturing = false;
           try {
             const webmBlob = new Blob(chunks, { type: recorder.mimeType });
@@ -151,6 +167,8 @@ export class AudioExporter {
 
         recorder.onstop = async () => {
           clearTimeout(timer);
+          if (settled) return;
+          settled = true;
           this.capturing = false;
           try {
             const webmBlob = new Blob(chunks, { type: recorder.mimeType });
