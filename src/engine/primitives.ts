@@ -281,9 +281,14 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   if (snapshot.kind === 'drum-pad') {
     const track = session.tracks.find(v => v.id === snapshot.trackId);
     if (!track) return session;
-    return updateTrack(session, snapshot.trackId, {
+    const update: Parameters<typeof updateTrack>[2] = {
       drumRack: { ...(track.drumRack ?? { pads: [] }), pads: snapshot.prevPads },
-    });
+    };
+    // Restore patterns if they were snapshotted (pad removal with orphaned event cleanup)
+    if (snapshot.prevPatterns) {
+      update.patterns = snapshot.prevPatterns;
+    }
+    return updateTrack(session, snapshot.trackId, update);
   }
 
   if (snapshot.kind === 'memory') {
@@ -635,7 +640,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     const track = session.tracks.find(v => v.id === snapshot.trackId);
     if (!track) return { ...snapshot, timestamp: now };
     const currentPads = track.drumRack?.pads ?? [];
-    return {
+    const result: typeof snapshot = {
       ...snapshot,
       prevPads: currentPads.map(p => ({
         ...p,
@@ -643,6 +648,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
       })),
       timestamp: now,
     };
+    // Snapshot current patterns if the original snapshot had pattern data (pad removal with event cleanup)
+    if (snapshot.prevPatterns) {
+      result.prevPatterns = track.patterns.map(p => ({ ...p, events: [...p.events] }));
+    }
+    return result;
   }
 
   if (snapshot.kind === 'memory') {

@@ -2753,9 +2753,15 @@ function executeActionsInternal(
             newPads = [...prevPads, newPad];
             break;
           }
-          case 'remove':
+          case 'remove': {
             newPads = prevPads.filter(p => p.id !== action.padId);
+            // Snapshot patterns before scrubbing orphaned trigger events so undo can restore them
+            const hasEvents = track.patterns.some(p => p.events.some(e => e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === action.padId));
+            if (hasEvents) {
+              drumPadSnapshot.prevPatterns = track.patterns.map(p => ({ ...p, events: [...p.events] }));
+            }
             break;
+          }
           case 'rename':
             newPads = prevPads.map(p => p.id === action.padId ? { ...p, name: action.name! } : p);
             break;
@@ -2770,7 +2776,15 @@ function executeActionsInternal(
             rejected.push({ op: action, reason: `Unknown manage_drum_pad action: ${(action as { action: string }).action}` });
             continue;
         }
-        next = { ...updateTrack(next, action.trackId, { drumRack: { ...(track.drumRack ?? { pads: [] }), pads: newPads } }), undoStack: [...next.undoStack, drumPadSnapshot] };
+        // Build the track update: always update pads, and scrub orphaned events when removing a pad
+        const trackUpdate: Parameters<typeof updateTrack>[2] = { drumRack: { ...(track.drumRack ?? { pads: [] }), pads: newPads } };
+        if (action.action === 'remove' && drumPadSnapshot.prevPatterns) {
+          trackUpdate.patterns = track.patterns.map(p => ({
+            ...p,
+            events: p.events.filter(e => !(e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === action.padId)),
+          }));
+        }
+        next = { ...updateTrack(next, action.trackId, trackUpdate), undoStack: [...next.undoStack, drumPadSnapshot] };
         const padLabel = getTrackLabel(getTrack(next, action.trackId)).toUpperCase();
         log.push({ trackId: action.trackId, trackLabel: padLabel, description: `drum pad ${action.action}: ${action.padId}` });
         accepted.push(action);

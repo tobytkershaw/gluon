@@ -922,4 +922,114 @@ describe('drum-rack-actions', () => {
       expect(report.accepted).toHaveLength(1);
     });
   });
+
+  describe('manage_drum_pad remove cleans up orphaned trigger events (#1128)', () => {
+    it('removes trigger events for the deleted pad across all patterns', () => {
+      const { session, trackId } = setupDrumRackSession();
+
+      // Set up 8-step pattern and sketch triggers for all pads
+      let s = session;
+      const track = getTrack(s, trackId);
+      if (track.patterns.length > 0) {
+        const pattern = getActivePattern(track);
+        s = updateTrack(s, trackId, {
+          patterns: track.patterns.map(p => p.id === pattern.id ? { ...p, duration: 8 } : p),
+        });
+      }
+
+      const sketchActions: AIAction[] = [{
+        type: 'sketch',
+        trackId,
+        description: 'full kit',
+        kit: {
+          'kick':  'x...x...',
+          'snare': '....x...',
+          'hat':   'hhhhhhhh',
+        },
+      }];
+      const sketchReport = executeOperations(s, sketchActions, adapter, new Arbitrator());
+      expect(sketchReport.accepted).toHaveLength(1);
+
+      // Verify hat events exist
+      const eventsBeforeRemove = getActivePattern(getTrack(sketchReport.session, trackId)).events;
+      const hatsBefore = eventsBeforeRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      expect(hatsBefore.length).toBeGreaterThan(0);
+
+      // Remove the hat pad
+      const removeActions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'remove',
+        padId: 'hat',
+        description: 'remove hat pad',
+      }];
+      const removeReport = executeOperations(sketchReport.session, removeActions, adapter, new Arbitrator());
+      expect(removeReport.accepted).toHaveLength(1);
+
+      // The hat pad should be gone
+      const trackAfter = getTrack(removeReport.session, trackId);
+      expect(trackAfter.drumRack?.pads.some(p => p.id === 'hat')).toBe(false);
+
+      // Trigger events for hat should also be gone
+      const eventsAfterRemove = getActivePattern(trackAfter).events;
+      const hatsAfter = eventsAfterRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      expect(hatsAfter).toHaveLength(0);
+
+      // Other pad events should be preserved
+      const kicksAfter = eventsAfterRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const snaresAfter = eventsAfterRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
+      expect(kicksAfter).toHaveLength(2);
+      expect(snaresAfter).toHaveLength(1);
+    });
+
+    it('undo restores both the pad and its trigger events', () => {
+      const { session, trackId } = setupDrumRackSession();
+
+      // Set up 8-step pattern and sketch triggers
+      let s = session;
+      const track = getTrack(s, trackId);
+      if (track.patterns.length > 0) {
+        const pattern = getActivePattern(track);
+        s = updateTrack(s, trackId, {
+          patterns: track.patterns.map(p => p.id === pattern.id ? { ...p, duration: 8 } : p),
+        });
+      }
+
+      const sketchActions: AIAction[] = [{
+        type: 'sketch',
+        trackId,
+        description: 'full kit',
+        kit: {
+          'kick':  'x...x...',
+          'hat':   'hhhh....',
+        },
+      }];
+      const sketchReport = executeOperations(s, sketchActions, adapter, new Arbitrator());
+      expect(sketchReport.accepted).toHaveLength(1);
+
+      const hatCountBefore = getActivePattern(getTrack(sketchReport.session, trackId))
+        .events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat').length;
+      expect(hatCountBefore).toBe(4);
+
+      // Remove hat pad (should also remove hat events)
+      const removeActions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'remove',
+        padId: 'hat',
+        description: 'remove hat',
+      }];
+      const removeReport = executeOperations(sketchReport.session, removeActions, adapter, new Arbitrator());
+      expect(removeReport.accepted).toHaveLength(1);
+
+      // Undo should restore both pad and events
+      const afterUndo = applyUndo(removeReport.session);
+      const trackAfterUndo = getTrack(afterUndo, trackId);
+      expect(trackAfterUndo.drumRack?.pads.some(p => p.id === 'hat')).toBe(true);
+
+      const hatCountAfterUndo = getActivePattern(trackAfterUndo)
+        .events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat').length;
+      expect(hatCountAfterUndo).toBe(hatCountBefore);
+    });
+  });
 });
