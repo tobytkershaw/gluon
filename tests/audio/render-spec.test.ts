@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createSession, addTrack } from '../../src/engine/session';
+import { createSession, addTrack, addSend } from '../../src/engine/session';
 import { buildRenderSpec } from '../../src/audio/render-spec';
 
 describe('buildRenderSpec', () => {
@@ -249,5 +249,30 @@ describe('buildRenderSpec', () => {
     const paramEvents = spec.tracks[0].events.filter(e => e.type === 'set-patch');
     expect(paramEvents.length).toBeGreaterThanOrEqual(1);
     expect(paramEvents[0].patch?.timbre).toBeCloseTo(0.7, 2);
+  });
+
+  it('rejects offline render when selected tracks rely on non-master return buses (#1132)', () => {
+    let session = createSession();
+    session = addTrack(session, 'bus')!;
+    const returnBus = session.tracks.find(track => track.kind === 'bus' && track.id !== 'master-bus')!;
+    session = addSend(session, session.tracks[0].id, returnBus.id, 0.5)!;
+
+    expect(() => buildRenderSpec(session, undefined, 2)).toThrow(
+      `Offline render does not support send-return bus routing yet: track "${session.tracks[0].id}" sends to bus "${returnBus.id}".`,
+    );
+  });
+
+  it('still allows offline render for selected tracks that do not use return buses', () => {
+    let session = createSession();
+    session = addTrack(session)!;
+    session = addTrack(session, 'bus')!;
+    const audioTracks = session.tracks.filter(track => track.kind !== 'bus');
+    const returnBus = session.tracks.find(track => track.kind === 'bus' && track.id !== 'master-bus')!;
+    session = addSend(session, audioTracks[0].id, returnBus.id, 0.5)!;
+
+    const spec = buildRenderSpec(session, [audioTracks[1].id], 2);
+
+    expect(spec.tracks).toHaveLength(1);
+    expect(spec.tracks[0].id).toBe(audioTracks[1].id);
   });
 });
