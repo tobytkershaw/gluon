@@ -117,16 +117,17 @@ export function buildListenPromptWithLens(question?: string, lens?: ListenLens):
 // Comparative listening (before/after diff)
 // ---------------------------------------------------------------------------
 
-/** Base prompt for comparative (before/after) evaluation. */
+/** Base prompt for comparative evaluation. */
 const COMPARE_BASE_PROMPT = `You are an audio critic evaluating a musical instrument in the browser called Gluon. Gluon uses Mutable Instruments Plaits as its sound engine — a digital macro-oscillator with 16 synthesis models.
 
 You will receive:
 1. A symbolic description of the current project state (tracks, parameters, patterns)
-2. An audio clip containing TWO segments separated by a brief silence: the BEFORE clip (pre-edit) followed by the AFTER clip (post-edit)`;
+2. An audio clip of the current rendered output (post-edit state)`;
 
 /**
  * Build a comparative listen prompt.
- * The evaluator hears before/after audio and describes what changed.
+ * The evaluator hears the current state and evaluates it in light of
+ * the compare question (e.g. "did the bass get warmer?").
  */
 export function buildComparePrompt(question?: string, lens?: ListenLens): string {
   const hasQuestion = question && !isGenericQuestion(question);
@@ -138,10 +139,9 @@ export function buildComparePrompt(question?: string, lens?: ListenLens): string
 
   const guidelines = `
 ## Guidelines
-- Describe what changed between the BEFORE and AFTER clips
+- Evaluate the current audio in light of the comparative question
 - Be specific: reference frequencies, timing, synthesis parameters (timbre, harmonics, morph, frequency) where relevant
-- State whether the change is an improvement, a regression, or neutral — and why
-- If you cannot hear a meaningful difference, say so
+- Assess whether the current sound achieves the goal implied by the question
 - Keep responses concise — 2-4 sentences unless the question demands more
 - Be honest about quality issues: timing problems, harsh frequencies, thin sounds, etc.`;
 

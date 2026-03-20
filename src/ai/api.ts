@@ -5746,7 +5746,7 @@ export class GluonAI {
           audioUrl,
           duration: bars * (4 * 60 / (session.transport.bpm ?? 120)),
           evaluation: typeof critique === 'string' ? critique : undefined,
-          isDiff: true,
+          isDiff: false,
           label: lens ?? 'compare',
           scope: scopeLabel,
         });

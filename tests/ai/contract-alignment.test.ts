@@ -196,13 +196,15 @@ describe('AI Contract alignment with live implementation', () => {
     expect(json).not.toContain('"stepGrid"');
   });
 
-  // ── listen.compare documents current implementation limitations ─────────
-  it('contract documents that listen.compare does not yet render before-state', () => {
+  // ── listen.compare documents that it evaluates current state ────────────
+  it('contract documents that listen.compare evaluates current state', () => {
     const listenSection = contractText.match(/#### `listen`[\s\S]*?(?=####)/);
     expect(listenSection, 'Contract should have listen section').toBeTruthy();
     const section = listenSection![0];
-    // Must mention that true before/after rendering is not yet implemented
-    expect(section).toMatch(/not yet implemented|current state only|current.state/i);
+    // Must describe compare as rendering current state (not before/after)
+    expect(section).toMatch(/current state|compare-focused prompt/i);
+    // Must not promise before/after audio rendering
+    expect(section).not.toMatch(/beforeSessionIndex/i);
   });
 
   // ── Uses "track" not "voice" for entities ───────────────────────────────

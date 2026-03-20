@@ -103,7 +103,7 @@ Render audio offline and evaluate how it sounds. Works whether or not the transp
 | `trackIds` | string[] | no | Track IDs to render in isolation (e.g. `["Track 1", "Track 2"]` or `["v0", "v1"]`). Default: all unmuted tracks. |
 | `bars` | integer | no | Number of bars to render (1-16). Default: 2. |
 | `lens` | string | no | Focus the evaluation on a specific aspect. One of: `full-mix`, `low-end`, `rhythm`, `harmony`, `texture`, `dynamics`. |
-| `compare` | object | no | Request comparative evaluation. Contains `beforeSessionIndex` and `question`. **Note:** true before/after rendering is not yet implemented — the runtime currently renders only the current state and uses the compare prompt to frame evaluation as comparative. |
+| `compare` | object | no | Request comparative evaluation. Contains `question`. Renders the current state and sends it to the evaluator with a compare-focused prompt. For quantitative before/after diffs, use `render` + `analyze` with type `diff` instead. |
 
 Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Track isolation is built into the render — only the requested tracks are included. Within a single turn, `listen` evaluates the current projected state, including edits made earlier in the same tool loop.
 
