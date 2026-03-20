@@ -632,7 +632,7 @@ export function AppShell({
             onMasterVolumeChange={onMasterVolumeChange}
             onMasterInteractionStart={onMasterInteractionStart}
             onMasterInteractionEnd={onMasterInteractionEnd}
-            variant={view === 'surface' ? 'stage' : 'default'}
+            variant="default"
           />
           </div>
           {/* Main content (instrument view) */}
