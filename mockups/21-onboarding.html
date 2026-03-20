@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Onboarding</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── App shell ── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: var(--topbar-height);
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    .project-menu {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
+    }
+    .project-menu:hover { background: var(--bg-raised); }
+    .project-menu-name {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+    .project-menu-chevron { font-size: 12px; color: var(--text-muted); }
+
+    .topbar-spacer { flex: 1; }
+
+    .topbar-zone-left,
+    .topbar-zone-center,
+    .topbar-zone-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .view-tab.chat-active {
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .transport-group { display: flex; align-items: center; gap: 4px; width: 112px; flex-shrink: 0; }
+    .mode-group { display: flex; align-items: center; gap: 4px; width: 72px; flex-shrink: 0; }
+    .time-group { display: flex; align-items: center; gap: var(--space-sm); width: 200px; flex-shrink: 0; }
+    .meter-group { display: flex; align-items: center; width: 24px; flex-shrink: 0; }
+    .undo-group { display: flex; align-items: center; gap: 4px; width: 56px; flex-shrink: 0; }
+
+    .pattern-song-toggle {
+      display: flex;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+    .pattern-song-toggle button {
+      padding: 2px 8px; border: none; background: none;
+      color: var(--text-muted); font-family: var(--font-mono);
+      font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em;
+      cursor: pointer; transition: all var(--transition-fast);
+    }
+    .pattern-song-toggle button.active { background: var(--bg-raised); color: var(--text-secondary); }
+
+    .swing-display { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); min-width: 42px; }
+
+    .undo-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 24px; height: 22px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle); background: none;
+      color: var(--text-muted); cursor: pointer; transition: all var(--transition-fast);
+    }
+    .undo-btn.disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+    .undo-btn svg { width: 12px; height: 12px; }
+
+    .ab-btn {
+      padding: 3px 8px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle); background: none;
+      color: var(--text-muted); font-family: var(--font-mono);
+      font-size: var(--text-sm); cursor: pointer;
+    }
+
+    .gluon-wordmark-topbar {
+      font-family: var(--font-sans); font-weight: 700; font-size: 11px;
+      color: var(--text-muted); letter-spacing: -0.02em;
+      text-transform: lowercase; flex-shrink: 0;
+    }
+
+    .status-dot {
+      width: var(--dot-size); height: var(--dot-size);
+      border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.active {
+      background: var(--violet-400);
+      animation: presence-breathe 3s ease-in-out infinite;
+    }
+
+    /* ── Main body ── */
+    .body {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* ── Chat content area ── */
+    .chat-mode {
+      flex: 1;
+      display: flex;
+      background: var(--ai-bg);
+      min-width: 0;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    /* ══════════════════════════════════════
+       ONBOARDING — the main event
+       ══════════════════════════════════════ */
+
+    .onboarding {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 0 var(--space-lg);
+      gap: 0;
+    }
+
+    /* Wordmark */
+    .onboard-wordmark {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 32px;
+      color: var(--text-primary);
+      letter-spacing: -0.04em;
+      text-transform: lowercase;
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+
+    /* Tagline */
+    .onboard-tagline {
+      font-family: var(--font-sans);
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--text-muted);
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    /* Starter chips — single tier, equal weight */
+    .starter-chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 560px;
+    }
+
+    .starter-chip {
+      padding: 7px 14px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      line-height: 1.3;
+    }
+    .starter-chip:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--zinc-600);
+    }
+
+    /* Also used in isolated states */
+    .specific-chip {
+      padding: 7px 14px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      line-height: 1.3;
+    }
+    .specific-chip:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--zinc-600);
+    }
+
+    /* Orientation + dismiss */
+    .onboard-footer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-top: 36px;
+    }
+
+    .onboard-orientation {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-faint);
+      letter-spacing: 0.02em;
+      opacity: 0.7;
+    }
+
+    .onboard-dismiss {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      color: var(--text-faint);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color var(--transition-fast);
+      padding: 4px 8px;
+    }
+    .onboard-dismiss:hover {
+      color: var(--text-muted);
+    }
+
+    /* ── Composer ── */
+    .chat-composer {
+      max-width: var(--chat-max-width);
+      margin: 0 auto; width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+    .chat-composer-row {
+      display: flex; align-items: flex-end; gap: var(--space-sm);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+      transition: border-color var(--transition-fast);
+    }
+    .chat-composer-row:focus-within {
+      border-color: rgba(139, 92, 246, 0.4);
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.08);
+    }
+    .chat-composer-input {
+      flex: 1; background: none; border: none;
+      color: var(--text-primary); font-family: var(--font-sans);
+      font-size: 15px; line-height: 1.5; outline: none;
+      padding: var(--space-xs) 0; min-height: 24px; resize: none;
+    }
+    .chat-composer-input::placeholder { color: var(--text-muted); }
+
+    .chat-composer-send {
+      width: 32px; height: 32px; border-radius: 8px;
+      border: 1px solid var(--border); background: var(--bg-surface);
+      color: var(--text-muted); display: flex; align-items: center;
+      justify-content: center; cursor: pointer; flex-shrink: 0;
+      transition: all var(--transition-fast); font-size: 12px;
+    }
+    .chat-composer-send:hover { background: var(--bg-hover); color: var(--text-secondary); border-color: var(--zinc-600); }
+
+    /* ── Footer ── */
+    .footer {
+      height: var(--footer-height);
+      display: flex; align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-muted); gap: var(--space-md);
+      flex-shrink: 0;
+    }
+    .footer-spacer { flex: 1; }
+    .footer-divider { color: var(--text-faint); }
+    .cpu-meter { display: flex; align-items: center; gap: 4px; }
+    .cpu-label { color: var(--text-faint); font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .cpu-bar { width: 40px; height: 4px; background: var(--zinc-800); border-radius: var(--radius-xs); overflow: hidden; }
+    .cpu-bar-fill { height: 100%; border-radius: var(--radius-xs); }
+    .cpu-bar-fill.low { background: var(--emerald-400); }
+    .footer-position { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .footer-mode { text-transform: uppercase; letter-spacing: 0.06em; font-size: 8px; color: var(--text-faint); }
+    .footer-tracks { color: var(--text-faint); }
+    .ai-dot { width: 4px; height: 4px; border-radius: var(--radius-full); }
+    .ai-dot.idle { background: var(--violet-400); opacity: 0.4; }
+
+    /* ═══════════════════════════════════════
+       ISOLATED STATES (below main example)
+       ═══════════════════════════════════════ */
+    .states-section {
+      background: var(--bg-deep);
+      padding: var(--space-2xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3xl);
+    }
+
+    .state-label {
+      font-family: var(--font-mono); font-size: var(--text-sm);
+      color: var(--text-muted); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: var(--space-sm);
+    }
+    .state-sublabel {
+      font-family: var(--font-mono); font-size: var(--text-xs);
+      color: var(--text-faint); margin-bottom: var(--space-sm);
+    }
+
+    .state-frame {
+      background: var(--ai-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+
+    /* ── API Key Setup state ── */
+    .apikey-container {
+      max-width: 380px;
+      margin: 0 auto;
+      padding: 60px var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-xl);
+    }
+
+    .apikey-icon {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(139, 92, 246, 0.08));
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .apikey-icon svg { width: 24px; height: 24px; color: var(--violet-400); }
+
+    .apikey-title {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+      text-align: center;
+    }
+    .apikey-subtitle {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.5;
+      max-width: 280px;
+    }
+
+    .apikey-tabs {
+      display: flex;
+      gap: 2px;
+      padding: 2px;
+      background: var(--zinc-900);
+      border-radius: var(--radius-md);
+      width: 100%;
+    }
+    .apikey-tab {
+      flex: 1;
+      padding: 6px 12px;
+      border: none; background: none;
+      font-family: var(--font-sans);
+      font-size: 11px; font-weight: 500;
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .apikey-tab.active {
+      background: var(--zinc-800);
+      color: var(--text-primary);
+    }
+
+    .apikey-field { width: 100%; }
+    .apikey-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--text-faint);
+      margin-bottom: 6px;
+    }
+    .apikey-input {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(28, 25, 23, 0.8);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      outline: none;
+    }
+    .apikey-hint {
+      font-family: var(--font-sans);
+      font-size: 10px;
+      color: var(--text-faint);
+      margin-top: 6px;
+    }
+
+    .apikey-submit {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: var(--radius-lg);
+      background: var(--violet-600);
+      color: white;
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+    .apikey-submit:hover { background: var(--violet-500); }
+
+    .apikey-skip {
+      font-family: var(--font-sans);
+      font-size: 11px;
+      color: var(--text-faint);
+      background: none; border: none;
+      cursor: pointer;
+      transition: color var(--transition-fast);
+    }
+    .apikey-skip:hover { color: var(--text-muted); }
+
+    /* ── Resume state ── */
+    .resume-container {
+      max-width: var(--chat-max-width);
+      margin: 0 auto; width: 100%;
+      padding: 60px var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-lg);
+    }
+
+    .resume-wordmark {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 24px;
+      color: var(--text-primary);
+      letter-spacing: -0.04em;
+      text-transform: lowercase;
+      opacity: 0.7;
+    }
+
+    .resume-context {
+      text-align: center;
+    }
+    .resume-context-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-faint);
+      margin-bottom: 6px;
+    }
+    .resume-context-value {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .resume-chips {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 440px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN EXAMPLE — Full Onboarding at 1440x900
+     ═══════════════════════════════════════════════════════ -->
+<div class="app" id="main-view">
+  <!-- ── Top bar (Chat Active, empty project) ── -->
+  <div class="topbar">
+    <div class="topbar-zone-left">
+      <div class="project-menu">
+        <span class="project-menu-name">Untitled</span>
+        <span class="project-menu-chevron">&#9662;</span>
+      </div>
+      <div class="transport-divider"></div>
+      <button class="view-tab chat-active">Chat</button>
+      <div class="transport-divider"></div>
+      <div class="view-tabs">
+        <button class="view-tab">Surface</button>
+        <button class="view-tab">Rack</button>
+        <button class="view-tab">Patch</button>
+        <button class="view-tab">Tracker</button>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-zone-center">
+      <div class="transport-group">
+        <button class="transport-btn" title="Play"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+        <button class="transport-btn" title="Stop"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+        <button class="transport-btn" title="Record"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+        <button class="transport-btn" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="mode-group">
+        <div class="pattern-song-toggle">
+          <button class="active">Pat</button>
+          <button>Song</button>
+        </div>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="time-group">
+        <span class="transport-time">1:01</span>
+        <span class="transport-bpm">120 BPM</span>
+        <span class="swing-display">Sw 50%</span>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="meter-group">
+        <div class="peak-meter">
+          <div class="peak-meter-bar" style="height: 2px;"></div>
+          <div class="peak-meter-bar" style="height: 2px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-zone-right">
+      <div style="display: flex; align-items: center; gap: 2px; width: 76px; flex-shrink: 0;">
+        <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+      </div>
+      <div class="transport-divider"></div>
+      <div class="undo-group">
+        <button class="undo-btn disabled" title="Nothing to undo">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+        </button>
+        <button class="undo-btn disabled" title="Nothing to redo">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+        </button>
+      </div>
+      <div class="transport-divider"></div>
+      <span class="gluon-wordmark-topbar">gluon</span>
+      <div class="transport-divider"></div>
+      <div class="status-dot active" title="Connected"></div>
+    </div>
+  </div>
+
+  <!-- ── Body: onboarding ── -->
+  <div class="body">
+    <div class="chat-mode">
+      <div class="chat-main">
+
+        <!-- Onboarding content -->
+        <div class="onboarding">
+          <div class="onboard-wordmark">gluon</div>
+          <div class="onboard-tagline">Describe what you want to make.</div>
+
+          <!-- Starter chips — all equal weight -->
+          <div class="starter-chips">
+            <div class="starter-chip">Something dark and heavy</div>
+            <div class="starter-chip">Warm and hypnotic</div>
+            <div class="starter-chip">Bright and chaotic</div>
+            <div class="starter-chip">Slow and deep</div>
+            <div class="starter-chip">A dub techno groove</div>
+            <div class="starter-chip">Lo-fi beat with vinyl crackle</div>
+            <div class="starter-chip">Ambient drone that evolves</div>
+            <div class="starter-chip">Acid house bassline</div>
+          </div>
+
+          <div class="onboard-footer">
+            <div class="onboard-orientation">Everything is undoable. Start anywhere.</div>
+            <button class="onboard-dismiss">Skip</button>
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div class="chat-composer">
+          <div class="chat-composer-row">
+            <input class="chat-composer-input" type="text" placeholder="Describe what you want to make...">
+            <button class="chat-composer-send" title="Send">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 13V3l10 5-10 5z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="cpu-meter">
+      <span class="cpu-label">CPU</span>
+      <div class="cpu-bar"><div class="cpu-bar-fill low" style="width: 4%;"></div></div>
+    </div>
+    <span class="footer-divider">&middot;</span>
+    <span class="footer-position">1:01</span>
+    <span class="footer-divider">&middot;</span>
+    <span class="footer-mode">Pattern</span>
+    <span class="footer-divider">&middot;</span>
+    <span class="footer-tracks">0 tracks</span>
+    <span class="footer-divider">&middot;</span>
+    <span style="color: var(--text-faint);">120 BPM</span>
+    <div class="footer-spacer"></div>
+    <div class="footer-peak">
+      <div class="footer-peak-bar" style="height: 2px; background: var(--zinc-700);"></div>
+      <div class="footer-peak-bar" style="height: 2px; background: var(--zinc-700);"></div>
+    </div>
+    <span class="footer-divider">&middot;</span>
+    <div class="ai-dot idle"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     ISOLATED STATES
+     ═══════════════════════════════════════════════════════ -->
+<div class="states-section">
+
+  <!-- ── STATE: API Key Setup ── -->
+  <div>
+    <div class="state-label">API Key Setup</div>
+    <div class="state-sublabel">Shown before onboarding when no AI provider is configured. Replaces the onboarding content area.</div>
+    <div class="state-frame" style="min-height: 480px; display: flex;">
+      <div class="apikey-container">
+        <div class="apikey-icon">
+          <svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
+        </div>
+
+        <div style="text-align: center;">
+          <div class="apikey-title">Connect an AI to start making music</div>
+          <div class="apikey-subtitle" style="margin-top: 6px;">Paste an API key below. You can change this later.</div>
+        </div>
+
+        <div class="apikey-tabs">
+          <button class="apikey-tab active">Google Gemini</button>
+          <button class="apikey-tab">OpenAI</button>
+        </div>
+
+        <div class="apikey-field">
+          <label class="apikey-label">Google AI API Key</label>
+          <input class="apikey-input" type="password" placeholder="AIza..." />
+          <div class="apikey-hint">Get a key at aistudio.google.com</div>
+        </div>
+
+        <button class="apikey-submit">Start making music</button>
+        <button class="apikey-skip">Continue without AI</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATE: Resume (returning to existing project) ── -->
+  <div>
+    <div class="state-label">Resume State</div>
+    <div class="state-sublabel">Returning to an existing project with chat history. Lighter wordmark, project context, and resume-oriented starters.</div>
+    <div class="state-frame" style="min-height: 400px; display: flex; flex-direction: column;">
+      <div class="resume-container" style="flex: 1; justify-content: center;">
+        <div class="resume-wordmark">gluon</div>
+
+        <div class="resume-context">
+          <div class="resume-context-label">Last session</div>
+          <div class="resume-context-value">Dark Techno &mdash; 4 tracks, 32 bars</div>
+        </div>
+
+        <div class="resume-chips">
+          <div class="specific-chip">Where did we leave off?</div>
+          <div class="specific-chip">Listen to the current mix</div>
+          <div class="specific-chip">What should we work on next?</div>
+        </div>
+      </div>
+
+      <!-- Composer -->
+      <div style="max-width: var(--chat-max-width); margin: 0 auto; width: 100%; padding: var(--space-md) var(--space-lg) var(--space-xl);">
+        <div class="chat-composer-row">
+          <input class="chat-composer-input" type="text" placeholder="Pick up where you left off...">
+          <button class="chat-composer-send" title="Send">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 13V3l10 5-10 5z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── STATE: Tracks Exist (mid-session, no chat yet) ── -->
+  <div>
+    <div class="state-label">Tracks Exist State</div>
+    <div class="state-sublabel">Project has tracks but no chat messages yet (e.g. manual track creation). Context-aware starters.</div>
+    <div class="state-frame" style="min-height: 400px; display: flex; flex-direction: column;">
+      <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0 var(--space-lg); gap: var(--space-lg);">
+        <div style="font-family: var(--font-sans); font-weight: 700; font-size: 24px; color: var(--text-primary); letter-spacing: -0.04em; text-transform: lowercase; opacity: 0.7;">gluon</div>
+        <div style="font-family: var(--font-sans); font-size: 15px; color: var(--text-muted); text-align: center;">You have sound. Tell me what to do with it.</div>
+
+        <div class="specific-chips">
+          <div class="specific-chip">Make the hats looser</div>
+          <div class="specific-chip">Listen and tell me what clashes</div>
+          <div class="specific-chip">Give me two directions for the bass</div>
+          <div class="specific-chip">Add some variation to the pattern</div>
+        </div>
+      </div>
+
+      <div style="max-width: var(--chat-max-width); margin: 0 auto; width: 100%; padding: var(--space-md) var(--space-lg) var(--space-xl);">
+        <div class="chat-composer-row">
+          <input class="chat-composer-input" type="text" placeholder="Describe what you want to make...">
+          <button class="chat-composer-send" title="Send">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 13V3l10 5-10 5z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
