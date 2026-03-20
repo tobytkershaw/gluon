@@ -67,6 +67,7 @@ const PARITY_GAP_TOOLS = new Set([
   'apply_arrangement_archetype', // LOW: compound tool — humans use manage_pattern + sketch + manage_sequence directly
   'set_track_identity',  // MODERATE: no UI for visual identity editing (AI-set, human-overridable via undo)
   'manage_drum_pad',     // MODERATE: no UI for drum pad management (future: pad grid Surface module)
+  'save_memory',         // AI-ONLY: AI saves persistent project memories — human can view/delete via future UI
 ]);
 
 describe('Human Capability Parity', () => {
@@ -95,7 +96,7 @@ describe('Human Capability Parity', () => {
     // Update this count when gaps are closed or new ones discovered.
     // Current gaps: transform, set_surface,
     // pin_control, label_axes, set_track_meta, set_intent, set_section, set_scale, set_chord_progression
-    expect(PARITY_GAP_TOOLS.size).toBe(24);
+    expect(PARITY_GAP_TOOLS.size).toBe(25);
   });
 
   it('documents the expected number of AI-only tools', () => {
