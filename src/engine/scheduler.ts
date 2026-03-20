@@ -51,6 +51,10 @@ export class Scheduler {
   private playbackPlan = new PlaybackPlan();
   /** Next metronome step to schedule (in absolute step units, always a multiple of stepsPerBeat). */
   private nextClickStep = 0;
+  /** Last-seen time signature denominator, used to detect mid-playback changes. */
+  private previousTsDenominator = 4;
+  /** Last-seen time signature numerator, used to detect mid-playback changes. */
+  private previousTsNumerator = 4;
 
   constructor(
     getSession: () => Session,
@@ -84,8 +88,11 @@ export class Scheduler {
     this.generation = generation;
     this.playbackPlan.reset(generation);
     // Align metronome to the next beat boundary using time signature
-    const stepsPerBeat = 16 / (session.transport.timeSignature?.denominator ?? 4);
+    const ts = session.transport.timeSignature ?? { numerator: 4, denominator: 4 };
+    const stepsPerBeat = 16 / ts.denominator;
     this.nextClickStep = Math.ceil(startStep / stepsPerBeat) * stepsPerBeat;
+    this.previousTsDenominator = ts.denominator;
+    this.previousTsNumerator = ts.numerator;
 
     this.tick();
     this.intervalId = setInterval(() => this.tick(), LOOKAHEAD_MS);
@@ -227,6 +234,13 @@ export class Scheduler {
       const ts = session.transport.timeSignature ?? { numerator: 4, denominator: 4 };
       const stepsPerBeat = 16 / ts.denominator;
       const stepsPerBar = stepsPerBeat * ts.numerator;
+
+      // Re-align metronome cursor when time signature changes mid-playback
+      if (ts.denominator !== this.previousTsDenominator || ts.numerator !== this.previousTsNumerator) {
+        this.nextClickStep = Math.ceil(globalStep / stepsPerBeat) * stepsPerBeat;
+        this.previousTsDenominator = ts.denominator;
+        this.previousTsNumerator = ts.numerator;
+      }
       while (this.nextClickStep < lookaheadEnd) {
         const clickTime = this.startTime + this.nextClickStep * stepDuration;
         const isDownbeat = stepsPerBar > 0 && this.nextClickStep % stepsPerBar === 0;

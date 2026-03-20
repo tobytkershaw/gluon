@@ -936,4 +936,72 @@ describe('Scheduler', () => {
     // Track 2 should be later than track 1
     expect(track2Notes[0].time).toBeGreaterThan(track1Notes[0].time);
   });
+
+  // --- Time signature change during playback ---
+
+  it('re-aligns metronome clicks when time signature changes mid-playback', () => {
+    // Start in 4/4: stepsPerBeat = 4, clicks at steps 0, 4, 8, 12...
+    session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        metronome: { enabled: true, volume: 0.5 },
+        timeSignature: { numerator: 4, denominator: 4 },
+      },
+    };
+
+    const clicks: { time: number; accent: boolean }[] = [];
+    const sched = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      (note) => notes.push(note),
+      (pos) => positions.push(pos),
+      () => ({}),
+      undefined,
+      (time, accent) => clicks.push({ time, accent }),
+    );
+
+    sched.start(0);
+    // At 120 BPM, step duration = 0.125s
+    // Advance to step ~10 (1.25s) — clicks at steps 0, 4, 8
+    audioTime = 1.25;
+    vi.advanceTimersByTime(100);
+
+    const clicksBefore = clicks.length;
+    expect(clicksBefore).toBeGreaterThanOrEqual(3); // steps 0, 4, 8
+
+    // Switch to 3/8: stepsPerBeat = 16/8 = 2, stepsPerBar = 2*3 = 6
+    session = {
+      ...session,
+      transport: {
+        ...session.transport,
+        timeSignature: { numerator: 3, denominator: 8 },
+      },
+    };
+
+    // Advance further — next clicks should be on the new 8th-note grid (every 2 steps)
+    audioTime = 2.5;
+    vi.advanceTimersByTime(100);
+    sched.stop();
+
+    // Clicks after the change should be spaced by stepsPerBeat=2 (0.25s apart)
+    const newClicks = clicks.slice(clicksBefore);
+    expect(newClicks.length).toBeGreaterThanOrEqual(2);
+
+    // Verify spacing: consecutive clicks should be ~0.25s apart (2 steps * 0.125s)
+    for (let i = 1; i < newClicks.length; i++) {
+      const gap = newClicks[i].time - newClicks[i - 1].time;
+      expect(gap).toBeCloseTo(0.25, 2);
+    }
+
+    // Verify downbeat accenting uses new bar size (every 6 steps = 0.75s)
+    // Find accented clicks in the new section
+    const accentedNew = newClicks.filter(c => c.accent);
+    const nonAccentedNew = newClicks.filter(c => !c.accent);
+    // In 3/8 there should be non-accented beats between downbeats
+    if (newClicks.length >= 4) {
+      expect(nonAccentedNew.length).toBeGreaterThan(0);
+    }
+  });
 });
