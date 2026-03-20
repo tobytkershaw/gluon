@@ -5793,6 +5793,11 @@ export class GluonAI {
 
   clearHistory(): void {
     this.planner.clearHistory();
+    // Clear project-scoped AI state so it doesn't leak across projects
+    this.spectralSlots.clear();
+    this.motifLibrary.clear();
+    this.recentAutoDiffs = [];
+    this.turnAutoDiffs = [];
   }
 
   /**

@@ -65,6 +65,11 @@ export class SpectralSlotManager {
     return slot;
   }
 
+  /** Remove all slot assignments (e.g. on project switch). */
+  clear(): void {
+    this.slots.clear();
+  }
+
   /** Remove a track's spectral slot assignment. */
   remove(trackId: string): boolean {
     return this.slots.delete(trackId);
