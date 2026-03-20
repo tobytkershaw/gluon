@@ -3,7 +3,7 @@
 // Global top bar: Left = ProjectMenu + ViewToggle + TransportStrip | Right = Undo/Redo + A/B
 // Footer: AudioLoadMeter + MasterStrip (workstation width only)
 import { useEffect, useMemo, useRef, useCallback, type ReactNode, type MutableRefObject, type RefObject } from 'react';
-import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision } from '../engine/types';
+import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision, LiveControlModule } from '../engine/types';
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
@@ -25,6 +25,7 @@ import { RedoButton } from './RedoButton';
 import { PeakMeter as PeakMeterFooter } from './MasterStrip';
 import { AudioLoadMeter } from './AudioLoadMeter';
 import { OpenDecisionsPanel } from './OpenDecisionsPanel';
+import { LiveControlsPanel } from './LiveControlsPanel';
 import { deriveFollowUps, type FollowUpChip } from './TurnSummaryCard';
 import type { ChatComposerHandle } from './ChatComposer';
 import type { AudioEngine } from '../audio/audio-engine';
@@ -146,6 +147,10 @@ interface Props {
   onMasterPanChange: (p: number) => void;
   onMasterInteractionStart?: () => void;
   onMasterInteractionEnd?: () => void;
+  // Live Controls
+  liveControlModules: LiveControlModule[];
+  onLiveModuleTouch: (moduleId: string) => void;
+  onLiveModuleAddToSurface: (liveModule: LiveControlModule) => void;
   // Main content
   children: ReactNode;
 }
@@ -196,6 +201,7 @@ export function AppShell({
   cancelEditRef,
   abActive, onAbCapture, onAbToggle, onAbClear,
   masterVolume, masterPan: _masterPan, analyser: _analyser, stereoAnalysers, audioContext, audioEngine, onMasterVolumeChange, onMasterPanChange: _onMasterPanChange, onMasterInteractionStart, onMasterInteractionEnd,
+  liveControlModules, onLiveModuleTouch, onLiveModuleAddToSurface,
   children,
 }: Props) {
   const shellRef = useRef<HTMLDivElement>(null);
@@ -372,51 +378,62 @@ export function AppShell({
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0 items-center">
-          <div className="flex flex-col flex-1 min-h-0 w-full" style={{ maxWidth: 800 }}>
-            <div className="flex items-center gap-2 px-4 py-2.5">
-              <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
-              <div className="flex-1" />
-              <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} />
-              {apiConfigured && (
-                <ApiKeyInput
-                  onSubmit={onApiKey}
-                  isConfigured={apiConfigured}
-                  disabled={isActive}
-                  currentOpenaiKey={currentOpenaiKey}
-                  currentGeminiKey={currentGeminiKey}
-                  listenerMode={listenerMode}
-                />
+        <div className="flex-1 flex min-h-0">
+          {/* Chat main content (flex-1) */}
+          <div className="flex-1 flex flex-col min-h-0 items-center">
+            <div className="flex flex-col flex-1 min-h-0 w-full" style={{ maxWidth: 800 }}>
+              <div className="flex items-center gap-2 px-4 py-2.5">
+                <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
+                <div className="flex-1" />
+                <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} />
+                {apiConfigured && (
+                  <ApiKeyInput
+                    onSubmit={onApiKey}
+                    isConfigured={apiConfigured}
+                    disabled={isActive}
+                    currentOpenaiKey={currentOpenaiKey}
+                    currentGeminiKey={currentGeminiKey}
+                    listenerMode={listenerMode}
+                  />
+                )}
+              </div>
+
+              {!apiConfigured && (
+                <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-[11px] leading-5 text-amber-200/80" data-testid="degraded-banner">
+                  Gluon is running in manual mode. Add an API key to enable AI collaboration.
+                </div>
+              )}
+
+              {(apiConfigured || setupDismissed) ? (
+                <>
+                  <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                    <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} />
+                  </div>
+
+                  <div className="shrink-0 border-t border-zinc-800/40 pb-2">
+                    <ChatComposer
+                      ref={composerRef}
+                      onSend={onSend}
+                      disabled={isThinking || isListening}
+                      variant="sidebar"
+                      lastUserMessage={lastHumanMessage}
+                      followUpChips={followUpChips}
+                    />
+                  </div>
+                </>
+              ) : (
+                <ApiKeySetup onSubmit={onApiKey} onContinueWithoutAI={onContinueWithoutAI} />
               )}
             </div>
-
-            {!apiConfigured && (
-              <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-[11px] leading-5 text-amber-200/80" data-testid="degraded-banner">
-                Gluon is running in manual mode. Add an API key to enable AI collaboration.
-              </div>
-            )}
-
-            {(apiConfigured || setupDismissed) ? (
-              <>
-                <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-                  <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} />
-                </div>
-
-                <div className="shrink-0 border-t border-zinc-800/40 pb-2">
-                  <ChatComposer
-                    ref={composerRef}
-                    onSend={onSend}
-                    disabled={isThinking || isListening}
-                    variant="sidebar"
-                    lastUserMessage={lastHumanMessage}
-                    followUpChips={followUpChips}
-                  />
-                </div>
-              </>
-            ) : (
-              <ApiKeySetup onSubmit={onApiKey} onContinueWithoutAI={onContinueWithoutAI} />
-            )}
           </div>
+
+          {/* Live Controls panel (right side) */}
+          <LiveControlsPanel
+            modules={liveControlModules}
+            tracks={tracks}
+            onTouch={onLiveModuleTouch}
+            onAddToSurface={onLiveModuleAddToSurface}
+          />
         </div>
         {onDecisionRespond && openDecisions.length > 0 && (
           <div className="pointer-events-none absolute right-4 top-14 z-20">
