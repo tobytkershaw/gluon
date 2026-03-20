@@ -1340,6 +1340,8 @@ export class AudioEngine {
 
     const proc = targetSlot.processors.find(p => p.id === processorId);
     if (!proc) return;
+    // Degraded processors are single-input pass-throughs — sidechain connect would throw
+    if (proc.degraded) return;
     const descriptor = moduleDescriptors.get(proc.type);
     if (!descriptor?.sidechain) return;
 
