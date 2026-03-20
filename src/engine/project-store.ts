@@ -108,12 +108,11 @@ export async function deleteProject(id: string): Promise<void> {
 
 export async function renameProject(id: string, name: string): Promise<void> {
   const db = await openDB();
-  const store = tx(db, 'readwrite');
-  const existing = await req<PersistedProject | undefined>(store.get(id));
+  const existing = await req<PersistedProject | undefined>(tx(db, 'readonly').get(id));
   if (existing) {
     existing.meta.name = name;
     existing.meta.updatedAt = Date.now();
-    await req(store.put(existing));
+    await req(tx(db, 'readwrite').put(existing));
   }
   db.close();
 }
