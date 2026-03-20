@@ -985,12 +985,23 @@ export default function App() {
     trackId: string;
     prevSourceParams: Record<string, number>;
     prevProcessors: { id: string; params: Record<string, number> }[];
+    prevProvenance?: Partial<ControlState>;
   } | null>(null);
 
   const handleSurfaceInteractionStart = useCallback(() => {
     const s = sessionRef.current;
     const track = getActiveTrack(s);
     arbRef.current.humanInteractionStart(s.activeTrackId);
+    // #1167: capture prevProvenance for surface source gestures
+    const prevProvenance: Partial<ControlState> = {};
+    if (track.controlProvenance) {
+      for (const paramKey of Object.keys(track.params)) {
+        const cid = plaitsAdapter.mapRuntimeParamKey(paramKey);
+        if (cid && track.controlProvenance[cid]) {
+          prevProvenance[cid] = { ...track.controlProvenance[cid] };
+        }
+      }
+    }
     surfaceUndoRef.current = {
       trackId: s.activeTrackId,
       prevSourceParams: { ...track.params },
@@ -998,6 +1009,7 @@ export default function App() {
         id: p.id,
         params: { ...p.params },
       })),
+      prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
     };
   }, []);
 
@@ -1025,6 +1037,7 @@ export default function App() {
           trackId: captured.trackId,
           prevValues: captured.prevSourceParams,
           aiTargetValues: changedSource,
+          prevProvenance: captured.prevProvenance,
           timestamp: Date.now(),
           description: `Surface param change: ${Object.keys(changedSource).join(', ')}`,
         } as ParamSnapshot);
@@ -1244,6 +1257,7 @@ export default function App() {
     // Push undo snapshot inside setSession to avoid stale closure
     setSession((s) => {
       const currentTrack = getTrack(s, vid);
+      const now = Date.now();
       if (processorId) {
         const proc = (currentTrack.processors ?? []).find(p => p.id === processorId);
         const currentValue = proc?.params[runtimeParam] ?? 0;
@@ -1253,21 +1267,44 @@ export default function App() {
           processorId,
           prevParams: proc ? { ...proc.params } : { [runtimeParam]: currentValue },
           prevModel: proc?.model ?? 0,
-          timestamp: Date.now(),
+          timestamp: now,
           description: `Ramp ${controlId} to ${targetValue.toFixed(2)} over ${(durationMs / 1000).toFixed(1)}s`,
         };
-        return { ...s, undoStack: [...s.undoStack, snapshot] };
+        return {
+          ...s,
+          undoStack: [...s.undoStack, snapshot],
+          // #1166: track ramp as human action
+          recentHumanActions: [
+            ...s.recentHumanActions,
+            { kind: 'param' as const, trackId: vid, param: runtimeParam, from: currentValue, to: targetValue, timestamp: now },
+          ].slice(-20),
+        };
       } else {
         const currentValue = currentTrack.params[runtimeParam] ?? 0;
+        // #1164: capture prevProvenance before ramp
+        const mappedControlId = plaitsAdapter.mapRuntimeParamKey(runtimeParam);
+        const prevProvenance: Partial<ControlState> = {};
+        if (mappedControlId && currentTrack.controlProvenance?.[mappedControlId]) {
+          prevProvenance[mappedControlId] = { ...currentTrack.controlProvenance[mappedControlId] };
+        }
         const snapshot: ParamSnapshot = {
           kind: 'param',
           trackId: vid,
           prevValues: { [runtimeParam]: currentValue },
           aiTargetValues: { [runtimeParam]: targetValue },
-          timestamp: Date.now(),
+          prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
+          timestamp: now,
           description: `Ramp ${controlId} to ${targetValue.toFixed(2)} over ${(durationMs / 1000).toFixed(1)}s`,
         };
-        return { ...s, undoStack: [...s.undoStack, snapshot] };
+        return {
+          ...s,
+          undoStack: [...s.undoStack, snapshot],
+          // #1166: track ramp as human action
+          recentHumanActions: [
+            ...s.recentHumanActions,
+            { kind: 'param' as const, trackId: vid, param: runtimeParam, from: currentValue, to: targetValue, timestamp: now },
+          ].slice(-20),
+        };
       }
     });
 
@@ -1288,7 +1325,8 @@ export default function App() {
           };
         });
       } else {
-        setSession((s2) => applyParamDirect(s2, vid, p, value));
+        // #1180: update provenance during ramp to reflect human control
+        setSession((s2) => updateTrackParams(s2, vid, { [p]: value }, true, plaitsAdapter));
       }
     });
     autoRef.current.startLoop();
@@ -2563,6 +2601,7 @@ export default function App() {
     trackId: string;
     prevSourceParams: Partial<SynthParamValues>;
     prevProcessorParams: Map<string, Record<string, number>>;
+    prevProvenance?: Partial<ControlState>;
   } | null>(null);
 
   const _handleSemanticInteractionStart = useCallback((def: SemanticControlDef) => {
@@ -2571,6 +2610,8 @@ export default function App() {
     // Capture prev values for all params this semantic control touches
     const prevSourceParams: Partial<SynthParamValues> = {};
     const prevProcessorParams = new Map<string, Record<string, number>>();
+    // #1168: capture prevProvenance for source params touched by semantic knob
+    const prevProvenance: Partial<ControlState> = {};
 
     for (const w of def.weights) {
       if (w.moduleId === 'source') {
@@ -2578,6 +2619,11 @@ export default function App() {
         prevSourceParams[runtimeKey] = track.params[runtimeKey] ?? 0.5;
         // Mark as human-touched for arbitration
         arbRef.current.humanTouched(s.activeTrackId, runtimeKey, track.params[runtimeKey] ?? 0.5, 'source');
+        // Capture provenance for undo
+        const cid = plaitsAdapter.mapRuntimeParamKey(runtimeKey);
+        if (cid && track.controlProvenance?.[cid]) {
+          prevProvenance[cid] = { ...track.controlProvenance[cid] };
+        }
       } else {
         const proc = (track.processors ?? []).find(p => p.id === w.moduleId);
         if (proc) {
@@ -2593,6 +2639,7 @@ export default function App() {
       trackId: s.activeTrackId,
       prevSourceParams,
       prevProcessorParams,
+      prevProvenance: Object.keys(prevProvenance).length > 0 ? prevProvenance : undefined,
     };
   }, []);
 
@@ -2620,6 +2667,7 @@ export default function App() {
             trackId: captured.trackId,
             prevValues: captured.prevSourceParams,
             aiTargetValues: currentValues,
+            prevProvenance: captured.prevProvenance,
             timestamp: Date.now(),
             description: 'Semantic knob change (source)',
           });
