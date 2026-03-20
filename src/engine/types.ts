@@ -267,6 +267,42 @@ export interface MasterChannel {
 
 export const DEFAULT_MASTER: MasterChannel = { volume: 0.8, pan: 0.0 };
 
+// --- Project Memory ---
+
+/** Memory type discriminator for per-project AI memories. */
+export type ProjectMemoryType = 'direction' | 'track-narrative' | 'decision';
+
+/** A single AI memory scoped to a project. */
+export interface ProjectMemory {
+  id: string;
+  type: ProjectMemoryType;
+  content: string;          // natural language, 1-3 sentences, max 500 chars
+  confidence: number;       // 0.0-1.0
+  evidence: string;         // what produced this memory
+  trackId?: string;         // if about a specific track
+  createdAt: number;
+  updatedAt: number;
+}
+
+/** Maximum number of memories per project. */
+export const MAX_PROJECT_MEMORIES = 30;
+
+/** Maximum character length for a memory's content field. */
+export const MAX_MEMORY_CONTENT_LENGTH = 500;
+
+/** Valid memory type values. */
+const VALID_MEMORY_TYPES: ReadonlySet<string> = new Set<string>(['direction', 'track-narrative', 'decision']);
+
+/** Check whether a string is a valid ProjectMemoryType. */
+export function isValidMemoryType(type: string): type is ProjectMemoryType {
+  return VALID_MEMORY_TYPES.has(type);
+}
+
+/** Check whether a string is valid memory content (non-empty, max 500 chars). */
+export function isValidMemoryContent(content: string): boolean {
+  return typeof content === 'string' && content.length > 0 && content.length <= MAX_MEMORY_CONTENT_LENGTH;
+}
+
 /** Soft cap on the number of tracks in a session. */
 export const MAX_TRACKS = 16;
 
@@ -536,6 +572,14 @@ export interface DrumPadSnapshot {
   description: string;
 }
 
+/** Snapshot for memory save/forget operations (captures previous memories array for undo). */
+export interface MemorySnapshot {
+  kind: 'memory';
+  prevMemories: ProjectMemory[];
+  timestamp: number;
+  description: string;
+}
+
 /** Snapshot for discrete track-level property changes (mute, solo, volume, pan, name). */
 export interface TrackPropertySnapshot {
   kind: 'track-property';
@@ -580,7 +624,7 @@ export interface ChordProgressionSnapshot {
   description: string;
 }
 
-export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot | DrumPadSnapshot;
+export type Snapshot = ParamSnapshot | PatternSnapshot | TransportSnapshot | ModelSnapshot | PatternEditSnapshot | ViewSnapshot | ProcessorSnapshot | ProcessorStateSnapshot | ModulatorSnapshot | ModulatorStateSnapshot | ModulationRoutingSnapshot | MasterSnapshot | SurfaceSnapshot | ApprovalSnapshot | TrackAddSnapshot | TrackRemoveSnapshot | SendSnapshot | SidechainSnapshot | PatternCrudSnapshot | TrackPropertySnapshot | SequenceEditSnapshot | ABRestoreSnapshot | ScaleSnapshot | ChordProgressionSnapshot | DrumPadSnapshot | MemorySnapshot;
 
 export interface ActionGroupSnapshot {
   kind: 'group';
@@ -1118,6 +1162,8 @@ export interface Session {
   chordProgression?: ChordProgressionEntry[] | null;
   /** Tension/energy curve over the arrangement timeline. Metadata for AI compositional decisions. */
   tensionCurve?: TensionCurve;
+  /** Per-project AI memories — persisted direction, track narratives, and decisions. */
+  memories?: ProjectMemory[];
 }
 
 export type ActionDiff =
