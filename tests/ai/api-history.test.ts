@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GluonAI } from '../../src/ai/api';
 import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema, StepExecutor } from '../../src/ai/types';
 import { ProviderError } from '../../src/ai/types';
-import { createSession } from '../../src/engine/session';
+import { createSession, addTrack } from '../../src/engine/session';
 import { clearSnapshots } from '../../src/audio/snapshot-store';
 import type { Session } from '../../src/engine/types';
 import type { PcmRenderResult } from '../../src/audio/render-offline';
@@ -417,6 +417,65 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
 
     expect(renderOffline).toHaveBeenCalledTimes(1);
     expect(renderedTimbres).toEqual([0.8]);
+  });
+
+  it('listen rejects bus trackIds before offline render starts (#1135)', async () => {
+    let session = createSession();
+    session = addTrack(session, 'bus')!;
+    const busId = session.tracks.find(track => track.kind === 'bus' && track.id !== 'master-bus')!.id;
+    const renderOffline = vi.fn(async () => new Blob());
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [
+        { id: 'c1', name: 'listen', args: { question: 'How does the bus sound?', trackIds: [busId], bars: 2 } },
+      ],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(session, 'listen to the bus', {
+      listen: {
+        renderOffline,
+        renderOfflinePcm: vi.fn(async () => ({ pcm: new Float32Array(128), sampleRate: 44100 })),
+      },
+    });
+
+    expect(renderOffline).not.toHaveBeenCalled();
+    const continueArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const functionResponses = continueArgs.functionResponses as FunctionResponse[];
+    const response = functionResponses.find(r => r.id === 'c1')?.result as Record<string, unknown>;
+    expect(response.error).toBe('Offline render/listen only supports audio tracks right now.');
+  });
+
+  it('render rejects bus scope before offline render starts (#1135)', async () => {
+    let session = createSession();
+    session = addTrack(session, 'bus')!;
+    const busId = session.tracks.find(track => track.kind === 'bus' && track.id !== 'master-bus')!.id;
+    const renderOfflinePcm = vi.fn(async (): Promise<PcmRenderResult> => ({
+      pcm: new Float32Array(128),
+      sampleRate: 44100,
+    }));
+
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [
+        { id: 'c1', name: 'render', args: { scope: busId, bars: 2 } },
+      ],
+    });
+    planner.continueTurnResults.push({ textParts: [], functionCalls: [] });
+
+    await ai.ask(session, 'render the bus', {
+      listen: {
+        renderOffline: vi.fn(async () => new Blob()),
+        renderOfflinePcm,
+      },
+    });
+
+    expect(renderOfflinePcm).not.toHaveBeenCalled();
+    const continueArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const functionResponses = continueArgs.functionResponses as FunctionResponse[];
+    const response = functionResponses.find(r => r.id === 'c1')?.result as Record<string, unknown>;
+    expect(response.error).toBe('Offline render/listen only supports audio tracks right now.');
   });
 
   it('clearHistory delegates to planner', () => {

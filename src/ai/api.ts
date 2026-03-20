@@ -1229,6 +1229,23 @@ function buildTurnOutcomeSummary(
   return lines.join('\n');
 }
 
+function nonAudioTrackIdsError(trackIds: string[], session: Session): Record<string, unknown> | null {
+  const nonAudioTracks = trackIds
+    .map(trackId => session.tracks.find(track => track.id === trackId))
+    .filter((track): track is Track => Boolean(track))
+    .filter(track => getTrackKind(track) === 'bus');
+
+  if (nonAudioTracks.length === 0) return null;
+
+  return enrichedError(
+    'Offline render/listen only supports audio tracks right now.',
+    {
+      hint: `Remove bus track IDs from the request: ${nonAudioTracks.map(track => `"${track.name ?? track.id}" (${track.id})`).join(', ')}.`,
+      available: trackListing(session),
+    },
+  );
+}
+
 const STEPS_PER_BAR = 16;
 
 /**
@@ -3831,6 +3848,10 @@ export class GluonAI {
               response: { error: `Unknown track IDs: ${invalid.join(', ')}. Available: ${[...sessionTrackIds].join(', ')}.` },
             };
           }
+          const nonAudioError = nonAudioTrackIdsError(trackIds, session);
+          if (nonAudioError) {
+            return { actions: [], response: nonAudioError };
+          }
         }
 
         // Rubric: structured evaluation scores
@@ -3863,6 +3884,11 @@ export class GluonAI {
           renderTrackIds = [args.scope];
         } else if (Array.isArray(args.scope)) {
           renderTrackIds = args.scope as string[];
+        }
+
+        const nonAudioError = nonAudioTrackIdsError(renderTrackIds ?? [], session);
+        if (nonAudioError) {
+          return { actions: [], response: nonAudioError };
         }
 
         const rawBars = typeof args.bars === 'number' ? args.bars : inferBarsFromPatterns(session, renderTrackIds);
