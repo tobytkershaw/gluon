@@ -169,6 +169,9 @@ export default function App() {
     // Clear stale history and degradation banner from any previous project, then restore
     aiRef.current.clearHistory();
     setAudioDegradedMessage(null);
+    // Reset A/B snapshot state so it doesn't leak across projects
+    setAbSnapshot(null);
+    setAbActive(null);
     if (session.messages.length > 0) {
       aiRef.current.restoreHistory(session.messages);
     }
