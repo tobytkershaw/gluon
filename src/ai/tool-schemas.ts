@@ -436,8 +436,8 @@ const listenTool: ToolSchema = {
     'Works whether or not the transport is playing. ' +
     'Within a single turn, listen evaluates the current projected state, including edits made earlier in the same tool loop. ' +
     'Key modes: (1) basic — ask a question about the current sound, (2) lens — focus on low-end, rhythm, harmony, texture, or dynamics, ' +
-    '(3) compare — render before/after audio to evaluate an edit (e.g. "did the bass get warmer?"). ' +
-    'Compare mode is the recommended way to verify your changes improved the sound.',
+    '(3) compare — evaluate the current state with a comparative question (e.g. "did the bass get warmer?"). ' +
+    'Compare mode renders the current state and frames the evaluation around your question. For quantitative before/after comparison, use render + analyze with diff instead.',
   parameters: {
     type: 'object',
     properties: {
@@ -461,15 +461,11 @@ const listenTool: ToolSchema = {
       },
       compare: {
         type: 'object',
-        description: 'Before/after comparison. Renders audio from a previous session state and the current state, concatenates them with silence, and sends both to the evaluator. Use after making edits to hear whether they improved things. Example: { beforeSessionIndex: 0, question: "did adding Rings make the texture richer?" }.',
+        description: 'Comparative evaluation. Renders the current state and sends it to the evaluator with a compare-focused prompt. Use after making edits to get a qualitative judgment of the result. The evaluator assesses the current sound in light of your question. Example: { question: "did adding Rings make the texture richer?" }. For quantitative before/after diffs, use render + analyze with type "diff" instead.',
         properties: {
-          beforeSessionIndex: {
-            type: 'integer',
-            description: 'Index into the undo stack for the "before" state. Use 0 for the state before the most recent action group.',
-          },
           question: {
             type: 'string',
-            description: 'What to compare (e.g. "did the bass get warmer?", "which groove is tighter?", "is the new pattern better?").',
+            description: 'What to evaluate (e.g. "did the bass get warmer?", "which groove is tighter?", "is the new pattern better?").',
           },
         },
       },

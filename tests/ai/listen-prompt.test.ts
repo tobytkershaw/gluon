@@ -139,16 +139,14 @@ describe('buildListenPromptWithLens', () => {
 describe('buildComparePrompt', () => {
   it('includes comparative base prompt', () => {
     const prompt = buildComparePrompt();
-    expect(prompt).toContain('TWO segments separated by a brief silence');
-    expect(prompt).toContain('BEFORE clip');
-    expect(prompt).toContain('AFTER clip');
+    expect(prompt).toContain('current rendered output');
+    expect(prompt).toContain('post-edit state');
   });
 
   it('includes comparative guidelines', () => {
     const prompt = buildComparePrompt();
-    expect(prompt).toContain('what changed between the BEFORE and AFTER');
-    expect(prompt).toContain('improvement, a regression, or neutral');
-    expect(prompt).toContain('cannot hear a meaningful difference');
+    expect(prompt).toContain('Evaluate the current audio in light of the comparative question');
+    expect(prompt).toContain('achieves the goal implied by the question');
   });
 
   it('includes footer', () => {
