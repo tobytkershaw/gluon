@@ -20,4 +20,19 @@ describe('audio runtime degradation messaging', () => {
       'Audio runtime degraded: processor load failed; processor load failed for clouds (clouds-1)',
     );
   });
+
+  it('deduplicates the first repeated failure message (#1206)', () => {
+    const first = appendAudioRuntimeDegradationMessage(null, 'Plaits init failed');
+    const second = appendAudioRuntimeDegradationMessage(first, 'Plaits init failed');
+
+    expect(second).toBe(first);
+  });
+
+  it('deduplicates a later repeated failure message', () => {
+    const first = appendAudioRuntimeDegradationMessage(null, 'msg-a');
+    const second = appendAudioRuntimeDegradationMessage(first, 'msg-b');
+    const third = appendAudioRuntimeDegradationMessage(second, 'msg-b');
+
+    expect(third).toBe(second);
+  });
 });

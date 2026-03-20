@@ -3,7 +3,8 @@
 import type { ModuleDescriptor, ProcessorContract, ModulatorContract, CreationResult } from './module-contract';
 import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from './runtime-events';
 
-function dispatchDegradedEvent(moduleType: string, error: unknown): void {
+function dispatchDegradedEvent(moduleType: string, error: unknown, signal?: AbortSignal): void {
+  if (signal?.aborted) return; // Load was canceled — don't emit stale warnings
   if (typeof window !== 'undefined') {
     const message = `${moduleType} init failed: ${error}`;
     window.dispatchEvent(new CustomEvent<AudioDegradedDetail>(AUDIO_DEGRADED_EVENT, {
@@ -49,12 +50,13 @@ async function createProcessor(
   moduleType: string,
   factory: () => Promise<ProcessorContract>,
   ctx: AudioContext,
+  signal?: AbortSignal,
 ): Promise<CreationResult<ProcessorContract>> {
   try {
     const engine = await factory();
     return { engine, degraded: false };
   } catch (e) {
-    dispatchDegradedEvent(moduleType, e);
+    dispatchDegradedEvent(moduleType, e, signal);
     return { engine: createPassthroughProcessor(ctx), degraded: true, degradedReason: String(e) };
   }
 }
@@ -63,12 +65,13 @@ async function createModulator(
   moduleType: string,
   factory: () => Promise<ModulatorContract>,
   ctx: AudioContext,
+  signal?: AbortSignal,
 ): Promise<CreationResult<ModulatorContract>> {
   try {
     const engine = await factory();
     return { engine, degraded: false };
   } catch (e) {
-    dispatchDegradedEvent(moduleType, e);
+    dispatchDegradedEvent(moduleType, e, signal);
     return { engine: createPassthroughModulator(ctx), degraded: true, degradedReason: String(e) };
   }
 }
@@ -77,114 +80,114 @@ export const moduleDescriptors = new Map<string, ModuleDescriptor>([
   ['rings', {
     type: 'rings', role: 'processor',
     commands: ['strum', 'damp', 'set-polyphony', 'set-internal-exciter', 'set-fine-tune', 'set-note'],
-    create: async (ctx) => createProcessor('rings', async () => {
+    create: async (ctx, signal) => createProcessor('rings', async () => {
       const { RingsSynth } = await import('./rings-synth');
       return RingsSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['clouds', {
     type: 'clouds', role: 'processor',
     commands: ['freeze'],
-    create: async (ctx) => createProcessor('clouds', async () => {
+    create: async (ctx, signal) => createProcessor('clouds', async () => {
       const { CloudsSynth } = await import('./clouds-synth');
       return CloudsSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['ripples', {
     type: 'ripples', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('ripples', async () => {
+    create: async (ctx, signal) => createProcessor('ripples', async () => {
       const { RipplesSynth } = await import('./ripples-synth');
       return RipplesSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['eq', {
     type: 'eq', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('eq', async () => {
+    create: async (ctx, signal) => createProcessor('eq', async () => {
       const { EqSynth } = await import('./eq-synth');
       return EqSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['compressor', {
     type: 'compressor', role: 'processor',
     commands: ['sidechain-enabled'],
     sidechain: { inputIndex: 1 },
-    create: async (ctx) => createProcessor('compressor', async () => {
+    create: async (ctx, signal) => createProcessor('compressor', async () => {
       const { CompressorSynth } = await import('./compressor-synth');
       return CompressorSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['stereo', {
     type: 'stereo', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('stereo', async () => {
+    create: async (ctx, signal) => createProcessor('stereo', async () => {
       const { StereoSynth } = await import('./stereo-synth');
       return StereoSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['chorus', {
     type: 'chorus', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('chorus', async () => {
+    create: async (ctx, signal) => createProcessor('chorus', async () => {
       const { ChorusSynth } = await import('./chorus-synth');
       return ChorusSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['distortion', {
     type: 'distortion', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('distortion', async () => {
+    create: async (ctx, signal) => createProcessor('distortion', async () => {
       const { DistortionSynth } = await import('./distortion-synth');
       return DistortionSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['warps', {
     type: 'warps', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('warps', async () => {
+    create: async (ctx, signal) => createProcessor('warps', async () => {
       const { WarpsSynth } = await import('./warps-synth');
       return WarpsSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['elements', {
     type: 'elements', role: 'processor',
     commands: ['gate', 'damp', 'set-note'],
-    create: async (ctx) => createProcessor('elements', async () => {
+    create: async (ctx, signal) => createProcessor('elements', async () => {
       const { ElementsSynth } = await import('./elements-synth');
       return ElementsSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['beads', {
     type: 'beads', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('beads', async () => {
+    create: async (ctx, signal) => createProcessor('beads', async () => {
       const { BeadsSynth } = await import('./beads-synth');
       return BeadsSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['frames', {
     type: 'frames', role: 'processor',
     commands: [],
-    create: async (ctx) => createProcessor('frames', async () => {
+    create: async (ctx, signal) => createProcessor('frames', async () => {
       const { FramesSynth } = await import('./frames-synth');
       return FramesSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['tides', {
     type: 'tides', role: 'modulator',
     commands: [],
-    create: async (ctx) => createModulator('tides', async () => {
+    create: async (ctx, signal) => createModulator('tides', async () => {
       const { TidesSynth } = await import('./tides-synth');
       return TidesSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
   ['marbles', {
     type: 'marbles', role: 'modulator',
     commands: [],
-    create: async (ctx) => createModulator('marbles', async () => {
+    create: async (ctx, signal) => createModulator('marbles', async () => {
       const { MarblesSynth } = await import('./marbles-synth');
       return MarblesSynth.create(ctx);
-    }, ctx),
+    }, ctx, signal),
   }],
 ]);
