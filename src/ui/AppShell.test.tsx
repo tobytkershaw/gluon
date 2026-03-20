@@ -42,10 +42,7 @@ function buildProps(view: ViewMode, overrides: Partial<AppShellProps> = {}): App
     currentOpenaiKey: '',
     currentGeminiKey: '',
     listenerMode: 'gemini' as const,
-    chatOpen: true,
-    onChatToggle: noop,
-    chatWidth: 320,
-    onChatResize: noop,
+    onCoinFlip: noop,
     projectName: 'Test Project',
     projects: [] as ProjectMeta[],
     saveError: false,
@@ -129,15 +126,15 @@ describe('AppShell smoke render', () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
-  it('focuses the composer from Cmd+L and opens chat if needed', async () => {
+  it('switches to chat view from Cmd+L', async () => {
+    const viewChange = vi.fn();
     function Harness() {
-      const [chatOpen, setChatOpen] = useState(false);
+      const [view, setView] = useState<ViewMode>('surface');
       return (
         <AppShell
-          {...buildProps('surface', {
+          {...buildProps(view, {
             apiConfigured: true,
-            chatOpen,
-            onChatToggle: () => setChatOpen(o => !o),
+            onViewChange: (v: ViewMode) => { setView(v); viewChange(v); },
           })}
         />
       );
@@ -149,21 +146,30 @@ describe('AppShell smoke render', () => {
     instrument.focus();
     fireEvent.keyDown(instrument, { key: 'l', metaKey: true });
 
-    const textarea = await screen.findByRole('textbox');
-    await waitFor(() => expect(document.activeElement).toBe(textarea));
+    await waitFor(() => expect(viewChange).toHaveBeenCalledWith('chat'));
   });
 
-  it('returns focus to the instrument view on Escape', async () => {
-    render(<AppShell {...buildProps('surface', { apiConfigured: true, chatOpen: true })} />);
+  it('switches to instrument view on Escape from chat', async () => {
+    const viewChange = vi.fn();
+    function Harness() {
+      const [view, setView] = useState<ViewMode>('chat');
+      return (
+        <AppShell
+          {...buildProps(view, {
+            apiConfigured: true,
+            onViewChange: (v: ViewMode) => { setView(v); viewChange(v); },
+          })}
+        />
+      );
+    }
+
+    render(<Harness />);
 
     const textarea = screen.getByRole('textbox');
     textarea.focus();
     fireEvent.keyDown(textarea, { key: 'Escape' });
 
-    await waitFor(() => {
-      const instrument = screen.getByText('instrument body').closest('[data-shortcut-scope="instrument"]') as HTMLElement;
-      expect(document.activeElement).toBe(instrument);
-    });
+    await waitFor(() => expect(viewChange).toHaveBeenCalledWith('surface'));
   });
 
   it('shows the audio degradation banner when provided', () => {
@@ -179,9 +185,9 @@ describe('AppShell smoke render', () => {
     expect(screen.getByTestId('degraded-banner').textContent).toContain('manual mode');
   });
 
-  it('shows degraded-mode banner when planner is not configured (sidebar)', () => {
-    render(<AppShell {...buildProps('surface', { apiConfigured: false, chatOpen: true })} />);
-    expect(screen.getByTestId('degraded-banner')).toBeTruthy();
+  it('does not show degraded-mode banner on instrument tabs (no sidebar)', () => {
+    render(<AppShell {...buildProps('surface', { apiConfigured: false })} />);
+    expect(screen.queryByTestId('degraded-banner')).toBeNull();
   });
 
   it('does not show degraded-mode banner when planner is configured', () => {
@@ -211,8 +217,8 @@ describe('AppShell smoke render', () => {
     expect(screen.getByTitle('Redo: Redoable (⌘⇧Z)')).toHaveProperty('disabled', false);
   });
 
-  it('disables API settings changes while an AI turn is active', () => {
-    render(<AppShell {...buildProps('surface', {
+  it('disables API settings changes while an AI turn is active (chat view)', () => {
+    render(<AppShell {...buildProps('chat', {
       apiConfigured: true,
       isThinking: true,
     })} />);
