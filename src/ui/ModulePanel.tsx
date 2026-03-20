@@ -21,6 +21,8 @@ const ACCENT = {
     selectorActive: 'bg-amber-400/15 text-amber-300 border-amber-400/30',
     selectorInactive: 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800',
     dot: 'bg-amber-400',
+    accentBar: '#fbbf24',
+    typeLabel: 'Source',
   },
   sky: {
     header: 'text-sky-300',
@@ -33,6 +35,8 @@ const ACCENT = {
     selectorActive: 'bg-sky-400/15 text-sky-300 border-sky-400/30',
     selectorInactive: 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800',
     dot: 'bg-sky-400',
+    accentBar: '#38bdf8',
+    typeLabel: 'Processor',
   },
   violet: {
     header: 'text-violet-300',
@@ -45,6 +49,8 @@ const ACCENT = {
     selectorActive: 'bg-violet-400/15 text-violet-300 border-violet-400/30',
     selectorInactive: 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800',
     dot: 'bg-violet-400',
+    accentBar: '#a78bfa',
+    typeLabel: 'Modulator',
   },
 };
 
@@ -96,25 +102,32 @@ function DiscreteSelector({ control, accentColor, onChange }: {
 }) {
   const accent = ACCENT[accentColor];
 
-  // Enum controls: render string labels as cycle buttons
+  // Enum controls: mockup-style grouped selector — all options in one bordered pill,
+  // active option highlighted with accent color
   if (control.enumValues && control.enumValues.length > 0) {
     const currentIndex = Math.round(control.value);
     return (
       <div className="flex flex-col items-center gap-1">
-        <span className="text-[10px] text-zinc-500 text-center leading-tight truncate w-full">
-          {control.name}
-        </span>
-        <div className="flex gap-0.5">
+        <div
+          className="flex gap-1 px-2 py-0.5 rounded font-mono text-[9px]"
+          style={{
+            background: 'var(--bg-raised, #282523)',
+            border: '1px solid rgba(61,57,53,0.6)',
+          }}
+        >
           {control.enumValues.map((label, i) => (
             <button
               key={label}
               type="button"
               onClick={() => onChange(control.id, i)}
-              className={`px-1.5 h-5 rounded text-[10px] font-mono transition-colors border ${
-                currentIndex === i
-                  ? accent.selectorActive
-                  : `border-transparent ${accent.selectorInactive}`
-              }`}
+              className="transition-colors cursor-pointer"
+              style={{
+                color: currentIndex === i ? accent.accentBar : 'var(--text-muted, #7c776e)',
+                fontWeight: currentIndex === i ? 500 : 400,
+                background: 'none',
+                border: 'none',
+                padding: 0,
+              }}
             >
               {label}
             </button>
@@ -132,20 +145,26 @@ function DiscreteSelector({ control, accentColor, onChange }: {
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[10px] text-zinc-500 text-center leading-tight truncate w-full">
-        {control.name}
-      </span>
-      <div className="flex gap-0.5">
+      <div
+        className="flex gap-1 px-2 py-0.5 rounded font-mono text-[9px]"
+        style={{
+          background: 'var(--bg-raised, #282523)',
+          border: '1px solid rgba(61,57,53,0.6)',
+        }}
+      >
         {steps.map((step) => (
           <button
             key={step}
             type="button"
             onClick={() => onChange(control.id, (step - min) / (max - min))}
-            className={`w-5 h-5 rounded text-[11px] font-mono transition-colors border ${
-              Math.round(control.value * (max - min) + min) === step
-                ? accent.selectorActive
-                : `border-transparent ${accent.selectorInactive}`
-            }`}
+            className="transition-colors cursor-pointer"
+            style={{
+              color: Math.round(control.value * (max - min) + min) === step ? accent.accentBar : 'var(--text-muted, #7c776e)',
+              fontWeight: Math.round(control.value * (max - min) + min) === step ? 500 : 400,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+            }}
           >
             {step}
           </button>
@@ -339,32 +358,56 @@ export function ModulePanel({
   const smallMaxW = 48 * smallCols + 8 * (smallCols - 1);
 
 
+  // Extract short module name (before colon if present)
+  const moduleName = label.includes(':') ? label.split(':')[0].trim() : label.split('(')[0].trim();
+
   return (
     <div
       ref={panelRef}
-      className={`bg-zinc-900/60 border rounded-lg flex flex-col overflow-hidden ${
-        isSelected ? 'border-red-500/50 ring-1 ring-red-500/30' : isHighlighted ? accent.highlight : 'border-zinc-800/60'
+      className={`border rounded-lg flex flex-col overflow-hidden ${
+        isSelected ? 'border-amber-400' : isHighlighted ? accent.highlight : ''
       } ${isBypassed ? 'opacity-50' : ''} ${onRemove ? 'cursor-pointer' : ''}`}
-      style={{ minWidth: 148, height: MODULE_HEIGHT }}
+      style={{
+        minWidth: 148,
+        height: MODULE_HEIGHT,
+        background: 'var(--bg-surface, #1c1917)',
+        borderColor: isSelected ? '#fbbf24' : 'rgba(61,57,53,0.6)',
+        boxShadow: isSelected ? '0 0 0 1px rgba(251,191,36,0.3)' : undefined,
+      }}
       onClick={handlePanelClick}
     >
-      {/* Header bar */}
-      <div className={`flex items-center justify-between gap-1 px-3 py-1.5 ${accent.headerBg} border-b border-zinc-800/40`}>
-        <div className="flex items-center gap-1.5 min-w-0">
-          {onToggleEnabled ? (
-            <button
-              type="button"
-              onClick={onToggleEnabled}
-              className={`w-1.5 h-1.5 rounded-full shrink-0 transition-colors ${
-                isBypassed ? 'bg-zinc-600' : accent.dot
-              }`}
-              title={isBypassed ? 'Enable' : 'Bypass'}
-            />
-          ) : (
-            <div className={`w-1.5 h-1.5 rounded-full ${accent.dot} shrink-0`} />
-          )}
-          <span className={`text-[11px] font-medium truncate ${isBypassed ? 'text-zinc-500 line-through' : accent.header}`}>{label}</span>
-        </div>
+      {/* Header bar — accent bar + bypass dot + name + type label */}
+      <div className="flex items-center gap-2 px-3 py-2 shrink-0" style={{ borderBottom: '1px solid rgba(61,57,53,0.3)' }}>
+        {/* Accent bar */}
+        <div
+          className="shrink-0 rounded-sm"
+          style={{ width: 3, height: 20, background: accent.accentBar }}
+        />
+        {/* Bypass dot */}
+        {onToggleEnabled ? (
+          <button
+            type="button"
+            onClick={onToggleEnabled}
+            className="w-2 h-2 rounded-full shrink-0 transition-colors cursor-pointer"
+            style={{ background: isBypassed ? '#57534e' : '#34d399' }}
+            title={isBypassed ? 'Enable' : 'Bypass'}
+          />
+        ) : (
+          <div
+            className="w-2 h-2 rounded-full shrink-0"
+            style={{ background: '#34d399' }}
+          />
+        )}
+        {/* Module name */}
+        <span className={`text-[13px] font-semibold flex-1 truncate ${isBypassed ? 'text-zinc-500 line-through' : ''}`}
+          style={{ fontFamily: "'Syne', system-ui, sans-serif", color: isBypassed ? undefined : 'var(--text-primary, #e5e2dc)' }}
+        >
+          {moduleName}
+        </span>
+        {/* Type label */}
+        <span className="font-mono text-[9px] uppercase tracking-wider shrink-0" style={{ color: 'var(--text-muted, #7c776e)', letterSpacing: '0.06em' }}>
+          {accent.typeLabel}
+        </span>
         {/* Swap button (processors only) */}
         {onReplace && (
           <button
@@ -380,8 +423,8 @@ export function ModulePanel({
         )}
       </div>
 
-      {/* Body */}
-      <div className="flex flex-col gap-2.5 p-2.5 flex-1 min-h-0">
+      {/* Body — knob sections with labeled tiers */}
+      <div className="flex flex-col gap-4 p-3 px-4 flex-1 min-h-0">
         {/* Mode selector */}
         {engines && engines.length > 1 && onModelChange && currentModel !== undefined && (
           <ModeSelector
@@ -401,44 +444,55 @@ export function ModulePanel({
 
         {/* Primary knobs (large) */}
         {largeKnobs.length > 0 && (
-          <div
-            className="flex flex-wrap justify-center gap-y-2 gap-x-4 mx-auto"
-            style={{ maxWidth: largeMaxW }}
-          >
-            {largeKnobs.map((control) => (
-              <div key={control.id} className="relative group/knob">
-                {onPinControl && (
-                  <PinButton
-                    isPinned={pinnedControlIds?.has(control.id) ?? false}
-                    onClick={() => onPinControl(control.id)}
+          <div className="flex flex-col gap-1">
+            <div className="font-mono text-[8px] uppercase tracking-wider pb-0.5"
+              style={{ color: 'var(--text-faint, #57534e)', letterSpacing: '0.06em', borderBottom: '1px solid rgba(61,57,53,0.3)' }}
+            >
+              Primary
+            </div>
+            <div
+              className="flex flex-wrap justify-center gap-y-2 gap-x-3 mx-auto pt-2"
+              style={{ maxWidth: largeMaxW }}
+            >
+              {largeKnobs.map((control) => (
+                <div key={control.id} className="relative group/knob">
+                  {onPinControl && (
+                    <PinButton
+                      isPinned={pinnedControlIds?.has(control.id) ?? false}
+                      onClick={() => onPinControl(control.id)}
+                    />
+                  )}
+                  <Knob
+                    label={control.name}
+                    value={control.value}
+                    accentColor={accentColor}
+                    onChange={(value) => onParamChange(control.id, value)}
+                    onPointerDown={onInteractionStart}
+                    onPointerUp={onInteractionEnd}
+                    size={LARGE_KNOB_SIZE}
+                    modulations={modulationMap?.get(control.id)}
+                    onModulationClick={onModulationClick}
+                    displayMapping={control.displayMapping}
+                    onModulationDepthChange={onModulationDepthChange}
+                    onModulationDepthCommit={onModulationDepthCommit}
+                    onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
                   />
-                )}
-                <Knob
-                  label={control.name}
-                  value={control.value}
-                  accentColor={accentColor}
-                  onChange={(value) => onParamChange(control.id, value)}
-                  onPointerDown={onInteractionStart}
-                  onPointerUp={onInteractionEnd}
-                  size={LARGE_KNOB_SIZE}
-                  modulations={modulationMap?.get(control.id)}
-                  onModulationClick={onModulationClick}
-                  displayMapping={control.displayMapping}
-                  onModulationDepthChange={onModulationDepthChange}
-                  onModulationDepthCommit={onModulationDepthCommit}
-                  onRampRequest={onRampRequest ? (target, dur) => onRampRequest(control.id, target, dur) : undefined}
-                />
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {/* Medium knobs (tone/character) */}
         {mediumKnobs.length > 0 && (
-          <>
-            <div className="border-t border-zinc-800/40" />
+          <div className="flex flex-col gap-1">
+            <div className="font-mono text-[8px] uppercase tracking-wider pb-0.5"
+              style={{ color: 'var(--text-faint, #57534e)', letterSpacing: '0.06em', borderBottom: '1px solid rgba(61,57,53,0.3)' }}
+            >
+              Character
+            </div>
             <div
-              className="flex flex-wrap justify-center gap-y-2 gap-x-3 mx-auto"
+              className="flex flex-wrap justify-center gap-y-2 gap-x-3 mx-auto pt-2"
               style={{ maxWidth: mediumMaxW }}
             >
               {mediumKnobs.map((control) => (
@@ -464,15 +518,19 @@ export function ModulePanel({
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {/* Small knobs (attenuverters / extended params) */}
         {smallKnobs.length > 0 && (
-          <>
-            <div className="border-t border-zinc-800/40" />
+          <div className="flex flex-col gap-1">
+            <div className="font-mono text-[8px] uppercase tracking-wider pb-0.5"
+              style={{ color: 'var(--text-faint, #57534e)', letterSpacing: '0.06em', borderBottom: '1px solid rgba(61,57,53,0.3)' }}
+            >
+              Modulation
+            </div>
             <div
-              className="flex flex-wrap justify-center gap-y-2 gap-x-2 mx-auto"
+              className="flex flex-wrap justify-center gap-y-2 gap-x-2 mx-auto pt-2"
               style={{ maxWidth: smallMaxW }}
             >
               {smallKnobs.map((control) => (
@@ -498,14 +556,18 @@ export function ModulePanel({
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {/* Boolean toggles + discrete selectors */}
         {(booleanControls.length > 0 || discreteControls.length > 0) && (
-          <>
-            <div className="border-t border-zinc-800/40" />
-            <div className="flex flex-wrap justify-center gap-2">
+          <div className="flex flex-col gap-1">
+            <div className="font-mono text-[8px] uppercase tracking-wider pb-0.5"
+              style={{ color: 'var(--text-faint, #57534e)', letterSpacing: '0.06em', borderBottom: '1px solid rgba(61,57,53,0.3)' }}
+            >
+              Mode
+            </div>
+            <div className="flex flex-wrap justify-center gap-2 pt-2">
               {booleanControls.map((control) => (
                 <ToggleControl
                   key={control.id}
@@ -523,7 +585,7 @@ export function ModulePanel({
                 />
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {/* Extra children (routing UI, etc.) */}

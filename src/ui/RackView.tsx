@@ -149,18 +149,37 @@ export function RackView({
   );
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col gap-3 p-4 overflow-y-auto">
-      {/* Chain strip (if processors or modulators exist) */}
-      {(processors.length > 0 || modulators.length > 0) && (
-        <div className="mb-0">
-          <ChainStrip
-            track={activeTrack}
-          />
-        </div>
-      )}
+    <div className="flex-1 min-w-0 flex flex-col" style={{ background: 'var(--bg-deep, #0f0e0c)' }}>
+      {/* Chain strip — always visible */}
+      <ChainStrip
+        track={activeTrack}
+      />
 
-      {/* Module grid: wrap left-to-right, filling like a physical rack */}
-      <div className="flex flex-wrap gap-3 items-start">
+      {/* Module area: wrap left-to-right with browser hint */}
+      <div className="flex-1 flex flex-wrap gap-4 p-6 overflow-y-auto items-start relative" style={{ paddingLeft: 36, alignContent: 'flex-start' }}>
+        {/* Module browser hint tab */}
+        <button
+          type="button"
+          onClick={() => setBrowserOpen(true)}
+          className="absolute left-0 flex items-center justify-center cursor-pointer"
+          style={{
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: 20,
+            height: 80,
+            background: 'var(--bg-surface, #1c1917)',
+            border: '1px solid rgba(61,57,53,0.6)',
+            borderLeft: 'none',
+            borderRadius: '0 6px 6px 0',
+            color: 'var(--text-faint, #57534e)',
+            fontSize: 10,
+            zIndex: 10,
+          }}
+          title="Open module browser"
+        >
+          {'\u25B6'}
+        </button>
+
         {/* Source module panel */}
         <ModulePanel
           label={sourceLabel}
