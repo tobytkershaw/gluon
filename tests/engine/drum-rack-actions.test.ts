@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
 import { createSession, createBusTrack } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
-import { applyUndo } from '../../src/engine/primitives';
+import { applyUndo, applyRedo } from '../../src/engine/primitives';
 import { getTrack, getActivePattern, updateTrack } from '../../src/engine/types';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 import type { AIAction, DrumRackConfig, DrumPad } from '../../src/engine/types';
@@ -280,7 +280,7 @@ describe('drum-rack-actions', () => {
       expect(track.drumRack).toBeUndefined();
     });
 
-    it('redo after undo re-promotes to drum rack', () => {
+    it('redo after undo re-promotes to drum rack with pads', () => {
       const session = createSession();
       const trackId = session.tracks[0].id;
 
@@ -292,21 +292,16 @@ describe('drum-rack-actions', () => {
       const after = executeOperations(session, actions, adapter, new Arbitrator());
       const undone = applyUndo(after.session)!;
       expect(getTrack(undone, trackId).engine).toBe('');
+      expect(getTrack(undone, trackId).drumRack).toBeUndefined();
 
-      // The redo snapshot captures the state before undo (advance captures current
-      // state). prevPads has the kick pad, prevEngine is '' (the empty track state
-      // that redo will need to revert if itself is undone again).
-      const snapshot = undone.redoStack[undone.redoStack.length - 1];
-      expect(snapshot).toBeDefined();
-      expect(snapshot.kind).toBe('drum-pad');
-      if (snapshot.kind === 'drum-pad') {
-        // advance() captured the state before undo: pads had kick, engine was drum-rack
-        expect(snapshot.prevPads).toHaveLength(1);
-        expect(snapshot.prevPads[0].id).toBe('kick');
-        // prevEngine captures the current engine at advance time (drum-rack),
-        // which is what redo needs to know was there before reverting
-        expect(snapshot.prevEngine).toBe('drum-rack');
-      }
+      // Actually execute redo and verify the full track state
+      const redone = applyRedo(undone);
+      const track = getTrack(redone, trackId);
+      expect(track.engine).toBe('drum-rack');
+      expect(track.model).toBe(-1);
+      expect(track.drumRack).toBeDefined();
+      expect(track.drumRack?.pads).toHaveLength(1);
+      expect(track.drumRack?.pads[0].id).toBe('kick');
     });
 
     it('rejects add on bus track', () => {

@@ -294,11 +294,15 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     if (snapshot.prevPatterns) {
       update.patterns = snapshot.prevPatterns;
     }
-    // Revert auto-promotion: restore original engine/model and remove drum rack
+    // Restore engine/model from auto-promotion snapshot.
+    // Undo (prevEngine === ''): demote back to empty audio track, clear drum rack.
+    // Redo (prevEngine === 'drum-rack'): re-promote, keep pads from prevPads (already set above).
     if (snapshot.prevEngine !== undefined) {
       update.engine = snapshot.prevEngine;
       update.model = snapshot.prevModel ?? -1;
-      update.drumRack = undefined;
+      if (snapshot.prevEngine !== 'drum-rack') {
+        update.drumRack = undefined;
+      }
     }
     return updateTrack(session, snapshot.trackId, update);
   }
