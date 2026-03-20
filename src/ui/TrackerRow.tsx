@@ -230,7 +230,7 @@ function EditableCell({
   if (editing) {
     return (
       <input
-        className={`bg-transparent text-inherit text-[11px] font-mono w-full px-0 py-0 border-0 outline-none caret-amber-400 transition-colors ${
+        className={`bg-transparent text-inherit text-[11px] font-mono w-full px-0 py-0 border-0 outline-none caret-amber-400 transition-colors text-center ${
           invalid ? 'ring-1 ring-red-500 rounded-sm' : ''
         }`}
         style={autoCapProp ? { textTransform: 'uppercase' } : undefined}
