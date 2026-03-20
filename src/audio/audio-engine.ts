@@ -135,8 +135,8 @@ export class AudioEngine {
   private channelSplitter: ChannelSplitterNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private _isRunning = false;
-  /** Tracks processor IDs currently being created (async in-flight guard). */
-  private pendingProcessors = new Set<string>();
+  /** Tracks processor IDs currently being created (async in-flight guard). Value is AbortController for canceling stale loads. */
+  private pendingProcessors = new Map<string, AbortController>();
   /** Monotonic transport generation propagated to worklets to invalidate stale events. */
   private generation = 0;
   private activeVoices = new Map<string, ActiveVoice>();
@@ -347,6 +347,7 @@ export class AudioEngine {
     }
     this.modulatorSlots.clear();
     this.modulationRouteSlots.clear();
+    for (const ac of this.pendingModulators.values()) ac.abort();
     this.pendingModulators.clear();
     // Destroy sidechain gain nodes
     for (const [, sc] of this.sidechainSlots) {
@@ -375,6 +376,7 @@ export class AudioEngine {
     }
     this.tracks.clear();
     this.activeVoices.clear();
+    for (const ac of this.pendingProcessors.values()) ac.abort();
     this.pendingProcessors.clear();
     this.mixer?.disconnect();
     this.masterGain?.disconnect();
@@ -492,11 +494,11 @@ export class AudioEngine {
       this.modulationRouteSlots.delete(trackId);
     }
     // Cancel pending processors/modulators for this track
-    for (const key of [...this.pendingProcessors]) {
-      if (key.startsWith(trackId + ':')) this.pendingProcessors.delete(key);
+    for (const [key, ac] of [...this.pendingProcessors]) {
+      if (key.startsWith(trackId + ':')) { ac.abort(); this.pendingProcessors.delete(key); }
     }
-    for (const key of [...this.pendingModulators]) {
-      if (key.startsWith(trackId + ':')) this.pendingModulators.delete(key);
+    for (const [key, ac] of [...this.pendingModulators]) {
+      if (key.startsWith(trackId + ':')) { ac.abort(); this.pendingModulators.delete(key); }
     }
     // Clean up send gain nodes from this track
     const sends = this.sendSlots.get(trackId);
@@ -921,9 +923,10 @@ export class AudioEngine {
     const descriptor = moduleDescriptors.get(processorType);
     if (!descriptor || descriptor.role !== 'processor') return;
 
-    this.pendingProcessors.add(key);
+    const ac = new AbortController();
+    this.pendingProcessors.set(key, ac);
     try {
-      const { engine, degraded } = await descriptor.create(this.ctx);
+      const { engine, degraded } = await descriptor.create(this.ctx, ac.signal);
       // After async gap: only insert if still wanted (key not cancelled
       // by removeProcessor) and not already present (dedupe).
       if (this.pendingProcessors.has(key) && !slot.processors.some(p => p.id === processorId)) {
@@ -943,6 +946,7 @@ export class AudioEngine {
 
     // Cancel any in-flight add for this processor
     const key = `${trackId}:${processorId}`;
+    this.pendingProcessors.get(key)?.abort();
     this.pendingProcessors.delete(key);
 
     // Clean up sidechain route if this processor had one
@@ -987,7 +991,7 @@ export class AudioEngine {
     if (!slot) return [];
     const result = slot.processors.map(p => ({ id: p.id, type: p.type }));
     // Include in-flight processors so the sync effect doesn't re-add them
-    for (const key of this.pendingProcessors) {
+    for (const key of this.pendingProcessors.keys()) {
       const [vid, pid] = key.split(':');
       if (vid === trackId && !result.some(p => p.id === pid)) {
         result.push({ id: pid!, type: 'unknown' });
@@ -1036,7 +1040,7 @@ export class AudioEngine {
   // --- Modulator chain ---
 
   /** Tracks modulator IDs currently being created (async in-flight guard). */
-  private pendingModulators = new Set<string>();
+  private pendingModulators = new Map<string, AbortController>();
   private modulatorSlots: Map<string, ModulatorSlot[]> = new Map();
   private modulationRouteSlots: Map<string, ModulationRoute[]> = new Map();
 
@@ -1052,9 +1056,10 @@ export class AudioEngine {
     const descriptor = moduleDescriptors.get(modulatorType);
     if (!descriptor || descriptor.role !== 'modulator') return;
 
-    this.pendingModulators.add(key);
+    const ac = new AbortController();
+    this.pendingModulators.set(key, ac);
     try {
-      const { engine } = await descriptor.create(this.ctx);
+      const { engine } = await descriptor.create(this.ctx, ac.signal);
 
       // After async gap: only insert if still wanted
       if (!this.pendingModulators.has(key)) {
@@ -1082,6 +1087,7 @@ export class AudioEngine {
 
   removeModulator(trackId: string, modulatorId: string): void {
     const key = `${trackId}:${modulatorId}`;
+    this.pendingModulators.get(key)?.abort();
     this.pendingModulators.delete(key);
 
     const slots = this.modulatorSlots.get(trackId);
@@ -1194,7 +1200,7 @@ export class AudioEngine {
     const slots = this.modulatorSlots.get(trackId) ?? [];
     const result = slots.map(s => ({ id: s.id, type: s.type }));
     // Include in-flight modulators so the sync effect doesn't re-add them
-    for (const key of this.pendingModulators) {
+    for (const key of this.pendingModulators.keys()) {
       const [vid, mid] = key.split(':');
       if (vid === trackId && !result.some(s => s.id === mid)) {
         result.push({ id: mid!, type: 'unknown' });

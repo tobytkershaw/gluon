@@ -115,11 +115,12 @@ function shallowEqual(a: Record<string, number>, b: Record<string, number>): boo
 }
 
 export function appendAudioRuntimeDegradationMessage(prev: string | null, message: string): string {
-  if (!prev) return `Audio runtime degraded: ${message}`;
-  const [prefix, ...existingMessages] = prev.split('; ');
-  const seen = new Set(existingMessages);
-  if (seen.has(message)) return prev;
-  return `${prefix}; ${[...existingMessages, message].join('; ')}`;
+  const PREFIX = 'Audio runtime degraded: ';
+  if (!prev) return `${PREFIX}${message}`;
+  const body = prev.startsWith(PREFIX) ? prev.slice(PREFIX.length) : prev;
+  const existingMessages = body.split('; ');
+  if (existingMessages.includes(message)) return prev;
+  return `${PREFIX}${[...existingMessages, message].join('; ')}`;
 }
 
 export default function App() {

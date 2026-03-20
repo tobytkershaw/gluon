@@ -50,7 +50,7 @@ export interface ProcessorDescriptor {
   role: 'processor';
   commands: ModuleCommand['type'][];
   sidechain?: { inputIndex: number };
-  create(ctx: AudioContext): Promise<CreationResult<ProcessorContract>>;
+  create(ctx: AudioContext, signal?: AbortSignal): Promise<CreationResult<ProcessorContract>>;
 }
 
 /** Descriptor for a modulator module type. */
@@ -58,7 +58,7 @@ export interface ModulatorDescriptor {
   type: string;
   role: 'modulator';
   commands: ModuleCommand['type'][];
-  create(ctx: AudioContext): Promise<CreationResult<ModulatorContract>>;
+  create(ctx: AudioContext, signal?: AbortSignal): Promise<CreationResult<ModulatorContract>>;
 }
 
 /** Descriptor for a module type — used by the descriptor registry. */
