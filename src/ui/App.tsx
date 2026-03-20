@@ -65,6 +65,7 @@ import { useNotePreview } from './useNotePreview';
 import type { ViewMode } from './view-types';
 import { clearQaAudioTrace, recordQaAudioTrace } from '../qa/audio-trace';
 import { computeSemanticRawUpdates } from './surface/semantic-utils';
+import { maybeApplySurfaceTemplate } from '../engine/surface-templates';
 import { useTransportController } from './useTransportController';
 import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
 import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from '../audio/runtime-events';
@@ -2255,11 +2256,12 @@ export default function App() {
         timestamp: Date.now(),
         description: 'Remove processor and dependent modulation routes',
       } as ActionGroupSnapshot;
-      return {
+      const next: Session = {
         ...s,
         tracks: s.tracks.map(v => v.id === vid ? updatedTrack : v),
         undoStack: [...s.undoStack, undoEntry],
       };
+      return maybeApplySurfaceTemplate(next, vid, undoEntry.description);
     });
     setSelectedProcessorId(null);
   }, [ensureAudio]);
@@ -2715,11 +2717,12 @@ export default function App() {
         timestamp: Date.now(),
         description: `Add ${type} processor`,
       };
-      return {
+      const next: Session = {
         ...s,
         tracks: s.tracks.map(v => v.id === vid ? { ...track, processors: [...processors, newProcessor] } : v),
         undoStack: [...s.undoStack, snapshot],
       };
+      return maybeApplySurfaceTemplate(next, vid, snapshot.description);
     });
   }, [ensureAudio]);
 
@@ -2766,7 +2769,7 @@ export default function App() {
         timestamp: Date.now(),
         description: `Swap processor: ${processors[idx].type} → ${newModuleType}`,
       } as ActionGroupSnapshot;
-      return {
+      const next: Session = {
         ...s,
         tracks: s.tracks.map(v => v.id === vid ? {
           ...track,
@@ -2775,6 +2778,7 @@ export default function App() {
         } : v),
         undoStack: [...s.undoStack, undoEntry],
       };
+      return maybeApplySurfaceTemplate(next, vid, undoEntry.description);
     });
   }, [ensureAudio]);
 

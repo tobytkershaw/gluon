@@ -9,7 +9,8 @@
  * that are resolved to actual track module IDs at application time.
  */
 
-import type { SemanticControlDef, TrackSurface, Track, SurfaceModule, PinnedControl, ThumbprintConfig } from './types';
+import type { SemanticControlDef, TrackSurface, Track, SurfaceModule, PinnedControl, ThumbprintConfig, Session, SurfaceSnapshot, Snapshot } from './types';
+import { getTrack, updateTrack } from './types';
 import { isValidModuleType, validateModuleBindings } from './surface-module-registry';
 
 // ---------------------------------------------------------------------------
@@ -386,6 +387,53 @@ export function applySurfaceTemplate(track: Track): TrackSurface | null {
   return {
     ...track.surface,
     modules: resolvedModules,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Auto-apply after chain mutation
+// ---------------------------------------------------------------------------
+
+/**
+ * Auto-apply a surface template after a chain mutation.
+ * If a template matches the track's new chain signature, applies it and groups
+ * a SurfaceSnapshot with the most recent undo entry.
+ *
+ * Used by both the AI executor (operation-executor.ts) and human handlers (App.tsx).
+ */
+export function maybeApplySurfaceTemplate(session: Session, trackId: string, description: string): Session {
+  const track = getTrack(session, trackId);
+  const newSurface = applySurfaceTemplate(track);
+  if (!newSurface) return session;
+
+  const surfaceSnapshot: SurfaceSnapshot = {
+    kind: 'surface',
+    trackId,
+    prevSurface: track.surface,
+    timestamp: Date.now(),
+    description: `${description} (auto-apply surface template)`,
+  };
+
+  // Group the surface snapshot with the most recent undo entry
+  const undoStack = [...session.undoStack];
+  const lastEntry = undoStack[undoStack.length - 1];
+  if (lastEntry) {
+    const existingSnapshots: Snapshot[] = lastEntry.kind === 'group'
+      ? lastEntry.snapshots
+      : [lastEntry as Snapshot];
+    undoStack[undoStack.length - 1] = {
+      kind: 'group',
+      snapshots: [...existingSnapshots, surfaceSnapshot],
+      timestamp: Date.now(),
+      description,
+    };
+  } else {
+    undoStack.push(surfaceSnapshot);
+  }
+
+  return {
+    ...updateTrack(session, trackId, { surface: newSurface }),
+    undoStack,
   };
 }
 
