@@ -262,7 +262,10 @@ export class Scheduler {
         const activePattern = getActivePattern(track);
         const events = activePattern.events;
         const patternLen = activePattern.duration;
-        if (patternLen <= 0 || events.length === 0) continue;
+        // Resolve the PatternRef for the active pattern so sequence automation is applied
+        const patternRef = (track.sequence ?? []).find(r => r.patternId === activePattern.id);
+        const hasAutomation = (patternRef?.automation?.length ?? 0) > 0;
+        if (patternLen <= 0 || (events.length === 0 && !hasAutomation)) continue;
 
         const segments = this.getLocalSegments(
           Math.max(0, this.cursor),
@@ -270,7 +273,7 @@ export class Scheduler {
           patternLen,
         );
         for (const seg of segments) {
-          this.scheduleSegmentEvents(track, activePattern, undefined, events, patternLen, 0, seg, stepDuration, effectiveSwing);
+          this.scheduleSegmentEvents(track, activePattern, patternRef, events, patternLen, 0, seg, stepDuration, effectiveSwing);
         }
       } else {
         // Song mode: walk the sequence

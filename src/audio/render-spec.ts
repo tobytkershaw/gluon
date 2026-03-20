@@ -406,10 +406,13 @@ function collectEvents(track: Track, bars: number, mode: TransportMode): RenderE
   } else {
     // Pattern mode: loop the active pattern
     const active = getActivePattern(track);
-    if (active && active.events.length > 0 && active.duration > 0) {
+    // Resolve the PatternRef for the active pattern so sequence automation is applied
+    const patternRef = (track.sequence ?? []).find(r => r.patternId === active.id);
+    const hasAutomation = (patternRef?.automation?.length ?? 0) > 0;
+    if (active && (active.events.length > 0 || hasAutomation) && active.duration > 0) {
       let offset = 0;
       while (offset < totalSteps) {
-        emitPatternEvents(events, active, undefined, offset, totalSteps, track.params);
+        emitPatternEvents(events, active, patternRef, offset, totalSteps, track.params);
         offset += active.duration;
       }
     }
