@@ -324,10 +324,9 @@ export class AudioEngine {
 
     for (const [trackId, slot] of this.tracks) {
       if (trackId === this.masterBusId) continue;
-      // Disconnect from mixer, reconnect to master bus input
-      slot.muteGain.disconnect();
+      // Disconnect only the mixer path — leave analyser, send, and sidechain taps intact
+      slot.muteGain.disconnect(this.mixer);
       slot.muteGain.connect(masterSlot.busInput);
-      slot.muteGain.connect(slot.analyser); // restore metering tap
     }
   }
 

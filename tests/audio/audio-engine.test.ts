@@ -475,4 +475,98 @@ describe('AudioEngine', () => {
       expect(sidechainSlots.has('bass:comp-1')).toBe(false);
     });
   });
+
+  describe('rerouteToMasterBus preserves send/sidechain taps (#1124)', () => {
+    function makeFullSlot(overrides: Record<string, unknown> = {}) {
+      return {
+        pool: null,
+        sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        chainOutGain: mockGainNode(),
+        trackVolume: mockGainNode(),
+        trackPanner: { pan: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() },
+        muteGain: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        busInput: null,
+        analyser: { connect: vi.fn(), disconnect: vi.fn(), fftSize: 2048 },
+        processors: [] as unknown[],
+        currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+        currentModel: 0,
+        isBus: false,
+        isDrumRack: false,
+        drumPads: new Map(),
+        ...overrides,
+      };
+    }
+
+    it('does not use blanket disconnect on muteGain when rerouting to master bus', () => {
+      const engine = new AudioEngine();
+      const mixer = mockGainNode();
+      (engine as unknown as { mixer: unknown }).mixer = mixer;
+
+      // Create a regular track and a master bus
+      const trackMuteGain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
+      const trackSlot = makeFullSlot({ muteGain: trackMuteGain });
+
+      const masterBusInput = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
+      const masterSlot = makeFullSlot({
+        isBus: true,
+        busInput: masterBusInput,
+      });
+
+      const tracks = (engine as unknown as { tracks: Map<string, unknown> }).tracks;
+      tracks.set('track1', trackSlot);
+      tracks.set('master', masterSlot);
+      (engine as unknown as { masterBusId: string | null }).masterBusId = 'master';
+
+      // Simulate a send tap and sidechain tap connected to muteGain
+      const sendGain = mockGainNode();
+      trackMuteGain.connect(sendGain);
+      const sidechainTap = mockGainNode();
+      trackMuteGain.connect(sidechainTap);
+
+      // Clear mock call counts so we can observe only what rerouteToMasterBus does
+      trackMuteGain.connect.mockClear();
+      trackMuteGain.disconnect.mockClear();
+
+      // Invoke rerouteToMasterBus
+      (engine as unknown as { rerouteToMasterBus: () => void }).rerouteToMasterBus();
+
+      // muteGain.disconnect() should NOT have been called with zero args (blanket disconnect)
+      // It should only disconnect the specific mixer destination
+      const disconnectCalls = trackMuteGain.disconnect.mock.calls;
+      for (const call of disconnectCalls) {
+        // Every disconnect call should have a destination argument — never blanket
+        expect(call.length).toBeGreaterThan(0);
+      }
+
+      // muteGain should now be connected to the master bus input
+      expect(trackMuteGain.connect).toHaveBeenCalledWith(masterBusInput);
+    });
+
+    it('does not re-connect analyser (it was never disconnected)', () => {
+      const engine = new AudioEngine();
+      const mixer = mockGainNode();
+      (engine as unknown as { mixer: unknown }).mixer = mixer;
+
+      const trackAnalyser = { connect: vi.fn(), disconnect: vi.fn(), fftSize: 2048 };
+      const trackSlot = makeFullSlot({ analyser: trackAnalyser });
+
+      const masterBusInput = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
+      const masterSlot = makeFullSlot({
+        isBus: true,
+        busInput: masterBusInput,
+      });
+
+      const tracks = (engine as unknown as { tracks: Map<string, unknown> }).tracks;
+      tracks.set('track1', trackSlot);
+      tracks.set('master', masterSlot);
+      (engine as unknown as { masterBusId: string | null }).masterBusId = 'master';
+
+      trackAnalyser.connect.mockClear();
+
+      (engine as unknown as { rerouteToMasterBus: () => void }).rerouteToMasterBus();
+
+      // The analyser should NOT have been re-connected (it was never disconnected)
+      expect(trackAnalyser.connect).not.toHaveBeenCalled();
+    });
+  });
 });
