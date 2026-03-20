@@ -1,7 +1,7 @@
 // src/audio/render-spec.ts
 // Converts session state into a serializable RenderSpec for the offline render Worker.
 
-import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting } from '../engine/types';
+import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting, DrumPad } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import type { PatternRef, TransportMode } from '../engine/sequencer-types';
@@ -47,6 +47,10 @@ export interface RenderTrackSpec {
   processors: RenderProcessorSpec[];
   modulators: RenderModulatorSpec[];
   modulations: RenderModulationSpec[];
+  /** When true, this track is a drum-rack — events carry padId and `pads` has per-pad specs. */
+  isDrumRack?: boolean;
+  /** Per-pad source descriptors for drum-rack tracks. */
+  pads?: RenderPadSpec[];
 }
 
 export interface RenderSynthPatch {
@@ -110,6 +114,27 @@ export interface RenderEvent {
   patch?: Partial<RenderSynthPatch>;
   extended?: Partial<RenderPlaitsExtended>;
   note?: number;   // normalised 0-1 pitch for set-note
+  /** For drum-rack tracks: which pad this event targets. */
+  padId?: string;
+}
+
+/**
+ * Per-pad source descriptor for drum-rack tracks.
+ * Each pad has its own Plaits model/params so the renderer can instantiate
+ * one synth voice per pad.
+ */
+export interface RenderPadSpec {
+  id: string;
+  /** Plaits engine index (already offset by +8). */
+  model: number;
+  params: RenderSynthPatch;
+  extendedParams: RenderPlaitsExtended;
+  /** Per-pad volume, 0.0–1.0 */
+  level: number;
+  /** Per-pad pan, 0.0–1.0 (0.5 = center) */
+  pan: number;
+  /** Choke group — pads sharing a group silence each other on trigger. */
+  chokeGroup?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,6 +228,8 @@ function selectTracks(session: Session, trackIds?: string[]): Track[] {
 }
 
 function buildTrackSpec(track: Track, bars: number, mode: TransportMode): RenderTrackSpec {
+  const isDrumRack = track.engine === 'drum-rack';
+
   const params: RenderSynthPatch = {
     harmonics: track.params.harmonics,
     timbre: track.params.timbre,
@@ -226,7 +253,7 @@ function buildTrackSpec(track: Track, bars: number, mode: TransportMode): Render
   const portamentoModeMap: Record<string, number> = { off: 0, always: 1, legato: 2 };
   const portamentoMode = portamentoModeMap[track.portamentoMode ?? 'off'] ?? 0;
 
-  return {
+  const spec: RenderTrackSpec = {
     id: track.id,
     model: clampModel(track.model) + GLUON_TO_PLAITS_ENGINE_OFFSET,
     volume: track.volume ?? 0.8,
@@ -239,6 +266,37 @@ function buildTrackSpec(track: Track, bars: number, mode: TransportMode): Render
     processors,
     modulators,
     modulations,
+  };
+
+  if (isDrumRack && track.drumRack) {
+    spec.isDrumRack = true;
+    spec.pads = track.drumRack.pads.map(buildPadSpec);
+  }
+
+  return spec;
+}
+
+function buildPadSpec(pad: DrumPad): RenderPadSpec {
+  const p = pad.source.params;
+  return {
+    id: pad.id,
+    model: clampModel(pad.source.model) + GLUON_TO_PLAITS_ENGINE_OFFSET,
+    params: {
+      harmonics: p.harmonics ?? 0.5,
+      timbre: p.timbre ?? 0.5,
+      morph: p.morph ?? 0.5,
+      note: p.note ?? 0.5,
+    },
+    extendedParams: {
+      fm_amount: p.fm_amount ?? 0.0,
+      timbre_mod_amount: p.timbre_mod_amount ?? 0.0,
+      morph_mod_amount: p.morph_mod_amount ?? 0.0,
+      decay: p.decay ?? 0.5,
+      lpg_colour: p.lpg_colour ?? 0.5,
+    },
+    level: pad.level,
+    pan: pad.pan,
+    chokeGroup: pad.chokeGroup,
   };
 }
 
@@ -500,13 +558,15 @@ function pushMusicalEvent(
   switch (event.kind) {
     case 'trigger': {
       const te = event as TriggerEvent;
+      const padId = te.padId;
       out.push({
         beatTime,
         type: 'trigger',
         accentLevel: te.accent ? 1.0 : (te.velocity ?? 0.8),
+        ...(padId ? { padId } : {}),
       });
-      out.push({ beatTime, type: 'gate-on' });
-      out.push({ beatTime: beatTime + (te.gate ?? 1), type: 'gate-off' });
+      out.push({ beatTime, type: 'gate-on', ...(padId ? { padId } : {}) });
+      out.push({ beatTime: beatTime + (te.gate ?? 1), type: 'gate-off', ...(padId ? { padId } : {}) });
       break;
     }
     case 'note': {
