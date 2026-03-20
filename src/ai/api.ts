@@ -3627,6 +3627,20 @@ export class GluonAI {
                   sampleRate: snap.sampleRate,
                 });
               }
+              // Check for duplicate trackIds — comparing the same track against itself is meaningless
+              const seenTrackIds = new Set<string>();
+              const duplicateTrackIds: string[] = [];
+              for (const ta of trackAudios) {
+                if (seenTrackIds.has(ta.trackId)) {
+                  duplicateTrackIds.push(ta.trackId);
+                } else {
+                  seenTrackIds.add(ta.trackId);
+                }
+              }
+              if (duplicateTrackIds.length > 0) {
+                analysisErrors.push(`Masking analysis received duplicate snapshots for track(s): ${[...new Set(duplicateTrackIds)].join(', ')}. Provide one snapshot per track.`);
+                break;
+              }
               if (trackAudios.length >= 2) {
                 results.masking = analyzeMasking(trackAudios);
               } else {
@@ -3640,13 +3654,22 @@ export class GluonAI {
                 if (!compareSnapshot) {
                   analysisErrors.push(`Compare snapshot not found: ${compareSnapshotId}. Call render first.`);
                 } else {
-                  const bpm = session.transport.bpm;
-                  results.diff = analyzeDiff(
-                    compareSnapshot.pcm,
-                    snapshot.pcm,
-                    snapshot.sampleRate,
-                    bpm,
-                  );
+                  // Validate that both snapshots share the same scope and duration
+                  const scopeA = [...snapshot.scope].sort().join(',');
+                  const scopeB = [...compareSnapshot.scope].sort().join(',');
+                  if (scopeA !== scopeB) {
+                    analysisErrors.push(`Diff snapshots have mismatched scope: [${snapshot.scope.join(', ')}] vs [${compareSnapshot.scope.join(', ')}]. Render both with the same track scope.`);
+                  } else if (snapshot.bars !== compareSnapshot.bars) {
+                    analysisErrors.push(`Diff snapshots have mismatched duration: ${snapshot.bars} bars vs ${compareSnapshot.bars} bars. Render both with the same bar count.`);
+                  } else {
+                    const bpm = session.transport.bpm;
+                    results.diff = analyzeDiff(
+                      compareSnapshot.pcm,
+                      snapshot.pcm,
+                      snapshot.sampleRate,
+                      bpm,
+                    );
+                  }
                 }
               }
               break;
