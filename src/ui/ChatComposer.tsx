@@ -106,7 +106,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(function ChatC
     value: input,
     onChange: handleChange,
     onKeyDown: handleKeyDown,
-    placeholder: 'Ask Gluon anything...',
+    placeholder: 'Describe what you want to make...',
     autoComplete: 'off' as const,
     rows: 1,
     style: { maxHeight: MAX_HEIGHT, resize: 'none' as const },

@@ -56,7 +56,7 @@ import { SurfaceCanvas } from './surface/SurfaceCanvas';
 import { TrackerView } from './TrackerView';
 import { RackView } from './RackView';
 import { PatchView } from './PatchView';
-import { TrackMixStrip } from './TrackMixStrip';
+
 import { AppShell } from './AppShell';
 import { EmptyState } from './EmptyState';
 import { useShortcuts } from './useShortcuts';
@@ -3407,13 +3407,6 @@ export default function App() {
       onLiveModuleTouch={handleLiveModuleTouch}
       onLiveModuleAddToSurface={handleLiveModuleAddToSurface}
     >
-        <TrackMixStrip
-          activeTrack={activeTrack}
-          onChangeVolume={(v) => handleChangeVolume(activeTrack.id, v)}
-          onChangePan={(v) => handleChangePan(activeTrack.id, v)}
-          onInteractionStart={handleMixStripInteractionStart}
-          onInteractionEnd={handleMixStripInteractionEnd}
-        />
         {isSessionEmpty && (
           <EmptyState
             onAddTrack={() => handleAddTrack()}

@@ -200,12 +200,12 @@ describe('AppShell smoke render', () => {
   });
 
   it('shows model status indicator', () => {
-    render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: true })} />);
+    render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: true, messages: [{ role: 'human', text: 'hello' }] })} />);
     expect(screen.getByTestId('model-status-label').textContent).toBe('Connected');
   });
 
   it('shows "no audio eval" when listener is unconfigured', () => {
-    render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: false })} />);
+    render(<AppShell {...buildProps('chat', { apiConfigured: true, listenerConfigured: false, messages: [{ role: 'human', text: 'hello' }] })} />);
     expect(screen.getByTestId('model-status-label').textContent).toContain('no audio eval');
   });
 

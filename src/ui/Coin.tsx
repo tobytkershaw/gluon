@@ -116,7 +116,7 @@ export function Coin({
   const renderState = state ?? prevStateRef.current;
 
   return (
-    <div className="fixed bottom-6 right-6 z-30 flex flex-col items-end gap-1.5">
+    <div className="fixed bottom-12 right-6 z-30 flex flex-col items-end gap-1.5">
       <div className="flex items-center">
         {/* Notification card — left of Coin */}
         {showCard && renderState && (

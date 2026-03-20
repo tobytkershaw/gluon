@@ -74,7 +74,7 @@ export function TrackList({
 
   return (
     <div
-      className="flex flex-col min-h-0"
+      className="flex flex-col min-h-0 h-full"
       style={{
         width: 200,
         background: 'var(--bg-surface, #1c1917)',

@@ -6,6 +6,7 @@
   --font-mono: 'DM Mono', ui-monospace, monospace;
 
   --animate-breathing: breathing 3s ease-in-out infinite;
+  --animate-ai-dot-pulse: ai-dot-pulse 1.5s ease-in-out infinite;
 
   /* Warm dark theme — shift zinc palette toward warm stone/brown tint */
   /* Keeps the dark studio feel but adds intentional warmth like Bitwig/M8 */
@@ -138,6 +139,12 @@ input[type="range"]::-moz-range-thumb {
 @keyframes breathing {
   0%, 100% { opacity: 0.4; }
   50% { opacity: 0.7; }
+}
+
+/* AI activity dot pulse (footer) — 1.5s cycle with glow */
+@keyframes ai-dot-pulse {
+  0%, 100% { opacity: 0.4; box-shadow: none; }
+  50% { opacity: 1; box-shadow: 0 0 6px currentColor; }
 }
 
 /* Emerald glow pulse for Coin working state */

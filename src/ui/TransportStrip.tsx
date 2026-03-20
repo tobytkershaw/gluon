@@ -182,6 +182,8 @@ export function TransportStrip({
             <polyline points="7,11 5,13 7,15" />
           </svg>
         </button>
+        {/* Divider: transport buttons | Pat/Song */}
+        <div className="w-px h-4 bg-zinc-700/60" />
         {/* Pattern / Song dual toggle (segmented control) */}
         <div className="flex border border-zinc-700/30 rounded overflow-hidden">
           <button
@@ -210,6 +212,9 @@ export function TransportStrip({
           </button>
         </div>
       </div>
+
+      {/* Divider: Pat/Song | time display */}
+      <div className="w-px h-4 bg-zinc-700/60" />
 
       {/* Playhead position — prominent bar:beat display */}
       <div className="flex items-center gap-0.5 font-mono tabular-nums">
@@ -260,6 +265,9 @@ export function TransportStrip({
           onCommit={onSwingCommit ? (pct) => onSwingCommit(pct / 100) : undefined}
         />
       </div>
+
+      {/* Divider: time display | metronome */}
+      <div className="w-px h-4 bg-zinc-700/60" />
 
       {/* Metronome */}
       <MetronomeButton

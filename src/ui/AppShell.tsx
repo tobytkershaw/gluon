@@ -22,7 +22,7 @@ import { TransportStrip } from './TransportStrip';
 import { ABControls } from './TransportStrip';
 import { UndoButton } from './UndoButton';
 import { RedoButton } from './RedoButton';
-import { PeakMeter as PeakMeterFooter } from './MasterStrip';
+
 import { AudioLoadMeter } from './AudioLoadMeter';
 import { OpenDecisionsPanel } from './OpenDecisionsPanel';
 import { LiveControlsPanel } from './LiveControlsPanel';
@@ -220,6 +220,7 @@ export function AppShell({
 
   const isActive = isThinking || isListening;
   const hasRuntimeDegradation = Boolean(runtimeDegradation);
+  const isOnboarding = messages.length === 0 && !isThinking && !isListening;
   const lastHumanMessage = useMemo(() => getLastHumanMessage(messages), [messages]);
   const followUpChips = useMemo(() => getLatestFollowUpChips(messages), [messages]);
 
@@ -338,9 +339,9 @@ export function AppShell({
               onExportWav={onExportWav}
               exportingWav={exportingWav}
             />
-            <div className="w-px h-4 bg-zinc-800" />
+            <div className="w-px h-4 bg-zinc-700/60" />
             <ViewToggle view={view} onViewChange={onViewChange} cancelEditRef={cancelEditRef} />
-            <div className="w-px h-4 bg-zinc-800" />
+            <div className="w-px h-4 bg-zinc-700/60" />
             <TransportStrip
               playing={playing}
               bpm={bpm}
@@ -375,7 +376,7 @@ export function AppShell({
               onAbToggle={onAbToggle}
               onAbClear={onAbClear}
             />
-            <div className="w-px h-4 bg-zinc-800/60" />
+            <div className="w-px h-4 bg-zinc-700/60" />
             <UndoButton
               onClick={onUndo}
               disabled={undoStack.length === 0}
@@ -387,9 +388,9 @@ export function AppShell({
               disabled={redoStack.length === 0}
               description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
             />
-            <div className="w-px h-4 bg-zinc-800/60" />
+            <div className="w-px h-4 bg-zinc-700/60" />
             <span className="text-[11px] font-semibold text-zinc-500 tracking-tight lowercase select-none shrink-0">gluon</span>
-            <div className="w-px h-4 bg-zinc-800/60" />
+            <div className="w-px h-4 bg-zinc-700/60" />
             <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} compact />
           </div>
         </div>
@@ -398,21 +399,23 @@ export function AppShell({
           {/* Chat main content (flex-1) */}
           <div className="flex-1 flex flex-col min-h-0 items-center" style={{ background: '#13111C' }}>
             <div className="flex flex-col flex-1 min-h-0 w-full" style={{ maxWidth: 800 }}>
-              <div className="flex items-center gap-2 px-4 py-2.5">
-                <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
-                <div className="flex-1" />
-                <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} />
-                {apiConfigured && (
-                  <ApiKeyInput
-                    onSubmit={onApiKey}
-                    isConfigured={apiConfigured}
-                    disabled={isActive}
-                    currentOpenaiKey={currentOpenaiKey}
-                    currentGeminiKey={currentGeminiKey}
-                    listenerMode={listenerMode}
-                  />
-                )}
-              </div>
+              {!isOnboarding && (
+                <div className="flex items-center gap-2 px-4 py-2.5">
+                  <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
+                  <div className="flex-1" />
+                  <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} />
+                  {apiConfigured && (
+                    <ApiKeyInput
+                      onSubmit={onApiKey}
+                      isConfigured={apiConfigured}
+                      disabled={isActive}
+                      currentOpenaiKey={currentOpenaiKey}
+                      currentGeminiKey={currentGeminiKey}
+                      listenerMode={listenerMode}
+                    />
+                  )}
+                </div>
+              )}
 
               {!apiConfigured && (
                 <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/5 px-4 py-2 text-[11px] leading-5 text-amber-200/80" data-testid="degraded-banner">
@@ -443,13 +446,15 @@ export function AppShell({
             </div>
           </div>
 
-          {/* Live Controls panel (right side) */}
-          <LiveControlsPanel
-            modules={liveControlModules}
-            tracks={tracks}
-            onTouch={onLiveModuleTouch}
-            onAddToSurface={onLiveModuleAddToSurface}
-          />
+          {/* Live Controls panel (right side) — hidden during onboarding */}
+          {!isOnboarding && (
+            <LiveControlsPanel
+              modules={liveControlModules}
+              tracks={tracks}
+              onTouch={onLiveModuleTouch}
+              onAddToSurface={onLiveModuleAddToSurface}
+            />
+          )}
         </div>
         {onDecisionRespond && openDecisions.length > 0 && (
           <div className="pointer-events-none absolute right-4 top-14 z-20">
@@ -459,10 +464,10 @@ export function AppShell({
 
         {/* Global footer bar (same as instrument tabs) */}
         <div className="flex items-center h-7 border-t border-zinc-700/40 shrink-0">
-          <div className="flex-1 flex items-center gap-3 px-3">
+          <div className="flex-1 flex items-center gap-3 px-3 text-[9px] font-mono">
             <AudioLoadMeter audioContext={audioContext} />
-            <div className="w-px h-3 bg-zinc-800" />
-            <span className="text-[12px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
+            <span className="text-zinc-600">&middot;</span>
+            <span className="text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
               {(() => {
                 const beatsPerBar = timeSignatureNumerator || 4;
                 const currentBeat = Math.floor(globalStep) + 1;
@@ -471,29 +476,27 @@ export function AppShell({
                 return `${String(bar).padStart(3, '\u2007')}:${beat}`;
               })()}
             </span>
-            <div className="w-px h-3 bg-zinc-800" />
-            <span className="text-[11px] text-zinc-600 uppercase tracking-wider">
+            <span className="text-zinc-600">&middot;</span>
+            <span className="text-zinc-600 uppercase tracking-wider">
               {transportMode === 'song' ? 'Song' : 'Pattern'}
             </span>
-            <div className="w-px h-3 bg-zinc-800" />
-            <span className="text-[11px] text-zinc-600">
+            <span className="text-zinc-600">&middot;</span>
+            <span className="text-zinc-600">
               {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
             </span>
-            <div className="w-px h-3 bg-zinc-800" />
-            <span className="text-[11px] text-zinc-600">
+            <span className="text-zinc-600">&middot;</span>
+            <span className="text-zinc-600">
               {Math.round(bpm)} BPM
             </span>
             <div className="flex-1" />
-            <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
-            <div className="w-px h-3 bg-zinc-800" />
             {apiConfigured && (
               <span
-                className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                className={`shrink-0 w-1 h-1 rounded-full ${
                   isListening
-                    ? 'bg-teal-400 animate-breathing'
+                    ? 'bg-teal-400 animate-ai-dot-pulse'
                     : isThinking
-                      ? 'bg-violet-500 animate-breathing'
-                      : 'bg-violet-500 opacity-40'
+                      ? 'bg-violet-400 animate-ai-dot-pulse'
+                      : 'bg-violet-400 opacity-40'
                 }`}
                 title={
                   isListening
@@ -534,9 +537,9 @@ export function AppShell({
             onExportWav={onExportWav}
             exportingWav={exportingWav}
           />
-          <div className="w-px h-4 bg-zinc-800" />
+          <div className="w-px h-4 bg-zinc-700/60" />
           <ViewToggle view={view} onViewChange={onViewChange} cancelEditRef={cancelEditRef} />
-          <div className="w-px h-4 bg-zinc-800" />
+          <div className="w-px h-4 bg-zinc-700/60" />
           <TransportStrip
             playing={playing}
             bpm={bpm}
@@ -572,7 +575,7 @@ export function AppShell({
             onAbToggle={onAbToggle}
             onAbClear={onAbClear}
           />
-          <div className="w-px h-4 bg-zinc-800/60" />
+          <div className="w-px h-4 bg-zinc-700/60" />
           <UndoButton
             onClick={onUndo}
             disabled={undoStack.length === 0}
@@ -584,9 +587,9 @@ export function AppShell({
             disabled={redoStack.length === 0}
             description={redoStack.length > 0 ? redoStack[redoStack.length - 1].description : undefined}
           />
-          <div className="w-px h-4 bg-zinc-800/60" />
+          <div className="w-px h-4 bg-zinc-700/60" />
           <span className="text-[11px] font-semibold text-zinc-500 tracking-tight lowercase select-none shrink-0">gluon</span>
-          <div className="w-px h-4 bg-zinc-800/60" />
+          <div className="w-px h-4 bg-zinc-700/60" />
           <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} compact />
         </div>
       </div>
@@ -603,7 +606,7 @@ export function AppShell({
         {/* Workstation: instrument + track list */}
         <div className="flex-1 flex min-h-0">
           {/* Track sidebar (LEFT per mockup 09) */}
-          <div ref={trackListRef} role="region" aria-label="Track list">
+          <div ref={trackListRef} role="region" aria-label="Track list" className="h-full">
           <TrackList
             tracks={tracks}
             activeTrackId={activeTrackId}
@@ -648,12 +651,12 @@ export function AppShell({
 
       {/* Global footer bar */}
       <div className="flex items-center h-7 border-t border-zinc-700/40 shrink-0">
-        {/* Workstation footer: audio load + position + info + stereo meter */}
-        <div className="flex-1 flex items-center gap-3 px-3">
+        {/* Workstation footer: CPU · position · mode · tracks · BPM · spacer · AI dot */}
+        <div className="flex-1 flex items-center gap-3 px-3 text-[9px] font-mono">
           <AudioLoadMeter audioContext={audioContext} />
-          <div className="w-px h-3 bg-zinc-800" />
+          <span className="text-zinc-600">&middot;</span>
           {/* Playback position */}
-          <span className="text-[12px] font-mono text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
+          <span className="text-zinc-500 tabular-nums" title="Playback position (bar : beat)">
             {(() => {
               const beatsPerBar = timeSignatureNumerator || 4;
               const currentBeat = Math.floor(globalStep) + 1;
@@ -662,33 +665,31 @@ export function AppShell({
               return `${String(bar).padStart(3, '\u2007')}:${beat}`;
             })()}
           </span>
-          <div className="w-px h-3 bg-zinc-800" />
+          <span className="text-zinc-600">&middot;</span>
           {/* Transport mode */}
-          <span className="text-[11px] text-zinc-600 uppercase tracking-wider">
+          <span className="text-zinc-600 uppercase tracking-wider">
             {transportMode === 'song' ? 'Song' : 'Pattern'}
           </span>
-          <div className="w-px h-3 bg-zinc-800" />
+          <span className="text-zinc-600">&middot;</span>
           {/* Track count */}
-          <span className="text-[11px] text-zinc-600">
+          <span className="text-zinc-600">
             {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
           </span>
-          <div className="w-px h-3 bg-zinc-800" />
+          <span className="text-zinc-600">&middot;</span>
           {/* BPM */}
-          <span className="text-[11px] text-zinc-600">
+          <span className="text-zinc-600">
             {Math.round(bpm)} BPM
           </span>
           <div className="flex-1" />
-          <PeakMeterFooter stereoAnalysers={stereoAnalysers} />
-          <div className="w-px h-3 bg-zinc-800" />
           {/* AI activity dot */}
           {apiConfigured && (
             <span
-              className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+              className={`shrink-0 w-1 h-1 rounded-full ${
                 isListening
-                  ? 'bg-teal-400 animate-breathing'
+                  ? 'bg-teal-400 animate-ai-dot-pulse'
                   : isThinking
-                    ? 'bg-violet-500 animate-breathing'
-                    : 'bg-violet-500 opacity-40'
+                    ? 'bg-violet-400 animate-ai-dot-pulse'
+                    : 'bg-violet-400 opacity-40'
               }`}
               title={
                 isListening

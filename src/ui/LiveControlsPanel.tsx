@@ -16,7 +16,7 @@ export function LiveControlsPanel({ modules, tracks, onTouch, onAddToSurface }: 
 
   return (
     <div
-      className="w-[280px] shrink-0 flex flex-col border-l border-violet-500/20 bg-zinc-950/60 overflow-y-auto"
+      className="w-[340px] shrink-0 flex flex-col border-l border-violet-500/20 bg-zinc-950/60 overflow-y-auto"
       data-testid="live-controls-panel"
     >
       {/* Header */}
