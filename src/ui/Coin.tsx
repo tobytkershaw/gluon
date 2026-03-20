@@ -116,7 +116,7 @@ export function Coin({
   const renderState = state ?? prevStateRef.current;
 
   return (
-    <div className="fixed bottom-12 right-6 z-30 flex flex-col items-end gap-1.5">
+    <div className="fixed bottom-12 right-6 z-30 flex flex-col items-center gap-0.5">
       <div className="flex items-center">
         {/* Notification card — left of Coin */}
         {showCard && renderState && (
@@ -153,7 +153,7 @@ export function Coin({
           <div className="w-2 h-2 rounded-full bg-zinc-600" />
         </button>
       </div>
-      <span className="text-[10px] text-zinc-600 select-none whitespace-nowrap pr-1">
+      <span className="text-[10px] text-zinc-600 select-none whitespace-nowrap">
         {hintLabel}
       </span>
     </div>

@@ -503,7 +503,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       noteColumnCells.push(
         <td
           key={`nc-${c}`}
-          className={`px-1 py-0 w-10 tabular-nums text-zinc-200 font-medium ${cursorNoteCellClass(c)}`}
+          className={`px-1 py-0 w-10 tabular-nums text-center text-zinc-200 font-medium ${cursorNoteCellClass(c)}`}
         >
           <NoteColumnCell
             note={note}

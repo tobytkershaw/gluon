@@ -1570,8 +1570,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </div>
         </div>
 
-        {/* Port legend (bottom-right, clear of Coin) */}
-        <div className="absolute bottom-3 right-20 flex flex-col gap-1 select-none">
+        {/* Port legend (top-right) */}
+        <div className="absolute top-3 right-3 flex flex-col gap-1 select-none">
           <div className="flex items-center gap-1.5">
             <div className="rounded-full" style={{ width: 8, height: 8, backgroundColor: '#fbbf24' }} />
             <span className="font-mono text-[8px] text-[#7c776e]">Audio</span>
