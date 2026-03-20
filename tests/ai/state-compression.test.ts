@@ -1,6 +1,7 @@
 // tests/ai/state-compression.test.ts
 import { describe, it, expect } from 'vitest';
-import { compressState, compressMemories, stepToPosition, recogniseChord } from '../../src/ai/state-compression';
+import { compressState, compressMemories, stepToPosition } from '../../src/ai/state-compression';
+import { recogniseChord } from '../../src/engine/chords';
 import { createSession, addTrack, setClaim, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
 import type { Reaction, OpenDecision, PreservationReport, Session, UserSelection, ProjectMemory } from '../../src/engine/types';

@@ -15,6 +15,7 @@ import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent
 import type { Arbitrator } from './arbitration';
 import { getTrack, getActivePattern, updateTrack } from './types';
 import { applyMove, applySketch, clampParam } from './primitives';
+import { generateSemanticDiff } from './semantic-diff';
 import { rotate, transpose, reverse, duplicate } from './transformations';
 import {
   humanize,
@@ -793,24 +794,42 @@ export function generatePreservationReport(
     pitchContour = oldIntervals.every((dir, i) => dir === newIntervals[i]);
   }
 
-  // Build changed list
+  // Run semantic diff for richer descriptions
+  const semanticDiff = generateSemanticDiff(oldEvents, newEvents, {
+    trackId,
+    stepsPerBeat: 4,
+  });
+  const dimByKind = new Map(semanticDiff.dimensions.map(d => [d.kind, d]));
+
+  // Build changed list — use semantic diff descriptions where available, fallback otherwise
   const changed: string[] = [];
 
   if (!rhythmPositions) {
-    const added = newPositions.length - oldPositions.length;
-    if (added > 0) changed.push(`${added} rhythm position${added !== 1 ? 's' : ''} added`);
-    else if (added < 0) changed.push(`${-added} rhythm position${added !== -1 ? 's' : ''} removed`);
-    else changed.push('rhythm positions shifted');
+    const rhythmDim = dimByKind.get('rhythm_placement') ?? dimByKind.get('density');
+    if (rhythmDim) {
+      changed.push(rhythmDim.description);
+    } else {
+      const added = newPositions.length - oldPositions.length;
+      if (added > 0) changed.push(`${added} rhythm position${added !== 1 ? 's' : ''} added`);
+      else if (added < 0) changed.push(`${-added} rhythm position${added !== -1 ? 's' : ''} removed`);
+      else changed.push('rhythm positions shifted');
+    }
   }
 
   if (!eventCount) {
-    const diff = newEvents.length - oldEvents.length;
-    if (diff > 0) changed.push(`${diff} event${diff !== 1 ? 's' : ''} added`);
-    else changed.push(`${-diff} event${-diff !== 1 ? 's' : ''} removed`);
+    const densityDim = dimByKind.get('density');
+    if (densityDim && !changed.includes(densityDim.description)) {
+      changed.push(densityDim.description);
+    } else if (!densityDim) {
+      const diff = newEvents.length - oldEvents.length;
+      if (diff > 0) changed.push(`${diff} event${diff !== 1 ? 's' : ''} added`);
+      else changed.push(`${-diff} event${-diff !== 1 ? 's' : ''} removed`);
+    }
   }
 
   if (!pitchContour && oldPitches.length > 0) {
-    changed.push('pitch contour modified');
+    const contourDim = dimByKind.get('contour') ?? dimByKind.get('transposition');
+    changed.push(contourDim ? contourDim.description : 'pitch contour modified');
   }
 
   // Detect velocity changes on sound events
