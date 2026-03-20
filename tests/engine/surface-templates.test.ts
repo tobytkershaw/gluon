@@ -167,6 +167,35 @@ describe('applySurfaceTemplate', () => {
     const track2 = { ...track, surface: surface1 };
     expect(applySurfaceTemplate(track2)).toBeNull();
   });
+
+  it('reapplies template when processor IDs change but chain signature stays the same (#1134)', () => {
+    // First apply with processor id 'rings-old'
+    const track1 = makeTrack({
+      processors: [{ id: 'rings-old', type: 'rings', model: 0, params: {} }],
+    });
+    const surface1 = applySurfaceTemplate(track1)!;
+    expect(surface1).not.toBeNull();
+
+    // Verify the old ID is baked into the weights
+    const brightnessMod1 = surface1.modules.find(m => m.id === 'brightness')!;
+    const weights1 = (brightnessMod1.config.semanticControl as SemanticControlDef).weights;
+    expect(weights1.find(w => w.moduleId === 'rings-old')).toBeDefined();
+
+    // Now the processor is replaced with a new ID but same type
+    const track2 = makeTrack({
+      processors: [{ id: 'rings-new', type: 'rings', model: 0, params: {} }],
+      surface: surface1, // still has 'rings-old' in weights
+    });
+    const surface2 = applySurfaceTemplate(track2);
+
+    // Bug: previously returned null because module IDs matched.
+    // Fix: should detect the stale processor references and reapply.
+    expect(surface2).not.toBeNull();
+    const brightnessMod2 = surface2!.modules.find(m => m.id === 'brightness')!;
+    const weights2 = (brightnessMod2.config.semanticControl as SemanticControlDef).weights;
+    expect(weights2.find(w => w.moduleId === 'rings-new')).toBeDefined();
+    expect(weights2.find(w => w.moduleId === 'rings-old')).toBeUndefined();
+  });
 });
 
 describe('validateSurface', () => {
