@@ -379,4 +379,100 @@ describe('AudioEngine', () => {
 
     expect(procSilence).toHaveBeenCalledWith(2);
   });
+
+  describe('removeTrack sidechain cleanup (#1204)', () => {
+    function makeFullTrackSlot(overrides: Record<string, unknown> = {}) {
+      return {
+        pool: null,
+        sourceOut: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        chainOutGain: mockGainNode(),
+        trackVolume: mockGainNode(),
+        trackPanner: { pan: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() },
+        muteGain: { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() },
+        busInput: null,
+        analyser: { connect: vi.fn(), disconnect: vi.fn(), fftSize: 2048 },
+        processors: [] as unknown[],
+        currentParams: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 },
+        currentModel: 0,
+        isBus: false,
+        isDrumRack: false,
+        drumPads: new Map(),
+        ...overrides,
+      };
+    }
+
+    it('sends sidechain-enabled:false to surviving compressor when source track is removed', () => {
+      const engine = new AudioEngine();
+      const sendCommand = vi.fn();
+
+      const sourceSlot = makeFullTrackSlot();
+      const compProcessor = {
+        id: 'comp-1',
+        type: 'compressor',
+        engine: { destroy: vi.fn(), sendCommand, inputNode: { connect: vi.fn() } },
+        enabled: true,
+        degraded: false,
+      };
+      const targetSlot = makeFullTrackSlot({ processors: [compProcessor] });
+
+      const tracks = (engine as unknown as { tracks: Map<string, unknown> }).tracks;
+      tracks.set('kick', sourceSlot);
+      tracks.set('bass', targetSlot);
+
+      // Simulate existing sidechain route: kick -> bass:comp-1
+      const tapGain = { disconnect: vi.fn() };
+      const sidechainSlots = (engine as unknown as { sidechainSlots: Map<string, unknown> }).sidechainSlots;
+      sidechainSlots.set('bass:comp-1', {
+        sourceTrackId: 'kick',
+        targetTrackId: 'bass',
+        processorId: 'comp-1',
+        tapGain,
+      });
+
+      // Remove the source track
+      engine.removeTrack('kick');
+
+      // The surviving compressor should have received sidechain-enabled: false
+      expect(sendCommand).toHaveBeenCalledWith({ type: 'sidechain-enabled', enabled: false });
+      // The tap gain should be disconnected
+      expect(tapGain.disconnect).toHaveBeenCalled();
+      // The sidechain slot should be removed
+      expect(sidechainSlots.has('bass:comp-1')).toBe(false);
+    });
+
+    it('cleans up sidechain slot when target track is removed', () => {
+      const engine = new AudioEngine();
+      const sendCommand = vi.fn();
+
+      const sourceSlot = makeFullTrackSlot();
+      const compProcessor = {
+        id: 'comp-1',
+        type: 'compressor',
+        engine: { destroy: vi.fn(), sendCommand, inputNode: { connect: vi.fn() } },
+        enabled: true,
+        degraded: false,
+      };
+      const targetSlot = makeFullTrackSlot({ processors: [compProcessor] });
+
+      const tracks = (engine as unknown as { tracks: Map<string, unknown> }).tracks;
+      tracks.set('kick', sourceSlot);
+      tracks.set('bass', targetSlot);
+
+      const tapGain = { disconnect: vi.fn() };
+      const sidechainSlots = (engine as unknown as { sidechainSlots: Map<string, unknown> }).sidechainSlots;
+      sidechainSlots.set('bass:comp-1', {
+        sourceTrackId: 'kick',
+        targetTrackId: 'bass',
+        processorId: 'comp-1',
+        tapGain,
+      });
+
+      // Remove the target track (bass) — compressor is destroyed anyway,
+      // but sendCommand should still be called for consistency
+      engine.removeTrack('bass');
+
+      expect(tapGain.disconnect).toHaveBeenCalled();
+      expect(sidechainSlots.has('bass:comp-1')).toBe(false);
+    });
+  });
 });
