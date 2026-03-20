@@ -210,4 +210,13 @@ describe('AppShell smoke render', () => {
     expect(screen.getByTitle('Undo: Undoable (⌘Z)')).toHaveProperty('disabled', false);
     expect(screen.getByTitle('Redo: Redoable (⌘⇧Z)')).toHaveProperty('disabled', false);
   });
+
+  it('disables API settings changes while an AI turn is active', () => {
+    render(<AppShell {...buildProps('surface', {
+      apiConfigured: true,
+      isThinking: true,
+    })} />);
+
+    expect(screen.getByRole('button', { name: 'API Connected' })).toHaveProperty('disabled', true);
+  });
 });
