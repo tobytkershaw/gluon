@@ -5,7 +5,7 @@ import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModul
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import { scaleToString, scaleNoteNames, midiToNoteName } from '../engine/scale';
-import { getChordToneNames } from '../engine/chords';
+import { getChordToneNames, recogniseChord } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
 import type { MixWarning } from './mix-warnings';
@@ -258,63 +258,6 @@ export function stepToPosition(step: number, stepsPerBar: number = 16): string {
   const sixteenth = (withinBar % 4) + 1;
   const base = `${bar}.${beat}.${sixteenth}`;
   return offset > 0 ? `${base}+${offset}` : base;
-}
-
-/** Chord interval dictionary — semitones from root → chord type suffix. */
-const CHORD_DICTIONARY: Array<{ intervals: number[]; name: string }> = [
-  // Extended chords first (more intervals = more specific match)
-  { intervals: [0, 4, 7, 11, 14], name: 'maj9' },
-  { intervals: [0, 4, 7, 10, 14], name: '9' },
-  { intervals: [0, 3, 7, 10, 14], name: 'min9' },
-  { intervals: [0, 3, 6, 9], name: 'dim7' },
-  { intervals: [0, 4, 7, 11], name: 'maj7' },
-  { intervals: [0, 3, 7, 10], name: 'min7' },
-  { intervals: [0, 4, 7, 10], name: '7' },
-  { intervals: [0, 3, 6, 10], name: 'm7b5' },
-  { intervals: [0, 4, 7, 9], name: '6' },
-  { intervals: [0, 3, 7, 9], name: 'm6' },
-  // Triads
-  { intervals: [0, 4, 7], name: 'maj' },
-  { intervals: [0, 3, 7], name: 'min' },
-  { intervals: [0, 3, 6], name: 'dim' },
-  { intervals: [0, 4, 8], name: 'aug' },
-  { intervals: [0, 2, 7], name: 'sus2' },
-  { intervals: [0, 5, 7], name: 'sus4' },
-];
-
-const NOTE_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-/**
- * Recognise a chord from a set of MIDI pitches.
- * Returns a chord symbol (e.g. "Fm9") or null if no match.
- */
-export function recogniseChord(pitches: number[]): string | null {
-  if (pitches.length < 2) return null;
-
-  // Reduce to unique pitch classes
-  const pitchClasses = [...new Set(pitches.map(p => p % 12))].sort((a, b) => a - b);
-  if (pitchClasses.length < 2) return null;
-
-  // Try each pitch class as potential root
-  for (const root of pitchClasses) {
-    const intervals = pitchClasses
-      .map(pc => (pc - root + 12) % 12)
-      .sort((a, b) => a - b);
-
-    for (const entry of CHORD_DICTIONARY) {
-      if (entry.intervals.length !== intervals.length) continue;
-      if (entry.intervals.every((iv, i) => iv === intervals[i])) {
-        const rootName = NOTE_NAMES_SHARP[root];
-        // Shorten chord type names for display
-        const suffix = entry.name
-          .replace(/^maj$/, '')
-          .replace(/^min/, 'm');
-        return `${rootName}${suffix}`;
-      }
-    }
-  }
-
-  return null;
 }
 
 /**

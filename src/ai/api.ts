@@ -11,6 +11,7 @@ import { normalizePatternEvents } from '../engine/region-helpers';
 import { projectPatternToStepGrid } from '../engine/region-projection';
 import { editPatternEvents } from '../engine/pattern-primitives';
 import { generatePreservationReport, groupSnapshots } from '../engine/operation-executor';
+import { generateSemanticDiff } from '../engine/semantic-diff';
 import type { StepExecutionReport } from '../engine/operation-executor';
 import { addTrack, removeTrack, addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation } from '../engine/session';
 import { SCALE_MODES, scaleToString, scaleNoteNames } from '../engine/scale';
@@ -1149,6 +1150,41 @@ async function runAutoDiffVerification(
   }
 }
 
+/**
+ * Semantic diff for a single track: always available (no render needed).
+ * Compares event arrays from the active pattern before/after and produces
+ * a musical-language summary via generateSemanticDiff().
+ */
+function runSemanticDiffForTrack(
+  beforeSession: Session,
+  afterSession: Session,
+  trackId: string,
+): CompressedAutoDiffSummary | null {
+  const beforeTrack = beforeSession.tracks.find(t => t.id === trackId);
+  const afterTrack = afterSession.tracks.find(t => t.id === trackId);
+  if (!beforeTrack || !afterTrack) return null;
+  if (beforeTrack.patterns.length === 0 || afterTrack.patterns.length === 0) return null;
+
+  const beforePattern = getActivePattern(beforeTrack);
+  const afterPattern = getActivePattern(afterTrack);
+
+  const scale = afterSession.scale
+    ? { root: afterSession.scale.root, mode: afterSession.scale.mode }
+    : undefined;
+
+  const diff = generateSemanticDiff(
+    beforePattern.events,
+    afterPattern.events,
+    { trackId, stepsPerBeat: 4, scale },
+  );
+  if (diff.dimensions.length === 0) return null;
+  return {
+    trackId,
+    summary: diff.summary,
+    confidence: Math.min(...diff.dimensions.map(d => d.confidence)),
+  };
+}
+
 /** Context for the listen tool — audio capture and eval plumbing */
 export interface ListenContext {
   /** Render audio offline — no transport or AudioContext needed. Returns WAV Blob. */
@@ -1502,7 +1538,7 @@ export class GluonAI {
     accepted: AIAction[],
     ctx?: AskContext,
   ): Promise<void> {
-    if (!ctx?.listen?.renderOfflinePcm || accepted.length === 0) return;
+    if (accepted.length === 0) return;
 
     const diffableTrackIds = Array.from(new Set(
       accepted.flatMap(action => {
@@ -1526,21 +1562,52 @@ export class GluonAI {
     ));
     if (diffableTrackIds.length === 0) return;
 
-    const summaries = await Promise.all(
-      diffableTrackIds.map(async trackId => {
-        const verification = await runAutoDiffVerification(beforeSession, afterSession, trackId, ctx);
-        if (!verification) return null;
-        return {
-          trackId,
-          summary: verification.verification.summary,
-          confidence: verification.verification.confidence,
-        } satisfies CompressedAutoDiffSummary;
-      }),
-    );
+    // Semantic diffs: always available (pure computation, no render needed)
+    const semanticSummaries = new Map<string, CompressedAutoDiffSummary>();
+    for (const trackId of diffableTrackIds) {
+      const semantic = runSemanticDiffForTrack(beforeSession, afterSession, trackId);
+      if (semantic) semanticSummaries.set(trackId, semantic);
+    }
 
-    const nextSummaries = summaries.filter((summary): summary is CompressedAutoDiffSummary => summary !== null);
-    if (nextSummaries.length > 0) {
-      this.turnAutoDiffs = nextSummaries.slice(-5);
+    // Audio diffs: optional, render-gated
+    const audioSummaries = new Map<string, CompressedAutoDiffSummary>();
+    if (ctx?.listen?.renderOfflinePcm) {
+      const results = await Promise.all(
+        diffableTrackIds.map(async trackId => {
+          const verification = await runAutoDiffVerification(beforeSession, afterSession, trackId, ctx);
+          if (!verification) return null;
+          return {
+            trackId,
+            summary: verification.verification.summary,
+            confidence: verification.verification.confidence,
+          } satisfies CompressedAutoDiffSummary;
+        }),
+      );
+      for (const r of results) {
+        if (r) audioSummaries.set(r.trackId, r);
+      }
+    }
+
+    // Merge: semantic first, audio second. Deduplicate by trackId.
+    const merged: CompressedAutoDiffSummary[] = [];
+    for (const trackId of diffableTrackIds) {
+      const semantic = semanticSummaries.get(trackId);
+      const audio = audioSummaries.get(trackId);
+      if (semantic && audio) {
+        merged.push({
+          trackId,
+          summary: `${semantic.summary}. ${audio.summary}`,
+          confidence: Math.min(semantic.confidence, audio.confidence),
+        });
+      } else if (semantic) {
+        merged.push(semantic);
+      } else if (audio) {
+        merged.push(audio);
+      }
+    }
+
+    if (merged.length > 0) {
+      this.turnAutoDiffs = merged.slice(-5);
     }
   }
 
