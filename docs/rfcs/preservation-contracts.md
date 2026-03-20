@@ -5,7 +5,9 @@
 
 ## Status
 
-Design RFC. Defines how Gluon enforces preservation of approved musical material when the AI makes edits. A prerequisite for reliable taste-informed behavior ([aesthetic-direction.md](../ai/aesthetic-direction.md)).
+**Implemented.** ApprovalLevel (exploratory/liked/approved/anchor), PreservationReport, enforcement in operation-executor, and undo snapshots are all shipped. Approval setting is currently limited to the "approved" level via AI tool; liked/anchor levels are not yet exposed as AI actions.
+
+Defines how Gluon enforces preservation of approved musical material when the AI makes edits. A prerequisite for reliable taste-informed behavior ([aesthetic-direction.md](../ai/aesthetic-direction.md)).
 
 ---
 

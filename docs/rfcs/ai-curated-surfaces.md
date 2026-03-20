@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft RFC for architectural alignment.
+**Implemented.** Surface milestone complete: all 12 issues (#1051-#1067) shipped, including 7 module types, visual identity (Surface Score), Stage cards, human editing, and legacy cleanup. The `set_surface` AI tool is operational.
 
 Related docs:
 

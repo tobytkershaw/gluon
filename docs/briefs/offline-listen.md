@@ -1,8 +1,10 @@
 # Offline Audio Rendering for the `listen` Tool
 
-**Status:** Ready for implementation
+**Status:** Implemented
 **Milestone:** M4 (AI evaluation quality)
 **Depends on:** Plaits WASM + Rings WASM already compiled and served (PRs #98, #99)
+
+> **Implementation note:** Offline render is fully operational. The `listen` tool renders audio offline (no transport dependency), supports voice isolation via track selection, and produces beat-synced captures. See `src/audio/offline-render.ts`.
 
 ---
 

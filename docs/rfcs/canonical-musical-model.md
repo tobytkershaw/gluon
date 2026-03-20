@@ -2,7 +2,9 @@
 
 ## Status
 
-Draft RFC for architectural alignment. Supersedes `rfc-musical-data-model.md` and `gluon-canonical-musical-model-rfc.md`.
+**Partially Implemented.** MusicalEvent (NoteEvent/TriggerEvent/ParameterEvent), Pattern, ControlSchema, and SourceAdapter interface are all implemented in `src/engine/canonical-types.ts`. Voice/Region from the RFC diverged to Track/Pattern in implementation. North-star Target abstraction remains deferred.
+
+Supersedes `rfc-musical-data-model.md` and `gluon-canonical-musical-model-rfc.md`.
 
 Related docs:
 

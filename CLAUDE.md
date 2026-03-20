@@ -179,20 +179,20 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/ai/aesthetic-direction.md` - How taste emerges from enriched collaboration state: reaction history, observed patterns, restraint guidance, prompt rules. No standalone taste subsystem.
 
 ### RFCs (`docs/rfcs/`)
-- `docs/rfcs/canonical-musical-model.md` - Canonical musical model: Voice, Region, MusicalEvent, ControlSchema, SourceAdapter.
+- `docs/rfcs/canonical-musical-model.md` - Canonical musical model (partially implemented): MusicalEvent, Pattern, ControlSchema, SourceAdapter in engine; Voice/Region diverged to Track/Pattern.
 - `docs/rfcs/view-architecture.md` - View architecture: three canonical views (Tracker, Rack, Patch) as data model ground truth, one custom view (Surface) composed from a library of surface modules. Full module taxonomy.
-- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces: semantic controls, VoiceSurface state, AI curation operations. Foundation for the Surface view's module system.
+- `docs/rfcs/ai-curated-surfaces.md` - AI-curated UI surfaces (implemented): 7 module types, visual identity, Stage cards, human editing, set_surface tool.
 - `docs/rfcs/sequencer-view-layer.md` - Sequencer views as projections over canonical events.
 - `docs/rfcs/phase4a.md` - Phase 4A: constrained patch chains.
-- `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits: approval levels, preservation constraints, reports, artifact lineage.
+- `docs/rfcs/preservation-contracts.md` - Runtime enforcement of approved material during AI edits (implemented): approval levels, preservation constraints, reports, undo snapshots.
 - `docs/rfcs/patch-view-layer.md` - Patch views as projections over chain/modulation data. Node graph is the ground-truth view (like tracker for sequencing); inline modulation, chain strips are projections.
-- `docs/rfcs/audio-analysis-tools.md` - Audio analysis tools: render, listen, spectral, dynamics, rhythm, diff. Composable primitives for AI self-evaluation with confidence signals and lazy before-snapshot reconstruction.
+- `docs/rfcs/audio-analysis-tools.md` - Audio analysis tools (implemented): render, listen, spectral, dynamics, rhythm, masking, diff. Composable primitives with confidence signals and compare mode.
 - `docs/rfcs/parameter-automation-research.md` - Parameter automation research: absolute vs relative, inline vs lanes, interpolation, modulation vs automation, AI legibility. Informs #408, #432, #307, #463.
 
 ### Briefs (`docs/briefs/`)
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
 - `docs/briefs/sequencer.md` - Sequencing strategy and product boundaries.
-- `docs/briefs/offline-listen.md` - Offline audio rendering for the listen tool.
+- `docs/briefs/offline-listen.md` - Offline audio rendering for the listen tool (implemented).
 - `docs/briefs/visual-language.md` - Surface Score: AI-generated visual identity for the Surface view.
 - `docs/briefs/cross-model-consultation.md` - Cross-model consultation patterns.
 - `docs/briefs/sampling.md` - Sampling strategy and implementation.

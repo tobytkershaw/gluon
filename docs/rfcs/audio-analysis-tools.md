@@ -1,6 +1,6 @@
 # RFC: Audio Rendering and Analysis Tools
 
-Status: Draft
+Status: **Implemented.** All 6 tools shipped (render, listen, spectral, dynamics, rhythm, masking/diff). Composable primitives with confidence signals. Compare mode operational.
 
 Related documents:
 - AI Contract
