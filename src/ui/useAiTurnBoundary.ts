@@ -24,11 +24,18 @@ export function useAiTurnBoundary({
 }: UseAiTurnBoundaryOptions) {
   const prevProjectIdRef = useRef<string | null>(null);
   const turnEpochRef = useRef(new AITurnEpoch());
+  const sessionMessagesRef = useRef(sessionMessages);
+  const onInvalidateActiveTurnRef = useRef(onInvalidateActiveTurn);
+  const onProjectBoundaryResetRef = useRef(onProjectBoundaryReset);
+
+  sessionMessagesRef.current = sessionMessages;
+  onInvalidateActiveTurnRef.current = onInvalidateActiveTurn;
+  onProjectBoundaryResetRef.current = onProjectBoundaryReset;
 
   const invalidateActiveTurn = useCallback(() => {
     turnEpochRef.current.invalidate();
-    onInvalidateActiveTurn();
-  }, [onInvalidateActiveTurn]);
+    onInvalidateActiveTurnRef.current();
+  }, []);
 
   useEffect(() => {
     if (!projectId) return;
@@ -36,12 +43,12 @@ export function useAiTurnBoundary({
     prevProjectIdRef.current = projectId;
 
     invalidateActiveTurn();
-    onProjectBoundaryReset();
+    onProjectBoundaryResetRef.current();
     ai.clearHistory();
-    if (sessionMessages.length > 0) {
-      ai.restoreHistory(sessionMessages);
+    if (sessionMessagesRef.current.length > 0) {
+      ai.restoreHistory(sessionMessagesRef.current);
     }
-  }, [ai, invalidateActiveTurn, onProjectBoundaryReset, projectId, sessionMessages]);
+  }, [ai, invalidateActiveTurn, projectId]);
 
   const beginTurn = useCallback(() => turnEpochRef.current.begin(), []);
   const isCurrentTurn = useCallback((token: number) => turnEpochRef.current.isCurrent(token), []);

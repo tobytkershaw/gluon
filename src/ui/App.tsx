@@ -157,24 +157,6 @@ export default function App() {
 
   const project = useProjectLifecycle(session, setSession);
 
-
-  useEffect(() => {
-    if (!project.projectId) return;
-    // Skip the very first render where projectId hasn't settled yet
-    if (prevProjectIdRef.current === project.projectId) return;
-    prevProjectIdRef.current = project.projectId;
-
-    // Clear stale history and degradation banner from any previous project, then restore
-    aiRef.current.clearHistory();
-    setAudioDegradedMessage(null);
-    // Reset A/B snapshot state so it doesn't leak across projects
-    setAbSnapshot(null);
-    setAbActive(null);
-    if (session.messages.length > 0) {
-      aiRef.current.restoreHistory(session.messages);
-    }
-  }, [project.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const [audioStarted, setAudioStarted] = useState(false);
   const [plannerConfigured, setPlannerConfigured] = useState(() => aiRef.current.isPlannerConfigured());
   const [listenerConfigured, setListenerConfigured] = useState(() => aiRef.current.isListenerConfigured());
@@ -1369,6 +1351,44 @@ export default function App() {
     }
   }, []);
 
+  const [isThinking, setIsThinking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [streamingText, setStreamingText] = useState('');
+  const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
+  const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
+  const handleInvalidateActiveTurn = useCallback(() => {
+    setIsThinking(false);
+    setIsListening(false);
+    setStreamingText('');
+    setStreamingLogEntries([]);
+    setStreamingRejections([]);
+  }, []);
+  const handleProjectBoundaryReset = useCallback(() => {
+    setAbSnapshot(null);
+    setAbActive(null);
+    setAudioDegradedMessage(null);
+    setActivityMap({});
+    setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
+    setDeepViewModuleId(null);
+    trackerSelectionRef.current = null;
+    trackerCursorStepRef.current = null;
+    audioMetricsRef.current.clear();
+  }, []);
+  const {
+    beginTurn,
+    invalidateActiveTurn: invalidateActiveAITurn,
+    isCurrentTurn,
+    runWithTurnInvalidation,
+    wrapProjectBoundaryAction,
+  } = useAiTurnBoundary({
+    projectId: project.projectId,
+    sessionMessages: session.messages,
+    ai: aiRef.current,
+    onInvalidateActiveTurn: handleInvalidateActiveTurn,
+    onProjectBoundaryReset: handleProjectBoundaryReset,
+  });
+
   const handleUndo = useCallback(() => {
     if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
@@ -1457,36 +1477,6 @@ export default function App() {
       };
     });
   }, [ensureAudio, invalidateActiveAITurn, isListening, isThinking]);
-
-  const [isThinking, setIsThinking] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [streamingText, setStreamingText] = useState('');
-  const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
-  const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
-  const { beginTurn, invalidateActiveTurn: invalidateActiveAITurn, isCurrentTurn, runWithTurnInvalidation, wrapProjectBoundaryAction } = useAiTurnBoundary({
-    projectId: project.projectId,
-    sessionMessages: session.messages,
-    ai: aiRef.current,
-    onInvalidateActiveTurn: () => {
-      setIsThinking(false);
-      setIsListening(false);
-      setStreamingText('');
-      setStreamingLogEntries([]);
-      setStreamingRejections([]);
-    },
-    onProjectBoundaryReset: () => {
-      setAbSnapshot(null);
-      setAbActive(null);
-      setAudioDegradedMessage(null);
-      setActivityMap({});
-      setSelectedProcessorId(null);
-      setSelectedModulatorId(null);
-      setDeepViewModuleId(null);
-      trackerSelectionRef.current = null;
-      trackerCursorStepRef.current = null;
-      audioMetricsRef.current.clear();
-    },
-  });
 
   useEffect(() => {
     if (!audioStarted) {
