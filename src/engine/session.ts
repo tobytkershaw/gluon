@@ -286,10 +286,28 @@ export function removeTrack(session: Session, trackId: string): Session | null {
     description: `Remove track ${trackId}`,
   };
 
+  // #1196: Filter removed track from expandedTrackIds
+  const expandedTrackIds = (session.expandedTrackIds ?? []).filter(id => id !== trackId);
+
+  // #1198: Prune removed track from openDecisions trackIds
+  const openDecisions = (session.openDecisions ?? []).map(d => {
+    if (!d.trackIds) return d;
+    const filtered = d.trackIds.filter(id => id !== trackId);
+    if (filtered.length === d.trackIds.length) return d;
+    // If all trackIds removed, make it unscoped rather than deleting the decision
+    if (filtered.length === 0) {
+      const { trackIds: _, ...rest } = d;
+      return rest;
+    }
+    return { ...d, trackIds: filtered };
+  });
+
   return {
     ...session,
     tracks: newTracks,
     activeTrackId: newActiveTrackId,
+    expandedTrackIds,
+    openDecisions: openDecisions.length > 0 ? openDecisions : undefined,
     undoStack: [...session.undoStack, snapshot],
   };
 }
