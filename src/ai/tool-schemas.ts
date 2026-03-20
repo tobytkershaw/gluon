@@ -1979,6 +1979,41 @@ const manageDrumPadTool: ToolSchema = {
       },
     },
     required: ['action', 'trackId', 'padId', 'description'],
+    allOf: [
+      {
+        if: {
+          properties: {
+            action: { const: 'add' },
+          },
+          required: ['action'],
+        },
+        then: {
+          required: ['name', 'model'],
+        },
+      },
+      {
+        if: {
+          properties: {
+            action: { const: 'rename' },
+          },
+          required: ['action'],
+        },
+        then: {
+          required: ['name'],
+        },
+      },
+      {
+        if: {
+          properties: {
+            action: { const: 'set_choke_group' },
+          },
+          required: ['action'],
+        },
+        then: {
+          required: ['chokeGroup'],
+        },
+      },
+    ],
   },
 };
 

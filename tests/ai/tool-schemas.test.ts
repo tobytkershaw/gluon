@@ -139,4 +139,21 @@ describe('Tool Schemas', () => {
     const meta = GLUON_TOOLS.find(t => t.name === 'set_track_meta')!;
     expect(meta.parameters.required).toEqual(['trackId']);
   });
+
+  it('manage_drum_pad encodes action-specific required fields', () => {
+    const drumPad = GLUON_TOOLS.find(t => t.name === 'manage_drum_pad')!;
+    expect(drumPad.parameters.required).toEqual(['action', 'trackId', 'padId', 'description']);
+
+    const branches = drumPad.parameters.allOf as Array<Record<string, unknown>>;
+    expect(branches).toHaveLength(3);
+
+    const addBranch = branches.find(branch => (branch.if as { properties?: { action?: { const?: string } } })?.properties?.action?.const === 'add');
+    expect(addBranch?.then).toEqual({ required: ['name', 'model'] });
+
+    const renameBranch = branches.find(branch => (branch.if as { properties?: { action?: { const?: string } } })?.properties?.action?.const === 'rename');
+    expect(renameBranch?.then).toEqual({ required: ['name'] });
+
+    const chokeBranch = branches.find(branch => (branch.if as { properties?: { action?: { const?: string } } })?.properties?.action?.const === 'set_choke_group');
+    expect(chokeBranch?.then).toEqual({ required: ['chokeGroup'] });
+  });
 });
