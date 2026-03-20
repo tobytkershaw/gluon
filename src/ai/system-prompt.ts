@@ -120,19 +120,26 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
 };
 
 /**
- * Parameter semantics for all Plaits models. Always included so the AI
- * can make good sound design choices when selecting AND configuring a new engine
- * in the same turn (before it becomes an "active" model).
+ * Parameter semantics for all Plaits models. Core semantics (harmonics,
+ * timbre, morph) and operational warnings are always included so the AI
+ * can make sound design choices when selecting a new engine. Frequency
+ * ranges and sweet spots are only included for active models.
  */
-function generateModelReference(): string {
+function generateModelReference(activeModelIds: Set<number>): string {
   const lines = getModelList()
     .map(m => {
       const semantics = MODEL_PARAM_SEMANTICS[getEngineByIndex(m.index)?.id ?? ''];
       if (!semantics) return `**${m.index}: ${m.name}**`;
+      const isActive = activeModelIds.has(m.index);
+      // Core semantics + operational warnings always included (same-turn select-and-configure)
+      // Frequency ranges + sweet spots only for active models (configuration aid)
+      const activeSuffix = isActive
+        ? `${semantics.frequency ? `\n  - frequency: ${semantics.frequency}` : ''}${semantics.sweetSpots ? `\n  🎯 ${semantics.sweetSpots}` : ''}`
+        : '';
       return `**${m.index}: ${m.name}**
   - harmonics: ${semantics.harmonics}
   - timbre: ${semantics.timbre}
-  - morph: ${semantics.morph}${semantics.frequency ? `\n  - frequency: ${semantics.frequency}` : ''}${semantics.note ? `\n  ⚠️ ${semantics.note}` : ''}${semantics.sweetSpots ? `\n  🎯 ${semantics.sweetSpots}` : ''}`;
+  - morph: ${semantics.morph}${semantics.note ? `\n  ⚠️ ${semantics.note}` : ''}${activeSuffix}`;
     });
   return lines.join('\n');
 }
@@ -270,7 +277,7 @@ function generateModulatorSection(activeTypes: Set<string>): string {
 
 export function buildSystemPrompt(session: Session): string {
   const restraintLevel = deriveRestraintLevel(session.reactionHistory ?? []);
-  const { processorTypes, modulatorTypes } = extractActiveModules(session);
+  const { modelIds, processorTypes, modulatorTypes } = extractActiveModules(session);
   return `## The Instrument
 You are Gluon, a self-configuring intelligent instrument for human-AI music collaboration. Intelligence is at its core: the data model is designed to be legible and usable by an AI, and the full state of the music is available to you at all times.
 
@@ -394,7 +401,7 @@ When a common workflow has a one-step shortcut, prefer it over manual multi-tool
 - \`apply_arrangement_archetype\` over manually creating patterns for each section — applies a genre-aware arrangement template (e.g. "techno_64bar", "house_32bar", "dnb_64bar", "ambient_32bar") that creates patterns for intro, build, drop, breakdown, and outro with appropriate density and energy levels. After applying, use \`manage_sequence\` to assemble the section order and \`set_transport\` mode: "song" to play through the arrangement.
 
 ## Plaits Models
-${generateModelReference()}
+${generateModelReference(modelIds)}
 
 ## Parameter Space
 ${generateParameterSection()}

@@ -187,11 +187,58 @@ describe('dynamic prompt reference (#777)', () => {
     expect(prompt).toContain('Modulation index'); // fm
   });
 
-  it('includes sweet spots for sound design guidance (#1012)', () => {
+  it('includes sweet spots only for active models (#1362)', () => {
+    // Default session has no active models (model -1), so no sweet spots
     const prompt = defaultPrompt();
-    expect(prompt).toContain('Dub techno kick:'); // analog-bass-drum sweet spot
-    expect(prompt).toContain('Clean sub:'); // virtual-analog sweet spot
-    expect(prompt).toContain('Dark minor stab:'); // chords sweet spot
+    expect(prompt).not.toContain('Dub techno kick:');
+    expect(prompt).not.toContain('Clean sub:');
+
+    // With active model 13 (analog bass drum), its sweet spots appear
+    let session = createSession();
+    session = updateTrack(session, 'v0', { model: 13 });
+    const activePrompt = buildSystemPrompt(session);
+    expect(activePrompt).toContain('Dub techno kick:'); // analog-bass-drum sweet spot
+    // But inactive model sweet spots still omitted
+    expect(activePrompt).not.toContain('Clean sub:'); // virtual-analog not active
+  });
+
+  it('active model includes frequency and sweet spots (#1362)', () => {
+    let session = createSession();
+    session = updateTrack(session, 'v0', { model: 13 }); // analog bass drum
+    const prompt = buildSystemPrompt(session);
+    // Active model gets frequency + sweet spots
+    expect(prompt).toContain('Dub techno kick:');
+    expect(prompt).toMatch(/13: Analog Bass Drum/);
+    expect(prompt).toContain('Attack sharpness'); // harmonics — always present
+    expect(prompt).toContain('Fundamental pitch'); // frequency — active only
+  });
+
+  it('inactive model omits frequency and sweet spots but keeps core semantics (#1362)', () => {
+    // Session with model 13 active; model 0 (virtual-analog) is inactive
+    let session = createSession();
+    session = updateTrack(session, 'v0', { model: 13 });
+    const prompt = buildSystemPrompt(session);
+    // virtual-analog core semantics still present
+    expect(prompt).toContain('Detuning between the two waves'); // harmonics
+    // virtual-analog frequency and sweet spots omitted (not active)
+    expect(prompt).not.toContain('Clean sub:'); // virtual-analog sweet spot
+  });
+
+  it('drum rack pad model counts as active (#1362)', () => {
+    let session = createSession();
+    session = updateTrack(session, 'v0', {
+      engine: 'drum-rack',
+      model: -1,
+      drumRack: {
+        pads: [
+          { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.5 },
+        ],
+      },
+    });
+    const prompt = buildSystemPrompt(session);
+    // Model 13 is active via drum rack pad
+    expect(prompt).toContain('Dub techno kick:'); // sweet spot for analog bass drum
+    expect(prompt).toContain('Fundamental pitch'); // frequency for analog bass drum
   });
 
   it('always includes compact processor index', () => {
