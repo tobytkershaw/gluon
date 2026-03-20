@@ -70,6 +70,7 @@ import { useTransportController } from './useTransportController';
 import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
 import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from '../audio/runtime-events';
 import { validateSurface } from '../engine/surface-templates';
+import { AITurnEpoch } from './ai-turn-epoch';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -160,6 +161,8 @@ export default function App() {
   // Watches project.projectId — on change, clears provider history and
   // reconstructs from the persisted ChatMessage array in the session.
   const prevProjectIdRef = useRef<string | null>(null);
+  const aiTurnEpochRef = useRef(new AITurnEpoch());
+
   useEffect(() => {
     if (!project.projectId) return;
     // Skip the very first render where projectId hasn't settled yet
@@ -1372,6 +1375,7 @@ export default function App() {
   }, []);
 
   const handleUndo = useCallback(() => {
+    if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
     // Cancel active automations for params being undone (side-effect hoisted out of setSession)
     const currentSession = sessionRef.current;
@@ -1394,9 +1398,10 @@ export default function App() {
         ].slice(-20),
       };
     });
-  }, [ensureAudio, cancelAutomationsForEntry]);
+  }, [ensureAudio, cancelAutomationsForEntry, invalidateActiveAITurn, isListening, isThinking]);
 
   const handleUndoMessage = useCallback((messageIndex: number) => {
+    if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
     // Cancel active automations for all entries being undone (side-effect hoisted out of setSession)
     const currentSession = sessionRef.current;
@@ -1437,9 +1442,10 @@ export default function App() {
         messages: updatedMessages,
       };
     });
-  }, [ensureAudio, cancelAutomationsForEntry]);
+  }, [ensureAudio, cancelAutomationsForEntry, invalidateActiveAITurn, isListening, isThinking]);
 
   const handleRedo = useCallback(() => {
+    if (isThinking || isListening) invalidateActiveAITurn();
     ensureAudio();
     setSession((s) => {
       if ((s.redoStack ?? []).length === 0) return s;
@@ -1455,14 +1461,48 @@ export default function App() {
         ].slice(-20),
       };
     });
-  }, [ensureAudio]);
+  }, [ensureAudio, invalidateActiveAITurn, isListening, isThinking]);
 
-  const requestIdRef = useRef(0);
   const [isThinking, setIsThinking] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [streamingLogEntries, setStreamingLogEntries] = useState<import('../engine/types').ActionLogEntry[]>([]);
   const [streamingRejections, setStreamingRejections] = useState<{ reason: string }[]>([]);
+  const invalidateActiveAITurn = useCallback(() => {
+    aiTurnEpochRef.current.invalidate();
+    setIsThinking(false);
+    setIsListening(false);
+    setStreamingText('');
+    setStreamingLogEntries([]);
+    setStreamingRejections([]);
+  }, []);
+
+  useEffect(() => {
+    if (!project.projectId) return;
+    // Skip the very first render where projectId hasn't settled yet
+    if (prevProjectIdRef.current === project.projectId) return;
+    prevProjectIdRef.current = project.projectId;
+
+    invalidateActiveAITurn();
+
+    // Clear project-scoped ephemera that should never leak across sessions.
+    setAbSnapshot(null);
+    setAbActive(null);
+    setAudioDegradedMessage(null);
+    setActivityMap({});
+    setSelectedProcessorId(null);
+    setSelectedModulatorId(null);
+    setDeepViewModuleId(null);
+    trackerSelectionRef.current = null;
+    trackerCursorStepRef.current = null;
+    audioMetricsRef.current.clear();
+
+    // Clear stale history from any previous project, then restore
+    aiRef.current.clearHistory();
+    if (session.messages.length > 0) {
+      aiRef.current.restoreHistory(session.messages);
+    }
+  }, [project.projectId, invalidateActiveAITurn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!audioStarted) {
@@ -1481,7 +1521,7 @@ export default function App() {
 
   const handleSend = useCallback(async (message: string) => {
     if (!aiRef.current.isPlannerConfigured()) return;
-    const thisRequest = ++requestIdRef.current;
+    const thisRequest = aiTurnEpochRef.current.begin();
     setIsThinking(true);
     setStreamingText('');
     setStreamingLogEntries([]);
@@ -1522,25 +1562,25 @@ export default function App() {
         renderOfflinePcm: (s: Session, vIds: string[], bars: number) => renderOfflinePcm(s, vIds, bars),
         onListening: setIsListening,
       },
-      isStale: () => thisRequest !== requestIdRef.current,
+      isStale: () => !aiTurnEpochRef.current.isCurrent(thisRequest),
       validateAction: (sess: Session, action: AIAction) => prevalidateAction(
         sess, action, plaitsAdapter, arbRef.current,
       ),
       onStreamText: (chunk: string) => {
-        if (thisRequest !== requestIdRef.current) return;
+        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
         accumulated += chunk;
         setStreamingText(accumulated);
       },
       onToolCall: (name: string, args: Record<string, unknown>) => {
-        if (thisRequest !== requestIdRef.current) return;
+        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
         collectedToolCalls.push({ name, args });
       },
       onListenEvent: (event: ListenEvent) => {
-        if (thisRequest !== requestIdRef.current) return;
+        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
         collectedListenEvents.push(event);
       },
       onActionsExecuted: (report: { log: import('../engine/types').ActionLogEntry[]; rejected: { op: import('../engine/types').AIAction; reason: string }[] }) => {
-        if (thisRequest !== requestIdRef.current) return;
+        if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
         if (report.log.length > 0) setStreamingLogEntries(prev => [...prev, ...report.log]);
         if (report.rejected.length > 0) setStreamingRejections(prev => [...prev, ...report.rejected.map(r => ({ reason: r.reason }))]);
       },
@@ -1556,7 +1596,7 @@ export default function App() {
     // Step callback: GluonAI calls this after each step for UI rendering.
     const onStep: OnStepCallback = (stepResult, updatedSession) => {
       // Guard: if a new request superseded this one, don't push stale state
-      if (thisRequest !== requestIdRef.current) return;
+      if (!aiTurnEpochRef.current.isCurrent(thisRequest)) return;
 
       // Collect say texts for the final ChatMessage
       for (const a of stepResult.actions) {
@@ -1618,7 +1658,7 @@ export default function App() {
     } catch {
       // Error already handled by GluonAI.handleError
       } finally {
-        if (thisRequest === requestIdRef.current) {
+        if (aiTurnEpochRef.current.isCurrent(thisRequest)) {
           // Finalize: create ChatMessage without collapsing — per-step groups are already in place
           setSession(s => finalizeAITurn(s, undoBaseline, allSayTexts, allLog, collectedToolCalls, false, collectedSuggestedReactions, collectedListenEvents));
           clearSnapshots();
@@ -1664,6 +1704,7 @@ export default function App() {
   }, [handleSend]);
 
   const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string, newListenerMode?: ListenerMode) => {
+    invalidateActiveAITurn();
     setOpenaiKey(newOpenaiKey);
     setGeminiKey(newGeminiKey);
     const mode = newListenerMode ?? listenerMode;
@@ -1675,11 +1716,40 @@ export default function App() {
     }
     setPlannerConfigured(aiRef.current.isPlannerConfigured());
     setListenerConfigured(aiRef.current.isListenerConfigured());
-  }, [listenerMode]);
+  }, [invalidateActiveAITurn, listenerMode]);
 
   const handleContinueWithoutAI = useCallback(() => {
     setManualModeDismissed(true);
   }, []);
+
+  const handleProjectRename = useCallback(async (name: string) => {
+    return project.renameActiveProject(name);
+  }, [project]);
+
+  const handleProjectNew = useCallback(async () => {
+    invalidateActiveAITurn();
+    return project.createProject();
+  }, [invalidateActiveAITurn, project]);
+
+  const handleProjectOpen = useCallback(async (id: string) => {
+    invalidateActiveAITurn();
+    return project.switchProject(id);
+  }, [invalidateActiveAITurn, project]);
+
+  const handleProjectDuplicate = useCallback(async () => {
+    invalidateActiveAITurn();
+    return project.duplicateActiveProject();
+  }, [invalidateActiveAITurn, project]);
+
+  const handleProjectDelete = useCallback(async () => {
+    invalidateActiveAITurn();
+    return project.deleteActiveProject();
+  }, [invalidateActiveAITurn, project]);
+
+  const handleProjectImport = useCallback(async (file: File) => {
+    invalidateActiveAITurn();
+    return project.importProject(file);
+  }, [invalidateActiveAITurn, project]);
 
   const handleTogglePlay = useCallback(async () => {
     if (!await ensureAudio()) return;
@@ -3039,13 +3109,13 @@ export default function App() {
       saveError={project.saveError}
       saveStatus={project.saveStatus}
       projectActionError={project.projectActionError}
-      onProjectRename={project.renameActiveProject}
-      onProjectNew={() => project.createProject()}
-      onProjectOpen={project.switchProject}
-      onProjectDuplicate={project.duplicateActiveProject}
-      onProjectDelete={project.deleteActiveProject}
+      onProjectRename={handleProjectRename}
+      onProjectNew={handleProjectNew}
+      onProjectOpen={handleProjectOpen}
+      onProjectDuplicate={handleProjectDuplicate}
+      onProjectDelete={handleProjectDelete}
       onProjectExport={project.exportActiveProject}
-      onProjectImport={project.importProject}
+      onProjectImport={handleProjectImport}
       onExportWav={handleExportWav}
       exportingWav={exportingWav}
       playing={session.transport.status === 'playing'}
