@@ -530,6 +530,22 @@ export function restoreSession(session: Session, persistedVersion: number = CURR
     console.warn('[persistence] v5→v6 migration: clearing undo/redo stacks (old snapshots incompatible)');
   }
 
+  // #1196: Scrub expandedTrackIds against surviving tracks
+  const survivingIds = new Set(migratedTracks.map(t => t.id));
+  const expandedTrackIds = (session.expandedTrackIds ?? []).filter(id => survivingIds.has(id));
+
+  // #1198: Scrub openDecisions trackIds against surviving tracks
+  const openDecisions = (session.openDecisions ?? []).map(d => {
+    if (!d.trackIds) return d;
+    const filtered = d.trackIds.filter(id => survivingIds.has(id));
+    if (filtered.length === d.trackIds.length) return d;
+    if (filtered.length === 0) {
+      const { trackIds: _, ...rest } = d;
+      return rest;
+    }
+    return { ...d, trackIds: filtered };
+  });
+
   return {
     ...session,
     activeTrackId,
@@ -546,7 +562,8 @@ export function restoreSession(session: Session, persistedVersion: number = CURR
     redoStack: clearUndo ? [] : (session.redoStack ?? []),
     recentHumanActions: session.recentHumanActions ?? [],
     reactionHistory: session.reactionHistory ?? [],
-    openDecisions: session.openDecisions ?? [],
+    expandedTrackIds,
+    openDecisions,
   };
 }
 
