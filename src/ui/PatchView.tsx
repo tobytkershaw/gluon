@@ -1248,7 +1248,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
 
     if (bw <= 0 || bh <= 0) return;
 
-    const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(cw / bw, ch / bh)));
+    // Cap at 0.8 so small graphs don't appear overly zoomed in
+    const zoom = Math.min(0.8, Math.max(MIN_ZOOM, Math.min(cw / bw, ch / bh)));
     const panX = FIT_PADDING + (cw - bw * zoom) / 2 - contentBounds.minX * zoom;
     const panY = FIT_PADDING + (ch - bh * zoom) / 2 - contentBounds.minY * zoom;
 
@@ -1569,8 +1570,8 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </div>
         </div>
 
-        {/* Port legend (bottom-right, outside transform) */}
-        <div className="absolute bottom-3 right-3 flex flex-col gap-1 select-none">
+        {/* Port legend (bottom-right, clear of Coin) */}
+        <div className="absolute bottom-3 right-20 flex flex-col gap-1 select-none">
           <div className="flex items-center gap-1.5">
             <div className="rounded-full" style={{ width: 8, height: 8, backgroundColor: '#fbbf24' }} />
             <span className="font-mono text-[8px] text-[#7c776e]">Audio</span>
