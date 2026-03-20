@@ -1163,6 +1163,7 @@ function makeMemory(overrides: Partial<ProjectMemory> & Pick<ProjectMemory, 'typ
     confidence: 0.8,
     evidence: 'test evidence',
     createdAt: Date.now(),
+    updatedAt: Date.now(),
     ...overrides,
   };
 }
@@ -1177,14 +1178,15 @@ describe('compressMemories', () => {
     expect(compressMemories(undefined as any)).toBeNull();
   });
 
-  it('summarises direction memories', () => {
+  it('summarises direction memories as separate bullets', () => {
     const result = compressMemories([
       makeMemory({ type: 'direction', content: 'dark minimal techno, Surgeon reference' }),
       makeMemory({ type: 'direction', content: 'user prefers sparse arrangements' }),
     ]);
     expect(result).not.toBeNull();
     expect(result).toContain('## Project Memory (2 memories)');
-    expect(result).toContain('Direction:');
+    const dirLines = result!.split('\n').filter(l => l.includes('Direction:'));
+    expect(dirLines).toHaveLength(2);
     expect(result).toContain('dark minimal techno');
     expect(result).toContain('user prefers sparse');
   });
@@ -1207,21 +1209,21 @@ describe('compressMemories', () => {
     expect(result).not.toContain('Track v');
   });
 
-  it('decision memories get Structure: prefix for structural content', () => {
+  it('decision memories get Decision: prefix', () => {
     const result = compressMemories([
       makeMemory({ type: 'decision', content: '8-bar sparse intro then kick enters bar 9' }),
     ]);
     expect(result).not.toBeNull();
-    expect(result).toContain('Structure:');
+    expect(result).toContain('Decision:');
     expect(result).toContain('8-bar sparse intro');
   });
 
-  it('decision memories get Plan: prefix for non-structural content', () => {
+  it('all decision types use uniform Decision: prefix', () => {
     const result = compressMemories([
       makeMemory({ type: 'decision', content: 'use FM synthesis for lead sounds' }),
     ]);
     expect(result).not.toBeNull();
-    expect(result).toContain('Plan:');
+    expect(result).toContain('Decision:');
     expect(result).toContain('FM synthesis');
   });
 
@@ -1252,7 +1254,7 @@ describe('compressMemories', () => {
     const lines = result!.split('\n').filter(l => l.startsWith('- '));
     expect(lines[0]).toContain('Direction:');
     expect(lines[1]).toContain('Track v0:');
-    expect(lines[2]).toContain('Structure:');
+    expect(lines[2]).toContain('Decision:');
   });
 
   it('output is natural language, not JSON', () => {
@@ -1274,6 +1276,41 @@ describe('compressMemories', () => {
     ]);
     expect(result).toContain('(1 memory)');
   });
+
+  it('resolves human-readable track labels when tracks are provided', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    const result = compressMemories(
+      [makeMemory({ type: 'track-narrative', content: 'kick is settled', trackId: track.id })],
+      session.tracks,
+    );
+    expect(result).not.toBeNull();
+    // Should contain a human-readable label like "Track 1 (Kick)" instead of raw ID
+    expect(result).toContain('Track 1');
+    expect(result).not.toContain(`Track ${track.id}:`);
+  });
+
+  it('falls back to raw ID when tracks not provided', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'track-narrative', content: 'kick is settled', trackId: 'v0' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('Track v0:');
+  });
+
+  it('mixed-confidence directions preserve individual qualifiers', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'dark techno confirmed', confidence: 0.9 }),
+      makeMemory({ type: 'direction', content: 'maybe ambient direction', confidence: 0.3 }),
+    ]);
+    expect(result).not.toBeNull();
+    const lines = result!.split('\n').filter(l => l.includes('Direction:'));
+    expect(lines).toHaveLength(2);
+    // First direction should NOT have uncertain
+    expect(lines[0]).not.toContain('uncertain:');
+    // Second direction SHOULD have uncertain
+    expect(lines[1]).toContain('uncertain:');
+  });
 });
 
 describe('Project memory in compressState', () => {
@@ -1292,14 +1329,17 @@ describe('Project memory in compressState', () => {
 
   it('projectMemory appears when session has memories', () => {
     const session = createSession();
+    const trackId = session.tracks[0].id;
     session.memories = [
       makeMemory({ type: 'direction', content: 'dark minimal techno' }),
-      makeMemory({ type: 'track-narrative', content: 'kick is dry and punchy', trackId: 'v0' }),
+      makeMemory({ type: 'track-narrative', content: 'kick is dry and punchy', trackId }),
     ];
     const result = compressState(session);
     expect(result.projectMemory).toBeDefined();
     expect(result.projectMemory).toContain('## Project Memory');
     expect(result.projectMemory).toContain('Direction:');
-    expect(result.projectMemory).toContain('Track v0:');
+    // Should resolve to human-readable label, not raw ID
+    expect(result.projectMemory).toContain('Track 1');
+    expect(result.projectMemory).toContain('kick is dry and punchy');
   });
 });

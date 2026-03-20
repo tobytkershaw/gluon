@@ -863,39 +863,41 @@ function deriveGenreReferenceOverlays(intent?: SessionIntent): CompressedGenreRe
  * Groups by type: directions first, then track narratives, then decisions.
  * Returns null when the memories array is empty.
  */
-export function compressMemories(memories: ProjectMemory[]): string | null {
+export function compressMemories(memories: ProjectMemory[], tracks?: Track[]): string | null {
   if (!memories || memories.length === 0) return null;
 
   const directions = memories.filter(m => m.type === 'direction');
   const narratives = memories.filter(m => m.type === 'track-narrative');
   const decisions = memories.filter(m => m.type === 'decision');
 
+  const audioTracks = tracks?.filter(t => getTrackKind(t) !== 'bus') ?? [];
+  const busTracks = tracks?.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID) ?? [];
+
   const lines: string[] = [];
 
-  // Directions: combine into a flowing summary
-  if (directions.length > 0) {
-    const parts = directions.map(m => {
-      const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
-      return `${qualifier}${m.content}`;
-    });
-    lines.push(`Direction: ${parts.join('. ')}`);
+  // Directions: one bullet per direction to preserve individual confidence qualifiers
+  for (const m of directions) {
+    const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+    lines.push(`Direction: ${qualifier}${m.content}`);
   }
 
-  // Track narratives: prefix with track ID and label if available
+  // Track narratives: resolve human-readable label when tracks are available
   for (const m of narratives) {
     const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
-    const trackPrefix = m.trackId ? `Track ${m.trackId}` : 'Track';
+    let trackPrefix = 'Track';
+    if (m.trackId && tracks) {
+      const track = tracks.find(t => t.id === m.trackId);
+      trackPrefix = track ? getTrackOrdinalLabel(track, audioTracks, busTracks) : `Track ${m.trackId}`;
+    } else if (m.trackId) {
+      trackPrefix = `Track ${m.trackId}`;
+    }
     lines.push(`${trackPrefix}: ${qualifier}${m.content}`);
   }
 
-  // Decisions: prefix with "Structure:" or "Plan:"
+  // Decisions: uniform prefix matching the memory type name
   for (const m of decisions) {
     const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
-    // Use "Structure:" for structural decisions, "Plan:" otherwise
-    const prefix = m.content.toLowerCase().match(/\b(bar|intro|drop|section|arrangement|structure)\b/)
-      ? 'Structure'
-      : 'Plan';
-    lines.push(`${prefix}: ${qualifier}${m.content}`);
+    lines.push(`Decision: ${qualifier}${m.content}`);
   }
 
   if (lines.length === 0) return null;
@@ -916,7 +918,7 @@ export function compressState(
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const genreReferenceOverlays = deriveGenreReferenceOverlays(session.intent);
-  const memorySection = compressMemories(session.memories ?? []);
+  const memorySection = compressMemories(session.memories ?? [], session.tracks);
   const result: CompressedState = {
     tracks: session.tracks.map(track => {
       const isDrumRack = track.engine === 'drum-rack' && track.drumRack;
