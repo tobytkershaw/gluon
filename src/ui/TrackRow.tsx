@@ -321,7 +321,7 @@ export function TrackRow({
         {onToggleExpand && !isMasterBus && (
           <button
             onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
-            className="text-[11px] w-[14px] shrink-0 text-center cursor-pointer transition-transform"
+            className="text-[14px] w-[16px] shrink-0 text-center cursor-pointer transition-transform"
             style={{
               color: 'var(--text-faint, #57534e)',
               transform: isExpanded ? 'rotate(90deg)' : 'none',
