@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Permutation 3: Floating Collaborator Dock</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    /* ── Layout: Floating Collaborator Dock ──
+       No strip. A small fixed element in the corner represents the AI.
+       It has states (idle, working, result badge).
+       Click or shortcut to flip to chat.
+       Instrument gets the entire screen including edges.
+    */
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    /* ── Minimal top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-md);
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .topbar-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    /* Content */
+    .content {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Modes — card flip transition */
+    .mode {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      transition: transform 500ms cubic-bezier(0.4, 0, 0.2, 1), opacity 300ms ease;
+      backface-visibility: hidden;
+    }
+
+    .mode.hidden-flip {
+      transform: rotateY(180deg);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .mode.visible {
+      transform: rotateY(0deg);
+      opacity: 1;
+    }
+
+    /* Perspective container for flip */
+    .content {
+      perspective: 1200px;
+    }
+
+    /* ── Instrument Mode ── */
+    .instrument-mode {
+      background: var(--bg-deep);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .view-bar {
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      height: 32px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      gap: var(--space-sm);
+    }
+
+    .instrument-body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Track sidebar */
+    .track-sidebar {
+      width: 180px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .track-sidebar-header {
+      padding: var(--space-md);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .track-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: var(--space-sm);
+    }
+
+    .track-sidebar-footer {
+      padding: var(--space-sm) var(--space-md);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .view-canvas {
+      flex: 1;
+      overflow: auto;
+      padding: var(--space-lg);
+    }
+
+    .rack-chain {
+      display: flex;
+      gap: var(--space-md);
+      align-items: flex-start;
+    }
+
+    .rack-arrow {
+      display: flex;
+      align-items: center;
+      padding-top: 40px;
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    /* ── The Floating Dock ── */
+    .dock {
+      position: fixed;
+      bottom: var(--space-xl);
+      right: var(--space-xl);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--space-sm);
+    }
+
+    /* Dock expanded state — shows last action */
+    .dock-context {
+      background: rgba(19, 17, 28, 0.92);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 10px;
+      padding: var(--space-sm) var(--space-md);
+      max-width: 280px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4), 0 0 16px rgba(139, 92, 246, 0.06);
+      opacity: 0;
+      transform: translateY(4px);
+      transition: all var(--transition-normal);
+      pointer-events: none;
+    }
+
+    .dock:hover .dock-context {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+
+    .dock-context-text {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--zinc-300);
+      line-height: 1.4;
+    }
+
+    .dock-context-detail {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .dock-context-action {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--violet-400);
+      opacity: 0.7;
+      margin-top: var(--space-xs);
+      cursor: pointer;
+    }
+
+    .dock-context-action:hover {
+      opacity: 1;
+    }
+
+    /* The main dock button */
+    .dock-btn {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: rgba(19, 17, 28, 0.92);
+      border: 1.5px solid rgba(139, 92, 246, 0.3);
+      backdrop-filter: blur(12px);
+      box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 16px rgba(139, 92, 246, 0.08);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all var(--transition-normal);
+      position: relative;
+    }
+
+    .dock-btn:hover {
+      border-color: rgba(139, 92, 246, 0.5);
+      box-shadow:
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 0 24px rgba(139, 92, 246, 0.15);
+      transform: scale(1.05);
+    }
+
+    /* Inner glow / presence indicator */
+    .dock-btn-inner {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--violet-400);
+      opacity: 0.6;
+      animation: dock-breathe 3s ease-in-out infinite;
+    }
+
+    @keyframes dock-breathe {
+      0%, 100% {
+        opacity: 0.4;
+        box-shadow: 0 0 8px rgba(139, 92, 246, 0.2);
+      }
+      50% {
+        opacity: 0.8;
+        box-shadow: 0 0 16px rgba(139, 92, 246, 0.4);
+      }
+    }
+
+    /* Unread badge */
+    .dock-badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--violet-500);
+      color: white;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid var(--bg-deep);
+    }
+
+    /* Shortcut hint */
+    .dock-shortcut {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+    }
+
+    .dock:hover .dock-shortcut {
+      opacity: 1;
+    }
+
+    /* ── Chat Mode ── */
+    .chat-mode {
+      background: var(--ai-bg);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: rgba(19, 17, 28, 0.95);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .chat-topbar-title {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--violet-400);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .chat-back {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid var(--border-subtle);
+      border-radius: 4px;
+      padding: 3px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all var(--transition-fast);
+    }
+
+    .chat-back:hover {
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+
+    /* Transport in chat mode — embedded in topbar */
+    .chat-transport {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      margin-left: auto;
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0;
+    }
+
+    .chat-composer {
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+
+    .chat-composer .composer-input {
+      background: rgba(40, 37, 35, 0.6);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    .chat-composer .composer-input:focus {
+      border-color: rgba(139, 92, 246, 0.5);
+    }
+
+    /* Change previews */
+    .change-preview {
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: var(--space-md);
+      margin: var(--space-sm) var(--space-lg);
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    .change-preview-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      background: rgba(251, 191, 36, 0.1);
+      border: 1px solid rgba(251, 191, 36, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+
+    .change-preview-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .change-preview-detail {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Footer ── */
+    .footer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .footer-spacer { flex: 1; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Top bar -->
+    <div class="topbar">
+      <span class="topbar-logo">gluon</span>
+      <div class="transport-divider"></div>
+
+      <button class="transport-btn active">&#9654;</button>
+      <button class="transport-btn">&#9632;</button>
+      <button class="transport-btn">&#9679;</button>
+      <div class="transport-divider"></div>
+      <span class="transport-time">1:01</span>
+      <span class="transport-bpm">128 BPM</span>
+      <div class="transport-divider"></div>
+      <div class="peak-meter">
+        <div class="peak-meter-bar" style="height: 12px;"></div>
+        <div class="peak-meter-bar" style="height: 10px;"></div>
+      </div>
+
+      <div class="topbar-spacer"></div>
+
+      <div class="view-tabs">
+        <button class="view-tab" onclick="showView('surface')">Surface</button>
+        <button class="view-tab active" onclick="showView('rack')">Rack</button>
+        <button class="view-tab" onclick="showView('patch')">Patch</button>
+        <button class="view-tab" onclick="showView('tracker')">Tracker</button>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <!-- Instrument Mode -->
+      <div class="mode visible" id="instrument-mode">
+        <div class="instrument-mode">
+          <div class="instrument-body">
+            <div class="track-sidebar">
+              <div class="track-sidebar-header">Tracks</div>
+              <div class="track-list">
+                <div class="track-item selected">
+                  <div class="track-accent" style="background: var(--amber-400);"></div>
+                  <div>
+                    <div class="track-name">Kick</div>
+                    <div class="track-role">bass drum</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--cyan-400);"></div>
+                  <div>
+                    <div class="track-name">Hi-Hats</div>
+                    <div class="track-role">percussion</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--violet-400);"></div>
+                  <div>
+                    <div class="track-name">Bass</div>
+                    <div class="track-role">bass synth</div>
+                  </div>
+                  <div class="agency-dot off"></div>
+                </div>
+                <div class="track-item">
+                  <div class="track-accent" style="background: var(--emerald-400);"></div>
+                  <div>
+                    <div class="track-name">Pad</div>
+                    <div class="track-role">atmosphere</div>
+                  </div>
+                  <div class="agency-dot on"></div>
+                </div>
+              </div>
+              <div class="track-sidebar-footer">
+                <div class="flex items-center justify-between">
+                  <span class="type-mono-sm">MASTER</span>
+                  <div class="peak-meter">
+                    <div class="peak-meter-bar" style="height: 14px;"></div>
+                    <div class="peak-meter-bar" style="height: 11px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rack View -->
+            <div class="view-canvas">
+              <div class="rack-chain">
+                <div class="rack-module" style="min-width: 200px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Plaits</span>
+                    <span class="rack-module-type">Source</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Freq</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">52 Hz</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Morph</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.35</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Timbre</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 26 7" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.62</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Decay</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 10 15" fill="none" stroke="var(--amber-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.28</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <div class="rack-module" style="min-width: 220px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Ripples</span>
+                    <span class="rack-module-type">Filter</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Cutoff</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">380 Hz</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Reso</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.58</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Drive</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.72</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Env Amt</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 22 5" fill="none" stroke="var(--sky-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.55</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <div class="rack-module" style="min-width: 240px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Compressor</span>
+                    <span class="rack-module-type">Dynamics &middot; Punch</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Thresh</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">-12 dB</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Ratio</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">4:1</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Attack</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 8.7 8.7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">2 ms</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Release</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 11.5 12.5" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">80 ms</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Makeup</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 0 1 15 7" fill="none" stroke="var(--violet-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">3 dB</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rack-arrow">&rarr;</div>
+
+                <div class="rack-module" style="min-width: 100px;">
+                  <div class="rack-module-header">
+                    <span class="rack-module-name">Output</span>
+                    <span class="rack-module-type">Master</span>
+                  </div>
+                  <div class="rack-module-knobs">
+                    <div class="knob-container">
+                      <span class="knob-label">Level</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 28 10" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">0.0 dB</span>
+                    </div>
+                    <div class="knob-container">
+                      <span class="knob-label">Pan</span>
+                      <svg width="40" height="40" viewBox="0 0 40 40"><circle cx="20" cy="20" r="16" fill="none" stroke="var(--zinc-700)" stroke-width="3"/><path d="M 8.7 31.3 A 16 16 0 1 1 20 4" fill="none" stroke="var(--zinc-400)" stroke-width="3" stroke-linecap="round"/></svg>
+                      <span class="knob-value">C</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Mode -->
+      <div class="mode hidden-flip" id="chat-mode">
+        <div class="chat-mode">
+          <div class="chat-topbar">
+            <button class="chat-back" onclick="showMode('instrument')">
+              <span class="key" style="width: 14px; height: 12px; font-size: 8px;">`</span>
+              Flip to instrument
+            </button>
+            <div class="topbar-spacer"></div>
+            <div class="chat-transport">
+              <button class="transport-btn active" style="width: 20px; height: 20px; font-size: 8px;">&#9654;</button>
+              <span class="transport-time" style="font-size: 13px;">1:01</span>
+              <span class="transport-bpm" style="font-size: 10px;">128</span>
+              <div class="peak-meter" style="height: 14px;">
+                <div class="peak-meter-bar" style="height: 10px; width: 2px;"></div>
+                <div class="peak-meter-bar" style="height: 8px; width: 2px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-area chat-scroll">
+            <div class="chat-msg">
+              <div class="chat-msg-role user">You</div>
+              <div class="chat-msg-user">Make me a heavy kick drum with some grit. Think warehouse techno.</div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">I've set up a kick using Plaits in bass drum mode with a short, punchy decay. Added a Ripples filter for some resonant grit and a Compressor in "punch" mode to tighten the transient.</div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9679;</div>
+              <div>
+                <div class="change-preview-text">Kick &mdash; Plaits (Bass Drum)</div>
+                <div class="change-preview-detail">morph 0.35 &middot; timbre 0.62 &middot; decay 0.28</div>
+              </div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9830;</div>
+              <div>
+                <div class="change-preview-text">+ Ripples &mdash; LP 380 Hz, res 0.45</div>
+                <div class="change-preview-detail">drive 0.30 &middot; env amount 0.55</div>
+              </div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9644;</div>
+              <div>
+                <div class="change-preview-text">+ Compressor &mdash; Punch mode</div>
+                <div class="change-preview-detail">ratio 4:1 &middot; attack 2ms &middot; release 80ms</div>
+              </div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role user">You</div>
+              <div class="chat-msg-user">More drive on the filter. I want it to bite.</div>
+            </div>
+
+            <div class="chat-msg">
+              <div class="chat-msg-role ai">Gluon</div>
+              <div class="chat-msg-ai">Pushed the Ripples drive to 0.72 and bumped resonance to 0.58. It'll have a lot more harmonic saturation now.</div>
+            </div>
+
+            <div class="change-preview">
+              <div class="change-preview-icon">&#9830;</div>
+              <div>
+                <div class="change-preview-text">Ripples &mdash; drive 0.30 &rarr; 0.72, res 0.45 &rarr; 0.58</div>
+                <div class="change-preview-detail">Increased harmonic saturation</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-composer">
+            <input class="composer-input" type="text" placeholder="Describe what you want to change...">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <span>gluon v0.5</span>
+      <div class="footer-spacer"></div>
+      <span>Gemini 3.1 Pro</span>
+      <span>&middot;</span>
+      <span>4 tracks</span>
+      <span>&middot;</span>
+      <span>128 BPM</span>
+    </div>
+  </div>
+
+  <!-- ── The Floating Dock ── -->
+  <div class="dock" id="dock">
+    <div class="dock-context">
+      <div class="dock-context-text">Ripples drive &rarr; 0.72, res &rarr; 0.58</div>
+      <div class="dock-context-detail">2 min ago</div>
+      <div class="dock-context-action" onclick="showMode('chat')">Open conversation &rarr;</div>
+    </div>
+    <div class="dock-btn" onclick="showMode('chat')">
+      <div class="dock-btn-inner"></div>
+      <div class="dock-badge">2</div>
+    </div>
+    <span class="dock-shortcut">` to flip</span>
+  </div>
+
+  <script>
+    let currentMode = 'instrument';
+
+    function showMode(mode) {
+      currentMode = mode;
+      const chatMode = document.getElementById('chat-mode');
+      const instrumentMode = document.getElementById('instrument-mode');
+      const dock = document.getElementById('dock');
+
+      if (mode === 'chat') {
+        chatMode.className = 'mode visible';
+        instrumentMode.className = 'mode hidden-flip';
+        dock.style.display = 'none';
+      } else {
+        chatMode.className = 'mode hidden-flip';
+        instrumentMode.className = 'mode visible';
+        dock.style.display = 'flex';
+      }
+    }
+
+    function toggleMode() {
+      showMode(currentMode === 'chat' ? 'instrument' : 'chat');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.key === '`' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        toggleMode();
+      }
+    });
+  </script>
+</body>
+</html>

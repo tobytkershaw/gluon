@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Top Bar States</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .app {
+      height: 100vh;
+      overflow-y: auto;
+      padding: var(--space-2xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3xl);
+    }
+
+    .demo-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-sm);
+    }
+
+    .demo-sublabel {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--text-faint);
+      margin-bottom: var(--space-sm);
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: var(--topbar-height);
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      gap: var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    /* Project menu — replaces logo. Gluon IS the AI, no separate branding. */
+    .project-menu {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-fast);
+    }
+
+    .project-menu:hover {
+      background: var(--bg-raised);
+    }
+
+    .project-menu-name {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-primary);
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .project-menu-chevron {
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: transform var(--transition-fast);
+    }
+
+    .project-menu-saved {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+    }
+
+    .project-menu-saved.clean {
+      background: var(--emerald-400);
+      opacity: 0.5;
+    }
+
+    .project-menu-saved.dirty {
+      background: var(--amber-400);
+    }
+
+    /* Status dot — just the dot, no label. Gluon is the product. */
+    .status-dot {
+      width: var(--dot-size);
+      height: var(--dot-size);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.active {
+      background: var(--violet-400);
+      animation: presence-breathe 3s ease-in-out infinite;
+    }
+
+    .status-dot.connected {
+      background: var(--teal-400);
+    }
+
+    .status-dot.no-audio-eval {
+      background: var(--teal-400);
+      box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 3.5px var(--amber-400);
+    }
+
+    .status-dot.manual {
+      background: var(--amber-400);
+    }
+
+    .status-dot.disconnected {
+      background: var(--zinc-600);
+    }
+
+    @keyframes presence-breathe {
+      0%, 100% { opacity: 0.4; box-shadow: 0 0 4px rgba(139, 92, 246, 0.1); }
+      50% { opacity: 0.9; box-shadow: 0 0 8px rgba(139, 92, 246, 0.3); }
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    /* ── Fixed-width zones ──
+       Left:   [Project ▾] | [Chat] | [Surface Rack Patch Tracker]
+       Center: [▶ ■ ● ↻] | [Pat Song] | [1:01 128BPM Sw58%] | [▌▌]
+       Right:  [A/B] | [↶ ↷] | [●]
+
+       Center and right zones have FIXED widths so nothing shifts.
+       No "Gluon AI" label — Gluon IS the product, the dot is the status.
+    */
+
+    .topbar-zone-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .topbar-zone-center {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      /* Fixed width prevents shifts when button states change */
+    }
+
+    .topbar-zone-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    /* Transport group — always 4 buttons, fixed width */
+    .transport-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 112px; /* 4 × 24px + 3 × 4px gap */
+      flex-shrink: 0;
+    }
+
+    /* Mode group — always present, fixed width */
+    .mode-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 72px;
+      flex-shrink: 0;
+    }
+
+    /* Time group — fixed width */
+    .time-group {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      width: 200px;
+      flex-shrink: 0;
+    }
+
+    /* Meter group — fixed width */
+    .meter-group {
+      display: flex;
+      align-items: center;
+      width: 24px;
+      flex-shrink: 0;
+    }
+
+    /* AB group — fixed width */
+    .ab-group-fixed {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      width: 76px;
+      flex-shrink: 0;
+    }
+
+    /* Undo group — fixed width */
+    .undo-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      width: 56px;
+      flex-shrink: 0;
+    }
+
+    /* Chat tab — violet when active (distinct from instrument tabs) */
+    .view-tab.chat-active {
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    /* Undo/Redo buttons */
+    .undo-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 22px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .undo-btn:hover {
+      color: var(--text-secondary);
+      border-color: var(--border);
+      background: var(--bg-raised);
+    }
+
+    .undo-btn.disabled {
+      opacity: 0.3;
+      cursor: default;
+      pointer-events: none;
+    }
+
+    .undo-btn svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    /* A/B toggle */
+    .ab-btn {
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-subtle);
+      background: none;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .ab-btn:hover {
+      color: var(--text-secondary);
+      border-color: var(--border);
+      background: var(--bg-raised);
+    }
+
+    .ab-btn.active {
+      color: var(--amber-400);
+      border-color: rgba(251, 191, 36, 0.3);
+      background: rgba(251, 191, 36, 0.1);
+    }
+
+    .ab-btn.clear {
+      color: var(--text-faint);
+      padding: 3px 6px;
+    }
+
+    /* Record button */
+    .transport-btn.recording {
+      background: rgba(251, 113, 133, 0.15);
+      color: var(--rose-400);
+      border-color: rgba(251, 113, 133, 0.3);
+      animation: rec-pulse 1.5s ease-in-out infinite;
+    }
+
+    @keyframes rec-pulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 113, 133, 0); }
+      50% { box-shadow: 0 0 8px 2px rgba(251, 113, 133, 0.2); }
+    }
+
+    /* Loop button active */
+    .transport-btn.loop-active {
+      background: rgba(34, 211, 238, 0.12);
+      color: var(--cyan-400);
+      border-color: rgba(34, 211, 238, 0.3);
+    }
+
+    /* Pattern/Song toggle */
+    .pattern-song-toggle {
+      display: flex;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+    }
+
+    .pattern-song-toggle button {
+      padding: 2px 8px;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+
+    .pattern-song-toggle button.active {
+      background: var(--bg-raised);
+      color: var(--text-secondary);
+    }
+
+    .pattern-song-toggle button:hover:not(.active) {
+      color: var(--text-secondary);
+    }
+
+    /* Swing display */
+    .swing-display {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      min-width: 42px;
+    }
+
+    /* Content placeholder */
+    .content-placeholder {
+      height: 80px;
+      background: var(--bg-deep);
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      border: 1px solid var(--border);
+      border-top: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--text-faint);
+    }
+
+    /* Gluon wordmark — between undo/redo and status dot */
+    .gluon-wordmark {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 11px;
+      color: var(--text-muted);
+      letter-spacing: -0.02em;
+      text-transform: lowercase;
+      flex-shrink: 0;
+    }
+
+    /* Gap helpers */
+    .gap-4 { gap: 4px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div>
+      <h1 style="font-family: var(--font-sans); font-weight: 700; font-size: 28px; color: var(--text-primary); letter-spacing: -0.03em; margin-bottom: var(--space-xs);">Top Bar</h1>
+      <p style="font-family: var(--font-mono); font-size: var(--text-base); color: var(--text-muted); margin-bottom: var(--space-xs);">All states of the persistent top bar across all five tabs.</p>
+      <p style="font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-faint); margin-bottom: var(--space-xl);">Fixed layout: every element always present in the same position. Inactive controls dim, never hide.</p>
+    </div>
+
+    <!-- ═══════════════════════════════════════════
+         LAYOUT SPEC (all states share this exact structure):
+
+         [Project ▾] | [CHAT] | [Surface Rack Patch Tracker]
+               ← spacer →
+         [▶ ■ ● ↻] | [Pat|Song] | [1:01  128 BPM  Sw 50%] | [▌▌]
+               ← spacer →
+         [A|B ×] | [↶ ↷] | [●]
+         ═══════════════════════════════════════════ -->
+
+    <!-- ═══ STATE 1: Chat Active, Playing ═══ -->
+    <div>
+      <div class="demo-label">Chat Active &mdash; Playing</div>
+      <div class="demo-sublabel">Chat tab violet. Transport playing. Record/loop inactive but visible. A/B inactive (single button).</div>
+      <div class="topbar">
+        <!-- Left: logo + tabs (always same) -->
+        <div class="topbar-zone-left">
+          <div class="project-menu">
+              <div class="project-menu-saved clean"></div>
+              <span class="project-menu-name">My Project</span>
+              <span class="project-menu-chevron">&#9662;</span>
+            </div>
+          <div class="transport-divider"></div>
+          <button class="view-tab chat-active">Chat</button>
+          <div class="transport-divider"></div>
+          <div class="view-tabs">
+            <button class="view-tab">Surface</button>
+            <button class="view-tab">Rack</button>
+            <button class="view-tab">Patch</button>
+            <button class="view-tab">Tracker</button>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <!-- Center: transport (always same elements, same positions) -->
+        <div class="topbar-zone-center">
+          <div class="transport-group">
+            <button class="transport-btn active" title="Playing"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn" title="Stop"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+            <button class="transport-btn" title="Record"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+            <button class="transport-btn" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="mode-group">
+            <div class="pattern-song-toggle">
+              <button class="active">Pat</button>
+              <button>Song</button>
+            </div>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="time-group">
+            <span class="transport-time">1:01</span>
+            <span class="transport-bpm">128 BPM</span>
+            <span class="swing-display">Sw 50%</span>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="meter-group">
+            <div class="peak-meter">
+              <div class="peak-meter-bar" style="height: 12px;"></div>
+              <div class="peak-meter-bar" style="height: 10px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <!-- Right: A/B + undo + AI (always same elements, same positions) -->
+        <div class="topbar-zone-right">
+          <div class="ab-group-fixed">
+            <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="undo-group">
+            <button class="undo-btn" title="Undo: Created Kick track">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+            </button>
+            <button class="undo-btn disabled" title="Nothing to redo">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+            </button>
+          </div>
+          <div class="transport-divider"></div>
+          <span class="gluon-wordmark">gluon</span>
+          <div class="transport-divider"></div>
+          <div class="status-dot active" title="Active"></div>
+        </div>
+      </div>
+      <div class="content-placeholder">Chat tab content (AI conversation)</div>
+    </div>
+
+    <!-- ═══ STATE 2: Rack Active, Stopped ═══ -->
+    <div>
+      <div class="demo-label">Rack Active &mdash; Stopped</div>
+      <div class="demo-sublabel">Amber active tab. Transport at rest. All controls in same position, just dimmed.</div>
+      <div class="topbar">
+        <div class="topbar-zone-left">
+          <div class="project-menu">
+              <div class="project-menu-saved clean"></div>
+              <span class="project-menu-name">My Project</span>
+              <span class="project-menu-chevron">&#9662;</span>
+            </div>
+          <div class="transport-divider"></div>
+          <button class="view-tab">Chat</button>
+          <div class="transport-divider"></div>
+          <div class="view-tabs">
+            <button class="view-tab">Surface</button>
+            <button class="view-tab active">Rack</button>
+            <button class="view-tab">Patch</button>
+            <button class="view-tab">Tracker</button>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-center">
+          <div class="transport-group">
+            <button class="transport-btn" title="Play"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn" title="Stop"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+            <button class="transport-btn" title="Record"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+            <button class="transport-btn" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="mode-group">
+            <div class="pattern-song-toggle">
+              <button class="active">Pat</button>
+              <button>Song</button>
+            </div>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="time-group">
+            <span class="transport-time" style="color: var(--text-muted);">0:00</span>
+            <span class="transport-bpm">128 BPM</span>
+            <span class="swing-display">Sw 50%</span>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="meter-group">
+            <div class="peak-meter">
+              <div class="peak-meter-bar" style="height: 2px;"></div>
+              <div class="peak-meter-bar" style="height: 2px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-right">
+          <div class="ab-group-fixed">
+            <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="undo-group">
+            <button class="undo-btn" title="Undo">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+            </button>
+            <button class="undo-btn" title="Redo">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+            </button>
+          </div>
+          <div class="transport-divider"></div>
+          <span class="gluon-wordmark">gluon</span>
+          <div class="transport-divider"></div>
+          <div class="status-dot connected" title="Connected"></div>
+        </div>
+      </div>
+      <div class="content-placeholder">Rack view content (modules, knobs)</div>
+    </div>
+
+    <!-- ═══ STATE 3: Tracker Active, Recording ═══ -->
+    <div>
+      <div class="demo-label">Tracker Active &mdash; Recording</div>
+      <div class="demo-sublabel">Record + loop lit up. Song mode. Swing at 58%. A/B active (expanded to A + B + clear). Same element positions.</div>
+      <div class="topbar">
+        <div class="topbar-zone-left">
+          <div class="project-menu">
+              <div class="project-menu-saved clean"></div>
+              <span class="project-menu-name">My Project</span>
+              <span class="project-menu-chevron">&#9662;</span>
+            </div>
+          <div class="transport-divider"></div>
+          <button class="view-tab">Chat</button>
+          <div class="transport-divider"></div>
+          <div class="view-tabs">
+            <button class="view-tab">Surface</button>
+            <button class="view-tab">Rack</button>
+            <button class="view-tab">Patch</button>
+            <button class="view-tab active">Tracker</button>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-center">
+          <div class="transport-group">
+            <button class="transport-btn active"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+            <button class="transport-btn recording" title="Recording"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+            <button class="transport-btn loop-active" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="mode-group">
+            <div class="pattern-song-toggle">
+              <button>Pat</button>
+              <button class="active">Song</button>
+            </div>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="time-group">
+            <span class="transport-time">2:13</span>
+            <span class="transport-bpm">128 BPM</span>
+            <span class="swing-display">Sw 58%</span>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="meter-group">
+            <div class="peak-meter">
+              <div class="peak-meter-bar" style="height: 14px;"></div>
+              <div class="peak-meter-bar" style="height: 11px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-right">
+          <div class="ab-group-fixed">
+            <button class="ab-btn active">A</button>
+            <button class="ab-btn">B</button>
+            <button class="ab-btn clear" title="Clear A/B">&times;</button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="undo-group">
+            <button class="undo-btn" title="Undo">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+            </button>
+            <button class="undo-btn disabled">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+            </button>
+          </div>
+          <div class="transport-divider"></div>
+          <span class="gluon-wordmark">gluon</span>
+          <div class="transport-divider"></div>
+          <div class="status-dot active" title="Active"></div>
+        </div>
+      </div>
+      <div class="content-placeholder">Tracker view content (grid, patterns)</div>
+    </div>
+
+    <!-- ═══ STATE 4: Surface Active, No AI ═══ -->
+    <div>
+      <div class="demo-label">Surface Active &mdash; No AI Connected</div>
+      <div class="demo-sublabel">No AI. All transport controls present, just inactive. Identical layout to every other state.</div>
+      <div class="topbar">
+        <div class="topbar-zone-left">
+          <div class="project-menu">
+              <div class="project-menu-saved clean"></div>
+              <span class="project-menu-name">My Project</span>
+              <span class="project-menu-chevron">&#9662;</span>
+            </div>
+          <div class="transport-divider"></div>
+          <button class="view-tab">Chat</button>
+          <div class="transport-divider"></div>
+          <div class="view-tabs">
+            <button class="view-tab active">Surface</button>
+            <button class="view-tab">Rack</button>
+            <button class="view-tab">Patch</button>
+            <button class="view-tab">Tracker</button>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-center">
+          <div class="transport-group">
+            <button class="transport-btn" title="Play"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn" title="Stop"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+            <button class="transport-btn" title="Record"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+            <button class="transport-btn" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="mode-group">
+            <div class="pattern-song-toggle">
+              <button class="active">Pat</button>
+              <button>Song</button>
+            </div>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="time-group">
+            <span class="transport-time" style="color: var(--text-muted);">0:00</span>
+            <span class="transport-bpm">120 BPM</span>
+            <span class="swing-display">Sw 50%</span>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="meter-group">
+            <div class="peak-meter">
+              <div class="peak-meter-bar" style="height: 2px;"></div>
+              <div class="peak-meter-bar" style="height: 2px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-right">
+          <div class="ab-group-fixed">
+            <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="undo-group">
+            <button class="undo-btn disabled">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+            </button>
+            <button class="undo-btn disabled">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+            </button>
+          </div>
+          <div class="transport-divider"></div>
+          <span class="gluon-wordmark">gluon</span>
+          <div class="transport-divider"></div>
+          <div class="status-dot disconnected" title="Disconnected"></div>
+        </div>
+      </div>
+      <div class="content-placeholder">Surface view content (modules, stage cards)</div>
+    </div>
+
+    <!-- ═══ STATE 5: Patch Active, AI Warning ═══ -->
+    <div>
+      <div class="demo-label">Patch Active &mdash; AI Connected (No Audio Eval)</div>
+      <div class="demo-sublabel">Playing at 140 BPM. Amber ring on AI dot. Layout identical to all other states.</div>
+      <div class="topbar">
+        <div class="topbar-zone-left">
+          <div class="project-menu">
+              <div class="project-menu-saved clean"></div>
+              <span class="project-menu-name">My Project</span>
+              <span class="project-menu-chevron">&#9662;</span>
+            </div>
+          <div class="transport-divider"></div>
+          <button class="view-tab">Chat</button>
+          <div class="transport-divider"></div>
+          <div class="view-tabs">
+            <button class="view-tab">Surface</button>
+            <button class="view-tab">Rack</button>
+            <button class="view-tab active">Patch</button>
+            <button class="view-tab">Tracker</button>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-center">
+          <div class="transport-group">
+            <button class="transport-btn active"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+            <button class="transport-btn" title="Record"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+            <button class="transport-btn" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="mode-group">
+            <div class="pattern-song-toggle">
+              <button class="active">Pat</button>
+              <button>Song</button>
+            </div>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="time-group">
+            <span class="transport-time">4:32</span>
+            <span class="transport-bpm">140 BPM</span>
+            <span class="swing-display">Sw 50%</span>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="meter-group">
+            <div class="peak-meter">
+              <div class="peak-meter-bar" style="height: 10px;"></div>
+              <div class="peak-meter-bar" style="height: 8px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <div class="topbar-zone-right">
+          <div class="ab-group-fixed">
+            <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+          </div>
+          <div class="transport-divider"></div>
+          <div class="undo-group">
+            <button class="undo-btn" title="Undo: Removed modulation route">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+            </button>
+            <button class="undo-btn disabled">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+            </button>
+          </div>
+          <div class="transport-divider"></div>
+          <span class="gluon-wordmark">gluon</span>
+          <div class="transport-divider"></div>
+          <div class="status-dot no-audio-eval" title="Connected (no audio eval)"></div>
+        </div>
+      </div>
+      <div class="content-placeholder">Patch view content (node graph)</div>
+    </div>
+
+    <!-- ═══ ELEMENT REFERENCE ═══ -->
+    <div>
+      <div class="demo-label">Element Reference</div>
+      <div class="demo-sublabel">Individual elements at 2x scale for pixel inspection.</div>
+      <div style="background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-xl); display: flex; gap: var(--space-3xl); flex-wrap: wrap; align-items: flex-start;">
+
+        <!-- Tab states -->
+        <div>
+          <div class="demo-sublabel">Tab States</div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+            <div style="display: flex; gap: var(--space-xs); align-items: center;">
+              <button class="view-tab">Inactive</button>
+              <span class="type-mono-sm">&rarr; text-muted, no bg</span>
+            </div>
+            <div style="display: flex; gap: var(--space-xs); align-items: center;">
+              <button class="view-tab" style="color: var(--text-secondary); background: var(--bg-raised);">Hover</button>
+              <span class="type-mono-sm">&rarr; text-secondary, bg-raised</span>
+            </div>
+            <div style="display: flex; gap: var(--space-xs); align-items: center;">
+              <button class="view-tab active">Active (Inst)</button>
+              <span class="type-mono-sm">&rarr; amber-400, amber/10 bg</span>
+            </div>
+            <div style="display: flex; gap: var(--space-xs); align-items: center;">
+              <button class="view-tab chat-active">Active (Chat)</button>
+              <span class="type-mono-sm">&rarr; violet-400, violet/10 bg</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transport buttons -->
+        <div>
+          <div class="demo-sublabel">Transport Buttons (always 4, fixed position)</div>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button class="transport-btn" title="Play"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn active" title="Playing"><svg viewBox="0 0 16 16" fill="currentColor"><polygon points="5,3 13,8 5,13"/></svg></button>
+            <button class="transport-btn" title="Stop"><svg viewBox="0 0 16 16" fill="currentColor"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg></button>
+            <button class="transport-btn recording" title="Recording"><svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="5"/></svg></button>
+            <button class="transport-btn loop-active" title="Loop"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13 6.5A5 5 0 1 1 8 3"/><path d="M10 3l3 3.5L9.5 7"/></svg></button>
+          </div>
+          <div style="display: flex; gap: 4px; margin-top: var(--space-xs);">
+            <span class="type-mono-sm">rest</span>
+            <span class="type-mono-sm" style="color: var(--amber-400);">play</span>
+            <span class="type-mono-sm">stop</span>
+            <span class="type-mono-sm" style="color: var(--rose-400);">rec</span>
+            <span class="type-mono-sm" style="color: var(--cyan-400);">loop</span>
+          </div>
+        </div>
+
+        <!-- Project menu -->
+        <div>
+          <div class="demo-sublabel">Project Menu</div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="project-menu"><div class="project-menu-saved clean"></div><span class="project-menu-name">My Project</span><span class="project-menu-chevron">&#9662;</span></div>
+              <span class="type-mono-sm">&larr; saved (green dot)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="project-menu"><div class="project-menu-saved dirty"></div><span class="project-menu-name">My Project</span><span class="project-menu-chevron">&#9662;</span></div>
+              <span class="type-mono-sm">&larr; unsaved (amber dot)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="project-menu"><div class="project-menu-saved clean"></div><span class="project-menu-name">A Very Long Project Name</span><span class="project-menu-chevron">&#9662;</span></div>
+              <span class="type-mono-sm">&larr; truncated name</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status dot (no label) -->
+        <div>
+          <div class="demo-sublabel">Status Dot (just the dot &mdash; no label)</div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="status-dot active" style="width: 10px; height: 10px;"></div>
+              <span class="type-mono-sm">Active &mdash; violet, breathing</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="status-dot connected" style="width: 10px; height: 10px;"></div>
+              <span class="type-mono-sm">Connected &mdash; teal, solid</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="status-dot no-audio-eval" style="width: 10px; height: 10px;"></div>
+              <span class="type-mono-sm">No audio eval &mdash; teal + amber ring</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="status-dot manual" style="width: 10px; height: 10px;"></div>
+              <span class="type-mono-sm">Manual mode &mdash; amber</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="status-dot disconnected" style="width: 10px; height: 10px;"></div>
+              <span class="type-mono-sm">Disconnected &mdash; zinc</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- A/B states -->
+        <div>
+          <div class="demo-sublabel">A/B States (fixed-width zone)</div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="ab-group-fixed">
+                <button class="ab-btn" style="padding: 3px 10px;">A/B</button>
+              </div>
+              <span class="type-mono-sm">&larr; inactive (single button)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="ab-group-fixed">
+                <button class="ab-btn active">A</button>
+                <button class="ab-btn">B</button>
+                <button class="ab-btn clear">&times;</button>
+              </div>
+              <span class="type-mono-sm">&larr; active (A selected)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="ab-group-fixed">
+                <button class="ab-btn">A</button>
+                <button class="ab-btn active">B</button>
+                <button class="ab-btn clear">&times;</button>
+              </div>
+              <span class="type-mono-sm">&larr; active (B selected)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Undo/Redo -->
+        <div>
+          <div class="demo-sublabel">Undo / Redo (fixed-width zone)</div>
+          <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="undo-group">
+                <button class="undo-btn">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+                </button>
+                <button class="undo-btn">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+                </button>
+              </div>
+              <span class="type-mono-sm">&larr; both available</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-md);">
+              <div class="undo-group">
+                <button class="undo-btn disabled">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8h8M3 8l3-3M3 8l3 3"/></svg>
+                </button>
+                <button class="undo-btn disabled">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 8H5M13 8l-3-3M13 8l-3 3"/></svg>
+                </button>
+              </div>
+              <span class="type-mono-sm">&larr; both disabled</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</body>
+</html>

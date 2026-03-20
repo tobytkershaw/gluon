@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — Interleaved Tool Use</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      height: 40px;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .topbar-logo {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+    }
+
+    .topbar-spacer { flex: 1; }
+
+    .chat-mode {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      background: var(--ai-bg);
+      overflow: hidden;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .chat-area {
+      flex: 1;
+      overflow-y: auto;
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-xl) 0 var(--space-lg);
+    }
+
+    .chat-composer {
+      max-width: 720px;
+      margin: 0 auto;
+      width: 100%;
+      padding: var(--space-md) var(--space-lg) var(--space-xl);
+    }
+
+    .chat-composer-row {
+      display: flex;
+      align-items: flex-end;
+      gap: var(--space-sm);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+      transition: border-color var(--transition-fast);
+    }
+
+    .chat-composer-row:focus-within {
+      border-color: rgba(139, 92, 246, 0.4);
+      box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.08);
+    }
+
+    .chat-composer-input {
+      flex: 1;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 15px;
+      line-height: 1.5;
+      outline: none;
+      padding: var(--space-xs) 0;
+      min-height: 24px;
+      resize: none;
+    }
+
+    .chat-composer-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .chat-composer-send {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all var(--transition-fast);
+      font-size: 12px;
+    }
+
+    .chat-composer-send:hover {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      border-color: var(--zinc-600);
+    }
+
+    /* When there's text: violet send arrow */
+    .chat-composer-send.ready {
+      background: var(--violet-500);
+      border-color: var(--violet-500);
+      color: white;
+    }
+
+    .chat-composer-send.ready:hover {
+      background: var(--violet-600);
+      border-color: var(--violet-600);
+    }
+
+    /* When streaming: subtle stop square */
+    .chat-composer-send.streaming {
+      background: var(--bg-surface);
+      border-color: var(--zinc-600);
+      color: var(--text-secondary);
+    }
+
+    .chat-composer-send.streaming:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .stop-icon {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: currentColor;
+    }
+
+    .chat-composer .composer-input {
+      background: rgba(40, 37, 35, 0.6);
+      border-color: rgba(139, 92, 246, 0.2);
+    }
+
+    /* ── Message types ── */
+
+    /* User message */
+    .msg-user {
+      padding: var(--space-md) var(--space-lg);
+    }
+
+    .msg-user-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .msg-user-text {
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.6;
+    }
+
+    /* AI commentary — the narration between tool calls */
+    .msg-ai {
+      padding: var(--space-sm) var(--space-lg);
+    }
+
+    .msg-ai-text {
+      font-size: 14px;
+      color: var(--zinc-300);
+      line-height: 1.6;
+    }
+
+    /* AI label — only shown at start of AI turn */
+    .msg-ai-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--violet-400);
+      margin-bottom: 4px;
+      padding: var(--space-sm) var(--space-lg) 0;
+    }
+
+    /* ── Tool use blocks ── */
+    .tool-use {
+      margin: var(--space-xs) var(--space-lg);
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .tool-use-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: 5px var(--space-md);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+    }
+
+    .tool-use-header:hover {
+      background: rgba(61, 57, 53, 0.3);
+    }
+
+    .tool-use-icon {
+      width: 14px;
+      text-align: center;
+      flex-shrink: 0;
+      font-size: 9px;
+      transition: transform var(--transition-fast);
+    }
+
+    .tool-use-icon.expanded {
+      transform: rotate(90deg);
+    }
+
+    /* Color-coded tool type indicator */
+    .tool-use-type {
+      width: 3px;
+      height: 14px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .tool-use-type.source { background: var(--amber-400); }
+    .tool-use-type.processor { background: var(--sky-400); }
+    .tool-use-type.pattern { background: var(--emerald-400); }
+    .tool-use-type.param { background: var(--zinc-500); }
+    .tool-use-type.surface { background: var(--violet-400); }
+
+    .tool-use-name {
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .tool-use-result {
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .tool-use-check {
+      color: var(--emerald-400);
+      font-size: 10px;
+    }
+
+    /* Expanded detail */
+    .tool-use-detail {
+      border-top: 1px solid var(--border-subtle);
+      padding: var(--space-sm) var(--space-md);
+      color: var(--text-muted);
+      font-size: 10px;
+      line-height: 1.5;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 200ms ease, padding 200ms ease;
+      padding-top: 0;
+      padding-bottom: 0;
+    }
+
+    .tool-use-detail.expanded {
+      max-height: 200px;
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .tool-use-detail .param-line {
+      display: flex;
+      gap: var(--space-sm);
+    }
+
+    .tool-use-detail .param-key {
+      color: var(--text-muted);
+      min-width: 60px;
+    }
+
+    .tool-use-detail .param-val {
+      color: var(--text-secondary);
+    }
+
+    /* Group of consecutive tool calls — tighter spacing */
+    .tool-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin: var(--space-xs) var(--space-lg);
+    }
+
+    .tool-group .tool-use {
+      margin: 0;
+    }
+
+    /* Undo affordance on hover for each tool block */
+    .tool-use-undo {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      padding: 1px 5px;
+      cursor: pointer;
+      opacity: 0;
+      transition: all var(--transition-fast);
+    }
+
+    .tool-use-header:hover .tool-use-undo {
+      opacity: 1;
+      border-color: var(--border);
+    }
+
+    .tool-use-undo:hover {
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+    }
+
+    /* Streaming indicator */
+    .streaming-cursor {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: var(--violet-400);
+      margin-left: 2px;
+      animation: cursor-blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes cursor-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ── Transient panel ── */
+    .transient-panel {
+      width: 340px;
+      flex-shrink: 0;
+      background: rgba(15, 14, 12, 0.6);
+      border-left: 1px solid rgba(139, 92, 246, 0.15);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .transient-panel-header {
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .transient-panel-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--violet-400);
+      opacity: 0.7;
+    }
+
+    .transient-panel-body {
+      flex: 1;
+      padding: var(--space-md);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .transient-module {
+      background: var(--bg-surface);
+      border: 1px solid rgba(139, 92, 246, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .transient-module-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-sm) var(--space-md);
+      background: rgba(139, 92, 246, 0.06);
+      border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+    }
+
+    .transient-module-title {
+      font-family: var(--font-sans);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .transient-module-title .ai-tag {
+      font-family: var(--font-mono);
+      font-size: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.12);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    .transient-module-action {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(251, 191, 36, 0.3);
+      background: var(--bg-raised);
+      color: var(--amber-400);
+      cursor: pointer;
+    }
+
+    .transient-module-body {
+      padding: var(--space-md);
+    }
+
+    .transient-knobs {
+      display: flex;
+      gap: var(--space-lg);
+      padding: var(--space-sm) 0;
+      justify-content: center;
+    }
+
+    .transient-step-grid {
+      display: grid;
+      grid-template-columns: repeat(16, 1fr);
+      gap: 3px;
+      margin-bottom: 8px;
+    }
+
+    .transient-step-cell {
+      aspect-ratio: 1;
+      border-radius: 2px;
+      background: var(--bg-raised);
+      min-height: 16px;
+    }
+
+    .transient-step-cell.active {
+      background: var(--cyan-400);
+      box-shadow: 0 0 4px rgba(34, 211, 238, 0.3);
+    }
+
+    /* Footer */
+    .footer {
+      height: 24px;
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-lg);
+      background: var(--bg-surface);
+      border-top: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      gap: var(--space-md);
+      flex-shrink: 0;
+    }
+
+    .footer-spacer { flex: 1; }
+
+    /* Simple flip button (chat mode) */
+    .flip-btn {
+      position: fixed;
+      bottom: var(--space-xl);
+      right: var(--space-xl);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--bg-raised);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all var(--transition-fast);
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .flip-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--zinc-600);
+    }
+
+    .flip-btn-key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 16px;
+      border-radius: 3px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <span class="topbar-logo">gluon</span>
+      <div class="transport-divider"></div>
+
+      <button class="view-tab active" style="color: var(--violet-400); background: rgba(139, 92, 246, 0.1);">Chat</button>
+      <div class="transport-divider"></div>
+      <div class="view-tabs">
+        <button class="view-tab">Surface</button>
+        <button class="view-tab">Rack</button>
+        <button class="view-tab">Patch</button>
+        <button class="view-tab">Tracker</button>
+      </div>
+
+      <div class="topbar-spacer"></div>
+
+      <button class="transport-btn active">&#9654;</button>
+      <button class="transport-btn">&#9632;</button>
+      <div class="transport-divider"></div>
+      <span class="transport-time">1:01</span>
+      <span class="transport-bpm">128 BPM</span>
+      <div class="transport-divider"></div>
+      <div class="peak-meter">
+        <div class="peak-meter-bar" style="height: 12px;"></div>
+        <div class="peak-meter-bar" style="height: 10px;"></div>
+      </div>
+
+      <div class="topbar-spacer"></div>
+
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <div class="ai-presence-dot" style="width: 6px; height: 6px;"></div>
+        <span style="font-family: var(--font-mono); font-size: 10px; color: var(--violet-400); opacity: 0.7;">Gluon AI</span>
+      </div>
+    </div>
+
+    <div class="chat-mode">
+      <div class="chat-main">
+        <div class="chat-area chat-scroll">
+
+          <!-- User prompt -->
+          <div class="msg-user">
+            <div class="msg-user-label">You</div>
+            <div class="msg-user-text">I want a full 4-track techno setup. Kick, hi-hats, bass, and a dark pad. Give it all some character. 128 BPM, minor key.</div>
+          </div>
+
+          <!-- AI turn: interleaved narration + tool use -->
+          <div class="msg-ai-label">Gluon</div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Alright, let's build this. Starting with the kick &mdash; I'll use Plaits in bass drum mode with a resonant filter for that warehouse weight.</div>
+          </div>
+
+          <div class="tool-group">
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type source"></div>
+                <span class="tool-use-name">create_track "Kick" &mdash; Plaits bass_drum</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail">
+                <div class="param-line"><span class="param-key">mode</span><span class="param-val">bass_drum</span></div>
+                <div class="param-line"><span class="param-key">freq</span><span class="param-val">0.18 (52 Hz)</span></div>
+                <div class="param-line"><span class="param-key">morph</span><span class="param-val">0.35</span></div>
+                <div class="param-line"><span class="param-key">timbre</span><span class="param-val">0.62</span></div>
+              </div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type processor"></div>
+                <span class="tool-use-name">add_processor Kick &mdash; Ripples (LP 320 Hz)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail">
+                <div class="param-line"><span class="param-key">cutoff</span><span class="param-val">0.26 (320 Hz)</span></div>
+                <div class="param-line"><span class="param-key">resonance</span><span class="param-val">0.52</span></div>
+                <div class="param-line"><span class="param-key">drive</span><span class="param-val">0.45</span></div>
+              </div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type processor"></div>
+                <span class="tool-use-name">add_processor Kick &mdash; Compressor (punch, 4:1)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Kick's sounding solid. Now let's give it a four-on-the-floor pattern with some accent on the downbeats.</div>
+          </div>
+
+          <div class="tool-use" style="margin: var(--space-xs) var(--space-lg);">
+            <div class="tool-use-header" onclick="toggleTool(this)">
+              <span class="tool-use-icon">&#9656;</span>
+              <div class="tool-use-type pattern"></div>
+              <span class="tool-use-name">write_pattern Kick &mdash; 16 steps, 4 events</span>
+              <span class="tool-use-check">&#10003;</span>
+              <button class="tool-use-undo">undo</button>
+            </div>
+            <div class="tool-use-detail">
+              <div class="param-line"><span class="param-key">hits</span><span class="param-val">1, 5, 9, 13</span></div>
+              <div class="param-line"><span class="param-key">accents</span><span class="param-val">1, 9 (vel 0.95)</span></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Now the hi-hats. Noise mode on Plaits, offbeat 8ths with a bit of shuffle and some ghost notes for movement.</div>
+          </div>
+
+          <div class="tool-group">
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type source"></div>
+                <span class="tool-use-name">create_track "Hi-Hats" &mdash; Plaits noise</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type processor"></div>
+                <span class="tool-use-name">add_processor Hi-Hats &mdash; EQ (shelf +3 dB @ 8 kHz)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type pattern"></div>
+                <span class="tool-use-name">write_pattern Hi-Hats &mdash; 16 steps, 10 events, swing 58%</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Good groove. Now the bass &mdash; dark square wave in E minor with the filter barely open. Syncopated line with some octave jumps to keep it interesting.</div>
+          </div>
+
+          <div class="tool-group">
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type source"></div>
+                <span class="tool-use-name">create_track "Bass" &mdash; Plaits square</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type processor"></div>
+                <span class="tool-use-name">add_processor Bass &mdash; Ripples (LP 480 Hz)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type processor"></div>
+                <span class="tool-use-name">add_processor Bass &mdash; Compressor (glue, 3:1)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type pattern"></div>
+                <span class="tool-use-name">write_pattern Bass &mdash; 4 bars, E minor, syncopated</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Last piece &mdash; a dark pad. Slow chord evolution with a filter sweep underneath everything.</div>
+          </div>
+
+          <div class="tool-group">
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type source"></div>
+                <span class="tool-use-name">create_track "Pad" &mdash; Plaits chord</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type processor"></div>
+                <span class="tool-use-name">add_processor Pad &mdash; Ripples (LP sweep 200&ndash;1200 Hz)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type pattern"></div>
+                <span class="tool-use-name">write_pattern Pad &mdash; Em7, 4-bar sustain</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Let me just humanize these patterns a bit so it doesn't sound too rigid.</div>
+          </div>
+
+          <div class="tool-group">
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type param"></div>
+                <span class="tool-use-name">humanize Kick &mdash; timing &plusmn;8ms, velocity &plusmn;5%</span>
+                <span class="tool-use-check">&#10003;</span>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type param"></div>
+                <span class="tool-use-name">humanize Hi-Hats &mdash; timing &plusmn;12ms, velocity &plusmn;15%</span>
+                <span class="tool-use-check">&#10003;</span>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type param"></div>
+                <span class="tool-use-name">humanize Bass &mdash; timing &plusmn;6ms</span>
+                <span class="tool-use-check">&#10003;</span>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">That's the full kit. I've put controls up for the stuff you'll want to tweak &mdash; hit play and dial it in. The hi-hats might be a bit busy, let me know if you want me to thin them out.</div>
+          </div>
+
+          <!-- Separator before follow-up -->
+          <div style="height: 1px; background: var(--border-subtle); margin: var(--space-lg) var(--space-lg);"></div>
+
+          <!-- Follow-up -->
+          <div class="msg-user">
+            <div class="msg-user-label">You</div>
+            <div class="msg-user-text">Yeah the hi-hats are too busy. Thin them out and make them darker.</div>
+          </div>
+
+          <div class="msg-ai-label">Gluon</div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Stripping out the ghost notes and pulling the brightness back.</div>
+          </div>
+
+          <div class="tool-group">
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type pattern"></div>
+                <span class="tool-use-name">write_pattern Hi-Hats &mdash; 4 events (offbeat 8ths only)</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+            <div class="tool-use">
+              <div class="tool-use-header" onclick="toggleTool(this)">
+                <span class="tool-use-icon">&#9656;</span>
+                <div class="tool-use-type param"></div>
+                <span class="tool-use-name">set_params Hi-Hats.EQ &mdash; shelf +3 &rarr; -2 dB</span>
+                <span class="tool-use-check">&#10003;</span>
+                <button class="tool-use-undo">undo</button>
+              </div>
+              <div class="tool-use-detail"></div>
+            </div>
+          </div>
+
+          <div class="msg-ai">
+            <div class="msg-ai-text">Done. Should sit further back in the mix now.<span class="streaming-cursor"></span></div>
+          </div>
+
+        </div>
+
+        <div class="chat-composer">
+          <div class="chat-composer-row">
+            <input class="chat-composer-input" type="text" placeholder="Describe what you want...">
+            <button class="chat-composer-send streaming" title="Stop"><div class="stop-icon"></div></button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Controls panel -->
+      <div class="transient-panel">
+        <div class="transient-panel-header">
+          <div class="ai-presence-dot" style="width: 5px; height: 5px;"></div>
+          <span class="transient-panel-title">Live Controls</span>
+        </div>
+        <div class="transient-panel-body">
+
+          <div class="transient-module">
+            <div class="transient-module-header">
+              <div class="transient-module-title">Kick Character <span class="ai-tag">Live</span></div>
+              <button class="transient-module-action">Add to Surface</button>
+            </div>
+            <div class="transient-module-body">
+              <div class="transient-knobs">
+                <div class="knob-container"><span class="knob-label">Punch</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 26 8" fill="none" stroke="var(--amber-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.72</span></div>
+                <div class="knob-container"><span class="knob-label">Grit</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="var(--amber-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.45</span></div>
+                <div class="knob-container"><span class="knob-label">Tail</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 11 13" fill="none" stroke="var(--amber-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.28</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="transient-module">
+            <div class="transient-module-header">
+              <div class="transient-module-title">Hi-Hats <span class="ai-tag">Live</span></div>
+              <button class="transient-module-action">Add to Surface</button>
+            </div>
+            <div class="transient-module-body">
+              <div class="transient-step-grid">
+                <div class="transient-step-cell"></div><div class="transient-step-cell"></div><div class="transient-step-cell active"></div><div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div><div class="transient-step-cell"></div><div class="transient-step-cell active"></div><div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div><div class="transient-step-cell"></div><div class="transient-step-cell active"></div><div class="transient-step-cell"></div>
+                <div class="transient-step-cell"></div><div class="transient-step-cell"></div><div class="transient-step-cell active"></div><div class="transient-step-cell"></div>
+              </div>
+              <div class="transient-knobs">
+                <div class="knob-container"><span class="knob-label">Bright</span><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.5 24.5 A 12 12 0 0 1 8 11" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">Dark</span></div>
+                <div class="knob-container"><span class="knob-label">Decay</span><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.5 24.5 A 12 12 0 0 1 9 13" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">Short</span></div>
+                <div class="knob-container"><span class="knob-label">Level</span><svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.5 24.5 A 12 12 0 1 1 22 6" fill="none" stroke="var(--cyan-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">-4 dB</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="transient-module">
+            <div class="transient-module-header">
+              <div class="transient-module-title">Bass Tone <span class="ai-tag">Live</span></div>
+              <button class="transient-module-action">Add to Surface</button>
+            </div>
+            <div class="transient-module-body">
+              <div class="transient-knobs">
+                <div class="knob-container"><span class="knob-label">Growl</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 11 13" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.38</span></div>
+                <div class="knob-container"><span class="knob-label">Sub</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 1 1 26 8" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.75</span></div>
+                <div class="knob-container"><span class="knob-label">Slide</span><svg width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="14" fill="none" stroke="var(--zinc-700)" stroke-width="2.5"/><path d="M 7.8 28.2 A 14 14 0 0 1 9 11" fill="none" stroke="var(--violet-400)" stroke-width="2.5" stroke-linecap="round"/></svg><span class="knob-value">0.22</span></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>gluon v0.5</span>
+      <div class="footer-spacer"></div>
+      <span>Gemini 3.1 Pro</span>
+      <span>&middot;</span>
+      <span>4 tracks</span>
+      <span>&middot;</span>
+      <span>128 BPM</span>
+    </div>
+  </div>
+
+  <!-- Quick flip button — redundant with tabs but useful for fast switching -->
+  <button class="flip-btn" title="Switch to instrument view (`)">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.5" fill="none"/>
+      <line x1="5" y1="6.5" x2="11" y2="6.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+      <line x1="5" y1="9" x2="9" y2="9" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+    </svg>
+    <span>Instrument</span>
+    <span class="flip-btn-key">`</span>
+  </button>
+
+  <script>
+    function toggleTool(header) {
+      const icon = header.querySelector('.tool-use-icon');
+      const detail = header.nextElementSibling;
+      const isExpanded = detail.classList.contains('expanded');
+      if (isExpanded) {
+        detail.classList.remove('expanded');
+        icon.classList.remove('expanded');
+      } else {
+        detail.classList.add('expanded');
+        icon.classList.add('expanded');
+      }
+    }
+  </script>
+</body>
+</html>

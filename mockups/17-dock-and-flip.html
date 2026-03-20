@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gluon — The Coin</title>
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    body {
+      overflow: auto;
+      height: auto;
+    }
+
+    .mockup-page {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: var(--space-2xl) var(--space-xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3xl);
+    }
+
+    .mockup-title {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 24px;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .mockup-subtitle {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: var(--space-xs);
+      line-height: 1.5;
+      max-width: 720px;
+    }
+
+    /* ── States stacked vertically ── */
+    .states {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xl);
+    }
+
+    .state {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .state-label {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-secondary);
+    }
+
+    .state-frame {
+      position: relative;
+      height: 180px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background: var(--bg-deep);
+    }
+
+    /* ── Shared ghost backgrounds ── */
+    .frame-inner {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .frame-topbar {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 var(--space-md);
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border);
+      gap: var(--space-sm);
+      flex-shrink: 0;
+    }
+
+    .frame-tab {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: var(--radius-sm);
+      color: var(--text-muted);
+    }
+
+    .frame-tab.active-chat {
+      color: var(--violet-400);
+      background: rgba(139, 92, 246, 0.1);
+    }
+
+    .frame-tab.active-instrument {
+      color: var(--amber-400);
+      background: rgba(251, 191, 36, 0.1);
+    }
+
+    .frame-tab-divider {
+      width: 1px;
+      height: 12px;
+      background: var(--border);
+    }
+
+    .frame-content {
+      flex: 1;
+      opacity: 0.25;
+    }
+
+    /* Ghost chat content */
+    .ghost-chat {
+      padding: var(--space-md) var(--space-xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .ghost-line {
+      height: 7px;
+      background: var(--zinc-800);
+      border-radius: 2px;
+    }
+
+    /* Ghost instrument content */
+    .ghost-instrument {
+      display: flex;
+      gap: var(--space-md);
+      padding: var(--space-md);
+    }
+
+    .ghost-module {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      width: 140px;
+      flex-shrink: 0;
+    }
+
+    .ghost-module-header {
+      height: 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      padding: 0 var(--space-sm);
+      gap: var(--space-xs);
+    }
+
+    .ghost-module-accent {
+      width: 3px;
+      height: 12px;
+      border-radius: 2px;
+    }
+
+    .ghost-module-name {
+      font-family: var(--font-sans);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+
+    .ghost-module-body {
+      padding: var(--space-sm);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: center;
+    }
+
+    .ghost-knob {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid var(--zinc-700);
+    }
+
+    /* ── The Coin ── */
+    .coin {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--bg-raised);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      flex-shrink: 0;
+    }
+
+    .coin:hover {
+      background: var(--bg-hover);
+    }
+
+    .coin-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .coin-dot.idle {
+      background: var(--text-faint);
+    }
+
+    .coin-dot.working {
+      background: var(--emerald-400);
+      animation: coin-pulse 1.5s ease-in-out infinite;
+    }
+
+    .coin-dot.attention {
+      background: var(--amber-400);
+      box-shadow: 0 0 6px rgba(251, 191, 36, 0.4);
+    }
+
+    .coin-dot.complete {
+      background: var(--emerald-400);
+    }
+
+    @keyframes coin-pulse {
+      0%, 100% { opacity: 0.4; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    /* ── Coin with hint wrapper ── */
+    .coin-group {
+      position: absolute;
+      bottom: var(--space-sm);
+      right: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      z-index: 10;
+    }
+
+    .coin-hint {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-faint);
+      white-space: nowrap;
+    }
+
+    /* ── Notification Card ── */
+    .coin-card-group {
+      position: absolute;
+      bottom: var(--space-lg);
+      right: var(--space-lg);
+      display: flex;
+      align-items: center;
+      z-index: 10;
+    }
+
+    .notification-card {
+      background: var(--bg-raised);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md) 0 0 var(--radius-md);
+      border-right: none;
+      padding: 8px 12px;
+      max-width: 280px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .notification-text {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .notification-text.muted {
+      color: var(--text-muted);
+    }
+
+    .notification-text.secondary {
+      color: var(--text-secondary);
+    }
+
+    .coin-in-card {
+      width: 36px;
+      height: 36px;
+      border-radius: 0 50% 50% 0;
+      background: var(--bg-raised);
+      border: 1px solid var(--border-subtle);
+      border-left: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background var(--transition-fast);
+      /* Clip the left half straight, right half round */
+    }
+
+    /* Wrapper for card states — positions the card+coin group with hint below */
+    .coin-card-group {
+      position: absolute;
+      bottom: var(--space-sm);
+      right: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+      z-index: 10;
+    }
+
+    /* When card is present, the coin becomes part of the card.
+       We use a wrapper approach: card left-rounded + coin right-rounded = pill */
+    .coin-card-wrapper {
+      display: flex;
+      align-items: stretch;
+      border-radius: var(--radius-md) 18px 18px var(--radius-md);
+      background: var(--bg-raised);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: background var(--transition-fast);
+      overflow: hidden;
+    }
+
+    .coin-card-wrapper:hover {
+      background: var(--bg-hover);
+    }
+
+    .card-content {
+      padding: 8px 8px 8px 12px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+    }
+
+    .card-coin {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .card-hint {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-faint);
+      margin-left: auto;
+      padding-right: 2px;
+    }
+
+    /* Working indicator dots */
+    .working-dots {
+      display: flex;
+      gap: 3px;
+      align-items: center;
+    }
+
+    .working-dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      animation: working-blink 1.2s ease-in-out infinite;
+    }
+
+    .working-dot:nth-child(2) { animation-delay: 0.2s; }
+    .working-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes working-blink {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 1; }
+    }
+
+    /* ── Reference section ── */
+    .reference {
+      border-top: 1px solid var(--border-subtle);
+      padding-top: var(--space-xl);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .reference-title {
+      font-family: var(--font-sans);
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text-primary);
+      letter-spacing: -0.02em;
+    }
+
+    .reference-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-xl);
+    }
+
+    .reference-block {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .reference-block-title {
+      font-family: var(--font-sans);
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .reference-block ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .reference-block li {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      padding-left: var(--space-md);
+      position: relative;
+    }
+
+    .reference-block li::before {
+      content: "--";
+      position: absolute;
+      left: 0;
+      color: var(--text-faint);
+    }
+
+    .reference-block li strong {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    .reference-intent {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: var(--space-md) var(--space-lg);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    .reference-intent strong {
+      color: var(--text-secondary);
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="mockup-page">
+
+    <!-- HEADER -->
+    <div>
+      <div class="mockup-title">The Coin</div>
+      <div class="mockup-subtitle">A persistent round button in the bottom-right corner on every tab. It toggles between Chat and the last instrument tab. On instrument tabs, a notification card can appear attached to the coin when Gluon has something worth showing.</div>
+    </div>
+
+    <!-- STATES -->
+    <div class="states">
+
+      <!-- 1. Chat Tab — Idle -->
+      <div class="state">
+        <div class="state-label">1. Chat Tab -- Idle</div>
+        <div class="state-frame">
+          <div class="frame-inner">
+            <div class="frame-topbar">
+              <span class="frame-tab active-chat">Chat</span>
+              <span class="frame-tab-divider"></span>
+              <span class="frame-tab">Surface</span>
+              <span class="frame-tab">Rack</span>
+              <span class="frame-tab">Patch</span>
+              <span class="frame-tab">Tracker</span>
+            </div>
+            <div class="frame-content">
+              <div class="ghost-chat">
+                <div class="ghost-line" style="width: 55%;"></div>
+                <div class="ghost-line" style="width: 80%;"></div>
+                <div class="ghost-line" style="width: 40%;"></div>
+                <div class="ghost-line" style="width: 70%;"></div>
+              </div>
+            </div>
+          </div>
+          <div class="coin-group">
+            <div class="coin">
+              <div class="coin-dot idle"></div>
+            </div>
+            <span class="coin-hint">Rack &#8984;K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Instrument Tab — Idle -->
+      <div class="state">
+        <div class="state-label">2. Instrument Tab -- Idle</div>
+        <div class="state-frame">
+          <div class="frame-inner">
+            <div class="frame-topbar">
+              <span class="frame-tab">Chat</span>
+              <span class="frame-tab-divider"></span>
+              <span class="frame-tab">Surface</span>
+              <span class="frame-tab active-instrument">Rack</span>
+              <span class="frame-tab">Patch</span>
+              <span class="frame-tab">Tracker</span>
+            </div>
+            <div class="frame-content">
+              <div class="ghost-instrument">
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--amber-400);"></div>
+                    <span class="ghost-module-name">Plaits</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Ripples</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Compressor</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="coin-group">
+            <div class="coin">
+              <div class="coin-dot idle"></div>
+            </div>
+            <span class="coin-hint">Chat &#8984;K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Instrument Tab — Working -->
+      <div class="state">
+        <div class="state-label">3. Instrument Tab -- Working</div>
+        <div class="state-frame">
+          <div class="frame-inner">
+            <div class="frame-topbar">
+              <span class="frame-tab">Chat</span>
+              <span class="frame-tab-divider"></span>
+              <span class="frame-tab">Surface</span>
+              <span class="frame-tab active-instrument">Rack</span>
+              <span class="frame-tab">Patch</span>
+              <span class="frame-tab">Tracker</span>
+            </div>
+            <div class="frame-content">
+              <div class="ghost-instrument">
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--amber-400);"></div>
+                    <span class="ghost-module-name">Plaits</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Ripples</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Compressor</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Card + Coin as one unit -->
+          <div class="coin-card-group">
+            <div class="coin-card-wrapper">
+              <div class="card-content">
+                <div class="working-dots">
+                  <div class="working-dot"></div>
+                  <div class="working-dot"></div>
+                  <div class="working-dot"></div>
+                </div>
+                <span class="notification-text muted">Thinking...</span>
+              </div>
+              <div class="card-coin">
+                <div class="coin-dot working"></div>
+              </div>
+            </div>
+            <span class="coin-hint">Chat &#8984;K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Instrument Tab — Needs Attention -->
+      <div class="state">
+        <div class="state-label">4. Instrument Tab -- Needs Attention</div>
+        <div class="state-frame">
+          <div class="frame-inner">
+            <div class="frame-topbar">
+              <span class="frame-tab">Chat</span>
+              <span class="frame-tab-divider"></span>
+              <span class="frame-tab">Surface</span>
+              <span class="frame-tab active-instrument">Rack</span>
+              <span class="frame-tab">Patch</span>
+              <span class="frame-tab">Tracker</span>
+            </div>
+            <div class="frame-content">
+              <div class="ghost-instrument">
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--amber-400);"></div>
+                    <span class="ghost-module-name">Plaits</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Ripples</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Compressor</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Card + Coin as one unit -->
+          <div class="coin-card-group">
+            <div class="coin-card-wrapper">
+              <div class="card-content">
+                <span class="notification-text secondary">Which scale for the bass line?</span>
+              </div>
+              <div class="card-coin">
+                <div class="coin-dot attention"></div>
+              </div>
+            </div>
+            <span class="coin-hint">Chat &#8984;K</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Instrument Tab — Task Complete -->
+      <div class="state">
+        <div class="state-label">5. Instrument Tab -- Task Complete</div>
+        <div class="state-frame">
+          <div class="frame-inner">
+            <div class="frame-topbar">
+              <span class="frame-tab">Chat</span>
+              <span class="frame-tab-divider"></span>
+              <span class="frame-tab">Surface</span>
+              <span class="frame-tab active-instrument">Rack</span>
+              <span class="frame-tab">Patch</span>
+              <span class="frame-tab">Tracker</span>
+            </div>
+            <div class="frame-content">
+              <div class="ghost-instrument">
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--amber-400);"></div>
+                    <span class="ghost-module-name">Plaits</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Ripples</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+                <div class="ghost-module">
+                  <div class="ghost-module-header">
+                    <div class="ghost-module-accent" style="background: var(--sky-400);"></div>
+                    <span class="ghost-module-name">Compressor</span>
+                  </div>
+                  <div class="ghost-module-body">
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                    <div class="ghost-knob"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Card + Coin as one unit -->
+          <div class="coin-card-group">
+            <div class="coin-card-wrapper">
+              <div class="card-content">
+                <span class="notification-text muted">Done: added hi-hat pattern</span>
+              </div>
+              <div class="card-coin">
+                <div class="coin-dot complete"></div>
+              </div>
+            </div>
+            <span class="coin-hint">Chat &#8984;K</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- REFERENCE -->
+    <div class="reference">
+      <div class="reference-title">Reference</div>
+
+      <div class="reference-grid">
+        <div class="reference-block">
+          <div class="reference-block-title">The Coin</div>
+          <ul>
+            <li><strong>Always present</strong> on every tab, same position (bottom-right)</li>
+            <li>36px round button, <strong>var(--bg-raised)</strong> background</li>
+            <li>Contains an 8px status dot centered inside</li>
+            <li>Click or <strong>Cmd+K</strong> toggles between Chat and last instrument tab</li>
+            <li>Identical appearance on Chat and instrument tabs when idle</li>
+          </ul>
+        </div>
+
+        <div class="reference-block">
+          <div class="reference-block-title">Notification Card</div>
+          <ul>
+            <li>Appears on <strong>instrument tabs only</strong>, attached to the coin's left side</li>
+            <li>Card + coin form a single visual unit (shared background, continuous shape)</li>
+            <li>Transient -- collapses back to just the coin when there is nothing to show</li>
+            <li>Max width ~280px, DM Mono 11px, compact padding (8px 12px)</li>
+            <li>Auto-dismisses after task completion</li>
+          </ul>
+        </div>
+
+        <div class="reference-block">
+          <div class="reference-block-title">States</div>
+          <ul>
+            <li><strong>Idle:</strong> coin only, dot in var(--text-faint)</li>
+            <li><strong>Working:</strong> coin + minimal card, dot pulses in emerald</li>
+            <li><strong>Needs attention:</strong> coin + question card, dot in amber</li>
+            <li><strong>Complete:</strong> coin + result card, dot solid emerald, auto-dismiss</li>
+          </ul>
+        </div>
+
+        <div class="reference-block">
+          <div class="reference-block-title">Keyboard</div>
+          <ul>
+            <li><strong>Cmd+K</strong> toggles between Chat and last instrument tab</li>
+            <li>On Chat: Cmd+K returns to last instrument tab</li>
+            <li>On instrument tabs: Cmd+K opens Chat</li>
+            <li>Remembers which instrument tab you came from</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="reference-intent">
+        <strong>Design intent:</strong> The coin is the anchor, the card is transient intelligence around it. The coin never moves, never changes shape, and is always available for the toggle. The notification card grows outward from it only when Gluon has something worth showing -- a question, a progress indicator, a completion message. When there is nothing to say, it is just a small round button in the corner that takes up almost no space.
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
