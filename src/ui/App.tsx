@@ -1221,6 +1221,7 @@ export default function App() {
 
   /** Copy a live module to its bound track's surface. */
   const handleLiveModuleAddToSurface = useCallback((liveModule: LiveControlModule) => {
+    let validationPassed = false;
     setSession((s) => {
       const track = getTrack(s, liveModule.trackId);
       const newSurface: TrackSurface = {
@@ -1232,6 +1233,7 @@ export default function App() {
         console.warn(`[live-controls] Add to surface rejected: ${validationError}`);
         return s;
       }
+      validationPassed = true;
       const prevSurface: TrackSurface = {
         ...track.surface,
         modules: track.surface.modules.map(m => ({
@@ -1253,8 +1255,10 @@ export default function App() {
         undoStack: [...s.undoStack, snapshot],
       };
     });
-    // Remove the module from the live panel after adding to surface
-    setLiveControlModules(prev => prev.filter(m => m.id !== liveModule.id));
+    // Only remove the module from the live panel if the surface update succeeded
+    if (validationPassed) {
+      setLiveControlModules(prev => prev.filter(m => m.id !== liveModule.id));
+    }
   }, []);
 
   /** Clear untouched live modules — called at AI turn start. */
@@ -1441,6 +1445,10 @@ export default function App() {
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
     setLiveControlModules([]);
+    if (completionTimerRef.current) { clearTimeout(completionTimerRef.current); completionTimerRef.current = null; }
+    setLastCompletionSummary(null);
+    auditionSnapshotRef.current = null;
+    setActiveAuditionId(null);
     trackerSelectionRef.current = null;
     trackerCursorStepRef.current = null;
     audioMetricsRef.current.clear();
@@ -1885,6 +1893,28 @@ export default function App() {
   // --- Audition handlers (chat inline preview) ---
 
   const handleAuditionStart = useCallback(async (config: import('./AuditionControl').AuditionConfig) => {
+    // Stop any active audition before starting a new one — restore previous
+    // snapshot inline since handleAuditionStop may not yet be defined.
+    const prevSnapshot = auditionSnapshotRef.current;
+    if (prevSnapshot) {
+      transportControllerRef.current?.requestHardStop();
+      setSession(prev => ({
+        ...prev,
+        tracks: prev.tracks.map(t => ({
+          ...t,
+          solo: prevSnapshot.soloStates[t.id] ?? false,
+        })),
+        transport: {
+          ...prev.transport,
+          loop: prevSnapshot.loopEnabled,
+          mode: prevSnapshot.transportMode,
+          status: prevSnapshot.wasPlaying ? 'playing' as const : 'stopped' as const,
+        },
+      }));
+      auditionSnapshotRef.current = null;
+      setActiveAuditionId(null);
+    }
+
     if (!await ensureAudio()) return;
     await audioRef.current.resume();
     const s = sessionRef.current;
