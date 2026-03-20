@@ -79,6 +79,9 @@ export class TransportController {
       const timer = setTimeout(() => {
         this.parameterEventTimers.delete(timer);
         if (this.runtime.generation !== generation || this.runtime.status !== 'playing') return;
+        // Guard against tracks removed during playback (#1223)
+        const session = this.getSession();
+        if (!session.tracks.some(t => t.id === event.trackId)) return;
         onParameterEvent(event);
       }, delayMs);
       this.parameterEventTimers.set(timer, event.trackId);
@@ -228,6 +231,16 @@ export class TransportController {
 
   syncArrangement(): void {
     const session = this.getSession();
+    const currentTrackIds = new Set(session.tracks.map(t => t.id));
+
+    // Clear pending timers for tracks that have been removed (#1223)
+    for (const seenId of this.trackSeen) {
+      if (!currentTrackIds.has(seenId)) {
+        this.clearParameterEventTimers(seenId);
+        this.trackSeen.delete(seenId);
+      }
+    }
+
     for (const track of session.tracks) {
       if (track._patternDirty && this.runtime.status === 'playing') {
         this.clearParameterEventTimers(track.id);
