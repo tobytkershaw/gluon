@@ -95,7 +95,7 @@ export function ChatSidebar({
           <div className="flex-1" />
           <ModelStatusIndicator plannerConfigured={apiConfigured} listenerConfigured={listenerConfigured} />
           {apiConfigured && (
-            <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} listenerMode={listenerMode} />
+            <ApiKeyInput onSubmit={onApiKey} isConfigured={apiConfigured} currentOpenaiKey={currentOpenaiKey} currentGeminiKey={currentGeminiKey} listenerMode={listenerMode} disabled={isThinking || isListening} />
           )}
         </div>
 

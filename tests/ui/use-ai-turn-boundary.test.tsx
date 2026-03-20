@@ -102,6 +102,39 @@ describe('useAiTurnBoundary', () => {
     expect(events).toEqual(['action']);
   });
 
+  it('invalidates an active turn when called directly (provider swap scenario)', () => {
+    const ai = {
+      clearHistory: vi.fn(),
+      restoreHistory: vi.fn(),
+    };
+    const onInvalidateActiveTurn = vi.fn();
+    const onProjectBoundaryReset = vi.fn();
+
+    const { result } = renderHook(() =>
+      useAiTurnBoundary({
+        projectId: 'p1',
+        sessionMessages: [],
+        ai,
+        onInvalidateActiveTurn,
+        onProjectBoundaryReset,
+      }),
+    );
+
+    // Start a turn
+    const token = result.current.beginTurn();
+    expect(result.current.isCurrentTurn(token)).toBe(true);
+
+    // Simulate what handleApiKey does: call invalidateActiveTurn directly
+    act(() => {
+      result.current.invalidateActiveTurn();
+    });
+
+    // The old turn token should now be stale
+    expect(result.current.isCurrentTurn(token)).toBe(false);
+    // onInvalidateActiveTurn called: once for initial mount + once for explicit call
+    expect(onInvalidateActiveTurn).toHaveBeenCalledTimes(2);
+  });
+
   it('invalidates the current turn before running generic invalidate-and-proceed actions', async () => {
     const ai = {
       clearHistory: vi.fn(),

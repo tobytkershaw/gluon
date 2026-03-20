@@ -9,6 +9,8 @@ interface Props {
   listenerMode?: ListenerMode;
   plannerStatus?: 'available' | 'disabled';
   listenerStatus?: 'available' | 'disabled';
+  /** When true, the form is disabled (e.g. during an active AI turn). */
+  disabled?: boolean;
 }
 
 const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
@@ -17,7 +19,7 @@ const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
   { value: 'both', label: 'Both (side by side)' },
 ];
 
-export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '', listenerMode: currentListenerMode = 'gemini', plannerStatus, listenerStatus }: Props) {
+export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', currentGeminiKey = '', listenerMode: currentListenerMode = 'gemini', plannerStatus, listenerStatus, disabled = false }: Props) {
   const [openaiKey, setOpenaiKey] = useState(currentOpenaiKey);
   const [geminiKey, setGeminiKey] = useState(currentGeminiKey);
   const [listener, setListener] = useState<ListenerMode>(currentListenerMode);
@@ -47,7 +49,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (canSubmit) {
+          if (canSubmit && !disabled) {
             onSubmit(openaiKey.trim(), geminiKey.trim(), listener);
             setExpanded(false);
           }
@@ -62,8 +64,9 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
             type="password"
             value={openaiKey}
             onChange={(e) => setOpenaiKey(e.target.value)}
+            disabled={disabled}
             placeholder="sk-..."
-            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
+            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
         <div>
@@ -74,8 +77,9 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
             type="password"
             value={geminiKey}
             onChange={(e) => setGeminiKey(e.target.value)}
+            disabled={disabled}
             placeholder="AIza..."
-            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
+            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
         <div>
@@ -85,13 +89,19 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
           <select
             value={listener}
             onChange={(e) => setListener(e.target.value as ListenerMode)}
-            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
+            disabled={disabled}
+            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {LISTENER_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
         </div>
+        {disabled && (
+          <div className="text-[10px] text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1" data-testid="api-key-turn-warning">
+            AI turn in progress — changing settings will cancel it.
+          </div>
+        )}
         {(plannerStatus || listenerStatus) && (
           <div className="flex gap-3 text-[10px] text-zinc-500" data-testid="per-model-status">
             <span className="flex items-center gap-1">
@@ -106,7 +116,7 @@ export function ApiKeyInput({ onSubmit, isConfigured, currentOpenaiKey = '', cur
         )}
         <button
           type="submit"
-          disabled={!canSubmit}
+          disabled={!canSubmit || disabled}
           className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:text-zinc-700 disabled:hover:bg-zinc-800 rounded transition-colors self-end"
         >
           {isConfigured ? 'Update' : 'Connect'}
