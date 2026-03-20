@@ -3,7 +3,7 @@
 
 import type { Session, Track, ProcessorConfig, ModulatorConfig, ModulationRouting, DrumPad } from '../engine/types';
 import type { SynthParamValues } from '../engine/types';
-import { getActivePattern } from '../engine/types';
+import { getActivePattern, getTrackKind, MASTER_BUS_ID } from '../engine/types';
 import type { PatternRef, TransportMode } from '../engine/sequencer-types';
 import type { MusicalEvent, NoteEvent, TriggerEvent, ParameterEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam } from './instrument-registry';
@@ -167,6 +167,10 @@ export function buildRenderSpec(
   bars = 2,
 ): RenderSpec {
   const selectedTracks = selectTracks(session, trackIds);
+  const unsupportedRoutingReason = getUnsupportedOfflineRoutingReason(selectedTracks);
+  if (unsupportedRoutingReason) {
+    throw new Error(unsupportedRoutingReason);
+  }
   const selectedIdSet = new Set(selectedTracks.map(t => t.id));
   const mode: TransportMode = session.transport.mode ?? 'pattern';
 
@@ -225,6 +229,17 @@ function selectTracks(session: Session, trackIds?: string[]): Track[] {
   }
   // Default: mirror the live engine's audible-track rule (solo-aware)
   return getAudibleTracks(session);
+}
+
+function getUnsupportedOfflineRoutingReason(tracks: Track[]): string | null {
+  for (const track of tracks) {
+    if (getTrackKind(track) !== 'audio') continue;
+    const unsupportedSend = (track.sends ?? []).find(send => send.busId !== MASTER_BUS_ID && send.level > 0);
+    if (unsupportedSend) {
+      return `Offline render does not support send-return bus routing yet: track "${track.id}" sends to bus "${unsupportedSend.busId}".`;
+    }
+  }
+  return null;
 }
 
 function buildTrackSpec(track: Track, bars: number, mode: TransportMode): RenderTrackSpec {
