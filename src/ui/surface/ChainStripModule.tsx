@@ -1,5 +1,18 @@
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getAccentColor } from './visual-utils';
+import type { PaletteColor } from './palette';
+
+/** Classify a processor type into a palette role for chain strip coloring. */
+function getProcessorChainRole(procType: string): 'tonal' | 'spatial' | 'generative' | 'neutral' {
+  const tonal = ['ripples', 'eq', 'filter', 'resonator'];
+  const spatial = ['reverb', 'delay', 'chorus', 'phaser', 'flanger'];
+  const generative = ['marbles', 'lfo', 'modulator', 'turing'];
+  const lower = procType.toLowerCase();
+  if (tonal.some(t => lower.includes(t))) return 'tonal';
+  if (spatial.some(t => lower.includes(t))) return 'spatial';
+  if (generative.some(t => lower.includes(t))) return 'generative';
+  return 'neutral';
+}
 
 /**
  * ChainStripModule — horizontal signal flow diagram with bypass toggles
@@ -9,16 +22,24 @@ import { getAccentColor } from './visual-utils';
  * Each processor has a bypass toggle that dims the box when bypassed.
  * The bypass toggle dispatches through the session state (with undo support)
  * via the onToggleProcessorEnabled callback.
+ *
+ * Palette mapping per the mockup spec:
+ *  - Source node: base role
+ *  - Processor nodes: classified by type (tonal/spatial/generative/neutral)
  */
-export function ChainStripModule({ module, track, visualContext, onToggleProcessorEnabled }: ModuleRendererProps) {
-  const accent = getAccentColor(visualContext);
+export function ChainStripModule({ module, track, visualContext, palette, onToggleProcessorEnabled }: ModuleRendererProps) {
+  const legacyAccent = getAccentColor(visualContext);
+  // Source node always uses base role
+  const sourceColor: PaletteColor | undefined = palette?.base;
+  const accent = sourceColor?.full ?? legacyAccent;
+  const labelColor = sourceColor?.muted ?? accent;
   const processors = track.processors ?? [];
 
   return (
     <div className="h-full flex flex-col p-2">
       {/* Header */}
       <div className="flex items-center gap-1 mb-1">
-        <span className="text-xs font-medium truncate" style={{ color: accent }}>
+        <span className="text-xs font-medium truncate" style={{ color: labelColor }}>
           {module.label}
         </span>
       </div>
@@ -35,6 +56,8 @@ export function ChainStripModule({ module, track, visualContext, onToggleProcess
 
         {processors.map((proc) => {
           const enabled = proc.enabled !== false;
+          const procRole = getProcessorChainRole(proc.type);
+          const procPalette = palette?.[procRole];
           return (
             <div key={proc.id} className="flex items-center gap-0 flex-shrink-0">
               {/* Arrow connector */}
@@ -47,14 +70,20 @@ export function ChainStripModule({ module, track, visualContext, onToggleProcess
               <div
                 className={`flex items-center gap-1.5 px-2 py-1 rounded border transition-colors ${
                   enabled
-                    ? 'bg-zinc-800 border-zinc-700'
-                    : 'bg-zinc-900 border-zinc-800 opacity-40'
+                    ? 'bg-zinc-800'
+                    : 'bg-zinc-900 opacity-40'
                 }`}
+                style={{
+                  borderColor: enabled && procPalette ? procPalette.tint : enabled ? 'rgb(63,63,70)' : 'rgb(39,39,42)',
+                }}
               >
                 <span
                   className={`text-[11px] font-medium transition-colors ${
-                    enabled ? 'text-zinc-300' : 'text-zinc-500 line-through'
+                    !enabled ? 'line-through' : ''
                   }`}
+                  style={{
+                    color: enabled && procPalette ? procPalette.muted : enabled ? 'rgb(212,212,216)' : 'rgb(113,113,122)',
+                  }}
                 >
                   {proc.type}
                 </span>

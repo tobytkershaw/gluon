@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { derivePalette, type SurfacePalette, type PaletteColor } from '../../../src/ui/surface/palette';
+import { derivePalette, getPaletteRole, type SurfacePalette, type PaletteColor } from '../../../src/ui/surface/palette';
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -129,6 +129,58 @@ describe('derivePalette', () => {
     }
   });
 
+  it('normalizes out-of-range hues', () => {
+    const p1 = derivePalette(400);
+    const p2 = derivePalette(40);
+    expect(hueOf(p1.base)).toBe(hueOf(p2.base));
+  });
+});
+
+describe('getPaletteRole', () => {
+  it('maps source-identity module types to base', () => {
+    expect(getPaletteRole('step-grid')).toBe('base');
+    expect(getPaletteRole('piano-roll')).toBe('base');
+    expect(getPaletteRole('pad-grid')).toBe('base');
+    expect(getPaletteRole('chain-strip')).toBe('base');
+  });
+
+  it('maps xy-pad to spatial', () => {
+    expect(getPaletteRole('xy-pad')).toBe('spatial');
+  });
+
+  it('maps level-meter to neutral', () => {
+    expect(getPaletteRole('level-meter')).toBe('neutral');
+  });
+
+  it('defaults knob-group and macro-knob to base', () => {
+    expect(getPaletteRole('knob-group')).toBe('base');
+    expect(getPaletteRole('macro-knob')).toBe('base');
+  });
+
+  it('respects explicit paletteRole in config', () => {
+    expect(getPaletteRole('knob-group', { paletteRole: 'tonal' })).toBe('tonal');
+    expect(getPaletteRole('knob-group', { paletteRole: 'generative' })).toBe('generative');
+    expect(getPaletteRole('knob-group', { paletteRole: 'spatial' })).toBe('spatial');
+    expect(getPaletteRole('knob-group', { paletteRole: 'neutral' })).toBe('neutral');
+    expect(getPaletteRole('macro-knob', { paletteRole: 'tonal' })).toBe('tonal');
+  });
+
+  it('ignores invalid paletteRole values in config', () => {
+    expect(getPaletteRole('knob-group', { paletteRole: 'invalid' })).toBe('base');
+    expect(getPaletteRole('knob-group', { paletteRole: 42 })).toBe('base');
+  });
+
+  it('maps unknown module types to neutral', () => {
+    expect(getPaletteRole('some-future-module')).toBe('neutral');
+  });
+
+  it('explicit config overrides type-based mapping', () => {
+    expect(getPaletteRole('xy-pad', { paletteRole: 'generative' })).toBe('generative');
+    expect(getPaletteRole('step-grid', { paletteRole: 'tonal' })).toBe('tonal');
+  });
+});
+
+describe('derivePalette saturation hierarchy', () => {
   it('base is the most saturated role', () => {
     for (const hue of [0, 90, 200, 300]) {
       const p = derivePalette(hue);

@@ -1,7 +1,7 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import type { Track } from '../../engine/types';
 import type { ModuleRendererProps } from './ModuleRendererProps';
-import { getAccentRgba, getAccentRgb } from './visual-utils';
+import { getAccentRgba, getAccentRgb, hslStringToRgba, hslStringToRgb } from './visual-utils';
 
 /** Parse a binding target into moduleId + controlId */
 function parseTarget(target: string): { moduleId: string; controlId: string } {
@@ -45,11 +45,19 @@ export function XYPadModule({
   module,
   track,
   visualContext,
+  roleColor,
   onParamChange,
   onProcessorParamChange,
   onInteractionStart,
   onInteractionEnd,
 }: ModuleRendererProps) {
+  // Palette-aware color helpers: use roleColor (spatial role) when available
+  const roleRgba = roleColor
+    ? (alpha: number) => hslStringToRgba(roleColor.full, alpha)
+    : (alpha: number) => getAccentRgba(visualContext, alpha);
+  const roleRgb = roleColor
+    ? () => hslStringToRgb(roleColor.full)
+    : () => getAccentRgb(visualContext);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
@@ -112,7 +120,7 @@ export function XYPadModule({
     const cy = (1 - yValue) * h;
 
     // Crosshair lines (dashed, subtle)
-    ctx.strokeStyle = getAccentRgba(visualContext, 0.08);
+    ctx.strokeStyle = roleRgba(0.08);
     ctx.lineWidth = 1;
     ctx.setLineDash([3, 5]);
     ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
@@ -121,8 +129,8 @@ export function XYPadModule({
 
     // Glow
     const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60);
-    glow.addColorStop(0, getAccentRgba(visualContext, 0.12));
-    glow.addColorStop(1, getAccentRgba(visualContext, 0));
+    glow.addColorStop(0, roleRgba(0.12));
+    glow.addColorStop(1, roleRgba(0));
     ctx.fillStyle = glow;
     ctx.beginPath();
     ctx.arc(cx, cy, 60, 0, Math.PI * 2);
@@ -131,26 +139,26 @@ export function XYPadModule({
     // Outer ring
     ctx.beginPath();
     ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.strokeStyle = getAccentRgba(visualContext, 0.3);
+    ctx.strokeStyle = roleRgba(0.3);
     ctx.lineWidth = 1;
     ctx.stroke();
 
     // Cursor dot
     ctx.beginPath();
     ctx.arc(cx, cy, 5, 0, Math.PI * 2);
-    ctx.fillStyle = getAccentRgb(visualContext);
+    ctx.fillStyle = roleRgb();
     ctx.fill();
 
     // Hot center
     ctx.beginPath();
     ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-    ctx.fillStyle = getAccentRgba(visualContext, 0.85);
+    ctx.fillStyle = roleRgba(0.85);
     ctx.fill();
 
     // Axis labels (spaced letters for instrument feel)
     ctx.font = '500 9px "DM Mono", monospace';
     ctx.textAlign = 'center';
-    ctx.fillStyle = getAccentRgba(visualContext, 0.3);
+    ctx.fillStyle = roleRgba(0.3);
     ctx.fillText(xLabel, w / 2, h - 10);
     ctx.save();
     ctx.translate(14, h / 2);
@@ -160,12 +168,12 @@ export function XYPadModule({
 
     // Value readouts
     ctx.font = '400 10px "DM Mono", monospace';
-    ctx.fillStyle = getAccentRgba(visualContext, 0.45);
+    ctx.fillStyle = roleRgba(0.45);
     ctx.textAlign = 'left';
     ctx.fillText(xValue.toFixed(2), 10, h - 26);
     ctx.textAlign = 'right';
     ctx.fillText(yValue.toFixed(2), w - 10, 30);
-  }, [xValue, yValue, xLabel, yLabel, visualContext]);
+  }, [xValue, yValue, xLabel, yLabel, visualContext, roleColor]);
 
   const posFromPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();

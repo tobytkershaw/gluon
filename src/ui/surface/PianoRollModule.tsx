@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getActivePattern } from '../../engine/types';
 import type { NoteEvent } from '../../engine/canonical-types';
-import { getAccentRgba } from './visual-utils';
+import { getAccentRgba, hslStringToRgba } from './visual-utils';
 
 /**
  * PianoRollModule — compact pitch x time note display for the Surface view.
@@ -11,7 +11,11 @@ import { getAccentRgba } from './visual-utils';
  * as horizontal bars on a pitch (Y) vs time (X) grid. Velocity maps to color
  * intensity (amber tones). Auto-zooms to the pitch range present in the data.
  */
-export function PianoRollModule({ module, track, visualContext }: ModuleRendererProps) {
+export function PianoRollModule({ module, track, visualContext, roleColor }: ModuleRendererProps) {
+  // Piano roll uses base role — pattern output is the track's identity
+  const roleRgba = roleColor
+    ? (alpha: number) => hslStringToRgba(roleColor.full, alpha)
+    : (alpha: number) => getAccentRgba(visualContext, alpha);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [, setTick] = useState(0);
@@ -110,13 +114,13 @@ export function PianoRollModule({ module, track, visualContext }: ModuleRenderer
       const alpha = 0.3 + note.velocity * 0.7;
 
       // Note bar fill — track accent colour
-      ctx.fillStyle = getAccentRgba(visualContext, alpha);
+      ctx.fillStyle = roleRgba(alpha);
       ctx.beginPath();
       ctx.roundRect(x + 0.5, y + 0.5, Math.max(noteW - 1, 2), noteH, 2);
       ctx.fill();
 
       // Subtle border for definition
-      ctx.strokeStyle = getAccentRgba(visualContext, alpha * 0.4);
+      ctx.strokeStyle = roleRgba(alpha * 0.4);
       ctx.lineWidth = 0.5;
       ctx.stroke();
     }
@@ -133,7 +137,7 @@ export function PianoRollModule({ module, track, visualContext }: ModuleRenderer
     // Duration label in bottom-right
     ctx.textAlign = 'right';
     ctx.fillText(`${duration} beats`, w - 6, h - 6);
-  }, [notes, duration, pitchMin, pitchMax, pitchRange, visualContext]);
+  }, [notes, duration, pitchMin, pitchMax, pitchRange, visualContext, roleColor]);
 
   return (
     <div ref={containerRef} className="h-full flex flex-col p-1">

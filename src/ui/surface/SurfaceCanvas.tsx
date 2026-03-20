@@ -5,6 +5,7 @@ import type { Track, SurfaceModule } from '../../engine/types';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { deriveModuleVisualContext } from '../../engine/visual-identity';
 import { getModuleContainerStyle } from './visual-utils';
+import { derivePalette, getPaletteRole } from './palette';
 import { PlaceholderModule } from './PlaceholderModule';
 import { KnobGroupModule } from './KnobGroupModule';
 import { MacroKnobModule } from './MacroKnobModule';
@@ -70,6 +71,13 @@ export function SurfaceCanvas({
     () => deriveModuleVisualContext(track, trackIndex),
     [track, trackIndex],
   );
+
+  // Derive Surface palette from the track's base hue
+  const palette = useMemo(
+    () => derivePalette(visualContext.trackColour.hue),
+    [visualContext.trackColour.hue],
+  );
+
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
 
@@ -216,6 +224,8 @@ export function SurfaceCanvas({
             const Renderer = moduleRenderers[mod.type] ?? PlaceholderModule;
             const isSelected = mod.id === selectedModuleId;
             const containerStyle = getModuleContainerStyle(visualContext);
+            const role = getPaletteRole(mod.type, mod.config as Record<string, unknown>);
+            const roleColor = palette[role];
             return (
               <div
                 key={mod.id}
@@ -224,13 +234,18 @@ export function SurfaceCanvas({
                     ? 'ring-1 ring-zinc-500/50'
                     : ''
                 }`}
-                style={isSelected ? { ...containerStyle, borderColor: undefined } : containerStyle}
+                style={isSelected
+                  ? { ...containerStyle, borderColor: roleColor.tint }
+                  : { ...containerStyle, borderColor: roleColor.tint }
+                }
                 onClick={(e) => handleModuleClick(mod.id, e)}
               >
                 <Renderer
                   module={mod}
                   track={track}
                   visualContext={visualContext}
+                  palette={palette}
+                  roleColor={roleColor}
                   onParamChange={onParamChange}
                   onProcessorParamChange={onProcessorParamChange}
                   onInteractionStart={onInteractionStart}

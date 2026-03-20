@@ -10,8 +10,9 @@ import { getAccentColor } from './visual-utils';
  * the track's active pattern. Shows up to 16 steps with gate/accent
  * indicators and beat-boundary markers.
  */
-export function StepGridModule({ module, track, visualContext }: ModuleRendererProps) {
-  const accent = getAccentColor(visualContext);
+export function StepGridModule({ module, track, visualContext, roleColor }: ModuleRendererProps) {
+  // Step grid uses base role — pattern output is the track's identity
+  const accent = roleColor?.full ?? getAccentColor(visualContext);
   // Resolve pattern from region binding, falling back to active pattern
   const regionBinding = module.bindings.find(b => b.role === 'region');
   const boundPattern = regionBinding
