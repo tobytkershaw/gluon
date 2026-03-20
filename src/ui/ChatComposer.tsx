@@ -106,27 +106,51 @@ export const ChatComposer = forwardRef<ChatComposerHandle, Props>(function ChatC
     value: input,
     onChange: handleChange,
     onKeyDown: handleKeyDown,
-    placeholder: 'Describe what you want...',
+    placeholder: 'Ask Gluon anything...',
     autoComplete: 'off' as const,
     rows: 1,
     style: { maxHeight: MAX_HEIGHT, resize: 'none' as const },
   };
 
   if (variant === 'sidebar') {
+    const hasText = input.trim().length > 0;
     return (
-      <form onSubmit={handleSubmit} className="px-3 pb-3 pt-2">
-        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2">
+      <form onSubmit={handleSubmit} className="px-4 pb-6 pt-3" style={{ maxWidth: 720, margin: '0 auto', width: '100%' }}>
+        <div className="flex items-end gap-2 rounded-xl px-3 py-2 transition-[border-color,box-shadow]"
+          style={{
+            background: 'var(--bg-raised, #282523)',
+            border: '1px solid var(--border, rgba(61,57,53,0.6))',
+            ...(typeof document !== 'undefined' ? {} : {}),
+          }}
+          onFocusCapture={(e) => {
+            const row = e.currentTarget;
+            row.style.borderColor = 'rgba(139, 92, 246, 0.4)';
+            row.style.boxShadow = '0 0 0 1px rgba(139, 92, 246, 0.08)';
+          }}
+          onBlurCapture={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              const row = e.currentTarget;
+              row.style.borderColor = '';
+              row.style.boxShadow = '';
+            }
+          }}
+        >
           <textarea
             {...textareaProps}
-            className="flex-1 bg-transparent text-zinc-900 placeholder:text-zinc-400 outline-none font-mono min-w-0 text-sm overflow-y-auto"
+            className="flex-1 bg-transparent text-zinc-200 placeholder:text-zinc-500 outline-none font-sans min-w-0 text-[15px] leading-[1.5] overflow-y-auto"
+            style={{ ...textareaProps.style, minHeight: 24, padding: '2px 0' }}
           />
           <button
             type="submit"
-            disabled={disabled || !input.trim()}
-            className="shrink-0 rounded-full flex items-center justify-center transition-colors w-6 h-6 text-zinc-900 disabled:text-zinc-300 hover:text-zinc-600"
+            disabled={disabled || !hasText}
+            className={`shrink-0 flex items-center justify-center transition-colors w-8 h-8 rounded-lg ${
+              hasText
+                ? 'bg-violet-500 border-violet-500 text-white hover:bg-violet-600 hover:border-violet-600'
+                : 'bg-zinc-900 border border-zinc-700/60 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-400 hover:border-zinc-600'
+            }`}
           >
-            <svg viewBox="0 0 16 16" className="fill-current w-3 h-3">
-              <path d="M2 2l12 6-12 6V9.5l7-.5-7-.5V2z" />
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+              <path d="M3 13V3l10 5-10 5z" />
             </svg>
           </button>
         </div>

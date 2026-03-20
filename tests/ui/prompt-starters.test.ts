@@ -33,7 +33,7 @@ describe('selectStarters', () => {
     const result = selectStarters([], []);
     expect(result.state).toBe('empty');
     expect(result.starters.length).toBeGreaterThanOrEqual(3);
-    expect(result.starters).toContain('What can you do?');
+    expect(result.starters).toContain('Something dark and heavy');
   });
 
   it('returns empty-project starters when only scaffold tracks exist', () => {
@@ -41,7 +41,7 @@ describe('selectStarters', () => {
     const result = selectStarters(session.tracks, []);
     expect(result.state).toBe('empty');
     expect(result.starters.length).toBeGreaterThanOrEqual(3);
-    expect(result.starters).toContain('What can you do?');
+    expect(result.starters).toContain('Something dark and heavy');
   });
 
   it('returns tracks-exist starters when tracks have musical content', () => {
