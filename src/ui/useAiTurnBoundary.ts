@@ -77,7 +77,6 @@ export function useAiTurnBoundary({
     beginTurn,
     invalidateActiveTurn,
     isCurrentTurn,
-    runWithTurnInvalidation: wrapProjectBoundaryAction,
     runWithActiveTurnInvalidation,
     wrapProjectBoundaryAction,
   };

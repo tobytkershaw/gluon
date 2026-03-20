@@ -105,7 +105,7 @@ describe('useAiTurnBoundary', () => {
     expect(events).toEqual(['action']);
   });
 
-  it('invalidates the current turn before running generic invalidate-and-proceed actions', async () => {
+  it('invalidates the current turn before running wrapped project-boundary actions', async () => {
     const ai = {
       clearHistory: vi.fn(),
       restoreHistory: vi.fn(),
@@ -128,7 +128,7 @@ describe('useAiTurnBoundary', () => {
     const states: boolean[] = [];
 
     await act(async () => {
-      await result.current.runWithTurnInvalidation(() => {
+      await result.current.wrapProjectBoundaryAction(() => {
         states.push(result.current.isCurrentTurn(token));
       });
     });

@@ -2016,37 +2016,35 @@ export default function App() {
   } | null>(null);
 
   const handleChangeVolume = useCallback((trackId: string, value: number) => {
-    void runWithActiveTurnInvalidation(() => {
-      ensureAudio();
-      // During a gesture, suppress per-frame undo snapshots
-      if (mixStripUndoRef.current) {
-        setSession((s) => setTrackVolumeNoUndo(s, trackId, value));
-      } else {
-        setSession((s) => setTrackVolume(s, trackId, value));
-      }
-    });
-  }, [ensureAudio, runWithActiveTurnInvalidation]);
+    ensureAudio();
+    // During a gesture, suppress per-frame undo snapshots
+    if (mixStripUndoRef.current) {
+      setSession((s) => setTrackVolumeNoUndo(s, trackId, value));
+    } else {
+      setSession((s) => setTrackVolume(s, trackId, value));
+    }
+  }, [ensureAudio]);
 
   const handleChangePan = useCallback((trackId: string, value: number) => {
-    void runWithActiveTurnInvalidation(() => {
-      ensureAudio();
-      if (mixStripUndoRef.current) {
-        setSession((s) => setTrackPanNoUndo(s, trackId, value));
-      } else {
-        setSession((s) => setTrackPan(s, trackId, value));
-      }
-    });
-  }, [ensureAudio, runWithActiveTurnInvalidation]);
+    ensureAudio();
+    if (mixStripUndoRef.current) {
+      setSession((s) => setTrackPanNoUndo(s, trackId, value));
+    } else {
+      setSession((s) => setTrackPan(s, trackId, value));
+    }
+  }, [ensureAudio]);
 
   const handleMixStripInteractionStart = useCallback(() => {
-    const s = sessionRef.current;
-    const track = getActiveTrack(s);
-    mixStripUndoRef.current = {
-      trackId: s.activeTrackId,
-      prevVolume: track.volume,
-      prevPan: track.pan,
-    };
-  }, []);
+    void runWithActiveTurnInvalidation(() => {
+      const s = sessionRef.current;
+      const track = getActiveTrack(s);
+      mixStripUndoRef.current = {
+        trackId: s.activeTrackId,
+        prevVolume: track.volume,
+        prevPan: track.pan,
+      };
+    });
+  }, [runWithActiveTurnInvalidation]);
 
   const handleMixStripInteractionEnd = useCallback(() => {
     const captured = mixStripUndoRef.current;
@@ -2127,34 +2125,32 @@ export default function App() {
   } | null>(null);
 
   const handleMasterVolumeChange = useCallback((v: number) => {
-    void runWithActiveTurnInvalidation(() => {
-      ensureAudio();
-      if (masterStripUndoRef.current) {
-        setSession((s) => setMasterNoUndo(s, { volume: v }));
-      } else {
-        setSession((s) => setMaster(s, { volume: v }));
-      }
-    });
-  }, [ensureAudio, runWithActiveTurnInvalidation]);
+    ensureAudio();
+    if (masterStripUndoRef.current) {
+      setSession((s) => setMasterNoUndo(s, { volume: v }));
+    } else {
+      setSession((s) => setMaster(s, { volume: v }));
+    }
+  }, [ensureAudio]);
 
   const handleMasterPanChange = useCallback((p: number) => {
-    void runWithActiveTurnInvalidation(() => {
-      ensureAudio();
-      if (masterStripUndoRef.current) {
-        setSession((s) => setMasterNoUndo(s, { pan: p }));
-      } else {
-        setSession((s) => setMaster(s, { pan: p }));
-      }
-    });
-  }, [ensureAudio, runWithActiveTurnInvalidation]);
+    ensureAudio();
+    if (masterStripUndoRef.current) {
+      setSession((s) => setMasterNoUndo(s, { pan: p }));
+    } else {
+      setSession((s) => setMaster(s, { pan: p }));
+    }
+  }, [ensureAudio]);
 
   const handleMasterInteractionStart = useCallback(() => {
-    const s = sessionRef.current;
-    masterStripUndoRef.current = {
-      prevVolume: s.master.volume,
-      prevPan: s.master.pan,
-    };
-  }, []);
+    void runWithActiveTurnInvalidation(() => {
+      const s = sessionRef.current;
+      masterStripUndoRef.current = {
+        prevVolume: s.master.volume,
+        prevPan: s.master.pan,
+      };
+    });
+  }, [runWithActiveTurnInvalidation]);
 
   const handleMasterInteractionEnd = useCallback(() => {
     const captured = masterStripUndoRef.current;
