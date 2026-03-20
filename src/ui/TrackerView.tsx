@@ -166,27 +166,27 @@ export function TrackerView({
   const [showRotateInput, setShowRotateInput] = useState(false);
   const [showTransposeInput, setShowTransposeInput] = useState(false);
 
-  const buttonClass = "px-2 py-0.5 text-[11px] font-medium tracking-wide uppercase rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors";
+  const buttonClass = "px-2 py-0.5 text-[9px] font-mono tracking-wide uppercase rounded border border-zinc-700/60 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600 hover:bg-zinc-800 transition-colors cursor-pointer";
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-zinc-950">
       {/* Main content */}
-      <div className="flex-1 min-h-0 flex">
-        <div className="flex-1 min-w-0 flex flex-col gap-3 p-4">
+      <div className="flex-1 min-h-0 flex flex-col">
+        <div className="flex-1 min-w-0 flex flex-col">
           {/* Toolbar */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 px-4 py-1.5 bg-zinc-900 border-b border-zinc-700/60 shrink-0">
             {onPatternLengthChange && (
-              <div className="flex items-center gap-1 ml-4">
-                <span className="text-zinc-500 text-[11px] uppercase tracking-wider">Len</span>
+              <div className="flex items-center gap-1">
+                <span className="text-zinc-600 text-[8px] font-mono uppercase tracking-widest">Length</span>
                 <div className="flex gap-0.5">
                   {[4, 8, 16, 32, 64].map(len => (
                     <button
                       key={len}
                       onClick={() => onPatternLengthChange(len)}
-                      className={`text-[11px] px-1.5 py-0.5 rounded transition-colors ${
+                      className={`text-[9px] font-mono px-2 py-0.5 rounded border transition-colors cursor-pointer ${
                         getActivePattern(activeTrack).duration === len
-                          ? 'bg-amber-500/20 text-amber-400'
-                          : 'text-zinc-500 hover:text-zinc-300'
+                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          : 'text-zinc-500 hover:text-zinc-400 border-zinc-700/60 hover:bg-zinc-800 hover:border-zinc-600'
                       }`}
                     >
                       {len}
@@ -196,14 +196,15 @@ export function TrackerView({
                 {onClearPattern && (
                   <button
                     onClick={onClearPattern}
-                    className="text-[11px] text-zinc-500 hover:text-red-400 transition-colors px-1.5 py-0.5 rounded hover:bg-red-500/10"
+                    className={buttonClass + " hover:!text-rose-400 hover:!border-rose-500/30 hover:!bg-rose-500/10"}
                     title="Clear all events in pattern"
                   >
-                    CLR
+                    Clear
                   </button>
                 )}
               </div>
             )}
+            {onPatternLengthChange && hasEvents && <div className="w-px h-4 bg-zinc-700/40" />}
             <div className="ml-auto flex items-center gap-2">
               {hasEvents && (
                 <>
@@ -295,15 +296,15 @@ export function TrackerView({
 
           {/* Pattern tabs */}
           {activeTrack.patterns.length > 0 && (
-            <div className="flex items-center gap-1 text-[11px]">
+            <div className="flex items-center gap-0.5 px-4 py-1 bg-zinc-900 border-b border-zinc-700/30 shrink-0">
               {activeTrack.patterns.map((pat, idx) => {
                 const isActive = activeRegion?.id === pat.id;
-                const label = pat.name || `P${idx + 1}`;
+                const label = pat.name || `P${String(idx).padStart(2, '0')}`;
                 return (
                   <div key={pat.id} className="flex items-center group">
                     {renamingRegionId === pat.id ? (
                       <input
-                        className="w-16 text-[11px] bg-zinc-800 border border-amber-500/50 rounded px-1 py-0.5 text-zinc-200 outline-none"
+                        className="w-16 text-[10px] font-mono bg-zinc-800 border border-amber-500/50 rounded px-1 py-0.5 text-zinc-200 outline-none"
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onKeyDown={(e) => {
@@ -319,10 +320,10 @@ export function TrackerView({
                       />
                     ) : (
                       <button
-                        className={`px-2 py-0.5 rounded transition-colors outline-none ${
+                        className={`px-2.5 py-0.5 rounded font-mono text-[10px] transition-colors outline-none cursor-pointer ${
                           isActive
-                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 focus:ring-1 focus:ring-amber-400/40'
-                            : 'text-zinc-500 hover:text-zinc-300 border border-transparent hover:border-zinc-700'
+                            ? 'bg-amber-400/10 text-amber-400 border border-amber-400/20'
+                            : 'text-zinc-500 hover:text-zinc-400 border border-transparent hover:bg-zinc-800'
                         }`}
                         onClick={() => onSetActiveRegion?.(pat.id)}
                         onDoubleClick={() => {
@@ -336,12 +337,11 @@ export function TrackerView({
                             onRemoveRegion?.(pat.id);
                           }
                         }}
-                        title={`Pattern ${idx + 1}${pat.name ? `: ${pat.name}` : ''} — double-click to rename, Delete to remove`}
+                        title={`Pattern ${idx + 1}${pat.name ? `: ${pat.name}` : ''} -- double-click to rename, Delete to remove`}
                       >
                         {label}
                       </button>
                     )}
-                    {/* Pattern removal: select tab then press Delete/Backspace while tab is focused */}
                     {isActive && (
                       <button
                         className="ml-0.5 text-zinc-600 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -359,7 +359,7 @@ export function TrackerView({
               })}
               {onAddRegion && (
                 <button
-                  className="px-1.5 py-0.5 text-zinc-600 hover:text-zinc-300 transition-colors"
+                  className="px-1.5 py-0.5 text-zinc-600 hover:text-zinc-300 transition-colors font-mono text-[10px]"
                   onClick={onAddRegion}
                   title="Add new pattern"
                 >
@@ -387,7 +387,7 @@ export function TrackerView({
           )}
 
           {/* Full-height tracker scroll container */}
-          <div className="flex-1 min-h-0 overflow-y-auto rounded border border-zinc-800/50 bg-zinc-900/40">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-950">
             {activeRegion ? (
               activeTrack.drumRack && activeTrack.drumRack.pads.length > 0 ? (
                 <DrumLaneTracker
