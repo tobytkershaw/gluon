@@ -294,6 +294,16 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
     if (snapshot.prevPatterns) {
       update.patterns = snapshot.prevPatterns;
     }
+    // Restore engine/model from auto-promotion snapshot.
+    // Undo (prevEngine === ''): demote back to empty audio track, clear drum rack.
+    // Redo (prevEngine === 'drum-rack'): re-promote, keep pads from prevPads (already set above).
+    if (snapshot.prevEngine !== undefined) {
+      update.engine = snapshot.prevEngine;
+      update.model = snapshot.prevModel ?? -1;
+      if (snapshot.prevEngine !== 'drum-rack') {
+        update.drumRack = undefined;
+      }
+    }
     return updateTrack(session, snapshot.trackId, update);
   }
 
@@ -664,6 +674,11 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
     // Snapshot current patterns if the original snapshot had pattern data (pad removal with event cleanup)
     if (snapshot.prevPatterns) {
       result.prevPatterns = track.patterns.map(p => ({ ...p, events: [...p.events] }));
+    }
+    // Capture current engine/model for promotion snapshots (redo needs the current state)
+    if (snapshot.prevEngine !== undefined) {
+      result.prevEngine = track.engine;
+      result.prevModel = track.model;
     }
     return result;
   }

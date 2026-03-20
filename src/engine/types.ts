@@ -602,6 +602,10 @@ export interface DrumPadSnapshot {
   prevPads: DrumPad[];
   /** Previous patterns snapshot — set when removing a pad so orphaned trigger events can be restored on undo. */
   prevPatterns?: import('./canonical-types').Pattern[];
+  /** Previous engine type — set when auto-promoting an empty audio track to drum-rack. */
+  prevEngine?: string;
+  /** Previous model index — set when auto-promoting an empty audio track to drum-rack. */
+  prevModel?: number;
   timestamp: number;
   description: string;
 }

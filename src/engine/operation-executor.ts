@@ -13,7 +13,7 @@ export const MASTER_PERMISSION_PREFIX = 'Permission:';
 import { applySurfaceTemplate, validateSurface, maybeApplySurfaceTemplate } from './surface-templates';
 import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
 import type { Arbitrator } from './arbitration';
-import { getTrack, getActivePattern, updateTrack } from './types';
+import { getTrack, getActivePattern, updateTrack, getTrackKind } from './types';
 import { applyMove, applySketch, clampParam } from './primitives';
 import { generateSemanticDiff } from './semantic-diff';
 import { rotate, transpose, reverse, duplicate } from './transformations';
@@ -655,7 +655,17 @@ export function prevalidateAction(
     case 'manage_drum_pad': {
       const track = session.tracks.find(v => v.id === action.trackId);
       if (!track) return `Track not found: ${action.trackId}`;
-      if (track.engine !== 'drum-rack' || !track.drumRack) return `Track ${action.trackId} is not a drum rack`;
+      if (track.engine !== 'drum-rack' || !track.drumRack) {
+        // Auto-promote: allow adding the first pad to an empty audio track
+        const canAutoPromote = action.action === 'add'
+          && getTrackKind(track) === 'audio'
+          && track.engine === ''
+          && track.model === -1
+          && !track.drumRack;
+        if (!canAutoPromote) {
+          return `Track ${action.trackId} is not a drum rack`;
+        }
+      }
       const pads = track.drumRack?.pads ?? [];
       switch (action.action) {
         case 'add': {
@@ -2754,8 +2764,14 @@ function executeActionsInternal(
 
       case 'manage_drum_pad': {
         const track = getTrack(next, action.trackId);
+        const isAutoPromote = track.engine !== 'drum-rack';
         const prevPads = [...(track.drumRack?.pads ?? [])].map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
-        const drumPadSnapshot: DrumPadSnapshot = { kind: 'drum-pad', trackId: action.trackId, prevPads, timestamp: Date.now(), description: `manage_drum_pad ${action.action}: ${action.description}` };
+        const drumPadSnapshot: DrumPadSnapshot = {
+          kind: 'drum-pad', trackId: action.trackId, prevPads, timestamp: Date.now(),
+          description: `manage_drum_pad ${action.action}: ${action.description}`,
+          // Capture pre-promotion state so undo can revert the engine change
+          ...(isAutoPromote ? { prevEngine: track.engine, prevModel: track.model } : {}),
+        };
 
         let newPads: DrumPad[];
         switch (action.action) {
@@ -2792,7 +2808,11 @@ function executeActionsInternal(
             continue;
         }
         // Build the track update: always update pads, and scrub orphaned events when removing a pad
-        const trackUpdate: Parameters<typeof updateTrack>[2] = { drumRack: { ...(track.drumRack ?? { pads: [] }), pads: newPads } };
+        const trackUpdate: Parameters<typeof updateTrack>[2] = {
+          drumRack: { ...(track.drumRack ?? { pads: [] }), pads: newPads },
+          // Auto-promote: set engine to drum-rack on first pad add
+          ...(isAutoPromote ? { engine: 'drum-rack' as const, model: -1 } : {}),
+        };
         if (action.action === 'remove' && drumPadSnapshot.prevPatterns) {
           trackUpdate.patterns = track.patterns.map(p => ({
             ...p,

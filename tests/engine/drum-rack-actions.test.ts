@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { executeOperations } from '../../src/engine/operation-executor';
-import { createSession } from '../../src/engine/session';
+import { createSession, createBusTrack } from '../../src/engine/session';
 import { Arbitrator } from '../../src/engine/arbitration';
-import { applyUndo } from '../../src/engine/primitives';
+import { applyUndo, applyRedo } from '../../src/engine/primitives';
 import { getTrack, getActivePattern, updateTrack } from '../../src/engine/types';
 import type { SourceAdapter } from '../../src/engine/canonical-types';
 import type { AIAction, DrumRackConfig, DrumPad } from '../../src/engine/types';
@@ -201,16 +201,142 @@ describe('drum-rack-actions', () => {
       expect(report.rejected[0].reason).toContain('not found');
     });
 
-    it('rejects when track is not a drum rack', () => {
+    it('auto-promotes empty audio track to drum rack on first pad add', () => {
       const session = createSession();
       const trackId = session.tracks[0].id;
+      // Verify the track starts as an empty audio track
+      const before = getTrack(session, trackId);
+      expect(before.engine).toBe('');
+      expect(before.model).toBe(-1);
+      expect(before.drumRack).toBeUndefined();
+
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'add',
+        padId: 'kick',
+        name: 'Kick',
+        model: 'analog-bass-drum',
+        description: 'add kick to empty track',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+      expect(report.rejected).toHaveLength(0);
+
+      const track = getTrack(report.session, trackId);
+      expect(track.engine).toBe('drum-rack');
+      expect(track.model).toBe(-1);
+      expect(track.drumRack?.pads).toHaveLength(1);
+      expect(track.drumRack?.pads[0].id).toBe('kick');
+    });
+
+    it('second pad add on already-promoted track works without double-promote', () => {
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+
+      // First pad — auto-promotes
+      const firstAdd: AIAction[] = [{
+        type: 'manage_drum_pad', trackId, action: 'add',
+        padId: 'kick', name: 'Kick', model: 'analog-bass-drum',
+        description: 'add kick',
+      }];
+      const after1 = executeOperations(session, firstAdd, adapter, new Arbitrator());
+
+      // Second pad — track is already a drum rack
+      const secondAdd: AIAction[] = [{
+        type: 'manage_drum_pad', trackId, action: 'add',
+        padId: 'snare', name: 'Snare', model: 'analog-snare',
+        description: 'add snare',
+      }];
+      const after2 = executeOperations(after1.session, secondAdd, adapter, new Arbitrator());
+      expect(after2.accepted).toHaveLength(1);
+      expect(after2.rejected).toHaveLength(0);
+
+      const track = getTrack(after2.session, trackId);
+      expect(track.engine).toBe('drum-rack');
+      expect(track.drumRack?.pads).toHaveLength(2);
+    });
+
+    it('undo of auto-promote reverts to empty audio track', () => {
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+      const originalEngine = getTrack(session, trackId).engine;
+      const originalModel = getTrack(session, trackId).model;
+
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad', trackId, action: 'add',
+        padId: 'kick', name: 'Kick', model: 'analog-bass-drum',
+        description: 'add kick',
+      }];
+      const after = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(getTrack(after.session, trackId).engine).toBe('drum-rack');
+
+      const undone = applyUndo(after.session);
+      expect(undone).not.toBeNull();
+      const track = getTrack(undone!, trackId);
+      expect(track.engine).toBe(originalEngine);
+      expect(track.model).toBe(originalModel);
+      expect(track.drumRack).toBeUndefined();
+    });
+
+    it('redo after undo re-promotes to drum rack with pads', () => {
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad', trackId, action: 'add',
+        padId: 'kick', name: 'Kick', model: 'analog-bass-drum',
+        description: 'add kick',
+      }];
+      const after = executeOperations(session, actions, adapter, new Arbitrator());
+      const undone = applyUndo(after.session)!;
+      expect(getTrack(undone, trackId).engine).toBe('');
+      expect(getTrack(undone, trackId).drumRack).toBeUndefined();
+
+      // Actually execute redo and verify the full track state
+      const redone = applyRedo(undone);
+      const track = getTrack(redone, trackId);
+      expect(track.engine).toBe('drum-rack');
+      expect(track.model).toBe(-1);
+      expect(track.drumRack).toBeDefined();
+      expect(track.drumRack?.pads).toHaveLength(1);
+      expect(track.drumRack?.pads[0].id).toBe('kick');
+    });
+
+    it('rejects add on bus track', () => {
+      let session = createSession();
+      // Add a bus track
+      const busTrack = createBusTrack('bus-1', 'Test Bus');
+      session = { ...session, tracks: [...session.tracks, busTrack] };
+
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId: 'bus-1',
+        action: 'add',
+        padId: 'kick',
+        model: 'analog-bass-drum',
+        description: 'add to bus track',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('not a drum rack');
+    });
+
+    it('rejects add on track with existing source model', () => {
+      let session = createSession();
+      const trackId = session.tracks[0].id;
+      // Give the track a source model (non-empty)
+      session = updateTrack(session, trackId, { engine: 'plaits', model: 0 });
+
       const actions: AIAction[] = [{
         type: 'manage_drum_pad',
         trackId,
         action: 'add',
         padId: 'kick',
         model: 'analog-bass-drum',
-        description: 'add to non-drum-rack',
+        description: 'add to track with source',
       }];
 
       const report = executeOperations(session, actions, adapter, new Arbitrator());

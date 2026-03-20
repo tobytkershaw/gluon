@@ -442,21 +442,52 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
       expect(reason).toContain('padId');
     });
 
-    it('rejects manage_drum_pad on non-drum-rack track', () => {
-      const session = createSession();
+    it('empty audio track auto-promotes to drum rack, with full undo chain', () => {
+      let session = createSession();
       const trackId = session.tracks[0].id;
 
-      const reason = execRejected(session, [
-        {
-          type: 'manage_drum_pad',
-          trackId,
-          action: 'add',
-          padId: 'kick',
-          model: 'analog-bass-drum',
-          description: 'add to non-drum-rack',
-        },
-      ]);
-      expect(reason).toContain('not a drum rack');
+      // Verify starting state: empty audio track
+      expect(getTrack(session, trackId).engine).toBe('');
+      expect(getTrack(session, trackId).drumRack).toBeUndefined();
+
+      // Add first pad — auto-promotes
+      session = exec(session, [{
+        type: 'manage_drum_pad', trackId, action: 'add',
+        padId: 'kick', name: 'Kick', model: 'analog-bass-drum',
+        description: 'add kick',
+      }]);
+      expect(getTrack(session, trackId).engine).toBe('drum-rack');
+      expect(getTrack(session, trackId).drumRack?.pads).toHaveLength(1);
+
+      // Add second pad — normal drum rack add, no promotion
+      session = exec(session, [{
+        type: 'manage_drum_pad', trackId, action: 'add',
+        padId: 'snare', name: 'Snare', model: 'analog-snare',
+        description: 'add snare',
+      }]);
+      expect(getTrack(session, trackId).drumRack?.pads).toHaveLength(2);
+
+      // Remove first pad
+      session = exec(session, [{
+        type: 'manage_drum_pad', trackId, action: 'remove',
+        padId: 'kick', description: 'remove kick',
+      }]);
+      expect(getTrack(session, trackId).drumRack?.pads).toHaveLength(1);
+      expect(getTrack(session, trackId).engine).toBe('drum-rack');
+
+      // Undo remove -> 2 pads
+      session = applyUndo(session)!;
+      expect(getTrack(session, trackId).drumRack?.pads).toHaveLength(2);
+
+      // Undo second add -> 1 pad
+      session = applyUndo(session)!;
+      expect(getTrack(session, trackId).drumRack?.pads).toHaveLength(1);
+
+      // Undo first add (the auto-promote) -> back to empty audio track
+      session = applyUndo(session)!;
+      expect(getTrack(session, trackId).engine).toBe('');
+      expect(getTrack(session, trackId).model).toBe(-1);
+      expect(getTrack(session, trackId).drumRack).toBeUndefined();
     });
 
     it('rejects move on non-existent pad', () => {
