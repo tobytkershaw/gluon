@@ -148,6 +148,8 @@ export class AudioEngine {
   private masterBusId: string | null = null;
   /** Metronome gain node — connected directly to destination, bypassing tracks/mixer. */
   private metronomeGain: GainNode | null = null;
+  /** In-flight drum pad creation guard: "trackId:padId" → Promise. Prevents duplicate synth creation. */
+  private pendingDrumPads = new Set<string>();
 
   get isRunning(): boolean {
     return this._isRunning;
@@ -1453,10 +1455,30 @@ export class AudioEngine {
     if (!slot || !slot.isDrumRack) return;
     if (slot.drumPads.has(padId)) return;
 
+    // In-flight deduplication: if another call is already creating this pad, bail out.
+    const inflightKey = `${trackId}:${padId}`;
+    if (this.pendingDrumPads.has(inflightKey)) return;
+    this.pendingDrumPads.add(inflightKey);
+
     const accentGain = this.ctx.createGain();
     accentGain.gain.value = ACCENT_BASELINE;
 
-    const synth = await createPreferredSynth(this.ctx, accentGain);
+    let synth;
+    try {
+      synth = await createPreferredSynth(this.ctx, accentGain);
+    } finally {
+      this.pendingDrumPads.delete(inflightKey);
+    }
+
+    // Post-await revalidation: track or pad state may have changed during the await.
+    const slotAfter = this.tracks.get(trackId);
+    if (!slotAfter || !slotAfter.isDrumRack || slotAfter.drumPads.has(padId)) {
+      // Track disappeared, is no longer a drum rack, or another call won the race.
+      // Destroy the newly created synth and disconnect the accent gain to prevent leaks.
+      synth.destroy();
+      accentGain.disconnect();
+      return;
+    }
 
     const padGain = this.ctx.createGain();
     padGain.gain.value = Math.max(0, Math.min(1, level));
@@ -1468,7 +1490,7 @@ export class AudioEngine {
     // Wire: accentGain → padGain → padPanner → sourceOut
     accentGain.connect(padGain);
     padGain.connect(padPanner);
-    padPanner.connect(slot.sourceOut);
+    padPanner.connect(slotAfter.sourceOut);
 
     // Set model and params
     synth.setModel(model);
@@ -1482,7 +1504,7 @@ export class AudioEngine {
       synth.setExtended(toPlaitsExtendedParams(params as SynthParamValues));
     }
 
-    slot.drumPads.set(padId, {
+    slotAfter.drumPads.set(padId, {
       id: padId,
       synth,
       accentGain,
