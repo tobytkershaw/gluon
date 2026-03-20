@@ -80,6 +80,13 @@ export function MiniKnob({ value, min = 0, max = 1, accentColor, title, onChange
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
   }, []);
 
+  // Pointer cancel — treat same as pointer up
+  const handlePointerCancel = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+  }, []);
+
   const ind = indicatorPos(norm);
   const indAngle = ARC_START + ARC_SWEEP * norm;
   const indInner = { x: CX + R * 0.45 * Math.cos(indAngle), y: CY + R * 0.45 * Math.sin(indAngle) };
@@ -98,6 +105,7 @@ export function MiniKnob({ value, min = 0, max = 1, accentColor, title, onChange
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerCancel}
       onKeyDown={handleKeyDown}
     >
       <title>{title}</title>
