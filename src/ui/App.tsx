@@ -166,8 +166,9 @@ export default function App() {
     if (prevProjectIdRef.current === project.projectId) return;
     prevProjectIdRef.current = project.projectId;
 
-    // Clear stale history from any previous project, then restore
+    // Clear stale history and degradation banner from any previous project, then restore
     aiRef.current.clearHistory();
+    setAudioDegradedMessage(null);
     if (session.messages.length > 0) {
       aiRef.current.restoreHistory(session.messages);
     }
@@ -305,6 +306,7 @@ export default function App() {
         }
       }
       setAudioStarted(true);
+      setAudioDegradedMessage(null);
       return true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
