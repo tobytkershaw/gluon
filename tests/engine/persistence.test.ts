@@ -916,4 +916,234 @@ describe('persistence', () => {
       expect(track.views![0].kind).toBe('step-grid');
     });
   });
+
+  // --- Pattern invariant validation (#1146) ---
+
+  describe('pattern invariant validation (#1146)', () => {
+    function makeSession() {
+      const session = createSession();
+      return {
+        ...session,
+        messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      };
+    }
+
+    it('fixes pattern with duration <= 0', () => {
+      const session = makeSession();
+      const withBadDuration = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], duration: 0 }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadDuration);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].duration).toBe(16);
+    });
+
+    it('fixes pattern with non-numeric duration', () => {
+      const session = makeSession();
+      const withBadDuration = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], duration: 'bad' as unknown as number }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadDuration);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].duration).toBe(16);
+    });
+
+    it('strips note events with out-of-range pitch', () => {
+      const session = makeSession();
+      const badEvents = [
+        { kind: 'note' as const, at: 0, pitch: 200, velocity: 0.5, duration: 1 },
+        { kind: 'note' as const, at: 1, pitch: 60, velocity: 0.5, duration: 1 },
+      ];
+      const withBadEvents = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], events: badEvents }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadEvents);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].events).toHaveLength(1);
+      expect((track.patterns[0].events[0] as any).pitch).toBe(60);
+    });
+
+    it('strips note events with velocity > 1', () => {
+      const session = makeSession();
+      const badEvents = [
+        { kind: 'note' as const, at: 0, pitch: 60, velocity: 1.5, duration: 1 },
+      ];
+      const withBadEvents = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], events: badEvents }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadEvents);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].events).toHaveLength(0);
+    });
+
+    it('strips note events with duration <= 0', () => {
+      const session = makeSession();
+      const badEvents = [
+        { kind: 'note' as const, at: 0, pitch: 60, velocity: 0.5, duration: 0 },
+      ];
+      const withBadEvents = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], events: badEvents }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadEvents);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].events).toHaveLength(0);
+    });
+
+    it('strips events with at < 0 or at >= duration', () => {
+      const session = makeSession();
+      const badEvents = [
+        { kind: 'trigger' as const, at: -1 },
+        { kind: 'trigger' as const, at: 16 },
+        { kind: 'trigger' as const, at: 4 },
+      ];
+      const withBadEvents = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], duration: 16, events: badEvents }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadEvents);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].events).toHaveLength(1);
+      expect(track.patterns[0].events[0].at).toBe(4);
+    });
+
+    it('strips parameter events with empty controlId', () => {
+      const session = makeSession();
+      const badEvents = [
+        { kind: 'parameter' as const, at: 0, controlId: '', value: 0.5 },
+        { kind: 'parameter' as const, at: 1, controlId: 'timbre', value: 0.5 },
+      ];
+      const withBadEvents = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], events: badEvents }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadEvents);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].events).toHaveLength(1);
+      expect((track.patterns[0].events[0] as any).controlId).toBe('timbre');
+    });
+
+    it('strips trigger events with invalid velocity', () => {
+      const session = makeSession();
+      const badEvents = [
+        { kind: 'trigger' as const, at: 0, velocity: 2 },
+        { kind: 'trigger' as const, at: 1, velocity: 0.8 },
+      ];
+      const withBadEvents = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0 ? { ...t, patterns: [{ ...t.patterns[0], events: badEvents }] } : t,
+        ),
+      };
+      const restored = restoreSession(withBadEvents);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.patterns[0].events).toHaveLength(1);
+      expect(track.patterns[0].events[0].at).toBe(1);
+    });
+  });
+
+  // --- Surface module validation on restore (#1147) ---
+
+  describe('surface module validation on restore (#1147)', () => {
+    function makeSession() {
+      const session = createSession();
+      return {
+        ...session,
+        messages: [{ role: 'human' as const, text: 'test', timestamp: 1 }],
+      };
+    }
+
+    it('strips surface modules with unknown types', () => {
+      const session = makeSession();
+      const goodMod: SurfaceModule = {
+        type: 'knob-group', id: 'good', label: 'Good',
+        bindings: [{ role: 'control', trackId: '', target: 'timbre' }],
+        position: { x: 0, y: 0, w: 4, h: 2 }, config: {},
+      };
+      const badMod: SurfaceModule = {
+        type: 'nonexistent-widget' as any, id: 'bad', label: 'Bad',
+        bindings: [], position: { x: 0, y: 2, w: 4, h: 2 }, config: {},
+      };
+      const withBadModules = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, surface: { ...t.surface, modules: [goodMod, badMod] } }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withBadModules);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.surface.modules).toHaveLength(1);
+      expect(track.surface.modules[0].id).toBe('good');
+    });
+
+    it('fixes surface modules with invalid positions', () => {
+      const session = makeSession();
+      const badPosMod: SurfaceModule = {
+        type: 'knob-group', id: 'broken-pos', label: 'Broken',
+        bindings: [{ role: 'control', trackId: '', target: 'timbre' }],
+        position: { x: -5, y: -1, w: 0, h: -2 }, config: {},
+      };
+      const withBadPos = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, surface: { ...t.surface, modules: [badPosMod] } }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withBadPos);
+      const track = getTrack(restored, session.tracks[0].id);
+      expect(track.surface.modules).toHaveLength(1);
+      const pos = track.surface.modules[0].position;
+      expect(pos.x).toBeGreaterThanOrEqual(0);
+      expect(pos.y).toBeGreaterThanOrEqual(0);
+      expect(pos.w).toBeGreaterThan(0);
+      expect(pos.h).toBeGreaterThan(0);
+    });
+
+    it('fixes surface modules with missing position fields', () => {
+      const session = makeSession();
+      const missingPosMod = {
+        type: 'knob-group', id: 'no-pos', label: 'No Pos',
+        bindings: [{ role: 'control', trackId: '', target: 'timbre' }],
+        position: {} as any,
+        config: {},
+      } as SurfaceModule;
+      const withMissingPos = {
+        ...session,
+        tracks: session.tracks.map((t, i) =>
+          i === 0
+            ? { ...t, surface: { ...t.surface, modules: [missingPosMod] } }
+            : t,
+        ),
+      };
+      const restored = restoreSession(withMissingPos);
+      const track = getTrack(restored, session.tracks[0].id);
+      const pos = track.surface.modules[0].position;
+      expect(pos.x).toBe(0);
+      expect(pos.y).toBe(0);
+      expect(pos.w).toBe(2);
+      expect(pos.h).toBe(2);
+    });
+  });
 });

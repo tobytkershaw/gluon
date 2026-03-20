@@ -9,6 +9,7 @@ import { createDefaultPattern } from './region-helpers';
 import { controlIdToRuntimeParam, getRegisteredModulatorTypes, getRegisteredProcessorTypes } from '../audio/instrument-registry';
 import type { InverseConversionOptions } from './event-conversion';
 import { migrateLegacySurface } from './surface-templates';
+import { isValidModuleType, validateModuleBindings } from './surface-module-registry';
 
 const STORAGE_KEY = 'gluon-session';
 export const CURRENT_VERSION = 6;
@@ -196,6 +197,38 @@ export function migrateTrack(track: Track): Track {
     sequence = patterns.map(p => ({ patternId: p.id }));
   }
 
+  // #1146: Validate pattern invariants — ensure duration > 0, events are valid
+  patterns = patterns.map(p => {
+    const duration = (typeof p.duration === 'number' && p.duration > 0) ? p.duration : 16;
+    const events = Array.isArray(p.events)
+      ? p.events.filter(e => {
+          if (typeof e.at !== 'number' || e.at < 0 || e.at >= duration) return false;
+          if (e.kind === 'note') {
+            const n = e as import('./canonical-types').NoteEvent;
+            if (typeof n.pitch !== 'number' || n.pitch < 0 || n.pitch > 127) return false;
+            if (typeof n.velocity !== 'number' || n.velocity < 0 || n.velocity > 1) return false;
+            if (typeof n.duration !== 'number' || n.duration <= 0) return false;
+          }
+          if (e.kind === 'trigger') {
+            const t = e as import('./canonical-types').TriggerEvent;
+            if (t.velocity != null && (typeof t.velocity !== 'number' || t.velocity < 0 || t.velocity > 1)) return false;
+          }
+          if (e.kind === 'parameter') {
+            const pe = e as import('./canonical-types').ParameterEvent;
+            if (typeof pe.controlId !== 'string' || pe.controlId === '') return false;
+          }
+          return true;
+        })
+      : [];
+    if (events.length !== (p.events?.length ?? 0)) {
+      console.warn(`[persistence] Track ${track.id}: stripped ${(p.events?.length ?? 0) - events.length} invalid events from pattern ${p.id}`);
+    }
+    if (duration !== p.duration) {
+      console.warn(`[persistence] Track ${track.id}: fixed invalid duration on pattern ${p.id} (was ${p.duration}, set to ${duration})`);
+    }
+    return { ...p, duration, events };
+  });
+
   // Hydrate per-track volume/pan for tracks without them
   const migrated: Record<string, unknown> = { ...track, patterns, sequence };
   if ((migrated.volume as number | undefined) == null) migrated.volume = 0.8;
@@ -232,6 +265,42 @@ export function migrateTrack(track: Track): Track {
         surfaced.surface as unknown as Record<string, unknown>,
         surfaced.id,
       ),
+    };
+  }
+
+  // #1147: Validate Surface modules — strip unknown types, ensure valid positions
+  if (surfaced.surface?.modules?.length) {
+    const validatedModules = surfaced.surface.modules.filter(mod => {
+      if (!isValidModuleType(mod.type)) {
+        console.warn(`[persistence] Track ${surfaced.id}: stripping surface module '${mod.id}' with unknown type '${mod.type}'`);
+        return false;
+      }
+      return true;
+    }).map(mod => {
+      // Ensure position has valid x/y/w/h (non-negative integers, w/h > 0)
+      const pos = mod.position;
+      const needsFix = (
+        typeof pos?.x !== 'number' || typeof pos?.y !== 'number' ||
+        typeof pos?.w !== 'number' || typeof pos?.h !== 'number' ||
+        pos.x < 0 || pos.y < 0 || pos.w <= 0 || pos.h <= 0
+      );
+      if (needsFix) {
+        console.warn(`[persistence] Track ${surfaced.id}: fixing invalid position on surface module '${mod.id}'`);
+        return {
+          ...mod,
+          position: {
+            x: (typeof pos?.x === 'number' && pos.x >= 0) ? pos.x : 0,
+            y: (typeof pos?.y === 'number' && pos.y >= 0) ? pos.y : 0,
+            w: (typeof pos?.w === 'number' && pos.w > 0) ? pos.w : 2,
+            h: (typeof pos?.h === 'number' && pos.h > 0) ? pos.h : 2,
+          },
+        };
+      }
+      return mod;
+    });
+    surfaced = {
+      ...surfaced,
+      surface: { ...surfaced.surface, modules: validatedModules },
     };
   }
 

@@ -68,6 +68,7 @@ import { computeSemanticRawUpdates } from './surface/semantic-utils';
 import { useTransportController } from './useTransportController';
 import { isTrackAudibleInMixer } from '../engine/sequencer-helpers';
 import { AUDIO_DEGRADED_EVENT, type AudioDegradedDetail } from '../audio/runtime-events';
+import { validateSurface } from '../engine/surface-templates';
 
 // TODO(#215): Module-level singleton — works fine in production but may
 // interfere with test isolation if App is mounted multiple times in a test suite.
@@ -1066,6 +1067,16 @@ export default function App() {
   const handleAddSurfaceModule = useCallback((module: SurfaceModule) => {
     setSession((s) => {
       const track = getActiveTrack(s);
+      const newSurface: TrackSurface = {
+        ...track.surface,
+        modules: [...track.surface.modules, module],
+      };
+      // #1148: Validate before committing, matching the AI set_surface path
+      const validationError = validateSurface(newSurface, track);
+      if (validationError) {
+        console.warn(`[surface] Add module rejected: ${validationError}`);
+        return s;
+      }
       const prevSurface: TrackSurface = {
         ...track.surface,
         modules: track.surface.modules.map(m => ({
@@ -1074,10 +1085,6 @@ export default function App() {
           position: { ...m.position },
           config: structuredClone(m.config),
         })),
-      };
-      const newSurface: TrackSurface = {
-        ...track.surface,
-        modules: [...track.surface.modules, module],
       };
       const snapshot: SurfaceSnapshot = {
         kind: 'surface',
@@ -1122,11 +1129,18 @@ export default function App() {
     setSession((s) => {
       const trackId = s.activeTrackId;
       const track = getTrack(s, trackId);
+      const newModules = track.surface.modules.map(m => m.id === updated.id ? updated : m);
+      const newSurface: TrackSurface = { ...track.surface, modules: newModules };
+      // #1148: Validate before committing, matching the AI set_surface path
+      const validationError = validateSurface(newSurface, track);
+      if (validationError) {
+        console.warn(`[surface] Update module rejected: ${validationError}`);
+        return s;
+      }
       const prevSurface = {
         ...track.surface,
         modules: track.surface.modules.map(m => ({ ...m, bindings: [...m.bindings], position: { ...m.position }, config: structuredClone(m.config) })),
       };
-      const newModules = track.surface.modules.map(m => m.id === updated.id ? updated : m);
       const snapshot: SurfaceSnapshot = {
         kind: 'surface',
         trackId,
@@ -1135,7 +1149,7 @@ export default function App() {
         description: `Update surface module "${updated.label}"`,
       };
       return {
-        ...updateTrack(s, trackId, { surface: { ...track.surface, modules: newModules } }),
+        ...updateTrack(s, trackId, { surface: newSurface }),
         undoStack: [...s.undoStack, snapshot],
       };
     });
