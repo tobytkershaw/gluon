@@ -262,6 +262,17 @@ describe('TransportController', () => {
   it('delays parameter events until their scheduled audio time', () => {
     vi.useFakeTimers();
     const session = makeSession();
+    session.tracks = [{
+      id: 'v0',
+      engine: 'plaits',
+      model: 0,
+      params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+      muted: false,
+      solo: false,
+      stepGrid: { steps: [], length: 16 },
+      patterns: [createDefaultPattern('v0', 16)],
+      surface: { modules: [], thumbprint: { type: 'static-color' } },
+    }];
     const currentTime = 1;
     let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
     const onParameterEvent = vi.fn();
@@ -887,6 +898,134 @@ describe('TransportController', () => {
     vi.advanceTimersByTime(2000);
 
     expect(scheduler.invalidateTrack).toHaveBeenCalledWith('v0', 0);
+    expect(onParameterEvent).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+
+  it('does not crash when a track is removed while parameter timers are pending (#1223)', () => {
+    vi.useFakeTimers();
+    const region = createDefaultPattern('v0', 16);
+    region.events = [{ kind: 'parameter', at: 8, controlId: 'timbre', value: 0.8 }];
+    const session: Session = {
+      ...makeSession(),
+      tracks: [{
+        id: 'v0',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 16 },
+        patterns: [region],
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
+      }],
+    };
+    let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
+    const onParameterEvent = vi.fn();
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      onParameterEvent,
+      createScheduler: ({ onParameterEvent: internalCb }) => {
+        schedulerParameterEvent = internalCb ?? null;
+        return scheduler;
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+
+    // Schedule a parameter event with a future time
+    schedulerParameterEvent?.({ trackId: 'v0', controlId: 'timbre', value: 0.8, time: 2.0 });
+
+    // Remove the track while timer is pending
+    session.tracks = [];
+
+    // syncArrangement should clear timers for the removed track
+    controller.syncArrangement();
+
+    // Advance past the timer — should not fire (timer was cleared)
+    vi.advanceTimersByTime(2000);
+    expect(onParameterEvent).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+
+  it('guards timer callback against tracks removed without syncArrangement (#1223)', () => {
+    vi.useFakeTimers();
+    const region = createDefaultPattern('v0', 16);
+    region.events = [{ kind: 'parameter', at: 8, controlId: 'timbre', value: 0.8 }];
+    const session: Session = {
+      ...makeSession(),
+      tracks: [{
+        id: 'v0',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 16 },
+        patterns: [region],
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
+      }],
+    };
+    let schedulerParameterEvent: ((event: import('./sequencer-types').ScheduledParameterEvent) => void) | null = null;
+    const onParameterEvent = vi.fn();
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      onParameterEvent,
+      createScheduler: ({ onParameterEvent: internalCb }) => {
+        schedulerParameterEvent = internalCb ?? null;
+        return { start: vi.fn(), stop: vi.fn(), invalidateTrack: vi.fn() };
+      },
+    });
+
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+
+    // Schedule a parameter event
+    schedulerParameterEvent?.({ trackId: 'v0', controlId: 'timbre', value: 0.8, time: 2.0 });
+
+    // Remove the track WITHOUT calling syncArrangement (race condition)
+    session.tracks = [];
+
+    // Timer fires — should silently skip the event, not crash
+    vi.advanceTimersByTime(2000);
     expect(onParameterEvent).not.toHaveBeenCalled();
 
     controller.dispose();
