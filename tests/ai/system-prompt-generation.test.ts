@@ -211,7 +211,8 @@ describe('dynamic prompt reference (#777)', () => {
     const ringsProc: ProcessorConfig = { id: 'rings-001', type: 'rings', model: 0, params: {} };
     session = updateTrack(session, 'v0', { processors: [ringsProc] });
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('Active Processor Details');
+    // Merged format: active types get em-dash detail lines
+    expect(prompt).toMatch(/\*\*rings\*\* —/);
     // Rings should have detailed info
     expect(prompt).toContain('Modal Resonator, Sympathetic String');
     // Clouds should NOT have detailed info (not active)
@@ -233,7 +234,8 @@ describe('dynamic prompt reference (#777)', () => {
     const tidesMod: ModulatorConfig = { id: 'tides-001', type: 'tides', model: 0, params: {} };
     session = updateTrack(session, 'v0', { modulators: [tidesMod] });
     const prompt = buildSystemPrompt(session);
-    expect(prompt).toContain('Active Modulator Details');
+    // Merged format: active types get em-dash detail lines
+    expect(prompt).toMatch(/\*\*tides\*\* —/);
     expect(prompt).toContain('ad (One-shot unipolar attack-decay envelope');
   });
 

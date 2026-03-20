@@ -5,7 +5,7 @@ import type { RestraintLevel } from './state-compression';
 import { deriveRestraintLevel } from './state-compression';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
 import { getTrackKind, MASTER_BUS_ID } from '../engine/types';
-import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes, getModulatorEngineName } from '../audio/instrument-registry';
+import { getModelList, getEngineByIndex, isPercussion, getProcessorInstrument, getRegisteredProcessorTypes, getModulatorInstrument, getRegisteredModulatorTypes } from '../audio/instrument-registry';
 
 /**
  * Model-specific parameter semantics for Plaits engines.
@@ -157,21 +157,11 @@ function generateTrackSetup(session: Session): string {
     const engineId = isDrumRack ? 'drum-rack' : (engine?.id ?? '');
     const classification = isDrumRack ? 'percussion' : (isPercussion(engineId) ? 'percussion' : 'melodic');
     const padSuffix = isDrumRack ? `, ${v.drumRack!.pads.length} pads` : '';
-    const procs = (v.processors ?? []).map(p => `${p.type}(${p.id})`).join(', ');
-    const chainSuffix = procs ? ` → [${procs}]` : '';
-    const mods = (v.modulators ?? []).map(m => {
-      const modeName = getModulatorEngineName(m.type, m.model) ?? String(m.model);
-      const routings = (v.modulations ?? [])
-        .filter(r => r.modulatorId === m.id)
-        .map(r => {
-          const targetStr = r.target.kind === 'source' ? `source:${r.target.param}` : `${r.target.processorId}:${r.target.param}`;
-          return `${targetStr}(${r.depth.toFixed(1)})`;
-        })
-        .join(', ');
-      return routings ? `${m.type}(${modeName}) → ${routings}` : `${m.type}(${modeName})`;
-    }).join(', ');
-    const modSuffix = mods ? ` | mod: [${mods}]` : '';
-    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification}${padSuffix})${chainSuffix}${modSuffix}`;
+    const hasFx = (v.processors ?? []).length > 0;
+    const hasMod = (v.modulators ?? []).length > 0;
+    const fxSuffix = hasFx ? ' + FX' : '';
+    const modSuffix = hasMod ? ' + mod' : '';
+    return `- ${ordinalLabel} [id: ${v.id}]: ${engineLabel} (${classification}${padSuffix})${fxSuffix}${modSuffix}`;
   }).join('\n');
 
   return `${session.tracks.length} tracks (use "Track N" or internal ID in tool calls):
@@ -245,59 +235,37 @@ export function extractActiveModules(session: Session): {
 }
 
 /**
- * Compact processor index (always included). One line per registered type.
+ * Merged processor section: compact index for inactive types,
+ * detailed reference (models + controls) for active types.
  */
-function generateProcessorIndex(): string {
+function generateProcessorSection(activeTypes: Set<string>): string {
   return getRegisteredProcessorTypes().map(type => {
     const inst = getProcessorInstrument(type);
     if (!inst) return '';
-    return `- **${type}**: ${inst.label}`;
-  }).filter(Boolean).join('\n');
-}
-
-/**
- * Detailed processor reference — models and controls — only for types
- * currently in at least one track's chain.
- */
-function generateActiveProcessorReference(activeTypes: Set<string>): string {
-  if (activeTypes.size === 0) return '';
-  return getRegisteredProcessorTypes()
-    .filter(type => activeTypes.has(type))
-    .map(type => {
-      const inst = getProcessorInstrument(type);
-      if (!inst) return '';
+    if (activeTypes.has(type)) {
       const models = inst.engines.map(e => e.label).join(', ');
       const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
       return `- **${type}** — ${inst.label}.\n  Models: ${models}.\n  Controls: ${controls}.`;
-    }).filter(Boolean).join('\n');
-}
-
-/**
- * Compact modulator index (always included). One line per registered type.
- */
-function generateModulatorIndex(): string {
-  return getRegisteredModulatorTypes().map(type => {
-    const inst = getModulatorInstrument(type);
-    if (!inst) return '';
+    }
     return `- **${type}**: ${inst.label}`;
   }).filter(Boolean).join('\n');
 }
 
 /**
- * Detailed modulator reference — modes and controls — only for types
- * currently in at least one track's modulator list.
+ * Merged modulator section: compact index for inactive types,
+ * detailed reference (modes + controls) for active types.
  */
-function generateActiveModulatorReference(activeTypes: Set<string>): string {
-  if (activeTypes.size === 0) return '';
-  return getRegisteredModulatorTypes()
-    .filter(type => activeTypes.has(type))
-    .map(type => {
-      const inst = getModulatorInstrument(type);
-      if (!inst) return '';
+function generateModulatorSection(activeTypes: Set<string>): string {
+  return getRegisteredModulatorTypes().map(type => {
+    const inst = getModulatorInstrument(type);
+    if (!inst) return '';
+    if (activeTypes.has(type)) {
       const models = inst.engines.map(e => `${e.id} (${e.description})`).join(', ');
       const controls = inst.engines[0]?.controls.map(c => `${c.id} (${c.description})`).join(', ') ?? '';
       return `- **${type}** — ${inst.label}.\n  Modes: ${models}.\n  Controls: ${controls}.`;
-    }).filter(Boolean).join('\n');
+    }
+    return `- **${type}**: ${inst.label}`;
+  }).filter(Boolean).join('\n');
 }
 
 export function buildSystemPrompt(session: Session): string {
@@ -433,8 +401,7 @@ ${generateParameterSection()}
 
 ## Processor Modules
 Available processor types (add with manage_processor):
-${generateProcessorIndex()}
-${processorTypes.size > 0 ? `\n### Active Processor Details\n${generateActiveProcessorReference(processorTypes)}` : ''}
+${generateProcessorSection(processorTypes)}
 
 Use **manage_processor** with action: 'add' to insert, 'remove' to take out, 'replace' to swap types, 'bypass' to toggle enabled/disabled.
 To adjust processor controls, use **move** with the processorId parameter (e.g. move param="structure" target={absolute: 0.7} processorId="rings-xxx"). For supported Hz-mapped rate controls, **move.target** can also use musical divisions like \`{ value: "1/8d" }\` to resolve a tempo-synced rate from the current BPM.
@@ -443,8 +410,7 @@ Processors array order = signal chain order. All controls are normalized 0.0–1
 
 ## Modulator Modules
 Available modulator types (add with manage_modulator):
-${generateModulatorIndex()}
-${modulatorTypes.size > 0 ? `\n### Active Modulator Details\n${generateActiveModulatorReference(modulatorTypes)}` : ''}
+${generateModulatorSection(modulatorTypes)}
 
 ## Modulation Guide
 - **manage_modulator**(action: 'add') creates an LFO/envelope; **modulation_route**(action: 'connect') wires it to a target.
