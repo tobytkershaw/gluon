@@ -97,9 +97,9 @@ const MODEL_PARAM_SEMANTICS: Record<string, { harmonics: string; timbre: string;
     harmonics: 'Attack sharpness and overdrive. 0.0 = soft thud. 0.2 = punchy click. 0.5+ = heavy distorted attack',
     timbre: 'Brightness. 0.0 = dark/muffled. 0.2 = warm. 0.4 = present. 0.6+ = bright/snappy',
     morph: 'Decay time. 0.0 = very short click. 0.3 = tight punch. 0.5 = medium body. 0.7+ = boomy',
-    frequency: 'Fundamental pitch. Deep sub-kick: 0.15–0.25 (~40–60Hz). Punchy mid-kick: 0.30–0.40. High tom-like: 0.45+. Below 0.10 is subsonic.',
+    frequency: 'Fundamental pitch. Deep sub-kick: 0.22–0.28 (~40–65Hz). Punchy kick: 0.28–0.33 (~65–85Hz). High tom-like: 0.38+. Below 0.18 is subsonic mud. Note: harmonics adds an FM pitch sweep on attack, so the perceived pitch is higher than the fundamental — listen and adjust.',
     note: 'Internal LPG is disabled on this model. Decay and lpg-colour do not affect the sound.',
-    sweetSpots: 'Dub techno kick: frequency 0.18, morph 0.35, harmonics 0.15, timbre 0.20. 808 sub-kick: frequency 0.15, morph 0.50, harmonics 0.10, timbre 0.15. Punchy techno: frequency 0.30, morph 0.30, harmonics 0.35, timbre 0.40',
+    sweetSpots: 'These are starting points — vary to taste, then listen and adjust. Deep 808 kick: frequency 0.23–0.26, morph 0.40–0.55, harmonics 0.08–0.15, timbre 0.15–0.25. Dub techno kick: frequency 0.25–0.28, morph 0.30–0.40, harmonics 0.12–0.20, timbre 0.18–0.28. Punchy techno kick: frequency 0.28–0.32, morph 0.25–0.35, harmonics 0.30–0.45, timbre 0.35–0.50. Boomy lo-fi kick: frequency 0.22–0.25, morph 0.55–0.70, harmonics 0.05–0.12, timbre 0.10–0.20',
   },
   'analog-snare': {
     harmonics: 'Harmonic vs noise balance. 0.0 = pure tone (tom). 0.5 = balanced. 1.0 = all noise (clap)',
