@@ -180,4 +180,74 @@ describe('buildRenderSpec', () => {
     expect(automationPatch?.patch?.timbre).toBeCloseTo(0.425, 5);
     expect(eventsAtNoteTime.some(event => event.type === 'trigger')).toBe(true);
   });
+
+  it('applies sequence automation in pattern mode', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    const patternId = track.patterns[0].id;
+    const spec = buildRenderSpec({
+      ...session,
+      transport: { ...session.transport, mode: 'pattern' },
+      tracks: [
+        {
+          ...track,
+          patterns: [{
+            id: patternId,
+            kind: 'pattern' as const,
+            duration: 16,
+            events: [
+              { kind: 'trigger' as const, at: 0, velocity: 0.8 },
+            ],
+          }],
+          sequence: [{
+            patternId,
+            automation: [{
+              controlId: 'timbre',
+              points: [{ at: 0, value: 0.9 }],
+            }],
+          }],
+        },
+        ...session.tracks.slice(1),
+      ],
+    }, [track.id], 1);
+
+    // The set-patch at beat 0 should have timbre=0.9 from sequence automation
+    const patchEvents = spec.tracks[0].events.filter(e => e.type === 'set-patch' && Math.abs(e.beatTime) < 0.001);
+    expect(patchEvents.length).toBeGreaterThanOrEqual(1);
+    expect(patchEvents[0].patch?.timbre).toBeCloseTo(0.9, 2);
+  });
+
+  it('emits automation events in pattern mode for automation-only patterns', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    const patternId = track.patterns[0].id;
+    const spec = buildRenderSpec({
+      ...session,
+      transport: { ...session.transport, mode: 'pattern' },
+      tracks: [
+        {
+          ...track,
+          patterns: [{
+            id: patternId,
+            kind: 'pattern' as const,
+            duration: 16,
+            events: [],
+          }],
+          sequence: [{
+            patternId,
+            automation: [{
+              controlId: 'timbre',
+              points: [{ at: 0, value: 0.7 }],
+            }],
+          }],
+        },
+        ...session.tracks.slice(1),
+      ],
+    }, [track.id], 1);
+
+    // Should have automation parameter events even with no musical events
+    const paramEvents = spec.tracks[0].events.filter(e => e.type === 'set-patch');
+    expect(paramEvents.length).toBeGreaterThanOrEqual(1);
+    expect(paramEvents[0].patch?.timbre).toBeCloseTo(0.7, 2);
+  });
 });

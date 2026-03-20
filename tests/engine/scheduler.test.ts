@@ -4,7 +4,7 @@ import { Scheduler } from '../../src/engine/scheduler';
 import { createSession, addTrack } from '../../src/engine/session';
 import { toggleStepGate } from '../../src/engine/pattern-primitives';
 import type { Session } from '../../src/engine/types';
-import type { ScheduledNote } from '../../src/engine/sequencer-types';
+import type { ScheduledNote, ScheduledParameterEvent } from '../../src/engine/sequencer-types';
 import { getTrack } from '../../src/engine/types';
 import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from '../../src/engine/canonical-types';
 
@@ -1003,5 +1003,91 @@ describe('Scheduler', () => {
     if (newClicks.length >= 4) {
       expect(nonAccentedNew.length).toBeGreaterThan(0);
     }
+  });
+
+  it('applies sequence automation in pattern mode when PatternRef has automation', () => {
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
+    const patternId = track.patterns[0].id;
+
+    // Set up: trigger at step 0, sequence automation on timbre
+    const events: MusicalEvent[] = [
+      { kind: 'trigger', at: 0, velocity: 0.8 } as TriggerEvent,
+    ];
+    session = {
+      ...session,
+      transport: { ...session.transport, mode: 'pattern' as const },
+      tracks: session.tracks.map(t => t.id === vid
+        ? {
+            ...t,
+            patterns: [{ ...t.patterns[0], events, duration: 16 }],
+            sequence: [{
+              patternId,
+              automation: [{
+                controlId: 'timbre',
+                points: [{ at: 0, value: 0.9 }],
+              }],
+            }],
+          }
+        : t
+      ),
+    };
+
+    const sched = createScheduler();
+    sched.start(0);
+    audioTime = 0.2;
+    vi.advanceTimersByTime(100);
+    sched.stop();
+
+    // The note should have timbre=0.9 from sequence automation
+    expect(notes.length).toBeGreaterThanOrEqual(1);
+    expect(notes[0].params.timbre).toBeCloseTo(0.9, 2);
+  });
+
+  it('schedules automation-only patterns in pattern mode (no musical events)', () => {
+    const vid = session.tracks[0].id;
+    const track = getTrack(session, vid);
+    const patternId = track.patterns[0].id;
+
+    const paramEvents: ScheduledParameterEvent[] = [];
+
+    // Pattern with no musical events, only sequence automation
+    session = {
+      ...session,
+      transport: { ...session.transport, mode: 'pattern' as const },
+      tracks: session.tracks.map(t => t.id === vid
+        ? {
+            ...t,
+            patterns: [{ ...t.patterns[0], events: [], duration: 16 }],
+            sequence: [{
+              patternId,
+              automation: [{
+                controlId: 'timbre',
+                points: [{ at: 0, value: 0.7 }],
+              }],
+            }],
+          }
+        : t
+      ),
+    };
+
+    const sched = new Scheduler(
+      () => session,
+      () => audioTime,
+      () => 'running' as AudioContextState,
+      (note) => notes.push(note),
+      (pos) => positions.push(pos),
+      () => ({}),
+      (pe) => paramEvents.push(pe),
+    );
+    sched.start(0);
+    audioTime = 0.5;
+    vi.advanceTimersByTime(200);
+    sched.stop();
+
+    // Should emit parameter events from the sequence automation even with no note events
+    expect(paramEvents.length).toBeGreaterThanOrEqual(1);
+    expect(paramEvents[0].controlId).toBe('timbre');
+    expect(paramEvents[0].value).toBeCloseTo(0.7, 2);
   });
 });
