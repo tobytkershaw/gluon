@@ -166,18 +166,18 @@ export function SurfaceCanvas({
     : null;
 
   const addButton = onAddModule ? (
-    <div className="relative">
+    <div className="relative inline-flex">
       <button
         onClick={() => setPickerOpen(prev => !prev)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-1.5 px-3 py-2
-          bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-lg
-          text-sm text-zinc-300 hover:text-white transition-colors shadow-lg cursor-pointer"
+        className="flex items-center gap-1.5 px-3 py-1.5
+          bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md
+          text-[11px] font-mono text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
       >
-        <span className="text-base leading-none">+</span>
+        <span className="text-sm leading-none">+</span>
         <span>Add Module</span>
       </button>
       {pickerOpen && (
-        <div className="fixed bottom-14 right-6 z-50">
+        <div className="absolute bottom-full right-0 mb-1 z-50">
           <ModulePicker
             track={track}
             onAddModule={handleAddModule}
@@ -190,23 +190,28 @@ export function SurfaceCanvas({
 
   if (modules.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 text-sm relative">
+      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 text-sm">
         <div className="text-center">
           <p>No surface modules configured.</p>
           <p className="mt-1">
             {onAddModule
-              ? 'Click "+ Add Module" to get started, or ask the AI to set up controls.'
+              ? 'Add a module to get started, or ask the AI to set up controls.'
               : 'The AI will set up controls when you add processors.'}
           </p>
         </div>
-        {addButton}
+        {addButton && <div className="mt-4">{addButton}</div>}
       </div>
     );
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-auto p-2 flex relative">
+    <div ref={containerRef} className="flex-1 overflow-auto p-2 flex flex-col relative">
+      {/* Toolbar */}
+      {addButton && (
+        <div className="flex justify-end pb-1 shrink-0">{addButton}</div>
+      )}
       {/* Grid area */}
+      <div className="flex-1 min-w-0 flex">
       <div className="flex-1 min-w-0">
         <RGL
           className="layout"
@@ -270,8 +275,7 @@ export function SurfaceCanvas({
           />
         </div>
       )}
-
-      {addButton}
+      </div>
     </div>
   );
 }
