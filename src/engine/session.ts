@@ -402,11 +402,21 @@ export function setTrackVolume(session: Session, trackId: string, volume: number
   return updateTrack(withSnapshot, trackId, { volume: Math.max(0, Math.min(1, volume)) });
 }
 
+/** Apply track volume without pushing an undo snapshot (for use during continuous gestures). */
+export function setTrackVolumeNoUndo(session: Session, trackId: string, volume: number): Session {
+  return updateTrack(session, trackId, { volume: Math.max(0, Math.min(1, volume)) });
+}
+
 export function setTrackPan(session: Session, trackId: string, pan: number): Session {
   const track = session.tracks.find(v => v.id === trackId);
   if (!track) return session;
   const withSnapshot = pushTrackPropertySnapshot(session, trackId, { pan: track.pan }, `Set track pan to ${pan}`);
   return updateTrack(withSnapshot, trackId, { pan: Math.max(-1, Math.min(1, pan)) });
+}
+
+/** Apply track pan without pushing an undo snapshot (for use during continuous gestures). */
+export function setTrackPanNoUndo(session: Session, trackId: string, pan: number): Session {
+  return updateTrack(session, trackId, { pan: Math.max(-1, Math.min(1, pan)) });
 }
 
 function pushTransportSnapshot(session: Session, description: string): Session {
@@ -438,6 +448,14 @@ export function setTransportBpm(session: Session, bpm: number): Session {
   };
 }
 
+/** Apply BPM change without pushing an undo snapshot (for use during continuous gestures). */
+export function setTransportBpmNoUndo(session: Session, bpm: number): Session {
+  return {
+    ...session,
+    transport: { ...session.transport, bpm: Math.max(20, Math.min(300, bpm)) },
+  };
+}
+
 export function toggleMetronome(session: Session): Session {
   const prev = session.transport.metronome;
   const withSnapshot = pushTransportSnapshot(session, `Toggle metronome ${prev.enabled ? 'off' : 'on'}`);
@@ -460,6 +478,14 @@ export function setTransportSwing(session: Session, swing: number): Session {
   return {
     ...withSnapshot,
     transport: { ...withSnapshot.transport, swing: Math.max(0, Math.min(1, swing)) },
+  };
+}
+
+/** Apply swing change without pushing an undo snapshot (for use during continuous gestures). */
+export function setTransportSwingNoUndo(session: Session, swing: number): Session {
+  return {
+    ...session,
+    transport: { ...session.transport, swing: Math.max(0, Math.min(1, swing)) },
   };
 }
 
@@ -566,6 +592,16 @@ export function setMaster(session: Session, update: Partial<MasterChannel>): Ses
     pan: update.pan != null ? Math.max(-1, Math.min(1, update.pan)) : prev.pan,
   };
   return { ...session, master: next, undoStack: [...session.undoStack, snapshot] };
+}
+
+/** Apply master channel update without pushing an undo snapshot (for use during continuous gestures). */
+export function setMasterNoUndo(session: Session, update: Partial<MasterChannel>): Session {
+  const prev = session.master;
+  const next: MasterChannel = {
+    volume: update.volume != null ? Math.max(0, Math.min(1, update.volume)) : prev.volume,
+    pan: update.pan != null ? Math.max(-1, Math.min(1, update.pan)) : prev.pan,
+  };
+  return { ...session, master: next };
 }
 
 // --- Open decisions helpers ---
