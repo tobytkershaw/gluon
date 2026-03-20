@@ -97,7 +97,7 @@ export function ProjectMenu({
         className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-800/50 transition-colors group"
       >
         <SaveIndicator status={saveStatus} />
-        <span className="text-[11px] font-mono text-zinc-300 group-hover:text-zinc-100 truncate max-w-[160px]">
+        <span className="text-[12px] font-semibold text-zinc-300 group-hover:text-zinc-100 truncate max-w-[120px]">
           {projectName}
         </span>
         <svg viewBox="0 0 16 16" className="w-2.5 h-2.5 text-zinc-600 shrink-0">
@@ -214,39 +214,25 @@ export function ProjectMenu({
 }
 
 function SaveIndicator({ status }: { status: SaveStatus }) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (status === 'saved') {
-      setVisible(true); // eslint-disable-line react-hooks/set-state-in-effect -- notification timer
-      const timer = setTimeout(() => setVisible(false), 2000);
-      return () => clearTimeout(timer);
-    }
-    if (status === 'saving' || status === 'error') {
-      setVisible(true);
-    } else {
-      setVisible(false);
-    }
-  }, [status]);
-
+  // Mockup spec: simple 5px dot.
+  // clean (saved/idle) = emerald at 50% opacity, dirty (saving) = amber full opacity, error = red.
   return (
-    <span className="w-2.5 h-2.5 shrink-0 flex items-center justify-center">
-      {status === 'error' && (
-        <span className="w-1.5 h-1.5 rounded-full bg-red-500" title="IndexedDB unavailable; working in memory" />
-      )}
-      {status === 'saving' && (
-        <span
-          className="w-1.5 h-1.5 rounded-full bg-amber-400"
-          style={{ animation: 'pulse-soft 1s ease-in-out infinite' }}
-          title="Saving..."
-        />
-      )}
-      {status === 'saved' && visible && (
-        <svg viewBox="0 0 16 16" className="w-2.5 h-2.5 text-emerald-500/70 transition-opacity duration-500" title="Saved">
-          <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </span>
+    <span
+      className={`w-[5px] h-[5px] rounded-full shrink-0 ${
+        status === 'error'
+          ? 'bg-red-500'
+          : status === 'saving'
+            ? 'bg-amber-400'
+            : 'bg-emerald-400 opacity-50'
+      }`}
+      title={
+        status === 'error'
+          ? 'IndexedDB unavailable; working in memory'
+          : status === 'saving'
+            ? 'Unsaved changes'
+            : 'Saved'
+      }
+    />
   );
 }
 

@@ -11,14 +11,15 @@ export interface ABControlsProps {
   onAbClear: () => void;
 }
 
-/** Standalone A/B comparison controls — rendered in the top-right collaboration zone. */
+/** Standalone A/B comparison controls — rendered in the top-right collaboration zone.
+ *  Fixed-width zone (76px) prevents layout shift between inactive/active states. */
 export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABControlsProps) {
   return (
-    <div className="flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5 shrink-0" style={{ width: 76 }}>
       {abActive === null ? (
         <button
           onClick={onAbCapture}
-          className="h-5 px-1.5 rounded text-[12px] font-medium tracking-wider uppercase transition-colors bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200"
+          className="py-[3px] px-[10px] rounded text-[10px] font-mono uppercase tracking-wider transition-colors border border-zinc-700/30 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800"
           title="Snapshot current state as A"
         >
           A/B
@@ -27,10 +28,10 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
         <>
           <button
             onClick={onAbToggle}
-            className={`h-5 w-5 rounded-l text-[11px] font-bold transition-colors border ${
+            className={`py-[3px] px-2 rounded-sm text-[10px] font-mono font-bold transition-colors border ${
               abActive === 'a'
-                ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
-                : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
+                ? 'bg-amber-400/10 text-amber-400 border-amber-400/30'
+                : 'text-zinc-500 border-zinc-700/30 hover:text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800'
             }`}
             title="Switch to A"
           >
@@ -38,10 +39,10 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
           </button>
           <button
             onClick={onAbToggle}
-            className={`h-5 w-5 rounded-r text-[11px] font-bold transition-colors border border-l-0 ${
+            className={`py-[3px] px-2 rounded-sm text-[10px] font-mono font-bold transition-colors border ${
               abActive === 'b'
-                ? 'bg-violet-500/25 text-violet-300 border-violet-500/50'
-                : 'bg-zinc-800 text-zinc-500 border-zinc-700 hover:text-zinc-200'
+                ? 'bg-amber-400/10 text-amber-400 border-amber-400/30'
+                : 'text-zinc-500 border-zinc-700/30 hover:text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800'
             }`}
             title="Switch to B"
           >
@@ -49,10 +50,10 @@ export function ABControls({ abActive, onAbCapture, onAbToggle, onAbClear }: ABC
           </button>
           <button
             onClick={onAbClear}
-            className="h-5 w-4 rounded text-[11px] transition-colors bg-zinc-800 text-zinc-600 border border-zinc-700 hover:text-zinc-300 ml-0.5"
+            className="py-[3px] px-1.5 rounded-sm text-[10px] font-mono transition-colors text-zinc-600 border border-zinc-700/30 hover:text-zinc-300 hover:border-zinc-700 hover:bg-zinc-800"
             title="Discard A/B snapshot"
           >
-            x
+            &times;
           </button>
         </>
       )}
@@ -147,17 +148,17 @@ export function TransportStrip({
           onClick={onToggleRecord}
           className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
             activelyRecording
-              ? 'bg-red-500/30 text-red-400 border border-red-500/50 animate-pulse'
+              ? 'bg-rose-400/15 text-rose-400 border border-rose-400/30 animate-[rec-pulse_1.5s_ease-in-out_infinite]'
               : recordArmed
-                ? 'bg-red-500/20 text-red-400 border border-red-500/40'
-                : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-red-400'
+                ? 'bg-rose-400/15 text-rose-400 border border-rose-400/30'
+                : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-rose-400'
           }`}
           title={activelyRecording ? 'Disarm Recording' : recordArmed ? 'Disarm Recording' : 'Arm Recording'}
           aria-label={activelyRecording ? 'Recording — click to disarm' : recordArmed ? 'Record armed — click to disarm' : 'Arm recording'}
           aria-pressed={recordArmed}
         >
           <div className={`w-2 h-2 rounded-full ${
-            activelyRecording ? 'bg-red-500' : recordArmed ? 'bg-red-400' : 'bg-current'
+            activelyRecording ? 'bg-rose-400' : recordArmed ? 'bg-rose-400' : 'bg-current'
           }`} />
         </button>
         {/* Loop / Cycle toggle */}
@@ -165,7 +166,7 @@ export function TransportStrip({
           onClick={() => { if (!isPatternMode) onLoopChange(!loop); }}
           className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${
             loopEnabled
-              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+              ? 'bg-cyan-400/12 text-cyan-400 border border-cyan-400/30'
               : 'bg-zinc-800 text-zinc-500 border border-zinc-700 hover:text-zinc-200'
           } ${isPatternMode ? 'opacity-50 cursor-not-allowed' : ''}`}
           title={isPatternMode ? 'Loop locked in pattern mode' : loopEnabled ? 'Loop ON — click to disable' : 'Loop OFF — click to enable'}
