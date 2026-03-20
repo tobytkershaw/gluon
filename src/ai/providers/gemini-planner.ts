@@ -158,10 +158,9 @@ export class GeminiPlannerProvider implements PlannerProvider {
     if (upcomingUserMessage) {
       contents.push({ role: 'user', parts: [{ text: upcomingUserMessage }] });
     }
-    const geminiDeclarations = toGeminiDeclarations(tools);
-
     // Count system prompt tokens separately — the countTokens endpoint on the
-    // Gemini Developer API does not support the systemInstruction config param.
+    // Gemini Developer API does not support the systemInstruction config param
+    // or the tools config param.
     const sysResult = await this.ai.models.countTokens({
       model: MODEL,
       contents: [{ role: 'user', parts: [{ text: systemPrompt }] }],
@@ -176,9 +175,6 @@ export class GeminiPlannerProvider implements PlannerProvider {
     const msgResult = await this.ai.models.countTokens({
       model: MODEL,
       contents,
-      config: {
-        tools: [{ functionDeclarations: geminiDeclarations }],
-      },
     });
 
     return (sysResult.totalTokens ?? 0) + (msgResult.totalTokens ?? 0);
