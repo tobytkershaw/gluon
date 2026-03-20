@@ -9,10 +9,9 @@ import { createBusTrack, createEmptyTrack } from '../engine/session';
 
 /** Starter pools keyed by project state. */
 const EMPTY_PROJECT_STARTERS = [
-  'Start a dark techno kick',
-  'Sketch a bass gesture',
-  'Set up a pad with slow modulation',
-  'What can you do?',
+  'Something dark and heavy',
+  'A bright pop beat',
+  'Ambient textures',
 ];
 
 const TRACKS_EXIST_STARTERS = [
@@ -87,19 +86,41 @@ interface Props {
 }
 
 export function PromptStarters({ tracks, messages, onSelect }: Props) {
-  const { starters } = selectStarters(tracks, messages);
+  const { state, starters } = selectStarters(tracks, messages);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4 px-4">
-      <svg viewBox="0 0 24 24" className="w-10 h-10 text-zinc-100 opacity-[0.06]">
-        <path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
-      </svg>
-      <div className="flex flex-wrap justify-center gap-2 max-w-sm" style={{ animation: 'fade-up 0.2s ease-out' }}>
+    <div className="flex flex-col items-center justify-center h-full gap-6 px-4" style={{ paddingTop: 80 }}>
+      {state === 'empty' && (
+        <>
+          <span className="text-[28px] font-bold text-zinc-200 tracking-tight lowercase select-none" style={{ letterSpacing: '-0.03em' }}>gluon</span>
+          <span className="text-[15px] text-zinc-500 text-center max-w-[400px]">What do you want to make?</span>
+        </>
+      )}
+      {state !== 'empty' && (
+        <svg viewBox="0 0 24 24" className="w-10 h-10 text-zinc-100 opacity-[0.06]">
+          <path fill="currentColor" d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
+        </svg>
+      )}
+      <div className="flex flex-wrap justify-center gap-2 max-w-[500px]" style={{ animation: 'fade-up 0.2s ease-out' }}>
         {starters.map((prompt) => (
           <button
             key={prompt}
             onClick={() => onSelect(prompt)}
-            className="px-3 py-1.5 rounded-full text-[12px] text-zinc-500 border border-zinc-800 hover:border-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/40 transition-colors cursor-pointer"
+            className="px-3 py-2 rounded-lg text-[13px] text-zinc-400 border transition-colors cursor-pointer"
+            style={{
+              background: 'var(--bg-raised, #282523)',
+              borderColor: 'var(--border, rgba(61,57,53,0.6))',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'var(--bg-hover, #3d3935)';
+              e.currentTarget.style.borderColor = 'var(--zinc-600, #57534e)';
+              e.currentTarget.style.color = 'var(--text-primary, #e5e2dc)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'var(--bg-raised, #282523)';
+              e.currentTarget.style.borderColor = 'var(--border, rgba(61,57,53,0.6))';
+              e.currentTarget.style.color = '';
+            }}
           >
             {prompt}
           </button>

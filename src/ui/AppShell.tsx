@@ -385,7 +385,7 @@ export function AppShell({
 
         <div className="flex-1 flex min-h-0">
           {/* Chat main content (flex-1) */}
-          <div className="flex-1 flex flex-col min-h-0 items-center">
+          <div className="flex-1 flex flex-col min-h-0 items-center" style={{ background: '#13111C' }}>
             <div className="flex flex-col flex-1 min-h-0 w-full" style={{ maxWidth: 800 }}>
               <div className="flex items-center gap-2 px-4 py-2.5">
                 <span className="text-[11px] uppercase tracking-[0.2em] text-violet-400/50 font-medium select-none">Gluon</span>
@@ -415,7 +415,7 @@ export function AppShell({
                     <ChatMessages messages={messages} isThinking={isThinking} isListening={isListening} streamingText={streamingText} streamingLogEntries={streamingLogEntries} streamingRejections={streamingRejections} reactions={reactions} onReaction={onReaction} undoStack={undoStack} onUndoMessage={onUndoMessage} tracks={tracks} sessionMessages={messages} onStarterSelect={onSend} onAuditionStart={onAuditionStart} onAuditionStop={onAuditionStop} activeAuditionId={activeAuditionId} />
                   </div>
 
-                  <div className="shrink-0 border-t border-zinc-800/40 pb-2">
+                  <div className="shrink-0">
                     <ChatComposer
                       ref={composerRef}
                       onSend={onSend}
