@@ -2,40 +2,40 @@ import { describe, expect, it } from 'vitest';
 import type { ProcessorContract, ModulatorContract, ModuleCommand } from '../../src/audio/module-contract';
 import { moduleDescriptors } from '../../src/audio/module-descriptors';
 
-// Type-level conformance: verify each module class satisfies the contract via its type alias.
-// These are compile-time checks — if the aliases are wrong, tsc will fail.
-import type { RingsEngine } from '../../src/audio/rings-synth';
-import type { CloudsEngine } from '../../src/audio/clouds-synth';
-import type { RipplesEngine } from '../../src/audio/ripples-synth';
-import type { EqEngine } from '../../src/audio/eq-synth';
-import type { CompressorEngine } from '../../src/audio/compressor-synth';
-import type { StereoEngine } from '../../src/audio/stereo-synth';
-import type { ChorusEngine } from '../../src/audio/chorus-synth';
-import type { DistortionEngine } from '../../src/audio/distortion-synth';
-import type { WarpsEngine } from '../../src/audio/warps-synth';
-import type { ElementsEngine } from '../../src/audio/elements-synth';
-import type { BeadsEngine } from '../../src/audio/beads-synth';
-import type { FramesEngine } from '../../src/audio/frames-synth';
-import type { TidesEngine } from '../../src/audio/tides-synth';
-import type { MarblesEngine } from '../../src/audio/marbles-synth';
+// Type-level conformance: verify each concrete *Synth class satisfies the contract.
+// These are compile-time checks — if a class drops a required method, tsc will fail.
+import type { RingsSynth } from '../../src/audio/rings-synth';
+import type { CloudsSynth } from '../../src/audio/clouds-synth';
+import type { RipplesSynth } from '../../src/audio/ripples-synth';
+import type { EqSynth } from '../../src/audio/eq-synth';
+import type { CompressorSynth } from '../../src/audio/compressor-synth';
+import type { StereoSynth } from '../../src/audio/stereo-synth';
+import type { ChorusSynth } from '../../src/audio/chorus-synth';
+import type { DistortionSynth } from '../../src/audio/distortion-synth';
+import type { WarpsSynth } from '../../src/audio/warps-synth';
+import type { ElementsSynth } from '../../src/audio/elements-synth';
+import type { BeadsSynth } from '../../src/audio/beads-synth';
+import type { FramesSynth } from '../../src/audio/frames-synth';
+import type { TidesSynth } from '../../src/audio/tides-synth';
+import type { MarblesSynth } from '../../src/audio/marbles-synth';
 
-// Compile-time: all processor type aliases resolve to ProcessorContract
-type _AssertRings = RingsEngine extends ProcessorContract ? true : never;
-type _AssertClouds = CloudsEngine extends ProcessorContract ? true : never;
-type _AssertRipples = RipplesEngine extends ProcessorContract ? true : never;
-type _AssertEq = EqEngine extends ProcessorContract ? true : never;
-type _AssertCompressor = CompressorEngine extends ProcessorContract ? true : never;
-type _AssertStereo = StereoEngine extends ProcessorContract ? true : never;
-type _AssertChorus = ChorusEngine extends ProcessorContract ? true : never;
-type _AssertDistortion = DistortionEngine extends ProcessorContract ? true : never;
-type _AssertWarps = WarpsEngine extends ProcessorContract ? true : never;
-type _AssertElements = ElementsEngine extends ProcessorContract ? true : never;
-type _AssertBeads = BeadsEngine extends ProcessorContract ? true : never;
-type _AssertFrames = FramesEngine extends ProcessorContract ? true : never;
+// Compile-time: all concrete processor classes extend ProcessorContract
+type _AssertRings = RingsSynth extends ProcessorContract ? true : never;
+type _AssertClouds = CloudsSynth extends ProcessorContract ? true : never;
+type _AssertRipples = RipplesSynth extends ProcessorContract ? true : never;
+type _AssertEq = EqSynth extends ProcessorContract ? true : never;
+type _AssertCompressor = CompressorSynth extends ProcessorContract ? true : never;
+type _AssertStereo = StereoSynth extends ProcessorContract ? true : never;
+type _AssertChorus = ChorusSynth extends ProcessorContract ? true : never;
+type _AssertDistortion = DistortionSynth extends ProcessorContract ? true : never;
+type _AssertWarps = WarpsSynth extends ProcessorContract ? true : never;
+type _AssertElements = ElementsSynth extends ProcessorContract ? true : never;
+type _AssertBeads = BeadsSynth extends ProcessorContract ? true : never;
+type _AssertFrames = FramesSynth extends ProcessorContract ? true : never;
 
-// Compile-time: all modulator type aliases resolve to ModulatorContract
-type _AssertTides = TidesEngine extends ModulatorContract ? true : never;
-type _AssertMarbles = MarblesEngine extends ModulatorContract ? true : never;
+// Compile-time: all concrete modulator classes extend ModulatorContract
+type _AssertTides = TidesSynth extends ModulatorContract ? true : never;
+type _AssertMarbles = MarblesSynth extends ModulatorContract ? true : never;
 
 // Suppress unused type warnings
 const _typeChecks: [
