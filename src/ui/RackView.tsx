@@ -157,19 +157,27 @@ export function RackView({
 
       {/* Module area: wrap left-to-right with browser hint */}
       <div className="flex-1 flex flex-wrap gap-4 p-6 overflow-y-auto items-start relative" style={{ alignContent: 'flex-start' }}>
-        {/* Add module button (bottom-left, matching Patch view style) */}
-        <div className="absolute bottom-3 left-3 z-10">
-          <button
-            type="button"
-            onClick={() => setBrowserOpen(true)}
-            className="h-6 px-2 flex items-center gap-1 rounded border cursor-pointer transition-colors text-[11px] font-mono uppercase tracking-wider"
-            style={{ background: '#282523', borderColor: 'rgba(61,57,53,0.6)', color: '#a8a39a' }}
-            title="Add module"
-          >
-            <span className="text-sm leading-none">+</span>
-            <span>Module</span>
-          </button>
-        </div>
+        {/* Add module tab (right edge) */}
+        <button
+          type="button"
+          onClick={() => setBrowserOpen(true)}
+          className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center cursor-pointer hover:bg-zinc-800 transition-colors z-10"
+          style={{
+            width: 24,
+            height: 96,
+            background: 'var(--bg-surface, #1c1917)',
+            border: '1px solid rgba(61,57,53,0.6)',
+            borderRight: 'none',
+            borderRadius: '6px 0 0 6px',
+            color: 'var(--text-faint, #57534e)',
+            fontSize: 14,
+            writingMode: 'vertical-rl',
+            letterSpacing: '0.06em',
+          }}
+          title="Add module"
+        >
+          <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase' }}>+ Module</span>
+        </button>
 
         {/* Source module panel */}
         <ModulePanel

@@ -1586,19 +1586,26 @@ export function PatchView({ session, onModulationDepthChange, onModulationDepthC
           </div>
         </div>
 
-        {/* Add module button (bottom-left) */}
+        {/* Add module tab (right edge) */}
         {(onAddProcessor || onAddModulator) && (
-          <div className="absolute bottom-3 left-3">
-            <button
-              className="h-6 px-2 flex items-center gap-1 rounded border cursor-pointer transition-colors text-[11px] font-mono uppercase tracking-wider"
-              style={{ background: '#282523', borderColor: 'rgba(61,57,53,0.6)', color: '#a8a39a' }}
-              title="Add module"
-              onClick={() => setBrowserOpen(true)}
-            >
-              <span className="text-sm leading-none">+</span>
-              <span>Module</span>
-            </button>
-          </div>
+          <button
+            className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center cursor-pointer hover:bg-zinc-800 transition-colors z-10"
+            style={{
+              width: 24,
+              height: 96,
+              background: 'var(--bg-surface, #1c1917)',
+              border: '1px solid rgba(61,57,53,0.6)',
+              borderRight: 'none',
+              borderRadius: '6px 0 0 6px',
+              color: 'var(--text-faint, #57534e)',
+              writingMode: 'vertical-rl' as const,
+              letterSpacing: '0.06em',
+            }}
+            title="Add module"
+            onClick={() => setBrowserOpen(true)}
+          >
+            <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase' }}>+ Module</span>
+          </button>
         )}
       </div>
 
