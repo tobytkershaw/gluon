@@ -35,7 +35,7 @@ import { executeOperations, executeStepActions, finalizeAITurn, prevalidateActio
 import type { OnStepCallback, StepExecutor } from '../ai/types';
 import type { ExecutionReportLogEntry } from '../engine/canonical-types';
 import { toggleStepGate, toggleStepAccent, setStepParamLock, clearPattern, setPatternLength, insertAutomationEvent, quantizeRegion } from '../engine/pattern-primitives';
-import { runtimeParamToControlId, controlIdToRuntimeParam, getProcessorDefaultParams } from '../audio/instrument-registry';
+import { runtimeParamToControlId, controlIdToRuntimeParam, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { addEvent, updateEvent, removeEvent, removeEventsByIndices, addEvents, transposeEventsByIndices } from '../engine/event-primitives';
 import { rotateRegion, transposeRegion, reverseRegion, duplicateRegionEvents } from '../engine/transform-operations';
 import type { EventSelector } from '../engine/event-primitives';
@@ -2320,8 +2320,9 @@ export default function App() {
       const track = getTrack(s, captured.trackId);
       const mod = (track.modulators ?? []).find(m => m.id === modulatorId);
       if (!mod) return s;
-      const changed = Object.keys(captured.prevParams).some(
-        k => Math.abs((mod.params[k] ?? 0) - captured.prevParams[k]) > 0.001
+      const allKeys = new Set([...Object.keys(captured.prevParams), ...Object.keys(mod.params)]);
+      const changed = [...allKeys].some(
+        k => Math.abs((mod.params[k] ?? 0) - (captured.prevParams[k] ?? 0)) > 0.001
       );
       if (!changed) return s;
       const snapshot: ModulatorStateSnapshot = {
@@ -2704,7 +2705,7 @@ export default function App() {
         id: crypto.randomUUID(),
         type,
         model: 0,
-        params: {} as Record<string, number>,
+        params: getProcessorDefaultParams(type, 0),
       };
       const snapshot: ProcessorSnapshot = {
         kind: 'processor',
@@ -2786,7 +2787,7 @@ export default function App() {
         id: crypto.randomUUID(),
         type,
         model: 1, // default to Looping mode
-        params: {} as Record<string, number>,
+        params: getModulatorDefaultParams(type, 1),
       };
       const snapshot: ModulatorSnapshot = {
         kind: 'modulator',
