@@ -353,7 +353,9 @@ export function AppShell({
               onTogglePlay={onTogglePlay}
               onHardStop={onHardStop}
               onBpmChange={onBpmChange}
+              onBpmCommit={onBpmCommit}
               onSwingChange={onSwingChange}
+              onSwingCommit={onSwingCommit}
               onToggleRecord={onToggleRecord}
               metronomeEnabled={metronomeEnabled}
               metronomeVolume={metronomeVolume}
