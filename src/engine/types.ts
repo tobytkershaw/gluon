@@ -573,6 +573,8 @@ export interface DrumPadSnapshot {
   kind: 'drum-pad';
   trackId: string;
   prevPads: DrumPad[];
+  /** Previous patterns snapshot — set when removing a pad so orphaned trigger events can be restored on undo. */
+  prevPatterns?: import('./canonical-types').Pattern[];
   timestamp: number;
   description: string;
 }
