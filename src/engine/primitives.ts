@@ -487,7 +487,18 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
       prevValues[param] = track.params[param] ?? 0;
       aiTargetValues[param] = track.params[param] ?? 0;  // current value = what the AI set
     }
-    return { ...snapshot, prevValues, aiTargetValues, timestamp: now };
+    // Capture current provenance so redo can restore it (#1173)
+    let prevProvenance: Partial<import('./canonical-types').ControlState> | undefined;
+    if (track.controlProvenance && snapshot.prevProvenance) {
+      prevProvenance = {};
+      for (const controlId of Object.keys(snapshot.prevProvenance)) {
+        if (track.controlProvenance[controlId]) {
+          prevProvenance[controlId] = { ...track.controlProvenance[controlId] };
+        }
+      }
+      if (Object.keys(prevProvenance).length === 0) prevProvenance = undefined;
+    }
+    return { ...snapshot, prevValues, aiTargetValues, prevProvenance, timestamp: now };
   }
 
   if (snapshot.kind === 'pattern') {
