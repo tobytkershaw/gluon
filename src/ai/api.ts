@@ -3678,20 +3678,6 @@ export class GluonAI {
                   sampleRate: snap.sampleRate,
                 });
               }
-              // Check for duplicate trackIds — comparing the same track against itself is meaningless
-              const seenTrackIds = new Set<string>();
-              const duplicateTrackIds: string[] = [];
-              for (const ta of trackAudios) {
-                if (seenTrackIds.has(ta.trackId)) {
-                  duplicateTrackIds.push(ta.trackId);
-                } else {
-                  seenTrackIds.add(ta.trackId);
-                }
-              }
-              if (duplicateTrackIds.length > 0) {
-                analysisErrors.push(`Masking analysis received duplicate snapshots for track(s): ${[...new Set(duplicateTrackIds)].join(', ')}. Provide one snapshot per track.`);
-                break;
-              }
               if (trackAudios.length >= 2) {
                 results.masking = analyzeMasking(trackAudios);
               } else {
