@@ -5316,6 +5316,18 @@ export class GluonAI {
 
         const patch = savePatch(saveTrack, (args.name as string).trim(), tags);
 
+        // Ensure cache is loaded from IndexedDB before appending — prevents
+        // a subsequent lazy-load from overwriting freshly saved patches (#1212).
+        if (!this._userPatchesLoaded) {
+          try {
+            const m = await import('../engine/patch-library');
+            this._userPatches = await m.loadUserPatches();
+          } catch {
+            // IndexedDB not available (e.g. test environment) — continue with empty cache
+          }
+          this._userPatchesLoaded = true;
+        }
+
         // Add to in-memory cache
         this._userPatches.push(patch);
 
