@@ -48,9 +48,18 @@ export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, on
   const sourceLabel = getModelName(track.model);
 
   return (
-    <div className="flex items-center gap-1.5 text-[11px]">
+    <div className="flex items-center gap-2 py-2 px-4 border-b"
+      style={{ background: 'var(--bg-surface, #1c1917)', borderColor: 'rgba(61,57,53,0.6)' }}
+    >
       {/* Source badge */}
-      <span className="flex items-center px-2 py-0.5 rounded bg-amber-400/10 border border-amber-400/20 text-amber-300 font-medium truncate max-w-[140px]">
+      <span
+        className="flex items-center gap-1 px-2.5 py-0.5 rounded font-mono text-[10px] font-medium cursor-pointer truncate max-w-[140px]"
+        style={{
+          background: 'rgba(251,191,36,0.1)',
+          color: '#fbbf24',
+          border: '1px solid rgba(251,191,36,0.2)',
+        }}
+      >
         {sourceLabel}
         {onNodeClick && (
           <ChevronButton onClick={() => onNodeClick('source')} />
@@ -60,17 +69,18 @@ export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, on
       {processors.map((proc) => {
         const isSelected = selectedProcessorId === proc.id;
         return (
-          <div key={proc.id} className="flex items-center gap-1.5">
-            <svg className="w-3 h-3 text-zinc-600 flex-shrink-0" viewBox="0 0 12 12" fill="none">
-              <path d="M2 6H10M7.5 3.5L10 6L7.5 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <div key={proc.id} className="flex items-center gap-2">
+            <span className="text-[10px]" style={{ color: 'var(--text-faint, #57534e)' }}>{'\u2192'}</span>
             <button
               onClick={() => onSelectProcessor?.(isSelected ? null : proc.id)}
-              className={`flex items-center px-2 py-0.5 rounded font-medium truncate max-w-[180px] transition-colors ${
-                isSelected
-                  ? 'bg-sky-400/20 border border-sky-400/40 text-sky-200'
-                  : 'bg-sky-400/10 border border-sky-400/20 text-sky-300 hover:bg-sky-400/15 hover:border-sky-400/30'
-              } ${proc.enabled === false ? 'opacity-40 line-through' : ''}`}
+              className={`flex items-center gap-1 px-2.5 py-0.5 rounded font-mono text-[10px] font-medium truncate max-w-[180px] transition-colors ${
+                proc.enabled === false ? 'opacity-40 line-through' : ''
+              }`}
+              style={{
+                background: isSelected ? 'rgba(56,189,248,0.2)' : 'rgba(56,189,248,0.08)',
+                color: isSelected ? '#bae6fd' : '#38bdf8',
+                border: isSelected ? '2px solid rgba(56,189,248,0.4)' : '1px solid rgba(56,189,248,0.15)',
+              }}
             >
               {getProcessorLabel(proc.type, proc.model)}
               {onNodeClick && (
@@ -80,6 +90,19 @@ export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, on
           </div>
         );
       })}
+
+      {/* Output badge */}
+      <span className="text-[10px]" style={{ color: 'var(--text-faint, #57534e)' }}>{'\u2192'}</span>
+      <span
+        className="px-2.5 py-0.5 rounded font-mono text-[10px] font-medium"
+        style={{
+          background: 'var(--bg-raised, #282523)',
+          color: 'var(--text-muted, #7c776e)',
+          border: '1px solid rgba(61,57,53,0.3)',
+        }}
+      >
+        Output
+      </span>
 
       {/* Modulator badges (visually separated) */}
       {modulators.length > 0 && (
@@ -92,7 +115,7 @@ export function ChainStrip({ track, selectedProcessorId, selectedModulatorId, on
           <button
             key={mod.id}
             onClick={() => onSelectModulator?.(isSelected ? null : mod.id)}
-            className={`flex items-center px-2 py-0.5 rounded font-medium truncate max-w-[140px] transition-colors ${
+            className={`flex items-center px-2.5 py-0.5 rounded font-mono text-[10px] font-medium truncate max-w-[140px] transition-colors ${
               isSelected
                 ? 'bg-violet-400/20 border border-violet-400/40 text-violet-200'
                 : 'bg-violet-400/10 border border-violet-400/20 text-violet-300 hover:bg-violet-400/15 hover:border-violet-400/30'

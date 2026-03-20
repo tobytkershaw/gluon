@@ -191,7 +191,16 @@ export function Knob({
       onMouseLeave={() => setHovered(false)}
     >
       {/* Label */}
-      <span className={`text-zinc-500 text-center truncate w-full leading-tight ${isSmall ? 'text-[9px]' : 'text-[11px]'}`}>
+      <span
+        className="text-center truncate w-full leading-tight font-mono"
+        style={{
+          fontSize: 8,
+          color: 'var(--text-muted, #7c776e)',
+          whiteSpace: 'nowrap',
+          overflow: 'visible',
+          textOverflow: 'clip',
+        }}
+      >
         {label}
       </span>
 
@@ -221,7 +230,7 @@ export function Knob({
         <path
           d={describeArc(cx, cy, r, 1)}
           fill="none"
-          stroke="rgb(63 63 70)" /* zinc-700 */
+          stroke="rgb(61 57 53)" /* zinc-700 (warm) */
           strokeWidth={STROKE_WIDTH}
           strokeLinecap="round"
         />
@@ -235,6 +244,13 @@ export function Knob({
             strokeLinecap="round"
           />
         )}
+        {/* Center dot */}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={size >= 52 ? 4 : size >= 42 ? 3 : 2.5}
+          fill="rgb(87 83 78)" /* zinc-600 */
+        />
         {/* Indicator line */}
         <line
           x1={indInner.x}
@@ -307,7 +323,7 @@ export function Knob({
           ))}
         </div>
       ) : (
-        <span className={`text-zinc-500 font-mono leading-tight ${isSmall ? 'text-[8px]' : 'text-[10px]'}`}>
+        <span className="font-mono leading-tight" style={{ fontSize: 8, color: 'var(--text-faint, #57534e)' }}>
           {(hovered || isDragging) && displayMapping
             ? formatDisplayValue(value, displayMapping)
             : formatDisplayValue(value)}
