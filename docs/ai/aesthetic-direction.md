@@ -101,7 +101,17 @@ rejected_directions: [
 
 The rationale gives the model interpretive context. This is especially important for rejections, where the *reason* determines what to avoid. "Too fizzy" is a different constraint from "too wide."
 
-### 4. Restraint Guidance
+### 4. Project Memories
+
+Persistent, project-scoped memories that survive context rotation and span sessions. Three types:
+
+- **direction** — overall creative direction ("dark, minimal techno with emphasis on sub weight")
+- **track-narrative** — per-track character and role notes ("Kick is punchy and dry, no reverb")
+- **decision** — key choices made during sessions ("decided to keep bass monophonic for clarity")
+
+Memories are written by the AI via `save_memory`, retrieved via `recall_memories`, and removed via `forget_memory`. Max 30 per project. They appear in the compressed state as a `projectMemory` field — a natural-language summary grouped by type. The AI reads memories at the start of each turn to maintain continuity.
+
+### 5. Restraint Guidance
 
 An explicit restraint field in the collaboration state.
 
@@ -168,7 +178,7 @@ Without these, taste-informed preservation is just a prompt instruction that the
 
 **No mechanical update rules.** No "undo → strong negative update" pipeline. Interpretation is contextual, not mechanical.
 
-**No persistent user taste.** Cross-session taste is deferred. Session-level collaboration state is sufficient. If persistent taste becomes necessary, it should be a separate RFC with evidence from real sessions.
+**No persistent user taste.** Cross-session taste is partially addressed by per-project AI memory (`save_memory`/`recall_memories`/`forget_memory` tools). The AI can persist creative direction, track narratives, and key decisions across sessions and context rotations. Cross-project user taste (style preferences that transfer between projects) is covered by `docs/rfcs/cross-project-memory.md` and is not yet implemented.
 
 **No autonomy heuristic.** No "high confidence + low impact → act" rule. The collaboration model already provides guidance for choosing between asking, prototyping, and editing.
 

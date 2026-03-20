@@ -2,7 +2,7 @@
 
 What the AI agent needs at inference time to interact with Gluon's canonical musical model.
 
-**Architecture:** The AI uses a multi-provider, provider-abstracted function calling architecture (currently Gemini-only: Gemini 2.5 Pro as planner, Gemini Flash as listener). The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
+**Architecture:** The AI uses a multi-provider, provider-abstracted function calling architecture (currently Gemini-only: Gemini 3.1 Pro as planner, Gemini Flash as listener). The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
 
 ---
 
@@ -20,8 +20,8 @@ Change a control parameter value on a track source, processor, or modulator.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `param` | string | yes | Control ID. Track source (Plaits): `frequency`, `harmonics`, `timbre`, `morph`, `timbre-mod-amount`, `fm-amount`, `morph-mod-amount`, `decay`, `lpg-colour`. Processor (Rings): `structure`, `brightness`, `damping`, `position`, `fine-tune`, `internal-exciter`, `polyphony`. Processor (Clouds): `position`, `size`, `pitch`, `density`, `texture`, `dry-wet`, `feedback`, `stereo-spread`, `reverb`, `freeze`. Processor (Ripples): `cutoff`, `resonance`, `drive`. Processor (Warps): `algorithm`, `timbre`, `level`. Processor (Elements): `bow_level`, `bow_timbre`, `blow_level`, `blow_timbre`, `strike_level`, `strike_timbre`, `coarse`, `fine`, `geometry`, `brightness`, `damping`, `position`, `space`. Processor (Beads): `density`, `time`, `pitch`, `position`, `texture`, `dry-wet`. Processor (EQ): `low-freq`, `low-gain`, `mid1-freq`, `mid1-gain`, `mid1-q`, `mid2-freq`, `mid2-gain`, `mid2-q`, `high-freq`, `high-gain`. Processor (Compressor): `threshold`, `ratio`, `attack`, `release`, `makeup`, `mix`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`, `shift`, `output-mode`, `range`. |
-| `target` | object | yes | `{ absolute: number }` (0.0–1.0) or `{ relative: number }` (-1.0 to 1.0) |
+| `param` | string | yes | Control ID. Track mix aliases: `volume`, `pan`. Track source (Plaits): `frequency`, `harmonics`, `timbre`, `morph`, `timbre-mod-amount`, `fm-amount`, `morph-mod-amount`, `decay`, `lpg-colour`. Drum rack per-pad: `padId.param` (e.g. "kick.timbre", "snare.level", "hat.pan"). Processor (Rings): `structure`, `brightness`, `damping`, `position`, `fine-tune`, `internal-exciter`, `polyphony`. Processor (Clouds): `position`, `size`, `pitch`, `density`, `texture`, `dry-wet`, `feedback`, `stereo-spread`, `reverb`, `freeze`. Processor (Ripples): `cutoff`, `resonance`, `drive`. Processor (Warps): `algorithm`, `timbre`, `level`. Processor (Elements): `bow_level`, `bow_timbre`, `blow_level`, `blow_timbre`, `strike_level`, `strike_timbre`, `coarse`, `fine`, `geometry`, `brightness`, `damping`, `position`, `space`. Processor (Beads): `density`, `time`, `pitch`, `position`, `texture`, `dry-wet`. Processor (EQ): `low-freq`, `low-gain`, `mid1-freq`, `mid1-gain`, `mid1-q`, `mid2-freq`, `mid2-gain`, `mid2-q`, `high-freq`, `high-gain`. Processor (Compressor): `threshold`, `ratio`, `attack`, `release`, `makeup`, `mix`. Modulator (Tides): `frequency`, `shape`, `slope`, `smoothness`, `shift`, `output-mode`, `range`. |
+| `target` | object | yes | `{ absolute: number }` (0.0–1.0), `{ relative: number }` (-1.0 to 1.0), or `{ value: string }` for tempo-synced rate controls (e.g. "1/4", "1/8d"). |
 | `trackId` | string | no | Target track — ordinal ("Track 1") or internal ID ("v0"). Defaults to active track. |
 | `processorId` | string | no | Processor ID to target. When provided, moves a control on the processor instead of the track source. |
 | `modulatorId` | string | no | Modulator ID to target. When provided, moves a control on the modulator (e.g. LFO rate). |
@@ -39,6 +39,12 @@ Apply a rhythmic or melodic pattern to a track using musical events.
 | `humanize` | number | no | Humanize amount (0.0–1.0). Adds subtle velocity and timing jitter. 0.3 is a good default. |
 | `groove` | string | no | Groove template: `straight`, `mpc_swing`, `808_shuffle`, `garage`, `techno_drive`, `laid_back`, `dnb_break`, `dilla`. Applies systematic per-instrument micro-timing. |
 | `groove_amount` | number | no | Groove intensity (0.0–1.0, default 0.7). |
+| `archetype` | string | no | Pattern archetype name — generates events from a built-in library. Drums: `four_on_the_floor`, `two_and_four`, `offbeat_hat`, `16th_hat`, `breakbeat`, `halftime`, `dnb_break`. Bass: `root_eighth`, `octave_bounce`, `walking_bass`, `syncopated_sub`. Melodic: `arp_up`, `arp_down`, `arp_updown`, `stab`. Overrides `events`. |
+| `generator` | object | no | Composable pattern generator. Base types: `pulse` (Euclidean), `sequence`, `probability`, `archetype`. Layers applied in order: `velocity_cycle`, `accent`, `skip_every`, `swing`, `humanize`, `pitch_pattern`, `ghost_notes`, `density_ramp`. Overrides `events` and `archetype`. |
+| `dynamic` | string | no | Dynamic shape name — applies a velocity contour as post-processing. Options: `accent_downbeats`, `accent_backbeat`, `accent_offbeats`, `crescendo`, `decrescendo`, `ghost_verse`, `push_pull`, `swell`. |
+| `paramShapes` | object | no | Inline parameter shapes — per-controlId shape definitions that expand to per-step parameter locks. Shape types: `ramp_up`, `ramp_down`, `triangle`, `sine`, `square`, `random_walk`, `steps`, `envelope`. Simpler than adding a Tides modulator for pattern-scoped parameter motion. |
+| `kit` | object | no | Drum rack kit — record of padId to grid string. For drum rack tracks only. Grid chars: `x`=accent, `o`=hit, `g`=ghost, `h`=soft, `H`=loud, `O`=open, `.`=rest, `|`=bar line. Overrides `events`. |
+| `verify` | boolean | no | When true, automatically renders before/after audio and includes a diff summary in the tool result. Use for measurable sonic changes. |
 
 **Event kinds:**
 - `trigger` — percussion hit. Fields: `at` (step position), `velocity` (0.0–1.0), `accent` (boolean)
@@ -57,12 +63,15 @@ Non-destructively add, remove, or modify individual events in a pattern without 
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track ID |
 | `patternId` | string | no | Pattern ID to edit. Defaults to active pattern if omitted. |
+| `pad` | string | no | For drum rack tracks: scope operations to this pad's events only. |
 | `operations` | array | yes | Batch of add/remove/modify operations (see below). All applied as one undo group. |
 | `description` | string | yes | Short description of the edit (e.g. "add ghost hit on step 7") |
+| `verify` | boolean | no | When true, automatically renders before/after audio and includes a diff summary in the tool result. |
 
 **Operation fields:**
 - `action` — `add`, `remove`, or `modify`
-- `step` — step index (0-based)
+- `step` — step index (0-based). For remove/modify, you may omit step and use `select` instead.
+- `select` — property-based selector for remove/modify when exact microtiming is unknown. Fields: `bar` (1-based), `type`, `pitch`, `pitchClass`, `velocity` ("max"/"min"), `accent`, `controlId`. Must resolve to exactly one event.
 - `event` — (optional) gate event: `{ type: "trigger"|"note", pitch?, velocity?, accent?, duration? }`
 - `params` — (optional) parameter locks: `[{ controlId, value }]`
 
@@ -79,6 +88,7 @@ Transform an existing pattern structurally rather than rewriting it.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track ID |
+| `pad` | string | no | For drum rack tracks: scope transform to one pad's events only. |
 | `operation` | string | yes | `rotate`, `transpose`, `reverse`, `duplicate`, `humanize`, `euclidean`, `ghost_notes`, `swing`, `thin`, `densify` |
 | `steps` | integer | no | For `rotate`: number of steps to shift (positive=forward, negative=backward). |
 | `semitones` | integer | no | For `transpose`: semitones to shift (positive=up, negative=down). |
@@ -104,6 +114,7 @@ Render audio offline and evaluate how it sounds. Works whether or not the transp
 | `bars` | integer | no | Number of bars to render (1-16). Default: 2. |
 | `lens` | string | no | Focus the evaluation on a specific aspect. One of: `full-mix`, `low-end`, `rhythm`, `harmony`, `texture`, `dynamics`. |
 | `compare` | object | no | Request comparative evaluation. Contains `question`. Renders the current state and sends it to the evaluator with a compare-focused prompt. For quantitative before/after diffs, use `render` + `analyze` with type `diff` instead. |
+| `rubric` | boolean | no | When true, returns structured scores (groove, clarity, energy, coherence, space) on a 1–5 scale plus actionable suggestions. Use for systematic evaluation rather than open-ended critique. |
 
 Renders audio offline from the current project state (no transport dependency), converts to WAV, and sends it with a critique prompt to the model. Returns a text critique. Track isolation is built into the render — only the requested tracks are included. Within a single turn, `listen` evaluates the current projected state, including edits made earlier in the same tool loop.
 
@@ -139,6 +150,7 @@ Change tempo, swing, time signature, or play/stop state. At least one parameter 
 | `bpm` | number | no | Tempo (20-300) |
 | `swing` | number | no | Swing amount (0.0–1.0, 0 = straight) |
 | `playing` | boolean | no | true to start, false to stop |
+| `mode` | string | no | Transport mode: `pattern` (loop active pattern) or `song` (play through sequence). |
 | `timeSignatureNumerator` | number | no | Beats per bar (1-16). E.g. 3 for 3/4 time. |
 | `timeSignatureDenominator` | number | no | Beat unit (2, 4, 8, or 16). E.g. 4 for quarter-note beats. |
 
@@ -192,12 +204,13 @@ Remove a specific project memory. Undoable. Use when a memory is outdated or con
 
 #### `set_model`
 
-Switch the mode of a module. Without `processorId`/`modulatorId`, changes the track synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode. With `pad`, changes a drum pad's Plaits model.
+Switch the mode of a module. Without `processorId`/`modulatorId`/`pad`, changes the track synthesis engine. With `processorId`, changes the processor's mode. With `modulatorId`, changes the modulator's mode. With `pad`, changes a drum pad's Plaits model.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track ID |
 | `model` | string | yes | Model/mode ID. Track: `virtual-analog`, `waveshaping`, `fm`, `grain-formant`, `harmonic`, `wavetable`, `chords`, `vowel-speech`, `swarm`, `filtered-noise`, `particle-dust`, `inharmonic-string`, `modal-resonator`, `analog-bass-drum`, `analog-snare`, `analog-hi-hat`. Rings: `modal`, `sympathetic-string`, `string`, `fm-voice`, `sympathetic-quantized`, `string-and-reverb`. Clouds: `granular`, `pitch-shifter`, `looping-delay`, `spectral`. Warps: `crossfade`, `fold`, `ring`, `vocoder`. Elements: `modal`, `string`. Beads: `granular`, `delay`, `wavetable-synth`. Ripples: `lp2`, `lp4`, `bp2`, `hp2`. EQ: `4band`, `8band`. Compressor: `clean`, `opto`, `bus`, `limit`. Tides: `ad`, `looping`, `ar`. |
+| `pad` | string | no | For drum rack tracks: change a specific pad's Plaits model instead of the track's source engine. |
 | `processorId` | string | no | Processor ID to target. When provided, switches the processor's mode instead of the track's synthesis engine. |
 | `modulatorId` | string | no | Modulator ID to target. When provided, switches the modulator's mode (e.g. AD, Looping, AR for Tides). |
 
@@ -332,7 +345,7 @@ Compose a track's UI surface from modules. Each module has a type, bindings to c
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
-| `modules` | array | yes | Array of surface module definitions. Each has `type` (one of `knob-group`, `macro-knob`, `xy-pad`, `step-grid`, `chain-strip`), `bindings` (array of `{ moduleId, controlId }` — what controls the module exposes), `position` (`{ col, row, colSpan?, rowSpan? }` on the surface grid), and optional `config` (type-specific settings). For `macro-knob`, config contains `semanticControl` with `name` (label) and `weights` (array of `{ moduleId, controlId, weight, transform? }` — weights must sum to 1.0). For `knob-group`, config contains `label` (group name). |
+| `modules` | array | yes | Array of surface module definitions. Each has `type` (one of `knob-group`, `macro-knob`, `xy-pad`, `step-grid`, `chain-strip`, `piano-roll`, `pad-grid`), `bindings` (array of `{ role, target }` — binding roles include `control`, `x-axis`/`y-axis`, `region`, `chain`), `position` (`{ x, y, w, h }` on a 12-column grid), and optional `config` (type-specific settings). For `macro-knob`, config contains `semanticControl` with `name` (label) and `weights` (array of `{ moduleId, controlId, weight, transform? }` — weights must sum to 1.0). For `knob-group` with pinning, config contains `pinned: true`. |
 | `description` | string | yes | Short description of the surface configuration. |
 
 #### `pin_control`
@@ -374,7 +387,7 @@ Set per-track visual identity for the Surface view. All visual properties are op
 
 #### `set_track_meta`
 
-Set track metadata: name, volume, pan, muted, solo, approval level, importance, and/or musical role in a single call. At least one field required. Approval requires a reason.
+Set track metadata and mix properties in a single call: name, volume, pan, swing (per-track override), muted, solo, approval, importance, musicalRole, portamentoTime, and/or portamentoMode. At least one field required. Approval requires a reason.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
@@ -382,11 +395,15 @@ Set track metadata: name, volume, pan, muted, solo, approval level, importance, 
 | `name` | string | no | Display name for the track (e.g. "Kick", "Lead Synth"). |
 | `volume` | number | no | Track volume (0.0-1.0, linear gain). |
 | `pan` | number | no | Track pan (-1.0 left to 1.0 right). |
+| `swing` | number | no | Per-track swing override (0.0–1.0). Overrides global transport swing for this track only. |
+| `inheritSwing` | boolean | no | Set to true to clear per-track swing and inherit global transport swing. Mutually exclusive with `swing`. |
 | `muted` | boolean | no | Set the track muted state. true = muted (silent), false = unmuted. |
 | `solo` | boolean | no | Set the track solo state. true = solo (only this track audible), false = unsolo. |
 | `approval` | string | no | Approval level: `exploratory`, `liked`, `approved`, `anchor`. |
 | `importance` | number | no | How important this track is to the mix (0.0-1.0). |
 | `musicalRole` | string | no | Brief description of the track's musical role (e.g. "driving rhythm"). |
+| `portamentoTime` | number | no | Pitch glide time, normalised 0.0–1.0 (0–500ms). 0 = no glide. |
+| `portamentoMode` | string | no | Portamento mode: `off`, `always`, or `legato` (glide only on overlapping notes). |
 | `reason` | string | no | Required when setting approval. Why this approval level is appropriate. |
 
 ### Decision
@@ -471,11 +488,12 @@ Undoable. Produces a `ScaleSnapshot` for undo.
 
 #### `set_chord_progression`
 
-Set a chord progression that guides harmonic content across the project. Defines a sequence of chords tied to bar positions.
+Set the chord progression for bar-based harmonic guidance. Replaces the entire progression. When active, the compressed state exposes chord tones per bar so sketches and motifs can stay aligned to the harmony.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `chords` | array | yes | Chord entries. Each has `bar` (1-based position), `root` (note name, e.g. "C", "F#"), `quality` (e.g. "major", "minor", "dominant7", "diminished"). |
+| `chords` | array | conditional | Chord entries. Each has `bar` (1-based position) and `chord` (chord symbol, e.g. "Fm", "Eb", "C7"). Required unless `clear` is true. |
+| `clear` | boolean | no | Set to true to clear the chord progression. |
 
 Undoable. Produces a `ChordProgressionSnapshot` for undo.
 
@@ -610,6 +628,11 @@ Apply a pre-configured modulation recipe. Adds a Tides modulator with preset par
 | `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID. |
 | `recipe` | string | yes | Modulation recipe name (e.g. "vibrato", "slow_filter_sweep", "tremolo", "wobble", "drift"). |
 | `processorId` | string | no | Specific processor ID for processor-targeted recipes. Auto-finds first matching type if omitted. |
+| `depth` | number | no | Override modulation depth (-1.0 to 1.0). |
+| `rate` | number | no | Override LFO rate (0.0–1.0, normalised). Maps to Tides frequency param. |
+| `shape` | number | no | Override waveform shape (0.0–1.0). |
+| `smoothness` | number | no | Override waveform smoothness (0.0–1.0). |
+| `target` | string | no | Override the modulation target control ID (e.g. "cutoff", "frequency"). |
 
 Compound tool — emits add_modulator, set_model, move, and connect_modulator actions. Undoable as an action group. For processor-targeted recipes (filter sweeps, wobble), the matching processor must already exist on the track.
 
@@ -718,13 +741,12 @@ Each turn, the AI receives compressed session state as JSON:
       "solo": false,
       "volume": 0.80,
       "pan": 0.50,
+      "swing": 0.0,
       "pattern": {
         "length": 16,
         "event_count": 4,
         "triggers": [{ "at": 0, "vel": 1.0 }, { "at": 4, "vel": 0.85 }, { "at": 8, "vel": 0.9 }, { "at": 12, "vel": 0.85 }],
-        "notes": [],
         "accents": [0, 8],
-        "param_locks": [],
         "density": 0.25
       },
       "views": ["step-grid:step-grid-v0"],
@@ -733,8 +755,8 @@ Each turn, the AI receives compressed session state as JSON:
           "id": "rings-1710342000000",
           "type": "rings",
           "model": "modal",
-          "params": { "structure": 0.50, "brightness": 0.50, "damping": 0.70, "position": 0.50 },
-          "enabled": true
+          "params": { "damping": 0.70 },
+          "sidechainSourceId": "v1"
         }
       ],
       "modulators": [
@@ -742,7 +764,7 @@ Each turn, the AI receives compressed session state as JSON:
           "id": "tides-1710342000000",
           "type": "tides",
           "model": "looping",
-          "params": { "frequency": 0.30, "shape": 0.50, "slope": 0.50, "smoothness": 0.50 }
+          "params": { "frequency": 0.30 }
         }
       ],
       "modulations": [
@@ -753,19 +775,23 @@ Each turn, the AI receives compressed session state as JSON:
           "depth": 0.3
         }
       ],
+      "surface_modules": ["KnobGroup[timbre, morph]", "MacroKnob[Warmth]"],
+      "identity": { "hue": 10, "sat": 0.8, "bright": 0.6, "weight": 0.9, "edge": "crisp", "prom": 0.7 },
       "importance": 0.8,
-      "musicalRole": "driving rhythm"
+      "musicalRole": "driving rhythm",
+      "sends": [{ "busId": "bus-v3", "level": 0.3 }]
     }
   ],
   "track_count": 1,
   "soft_track_cap": 16,
   "activeTrackId": "v0",
+  "projectMemory": "## Project Memory (2 memories)\n- Direction: dark, minimal techno aesthetic\n- Track 1 (Kick): punchy and dry, no reverb",
   "transport": { "bpm": 120, "swing": 0.00, "playing": true, "mode": "pattern", "loop": true, "time_signature": "4/4" },
   "context": { "energy": 0.50, "density": 0.30 },
   "undo_depth": 2,
   "redo_depth": 1,
   "recent_human_actions": [
-    { "trackId": "v0", "param": "timbre", "from": 0.80, "to": 0.65, "age_ms": 3200 }
+    { "type": "param", "trackId": "v0", "param": "timbre", "from": 0.80, "to": 0.65, "age_ms": 3200 }
   ],
   "recent_reactions": [
     { "actionGroupIndex": 3, "verdict": "approved", "age_ms": 15000 }
@@ -773,47 +799,54 @@ Each turn, the AI receives compressed session state as JSON:
   "observed_patterns": ["Human has approved 7 of last 10 AI actions — generally receptive"],
   "restraint_level": "adventurous",
   "open_decisions": [],
-  "scale": "C natural minor",
-  "chord_progression": [{ "bar": 1, "root": "C", "quality": "minor" }, { "bar": 5, "root": "Ab", "quality": "major" }]
+  "scale": { "root": 0, "mode": "minor", "label": "C natural minor", "notes": ["C", "D", "Eb", "F", "G", "Ab", "Bb"] },
+  "chord_progression": [{ "bar": 1, "chord": "Cm", "tones": ["C", "Eb", "G"] }, { "bar": 5, "chord": "Ab", "tones": ["Ab", "C", "Eb"] }]
 }
 ```
 
 Fields:
 - **tracks[]** — each track's current state (1–16 tracks, variable), with a human-readable `label` (e.g. "Track 1 (Kick)"), parameters (control IDs), approval, pattern, views, processor chain, modulators, modulation routings, importance, and musical role
 - **label** — 1-indexed ordinal label with engine or user-assigned name (e.g. "Track 1 (Kick)", "Track 2 (My Lead)"). Bus tracks show "Master Bus" or "Bus".
-- **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`
+- **kind** — (bus tracks only) `"bus"`. Absent for audio tracks.
+- **params** — track source parameters using control IDs: `timbre`, `harmonics`, `morph`, `frequency`. Only non-default values shown. Omitted for drum rack and bus tracks.
 - **approval** — track approval level: `exploratory`, `liked`, `approved`, `anchor`
 - **volume** / **pan** — track mix levels (0.0–1.0)
-- **pattern** — canonical event summary with triggers (`{at, vel}`), notes (`{at, pitch, vel}`), accents, param locks, and density. For drum rack tracks, pattern uses stacked grid lane format instead (see below).
+- **swing** — (optional) per-track swing override (0.0–1.0). Present only when the track overrides global transport swing.
+- **pattern** — canonical event summary. For generic tracks: triggers (`{at, vel}`), notes (`{at, pitch, vel, dur?}`), accents, param locks, and density. For bass tracks: role-aware compression with `trackerRows` (e.g. "C3@1.1.1 Eb3@1.3.1(2)"). For pad tracks: `chordBlocks` (e.g. "Cm[C3,Eb3,G3]@1.1.1(8)"). For drum rack tracks, pattern uses stacked grid lane format (see below).
 - **pads** — (drum rack tracks only) array of pad metadata: `{ id, model, level, pan, chokeGroup? }`
-- **sequence** — ordered song-mode pattern refs with `index`, `patternId`, `length`, and optional sequence-level automation summaries per ref
+- **patterns** — (optional) present when track has >1 pattern: array of `{ id, name?, duration, event_count }` with `activePatternId`
+- **sequence** — ordered song-mode pattern refs with `index`, `patternId`, `name?`, `length`, and optional sequence-level automation summaries per ref
 - **track_count** — total number of tracks in the session
 - **soft_track_cap** — maximum recommended track count (currently 16)
 - **activeTrackId** — the track the human currently has selected
 - **views** — list of active sequencer views (`kind:id` format)
-- **processors** — processor chain with IDs, types, models, current parameter values, and enabled state
-- **modulators** — modulator modules with IDs, types, current mode names, and parameter values
+- **processors** — processor chain with IDs, types, models, non-default parameter values, enabled state, and optional `sidechainSourceId`
+- **modulators** — modulator modules with IDs, types, current mode names, and non-default parameter values
 - **modulations** — modulation routings with IDs, source modulator, target (e.g. `"source:timbre"` or `"processor:rings-xxx:position"`), and depth
+- **surface_modules** — (optional per track) list of surface module summaries (e.g. "KnobGroup[timbre, morph]", "MacroKnob[Warmth]", "XYPad[timbre×morph]", "StepGrid", "ChainStrip") with "(pinned)" suffix when pinned
+- **identity** — (optional per track) compressed visual identity: `{ hue, sat, bright, weight, edge, prom }`. Present when `set_track_identity` has been used.
+- **importance** — (optional per track) advisory mix priority (0.0–1.0)
+- **musicalRole** — (optional per track) brief description of the track's musical role
+- **sends** — (optional per track) bus send levels
+- **projectMemory** — (optional) natural-language summary of project memories, grouped by type (directions, track narratives, decisions). Present when memories have been saved.
 - **transport** — tempo, swing, playing state, mode (`pattern` or `song`), loop flag, and time signature (e.g. "4/4")
 - **context** — global energy and density (0.0–1.0)
 - **undo_depth** — how many action groups can be undone
 - **redo_depth** — how many action groups can be redone (Cmd+Shift+Z)
-- **recent_human_actions** — last 5 parameter changes with track, control ID, values, and age
-- **recent_reactions** — last 10 reaction verdicts (approved/rejected/neutral) with rationale and age
+- **recent_human_actions** — last 5 human actions. Parameter changes: `{ type: "param", trackId, param, from, to, age_ms }`. Undo/redo actions: `{ type: "undo"|"redo", description, age_ms }`.
+- **recent_reactions** — last 10 reaction verdicts (approved/rejected/neutral) with optional rationale and age
 - **observed_patterns** — derived natural-language patterns from reaction history (e.g. approval streaks, recurring rationale keywords)
 - **restraint_level** — derived from reactions: `conservative`, `moderate`, or `adventurous`
 - **open_decisions** — unresolved decisions raised by `raise_decision` (id, question, context, options, trackIds)
 - **recent_preservation** — (optional) preservation reports from recent edits to approved/anchor tracks
-- **importance** — (optional per track) advisory mix priority (0.0–1.0)
-- **musicalRole** — (optional per track) brief description of the track's musical role
-- **surface_modules** — (optional per track) list of surface module types and labels (e.g. "knob-group:Timbre", "macro-knob:Warmth", "xy-pad") when set_surface has been used
-- **sends** — (optional per track) bus send levels
 - **intent** — (optional) session-level creative intent: `genre`, `references`, `mood`, `avoid`, `currentGoal`. Survives context window rotation.
+- **genre_reference_overlays** — (optional) genre-specific reference targets derived from `intent.genre`. Each overlay includes `genre`, `profile`, `targetLufs`, `centroidHz`, and `mixNotes`.
 - **audioMetrics** — (optional) fresh live analyser measurements captured at request time. Contains `master` plus per-track entries under `tracks`, each with `rms` (dBFS), `peak` (dBFS), `centroid` (Hz spectral centroid), `crest` (dB peak minus RMS), and `onsetDensity` (onsets/second over a short recent window). Present only when metrics are fresh enough to be meaningful.
 - **mixWarnings** — (optional) continuous mix-health warnings derived from current analyser state and spectral slot assignments. Entries include a `type`, `severity` (0.0–1.0), human-readable `message`, and contextual fields such as `trackId`, `trackIds`, `trackLabel`, `trackLabels`, `band`, `peak`, `headroom`, `crest`, or `rms`.
 - **recentAutoDiffs** — (optional) automatic before/after summaries from the most recent accepted AI edit step. Each entry includes `trackId`, `summary`, and `confidence` so the next turn can reason about what the last edit actually changed.
 - **section** — (optional) current arrangement section: `name`, `intent`, `targetEnergy`, `targetDensity`. Describes what part of the arrangement is being worked on.
-- **scale** — (optional) global key/scale constraint: `root` (pitch class 0–11), `mode`, `label` (e.g. "C major"), `notes` (available note names). `null` when explicitly cleared.
+- **scale** — (optional) global key/scale constraint as object: `{ root, mode, label, notes }` where `root` is pitch class 0–11, `mode` is scale name, `label` is human-readable (e.g. "C natural minor"), `notes` is array of available note names. `null` when explicitly cleared.
+- **chord_progression** — (optional) chord entries with `bar`, `chord` (symbol), and `tones` (derived note names). `null` when cleared.
 - **userSelection** — (optional) active Tracker selection: `trackId`, `stepRange` ([start, end]), `eventCount`. Present only when the human has selected events.
 
 ### Drum Rack Track State
@@ -925,6 +958,67 @@ Six controls, all 0.0–1.0:
 
 Modes: `clean` (transparent VCA), `opto` (LA-2A style), `bus` (SSL glue), `limit` (brickwall limiter).
 
+### Processor (Warps)
+
+Three controls, all 0.0–1.0:
+
+| Control       | Meaning                                              |
+|--------------|------------------------------------------------------|
+| **algorithm** | Signal combination algorithm.                        |
+| **timbre**    | Timbral character of the processing.                 |
+| **level**     | Internal carrier/modulator level.                    |
+
+Modes: `crossfade`, `fold` (wavefolder), `ring` (ring modulator), `vocoder`.
+
+### Processor (Elements)
+
+Thirteen controls, all 0.0–1.0:
+
+| Control           | Meaning                                          |
+|------------------|--------------------------------------------------|
+| **bow_level**     | Bow exciter level.                               |
+| **bow_timbre**    | Bow exciter brightness.                          |
+| **blow_level**    | Blow exciter level.                              |
+| **blow_timbre**   | Blow exciter brightness.                         |
+| **strike_level**  | Strike exciter level.                            |
+| **strike_timbre** | Strike exciter brightness.                       |
+| **coarse**        | Coarse pitch.                                    |
+| **fine**          | Fine pitch offset.                               |
+| **geometry**      | Resonator geometry.                              |
+| **brightness**    | Resonator brightness.                            |
+| **damping**       | Resonator damping.                               |
+| **position**      | Excitation position on the resonator.            |
+| **space**         | Reverb / room size.                              |
+
+Modes: `modal`, `string`.
+
+### Processor (Beads)
+
+Six controls, all 0.0–1.0:
+
+| Control       | Meaning                                              |
+|--------------|------------------------------------------------------|
+| **density**   | Grain generation rate.                               |
+| **time**      | Buffer time / delay time.                            |
+| **pitch**     | Grain pitch transposition.                           |
+| **position**  | Position in the recording buffer.                    |
+| **texture**   | Grain envelope / texture.                            |
+| **dry-wet**   | Dry/wet blend.                                       |
+
+Modes: `granular`, `delay`, `wavetable-synth`.
+
+### Processor (Stereo)
+
+Stereo width and spatial effects. Controls derived from instrument registry.
+
+### Processor (Chorus)
+
+Chorus, flanger, and phaser effects. Controls derived from instrument registry.
+
+### Processor (Distortion)
+
+Overdrive, saturation, and bitcrusher. Controls derived from instrument registry.
+
 ### Modulator (Tides)
 
 Seven controls (output-mode and range are discrete, rest 0.0–1.0):
@@ -955,7 +1049,7 @@ Hard rules. The runtime enforces these; violating them means the action is rejec
 6. `duration` in note events must be **> 0** (gate length in steps).
 7. `controlId` in parameter events must be a known control.
 8. `listen` works regardless of transport state (offline render).
-9. `set_transport` requires at least one of `bpm`, `swing`, `playing`, `timeSignatureNumerator`, or `timeSignatureDenominator`.
+9. `set_transport` requires at least one of `bpm`, `swing`, `playing`, `mode`, `timeSignatureNumerator`, or `timeSignatureDenominator`.
 10. `processorId` in `move`, `set_model`, and `manage_processor` (remove/replace/bypass) must reference an existing processor on the target track.
 11. `moduleType` in `manage_processor` (add/replace) must be a registered processor type (`rings`, `clouds`, `beads`, `ripples`, `warps`, `elements`, `eq`, `compressor`, `stereo`, `chorus`, `distortion`).
 12. `modulatorId` in `move`, `set_model`, and `manage_modulator` (remove) must reference an existing modulator on the target track.
