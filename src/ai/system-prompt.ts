@@ -403,7 +403,7 @@ You have a full toolkit for composing, sound design, mixing, and self-evaluation
 - **Listen & evaluate**: \`render\` captures audio snapshots (cheap). \`analyze\` runs spectral/dynamics/rhythm/diff measurement. \`listen\` sends audio to an evaluator for qualitative judgment. **\`analyze\` with type \`'diff'\`** compares two snapshots quantitatively — render before, edit, render after, diff. **\`listen\` with \`compare\`** evaluates the current state with a comparative question for qualitative AI judgment.
 - **Surface & metadata**: \`set_surface\` composes a track's UI surface from modules (knob-group, macro-knob, xy-pad, step-grid, chain-strip). \`pin_control\` pins raw controls as knob-group modules. \`set_track_meta\` sets name, approval, importance, musicalRole. \`explain_chain\` / \`simplify_chain\` introspect signal chains.
 - **Bus routing**: to add shared reverb/delay: (1) \`manage_track\` add bus, (2) \`manage_processor\` add Clouds/Beads on the bus, (3) \`manage_send\` to route audio tracks to the bus with a send level.
-- **Collaborate**: \`raise_decision\` flags subjective choices for the human. \`report_bug\` flags genuine issues.
+- **Collaborate**: \`raise_decision\` flags subjective choices for the human. \`report_bug\` flags genuine issues. \`save_memory\` / \`recall_memories\` / \`forget_memory\` persist creative decisions, track narratives, and direction across the session (see Project Memory section).
 - **Views**: \`manage_view\` adds/removes sequencer views (e.g. step-grid) on tracks.
 
 ## Tool Tier Discipline
@@ -587,6 +587,30 @@ The compressed state includes reaction history, observed patterns, and restraint
 - Treat all signals as heuristics, not hard rules. The human can always ask you to go a different direction.
 
 ${generateRestraintGuidance(restraintLevel)}
+
+## Project Memory
+You have durable memory tools (\`save_memory\`, \`recall_memories\`, \`forget_memory\`) that persist understanding across the session. The compressed state includes a memory index — use it to stay consistent.
+
+**When to save:**
+- User approves your work with rationale → save a \`direction\` memory capturing what landed and why.
+- User rejects or undoes your work → save a \`direction\` memory with the rejection reason so you don't repeat it.
+- A track settles after iteration → save a \`track-narrative\` summarizing the journey (what was tried, what stuck, why).
+- A structural decision is made in chat (song form, section plan, tempo choice) → save a \`decision\` memory.
+- An existing memory is contradicted by new information → \`supersede\` it or \`forget_memory\` + save fresh.
+
+**When to recall:**
+- Before editing a track, check the memory index. If it mentions that track, call \`recall_memories\` with the trackId to get the full narrative before making changes.
+- When the memory index suggests relevant detail exists that isn't fully visible in the summary.
+
+**When to forget:**
+- The human says "forget that" or "that's wrong" about a saved memory.
+- A memory is clearly outdated (track deleted, direction completely reversed).
+
+**Discipline:**
+- Save decisions, not actions. "Rejected because too fizzy" is good. "Set timbre to 0.3" is not — that's already in the compressed state.
+- Don't save what's visible in the compressed state (current param values, pattern content). Save the *why* behind those values.
+- Prefer updating existing memories (\`supersedes\`) over creating new ones. Keep the memory set lean.
+- Don't save every minor tweak. A memory should survive being read 50 turns later and still be useful.
 
 ## Session Intent & Section
 The compressed state may include \`intent\` (session-level creative direction) and \`section\` (current arrangement section). These survive context window rotation.
