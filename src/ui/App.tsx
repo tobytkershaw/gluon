@@ -1333,17 +1333,30 @@ export default function App() {
   }, [ensureAudio]);
 
 
+  /** Cancel all active automations/ramps associated with an undo entry. */
+  const cancelAutomationsForEntry = useCallback((entry: UndoEntry) => {
+    if (entry.kind === 'param') {
+      for (const param of Object.keys(entry.prevValues)) {
+        autoRef.current.cancel(entry.trackId, param);
+      }
+    } else if (entry.kind === 'processor-state') {
+      for (const param of Object.keys(entry.prevParams)) {
+        autoRef.current.cancel(entry.trackId, param);
+      }
+    } else if (entry.kind === 'group') {
+      for (const snapshot of entry.snapshots) {
+        cancelAutomationsForEntry(snapshot);
+      }
+    }
+  }, []);
+
   const handleUndo = useCallback(() => {
     ensureAudio();
     // Cancel active automations for params being undone (side-effect hoisted out of setSession)
     const currentSession = sessionRef.current;
     if (currentSession.undoStack.length > 0) {
       const topEntry = currentSession.undoStack[currentSession.undoStack.length - 1];
-      if (topEntry.kind === 'param') {
-        for (const param of Object.keys(topEntry.prevValues)) {
-          autoRef.current.cancel(topEntry.trackId, param);
-        }
-      }
+      cancelAutomationsForEntry(topEntry);
     }
     setSession((s) => {
       if (s.undoStack.length === 0) return s;
@@ -1360,10 +1373,21 @@ export default function App() {
         ].slice(-20),
       };
     });
-  }, [ensureAudio]);
+  }, [ensureAudio, cancelAutomationsForEntry]);
 
   const handleUndoMessage = useCallback((messageIndex: number) => {
     ensureAudio();
+    // Cancel active automations for all entries being undone (side-effect hoisted out of setSession)
+    const currentSession = sessionRef.current;
+    const msg = currentSession.messages[messageIndex];
+    if (msg?.undoStackRange) {
+      const { start, end } = msg.undoStackRange;
+      if (end === currentSession.undoStack.length - 1) {
+        for (let i = start; i <= end; i++) {
+          cancelAutomationsForEntry(currentSession.undoStack[i]);
+        }
+      }
+    }
     setSession((s) => {
       const msg = s.messages[messageIndex];
       if (!msg?.undoStackRange) return s;
@@ -1392,7 +1416,7 @@ export default function App() {
         messages: updatedMessages,
       };
     });
-  }, [ensureAudio]);
+  }, [ensureAudio, cancelAutomationsForEntry]);
 
   const handleRedo = useCallback(() => {
     ensureAudio();
