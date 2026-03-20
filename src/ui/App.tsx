@@ -194,14 +194,6 @@ export default function App() {
     const hasContent = audioTracks.length > 1 || audioTracks.some(t => t.patterns.some(p => p.events.length > 0));
     return hasContent ? 'surface' : 'chat';
   });
-  const [chatOpen, setChatOpen] = useState(() => {
-    const saved = localStorage.getItem('gluon-chat-open');
-    return saved !== 'false';
-  });
-  const [chatWidth, setChatWidth] = useState(() => {
-    const saved = localStorage.getItem('gluon-chat-width');
-    return saved ? Number(saved) : 320;
-  });
   const [_selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [_selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
@@ -248,8 +240,6 @@ export default function App() {
 
   // Persist view and chat state to localStorage
   useEffect(() => { localStorage.setItem('gluon-view', view); }, [view]);
-  useEffect(() => { localStorage.setItem('gluon-chat-open', String(chatOpen)); }, [chatOpen]);
-  useEffect(() => { localStorage.setItem('gluon-chat-width', String(chatWidth)); }, [chatWidth]);
 
   useEffect(() => {
     clearQaAudioTrace();
@@ -3140,10 +3130,7 @@ export default function App() {
       currentOpenaiKey={openaiKey}
       currentGeminiKey={geminiKey}
       listenerMode={listenerMode}
-      chatOpen={chatOpen}
-      onChatToggle={() => setChatOpen(o => !o)}
-      chatWidth={chatWidth}
-      onChatResize={setChatWidth}
+      onCoinFlip={handleCoinFlip}
       projectName={project.projectName}
       projects={project.projects}
       saveError={project.saveError}

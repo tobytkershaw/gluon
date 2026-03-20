@@ -9,7 +9,7 @@ import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
 import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
-import { ChatSidebar } from './ChatSidebar';
+import { Coin } from './Coin';
 import { ChatMessages } from './ChatMessages';
 import { ChatComposer } from './ChatComposer';
 import { ApiKeyInput } from './ApiKeyInput';
@@ -70,10 +70,7 @@ interface Props {
   currentOpenaiKey?: string;
   currentGeminiKey?: string;
   listenerMode?: ListenerMode;
-  chatOpen: boolean;
-  onChatToggle: () => void;
-  chatWidth: number;
-  onChatResize: (width: number) => void;
+  onCoinFlip: () => void;
   // Project
   projectName: string;
   projects: ProjectMeta[];
@@ -150,8 +147,6 @@ interface Props {
   children: ReactNode;
 }
 
-const CHAT_COLLAPSE_WIDTH = 1280;
-
 function getLastHumanMessage(messages: ChatMessage[]): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
@@ -182,7 +177,7 @@ export function AppShell({
   reactions, onReaction,
   openDecisions = [], onDecisionRespond,
   apiConfigured, listenerConfigured = false, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
-  chatOpen, onChatToggle, chatWidth, onChatResize,
+  onCoinFlip,
   projectName, projects, saveError, saveStatus, projectActionError = null,
   onProjectRename, onProjectNew, onProjectOpen, onProjectDuplicate,
   onProjectDelete, onProjectExport, onProjectImport,
@@ -202,10 +197,6 @@ export function AppShell({
   const shellRef = useRef<HTMLDivElement>(null);
   const instrumentRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
-  const prevNarrowRef = useRef(false);
-  const autoCollapsedRef = useRef(false);
-  const resizeTogglingRef = useRef(false);
-  const prevChatOpenRef = useRef(chatOpen);
   const pendingComposerFocusRef = useRef<{ selectAll: boolean } | null>(null);
   const pendingInstrumentFocusRef = useRef(false);
   // Use the App-provided ref when available; fall back to a local ref for standalone usage.
@@ -227,14 +218,14 @@ export function AppShell({
   useEffect(() => {
     const pending = pendingComposerFocusRef.current;
     if (!pending) return;
-    if (view !== 'chat' && !chatOpen) return;
+    if (view !== 'chat') return;
 
     const raf = requestAnimationFrame(() => {
       composerRef.current?.focus({ selectAll: pending.selectAll });
     });
     pendingComposerFocusRef.current = null;
     return () => cancelAnimationFrame(raf);
-  }, [chatOpen, view]);
+  }, [view]);
 
   useEffect(() => {
     if (!pendingInstrumentFocusRef.current) return;
@@ -249,13 +240,13 @@ export function AppShell({
 
   const focusComposer = useCallback((selectAll: boolean) => {
     pendingComposerFocusRef.current = { selectAll };
-    if (view !== 'chat' && !chatOpen) {
-      onChatToggle();
+    if (view !== 'chat') {
+      onViewChange('chat');
       return;
     }
     composerRef.current?.focus({ selectAll });
     pendingComposerFocusRef.current = null;
-  }, [chatOpen, onChatToggle, view]);
+  }, [onViewChange, view]);
 
   const focusInstrument = useCallback(() => {
     if (view === 'chat') {
@@ -309,41 +300,6 @@ export function AppShell({
       }
     }
   }, [focusComposer, focusInstrument, view]);
-
-  useEffect(() => {
-    if (chatOpen !== prevChatOpenRef.current) {
-      if (!resizeTogglingRef.current) {
-        autoCollapsedRef.current = false;
-      }
-      prevChatOpenRef.current = chatOpen;
-    }
-  }, [chatOpen]);
-
-  useEffect(() => {
-    if (view === 'chat') return;
-    const el = shellRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const isNarrow = entry.contentRect.width < CHAT_COLLAPSE_WIDTH;
-        if (isNarrow && !prevNarrowRef.current && chatOpen) {
-          autoCollapsedRef.current = true;
-          resizeTogglingRef.current = true;
-          onChatToggle();
-          resizeTogglingRef.current = false;
-        }
-        if (!isNarrow && prevNarrowRef.current && !chatOpen && autoCollapsedRef.current) {
-          autoCollapsedRef.current = false;
-          resizeTogglingRef.current = true;
-          onChatToggle();
-          resizeTogglingRef.current = false;
-        }
-        prevNarrowRef.current = isNarrow;
-      }
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [chatOpen, onChatToggle, view]);
 
   // ── Chat view ────────────────────────────────────────────────────────
   if (view === 'chat') {
@@ -463,6 +419,7 @@ export function AppShell({
             <OpenDecisionsPanel decisions={openDecisions} onRespond={onDecisionRespond} />
           </div>
         )}
+        <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} />
       </div>
     );
   }
@@ -592,36 +549,6 @@ export function AppShell({
           </div>
         </div>
 
-        <ChatSidebar
-          messages={messages}
-          onSend={onSend}
-          isThinking={isThinking}
-          isListening={isListening}
-          streamingText={streamingText}
-          streamingLogEntries={streamingLogEntries}
-          streamingRejections={streamingRejections}
-          reactions={reactions}
-          onReaction={onReaction}
-          undoStack={undoStack}
-          onUndoMessage={onUndoMessage}
-          tracks={tracks}
-          sessionMessages={messages}
-          apiConfigured={apiConfigured}
-          listenerConfigured={listenerConfigured}
-          onApiKey={onApiKey}
-          onContinueWithoutAI={onContinueWithoutAI}
-          setupDismissed={setupDismissed}
-          currentOpenaiKey={currentOpenaiKey}
-          currentGeminiKey={currentGeminiKey}
-          listenerMode={listenerMode}
-          open={chatOpen}
-          width={chatWidth}
-          onResize={onChatResize}
-          composerRef={composerRef}
-          lastHumanMessage={lastHumanMessage}
-          followUpChips={followUpChips}
-        />
-
       </div>
 
       {onDecisionRespond && openDecisions.length > 0 && (
@@ -685,6 +612,7 @@ export function AppShell({
           )}
         </div>
       </div>
+      <Coin currentView={view} lastNonChatView={lastNonChatViewRef.current} onFlip={onCoinFlip} />
     </div>
   );
 }
