@@ -166,18 +166,18 @@ export function SurfaceCanvas({
     : null;
 
   const addButton = onAddModule ? (
-    <div className="relative inline-flex">
+    <div className="absolute bottom-3 left-3 z-10">
       <button
         onClick={() => setPickerOpen(prev => !prev)}
-        className="flex items-center gap-1.5 px-3 py-1.5
-          bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-md
-          text-[11px] font-mono text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+        className="h-6 px-2 flex items-center gap-1 rounded border cursor-pointer transition-colors text-[11px] font-mono uppercase tracking-wider"
+        style={{ background: '#282523', borderColor: 'rgba(61,57,53,0.6)', color: '#a8a39a' }}
+        title="Add module"
       >
         <span className="text-sm leading-none">+</span>
-        <span>Add Module</span>
+        <span>Module</span>
       </button>
       {pickerOpen && (
-        <div className="absolute bottom-full right-0 mb-1 z-50">
+        <div className="absolute bottom-full left-0 mb-1 z-50">
           <ModulePicker
             track={track}
             onAddModule={handleAddModule}
@@ -190,7 +190,7 @@ export function SurfaceCanvas({
 
   if (modules.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 text-sm">
+      <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 text-sm relative">
         <div className="text-center">
           <p>No surface modules configured.</p>
           <p className="mt-1">
@@ -199,17 +199,14 @@ export function SurfaceCanvas({
               : 'The AI will set up controls when you add processors.'}
           </p>
         </div>
-        {addButton && <div className="mt-4">{addButton}</div>}
+        {addButton}
       </div>
     );
   }
 
   return (
     <div ref={containerRef} className="flex-1 overflow-auto p-2 flex flex-col relative">
-      {/* Toolbar */}
-      {addButton && (
-        <div className="flex justify-end pb-1 shrink-0">{addButton}</div>
-      )}
+      {addButton}
       {/* Grid area */}
       <div className="flex-1 min-w-0 flex">
       <div className="flex-1 min-w-0">

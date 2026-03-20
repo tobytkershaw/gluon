@@ -52,6 +52,12 @@ export function ModulePicker({ track, onAddModule, onClose }: ModulePickerProps)
     } else if (type === 'chain-strip') {
       // Seed a chain binding pointing to this track
       bindings.push({ role: 'chain', trackId: track.id, target: track.id });
+    } else if (type === 'knob-group' || type === 'macro-knob' || type === 'xy-pad' || type === 'pad-grid') {
+      // Control modules need a control binding to the track's source
+      bindings.push({ role: 'control', trackId: track.id, target: 'source' });
+    } else if (type === 'level-meter') {
+      // Level meter binds to the track output
+      bindings.push({ role: 'control', trackId: track.id, target: 'output' });
     }
 
     return bindings;
