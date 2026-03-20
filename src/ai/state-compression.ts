@@ -1,5 +1,5 @@
 // src/ai/state-compression.ts
-import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad } from '../engine/types';
+import type { Session, Track, ApprovalLevel, Reaction, OpenDecision, PreservationReport, SessionIntent, SectionMeta, UserSelection, DrumPad, ProjectMemory } from '../engine/types';
 import { getActivePattern } from '../engine/types';
 import { getModelName, runtimeParamToControlId, getProcessorEngineName, getModulatorEngineName, getProcessorDefaultParams, getModulatorDefaultParams } from '../audio/instrument-registry';
 import { getTrackOrdinalLabel } from '../engine/track-labels';
@@ -200,6 +200,7 @@ export interface CompressedState {
   scale?: { root: number; mode: string; label: string; notes: string[] } | null;
   chord_progression?: CompressedChordProgressionEntry[] | null;
   userSelection?: CompressedUserSelection;
+  projectMemory?: string;
 }
 
 interface CompressedGenreReferenceOverlay {
@@ -852,6 +853,59 @@ function deriveGenreReferenceOverlays(intent?: SessionIntent): CompressedGenreRe
   return overlays;
 }
 
+// ---------------------------------------------------------------------------
+// Project memory compression
+// ---------------------------------------------------------------------------
+
+/**
+ * Compress project memories into a natural-language summary section.
+ *
+ * Groups by type: directions first, then track narratives, then decisions.
+ * Returns null when the memories array is empty.
+ */
+export function compressMemories(memories: ProjectMemory[], tracks?: Track[]): string | null {
+  if (!memories || memories.length === 0) return null;
+
+  const directions = memories.filter(m => m.type === 'direction');
+  const narratives = memories.filter(m => m.type === 'track-narrative');
+  const decisions = memories.filter(m => m.type === 'decision');
+
+  const audioTracks = tracks?.filter(t => getTrackKind(t) !== 'bus') ?? [];
+  const busTracks = tracks?.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID) ?? [];
+
+  const lines: string[] = [];
+
+  // Directions: one bullet per direction to preserve individual confidence qualifiers
+  for (const m of directions) {
+    const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+    lines.push(`Direction: ${qualifier}${m.content}`);
+  }
+
+  // Track narratives: resolve human-readable label when tracks are available
+  for (const m of narratives) {
+    const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+    let trackPrefix = 'Track';
+    if (m.trackId && tracks) {
+      const track = tracks.find(t => t.id === m.trackId);
+      trackPrefix = track ? getTrackOrdinalLabel(track, audioTracks, busTracks) : `Track ${m.trackId}`;
+    } else if (m.trackId) {
+      trackPrefix = `Track ${m.trackId}`;
+    }
+    lines.push(`${trackPrefix}: ${qualifier}${m.content}`);
+  }
+
+  // Decisions: uniform prefix matching the memory type name
+  for (const m of decisions) {
+    const qualifier = m.confidence < 0.5 ? 'uncertain: ' : '';
+    lines.push(`Decision: ${qualifier}${m.content}`);
+  }
+
+  if (lines.length === 0) return null;
+
+  const header = `## Project Memory (${memories.length} ${memories.length === 1 ? 'memory' : 'memories'})`;
+  return `${header}\n${lines.map(l => `- ${l}`).join('\n')}`;
+}
+
 export function compressState(
   session: Session,
   recentPreservationReports?: PreservationReport[],
@@ -864,6 +918,7 @@ export function compressState(
   const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
   const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus' && t.id !== MASTER_BUS_ID);
   const genreReferenceOverlays = deriveGenreReferenceOverlays(session.intent);
+  const memorySection = compressMemories(session.memories ?? [], session.tracks);
   const result: CompressedState = {
     tracks: session.tracks.map(track => {
       const isDrumRack = track.engine === 'drum-rack' && track.drumRack;
@@ -1000,6 +1055,7 @@ export function compressState(
     track_count: session.tracks.length,
     soft_track_cap: 16,
     activeTrackId: session.activeTrackId,
+    ...(memorySection ? { projectMemory: memorySection } : {}),
     transport: {
       bpm: session.transport.bpm,
       swing: round2(session.transport.swing),

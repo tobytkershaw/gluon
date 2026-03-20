@@ -1,9 +1,9 @@
 // tests/ai/state-compression.test.ts
 import { describe, it, expect } from 'vitest';
-import { compressState, stepToPosition, recogniseChord } from '../../src/ai/state-compression';
+import { compressState, compressMemories, stepToPosition, recogniseChord } from '../../src/ai/state-compression';
 import { createSession, addTrack, setApproval, setTrackImportance, addReaction, addDecision } from '../../src/engine/session';
 import { toggleStepGate, toggleStepAccent, setStepParamLock } from '../../src/engine/pattern-primitives';
-import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session, UserSelection } from '../../src/engine/types';
+import type { Reaction, OpenDecision, PreservationReport, ApprovalLevel, Session, UserSelection, ProjectMemory } from '../../src/engine/types';
 import { resolveTrackId, getTrackOrdinalLabel } from '../../src/engine/track-labels';
 import { getTrackKind, updateTrack } from '../../src/engine/types';
 
@@ -1150,5 +1150,196 @@ describe('Role-aware compression: intra-bar pad chord timing (P3 regression)', (
     expect(pattern.chordBlocks).toContain('@1.1.1(');
     expect(pattern.chordBlocks).toContain('@1.2.1(');
     expect(pattern.chordBlocks).toContain('@1.4.1(');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Project memory compression (#1266)
+// ---------------------------------------------------------------------------
+
+function makeMemory(overrides: Partial<ProjectMemory> & Pick<ProjectMemory, 'type' | 'content'>): ProjectMemory {
+  return {
+    id: `mem-${Math.random().toString(36).slice(2, 8)}`,
+    confidence: 0.8,
+    evidence: 'test evidence',
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    ...overrides,
+  };
+}
+
+describe('compressMemories', () => {
+  it('returns null for empty array', () => {
+    expect(compressMemories([])).toBeNull();
+  });
+
+  it('returns null for undefined-like input', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(compressMemories(undefined as any)).toBeNull();
+  });
+
+  it('summarises direction memories as separate bullets', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'dark minimal techno, Surgeon reference' }),
+      makeMemory({ type: 'direction', content: 'user prefers sparse arrangements' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('## Project Memory (2 memories)');
+    const dirLines = result!.split('\n').filter(l => l.includes('Direction:'));
+    expect(dirLines).toHaveLength(2);
+    expect(result).toContain('dark minimal techno');
+    expect(result).toContain('user prefers sparse');
+  });
+
+  it('includes track ID in track-narrative summary', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'track-narrative', content: 'approved, four-on-floor anchor, dry', trackId: 'v0' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('Track v0:');
+    expect(result).toContain('four-on-floor anchor');
+  });
+
+  it('track-narrative without trackId uses generic prefix', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'track-narrative', content: 'settled after 3 iterations' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('Track:');
+    expect(result).not.toContain('Track v');
+  });
+
+  it('decision memories get Decision: prefix', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'decision', content: '8-bar sparse intro then kick enters bar 9' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('Decision:');
+    expect(result).toContain('8-bar sparse intro');
+  });
+
+  it('all decision types use uniform Decision: prefix', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'decision', content: 'use FM synthesis for lead sounds' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('Decision:');
+    expect(result).toContain('FM synthesis');
+  });
+
+  it('low-confidence memories include "uncertain:" qualifier', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'maybe ambient direction', confidence: 0.3 }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('uncertain:');
+    expect(result).toContain('maybe ambient');
+  });
+
+  it('normal-confidence memories do not include "uncertain:" qualifier', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'dark techno', confidence: 0.5 }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).not.toContain('uncertain:');
+  });
+
+  it('groups types correctly: directions first, then narratives, then decisions', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'decision', content: 'drop at bar 17' }),
+      makeMemory({ type: 'track-narrative', content: 'kick is settled', trackId: 'v0' }),
+      makeMemory({ type: 'direction', content: 'dark minimal techno' }),
+    ]);
+    expect(result).not.toBeNull();
+    const lines = result!.split('\n').filter(l => l.startsWith('- '));
+    expect(lines[0]).toContain('Direction:');
+    expect(lines[1]).toContain('Track v0:');
+    expect(lines[2]).toContain('Decision:');
+  });
+
+  it('output is natural language, not JSON', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'dark techno' }),
+      makeMemory({ type: 'track-narrative', content: 'kick approved', trackId: 'v0' }),
+    ]);
+    expect(result).not.toBeNull();
+    // Should NOT contain JSON-like patterns
+    expect(result).not.toContain('"type"');
+    expect(result).not.toContain('"content"');
+    expect(result).not.toContain('{');
+    expect(result).not.toContain('}');
+  });
+
+  it('singular "memory" when count is 1', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'dark techno' }),
+    ]);
+    expect(result).toContain('(1 memory)');
+  });
+
+  it('resolves human-readable track labels when tracks are provided', () => {
+    const session = createSession();
+    const track = session.tracks[0];
+    const result = compressMemories(
+      [makeMemory({ type: 'track-narrative', content: 'kick is settled', trackId: track.id })],
+      session.tracks,
+    );
+    expect(result).not.toBeNull();
+    // Should contain a human-readable label like "Track 1 (Kick)" instead of raw ID
+    expect(result).toContain('Track 1');
+    expect(result).not.toContain(`Track ${track.id}:`);
+  });
+
+  it('falls back to raw ID when tracks not provided', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'track-narrative', content: 'kick is settled', trackId: 'v0' }),
+    ]);
+    expect(result).not.toBeNull();
+    expect(result).toContain('Track v0:');
+  });
+
+  it('mixed-confidence directions preserve individual qualifiers', () => {
+    const result = compressMemories([
+      makeMemory({ type: 'direction', content: 'dark techno confirmed', confidence: 0.9 }),
+      makeMemory({ type: 'direction', content: 'maybe ambient direction', confidence: 0.3 }),
+    ]);
+    expect(result).not.toBeNull();
+    const lines = result!.split('\n').filter(l => l.includes('Direction:'));
+    expect(lines).toHaveLength(2);
+    // First direction should NOT have uncertain
+    expect(lines[0]).not.toContain('uncertain:');
+    // Second direction SHOULD have uncertain
+    expect(lines[1]).toContain('uncertain:');
+  });
+});
+
+describe('Project memory in compressState', () => {
+  it('projectMemory is omitted when session has no memories', () => {
+    const session = createSession();
+    const result = compressState(session);
+    expect('projectMemory' in result).toBe(false);
+  });
+
+  it('projectMemory is omitted when session.memories is empty', () => {
+    const session = createSession();
+    session.memories = [];
+    const result = compressState(session);
+    expect('projectMemory' in result).toBe(false);
+  });
+
+  it('projectMemory appears when session has memories', () => {
+    const session = createSession();
+    const trackId = session.tracks[0].id;
+    session.memories = [
+      makeMemory({ type: 'direction', content: 'dark minimal techno' }),
+      makeMemory({ type: 'track-narrative', content: 'kick is dry and punchy', trackId }),
+    ];
+    const result = compressState(session);
+    expect(result.projectMemory).toBeDefined();
+    expect(result.projectMemory).toContain('## Project Memory');
+    expect(result.projectMemory).toContain('Direction:');
+    // Should resolve to human-readable label, not raw ID
+    expect(result.projectMemory).toContain('Track 1');
+    expect(result.projectMemory).toContain('kick is dry and punchy');
   });
 });
