@@ -2017,6 +2017,48 @@ const saveMemoryTool: ToolSchema = {
   },
 };
 
+const recallMemoriesTool: ToolSchema = {
+  name: 'recall_memories',
+  description:
+    'Retrieve project memories. Returns all stored memories by default, or filter by trackId and/or memory type. ' +
+    'Read-only — does not modify any state. Use this to recall past decisions, directions, or track narratives.',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: 'Filter to memories about a specific track — use ordinal label (e.g. "Track 1") or internal ID.',
+      },
+      type: {
+        type: 'string',
+        enum: ['direction', 'track-narrative', 'decision'],
+        description: 'Filter by memory type: "direction" (creative direction), "track-narrative" (track-specific story), "decision" (past decision).',
+      },
+    },
+  },
+};
+
+const forgetMemoryTool: ToolSchema = {
+  name: 'forget_memory',
+  description:
+    'Remove a specific project memory. Use when a memory is outdated, contradicted by new direction, or no longer relevant. ' +
+    'Undoable. The memory is permanently removed from the project.',
+  parameters: {
+    type: 'object',
+    properties: {
+      memoryId: {
+        type: 'string',
+        description: 'The ID of the memory to remove (from recall_memories results).',
+      },
+      reason: {
+        type: 'string',
+        description: 'Why this memory is being removed (e.g. "direction changed", "no longer relevant").',
+      },
+    },
+    required: ['memoryId', 'reason'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -2066,4 +2108,6 @@ export const GLUON_TOOLS: ToolSchema[] = [
   setTrackIdentityTool,
   manageDrumPadTool,
   saveMemoryTool,
+  recallMemoriesTool,
+  forgetMemoryTool,
 ];

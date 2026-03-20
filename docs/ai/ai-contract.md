@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-eight tools, declared as neutral JSON Schema and adapted per provider.
+The AI has fifty tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -171,6 +171,24 @@ Add, remove, rename, or set choke group on a drum rack pad. Drum rack tracks hol
 | `model` | string | no | Plaits model for the pad. Required for add. |
 | `chokeGroup` | number/null | no | Choke group number (>= 1) or null to remove. Required for set_choke_group. |
 | `description` | string | yes | Short description |
+
+#### `recall_memories`
+
+Retrieve project memories. Read-only — does not modify state. Returns all stored memories by default, or filtered by trackId and/or type.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | no | Filter to memories about a specific track |
+| `type` | string | no | Filter by memory type: `direction`, `track-narrative`, `decision` |
+
+#### `forget_memory`
+
+Remove a specific project memory. Undoable. Use when a memory is outdated or contradicted by new direction.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `memoryId` | string | yes | Memory ID to remove |
+| `reason` | string | yes | Why this memory is being removed |
 
 #### `set_model`
 

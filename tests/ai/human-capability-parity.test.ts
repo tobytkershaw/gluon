@@ -21,6 +21,8 @@ const AI_ONLY_TOOLS = new Set([
   'report_bug',         // human reports bugs through other channels
   'suggest_reactions',  // AI suggests contextual reaction chips for human to click
   'list_patches',       // AI lists available patches — human browses via UI (future)
+  'recall_memories',    // AI recalls project memories — human has no direct UI (future)
+  'forget_memory',      // AI forgets project memories — human has no direct UI (future)
 ]);
 
 // Tools that have full UI parity (exposed and editable in at least one canonical view).
@@ -100,7 +102,7 @@ describe('Human Capability Parity', () => {
   });
 
   it('documents the expected number of AI-only tools', () => {
-    expect(AI_ONLY_TOOLS.size).toBe(9);
+    expect(AI_ONLY_TOOLS.size).toBe(11);
   });
 
   it('most musical tools have UI parity', () => {

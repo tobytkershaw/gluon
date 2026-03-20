@@ -727,6 +727,26 @@ export function prevalidateAction(
       return null;
     }
 
+    case 'recall_memories': {
+      // Read-only: validate optional filters
+      if (action.trackId) {
+        const track = session.tracks.find(v => v.id === action.trackId);
+        if (!track) return `Track not found: ${action.trackId}`;
+      }
+      if (action.memoryType) {
+        if (!isValidMemoryType(action.memoryType)) return `Invalid memory type: ${action.memoryType}. Must be one of: direction, track-narrative, decision`;
+      }
+      return null;
+    }
+
+    case 'forget_memory': {
+      if (!action.memoryId) return `Missing required parameter: memoryId`;
+      if (!action.reason || action.reason.trim().length === 0) return `Missing required parameter: reason`;
+      const memories = session.memories ?? [];
+      if (!memories.some(m => m.id === action.memoryId)) return `Memory not found: ${action.memoryId}`;
+      return null;
+    }
+
     case 'set_transport':
     case 'say':
       return null;
@@ -2781,6 +2801,27 @@ function executeActionsInternal(
 
         next = { ...next, memories: newMemories, undoStack: [...next.undoStack, memorySnapshot] };
         log.push({ trackId: action.trackId ?? '', trackLabel: '', description: `memory saved (${action.memoryType}): ${action.content.slice(0, 80)}` });
+        accepted.push(action);
+        break;
+      }
+
+      case 'recall_memories':
+        // Read-only — no state mutation, no snapshot, no log entry.
+        // The actual recall is handled in api.ts tool dispatch.
+        accepted.push(action);
+        break;
+
+      case 'forget_memory': {
+        const memories = next.memories ?? [];
+        const memorySnapshot: MemorySnapshot = {
+          kind: 'memory',
+          prevMemories: [...memories],
+          timestamp: Date.now(),
+          description: `forget memory: ${action.memoryId} — ${action.reason}`,
+        };
+        const newMemories = memories.filter(m => m.id !== action.memoryId);
+        next = { ...next, memories: newMemories, undoStack: [...next.undoStack, memorySnapshot] };
+        log.push({ trackId: '', trackLabel: 'PROJECT', description: `forgot memory: ${action.memoryId}` });
         accepted.push(action);
         break;
       }

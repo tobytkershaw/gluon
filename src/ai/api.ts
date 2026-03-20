@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, AIRecallMemoriesAction, AIForgetMemoryAction, ApprovalLevel, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES, PROJECT_MEMORY_TYPES } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -831,6 +831,13 @@ export function projectAction(session: Session, action: AIAction): Session {
         return { ...session, memories: prevMemories.map(m => m.id === action.supersedes ? newMemory : m) };
       }
       return { ...session, memories: [...prevMemories, newMemory] };
+    }
+    case 'recall_memories':
+      // Read-only — no state change
+      return session;
+    case 'forget_memory': {
+      const memories = (session.memories ?? []).filter(m => m.id !== action.memoryId);
+      return { ...session, memories };
     }
     case 'say':
     default:
@@ -5700,6 +5707,78 @@ export class GluonAI {
             content: args.content,
             ...(resolvedMemoryTrackId ? { trackId: resolvedMemoryTrackId } : {}),
             ...(args.supersedes ? { superseded: args.supersedes } : {}),
+          },
+        };
+      }
+
+      case 'recall_memories': {
+        const memories = session.memories ?? [];
+        let filtered = memories;
+
+        // Filter by trackId if provided
+        if (typeof args.trackId === 'string' && args.trackId) {
+          const recallTrackId = resolveTrackId(args.trackId as string, session);
+          if (!recallTrackId) {
+            return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
+          }
+          filtered = filtered.filter(m => m.trackId === recallTrackId);
+        }
+
+        // Filter by type if provided
+        if (typeof args.type === 'string' && args.type) {
+          if (!isValidMemoryType(args.type as string)) {
+            return { actions: [], response: errorPayload(`Invalid memory type: ${args.type}. Must be one of: direction, track-narrative, decision`) };
+          }
+          filtered = filtered.filter(m => m.type === args.type);
+        }
+
+        // Read-only: no actions, just return the data
+        return {
+          actions: [],
+          response: {
+            memories: filtered.map(m => ({
+              id: m.id,
+              type: m.type,
+              content: m.content,
+              confidence: m.confidence,
+              evidence: m.evidence,
+              trackId: m.trackId,
+              createdAt: m.createdAt,
+              updatedAt: m.updatedAt,
+            })),
+            total: filtered.length,
+          },
+        };
+      }
+
+      case 'forget_memory': {
+        if (typeof args.memoryId !== 'string' || !args.memoryId) {
+          return { actions: [], response: errorPayload('Missing required parameter: memoryId') };
+        }
+        if (typeof args.reason !== 'string' || !args.reason || args.reason.trim().length === 0) {
+          return { actions: [], response: errorPayload('Missing required parameter: reason') };
+        }
+
+        const memories = session.memories ?? [];
+        if (!memories.some(m => m.id === args.memoryId)) {
+          return { actions: [], response: errorPayload(`Memory not found: ${args.memoryId}`) };
+        }
+
+        const forgetAction: AIForgetMemoryAction = {
+          type: 'forget_memory',
+          memoryId: args.memoryId as string,
+          reason: args.reason as string,
+        };
+
+        const forgetRejection = handleRejection(ctx?.validateAction?.(session, forgetAction), session, forgetAction, existingActions);
+        if (forgetRejection) return forgetRejection;
+
+        return {
+          actions: [forgetAction],
+          response: {
+            removed: true,
+            memoryId: args.memoryId,
+            reason: args.reason,
           },
         };
       }
