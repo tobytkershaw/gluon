@@ -198,6 +198,8 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // null = initial render; after that this tracks the last cursor position that drove preview logic.
+  const lastPreviewCursorRef = useRef<string | null>(null);
 
   // --- Cursor state ---
   // cursorRow indexes into slots (step index)
@@ -349,6 +351,14 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
 
   // Preview note when cursor moves to a cell with a note
   useEffect(() => {
+    const cursorKey = `${cursorRow}:${cursorCol}`;
+    if (lastPreviewCursorRef.current === null) {
+      lastPreviewCursorRef.current = cursorKey;
+      return;
+    }
+    if (lastPreviewCursorRef.current === cursorKey) return;
+    lastPreviewCursorRef.current = cursorKey;
+
     if (!onNotePreview || cursorRow >= slots.length) return;
     const noteColIdx = getNoteColumnIndex(cursorCol);
     if (noteColIdx === null) return;
