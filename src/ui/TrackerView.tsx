@@ -407,6 +407,7 @@ export function TrackerView({
                   onPlayFromRow={onPlayFromRow}
                   onSelectionChange={onSelectionChange}
                   stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
+                  drumPadNames={activeTrack.engine === 'drum-rack' && activeTrack.drumRack ? activeTrack.drumRack.pads.map(p => p.name) : undefined}
                 />
             ) : (
               <div className="px-4 py-8 text-center text-[11px] text-zinc-600 italic">
