@@ -198,6 +198,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // null = initial render; after that this tracks the last cursor position that drove preview logic.
   const lastPreviewCursorRef = useRef<string | null>(null);
 
   // --- Cursor state ---
