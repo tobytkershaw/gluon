@@ -886,6 +886,27 @@ export function projectAction(session: Session, action: AIAction): Session {
   }
 }
 
+/**
+ * Enforce position locks on surface modules: if an existing module has
+ * `locked: true`, preserve its position/size and carry through the lock flag.
+ * Returns warnings for each locked module whose position was preserved.
+ */
+export function enforcePositionLocks(
+  modules: SurfaceModule[],
+  existingModules: SurfaceModule[],
+): { modules: SurfaceModule[]; warnings: string[] } {
+  const warnings: string[] = [];
+  const result = modules.map(mod => {
+    const existing = existingModules.find(em => em.id === mod.id);
+    if (existing?.locked) {
+      warnings.push(`Module '${mod.label}' is position-locked — position/size preserved`);
+      return { ...mod, position: { ...existing.position }, locked: true };
+    }
+    return mod;
+  });
+  return { modules: result, warnings };
+}
+
 interface ResolvedMoveTarget {
   target: { absolute: number } | { relative: number };
   tempoSyncLabel?: string;
@@ -3150,7 +3171,7 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: modules (must be an array)') };
         }
 
-        const modules: SurfaceModule[] = (args.modules as Record<string, unknown>[]).map((m, i) => {
+        let modules: SurfaceModule[] = (args.modules as Record<string, unknown>[]).map((m, i) => {
           const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
           const bindings: ModuleBinding[] = rawBindings.map(b => ({
             role: (b.role as string) ?? 'control',
@@ -3173,10 +3194,14 @@ export class GluonAI {
           };
         });
 
-        // Validate region bindings against actual pattern IDs on the track
+        // Enforce position locks: if an existing module is locked, preserve its position/size
         const surfaceTrack = getTrack(session, args.trackId as string);
+        const lockResult = enforcePositionLocks(modules, surfaceTrack?.surface.modules ?? []);
+        modules = lockResult.modules;
+        const warnings: string[] = lockResult.warnings;
+
+        // Validate region bindings against actual pattern IDs on the track
         const patternIds = new Set(surfaceTrack?.patterns.map(p => p.id) ?? []);
-        const warnings: string[] = [];
 
         for (const mod of modules) {
           mod.bindings = mod.bindings.filter(b => {
