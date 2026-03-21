@@ -17,14 +17,14 @@ function makeDrumSession(): Session {
       name: 'Kick',
       source: { engine: 'plaits', model: 13, params: { frequency: 0.3, harmonics: 0.5, timbre: 0.4, morph: 0.6 } },
       level: 0.8,
-      pan: 0.5,
+      pan: 0.0,
     },
     {
       id: 'snare',
       name: 'Snare',
       source: { engine: 'plaits', model: 14, params: { frequency: 0.5, harmonics: 0.3, timbre: 0.5, morph: 0.5 } },
       level: 0.7,
-      pan: 0.5,
+      pan: 0.0,
     },
   ];
   session = updateTrack(session, trackId, {

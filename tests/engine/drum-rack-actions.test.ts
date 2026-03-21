@@ -48,14 +48,14 @@ function setupDrumRackSession() {
           name: 'Kick',
           source: { engine: 'plaits', model: 13, params: { timbre: 0.5, morph: 0.3, harmonics: 0.4 } },
           level: 0.8,
-          pan: 0.5,
+          pan: 0.0,
         },
         {
           id: 'snare',
           name: 'Snare',
           source: { engine: 'plaits', model: 14, params: { timbre: 0.6, morph: 0.5, harmonics: 0.3 } },
           level: 0.75,
-          pan: 0.5,
+          pan: 0.0,
         },
         {
           id: 'hat',
@@ -401,7 +401,7 @@ describe('drum-rack-actions', () => {
             pads: [...pads, {
               id: `pad${i}`, name: `Pad ${i}`,
               source: { engine: 'plaits', model: 13, params: {} },
-              level: 0.8, pan: 0.5,
+              level: 0.8, pan: 0.0,
             }],
           },
         });

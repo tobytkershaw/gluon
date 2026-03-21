@@ -94,7 +94,7 @@ interface DrumPad {
   };
   chokeGroup?: number;      // pads in same group mute each other on trigger
   level: number;            // 0.0–1.0, default 0.8
-  pan: number;              // 0.0–1.0 (0.5 = center), default 0.5
+  pan: number;              // -1.0 (left) to 1.0 (right), default 0.0
 }
 ```
 

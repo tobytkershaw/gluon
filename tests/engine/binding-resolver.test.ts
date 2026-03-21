@@ -65,14 +65,14 @@ function trackWithDrumRack(): Track {
           name: 'Kick',
           source: { engine: 'plaits', model: 6, params: { timbre: 0.3, morph: 0.5 } },
           level: 0.8,
-          pan: 0.5,
+          pan: 0.0,
         },
         {
           id: 'snare',
           name: 'Snare',
           source: { engine: 'plaits', model: 7, params: { timbre: 0.6, morph: 0.4 } },
           level: 0.7,
-          pan: 0.6,
+          pan: 0.2,
         },
       ],
     },
@@ -220,8 +220,8 @@ describe('resolveBinding', () => {
       const target: DrumPadTarget = { kind: 'drumPad', padId: 'snare', param: 'pan' };
       const result = resolveBinding(track, target);
       expect(result.status).toBe('ok');
-      expect((result as ResolvedScalar).value).toBe(0.6);
-      expect((result as ResolvedScalar).range).toEqual({ min: 0, max: 1 });
+      expect((result as ResolvedScalar).value).toBe(0.2);
+      expect((result as ResolvedScalar).range).toEqual({ min: -1, max: 1 });
     });
 
     it('resolves drum pad source param', () => {

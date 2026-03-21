@@ -1487,8 +1487,8 @@ export class AudioEngine {
     padGain.gain.value = Math.max(0, Math.min(1, level));
 
     const padPanner = this.ctx.createStereoPanner();
-    // Convert 0-1 pan (0.5=center) to -1..1 range
-    padPanner.pan.value = Math.max(-1, Math.min(1, (pan - 0.5) * 2));
+    // Pan is already -1..1 (clamped for safety)
+    padPanner.pan.value = Math.max(-1, Math.min(1, pan));
 
     // Wire: accentGain → padGain → padPanner → sourceOut
     accentGain.connect(padGain);
@@ -1574,14 +1574,14 @@ export class AudioEngine {
     padSlot.padGain.gain.value = Math.max(0, Math.min(1, level));
   }
 
-  /** Set the per-pad pan for a specific drum pad (0-1, 0.5=center). */
+  /** Set the per-pad pan for a specific drum pad (-1..1, 0=center). */
   setDrumPadPan(trackId: string, padId: string, pan: number): void {
     const slot = this.tracks.get(trackId);
     if (!slot || !slot.isDrumRack) return;
     const padSlot = slot.drumPads.get(padId);
     if (!padSlot) return;
-    // Convert 0-1 pan (0.5=center) to -1..1 range
-    padSlot.padPanner.pan.value = Math.max(-1, Math.min(1, (pan - 0.5) * 2));
+    // Pan is already -1..1 (clamped for safety)
+    padSlot.padPanner.pan.value = Math.max(-1, Math.min(1, pan));
   }
 
   /** Update the choke group assignment for a specific drum pad. */

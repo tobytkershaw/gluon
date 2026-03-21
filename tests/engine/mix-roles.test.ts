@@ -26,10 +26,10 @@ describe('mix-roles', () => {
     }
   });
 
-  it('every role has pan in 0-1 range', () => {
+  it('every role has pan in -1..1 range', () => {
     for (const name of ROLE_NAMES) {
       const role = getMixRole(name)!;
-      expect(role.defaults.pan).toBeGreaterThanOrEqual(0);
+      expect(role.defaults.pan).toBeGreaterThanOrEqual(-1);
       expect(role.defaults.pan).toBeLessThanOrEqual(1);
     }
   });

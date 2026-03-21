@@ -101,9 +101,9 @@ function binding(role: string, target: string | BindingTarget): ModuleBinding {
 function makeDrumRack(): DrumRackConfig {
   return {
     pads: [
-      { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 0, params: { note: 0.3 } }, level: 0.8, pan: 0.5 },
-      { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 1, params: { note: 0.5 } }, level: 0.8, pan: 0.5 },
-      { id: 'hat', name: 'Hat', source: { engine: 'plaits', model: 5, params: { note: 0.7 } }, level: 0.7, pan: 0.5, chokeGroup: 1 },
+      { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 0, params: { note: 0.3 } }, level: 0.8, pan: 0.0 },
+      { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 1, params: { note: 0.5 } }, level: 0.8, pan: 0.0 },
+      { id: 'hat', name: 'Hat', source: { engine: 'plaits', model: 5, params: { note: 0.7 } }, level: 0.7, pan: 0.0, chokeGroup: 1 },
     ],
   };
 }

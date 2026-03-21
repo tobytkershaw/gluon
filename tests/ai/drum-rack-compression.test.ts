@@ -16,7 +16,7 @@ function makePad(id: string, name: string, model: number, opts?: Partial<DrumPad
     name,
     source: { engine: 'plaits', model, params: {} },
     level: opts?.level ?? 0.8,
-    pan: opts?.pan ?? 0.5,
+    pan: opts?.pan ?? 0.0,
     ...(opts?.chokeGroup != null ? { chokeGroup: opts.chokeGroup } : {}),
   };
 }
@@ -56,10 +56,10 @@ describe('Drum Rack State Compression', () => {
   describe('pad metadata (4b)', () => {
     it('compresses pad metadata with model name, level, pan, and choke group', () => {
       const pads = [
-        makePad('kick', 'Kick', 13, { level: 0.8, pan: 0.5 }),
-        makePad('snare', 'Snare', 14, { level: 0.75, pan: 0.5 }),
-        makePad('hat', 'Hat', 15, { level: 0.6, pan: 0.4, chokeGroup: 1 }),
-        makePad('open-hat', 'Open Hat', 15, { level: 0.5, pan: 0.4, chokeGroup: 1 }),
+        makePad('kick', 'Kick', 13, { level: 0.8, pan: 0.0 }),
+        makePad('snare', 'Snare', 14, { level: 0.75, pan: 0.0 }),
+        makePad('hat', 'Hat', 15, { level: 0.6, pan: -0.2, chokeGroup: 1 }),
+        makePad('open-hat', 'Open Hat', 15, { level: 0.5, pan: -0.2, chokeGroup: 1 }),
       ];
 
       const session = createDrumRackSession(pads, []);
@@ -117,10 +117,10 @@ describe('Drum Rack State Compression', () => {
 
     it('formats pan correctly for left, right, and center', () => {
       const pads = [
-        makePad('left', 'Left', 13, { pan: 0.0 }),
-        makePad('center', 'Center', 13, { pan: 0.5 }),
+        makePad('left', 'Left', 13, { pan: -1.0 }),
+        makePad('center', 'Center', 13, { pan: 0.0 }),
         makePad('right', 'Right', 13, { pan: 1.0 }),
-        makePad('slight-left', 'Slight Left', 13, { pan: 0.35 }),
+        makePad('slight-left', 'Slight Left', 13, { pan: -0.3 }),
       ];
 
       const session = createDrumRackSession(pads, []);

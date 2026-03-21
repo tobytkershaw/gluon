@@ -817,7 +817,7 @@ export function projectAction(session: Session, action: AIAction): Session {
             name: action.name ?? action.padId,
             source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: built.params },
             level: 0.8,
-            pan: 0.5,
+            pan: 0.0,
           };
           if (action.chokeGroup != null) newPad.chokeGroup = action.chokeGroup as number;
           pads.push(newPad);
@@ -5010,14 +5010,11 @@ export class GluonAI {
           return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
-        // Convert pan from 0-1 (role format) to -1..1 (track format)
-        const panValue = (mixRole.defaults.pan - 0.5) * 2;
-
         const trackMixAction: AISetTrackMixAction = {
           type: 'set_track_mix',
           trackId: args.trackId as string,
           volume: mixRole.defaults.volume,
-          pan: panValue,
+          pan: mixRole.defaults.pan,
         };
 
         return {

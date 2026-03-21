@@ -66,7 +66,7 @@ function resolveScalar(track: Track, target: ScalarTarget): ResolvedScalar | { s
         return { status: 'ok', kind: 'scalar', value: pad.level, range: { min: 0, max: 1 } };
       }
       if (target.param === 'pan') {
-        return { status: 'ok', kind: 'scalar', value: pad.pan, range: { min: 0, max: 1 } };
+        return { status: 'ok', kind: 'scalar', value: pad.pan, range: { min: -1, max: 1 } };
       }
       // source param
       if (!(target.param in pad.source.params)) {

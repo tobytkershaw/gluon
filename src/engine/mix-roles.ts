@@ -5,7 +5,7 @@ export interface MixRole {
   description: string;
   defaults: {
     volume: number;   // 0-1 normalized
-    pan: number;      // 0-1 (0.5 = center)
+    pan: number;      // -1.0 (left) to 1.0 (right), 0.0 = center
   };
 }
 
@@ -13,32 +13,32 @@ const ROLES: Record<string, MixRole> = {
   lead: {
     name: 'lead',
     description: 'Lead voice — prominent, centered, dry',
-    defaults: { volume: 0.85, pan: 0.5 },
+    defaults: { volume: 0.85, pan: 0.0 },
   },
   pad: {
     name: 'pad',
     description: 'Pad/texture — quieter, wide stereo',
-    defaults: { volume: 0.6, pan: 0.5 },
+    defaults: { volume: 0.6, pan: 0.0 },
   },
   rhythm_foundation: {
     name: 'rhythm_foundation',
     description: 'Kick/main rhythm — loud, centered',
-    defaults: { volume: 0.9, pan: 0.5 },
+    defaults: { volume: 0.9, pan: 0.0 },
   },
   sub: {
     name: 'sub',
     description: 'Sub bass — centered, controlled level',
-    defaults: { volume: 0.75, pan: 0.5 },
+    defaults: { volume: 0.75, pan: 0.0 },
   },
   texture: {
     name: 'texture',
     description: 'Background texture — quiet, ambient',
-    defaults: { volume: 0.45, pan: 0.5 },
+    defaults: { volume: 0.45, pan: 0.0 },
   },
   accent: {
     name: 'accent',
     description: 'Accent/fill — moderate level, slightly off-center',
-    defaults: { volume: 0.65, pan: 0.45 },
+    defaults: { volume: 0.65, pan: -0.1 },
   },
 };
 

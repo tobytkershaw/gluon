@@ -311,12 +311,12 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
             {
               id: 'kick', name: 'Kick',
               source: { engine: 'plaits', model: 13, params: { timbre: 0.5, morph: 0.3, harmonics: 0.4 } },
-              level: 0.8, pan: 0.5,
+              level: 0.8, pan: 0.0,
             },
             {
               id: 'snare', name: 'Snare',
               source: { engine: 'plaits', model: 14, params: { timbre: 0.6, morph: 0.5, harmonics: 0.3 } },
-              level: 0.75, pan: 0.5,
+              level: 0.75, pan: 0.0,
             },
             {
               id: 'hat', name: 'Hat',
@@ -397,7 +397,7 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
             {
               id: 'kick', name: 'Kick',
               source: { engine: 'plaits', model: 13, params: {} },
-              level: 0.8, pan: 0.5,
+              level: 0.8, pan: 0.0,
             },
           ],
         },
@@ -425,7 +425,7 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
             {
               id: 'kick', name: 'Kick',
               source: { engine: 'plaits', model: 13, params: {} },
-              level: 0.8, pan: 0.5,
+              level: 0.8, pan: 0.0,
             },
           ],
         },
@@ -500,7 +500,7 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
             {
               id: 'kick', name: 'Kick',
               source: { engine: 'plaits', model: 13, params: {} },
-              level: 0.8, pan: 0.5,
+              level: 0.8, pan: 0.0,
             },
           ],
         },
@@ -526,9 +526,9 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
         engine: 'drum-rack',
         drumRack: {
           pads: [
-            { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.5 },
-            { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 14, params: {} }, level: 0.75, pan: 0.5 },
-            { id: 'hat', name: 'Hat', source: { engine: 'plaits', model: 15, params: {} }, level: 0.6, pan: 0.5 },
+            { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.0 },
+            { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 14, params: {} }, level: 0.75, pan: 0.0 },
+            { id: 'hat', name: 'Hat', source: { engine: 'plaits', model: 15, params: {} }, level: 0.6, pan: 0.0 },
           ],
         },
       });
@@ -570,9 +570,9 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
         engine: 'drum-rack',
         drumRack: {
           pads: [
-            { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.5 },
-            { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 14, params: {} }, level: 0.75, pan: 0.5 },
-            { id: 'hat', name: 'Hat', source: { engine: 'plaits', model: 15, params: {} }, level: 0.6, pan: 0.5 },
+            { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.0 },
+            { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 14, params: {} }, level: 0.75, pan: 0.0 },
+            { id: 'hat', name: 'Hat', source: { engine: 'plaits', model: 15, params: {} }, level: 0.6, pan: 0.0 },
           ],
         },
       });
@@ -686,7 +686,7 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
         engine: 'drum-rack',
         drumRack: {
           pads: [
-            { id: 'test', name: 'Test', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.5 },
+            { id: 'test', name: 'Test', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.0 },
           ],
         },
       });
@@ -733,8 +733,8 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
         engine: 'drum-rack',
         drumRack: {
           pads: [
-            { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.5 },
-            { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 14, params: {} }, level: 0.75, pan: 0.5 },
+            { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.0 },
+            { id: 'snare', name: 'Snare', source: { engine: 'plaits', model: 14, params: {} }, level: 0.75, pan: 0.0 },
           ],
         },
       });
@@ -771,7 +771,7 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
             {
               id: 'kick', name: 'Kick',
               source: { engine: 'plaits', model: 13, params: { timbre: 0.5, morph: 0.3, harmonics: 0.4 } },
-              level: 0.8, pan: 0.5,
+              level: 0.8, pan: 0.0,
             },
           ],
         },

@@ -469,22 +469,22 @@ describe('Drum rack audio engine', () => {
       expect(kickPad.padGain.gain.value).toBe(0.6);
     });
 
-    it('setDrumPadPan converts 0-1 to -1..1 range', () => {
+    it('setDrumPadPan passes -1..1 directly to panner', () => {
       const engine = new AudioEngine();
       const slot = makeDrumRackSlot();
       const kickPad = makeDrumPadSlot('kick');
       slot.drumPads.set('kick', kickPad);
       injectTracks(engine, [['drums', slot]]);
 
-      // 0.5 = center = 0
-      engine.setDrumPadPan('drums', 'kick', 0.5);
+      // 0.0 = center
+      engine.setDrumPadPan('drums', 'kick', 0.0);
       expect(kickPad.padPanner.pan.value).toBe(0);
 
-      // 0.0 = full left = -1
-      engine.setDrumPadPan('drums', 'kick', 0.0);
+      // -1.0 = full left
+      engine.setDrumPadPan('drums', 'kick', -1.0);
       expect(kickPad.padPanner.pan.value).toBe(-1);
 
-      // 1.0 = full right = 1
+      // 1.0 = full right
       engine.setDrumPadPan('drums', 'kick', 1.0);
       expect(kickPad.padPanner.pan.value).toBe(1);
     });
@@ -589,7 +589,7 @@ describe('Drum rack audio engine', () => {
 
       // Fire first call — it will add to pendingDrumPads and then await
       const p1 = engine.addDrumPad('drums', 'kick', 0,
-        { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 }, 0.8, 0.5);
+        { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 }, 0.8, 0.0);
 
       // The pending set should now contain the key (before the await resolves)
       // Note: this is a microtask-level check; the first call is suspended at
@@ -598,7 +598,7 @@ describe('Drum rack audio engine', () => {
 
       // Fire second call synchronously — should bail due to in-flight guard
       const p2 = engine.addDrumPad('drums', 'kick', 0,
-        { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 }, 0.8, 0.5);
+        { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 }, 0.8, 0.0);
 
       // p2 should resolve immediately (returned early), so await it
       await p2;
@@ -634,7 +634,7 @@ describe('Drum rack audio engine', () => {
       // doesn't support real AudioWorklet creation. This exercises the
       // try/finally cleanup path (pendingDrumPads.delete).
       const p = engine.addDrumPad('drums', 'kick', 0,
-        { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 }, 0.8, 0.5);
+        { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.47 }, 0.8, 0.0);
 
       // Remove track while addDrumPad is in flight
       (engine as unknown as { tracks: Map<string, unknown> }).tracks.delete('drums');
