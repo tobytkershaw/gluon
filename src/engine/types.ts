@@ -178,8 +178,126 @@ export interface ModuleBinding {
   // a single track context so cross-track targets cannot be realized at runtime.
   // Empty string ('') is treated as "owning track" for template bindings resolved at apply time.
   trackId: string;
-  target: string;         // controlId, regionId, or semantic reference
+  /** @deprecated string form — use BindingTarget. String targets are migrated at session load via migrateBinding(). */
+  target: string | BindingTarget;
 }
+
+// --- Binding Contract types (typed binding targets) ---
+
+/** Scalar target kinds — each addresses a single numeric parameter. */
+export interface SourceTarget { kind: 'source'; param: string }
+export interface ProcessorTarget { kind: 'processor'; processorId: string; param: string }
+export interface ModulatorTarget { kind: 'modulator'; modulatorId: string; param: string }
+export interface MixTarget { kind: 'mix'; param: 'volume' | 'pan' }
+export interface DrumPadTarget { kind: 'drumPad'; padId: string; param: string }
+export interface GeneratorTarget { kind: 'generator'; generatorId: string; param: string }
+export interface ParamShapeTarget { kind: 'paramShape'; shapeId: string; param: string }
+
+/** Non-scalar target kinds — address compound structures. */
+export interface RegionTarget { kind: 'region'; patternId: string }
+export interface ChainTarget { kind: 'chain' }
+export interface KitTarget { kind: 'kit' }
+
+/** Union of all scalar (single-value) targets. */
+export type ScalarTarget =
+  | SourceTarget
+  | ProcessorTarget
+  | ModulatorTarget
+  | MixTarget
+  | DrumPadTarget
+  | GeneratorTarget
+  | ParamShapeTarget;
+
+/** A single mapping within a weighted multi-parameter control. */
+export interface WeightedMapping {
+  target: ScalarTarget;
+  weight: number;
+  transform?: 'linear' | 'inverse' | 'bipolar';
+}
+
+/** Weighted target — a macro knob that drives multiple scalar targets. */
+export interface WeightedTarget {
+  kind: 'weighted';
+  mappings: WeightedMapping[];
+}
+
+/** All possible binding targets. */
+export type BindingTarget = ScalarTarget | WeightedTarget | RegionTarget | ChainTarget | KitTarget;
+
+/** Binding roles — typed version of the string role on ModuleBinding. */
+export type BindingRole = 'control' | 'x-axis' | 'y-axis' | 'region' | 'chain' | 'kit' | 'track';
+
+// --- Binding write results ---
+
+/**
+ * Discriminated union for write results — describes which parameter was mutated.
+ * Values are in **native space** (e.g. mix.pan is -1..1, not 0..1).
+ * Callers dispatching these to session callbacks must pass the native value directly.
+ * Source params, processor params, modulator params, and drum pad params are all 0..1.
+ * Mix.pan is -1..1 (center = 0). Mix.volume is 0..1.
+ */
+export type ParamMutation =
+  | { kind: 'sourceParam'; param: string; value: number }
+  | { kind: 'processorParam'; processorId: string; param: string; value: number }
+  | { kind: 'modulatorParam'; modulatorId: string; param: string; value: number }
+  | { kind: 'mixParam'; param: 'volume' | 'pan'; value: number }
+  | { kind: 'drumPadParam'; padId: string; param: string; value: number };
+
+/** Result of writing a binding value to a track. */
+export type BindingWriteResult =
+  | { status: 'ok'; trackId: string; mutations: ParamMutation[] }
+  | { status: 'stale'; reason: string }
+  | { status: 'unsupported'; reason: string };
+
+// --- Binding read results ---
+
+/** Resolved scalar binding — a single value with its native range. */
+export interface ResolvedScalar {
+  status: 'ok';
+  kind: 'scalar';
+  value: number;
+  range: { min: number; max: number };
+}
+
+/** Resolved weighted binding — composite value from multiple scalar targets. */
+export interface ResolvedWeighted {
+  status: 'ok';
+  kind: 'weighted';
+  value: number;
+  componentValues: { target: ScalarTarget; value: number; range: { min: number; max: number } }[];
+}
+
+/** Resolved region binding — pattern events. */
+export interface ResolvedRegion {
+  status: 'ok';
+  kind: 'region';
+  patternId: string;
+  events: import('./canonical-types').MusicalEvent[];
+}
+
+/** Resolved chain binding — processor array. */
+export interface ResolvedChain {
+  status: 'ok';
+  kind: 'chain';
+  processors: ProcessorConfig[];
+}
+
+/** Resolved kit binding — drum pads. */
+export interface ResolvedKit {
+  status: 'ok';
+  kind: 'kit';
+  pads: DrumPad[];
+}
+
+/** All possible resolved binding results. */
+export type ResolvedBinding =
+  | ResolvedScalar
+  | ResolvedWeighted
+  | ResolvedRegion
+  | ResolvedChain
+  | ResolvedKit
+  | { status: 'stale'; reason: string }
+  | { status: 'unsupported'; reason: string };
 
 export interface SurfaceModule {
   type: string;           // module type from registry (e.g., 'knob-group', 'macro-knob', 'xy-pad')

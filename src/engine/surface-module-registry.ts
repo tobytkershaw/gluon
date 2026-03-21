@@ -5,12 +5,14 @@
  * size constraints, and metadata. The registry provides lookup and validation.
  */
 
+import type { BindingRole } from './types';
+
 export interface SurfaceModuleDef {
   type: string;
   name: string;
   description: string;
-  requiredBindings: { role: string; description: string }[];
-  optionalBindings?: { role: string; description: string }[];
+  requiredBindings: { role: BindingRole; description: string }[];
+  optionalBindings?: { role: BindingRole; description: string }[];
   defaultSize: { w: number; h: number };
   minSize?: { w: number; h: number };
   maxSize?: { w: number; h: number };
