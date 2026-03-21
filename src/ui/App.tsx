@@ -203,7 +203,7 @@ export default function App() {
   const [_selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [_selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
-  const [_deepViewModuleId, setDeepViewModuleId] = useState<string | null>(null);
+
   const [audioDegradedMessage, setAudioDegradedMessage] = useState<string | null>(null);
   // A/B comparison state
   const [abSnapshot, setAbSnapshot] = useState<ABSnapshot | null>(null);
@@ -1524,7 +1524,7 @@ export default function App() {
     setActivityMap({});
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
-    setDeepViewModuleId(null);
+
     setSession(s => ({ ...s, liveControls: [] }));
     if (completionTimerRef.current) { clearTimeout(completionTimerRef.current); completionTimerRef.current = null; }
     setLastCompletionSummary(null);
@@ -2210,7 +2210,7 @@ export default function App() {
     setStepPage(0);
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
-    setDeepViewModuleId(null);
+
   }, []);
 
   const handleToggleTrackExpanded = useCallback((trackId: string) => {
@@ -2349,7 +2349,7 @@ export default function App() {
       });
       setSelectedProcessorId(null);
       setSelectedModulatorId(null);
-      setDeepViewModuleId(null);
+  
       setView((current) => (current === 'chat' ? 'surface' : current));
     });
   }, [runWithActiveTurnInvalidation]);
@@ -2364,7 +2364,7 @@ export default function App() {
       });
       setSelectedProcessorId(null);
       setSelectedModulatorId(null);
-      setDeepViewModuleId(null);
+  
     });
   }, [runWithActiveTurnInvalidation]);
 
