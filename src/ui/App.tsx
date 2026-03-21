@@ -1291,29 +1291,26 @@ export default function App() {
     });
   }, []);
 
-  /** Clear stale live controls — called at AI turn start. Removes:
+  /** Clear stale live controls and increment turn counter. Pure function so
+   *  callers can apply it synchronously to sessionRef before building the
+   *  session snapshot that goes to the planner. Removes:
    *  - untouched modules (proposals from last turn)
    *  - touched modules past 3-turn grace period
    *  - modules whose trackId no longer exists */
-  const clearStaleLiveControls = useCallback(() => {
-    setSession(s => {
-      const currentTurn = s.turnCount;
-      const trackIds = new Set(s.tracks.map(t => t.id));
-      const filtered = s.liveControls.filter(m => {
-        // Remove modules for deleted tracks
-        if (!trackIds.has(m.trackId)) return false;
-        // Remove untouched modules
-        if (!m.touched) return false;
-        // Remove touched modules past 3-turn grace period
-        if (currentTurn - m.createdAtTurn > 3) return false;
-        return true;
-      });
-      return {
-        ...s,
-        liveControls: filtered,
-        turnCount: currentTurn + 1,
-      };
+  const clearStaleLiveControls = useCallback((s: Session): Session => {
+    const currentTurn = s.turnCount;
+    const trackIds = new Set(s.tracks.map(t => t.id));
+    const filtered = s.liveControls.filter(m => {
+      if (!trackIds.has(m.trackId)) return false;
+      if (!m.touched) return false;
+      if (currentTurn - m.createdAtTurn > 3) return false;
+      return true;
     });
+    return {
+      ...s,
+      liveControls: filtered,
+      turnCount: currentTurn + 1,
+    };
   }, []);
 
   /** Pin/unpin a control to/from the Surface view. Toggle behaviour. */
@@ -1625,7 +1622,6 @@ export default function App() {
   const handleSend = useCallback(async (message: string) => {
     if (!aiRef.current.isPlannerConfigured()) return;
     const thisRequest = beginTurn();
-    clearStaleLiveControls();
     setIsThinking(true);
     setStreamingText('');
     setStreamingLogEntries([]);
@@ -1637,14 +1633,17 @@ export default function App() {
       setIsThinking(false);
       return;
     }
+    // Clear stale live controls and increment turn counter synchronously
+    // before building the session snapshot for the planner.
+    const cleaned = clearStaleLiveControls(sessionRef.current);
     // Add human message to session synchronously via ref so askStreaming
     // receives the session with the message already present. Without this,
     // onStep's setSession(() => updatedSession) overwrites the React state
     // with a snapshot that predates the human message, making it disappear.
     const humanMsg = { role: 'human' as const, text: message, timestamp: Date.now() };
     const withHumanMsg = {
-      ...sessionRef.current,
-      messages: [...sessionRef.current.messages, humanMsg],
+      ...cleaned,
+      messages: [...cleaned.messages, humanMsg],
     };
     sessionRef.current = withHumanMsg;
     setSession(withHumanMsg);
