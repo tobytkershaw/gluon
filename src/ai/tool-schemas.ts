@@ -2162,7 +2162,7 @@ const proposeControlsTool: ToolSchema = {
           properties: {
             type: {
               type: 'string',
-              enum: ['knob-group', 'macro-knob'],
+              enum: ['knob-group', 'macro-knob', 'xy-pad', 'step-grid'],
               description: 'Module type.',
             },
             label: {
@@ -2177,7 +2177,7 @@ const proposeControlsTool: ToolSchema = {
                 properties: {
                   role: {
                     type: 'string',
-                    enum: ['control'],
+                    enum: ['control', 'x-axis', 'y-axis', 'region'],
                     description: 'Binding role.',
                   },
                   target: bindingTargetSchema,

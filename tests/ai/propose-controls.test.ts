@@ -144,8 +144,8 @@ describe('propose_controls tool handler', () => {
           trackId: 'v0',
           description: 'Test',
           modules: [{
-            type: 'xy-pad',  // Not allowed for propose_controls
-            label: 'XY',
+            type: 'foobar',  // Not a valid type
+            label: 'Bad',
             bindings: [{ role: 'control', target: { kind: 'source', param: 'timbre' } }],
           }],
         },
@@ -156,6 +156,72 @@ describe('propose_controls tool handler', () => {
     await ai.ask(session, 'test');
     const responses = planner.lastFunctionResponses;
     expect(responses[0].result).toHaveProperty('error');
+  });
+
+  it('accepts xy-pad with x-axis and y-axis bindings', async () => {
+    const session = makeSession();
+
+    planner.startTurnResults = [{
+      textParts: [],
+      functionCalls: [{
+        id: 'fc1',
+        name: 'propose_controls',
+        args: {
+          trackId: 'v0',
+          description: 'XY pad controls',
+          modules: [{
+            type: 'xy-pad',
+            label: 'Timbre / Morph',
+            bindings: [
+              { role: 'x-axis', target: { kind: 'source', param: 'timbre' } },
+              { role: 'y-axis', target: { kind: 'source', param: 'morph' } },
+            ],
+          }],
+        },
+      }],
+    }];
+    planner.continueTurnResults = [{ textParts: ['done'], functionCalls: [] }];
+
+    await ai.ask(session, 'xy pad');
+    const responses = planner.lastFunctionResponses;
+    expect(responses[0].result).toHaveProperty('applied', true);
+    expect(responses[0].result).toHaveProperty('moduleCount', 1);
+    const liveControls = (responses[0].result as Record<string, unknown>)._liveControls as LiveControlModule[];
+    expect(liveControls).toHaveLength(1);
+    expect(liveControls[0].module.type).toBe('xy-pad');
+    expect(liveControls[0].module.bindings).toHaveLength(2);
+  });
+
+  it('accepts step-grid with region binding', async () => {
+    const session = makeSession();
+
+    planner.startTurnResults = [{
+      textParts: [],
+      functionCalls: [{
+        id: 'fc1',
+        name: 'propose_controls',
+        args: {
+          trackId: 'v0',
+          description: 'Step grid',
+          modules: [{
+            type: 'step-grid',
+            label: 'Pattern',
+            bindings: [
+              { role: 'region', target: { kind: 'pattern', patternId: 'p0' } },
+            ],
+          }],
+        },
+      }],
+    }];
+    planner.continueTurnResults = [{ textParts: ['done'], functionCalls: [] }];
+
+    await ai.ask(session, 'step grid');
+    const responses = planner.lastFunctionResponses;
+    expect(responses[0].result).toHaveProperty('applied', true);
+    expect(responses[0].result).toHaveProperty('moduleCount', 1);
+    const liveControls = (responses[0].result as Record<string, unknown>)._liveControls as LiveControlModule[];
+    expect(liveControls).toHaveLength(1);
+    expect(liveControls[0].module.type).toBe('step-grid');
   });
 
   it('replace mode clears untouched but keeps touched', async () => {
