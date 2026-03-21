@@ -61,8 +61,8 @@ function makePlaitsControl(
   };
 }
 
-function defaultControls(): ControlSchema[] {
-  return [
+function defaultControls(overrides?: Record<string, number>): ControlSchema[] {
+  const controls: ControlSchema[] = [
     // Row 1: Frequency, Harmonics (matching hardware 2x2 layout)
     makePlaitsControl(
       'frequency',
@@ -183,6 +183,14 @@ function defaultControls(): ControlSchema[] {
       },
     },
   ];
+  if (overrides) {
+    for (const c of controls) {
+      if (c.range && c.id in overrides) {
+        c.range = { ...c.range, default: overrides[c.id] };
+      }
+    }
+  }
+  return controls;
 }
 
 // --- Engine definitions ---
@@ -190,30 +198,39 @@ function defaultControls(): ControlSchema[] {
 // Official Plaits model names and order per MI documentation.
 // Pair structure: 8 pitched models, then 5 noise/string models, then 3 percussion.
 // IDs are stable (used in persistence) — labels updated to match official docs.
-const ENGINE_DATA: [string, string, string, boolean][] = [
+// Per-engine default param overrides. Only engines that benefit from non-0.5
+// defaults are listed. Values are derived from MODEL_PARAM_SEMANTICS sweet spots
+// in src/ai/system-prompt.ts and official Plaits documentation.
+const ENGINE_DATA: [string, string, string, boolean, Record<string, number>?][] = [
   ['virtual-analog', 'Virtual Analog', 'Classic variable-waveshape VA oscillator', false],
-  ['waveshaping', 'Waveshaper', 'Variable-slope triangle into waveshaper and wavefolder', false],
-  ['fm', 'FM', '2-operator FM with feedback', false],
+  ['waveshaping', 'Waveshaper', 'Variable-slope triangle into waveshaper and wavefolder', false,
+    { timbre: 0.3 }], // 0.5 is aggressive folding; 0.3 = subtle warmth
+  ['fm', 'FM', '2-operator FM with feedback', false,
+    { timbre: 0.3 }], // 0.5 = bright; 0.3 = warm FM
   ['grain-formant', 'Formant', 'Granular formant oscillator — vowels and filtered sine', false],
   ['harmonic', 'Harmonic', 'Additive synthesis — 24 harmonics', false],
   ['wavetable', 'Wavetable', 'Wavetable oscillator — 8x8 banks', false],
-  ['chords', 'Chords', 'Chord engine — string machine style', false],
+  ['chords', 'Chords', 'Chord engine — string machine style', false,
+    { harmonics: 0.25, morph: 0.2 }], // minor triad, warm organ/string drawbar
   ['vowel-speech', 'Speech', 'Speech synthesis — SAM, LPC, and formant', false],
   ['swarm', 'Swarm', 'Granular cloud of 8 sawtooth oscillators', false],
   ['filtered-noise', 'Filtered Noise', 'Clocked noise through resonant filter', false],
   ['particle-dust', 'Particle Noise', 'Dust noise through all-pass and band-pass filters', false],
   ['inharmonic-string', 'Inharmonic String', 'Karplus-Strong extended model with inharmonicity', false],
   ['modal-resonator', 'Modal Resonator', 'Tuned modal resonator — bells, plates, struck objects', false],
-  ['analog-bass-drum', 'Analog Bass Drum', 'Analog bass drum synthesis', true],
-  ['analog-snare', 'Analog Snare Drum', 'Analog snare drum synthesis', true],
-  ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat synthesis', true],
+  ['analog-bass-drum', 'Analog Bass Drum', 'Analog bass drum synthesis', true,
+    { frequency: 0.25, harmonics: 0.12, timbre: 0.2, morph: 0.4 }], // deep punchy kick
+  ['analog-snare', 'Analog Snare Drum', 'Analog snare drum synthesis', true,
+    { frequency: 0.38, harmonics: 0.4, timbre: 0.35, morph: 0.3 }], // balanced snappy snare
+  ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat synthesis', true,
+    { frequency: 0.65, harmonics: 0.4, timbre: 0.5, morph: 0.15 }], // tight closed hat
 ];
 
-const engines: EngineDef[] = ENGINE_DATA.map(([id, label, description]) => ({
+const engines: EngineDef[] = ENGINE_DATA.map(([id, label, description, _perc, defaults]) => ({
   id,
   label,
   description,
-  controls: defaultControls(),
+  controls: defaultControls(defaults),
 }));
 
 const percussionSet = new Set(
