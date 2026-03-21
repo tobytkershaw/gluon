@@ -11,6 +11,12 @@ export interface ModuleRendererProps {
   palette?: SurfacePalette;
   /** The palette color for this specific module's role */
   roleColor?: PaletteColor;
+  /** Whether transport is currently playing */
+  playing?: boolean;
+  /** Raw global step from scheduler (fractional, ~25ms updates) */
+  globalStep?: number;
+  /** Current BPM for playhead interpolation */
+  bpm?: number;
   /** Called when module changes a source param — no per-frame undo */
   onParamChange?: (controlId: string, value: number) => void;
   /** Called when module changes a processor param — no per-frame undo */

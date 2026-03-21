@@ -5,6 +5,7 @@ import { getActivePattern } from '../../engine/types';
 import { resolveBinding } from '../../engine/binding-resolver';
 import { getAccentColor } from './visual-utils';
 import { ensureTypedTarget } from './binding-helpers';
+import { usePlayheadPosition } from '../usePlayheadPosition';
 
 interface PaintState {
   active: boolean;
@@ -34,6 +35,9 @@ export function StepGridModule({
   onStepToggle,
   onStepAccentToggle,
   onPaintComplete,
+  playing = false,
+  globalStep = 0,
+  bpm = 120,
 }: ModuleRendererProps) {
   // Step grid uses base role — pattern output is the track's identity
   const accent = roleColor?.full ?? getAccentColor(visualContext);
@@ -106,6 +110,12 @@ export function StepGridModule({
       </div>
     );
   }
+
+  // Derive local playhead step for this pattern
+  const patternDuration = pattern.duration;
+  const rawLocalStep = patternDuration > 0 ? globalStep % patternDuration : 0;
+  const { playheadStep } = usePlayheadPosition(rawLocalStep, playing, bpm, patternDuration);
+  const activeColumn = playing ? playheadStep : -1;
 
   // Extract gate events (trigger or note) from the pattern, keyed by integer step position.
   // When padIdFilter is set, only include events whose padId matches (for per-pad drum grids).
@@ -245,6 +255,7 @@ export function StepGridModule({
           const hasGate = gateEvent !== undefined && velocity !== 0;
           const hasAccent = hasGate && gateEvent.kind === 'trigger' && (gateEvent as TriggerEvent).accent === true;
           const isBeatBoundary = i % 4 === 0;
+          const isPlayhead = i === activeColumn;
 
           return (
             <div
@@ -256,11 +267,12 @@ export function StepGridModule({
                 ? {
                     backgroundColor: accent,
                     opacity: hasAccent ? 0.7 : 0.3,
-                    borderColor: accent,
+                    borderColor: isPlayhead ? 'rgba(255,255,255,0.7)' : accent,
+                    boxShadow: isPlayhead ? `0 0 6px ${accent}` : undefined,
                   }
                 : {
-                    backgroundColor: 'rgba(39,39,42,0.6)',
-                    borderColor: 'rgba(63,63,70,0.4)',
+                    backgroundColor: isPlayhead ? 'rgba(255,255,255,0.08)' : 'rgba(39,39,42,0.6)',
+                    borderColor: isPlayhead ? 'rgba(255,255,255,0.35)' : 'rgba(63,63,70,0.4)',
                   }
               }
               onPointerDown={interactive ? (e) => handlePointerDown(e, i) : undefined}

@@ -47,6 +47,12 @@ interface SurfaceCanvasProps {
   onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string, padId?: string) => void;
   /** Called when a paint gesture completes to push a single grouped undo entry. */
   onPaintComplete?: (trackId: string, patternId: string | undefined, prevEvents: MusicalEvent[]) => void;
+  /** Whether transport is currently playing */
+  playing?: boolean;
+  /** Raw global step from scheduler (fractional, ~25ms updates) */
+  globalStep?: number;
+  /** Current BPM for playhead interpolation */
+  bpm?: number;
 }
 
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
@@ -75,6 +81,9 @@ export function SurfaceCanvas({
   onStepToggle,
   onStepAccentToggle,
   onPaintComplete,
+  playing,
+  globalStep,
+  bpm,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -279,6 +288,9 @@ export function SurfaceCanvas({
                   onStepToggle={onStepToggle}
                   onStepAccentToggle={onStepAccentToggle}
                   onPaintComplete={onPaintComplete}
+                  playing={playing}
+                  globalStep={globalStep}
+                  bpm={bpm}
                 />
               </div>
             );
