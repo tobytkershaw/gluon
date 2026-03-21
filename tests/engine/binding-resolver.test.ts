@@ -242,7 +242,7 @@ describe('resolveBinding', () => {
 
     it('paramShape returns unsupported', () => {
       const track = makeTrack();
-      const target: ScalarTarget = { kind: 'paramShape', controlId: 'timbre' };
+      const target: ScalarTarget = { kind: 'paramShape', shapeId: 'shape-1', param: 'range' };
       const result = resolveBinding(track, target);
       expect(result.status).toBe('unsupported');
     });
@@ -294,6 +294,18 @@ describe('resolveBinding', () => {
       };
       const result = resolveBinding(track, target);
       expect(result.status).toBe('stale');
+    });
+
+    it('returns unsupported (not stale) if a mapping target is unsupported', () => {
+      const track = makeTrack();
+      const target: WeightedTarget = {
+        kind: 'weighted',
+        mappings: [
+          { target: { kind: 'generator', generatorId: 'g1', param: 'density' }, weight: 1.0 },
+        ],
+      };
+      const result = resolveBinding(track, target);
+      expect(result.status).toBe('unsupported');
     });
   });
 
@@ -488,7 +500,7 @@ describe('writeBinding', () => {
 
     it('paramShape returns unsupported', () => {
       const track = makeTrack();
-      const result = writeBinding(track, { kind: 'paramShape', controlId: 'timbre' }, 0.5);
+      const result = writeBinding(track, { kind: 'paramShape', shapeId: 'shape-1', param: 'range' }, 0.5);
       expect(result.status).toBe('unsupported');
     });
   });

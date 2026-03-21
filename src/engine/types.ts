@@ -178,7 +178,8 @@ export interface ModuleBinding {
   // a single track context so cross-track targets cannot be realized at runtime.
   // Empty string ('') is treated as "owning track" for template bindings resolved at apply time.
   trackId: string;
-  target: string;         // controlId, regionId, or semantic reference
+  /** @deprecated string form — use BindingTarget. String targets are migrated at session load via migrateBinding(). */
+  target: string | BindingTarget;
 }
 
 // --- Binding Contract types (typed binding targets) ---
@@ -190,7 +191,7 @@ export interface ModulatorTarget { kind: 'modulator'; modulatorId: string; param
 export interface MixTarget { kind: 'mix'; param: 'volume' | 'pan' }
 export interface DrumPadTarget { kind: 'drumPad'; padId: string; param: string }
 export interface GeneratorTarget { kind: 'generator'; generatorId: string; param: string }
-export interface ParamShapeTarget { kind: 'paramShape'; controlId: string }
+export interface ParamShapeTarget { kind: 'paramShape'; shapeId: string; param: string }
 
 /** Non-scalar target kinds — address compound structures. */
 export interface RegionTarget { kind: 'region'; patternId: string }
@@ -228,7 +229,13 @@ export type BindingRole = 'control' | 'x-axis' | 'y-axis' | 'region' | 'chain' |
 
 // --- Binding write results ---
 
-/** Discriminated union for write results — describes which parameter was mutated. */
+/**
+ * Discriminated union for write results — describes which parameter was mutated.
+ * Values are in **native space** (e.g. mix.pan is -1..1, not 0..1).
+ * Callers dispatching these to session callbacks must pass the native value directly.
+ * Source params, processor params, modulator params, and drum pad params are all 0..1.
+ * Mix.pan is -1..1 (center = 0). Mix.volume is 0..1.
+ */
 export type ParamMutation =
   | { kind: 'sourceParam'; param: string; value: number }
   | { kind: 'processorParam'; processorId: string; param: string; value: number }

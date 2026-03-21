@@ -10,6 +10,7 @@ import { controlIdToRuntimeParam, getRegisteredModulatorTypes, getRegisteredProc
 import type { InverseConversionOptions } from './event-conversion';
 import { migrateLegacySurface } from './surface-templates';
 import { isValidModuleType, validateModuleBindings } from './surface-module-registry';
+import { migrateBinding } from './binding-resolver';
 
 const STORAGE_KEY = 'gluon-session';
 export const CURRENT_VERSION = 6;
@@ -312,6 +313,27 @@ export function migrateTrack(track: Track): Track {
     surfaced = {
       ...surfaced,
       surface: { ...surfaced.surface, modules: validatedModules },
+    };
+  }
+
+  // Migrate string-format surface bindings to typed BindingTarget (#1381)
+  if (surfaced.surface?.modules?.length) {
+    const migratedModules = surfaced.surface.modules.map(mod => {
+      const migratedBindings = mod.bindings.map(b => {
+        // Already migrated — target is an object with 'kind'
+        if (typeof b.target === 'object' && b.target !== null && 'kind' in b.target) return b;
+        // Legacy string target — migrate
+        return migrateBinding(
+          { role: b.role, trackId: b.trackId, target: b.target as string },
+          mod.type,
+          mod.config,
+        );
+      });
+      return { ...mod, bindings: migratedBindings };
+    });
+    surfaced = {
+      ...surfaced,
+      surface: { ...surfaced.surface, modules: migratedModules },
     };
   }
 

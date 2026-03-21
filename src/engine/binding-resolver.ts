@@ -103,6 +103,9 @@ function applyTransform(transform: 'linear' | 'inverse' | 'bipolar' | undefined,
       raw = 0.5 - offset;
       break;
     case 'bipolar':
+      // Same formula as linear — bipolar is a semantic annotation (parameter spans
+      // a bidirectional range like pan) not a different math transform. The difference
+      // matters for display (centered indicator) not computation. Matches semantic-utils.ts.
       raw = 0.5 + offset;
       break;
   }
@@ -111,7 +114,7 @@ function applyTransform(transform: 'linear' | 'inverse' | 'bipolar' | undefined,
 
 /** Compute weighted average: resolve each scalar, normalize to 0-1,
  *  apply transform (for reading), compute weighted sum. */
-function resolveWeighted(track: Track, mappings: WeightedMapping[]): ResolvedWeighted | { status: 'stale'; reason: string } {
+function resolveWeighted(track: Track, mappings: WeightedMapping[]): ResolvedWeighted | { status: 'stale'; reason: string } | { status: 'unsupported'; reason: string } {
   const componentValues: ResolvedWeighted['componentValues'] = [];
   let totalWeight = 0;
   let sum = 0;
@@ -119,7 +122,8 @@ function resolveWeighted(track: Track, mappings: WeightedMapping[]): ResolvedWei
   for (const mapping of mappings) {
     const resolved = resolveScalar(track, mapping.target);
     if (resolved.status !== 'ok') {
-      return { status: 'stale', reason: (resolved as { reason: string }).reason };
+      // Propagate the actual status — stale vs unsupported have different UX treatments
+      return { status: resolved.status, reason: (resolved as { reason: string }).reason };
     }
     const r = resolved as ResolvedScalar;
     const normalized = normalize(r.value, r.range.min, r.range.max);
@@ -306,7 +310,10 @@ export function migrateBinding(
     return { role, trackId: old.trackId, target: { kind: 'kit' } };
   }
 
-  // Processor target: "processorId:param"
+  // Colon-separated target: "processorId:param"
+  // Note: old surfaces never had modulator bindings (no renderer supported them),
+  // so all colon-targets are processor targets. If modulator bindings are added
+  // to old surfaces in future, this migration must be updated to distinguish them.
   if (old.target.includes(':')) {
     const [processorId, param] = old.target.split(':', 2);
     return { role, trackId: old.trackId, target: { kind: 'processor', processorId, param } };
