@@ -1496,7 +1496,7 @@ function executeActionsInternal(
           const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
           if (engineIndex < 0) { rejected.push({ op: action, reason: `Unknown model: ${action.model}` }); break; }
           const defaultParams: Record<string, number> = {};
-          for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; }
+          for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { if (ctrl.binding?.path?.startsWith('track.')) continue; defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; }
           const padSnapshot: DrumPadSnapshot = { kind: 'drum-pad', trackId: action.trackId, prevPads, timestamp: Date.now(), description: `AI drum pad model: ${action.pad} → ${plaitsInstrument.engines[engineIndex].label}` };
           const newPads = track.drumRack.pads.map(p => p.id === action.pad ? { ...p, source: { ...p.source, model: engineIndex, params: defaultParams } } : p);
           next = { ...updateTrack(next, action.trackId, { drumRack: { ...track.drumRack, pads: newPads } }), undoStack: [...next.undoStack, padSnapshot] };
@@ -2778,7 +2778,7 @@ function executeActionsInternal(
           case 'add': {
             const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
             const defaultParams: Record<string, number> = {};
-            if (engineIndex >= 0) { for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; } }
+            if (engineIndex >= 0) { for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { if (ctrl.binding?.path?.startsWith('track.')) continue; defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; } }
             const newPad: DrumPad = { id: action.padId, name: action.name ?? action.padId, source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: defaultParams }, level: 0.8, pan: 0.5 };
             if (action.chokeGroup != null) (newPad as DrumPad).chokeGroup = action.chokeGroup as number;
             newPads = [...prevPads, newPad];

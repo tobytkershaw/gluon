@@ -199,8 +199,8 @@ function defaultControls(overrides?: Record<string, number>): ControlSchema[] {
 // Pair structure: 8 pitched models, then 5 noise/string models, then 3 percussion.
 // IDs are stable (used in persistence) — labels updated to match official docs.
 // Per-engine default param overrides. Only engines that benefit from non-0.5
-// defaults are listed. Values are derived from MODEL_PARAM_SEMANTICS sweet spots
-// in src/ai/system-prompt.ts and official Plaits documentation.
+// defaults are listed. Values derived from official Mutable Instruments Plaits
+// documentation and acoustic testing.
 const ENGINE_DATA: [string, string, string, boolean, Record<string, number>?][] = [
   ['virtual-analog', 'Virtual Analog', 'Classic variable-waveshape VA oscillator', false],
   ['waveshaping', 'Waveshaper', 'Variable-slope triangle into waveshaper and wavefolder', false,
@@ -223,7 +223,7 @@ const ENGINE_DATA: [string, string, string, boolean, Record<string, number>?][] 
   ['analog-snare', 'Analog Snare Drum', 'Analog snare drum synthesis', true,
     { frequency: 0.38, harmonics: 0.4, timbre: 0.35, morph: 0.3 }], // balanced snappy snare
   ['analog-hi-hat', 'Analog Hi-Hat', 'Analog hi-hat synthesis', true,
-    { frequency: 0.65, harmonics: 0.4, timbre: 0.5, morph: 0.15 }], // tight closed hat
+    { frequency: 0.65, harmonics: 0.4, morph: 0.15 }], // tight closed hat
 ];
 
 const engines: EngineDef[] = ENGINE_DATA.map(([id, label, description, _perc, defaults]) => ({
