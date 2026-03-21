@@ -75,14 +75,14 @@ export function StepGridModule({
 
   const interactive = !!onStepToggle;
 
+  // Step toggles are discrete actions (not continuous gestures like knob drags),
+  // so they don't use onInteractionStart/End. toggleStepGate manages its own undo.
   const handleStepClick = useCallback(
     (stepIndex: number) => {
       if (!onStepToggle) return;
-      onInteractionStart?.();
       onStepToggle(track.id, stepIndex, pattern?.id);
-      onInteractionEnd?.();
     },
-    [onStepToggle, onInteractionStart, onInteractionEnd, track.id, pattern],
+    [onStepToggle, track.id, pattern],
   );
 
   if (!pattern) {

@@ -149,7 +149,7 @@ describe('StepGridModule', () => {
     expect(onStepToggle).toHaveBeenCalledWith('trk-1', 5);
   });
 
-  it('calls onInteractionStart and onInteractionEnd around toggle', () => {
+  it('does not call onInteractionStart/End for discrete step toggles', () => {
     const onStepToggle = vi.fn();
     const onInteractionStart = vi.fn();
     const onInteractionEnd = vi.fn();
@@ -165,9 +165,10 @@ describe('StepGridModule', () => {
     );
     const stepCells = container.querySelectorAll('[data-no-select]');
     fireEvent.click(stepCells[2]);
-    expect(onInteractionStart).toHaveBeenCalledTimes(1);
     expect(onStepToggle).toHaveBeenCalledTimes(1);
-    expect(onInteractionEnd).toHaveBeenCalledTimes(1);
+    // Step toggles are discrete — they don't use the continuous gesture boundary
+    expect(onInteractionStart).not.toHaveBeenCalled();
+    expect(onInteractionEnd).not.toHaveBeenCalled();
   });
 
   it('does not call onStepToggle when callback is absent (read-only)', () => {
@@ -214,7 +215,7 @@ describe('StepGridModule', () => {
     const activePat = makePattern({ id: 'pat-1', duration: 16, events: [] });
     const track = makeTrack({ patterns: [activePat, boundPat] });
     const mod = makeModule({
-      bindings: [{ role: 'region', target: 'pat-bound' }],
+      bindings: [{ role: 'region', trackId: 'trk-1', target: 'pat-bound' }],
     });
     const { container } = render(
       <StepGridModule
@@ -233,7 +234,7 @@ describe('StepGridModule', () => {
     const activePat = makePattern({ id: 'pat-1', duration: 16, events: [] });
     const track = makeTrack({ patterns: [activePat, boundPat] });
     const mod = makeModule({
-      bindings: [{ role: 'region', target: 'pat-bound' }],
+      bindings: [{ role: 'region', trackId: 'trk-1', target: 'pat-bound' }],
     });
     const { container } = render(
       <StepGridModule
