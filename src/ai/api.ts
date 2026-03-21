@@ -2000,51 +2000,12 @@ export class GluonAI {
         const targetValue = resolvedTarget.target;
 
         if (!args.processorId && !args.modulatorId && (args.param === 'volume' || args.param === 'pan')) {
-          const trackId = (args.trackId as string) ?? session.activeTrackId;
-          const track = session.tracks.find(v => v.id === trackId);
-          if (!track) {
-            return { actions: [], response: trackNotFoundError(trackId, session) };
-          }
-          if (args.over !== undefined) {
-            return { actions: [], response: errorPayload(`Timed moves (over) are not supported for track ${args.param}`) };
-          }
-
-          const currentVal = args.param === 'volume' ? track.volume : track.pan;
-          const rawTarget = 'absolute' in targetValue
-            ? targetValue.absolute
-            : currentVal + targetValue.relative;
-          if (!Number.isFinite(rawTarget)) {
-            return { actions: [], response: errorPayload(`Non-finite track mix value for ${args.param}`) };
-          }
-
-          const mixAction: AISetTrackMixAction = {
-            type: 'set_track_mix',
-            trackId,
-            ...(args.param === 'volume'
-              ? { volume: Math.max(0, Math.min(1, rawTarget)) }
-              : { pan: Math.max(-1, Math.min(1, rawTarget)) }),
-          };
-
-          const rejection = ctx?.validateAction?.(session, mixAction);
-          const rejectionResult = handleRejection(rejection, session, mixAction, existingActions);
-          if (rejectionResult) return rejectionResult;
-
-          const resultValue = args.param === 'volume'
-            ? Math.max(0, Math.min(1, rawTarget))
-            : Math.max(-1, Math.min(1, rawTarget));
-          const clamped = resultValue !== rawTarget;
-
           return {
-            actions: [mixAction],
-            response: {
-              applied: true,
-              param: args.param,
-              trackId,
-              trackLabel: track.name ?? trackId,
-              from: Math.round(currentVal * 100) / 100,
-              to: Math.round(resultValue * 100) / 100,
-              ...(clamped ? { clamped: true, requestedValue: Math.round(rawTarget * 100) / 100 } : {}),
-            },
+            actions: [],
+            response: errorPayload(
+              `"${args.param}" is a track mix property, not a synth control. ` +
+              `Use set_track_meta to change track ${args.param} instead.`
+            ),
           };
         }
         const action: AIMoveAction = {

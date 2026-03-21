@@ -296,7 +296,7 @@ describe('move — adversarial', () => {
     expect(response.error).not.toContain('undefined');
   });
 
-  it('accepts track volume via move and routes it to track mix', async () => {
+  it('rejects move with volume and directs to set_track_meta', async () => {
     const session = makeSession();
     const { response, actions } = await callTool(session, 'move', {
       param: 'volume',
@@ -304,14 +304,12 @@ describe('move — adversarial', () => {
       trackId: session.tracks[0].id,
     });
 
-    expect(response.applied).toBe(true);
-    expect(response.param).toBe('volume');
-    expect(response.to).toBe(0.5);
-    expect(actions).toHaveLength(1);
-    expect((actions[0] as { type: string }).type).toBe('set_track_mix');
+    expect(response.error).toMatch(/track mix property/i);
+    expect(response.error).toMatch(/set_track_meta/i);
+    expect(actions).toHaveLength(0);
   });
 
-  it('accepts relative track pan via move', async () => {
+  it('rejects move with pan and directs to set_track_meta', async () => {
     const session = makeSession();
     const { response, actions } = await callTool(session, 'move', {
       param: 'pan',
@@ -319,23 +317,8 @@ describe('move — adversarial', () => {
       trackId: session.tracks[0].id,
     });
 
-    expect(response.applied).toBe(true);
-    expect(response.param).toBe('pan');
-    expect(response.to).toBe(-0.25);
-    expect(actions).toHaveLength(1);
-    expect((actions[0] as { type: string }).type).toBe('set_track_mix');
-  });
-
-  it('rejects timed move for track volume alias', async () => {
-    const session = makeSession();
-    const { response, actions } = await callTool(session, 'move', {
-      param: 'volume',
-      target: { absolute: 0.5 },
-      over: 500,
-      trackId: session.tracks[0].id,
-    });
-
-    expect(response.error).toMatch(/Timed moves.*track volume/i);
+    expect(response.error).toMatch(/track mix property/i);
+    expect(response.error).toMatch(/set_track_meta/i);
     expect(actions).toHaveLength(0);
   });
 });
