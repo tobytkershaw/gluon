@@ -8,7 +8,6 @@ import type { EventSelector } from '../engine/event-primitives';
 import type { SequenceAutomationPoint } from '../engine/sequencer-types';
 import { resolveSequencePosition } from '../engine/sequence-helpers';
 import { Tracker } from './Tracker';
-import { DrumLaneTracker } from './DrumLaneTracker';
 import { TrackerCheatSheet } from './TrackerCheatSheet';
 import { AutomationPanel } from './AutomationPanel';
 import { SequenceEditor } from './SequenceEditor';
@@ -389,15 +388,6 @@ export function TrackerView({
           {/* Full-height tracker scroll container */}
           <div className="flex-1 min-h-0 overflow-y-auto bg-zinc-950">
             {activeRegion ? (
-              activeTrack.drumRack && activeTrack.drumRack.pads.length > 0 ? (
-                <DrumLaneTracker
-                  region={activeRegion}
-                  pads={activeTrack.drumRack.pads}
-                  playheadStep={currentStep}
-                  playing={playing}
-                  stepsPerBeat={4}
-                />
-              ) : (
                 <Tracker
                   region={activeRegion}
                   playheadStep={currentStep}
@@ -418,7 +408,6 @@ export function TrackerView({
                   onSelectionChange={onSelectionChange}
                   stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
                 />
-              )
             ) : (
               <div className="px-4 py-8 text-center text-[11px] text-zinc-600 italic">
                 No patterns
