@@ -43,9 +43,8 @@ export function StepGridModule({ module, track, visualContext, roleColor }: Modu
       return { pattern: trackPattern ?? null, isDisconnected: false, disconnectReason: '' };
     }
 
-    // Unexpected binding kind for a region role — fall back
-    const fallback = track.patterns.length > 0 ? getActivePattern(track) : null;
-    return { pattern: fallback, isDisconnected: false, disconnectReason: '' };
+    // Unexpected binding kind for a region role — treat as disconnected
+    return { pattern: null, isDisconnected: true, disconnectReason: `unexpected binding kind for region role` };
   }, [regionBinding, module.type, module.config, track]);
 
   // Disconnected state — binding target no longer exists

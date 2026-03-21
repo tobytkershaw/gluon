@@ -11,8 +11,9 @@ export interface MutationCallbacks {
 
 /**
  * Dispatch an array of ParamMutations through the appropriate renderer callbacks.
- * Mutations that don't have a matching callback (e.g. modulatorParam, mixParam, drumPadParam)
- * are silently dropped — those callbacks don't exist on the current renderer props.
+ * Mutations for modulatorParam, mixParam, and drumPadParam are not yet supported —
+ * App.tsx doesn't have handler callbacks for these target kinds. These mutations
+ * are logged as warnings so they're visible during development.
  */
 export function dispatchMutations(
   mutations: ParamMutation[],
@@ -27,13 +28,11 @@ export function dispatchMutations(
         callbacks.onProcessorParamChange?.(m.processorId, m.param, m.value);
         break;
       case 'modulatorParam':
-        // No renderer callback for modulator params yet — drop silently
-        break;
       case 'mixParam':
-        // No renderer callback for mix params yet — drop silently
-        break;
       case 'drumPadParam':
-        // No renderer callback for drum pad params yet — drop silently
+        if (import.meta.env.DEV) {
+          console.warn(`[binding-dispatch] unsupported mutation kind "${m.kind}" — no handler callback exists yet`);
+        }
         break;
     }
   }
