@@ -2024,13 +2024,34 @@ export class GluonAI {
 
         const trackId = action.trackId ?? session.activeTrackId;
         const track = session.tracks.find(v => v.id === trackId);
+        const moveWarnings: string[] = [];
         let currentVal: number;
         if (action.modulatorId) {
           const mod = (track?.modulators ?? []).find(m => m.id === action.modulatorId);
-          currentVal = mod?.params[action.param] ?? 0;
+          if (!mod) {
+            const available = (track?.modulators ?? []).map(m => m.id);
+            return { actions: [], response: enrichedError(
+              `Modulator "${action.modulatorId}" not found on track "${track?.name ?? trackId}".`,
+              { hint: 'Check the modulator IDs on this track.', available },
+            ) };
+          }
+          currentVal = mod.params[action.param] ?? 0;
+          if (!(action.param in mod.params)) {
+            moveWarnings.push(`Param "${action.param}" not found on modulator "${action.modulatorId}" — defaulting from 0`);
+          }
         } else if (action.processorId) {
           const proc = (track?.processors ?? []).find(p => p.id === action.processorId);
-          currentVal = proc?.params[action.param] ?? 0;
+          if (!proc) {
+            const available = (track?.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+            return { actions: [], response: enrichedError(
+              `Processor "${action.processorId}" not found on track "${track?.name ?? trackId}".`,
+              { hint: 'Check the processor IDs on this track.', available },
+            ) };
+          }
+          currentVal = proc.params[action.param] ?? 0;
+          if (!(action.param in proc.params)) {
+            moveWarnings.push(`Param "${action.param}" not found on processor "${action.processorId}" — defaulting from 0`);
+          }
         } else {
           const runtimeKey = controlIdToRuntimeParam[action.param] ?? action.param;
           currentVal = track?.params[runtimeKey] ?? 0;
@@ -2068,6 +2089,7 @@ export class GluonAI {
             ...(clamped ? { clamped: true, requestedValue: Math.round(rawTarget * 100) / 100 } : {}),
             ...(resolvedTarget.tempoSyncLabel ? { tempoSync: resolvedTarget.tempoSyncLabel } : {}),
             ...(recentHumanTouch ? { recentHumanTouch: true } : {}),
+            ...(moveWarnings.length > 0 ? { warnings: moveWarnings } : {}),
           },
         };
       }
@@ -2153,6 +2175,14 @@ export class GluonAI {
           }
         }
 
+        // Validate groove name — warn if invalid rather than silently dropping
+        const sketchWarnings: string[] = [];
+        const hasGrooveArg = typeof args.groove === 'string' && args.groove;
+        const grooveValid = hasGrooveArg && args.groove in GROOVE_TEMPLATES;
+        if (hasGrooveArg && !grooveValid) {
+          sketchWarnings.push(`Unknown groove "${args.groove}" — ignored. Available: ${Object.keys(GROOVE_TEMPLATES).join(', ')}`);
+        }
+
         const action: AISketchAction = {
           type: 'sketch',
           trackId: args.trackId as string,
@@ -2160,7 +2190,7 @@ export class GluonAI {
           events: resolvedEvents,
           ...(args.kit && typeof args.kit === 'object' ? { kit: args.kit as Record<string, string> } : {}),
           ...(typeof args.humanize === 'number' ? { humanize: Math.max(0, Math.min(1, args.humanize)) } : {}),
-          ...(typeof args.groove === 'string' && args.groove in GROOVE_TEMPLATES ? { groove: args.groove } : {}),
+          ...(grooveValid ? { groove: args.groove as string } : {}),
           ...(typeof args.groove_amount === 'number' ? { grooveAmount: Math.max(0, Math.min(1, args.groove_amount)) } : {}),
           ...(typeof args.dynamic === 'string' ? { dynamic: args.dynamic as string } : {}),
           ...(validatedParamShapes ? { paramShapes: validatedParamShapes } : {}),
@@ -2187,6 +2217,7 @@ export class GluonAI {
               ...(generatorUsed ? { source: 'generator' } : {}),
               ...(archetypeUsed ? { source: 'archetype', archetype: args.archetype } : {}),
               ...(action.dynamic ? { dynamic: action.dynamic } : {}),
+              ...(sketchWarnings.length > 0 ? { warnings: sketchWarnings } : {}),
             },
           };
         }
@@ -2251,6 +2282,7 @@ export class GluonAI {
             ...(action.dynamic ? { dynamic: action.dynamic } : {}),
             ...(validatedParamShapes ? { paramShapes: Object.keys(validatedParamShapes) } : {}),
             ...(verificationResult ?? {}),
+            ...(sketchWarnings.length > 0 ? { warnings: sketchWarnings } : {}),
           },
         };
       }
@@ -2421,18 +2453,69 @@ export class GluonAI {
         const rejectionResult = handleRejection(rejection, session, action, existingActions);
         if (rejectionResult) return rejectionResult;
 
+        // Validate target exists (processor/modulator) and model name resolves
+        const setModelWarnings: string[] = [];
+        const setModelTrack = session.tracks.find(v => v.id === action.trackId);
+
+        if (action.processorId) {
+          const proc = (setModelTrack?.processors ?? []).find(p => p.id === action.processorId);
+          if (!proc) {
+            const available = (setModelTrack?.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+            return { actions: [], response: enrichedError(
+              `Processor "${action.processorId}" not found on track "${setModelTrack?.name ?? action.trackId}".`,
+              { hint: 'Check the processor IDs on this track.', available },
+            ) };
+          }
+          // Validate processor model name
+          const procEngine = getProcessorEngineByName(proc.type, action.model);
+          if (procEngine === undefined) {
+            const procInst = getProcessorInstrument(proc.type);
+            const available = procInst ? procInst.engines.map(e => e.id) : [];
+            return { actions: [], response: enrichedError(
+              `Unknown model "${action.model}" for processor type "${proc.type}".`,
+              { hint: 'Use one of the available model names.', available },
+            ) };
+          }
+        } else if (action.modulatorId) {
+          const mod = (setModelTrack?.modulators ?? []).find(m => m.id === action.modulatorId);
+          if (!mod) {
+            const available = (setModelTrack?.modulators ?? []).map(m => m.id);
+            return { actions: [], response: enrichedError(
+              `Modulator "${action.modulatorId}" not found on track "${setModelTrack?.name ?? action.trackId}".`,
+              { hint: 'Check the modulator IDs on this track.', available },
+            ) };
+          }
+          // Validate modulator model name
+          const modEngine = getModulatorEngineByName(mod.type, action.model);
+          if (modEngine === undefined) {
+            const modInst = getModulatorInstrument(mod.type);
+            const available = modInst ? modInst.engines.map(e => e.id) : [];
+            return { actions: [], response: enrichedError(
+              `Unknown model "${action.model}" for modulator type "${mod.type}".`,
+              { hint: 'Use one of the available model names.', available },
+            ) };
+          }
+        } else {
+          // Track source engine — validate against engine registry
+          const engineDef = getEngineById(action.model);
+          if (!engineDef) {
+            const available = plaitsInstrument.engines.map(e => e.id);
+            return { actions: [], response: enrichedError(
+              `Unknown engine model: "${action.model}".`,
+              { hint: 'Use one of the available engine IDs.', available },
+            ) };
+          }
+        }
+
         // Resolve available parameters for the new model
         let modelParams: string[] | undefined;
         if (action.processorId) {
-          const procTrack = session.tracks.find(v => v.id === action.trackId);
-          const proc = (procTrack?.processors ?? []).find(p => p.id === action.processorId);
+          const proc = (setModelTrack?.processors ?? []).find(p => p.id === action.processorId);
           if (proc) modelParams = getProcessorControlIds(proc.type);
         } else if (action.modulatorId) {
-          const modTrack = session.tracks.find(v => v.id === action.trackId);
-          const mod = (modTrack?.modulators ?? []).find(m => m.id === action.modulatorId);
+          const mod = (setModelTrack?.modulators ?? []).find(m => m.id === action.modulatorId);
           if (mod) modelParams = getModulatorControlIds(mod.type);
         } else {
-          // Track source engine — resolve from engine registry
           const engineDef = getEngineById(action.model);
           if (engineDef) modelParams = engineDef.controls.map(c => c.id);
         }
@@ -2444,6 +2527,7 @@ export class GluonAI {
             ...(action.processorId ? { processorId: action.processorId } : {}),
             ...(action.modulatorId ? { modulatorId: action.modulatorId } : {}),
             ...(modelParams ? { availableParams: modelParams } : {}),
+            ...(setModelWarnings.length > 0 ? { warnings: setModelWarnings } : {}),
           };
 
         // Spectral lint: changing a track's engine may shift its frequency profile.
@@ -2653,6 +2737,18 @@ export class GluonAI {
             if (typeof args.description !== 'string') {
               return { actions: [], response: errorPayload('Missing required parameter: description') };
             }
+            // Validate processorId exists on the track
+            {
+              const removeTrack = session.tracks.find(v => v.id === args.trackId);
+              const removeProc = (removeTrack?.processors ?? []).find(p => p.id === args.processorId);
+              if (!removeProc) {
+                const available = (removeTrack?.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+                return { actions: [], response: enrichedError(
+                  `Processor "${args.processorId}" not found on track "${removeTrack?.name ?? args.trackId}".`,
+                  { hint: 'Check the processor IDs on this track.', available },
+                ) };
+              }
+            }
 
             const removeProcAction: AIRemoveProcessorAction = {
               type: 'remove_processor',
@@ -2686,6 +2782,18 @@ export class GluonAI {
             }
             if (typeof args.description !== 'string') {
               return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+            // Validate processorId exists on the track
+            {
+              const replaceTrack = session.tracks.find(v => v.id === args.trackId);
+              const replaceProc = (replaceTrack?.processors ?? []).find(p => p.id === args.processorId);
+              if (!replaceProc) {
+                const available = (replaceTrack?.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+                return { actions: [], response: enrichedError(
+                  `Processor "${args.processorId}" not found on track "${replaceTrack?.name ?? args.trackId}".`,
+                  { hint: 'Check the processor IDs on this track.', available },
+                ) };
+              }
             }
 
             const newProcessorId = `${args.moduleType}-${Date.now()}`;
@@ -2723,6 +2831,18 @@ export class GluonAI {
             }
             if (typeof args.description !== 'string') {
               return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+            // Validate processorId exists on the track
+            {
+              const bypassTrack = session.tracks.find(v => v.id === args.trackId);
+              const bypassProc = (bypassTrack?.processors ?? []).find(p => p.id === args.processorId);
+              if (!bypassProc) {
+                const available = (bypassTrack?.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+                return { actions: [], response: enrichedError(
+                  `Processor "${args.processorId}" not found on track "${bypassTrack?.name ?? args.trackId}".`,
+                  { hint: 'Check the processor IDs on this track.', available },
+                ) };
+              }
             }
             const bypassEnabled = args.enabled !== false; // default to re-enabling if not specified
 
@@ -2813,6 +2933,18 @@ export class GluonAI {
             if (typeof args.description !== 'string') {
               return { actions: [], response: errorPayload('Missing required parameter: description') };
             }
+            // Validate modulatorId exists on the track
+            {
+              const removeModTrack = session.tracks.find(v => v.id === args.trackId);
+              const removeModTarget = (removeModTrack?.modulators ?? []).find(m => m.id === args.modulatorId);
+              if (!removeModTarget) {
+                const available = (removeModTrack?.modulators ?? []).map(m => m.id);
+                return { actions: [], response: enrichedError(
+                  `Modulator "${args.modulatorId}" not found on track "${removeModTrack?.name ?? args.trackId}".`,
+                  { hint: 'Check the modulator IDs on this track.', available },
+                ) };
+              }
+            }
 
             const removeModAction: AIRemoveModulatorAction = {
               type: 'remove_modulator',
@@ -2867,12 +2999,34 @@ export class GluonAI {
               return { actions: [], response: errorPayload('Missing required parameter: description') };
             }
 
+            // Validate modulatorId exists on the track
+            const routeTrack = session.tracks.find(v => v.id === args.trackId);
+            const routeMod = (routeTrack?.modulators ?? []).find(m => m.id === args.modulatorId);
+            if (!routeMod) {
+              const available = (routeTrack?.modulators ?? []).map(m => m.id);
+              return { actions: [], response: enrichedError(
+                `Modulator "${args.modulatorId}" not found on track "${routeTrack?.name ?? args.trackId}".`,
+                { hint: 'Add a modulator first with manage_modulator, then connect it.', available },
+              ) };
+            }
+
             const targetKind = args.targetKind as string;
             if (targetKind !== 'source' && targetKind !== 'processor') {
               return { actions: [], response: errorPayload(`targetKind must be "source" or "processor", got "${targetKind}"`) };
             }
             if (targetKind === 'processor' && (typeof args.processorId !== 'string' || !args.processorId)) {
               return { actions: [], response: errorPayload('processorId is required when targetKind is "processor"') };
+            }
+            // Validate processorId exists when targeting a processor
+            if (targetKind === 'processor') {
+              const targetProc = (routeTrack?.processors ?? []).find(p => p.id === args.processorId);
+              if (!targetProc) {
+                const available = (routeTrack?.processors ?? []).map(p => `${p.id} (${getProcessorEngineName(p.type) ?? p.type})`);
+                return { actions: [], response: enrichedError(
+                  `Processor "${args.processorId}" not found on track "${routeTrack?.name ?? args.trackId}".`,
+                  { hint: 'Check the processor IDs on this track.', available },
+                ) };
+              }
             }
 
             const modTarget: ModulationTarget = targetKind === 'source'
@@ -2936,6 +3090,17 @@ export class GluonAI {
             }
             if (typeof args.description !== 'string') {
               return { actions: [], response: errorPayload('Missing required parameter: description') };
+            }
+
+            // Validate modulationId exists on the track
+            const disconnectTrack = session.tracks.find(v => v.id === args.trackId);
+            const existingModulation = (disconnectTrack?.modulations ?? []).find(r => r.id === args.modulationId);
+            if (!existingModulation) {
+              const available = (disconnectTrack?.modulations ?? []).map(r => r.id);
+              return { actions: [], response: enrichedError(
+                `Modulation route "${args.modulationId}" not found on track "${disconnectTrack?.name ?? args.trackId}".`,
+                { hint: 'Check the modulation route IDs on this track.', available },
+              ) };
             }
 
             const disconnectAction: AIDisconnectModulatorAction = {
@@ -3758,6 +3923,32 @@ export class GluonAI {
           return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
+        // Validate model name for 'add' action
+        const drumPadWarnings: string[] = [];
+        if (drumPadSubAction === 'add') {
+          if (typeof args.model !== 'string' || !args.model) {
+            return { actions: [], response: errorPayload('action=add requires model (engine ID)') };
+          }
+          const padEngine = getEngineById(args.model as string);
+          if (!padEngine) {
+            const available = plaitsInstrument.engines.map(e => e.id);
+            return { actions: [], response: enrichedError(
+              `Unknown pad model: "${args.model}".`,
+              { hint: 'Use one of the available engine IDs.', available },
+            ) };
+          }
+
+          // Pre-validate params against the model's valid controls
+          if (args.params && typeof args.params === 'object' && !Array.isArray(args.params)) {
+            const validControlIds = new Set(padEngine.controls.filter(c => !c.binding?.path?.startsWith('track.')).map(c => c.id));
+            for (const param of Object.keys(args.params as Record<string, unknown>)) {
+              if (!validControlIds.has(param)) {
+                drumPadWarnings.push(`Param "${param}" is not valid for model "${args.model}" — will be rejected at execution. Valid: ${[...validControlIds].join(', ')}`);
+              }
+            }
+          }
+        }
+
         let initialParams: Record<string, number> | undefined;
         if (args.params !== undefined) {
           if (!args.params || typeof args.params !== 'object' || Array.isArray(args.params)) {
@@ -3770,6 +3961,28 @@ export class GluonAI {
               return { actions: [], response: errorPayload(`params.${param} must be a number`) };
             }
             initialParams[param] = value;
+          }
+        }
+
+        // Validate padId exists for non-add actions
+        if (drumPadSubAction !== 'add') {
+          const drumTrack = session.tracks.find(t => t.id === resolvedDrumTrackId);
+          if (!drumTrack) {
+            return { actions: [], response: errorPayload(`Track "${resolvedDrumTrackId}" not found.`) };
+          }
+          if (drumTrack.engine !== 'drum-rack' || !drumTrack.drumRack) {
+            return { actions: [], response: enrichedError(
+              `Track "${drumTrack.name ?? resolvedDrumTrackId}" is not a drum rack.`,
+              { hint: 'manage_drum_pad only works on drum rack tracks.' },
+            ) };
+          }
+          const existingPad = drumTrack.drumRack.pads.find(p => p.id === args.padId);
+          if (!existingPad) {
+            const available = drumTrack.drumRack.pads.map(p => `${p.id} (${p.name})`);
+            return { actions: [], response: enrichedError(
+              `Pad "${args.padId}" not found on track "${drumTrack.name ?? resolvedDrumTrackId}".`,
+              { hint: 'Check the pad IDs on this drum rack.', available },
+            ) };
           }
         }
 
@@ -3795,6 +4008,7 @@ export class GluonAI {
             trackId: resolvedDrumTrackId,
             action: drumPadSubAction,
             padId: args.padId,
+            ...(drumPadWarnings.length > 0 ? { warnings: drumPadWarnings } : {}),
           },
         };
       }
