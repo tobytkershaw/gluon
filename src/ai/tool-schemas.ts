@@ -83,8 +83,7 @@ const moveTool: ToolSchema = {
       param: {
         type: 'string',
         description:
-          `The control ID to change. ` +
-          `Track mix aliases: "volume", "pan". ` +
+          `The control ID to change (synth/processor/modulator controls only — not track volume/pan, use set_track_meta for those). ` +
           `For track (Plaits): ${quoted(plaitsParamIds)}. ` +
           `For drum rack per-pad params: use "padId.param" (e.g. "kick.timbre", "snare.level", "hat.pan"). ` +
           `For processors: depends on type (Rings: ${quoted(ringsParamIds)}; Clouds: ${quoted(cloudsParamIds)}; Ripples: ${quoted(ripplesParamIds)}; EQ: ${quoted(eqParamIds)}; Compressor: ${quoted(compressorParamIds)}; Stereo: ${quoted(stereoParamIds)}; Chorus: ${quoted(chorusParamIds)}; Distortion: ${quoted(distortionParamIds)}; Warps: ${quoted(warpsParamIds)}; Elements: ${quoted(elementsParamIds)}; Beads: ${quoted(beadsParamIds)}). ` +
