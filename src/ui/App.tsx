@@ -2463,14 +2463,14 @@ export default function App() {
     setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
-  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }) => {
+  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean; padId?: string }) => {
     ensureAudio();
     setSession((s) => toggleStepGate(s, trackId, stepIndex, patternId, options));
   }, [ensureAudio]);
 
-  const handleSurfaceStepAccentToggle = useCallback((trackId: string, stepIndex: number, patternId?: string) => {
+  const handleSurfaceStepAccentToggle = useCallback((trackId: string, stepIndex: number, patternId?: string, padId?: string) => {
     ensureAudio();
-    setSession((s) => toggleStepAccent(s, trackId, stepIndex, patternId));
+    setSession((s) => toggleStepAccent(s, trackId, stepIndex, patternId, padId));
   }, [ensureAudio]);
 
   const handlePaintComplete = useCallback((trackId: string, patternId: string | undefined, prevEvents: import('../engine/canonical-types').MusicalEvent[]) => {

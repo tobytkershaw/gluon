@@ -88,6 +88,10 @@ export function StepGridModule({
     );
   }
 
+  // Read optional padId filter from module config — when set, only events
+  // matching this padId are shown and new events are tagged with it.
+  const padIdFilter = (module.config?.padId as string | undefined) ?? undefined;
+
   const interactive = !!onStepToggle;
 
   if (!pattern) {
@@ -103,11 +107,18 @@ export function StepGridModule({
     );
   }
 
-  // Extract gate events (trigger or note) from the pattern, keyed by integer step position
+  // Extract gate events (trigger or note) from the pattern, keyed by integer step position.
+  // When padIdFilter is set, only include events whose padId matches (for per-pad drum grids).
   const stepCount = Math.min(Math.floor(pattern.duration), 16);
   const gatesByStep = new Map<number, TriggerEvent | NoteEvent>();
   for (const event of pattern.events) {
     if (event.kind === 'trigger' || event.kind === 'note') {
+      // Apply padId filter: skip events that don't match
+      if (padIdFilter !== undefined) {
+        if (event.kind === 'trigger' && (event as TriggerEvent).padId !== padIdFilter) continue;
+        // Note events don't have padId — skip them when filtering by pad
+        if (event.kind === 'note') continue;
+      }
       const stepPos = Math.floor(event.at);
       if (stepPos >= 0 && stepPos < stepCount) {
         gatesByStep.set(stepPos, event as TriggerEvent | NoteEvent);
@@ -124,9 +135,9 @@ export function StepGridModule({
   const handleStepAccentClick = useCallback(
     (stepIndex: number) => {
       if (!onStepAccentToggle) return;
-      onStepAccentToggle(track.id, stepIndex, pattern?.id);
+      onStepAccentToggle(track.id, stepIndex, pattern?.id, padIdFilter);
     },
-    [onStepAccentToggle, track.id, pattern],
+    [onStepAccentToggle, track.id, pattern, padIdFilter],
   );
 
   /** Apply paint direction to a step (toggle on or off, no undo). */
@@ -140,10 +151,10 @@ export function StepGridModule({
       const hasGate = stepHasGate(stepIndex);
       // Only toggle if the step's current state doesn't match the paint direction
       if ((state.direction === 'on' && !hasGate) || (state.direction === 'off' && hasGate)) {
-        onStepToggle(track.id, stepIndex, pattern?.id, { pushUndo: false });
+        onStepToggle(track.id, stepIndex, pattern?.id, { pushUndo: false, padId: padIdFilter });
       }
     },
-    [onStepToggle, track.id, pattern, gatesByStep],
+    [onStepToggle, track.id, pattern, gatesByStep, padIdFilter],
   );
 
   const handlePointerDown = useCallback(
@@ -173,10 +184,10 @@ export function StepGridModule({
 
       // Toggle the first step without undo — undo snapshot is pushed on paint end
       if (onStepToggle) {
-        onStepToggle(track.id, stepIndex, pattern?.id, { pushUndo: false });
+        onStepToggle(track.id, stepIndex, pattern?.id, { pushUndo: false, padId: padIdFilter });
       }
     },
-    [interactive, onStepToggle, handleStepAccentClick, gatesByStep, track.id, pattern],
+    [interactive, onStepToggle, handleStepAccentClick, gatesByStep, track.id, pattern, padIdFilter],
   );
 
   const handlePointerMove = useCallback(

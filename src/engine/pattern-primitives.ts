@@ -129,7 +129,16 @@ function applyRegionEdit(
 // Public API — human edit functions (all push undo snapshots)
 // ---------------------------------------------------------------------------
 
-export function toggleStepGate(session: Session, trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }): Session {
+/** Find the first gate event at a step index matching a specific padId (or undefined for non-drum events). */
+function findGateEventAtForPad(events: MusicalEvent[], stepIndex: number, padId?: string): number {
+  return events.findIndex(
+    e => (e.kind === 'trigger' || e.kind === 'note') &&
+         Math.abs(e.at - stepIndex) < 0.001 &&
+         (padId === undefined || (e.kind === 'trigger' && (e as TriggerEvent).padId === padId)),
+  );
+}
+
+export function toggleStepGate(session: Session, trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean; padId?: string }): Session {
   const track = getTrack(session, trackId);
   if (track.patterns.length === 0) return session;
 
@@ -138,10 +147,14 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
     : getActivePattern(track);
   if (stepIndex < 0 || stepIndex >= targetPattern.duration) return session;
 
+  const padId = options?.padId;
   const pitched = !isPercussionByIndex(track.model);
   const activeReg = targetPattern;
   const events = [...activeReg.events];
-  const idx = findGateEventAt(events, stepIndex);
+  // When padId is specified, find an event matching that padId; otherwise use the generic finder
+  const idx = padId !== undefined
+    ? findGateEventAtForPad(events, stepIndex, padId)
+    : findGateEventAt(events, stepIndex);
 
   if (idx >= 0) {
     const existing = events[idx];
@@ -177,11 +190,14 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
         duration: 1,
       } as NoteEvent;
     } else {
-      newEvent = {
+      const trigger: TriggerEvent = {
         kind: 'trigger',
         at: stepIndex,
         velocity: 0.8,
-      } as TriggerEvent;
+      };
+      // Attach padId when creating a new trigger for a specific drum pad
+      if (padId !== undefined) trigger.padId = padId;
+      newEvent = trigger;
     }
     const insertAt = events.findIndex(e => e.at > stepIndex);
     if (insertAt === -1) events.push(newEvent);
@@ -191,7 +207,7 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
   return applyRegionEdit(session, trackId, events, undefined, desc, patternId);
 }
 
-export function toggleStepAccent(session: Session, trackId: string, stepIndex: number, patternId?: string): Session {
+export function toggleStepAccent(session: Session, trackId: string, stepIndex: number, patternId?: string, padId?: string): Session {
   const track = getTrack(session, trackId);
 
   // All tracks must have regions — return unchanged if invariant is violated
@@ -203,7 +219,10 @@ export function toggleStepAccent(session: Session, trackId: string, stepIndex: n
   if (stepIndex < 0 || stepIndex >= activeReg.duration) return session;
 
   const events = [...activeReg.events];
-  const idx = findGateEventAt(events, stepIndex);
+  // When padId is specified, find an event matching that padId; otherwise use the generic finder
+  const idx = padId !== undefined
+    ? findGateEventAtForPad(events, stepIndex, padId)
+    : findGateEventAt(events, stepIndex);
   if (idx >= 0) {
     const existing = events[idx];
     if (existing.kind === 'trigger') {
