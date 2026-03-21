@@ -1064,6 +1064,171 @@ function trackNotFoundError(ref: string, session: Session): Record<string, unkno
   );
 }
 
+function recoveryTrackListing(session: Session): string[] {
+  const audioTracks = session.tracks.filter(t => getTrackKind(t) !== 'bus');
+  const busTracks = session.tracks.filter(t => getTrackKind(t) === 'bus');
+  return session.tracks.map(t => {
+    const label = getTrackOrdinalLabel(t, audioTracks, busTracks);
+    const kind = t.engine === 'drum-rack' && t.drumRack
+      ? 'drum rack'
+      : getTrackKind(t) === 'bus'
+        ? 'bus'
+        : 'audio';
+    return `${t.id} = ${label} (${kind})`;
+  });
+}
+
+function listModelsForAction(action: AIAction, session: Session): string[] | undefined {
+  if (action.type !== 'set_model' && action.type !== 'manage_drum_pad') return undefined;
+
+  if (action.type === 'set_model' && action.processorId) {
+    const track = session.tracks.find(t => t.id === action.trackId);
+    const processor = (track?.processors ?? []).find(p => p.id === action.processorId);
+    const inst = processor ? getProcessorInstrument(processor.type) : null;
+    return inst?.engines.map(engine => `${engine.id} = ${engine.label}`);
+  }
+
+  if (action.type === 'set_model' && action.modulatorId) {
+    const track = session.tracks.find(t => t.id === action.trackId);
+    const modulator = (track?.modulators ?? []).find(m => m.id === action.modulatorId);
+    const inst = modulator ? getModulatorInstrument(modulator.type) : null;
+    return inst?.engines.map(engine => `${engine.id} = ${engine.label}`);
+  }
+
+  return plaitsInstrument.engines.map(engine => `${engine.id} = ${engine.label}`);
+}
+
+function describeActionForSummary(action: AIAction): string {
+  const fields: string[] = [];
+  const record = action as Record<string, unknown>;
+  for (const key of ['trackId', 'processorId', 'modulatorId', 'padId', 'param', 'model', 'action', 'name']) {
+    const value = record[key];
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      fields.push(`${key}=${JSON.stringify(value)}`);
+    }
+  }
+  return fields.length > 0 ? `${action.type}(${fields.join(', ')})` : action.type;
+}
+
+function formatToolCallForSummary(name: string, args: Record<string, unknown>): string {
+  return `${name}(${JSON.stringify(args)})`;
+}
+
+function summarizeToolResult(result: Record<string, unknown>): string {
+  const error = typeof result.error === 'string' ? result.error : null;
+  if (error) return `executed_with_error: ${error}`;
+  if (result.applied === true) return 'executed_successfully';
+  if (result.queued === true) return 'executed_and_queued_for_execution';
+  if (result.snapshotId) return 'executed_successfully';
+  return 'executed';
+}
+
+function enrichRejectionDetails(
+  rejection: string,
+  session: Session,
+  action: AIAction,
+): { error: string; hint?: string; available?: string[] } {
+  if (rejection.startsWith('Track not found')) {
+    return {
+      error: rejection,
+      hint: 'Use "Track N" (1-indexed) or an internal track ID.',
+      available: trackListing(session),
+    };
+  }
+
+  if (rejection.startsWith('Unknown control')) {
+    const trackId = 'trackId' in action ? (action as { trackId?: string }).trackId : undefined;
+    const track = trackId ? session.tracks.find(t => t.id === trackId) : undefined;
+    const available = track ? Object.keys(track.params) : undefined;
+    return {
+      error: rejection,
+      hint: 'Check the parameter name against the track source or processor controls.',
+      ...(available && available.length > 0 ? { available } : {}),
+    };
+  }
+
+  if (rejection.includes('Arbitration')) {
+    return {
+      error: rejection,
+      hint: 'The human is currently interacting with this control. Try a different parameter or wait.',
+    };
+  }
+
+  if (rejection.includes('is not a drum rack')) {
+    const actionName = action.type === 'manage_drum_pad' ? action.action : action.type;
+    return {
+      error: rejection,
+      hint: action.type === 'manage_drum_pad' && action.action === 'add'
+        ? 'Adding the first pad to an empty audio track auto-converts it to a drum rack. Otherwise target an existing drum rack track.'
+        : `Target an existing drum rack track before using ${actionName}, or add the first pad to an empty audio track to convert it into a drum rack.`,
+      available: recoveryTrackListing(session),
+    };
+  }
+
+  if (rejection.startsWith('Unknown model:')) {
+    const available = listModelsForAction(action, session);
+    return {
+      error: rejection,
+      hint: action.type === 'set_model'
+        ? 'Use one of the available model IDs below. Track sources and drum pads use Plaits model IDs; processors and modulators use the modes for that specific module.'
+        : 'Use one of the available Plaits model IDs below.',
+      ...(available ? { available } : {}),
+    };
+  }
+
+  return { error: rejection };
+}
+
+function buildTurnOutcomeSummary(
+  callOutcomes: StepOutcome['calls'],
+  functionResponses: FunctionResponse[],
+  execReport: StepExecutionReport | null,
+  session: Session,
+): string {
+  const lines = [
+    'Turn outcome summary:',
+    'Only the tool calls listed below were executed this step. If an action is absent from this history, it was not executed.',
+  ];
+
+  if (callOutcomes.length === 0) {
+    lines.push('- No tool calls were executed this step.');
+  } else {
+    lines.push('Executed tool calls:');
+    callOutcomes.forEach((call, index) => {
+      const response = functionResponses[index]?.result ?? {};
+      lines.push(`- ${formatToolCallForSummary(call.name, call.args)} -> ${summarizeToolResult(response)}`);
+    });
+  }
+
+  if (!execReport) {
+    lines.push('Execution results: no state-changing actions were applied after these tool calls.');
+    return lines.join('\n');
+  }
+
+  if (execReport.accepted.length > 0) {
+    lines.push('State changes that actually applied:');
+    for (const action of execReport.accepted) {
+      lines.push(`- ${describeActionForSummary(action)}`);
+    }
+  } else {
+    lines.push('State changes that actually applied: none');
+  }
+
+  if (execReport.rejected.length > 0) {
+    lines.push('Execution rejections after tool execution:');
+    for (const { op, reason } of execReport.rejected) {
+      const details = enrichRejectionDetails(reason, session, op);
+      const available = details.available && details.available.length > 0
+        ? ` Available: ${details.available.join(', ')}.`
+        : '';
+      const hint = details.hint ? ` Hint: ${details.hint}` : '';
+      lines.push(`- ${describeActionForSummary(op)} -> ${details.error}.${hint}${available}`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 const STEPS_PER_BAR = 16;
 
 /**
@@ -1096,33 +1261,15 @@ function handleRejection(
   _existingActions: AIAction[] = [],
 ): { actions: AIAction[]; response: Record<string, unknown> } | null {
   if (!rejection) return null;
-
-  // Enrich common rejection patterns with recovery hints
-  if (rejection.startsWith('Track not found')) {
-    return { actions: [], response: enrichedError(rejection, {
-      hint: 'Use "Track N" (1-indexed) or an internal track ID.',
-      available: trackListing(session),
-    }) };
-  }
-  if (rejection.startsWith('Unknown control')) {
-    const trackId = 'trackId' in action ? (action as { trackId?: string }).trackId : undefined;
-    const track = trackId ? session.tracks.find(t => t.id === trackId) : undefined;
-    const extras: { hint: string; available?: string[] } = {
-      hint: 'Check the parameter name against the track\'s source or processor controls.',
-    };
-    if (track) {
-      const sourceParams = Object.keys(track.params);
-      extras.available = sourceParams.length > 0 ? sourceParams : undefined;
-    }
-    return { actions: [], response: enrichedError(rejection, extras) };
-  }
-  if (rejection.includes('Arbitration')) {
-    return { actions: [], response: enrichedError(rejection, {
-      hint: 'The human is currently interacting with this control. Try a different parameter or wait.',
+  const details = enrichRejectionDetails(rejection, session, action);
+  if (details.hint || details.available) {
+    return { actions: [], response: enrichedError(details.error, {
+      ...(details.hint ? { hint: details.hint } : {}),
+      ...(details.available ? { available: details.available } : {}),
     }) };
   }
 
-  return { actions: [], response: errorPayload(rejection) };
+  return { actions: [], response: errorPayload(details.error) };
 }
 
 /**
@@ -1482,10 +1629,17 @@ export class GluonAI {
         if (ctx?.isStale?.()) break;
 
         // Continue to next step
+        const turnOutcomeSummary = buildTurnOutcomeSummary(
+          roundResult.callOutcomes,
+          roundResult.functionResponses,
+          execReport,
+          workingSession,
+        );
         generateResult = await this.planner.continueTurn({
           systemPrompt,
           tools: GLUON_TOOLS,
           functionResponses: roundResult.functionResponses,
+          turnOutcomeSummary,
           onStreamText,
         });
       }

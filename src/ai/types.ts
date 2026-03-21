@@ -91,6 +91,7 @@ export interface PlannerProvider {
     systemPrompt: string;
     tools: ToolSchema[];
     functionResponses: FunctionResponse[];
+    turnOutcomeSummary?: string;
     onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult>;
 

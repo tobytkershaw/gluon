@@ -1,12 +1,15 @@
 // tests/ai/api-history.test.ts — Orchestrator tests using mock providers
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { GluonAI } from '../../src/ai/api';
-import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema } from '../../src/ai/types';
+import type { PlannerProvider, ListenerProvider, GenerateResult, FunctionResponse, ToolSchema, StepExecutor } from '../../src/ai/types';
 import { ProviderError } from '../../src/ai/types';
 import { createSession } from '../../src/engine/session';
 import { clearSnapshots } from '../../src/audio/snapshot-store';
 import type { Session } from '../../src/engine/types';
 import type { PcmRenderResult } from '../../src/audio/render-offline';
+import { createPlaitsAdapter } from '../../src/audio/plaits-adapter';
+import { executeStepActions } from '../../src/engine/operation-executor';
+import { Arbitrator } from '../../src/engine/arbitration';
 
 // ---------------------------------------------------------------------------
 // Mock planner that records calls and returns configurable responses
@@ -22,6 +25,7 @@ function createMockPlanner(): PlannerProvider & {
   trimCalls: Array<number>;
   clearCalls: number;
   userMessages: string[];
+  turnOutcomeSummaries: string[];
 } {
   const planner = {
     name: 'mock',
@@ -34,6 +38,7 @@ function createMockPlanner(): PlannerProvider & {
     trimCalls: [] as number[],
     clearCalls: 0,
     userMessages: [] as string[],
+    turnOutcomeSummaries: [] as string[],
 
     isConfigured: () => true,
 
@@ -43,8 +48,9 @@ function createMockPlanner(): PlannerProvider & {
       return planner.startTurnResults.shift() ?? { textParts: [], functionCalls: [] };
     }),
 
-    continueTurn: vi.fn(async (_opts: { systemPrompt: string; tools: ToolSchema[]; functionResponses: FunctionResponse[] }): Promise<GenerateResult> => {
+    continueTurn: vi.fn(async (opts: { systemPrompt: string; tools: ToolSchema[]; functionResponses: FunctionResponse[]; turnOutcomeSummary?: string }): Promise<GenerateResult> => {
       planner.continueTurnCalls++;
+      planner.turnOutcomeSummaries.push(opts.turnOutcomeSummary ?? '');
       return planner.continueTurnResults.shift() ?? { textParts: [], functionCalls: [] };
     }),
 
@@ -63,6 +69,9 @@ function createMockListener(): ListenerProvider {
     evaluate: vi.fn(async () => 'sounds good'),
   };
 }
+
+const realStepExecutor: StepExecutor = (session, actions) =>
+  executeStepActions(session, actions, createPlaitsAdapter(), new Arbitrator());
 
 describe('GluonAI Orchestrator (provider-agnostic)', () => {
   let planner: ReturnType<typeof createMockPlanner>;
@@ -894,5 +903,72 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(response.error).toContain('Unknown archetype');
     expect(response.available).toBeInstanceOf(Array);
     expect(response.available).toContain('four_on_the_floor');
+  });
+
+  it('returns enriched error with drum rack recovery hints', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [{
+        id: 'c1',
+        name: 'manage_drum_pad',
+        args: {
+          trackId: 'v0',
+          action: 'rename',
+          padId: 'kick',
+          name: 'Kick',
+          description: 'rename pad',
+        },
+      }],
+    });
+    planner.continueTurnResults.push({ textParts: ['That track is not a drum rack.'], functionCalls: [] });
+
+    const session = createSession();
+    await ai.ask(session, 'rename the kick pad', {
+      validateAction: (_session, action) =>
+        action.type === 'manage_drum_pad' ? 'Track v0 is not a drum rack' : null,
+    });
+
+    const callArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    const response = callArgs.functionResponses[0].result;
+    expect(response.error).toContain('not a drum rack');
+    expect(response.hint).toContain('existing drum rack');
+    expect(response.available).toBeInstanceOf(Array);
+  });
+
+  it('passes execution rejections into the turn outcome summary for recovery grounding', async () => {
+    planner.startTurnResults.push({
+      textParts: [],
+      functionCalls: [
+        {
+          id: 'c1',
+          name: 'set_model',
+          args: { trackId: 'v0', model: 'definitely-not-a-real-model' },
+        },
+        {
+          id: 'c2',
+          name: 'manage_drum_pad',
+          args: {
+            trackId: 'v0',
+            action: 'rename',
+            padId: 'kick',
+            name: 'Kick',
+            description: 'rename pad',
+          },
+        },
+      ],
+    });
+    planner.continueTurnResults.push({ textParts: ['I could not convert that track automatically.'], functionCalls: [] });
+
+    const session = createSession();
+    await ai.askStreaming(session, 'turn track 1 into a drum rack and rename the kick', undefined, realStepExecutor);
+
+    expect(planner.turnOutcomeSummaries).toHaveLength(1);
+    const summary = planner.turnOutcomeSummaries[0];
+    expect(summary).toContain('Only the tool calls listed below were executed this step.');
+    expect(summary).toContain('set_model({"trackId":"v0","model":"definitely-not-a-real-model"})');
+    expect(summary).toContain('manage_drum_pad({"trackId":"v0","action":"rename","padId":"kick","name":"Kick","description":"rename pad"})');
+    expect(summary).toContain('Unknown model: definitely-not-a-real-model');
+    expect(summary).toContain('Track v0 is not a drum rack');
+    expect(summary).toContain('If an action is absent from this history, it was not executed.');
   });
 });

@@ -72,17 +72,25 @@ export class OpenAIPlannerProvider implements PlannerProvider {
     systemPrompt: string;
     tools: ToolSchema[];
     functionResponses: FunctionResponse[];
+    turnOutcomeSummary?: string;
     onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult> {
     // Build new input items but don't mutate pendingInput until after the
     // API call succeeds. This keeps continueTurn atomic — on error, no
     // function_call_output items are left in pendingInput to be duplicated
     // if the caller retries.
-    const newItems: ResponseInput = opts.functionResponses.map(fr => ({
+    const newItems: ResponseInput = [];
+    if (opts.turnOutcomeSummary) {
+      newItems.push({
+        role: 'user',
+        content: opts.turnOutcomeSummary,
+      });
+    }
+    newItems.push(...opts.functionResponses.map(fr => ({
       type: 'function_call_output',
       call_id: fr.id,
       output: JSON.stringify(fr.result),
-    } as ResponseInputItem.FunctionCallOutput));
+    } as ResponseInputItem.FunctionCallOutput)));
 
     return this.generate(opts.systemPrompt, opts.tools, newItems, opts.onStreamText);
   }
