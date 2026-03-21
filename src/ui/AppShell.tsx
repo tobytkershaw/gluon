@@ -364,6 +364,7 @@ export function AppShell({
               timeSignatureNumerator={timeSignatureNumerator}
               timeSignatureDenominator={timeSignatureDenominator}
               onTimeSignatureChange={onTimeSignatureChange}
+              stereoAnalysers={stereoAnalysers}
             />
           </div>
           <div className="shrink-0 flex items-center gap-2 px-3">
@@ -560,6 +561,7 @@ export function AppShell({
             timeSignatureNumerator={timeSignatureNumerator}
             timeSignatureDenominator={timeSignatureDenominator}
             onTimeSignatureChange={onTimeSignatureChange}
+            stereoAnalysers={stereoAnalysers}
           />
         </div>
         {/* Right zone: A/B + undo/redo + wordmark + status dot */}
