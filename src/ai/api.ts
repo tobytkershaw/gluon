@@ -3041,14 +3041,31 @@ export class GluonAI {
           return { actions: [], response: trackNotFoundError(args.trackId as string, session) };
         }
 
-        const ALLOWED_LIVE_TYPES = new Set(['knob-group', 'macro-knob']);
+        const ALLOWED_LIVE_TYPES = new Set(['knob-group', 'macro-knob', 'xy-pad', 'step-grid']);
         const proposeModules = args.modules as Record<string, unknown>[];
 
         // Validate module types
         for (const m of proposeModules) {
           const mType = m.type as string;
           if (!mType || !ALLOWED_LIVE_TYPES.has(mType)) {
-            return { actions: [], response: errorPayload(`Invalid module type "${mType}". Allowed: knob-group, macro-knob`) };
+            return { actions: [], response: errorPayload(`Invalid module type "${mType}". Allowed: knob-group, macro-knob, xy-pad, step-grid`) };
+          }
+        }
+
+        // Lenient binding-role validation for new module types — warn via
+        // console but never reject.  Renderers fall back to sensible defaults.
+        for (const m of proposeModules) {
+          const mType = m.type as string;
+          const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
+          const roles = rawBindings.map(b => b.role as string);
+          if (mType === 'xy-pad') {
+            if (!roles.includes('x-axis') || !roles.includes('y-axis')) {
+              console.warn(`[propose_controls] xy-pad "${m.label}" missing x-axis/y-axis bindings — renderer will use defaults`);
+            }
+          } else if (mType === 'step-grid') {
+            if (!roles.includes('region')) {
+              console.warn(`[propose_controls] step-grid "${m.label}" missing region binding — renderer will use defaults`);
+            }
           }
         }
 
