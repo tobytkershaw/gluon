@@ -127,12 +127,12 @@ describe('resolveBinding', () => {
       expect((result as ResolvedScalar).value).toBe(0.75);
     });
 
-    it('defaults to 0.5 for unknown source param', () => {
+    it('returns stale for unknown source param', () => {
       const track = makeTrack();
       const target: SourceTarget = { kind: 'source', param: 'unknown-param' };
       const result = resolveBinding(track, target);
-      expect(result.status).toBe('ok');
-      expect((result as ResolvedScalar).value).toBe(0.5);
+      expect(result.status).toBe('stale');
+      expect((result as { reason: string }).reason).toContain('unknown-param');
     });
   });
 
@@ -152,6 +152,14 @@ describe('resolveBinding', () => {
       expect(result.status).toBe('stale');
       expect((result as { reason: string }).reason).toContain('nonexistent');
     });
+
+    it('returns stale for unknown processor param', () => {
+      const track = trackWithProcessor();
+      const target: ProcessorTarget = { kind: 'processor', processorId: 'reverb-1', param: 'brightnes' };
+      const result = resolveBinding(track, target);
+      expect(result.status).toBe('stale');
+      expect((result as { reason: string }).reason).toContain('brightnes');
+    });
   });
 
   describe('modulator target', () => {
@@ -166,6 +174,13 @@ describe('resolveBinding', () => {
     it('returns stale for missing modulator', () => {
       const track = makeTrack();
       const target: ModulatorTarget = { kind: 'modulator', modulatorId: 'gone', param: 'rate' };
+      const result = resolveBinding(track, target);
+      expect(result.status).toBe('stale');
+    });
+
+    it('returns stale for unknown modulator param', () => {
+      const track = trackWithModulator();
+      const target: ModulatorTarget = { kind: 'modulator', modulatorId: 'lfo-1', param: 'nonexistent' };
       const result = resolveBinding(track, target);
       expect(result.status).toBe('stale');
     });

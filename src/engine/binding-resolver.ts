@@ -30,20 +30,26 @@ function resolveScalar(track: Track, target: ScalarTarget): ResolvedScalar | { s
   switch (target.kind) {
     case 'source': {
       const runtimeKey = controlIdToRuntimeParam[target.param] ?? target.param;
-      const value = track.params[runtimeKey] ?? 0.5;
-      return { status: 'ok', kind: 'scalar', value, range: { min: 0, max: 1 } };
+      if (!(runtimeKey in track.params)) {
+        return { status: 'stale', reason: `Source param '${target.param}' not found on track` };
+      }
+      return { status: 'ok', kind: 'scalar', value: track.params[runtimeKey], range: { min: 0, max: 1 } };
     }
     case 'processor': {
       const proc = (track.processors ?? []).find(p => p.id === target.processorId);
       if (!proc) return { status: 'stale', reason: `Processor '${target.processorId}' not found on track` };
-      const value = proc.params[target.param] ?? 0.5;
-      return { status: 'ok', kind: 'scalar', value, range: { min: 0, max: 1 } };
+      if (!(target.param in proc.params)) {
+        return { status: 'stale', reason: `Param '${target.param}' not found on processor '${target.processorId}'` };
+      }
+      return { status: 'ok', kind: 'scalar', value: proc.params[target.param], range: { min: 0, max: 1 } };
     }
     case 'modulator': {
       const mod = (track.modulators ?? []).find(m => m.id === target.modulatorId);
       if (!mod) return { status: 'stale', reason: `Modulator '${target.modulatorId}' not found on track` };
-      const value = mod.params[target.param] ?? 0.5;
-      return { status: 'ok', kind: 'scalar', value, range: { min: 0, max: 1 } };
+      if (!(target.param in mod.params)) {
+        return { status: 'stale', reason: `Param '${target.param}' not found on modulator '${target.modulatorId}'` };
+      }
+      return { status: 'ok', kind: 'scalar', value: mod.params[target.param], range: { min: 0, max: 1 } };
     }
     case 'mix': {
       if (target.param === 'volume') {
@@ -63,8 +69,10 @@ function resolveScalar(track: Track, target: ScalarTarget): ResolvedScalar | { s
         return { status: 'ok', kind: 'scalar', value: pad.pan, range: { min: 0, max: 1 } };
       }
       // source param
-      const value = pad.source.params[target.param] ?? 0.5;
-      return { status: 'ok', kind: 'scalar', value, range: { min: 0, max: 1 } };
+      if (!(target.param in pad.source.params)) {
+        return { status: 'stale', reason: `Param '${target.param}' not found on drum pad '${target.padId}'` };
+      }
+      return { status: 'ok', kind: 'scalar', value: pad.source.params[target.param], range: { min: 0, max: 1 } };
     }
     case 'generator':
       return { status: 'unsupported', reason: `Generator targets are not yet implemented` };
