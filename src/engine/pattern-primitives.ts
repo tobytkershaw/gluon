@@ -84,11 +84,14 @@ function applyRegionEdit(
   newEvents: MusicalEvent[],
   regionUpdates?: { duration?: number },
   description?: string,
+  patternId?: string,
 ): Session {
   const track = getTrack(session, trackId);
   if (track.patterns.length === 0) return session;
 
-  const activeReg = getActivePattern(track);
+  const activeReg = patternId
+    ? (track.patterns.find(p => p.id === patternId) ?? getActivePattern(track))
+    : getActivePattern(track);
 
   const snapshot: PatternEditSnapshot | undefined = description
     ? {
@@ -126,15 +129,17 @@ function applyRegionEdit(
 // Public API — human edit functions (all push undo snapshots)
 // ---------------------------------------------------------------------------
 
-export function toggleStepGate(session: Session, trackId: string, stepIndex: number): Session {
+export function toggleStepGate(session: Session, trackId: string, stepIndex: number, patternId?: string): Session {
   const track = getTrack(session, trackId);
-  if (stepIndex < 0 || stepIndex >= getActivePattern(track).duration) return session;
-
-  // All tracks must have regions — return unchanged if invariant is violated
   if (track.patterns.length === 0) return session;
 
+  const targetPattern = patternId
+    ? (track.patterns.find(p => p.id === patternId) ?? getActivePattern(track))
+    : getActivePattern(track);
+  if (stepIndex < 0 || stepIndex >= targetPattern.duration) return session;
+
   const pitched = !isPercussionByIndex(track.model);
-  const activeReg = getActivePattern(track);
+  const activeReg = targetPattern;
   const events = [...activeReg.events];
   const idx = findGateEventAt(events, stepIndex);
 
@@ -182,7 +187,7 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
     if (insertAt === -1) events.push(newEvent);
     else events.splice(insertAt, 0, newEvent);
   }
-  return applyRegionEdit(session, trackId, events, undefined, `Toggle gate at step ${stepIndex}`);
+  return applyRegionEdit(session, trackId, events, undefined, `Toggle gate at step ${stepIndex}`, patternId);
 }
 
 export function toggleStepAccent(session: Session, trackId: string, stepIndex: number): Session {

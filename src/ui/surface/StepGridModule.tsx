@@ -79,10 +79,10 @@ export function StepGridModule({
     (stepIndex: number) => {
       if (!onStepToggle) return;
       onInteractionStart?.();
-      onStepToggle(track.id, stepIndex);
+      onStepToggle(track.id, stepIndex, pattern?.id);
       onInteractionEnd?.();
     },
-    [onStepToggle, onInteractionStart, onInteractionEnd, track.id],
+    [onStepToggle, onInteractionStart, onInteractionEnd, track.id, pattern],
   );
 
   if (!pattern) {

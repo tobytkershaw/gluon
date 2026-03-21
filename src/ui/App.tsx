@@ -2430,9 +2430,9 @@ export default function App() {
     setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
-  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number) => {
+  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number, patternId?: string) => {
     ensureAudio();
-    setSession((s) => toggleStepGate(s, trackId, stepIndex));
+    setSession((s) => toggleStepGate(s, trackId, stepIndex, patternId));
   }, [ensureAudio]);
 
   const _handleStepAccent = useCallback((stepIndex: number) => {

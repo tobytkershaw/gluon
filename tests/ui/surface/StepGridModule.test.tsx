@@ -226,4 +226,24 @@ describe('StepGridModule', () => {
     const stepCells = container.querySelectorAll('[data-no-select]');
     expect(stepCells.length).toBe(4);
   });
+
+  it('passes bound patternId through onStepToggle callback', () => {
+    const onStepToggle = vi.fn();
+    const boundPat = makePattern({ id: 'pat-bound', duration: 4, events: [] });
+    const activePat = makePattern({ id: 'pat-1', duration: 16, events: [] });
+    const track = makeTrack({ patterns: [activePat, boundPat] });
+    const mod = makeModule({
+      bindings: [{ role: 'region', target: 'pat-bound' }],
+    });
+    const { container } = render(
+      <StepGridModule
+        module={mod}
+        track={track}
+        onStepToggle={onStepToggle}
+      />,
+    );
+    const stepCells = container.querySelectorAll('[data-no-select]');
+    fireEvent.click(stepCells[1]);
+    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-bound');
+  });
 });
