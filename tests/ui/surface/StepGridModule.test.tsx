@@ -392,7 +392,7 @@ describe('StepGridModule', () => {
       );
       const stepCells = getStepCells(container);
       fireEvent.pointerDown(stepCells[3], { shiftKey: true });
-      expect(onStepAccentToggle).toHaveBeenCalledWith('trk-1', 3, 'pat-1');
+      expect(onStepAccentToggle).toHaveBeenCalledWith('trk-1', 3, 'pat-1', undefined);
     });
 
     it('does NOT call onStepToggle on shift+click', () => {

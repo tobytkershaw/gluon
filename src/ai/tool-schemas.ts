@@ -801,7 +801,7 @@ const setSurfaceTool: ToolSchema = {
             },
             config: {
               type: 'object',
-              description: 'Module-specific config. For macro-knob: { semanticControl: { name, weights: [{ moduleId, controlId, weight, transform }], range } }. For knob-group with pinning: { pinned: true }.',
+              description: 'Module-specific config. For macro-knob: { semanticControl: { name, weights: [{ moduleId, controlId, weight, transform }], range } }. For knob-group with pinning: { pinned: true }. For step-grid with per-pad filtering: { padId: "kick" } — only shows/creates events for that drum pad.',
             },
           },
           required: ['type', 'id', 'label', 'bindings'],
@@ -2152,7 +2152,7 @@ const proposeControlsTool: ToolSchema = {
             },
             config: {
               type: 'object',
-              description: 'Module-specific configuration.',
+              description: 'Module-specific configuration. For step-grid: { padId: "kick" } to filter events by drum pad.',
             },
           },
           required: ['type', 'label', 'bindings'],

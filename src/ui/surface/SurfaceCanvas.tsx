@@ -42,9 +42,9 @@ interface SurfaceCanvasProps {
   /** Toggle processor enabled/bypass — goes through session state + undo. */
   onToggleProcessorEnabled?: (processorId: string) => void;
   /** Toggle a step gate on/off. patternId targets a specific pattern (for bound regions). */
-  onStepToggle?: (trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }) => void;
+  onStepToggle?: (trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean; padId?: string }) => void;
   /** Toggle accent on an active step. patternId targets a specific pattern (for bound regions). */
-  onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string, padId?: string) => void;
   /** Called when a paint gesture completes to push a single grouped undo entry. */
   onPaintComplete?: (trackId: string, patternId: string | undefined, prevEvents: MusicalEvent[]) => void;
 }
