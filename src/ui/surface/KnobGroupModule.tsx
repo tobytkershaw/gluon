@@ -5,7 +5,7 @@ import { Knob } from '../Knob';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getAccentColor } from './visual-utils';
 import { ensureTypedTarget, targetLabel } from './binding-helpers';
-import { dispatchMutations } from './binding-dispatch';
+import { canDispatch, dispatchMutations } from './binding-dispatch';
 // Palette-aware: roleColor.full for knob arcs, roleColor.muted for labels
 
 /** Resolved control binding with typed target and current resolution. */
@@ -76,6 +76,7 @@ export function KnobGroupModule({
       <div className="flex-1 flex items-center justify-center gap-3 flex-wrap">
         {resolvedControls.map(ctrl => {
           const isDisconnected = ctrl.resolved.status !== 'ok';
+          const isReadOnly = !isDisconnected && !canDispatch(ctrl.target);
           const value = ctrl.resolved.status === 'ok' && 'value' in ctrl.resolved
             ? ctrl.resolved.value
             : 0.5;
@@ -83,10 +84,12 @@ export function KnobGroupModule({
           return (
             <div
               key={ctrl.key}
-              className={isDisconnected ? 'opacity-40 pointer-events-none' : ''}
+              className={isDisconnected || isReadOnly ? 'opacity-40 pointer-events-none' : ''}
               title={isDisconnected
                 ? `Disconnected: ${'reason' in ctrl.resolved ? ctrl.resolved.reason : 'unknown'}`
-                : undefined}
+                : isReadOnly
+                  ? `Read-only: ${ctrl.target.kind} writes not yet supported`
+                  : undefined}
             >
               <Knob
                 value={value}

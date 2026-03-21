@@ -1,7 +1,19 @@
 // src/ui/surface/binding-dispatch.ts
 // Utility to dispatch ParamMutation[] through the existing renderer callbacks.
 
-import type { ParamMutation } from '../../engine/types';
+import type { BindingTarget, ParamMutation } from '../../engine/types';
+
+/** Target kinds whose writes can be dispatched through existing App.tsx callbacks. */
+const DISPATCHABLE_KINDS = new Set<string>(['source', 'processor']);
+
+/** Whether a binding target's writes can be dispatched through the current callback set.
+ *  Renderers should treat targets where this returns false as read-only. */
+export function canDispatch(target: BindingTarget): boolean {
+  if (target.kind === 'weighted') {
+    return target.mappings.every(m => DISPATCHABLE_KINDS.has(m.target.kind));
+  }
+  return DISPATCHABLE_KINDS.has(target.kind);
+}
 
 /** Subset of ModuleRendererProps callbacks needed for mutation dispatch. */
 export interface MutationCallbacks {
@@ -11,9 +23,8 @@ export interface MutationCallbacks {
 
 /**
  * Dispatch an array of ParamMutations through the appropriate renderer callbacks.
- * Mutations for modulatorParam, mixParam, and drumPadParam are not yet supported —
- * App.tsx doesn't have handler callbacks for these target kinds. These mutations
- * are logged as warnings so they're visible during development.
+ * Only sourceParam and processorParam mutations are supported — App.tsx doesn't
+ * have handler callbacks for other target kinds yet.
  */
 export function dispatchMutations(
   mutations: ParamMutation[],
@@ -30,9 +41,6 @@ export function dispatchMutations(
       case 'modulatorParam':
       case 'mixParam':
       case 'drumPadParam':
-        if (import.meta.env.DEV) {
-          console.warn(`[binding-dispatch] unsupported mutation kind "${m.kind}" — no handler callback exists yet`);
-        }
         break;
     }
   }

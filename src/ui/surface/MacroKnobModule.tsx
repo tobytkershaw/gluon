@@ -9,7 +9,7 @@ import { Knob } from '../Knob';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getAccentColor } from './visual-utils';
 import { ensureTypedTarget } from './binding-helpers';
-import { dispatchMutations } from './binding-dispatch';
+import { canDispatch, dispatchMutations } from './binding-dispatch';
 
 /**
  * MacroKnobModule — single knob that fans out to weighted raw params.
@@ -62,6 +62,7 @@ export function MacroKnobModule({
   }
 
   const isDisconnected = resolved !== null && resolved.status !== 'ok';
+  const isReadOnly = !isDisconnected && target !== null && !canDispatch(target);
   const displayValue = resolved?.status === 'ok' && 'value' in resolved
     ? resolved.value
     : 0.5;
@@ -70,10 +71,12 @@ export function MacroKnobModule({
 
   return (
     <div
-      className={`h-full flex flex-col items-center justify-center p-2${isDisconnected ? ' opacity-40 pointer-events-none' : ''}`}
+      className={`h-full flex flex-col items-center justify-center p-2${isDisconnected || isReadOnly ? ' opacity-40 pointer-events-none' : ''}`}
       title={isDisconnected && resolved && 'reason' in resolved
         ? `Disconnected: ${resolved.reason}`
-        : undefined}
+        : isReadOnly && target
+          ? `Read-only: ${target.kind} writes not yet supported`
+          : undefined}
     >
       <Knob
         value={displayValue}

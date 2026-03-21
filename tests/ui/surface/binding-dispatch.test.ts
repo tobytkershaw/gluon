@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { dispatchMutations } from '../../../src/ui/surface/binding-dispatch';
-import type { ParamMutation } from '../../../src/engine/types';
+import { canDispatch, dispatchMutations } from '../../../src/ui/surface/binding-dispatch';
+import type { BindingTarget, ParamMutation } from '../../../src/engine/types';
 
 describe('dispatchMutations', () => {
   it('dispatches sourceParam to onParamChange', () => {
@@ -48,5 +48,49 @@ describe('dispatchMutations', () => {
     const onParamChange = vi.fn();
     dispatchMutations([], { onParamChange });
     expect(onParamChange).not.toHaveBeenCalled();
+  });
+});
+
+describe('canDispatch', () => {
+  it('returns true for source targets', () => {
+    expect(canDispatch({ kind: 'source', param: 'timbre' })).toBe(true);
+  });
+
+  it('returns true for processor targets', () => {
+    expect(canDispatch({ kind: 'processor', processorId: 'reverb', param: 'decay' })).toBe(true);
+  });
+
+  it('returns false for modulator targets', () => {
+    expect(canDispatch({ kind: 'modulator', modulatorId: 'lfo1', param: 'rate' })).toBe(false);
+  });
+
+  it('returns false for mix targets', () => {
+    expect(canDispatch({ kind: 'mix', param: 'volume' })).toBe(false);
+  });
+
+  it('returns false for drumPad targets', () => {
+    expect(canDispatch({ kind: 'drumPad', padId: 'kick', param: 'level' })).toBe(false);
+  });
+
+  it('returns true for weighted targets with only source/processor mappings', () => {
+    const target: BindingTarget = {
+      kind: 'weighted',
+      mappings: [
+        { target: { kind: 'source', param: 'timbre' }, weight: 0.5 },
+        { target: { kind: 'processor', processorId: 'eq', param: 'freq' }, weight: 0.5 },
+      ],
+    };
+    expect(canDispatch(target)).toBe(true);
+  });
+
+  it('returns false for weighted targets containing undispatchable mappings', () => {
+    const target: BindingTarget = {
+      kind: 'weighted',
+      mappings: [
+        { target: { kind: 'source', param: 'timbre' }, weight: 0.5 },
+        { target: { kind: 'mix', param: 'volume' }, weight: 0.5 },
+      ],
+    };
+    expect(canDispatch(target)).toBe(false);
   });
 });
