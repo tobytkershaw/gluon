@@ -4229,10 +4229,12 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: description') };
         }
 
-        // sourceTrackId can be null (to remove), or a string
+        // clear: true is the canonical way to remove a sidechain.
+        // Backward compat: null/undefined/empty-string sourceTrackId also removes.
+        const clearing = args.clear === true;
         const rawSourceId = args.sourceTrackId;
         let resolvedSourceId: string | null = null;
-        if (rawSourceId !== null && rawSourceId !== undefined) {
+        if (!clearing && rawSourceId !== null && rawSourceId !== undefined && rawSourceId !== '') {
           if (typeof rawSourceId !== 'string') {
             return { actions: [], response: errorPayload('sourceTrackId must be a string or null') };
           }
@@ -4240,6 +4242,10 @@ export class GluonAI {
           if (!resolvedSourceId) {
             return { actions: [], response: trackNotFoundError(String(rawSourceId), session) };
           }
+        }
+        // If not clearing and no source provided, treat as removal for backward compat
+        if (!clearing && !resolvedSourceId && (rawSourceId === null || rawSourceId === undefined || rawSourceId === '')) {
+          // falls through with resolvedSourceId = null (removal)
         }
 
         const resolvedTargetId = resolveTrackId(args.targetTrackId as string, session);

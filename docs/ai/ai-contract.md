@@ -273,14 +273,15 @@ Add, remove, or set the level of a post-fader send from a track to a bus track.
 
 #### `set_sidechain`
 
-Set up audio sidechain compression: route one track's audio into a compressor's detector on another track. The compressor reacts to the source track's volume while processing the target track's audio. Set sourceTrackId to null to remove an existing sidechain.
+Set up audio sidechain compression: route one track's audio into a compressor's detector on another track. The compressor reacts to the source track's volume while processing the target track's audio. Set `clear: true` to remove an existing sidechain.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `sourceTrackId` | string or null | yes | Source track whose audio drives the detector. Null to remove. |
+| `sourceTrackId` | string | no | Source track whose audio drives the detector. Required when setting up a sidechain; ignored when clearing. |
 | `targetTrackId` | string | yes | Target track containing the compressor. |
 | `processorId` | string | no | Compressor processor ID. Auto-detected when the target has exactly one compressor. |
 | `description` | string | yes | Short description of the routing intent. |
+| `clear` | boolean | no | Set to true to remove the sidechain. When true, sourceTrackId is ignored. |
 
 #### `set_master`
 

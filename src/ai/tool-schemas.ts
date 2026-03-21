@@ -886,7 +886,7 @@ const setSidechainTool: ToolSchema = {
   description:
     'Set up audio sidechaining: route one track\'s audio into a compressor\'s detector on another track. ' +
     'The compressor reacts to the source track\'s volume while processing the target track\'s audio — classic sidechain compression (e.g. kick ducking a bass). ' +
-    'Set sourceTrackId to null to remove an existing sidechain. ' +
+    'Set clear: true to remove an existing sidechain (sourceTrackId is ignored when clearing). ' +
     'If the target track has exactly one compressor, processorId is auto-detected. If zero compressors exist, add one first with manage_processor. ' +
     'For simple volume-ducking without real audio routing, use apply_modulation with "ducking_sidechain" recipe instead.',
   parameters: {
@@ -894,7 +894,7 @@ const setSidechainTool: ToolSchema = {
     properties: {
       sourceTrackId: {
         type: 'string',
-        description: 'Source track whose audio drives the compressor\'s detector. Use ordinal label (e.g. "Track 1") or internal ID. Set to empty string to remove sidechain.',
+        description: 'Source track whose audio drives the compressor\'s detector. Use ordinal label (e.g. "Track 1") or internal ID.',
       },
       targetTrackId: {
         type: 'string',
@@ -908,8 +908,12 @@ const setSidechainTool: ToolSchema = {
         type: 'string',
         description: 'Short description (e.g. "sidechain bass to kick for ducking").',
       },
+      clear: {
+        type: 'boolean',
+        description: 'Set to true to remove the sidechain. When true, sourceTrackId is ignored.',
+      },
     },
-    required: ['sourceTrackId', 'targetTrackId', 'description'],
+    required: ['targetTrackId', 'description'],
   },
 };
 
