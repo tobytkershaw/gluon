@@ -155,9 +155,9 @@ This architecture deliberately favors unary audio critique over a Live API sessi
 
 **Model strategy:**
 
-The architecture defines stable internal roles (planner, editor, listener, engine) rather than stable provider choices. One capable model currently handles reasoning, structured edits, and conversation; a multimodal audio model handles audio evaluation. Model and provider choice is an open investigation — the collaboration behavior contract (see `ai-collaboration-model.md`) comes first, and models are evaluated against it.
+The architecture defines stable internal roles (planner, listener) with provider-abstracted adapters. Currently Gemini-only: Gemini 3.1 Pro handles reasoning, structured edits, and conversation; Gemini Flash handles audio evaluation via rendered audio snapshots. The collaboration behavior contract (see `ai-collaboration-model.md`) comes first, and models are evaluated against it.
 
-**Taste and memory:** The AI develops understanding of the user's preferences through conversation context, not through a separate taste model. Session history provides this naturally.
+**Taste and memory:** The AI develops understanding of the user's preferences through conversation context and per-project memory (`save_memory`/`recall_memories`/`forget_memory` tools). Memories persist across sessions and context rotations. Aesthetic direction emerges from reaction history, observed patterns, and restraint guidance in the compressed state — not from a separate taste model. See [aesthetic-direction.md](docs/ai/aesthetic-direction.md).
 
 **Capability posture:** Once Gluon's hard collaboration boundaries are enforced — human authority, inspectability, undoability, and explicit permission rules — the default move should be to increase the AI's useful capability rather than constrain it further. In practice that means preferring richer tools, clearer state, and better consequence feedback over prompt-only caution or manual workaround paths.
 
@@ -176,10 +176,11 @@ That's it. Two states. The AI only acts when the human asks, so the complex leas
 
 These are hard boundaries. Once they are explicit and enforced, Gluon should bias toward giving the AI more useful first-class operations rather than layering on extra restrictions.
 
-**Musical constraints (future):**
-- Key/scale lock
-- Tempo range
-- Complexity ceiling
+**Musical constraints:**
+- Key/scale lock (implemented — `set_scale` tool with 15 scale modes, auto-quantization of note events)
+- Chord progression (implemented — `set_chord_progression` tool with bar-based harmonic guidance)
+- Tempo range (enforced: 20-300 BPM)
+- Complexity ceiling (future)
 
 **Hardware safety (future):**
 - Respect hardware-specific parameter ranges
@@ -246,9 +247,9 @@ The interface is built around the conversation. The chat panel is the primary in
 
 **Core UI elements:**
 - **Chat panel** (primary): Natural language input, AI responses, action log showing what the AI changed
-- **2D parameter space**: TIMBRE x COLOR XY pad per voice, for direct sound exploration
-- **Step sequencer**: 16-step grid per voice, with parameter locks (Elektron-style)
-- **Voice selector**: 4 voice slots with model, mute/solo, and agency (OFF/ON)
+- **Surface view**: AI-curated UI surfaces per track with 7 module types (knob-group, macro-knob, xy-pad, step-grid, chain-strip, piano-roll, pad-grid), visual identity, and human editing
+- **Step sequencer**: Step grid per track, with parameter locks (Elektron-style)
+- **Track selector**: Up to 16 tracks (audio + bus) with model, mute/solo, and agency (OFF/ON)
 - **Transport**: Play/stop, BPM, swing
 - **Model selector**: Plaits synthesis model picker per voice
 - **Undo**: Reverses all actions in LIFO order (essential for the iterate-and-refine loop)

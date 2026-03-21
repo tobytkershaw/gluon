@@ -133,7 +133,7 @@ Permission gates control **programming** and **structure** operations. They do n
 
 When a gate blocks an action, the system raises a **permission request** (decision prompt) rather than hard-rejecting. The AI receives `{ blocked: true, reason: "agency_off", decisionId }` and waits for the human to approve or deny. This allows the AI to propose changes to protected material without silently modifying it.
 
-**Planned evolution (#926):** The binary per-track gate will be replaced by a granular permission system with claim/protect semantics. The human can claim individual tracks, parameters, or modules. A default blacklist protects critical items (e.g. master bus volume). The permission-request flow remains — the AI can always propose, the human decides.
+**Current state:** Agency is the binary per-track gate (OFF/ON). Tracks can additionally be claimed by the human via `set_track_meta(claimed: true)`, which signals the AI to ask permission before modifying. Master bus volume/pan changes require human permission by default.
 
 ### Transport
 
@@ -279,15 +279,16 @@ Events use `kind: "trigger"` for percussion and `kind: "note"` (with MIDI pitch)
 
 #### `transform`
 
-Structurally modify an existing pattern without rewriting it.
+Structurally modify an existing pattern without rewriting it. See [ai-contract.md](docs/ai/ai-contract.md) for the full parameter list.
 
 ```
 transform {
   trackId: TrackID
-  operation: "rotate" | "transpose" | "reverse" | "duplicate"
+  operation: "rotate" | "transpose" | "reverse" | "duplicate" | "humanize" | "euclidean" | "ghost_notes" | "swing" | "thin" | "densify"
   steps: int?                // For rotate (positive=forward, negative=backward)
   semitones: int?            // For transpose (positive=up, negative=down)
   description: string
+  // Additional operation-specific parameters — see ai-contract.md
 }
 ```
 
@@ -431,16 +432,19 @@ render {
 
 #### `analyze`
 
-Run deterministic audio analysis on a rendered snapshot.
+Run deterministic audio analysis on a rendered snapshot. Supports multiple analysis types in a single call. See [ai-contract.md](docs/ai/ai-contract.md) for the full parameter list including `compareSnapshotId`, `snapshotIds`, and `referenceProfile`.
 
 ```
 analyze {
   snapshotId: string            // From a previous render call
-  types: ["spectral" | "dynamics" | "rhythm"]
+  types: ["spectral" | "dynamics" | "rhythm" | "masking" | "diff" | "reference"]
+  compareSnapshotId: string?    // For diff analysis (before state)
+  snapshotIds: [string]?        // For masking analysis (multiple tracks)
+  referenceProfile: string?     // For reference analysis (genre profile)
 }
 ```
 
-Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing.
+Spectral: centroid, rolloff, flatness, bandwidth, pitch. Dynamics: LUFS, RMS, peak, crest factor. Rhythm: tempo estimate, onsets, density, swing. Masking: cross-track frequency conflict detection. Diff: before/after comparison with structured deltas. Reference: compare against genre profiles.
 
 ### UI Curation
 
@@ -468,7 +472,7 @@ Compose a track's UI surface from modules. Each module has a type, bindings, a g
 set_surface {
   trackId: TrackID
   modules: [{
-    type: "knob-group" | "macro-knob" | "xy-pad" | "step-grid" | "chain-strip"
+    type: "knob-group" | "macro-knob" | "xy-pad" | "step-grid" | "chain-strip" | "piano-roll" | "pad-grid"
     bindings: [{
       moduleId: string        // "source" or a processor ID
       controlId: ControlID
@@ -497,6 +501,8 @@ Module types:
 - **xy-pad**: 2D control bound to two parameters
 - **step-grid**: TR-style pattern editor
 - **chain-strip**: signal flow overview with bypass toggles
+- **piano-roll**: melodic event editor
+- **pad-grid**: drum rack pad trigger grid
 
 #### `pin_control`
 
@@ -529,15 +535,21 @@ All surface tools follow the same pattern as other AI operations: immediate, und
 
 #### `set_track_meta`
 
-Set track metadata: approval level, importance, and/or musical role. At least one field required. Approval requires agency ON and a reason.
+Set track metadata and mix properties: name, volume, pan, swing, muted, solo, claimed (protection toggle), importance, musicalRole, portamento. At least one field required. Claim changes require a reason. See [ai-contract.md](docs/ai/ai-contract.md) for the full parameter list.
 
 ```
 set_track_meta {
   trackId: TrackID
-  approval: "exploratory" | "liked" | "approved" | "anchor"?
+  name: string?            // Display name
+  volume: f32?             // 0.0-1.0
+  pan: f32?                // -1.0 to 1.0
+  swing: f32?              // Per-track swing override (0.0-1.0)
+  muted: bool?
+  solo: bool?
+  claimed: bool?           // Human claim — AI must ask before modifying claimed tracks
   importance: f32?         // 0.0-1.0, mix priority
   musicalRole: string?     // e.g. "driving rhythm"
-  reason: string?          // Required when setting approval
+  reason: string?          // Required when changing claim state
 }
 ```
 
@@ -670,13 +682,13 @@ Undo for native modules is exact — restore previous parameter values. Undo for
 
 **AI behaviour.** How the AI decides what changes to make, what "darker" means in parameter terms. That's the intelligence layer. This protocol defines what the AI can do, not how it thinks.
 
-**Taste and memory.** Whether the AI remembers preferences across sessions.
+**Taste and memory.** How the AI builds aesthetic direction. Per-project memory is implemented (`save_memory`/`recall_memories`/`forget_memory`). Cross-project taste is not yet implemented. See [aesthetic-direction.md](docs/ai/aesthetic-direction.md) and [cross-project-memory.md](docs/rfcs/cross-project-memory.md).
 
 **Module implementation.** How a specific module works internally. The protocol cares that modules have parameters and roles, not how they generate or process sound.
 
 **Transport and networking.** How messages are serialised. Could be in-process calls, WebSocket, OSC, whatever.
 
-**Surface curation internals.** How surface modules are composed, macro-knob weight computation, and chain-aware defaults. See the AI-curated surfaces RFC and surface north star.
+**Surface curation internals.** How surface modules are composed, macro-knob weight computation, and chain-aware defaults. See the [AI-curated surfaces RFC](docs/rfcs/ai-curated-surfaces.md) and [surface north star](docs/briefs/visual-language.md). Surface curation is implemented with 7 module types, visual identity, and human editing.
 
 ---
 
@@ -690,13 +702,20 @@ The AI's tools fall into five categories:
 
 | Category | Tools | Agency? | Changes sound? |
 |----------|-------|---------|----------------|
-| **Program** | move, sketch, transform | Yes | Yes |
-| **Structure** | set_model, manage_processor, manage_modulator, modulation_route | Yes | Yes |
+| **Program** | move, sketch, edit_pattern, transform | Yes | Yes |
+| **Structure** | set_model, manage_processor, manage_modulator, modulation_route, manage_track, manage_drum_pad | Yes | Yes |
 | **Transport** | set_transport | No | Yes |
 | **Observation** | listen, render, analyze | No | No |
-| **UI curation** | manage_view, set_surface, pin_control, label_axes | No | No |
-| **Track metadata** | set_track_meta | Partial (approval requires ON) | No |
-| **Decision** | raise_decision, report_bug | No | No |
+| **Mixing** | manage_send, set_sidechain, set_master, setup_return_bus | Partial | Yes |
+| **Arrangement** | manage_pattern, manage_sequence, apply_arrangement_archetype | Yes | Yes |
+| **UI curation** | manage_view, set_surface, pin_control, label_axes, set_track_identity | No | No |
+| **Track metadata** | set_track_meta | Partial (claim requires ON) | No |
+| **Session context** | set_intent, set_section, set_scale, set_chord_progression, set_tension | No | No |
+| **Decision** | raise_decision, report_bug, suggest_reactions | No | No |
+| **Memory** | save_memory, recall_memories, forget_memory | No | No |
+| **Recipes** | apply_chain_recipe, set_mix_role, apply_modulation, shape_timbre, assign_spectral_slot, relate, manage_motif, save_patch, load_patch, list_patches, explain_chain, simplify_chain | Partial | Varies |
+
+51 tools total. See [ai-contract.md](docs/ai/ai-contract.md) for the full tool reference.
 
 Plus **say** — talk back to the human.
 

@@ -241,7 +241,7 @@ Especially important for loop-native structure.
 
 Staged human-AI work rather than direct sound changes: `set_track_meta(approval: ...)`, `set_intent(...)`, `set_section(...)`, `set_tension(...)`, `raise_decision(...)`, `save_memory(...)`, `recall_memories(...)`, `forget_memory(...)`.
 
-Landed: `set_track_meta` covers approval levels, importance, per-track swing, and portamento. `set_intent` and `set_section` cover project phase and direction. Preservation constraints are enforced by the approval system. `save_memory`/`recall_memories`/`forget_memory` provide persistent per-project memory that survives context rotation and spans sessions. Remaining gap: explicit `preserve_material(...)` and `name_structure_role(...)` tools for fine-grained preservation annotations.
+Implemented: `set_track_meta` covers claim state (binary claimed/unclaimed), importance, per-track swing, portamento, and mix properties. `set_intent` and `set_section` cover project phase and direction. `set_tension` provides energy/density curves with track mappings. Preservation constraints are enforced by the claim system. `save_memory`/`recall_memories`/`forget_memory` provide persistent per-project memory that survives context rotation and spans sessions. `raise_decision` and `suggest_reactions` support collaborative decision-making. Remaining gap: explicit `preserve_material(...)` and `name_structure_role(...)` tools for fine-grained preservation annotations.
 
 ---
 
@@ -430,9 +430,9 @@ The AI's working environment exists at three levels. Each is documented, each is
 
 | Layer | What it is | Document | Status |
 |-------|-----------|----------|--------|
-| **Current contract** | The tools, state format, and validation rules the AI operates with today. 50 tools across programming, observation, transport, structure, mixing, arrangement, UI curation, track metadata, decision, session context, and memory categories. Up to 16 tracks with multiple Plaits engines, 11 processor types, Tides modulator, drum rack with pad grid, canonical events, semantic controls, role-aware state compression, per-project memory, motif development, and chain/modulation/arrangement recipes. | [ai-contract.md](./ai-contract.md) | Implemented |
+| **Current contract** | The tools, state format, and validation rules the AI operates with today. 51 tools across programming, observation, transport, structure, mixing, arrangement, UI curation, track metadata, decision, session context, and memory categories. Up to 16 tracks with multiple Plaits engines, 11 processor types, Tides modulator, drum rack with pad grid, canonical events, semantic controls, role-aware state compression, per-project memory, motif development, and chain/modulation/arrangement recipes. | [ai-contract.md](./ai-contract.md) | Implemented |
 | **Canonical model** | The data model that all current and future tools operate on. Voices, regions, events, control schemas, adapters, provenance. Defines the stable internal vocabulary. | [canonical-musical-model.md](../rfcs/canonical-musical-model.md) | Partially implemented (regions, events, provenance landed; adapters, full schema in progress) |
-| **Musical environment** (this document) | The target environment where the AI reasons about project phase, track roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — not yet implemented |
+| **Musical environment** (this document) | The target environment where the AI reasons about project phase, track roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — partially implemented (see Migration Strategy below) |
 
 The current contract is what the AI sees today. The canonical model is the platform being built underneath it. This document is where the environment is headed once the canonical model is stable.
 

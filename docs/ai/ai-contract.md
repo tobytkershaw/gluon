@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has fifty tools, declared as neutral JSON Schema and adapted per provider.
+The AI has 51 tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
