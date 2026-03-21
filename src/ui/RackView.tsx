@@ -143,7 +143,7 @@ export function RackView({
   const sourceLabel = activeTrack.model < 0 ? 'No Source' : `Plaits (${getModelName(activeTrack.model)})`;
 
   // Detect drum rack
-  const isDrumRack = activeTrack.engine === 'drum-rack' && activeTrack.drumRack && activeTrack.drumRack.pads.length > 0;
+  const isDrumRack = activeTrack.engine === 'drum-rack' && activeTrack.drumRack != null;
   const drumPads = isDrumRack ? activeTrack.drumRack!.pads : [];
 
   // Build source engine list for mode selector

@@ -1211,12 +1211,11 @@ export default function App() {
     setSession((s) => {
       const track = getTrack(s, vid);
       if (!track.drumRack) return s;
-      const clamped = Math.max(0, Math.min(1, value));
       const newPads = track.drumRack.pads.map(p => {
         if (p.id !== padId) return p;
-        if (param === 'level') return { ...p, level: clamped };
-        if (param === 'pan') return { ...p, pan: clamped };
-        return { ...p, source: { ...p.source, params: { ...p.source.params, [param]: clamped } } };
+        if (param === 'level') return { ...p, level: Math.max(0, Math.min(1, value)) };
+        if (param === 'pan') return { ...p, pan: Math.max(-1, Math.min(1, value)) };
+        return { ...p, source: { ...p.source, params: { ...p.source.params, [param]: Math.max(0, Math.min(1, value)) } } };
       });
       return updateTrack(s, vid, { drumRack: { ...track.drumRack, pads: newPads } });
     });
