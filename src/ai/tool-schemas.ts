@@ -2089,6 +2089,115 @@ const forgetMemoryTool: ToolSchema = {
   },
 };
 
+// --- BindingTarget JSON Schema fragment (shared by propose_controls) ---
+// Flattened into a single object schema for Gemini compatibility (no oneOf with complex types).
+// The `kind` discriminator tells the runtime which fields are relevant.
+const bindingTargetSchema = {
+  type: 'object',
+  description: 'Binding target. Set kind to discriminate: "source" (param), "processor" (processorId + param), "modulator" (modulatorId + param), "mix" (param: "volume"|"pan"), "drumPad" (padId + param), "weighted" (mappings array for macro knobs).',
+  properties: {
+    kind: {
+      type: 'string',
+      enum: ['source', 'processor', 'modulator', 'mix', 'drumPad', 'generator', 'paramShape', 'weighted'],
+      description: 'Target kind.',
+    },
+    param: { type: 'string', description: 'Parameter name (e.g. "timbre", "volume"). Required for scalar targets.' },
+    processorId: { type: 'string', description: 'Processor ID (required when kind is "processor").' },
+    modulatorId: { type: 'string', description: 'Modulator ID (required when kind is "modulator").' },
+    padId: { type: 'string', description: 'Drum pad ID (required when kind is "drumPad").' },
+    generatorId: { type: 'string', description: 'Generator ID (required when kind is "generator").' },
+    shapeId: { type: 'string', description: 'Shape ID (required when kind is "paramShape").' },
+    mappings: {
+      type: 'array',
+      description: 'Weighted mappings (required when kind is "weighted"). Each mapping has a scalar target, weight (0-1), and optional transform.',
+      items: {
+        type: 'object',
+        properties: {
+          target: {
+            type: 'object',
+            description: 'Scalar target within a weighted mapping.',
+            properties: {
+              kind: { type: 'string', enum: ['source', 'processor', 'modulator', 'mix', 'drumPad'], description: 'Scalar target kind.' },
+              param: { type: 'string', description: 'Parameter name.' },
+              processorId: { type: 'string', description: 'Processor ID.' },
+              modulatorId: { type: 'string', description: 'Modulator ID.' },
+              padId: { type: 'string', description: 'Drum pad ID.' },
+            },
+            required: ['kind'],
+          },
+          weight: { type: 'number', description: 'Weight 0-1.' },
+          transform: { type: 'string', enum: ['linear', 'inverse', 'bipolar'], description: 'Transform function.' },
+        },
+        required: ['target', 'weight'],
+      },
+    },
+  },
+  required: ['kind'],
+} as const;
+
+const proposeControlsTool: ToolSchema = {
+  name: 'propose_controls',
+  description:
+    'Propose transient controls in the Live Controls panel. These are exploration aids for the human to dial in sounds — untouched controls are cleared on the next turn. The human can promote any control to the permanent Surface via "Add to Surface".',
+  parameters: {
+    type: 'object',
+    properties: {
+      trackId: {
+        type: 'string',
+        description: TRACK_ID_DESC,
+      },
+      description: {
+        type: 'string',
+        description: 'What these controls are for.',
+      },
+      replace: {
+        type: 'boolean',
+        description: 'If true, clear untouched live controls for this track before adding new ones. Touched controls are never cleared.',
+      },
+      modules: {
+        type: 'array',
+        description: 'Controls to propose.',
+        items: {
+          type: 'object',
+          properties: {
+            type: {
+              type: 'string',
+              enum: ['knob-group', 'macro-knob'],
+              description: 'Module type.',
+            },
+            label: {
+              type: 'string',
+              description: 'Human-readable label.',
+            },
+            bindings: {
+              type: 'array',
+              description: 'Bindings connecting the module to track parameters.',
+              items: {
+                type: 'object',
+                properties: {
+                  role: {
+                    type: 'string',
+                    enum: ['control'],
+                    description: 'Binding role.',
+                  },
+                  target: bindingTargetSchema,
+                },
+                required: ['role', 'target'],
+              },
+            },
+            config: {
+              type: 'object',
+              description: 'Module-specific configuration.',
+            },
+          },
+          required: ['type', 'label', 'bindings'],
+        },
+      },
+    },
+    required: ['trackId', 'description', 'modules'],
+  },
+};
+
 export const GLUON_TOOLS: ToolSchema[] = [
   moveTool,
   sketchTool,
@@ -2139,4 +2248,5 @@ export const GLUON_TOOLS: ToolSchema[] = [
   saveMemoryTool,
   recallMemoriesTool,
   forgetMemoryTool,
+  proposeControlsTool,
 ];

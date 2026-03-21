@@ -83,6 +83,8 @@ export function createSession(): Session {
     messages: [],
     recentHumanActions: [],
     expandedTrackIds: [],
+    liveControls: [],
+    turnCount: 0,
   };
 }
 

@@ -65,6 +65,9 @@ export function stripForPersistence(session: Session): Session {
     messages: session.messages.map(m =>
       m.listenEvents ? { ...m, listenEvents: undefined } : m
     ),
+    // Persist liveControls as-is (lifecycle cleanup on load)
+    liveControls: session.liveControls ?? [],
+    turnCount: session.turnCount ?? 0,
   };
 }
 
@@ -591,6 +594,16 @@ export function restoreSession(session: Session, persistedVersion: number = CURR
     expandedTrackIds,
     openDecisions,
     memories: session.memories ?? [],
+    // Restore live controls: remove untouched (stale proposals from before refresh),
+    // remove modules for deleted tracks, apply turn-distance check for touched modules.
+    liveControls: ((session as Record<string, unknown>).liveControls as import('./types').LiveControlModule[] ?? []).filter(m => {
+      if (!survivingIds.has(m.trackId)) return false;  // orphaned
+      if (!m.touched) return false;  // stale proposals
+      const turnCount = ((session as Record<string, unknown>).turnCount as number) ?? 0;
+      if (turnCount - m.createdAtTurn > 3) return false;  // grace period expired
+      return true;
+    }),
+    turnCount: ((session as Record<string, unknown>).turnCount as number) ?? 0,
   };
 }
 

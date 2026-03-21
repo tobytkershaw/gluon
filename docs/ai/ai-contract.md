@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has forty-nine tools, declared as neutral JSON Schema and adapted per provider.
+The AI has fifty tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -347,6 +347,17 @@ Compose a track's UI surface from modules. Each module has a type, bindings to c
 | `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
 | `modules` | array | yes | Array of surface module definitions. Each has `type` (one of `knob-group`, `macro-knob`, `xy-pad`, `step-grid`, `chain-strip`, `piano-roll`, `pad-grid`), `bindings` (array of `{ role, target }` — binding roles include `control`, `x-axis`/`y-axis`, `region`, `chain`), `position` (`{ x, y, w, h }` on a 12-column grid), and optional `config` (type-specific settings). For `macro-knob`, config contains `semanticControl` with `name` (label) and `weights` (array of `{ moduleId, controlId, weight, transform? }` — weights must sum to 1.0). For `knob-group` with pinning, config contains `pinned: true`. |
 | `description` | string | yes | Short description of the surface configuration. |
+
+#### `propose_controls`
+
+Propose transient controls in the Live Controls panel. These are exploration aids for the human to dial in sounds — untouched controls are cleared on the next turn. The human can promote any control to the permanent Surface via "Add to Surface". Does not create an undo snapshot (proposals, not mutations).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `trackId` | string | yes | Target track — ordinal ("Track 1") or internal ID ("v0"). |
+| `description` | string | yes | What these controls are for. |
+| `replace` | boolean | no | If true, clear untouched live controls for this track before adding new ones. Touched controls are never cleared. |
+| `modules` | array | yes | Controls to propose. Each has `type` (one of `knob-group`, `macro-knob`), `label` (human-readable), `bindings` (array of `{ role: 'control', target: BindingTarget }`), and optional `config`. |
 
 #### `pin_control`
 

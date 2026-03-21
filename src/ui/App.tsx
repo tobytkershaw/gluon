@@ -221,10 +221,10 @@ export default function App() {
   const arbRef = useRef(new Arbitrator());
   const [holdGeneration, setHoldGeneration] = useState(0);
   const autoRef = useRef(new AutomationEngine());
-  // Live Controls panel state — transient modules proposed by AI during conversation
-  const [liveControlModules, setLiveControlModules] = useState<LiveControlModule[]>([]);
   const sessionRef = useRef(session);
   sessionRef.current = session;
+  // Derive live control modules from session state (migrated from useState)
+  const liveControlModules = session.liveControls;
 
   // When arbitration hold expires, bump generation to re-trigger sync effects
   useEffect(() => {
@@ -1248,14 +1248,14 @@ export default function App() {
 
   /** Mark a live control module as touched (user interacted with a knob). */
   const handleLiveModuleTouch = useCallback((moduleId: string) => {
-    setLiveControlModules(prev =>
-      prev.map(m => m.id === moduleId ? { ...m, touched: true } : m),
-    );
+    setSession(s => ({
+      ...s,
+      liveControls: s.liveControls.map(m => m.id === moduleId ? { ...m, touched: true } : m),
+    }));
   }, []);
 
-  /** Copy a live module to its bound track's surface. */
+  /** Copy a live module to its bound track's surface and remove from liveControls. */
   const handleLiveModuleAddToSurface = useCallback((liveModule: LiveControlModule) => {
-    let validationPassed = false;
     setSession((s) => {
       const track = getTrack(s, liveModule.trackId);
       const newSurface: TrackSurface = {
@@ -1267,7 +1267,6 @@ export default function App() {
         console.warn(`[live-controls] Add to surface rejected: ${validationError}`);
         return s;
       }
-      validationPassed = true;
       const prevSurface: TrackSurface = {
         ...track.surface,
         modules: track.surface.modules.map(m => ({
@@ -1287,17 +1286,34 @@ export default function App() {
       return {
         ...updateTrack(s, liveModule.trackId, { surface: newSurface }),
         undoStack: [...s.undoStack, snapshot],
+        liveControls: s.liveControls.filter(m => m.id !== liveModule.id),
       };
     });
-    // Only remove the module from the live panel if the surface update succeeded
-    if (validationPassed) {
-      setLiveControlModules(prev => prev.filter(m => m.id !== liveModule.id));
-    }
   }, []);
 
-  /** Clear untouched live modules — called at AI turn start. */
-  const clearUntouchedLiveModules = useCallback(() => {
-    setLiveControlModules(prev => prev.filter(m => m.touched));
+  /** Clear stale live controls — called at AI turn start. Removes:
+   *  - untouched modules (proposals from last turn)
+   *  - touched modules past 3-turn grace period
+   *  - modules whose trackId no longer exists */
+  const clearStaleLiveControls = useCallback(() => {
+    setSession(s => {
+      const currentTurn = s.turnCount;
+      const trackIds = new Set(s.tracks.map(t => t.id));
+      const filtered = s.liveControls.filter(m => {
+        // Remove modules for deleted tracks
+        if (!trackIds.has(m.trackId)) return false;
+        // Remove untouched modules
+        if (!m.touched) return false;
+        // Remove touched modules past 3-turn grace period
+        if (currentTurn - m.createdAtTurn > 3) return false;
+        return true;
+      });
+      return {
+        ...s,
+        liveControls: filtered,
+        turnCount: currentTurn + 1,
+      };
+    });
   }, []);
 
   /** Pin/unpin a control to/from the Surface view. Toggle behaviour. */
@@ -1478,7 +1494,7 @@ export default function App() {
     setSelectedProcessorId(null);
     setSelectedModulatorId(null);
     setDeepViewModuleId(null);
-    setLiveControlModules([]);
+    setSession(s => ({ ...s, liveControls: [] }));
     if (completionTimerRef.current) { clearTimeout(completionTimerRef.current); completionTimerRef.current = null; }
     setLastCompletionSummary(null);
     auditionSnapshotRef.current = null;
@@ -1609,7 +1625,7 @@ export default function App() {
   const handleSend = useCallback(async (message: string) => {
     if (!aiRef.current.isPlannerConfigured()) return;
     const thisRequest = beginTurn();
-    clearUntouchedLiveModules();
+    clearStaleLiveControls();
     setIsThinking(true);
     setStreamingText('');
     setStreamingLogEntries([]);
@@ -1773,7 +1789,7 @@ export default function App() {
           }
         }
     }
-  }, [beginTurn, clearUntouchedLiveModules, ensureAudio, isCurrentTurn]);
+  }, [beginTurn, clearStaleLiveControls, ensureAudio, isCurrentTurn]);
 
   const handleReaction = useCallback((messageIndex: number, verdict: 'approved' | 'rejected', rationale?: string) => {
     setSession((s) => {
