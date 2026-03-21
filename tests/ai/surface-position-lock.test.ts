@@ -24,11 +24,13 @@ describe('enforcePositionLocks (#1108)', () => {
       makeModule({ id: 'mod-1', label: 'Locked Renamed', position: { x: 6, y: 4, w: 8, h: 3 } }),
     ];
 
-    const warnings = enforcePositionLocks(incoming, existing);
+    const { modules, warnings } = enforcePositionLocks(incoming, existing);
 
-    expect(incoming[0].position).toEqual({ x: 0, y: 0, w: 4, h: 2 });
-    expect(incoming[0].locked).toBe(true);
-    expect(incoming[0].label).toBe('Locked Renamed'); // label still updated
+    expect(modules[0].position).toEqual({ x: 0, y: 0, w: 4, h: 2 });
+    expect(modules[0].locked).toBe(true);
+    expect(modules[0].label).toBe('Locked Renamed'); // label still updated
+    // Original input should not be mutated
+    expect(incoming[0].position).toEqual({ x: 6, y: 4, w: 8, h: 3 });
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('position-locked');
   });
@@ -41,10 +43,10 @@ describe('enforcePositionLocks (#1108)', () => {
       makeModule({ id: 'mod-1', label: 'Moved', position: { x: 6, y: 4, w: 8, h: 3 } }),
     ];
 
-    const warnings = enforcePositionLocks(incoming, existing);
+    const { modules, warnings } = enforcePositionLocks(incoming, existing);
 
-    expect(incoming[0].position).toEqual({ x: 6, y: 4, w: 8, h: 3 });
-    expect(incoming[0].locked).toBeUndefined();
+    expect(modules[0].position).toEqual({ x: 6, y: 4, w: 8, h: 3 });
+    expect(modules[0].locked).toBeUndefined();
     expect(warnings).toHaveLength(0);
   });
 
@@ -56,10 +58,10 @@ describe('enforcePositionLocks (#1108)', () => {
       makeModule({ id: 'mod-new', label: 'New', position: { x: 2, y: 2, w: 3, h: 2 } }),
     ];
 
-    const warnings = enforcePositionLocks(incoming, existing);
+    const { modules, warnings } = enforcePositionLocks(incoming, existing);
 
-    expect(incoming[0].position).toEqual({ x: 2, y: 2, w: 3, h: 2 });
-    expect(incoming[0].locked).toBeUndefined();
+    expect(modules[0].position).toEqual({ x: 2, y: 2, w: 3, h: 2 });
+    expect(modules[0].locked).toBeUndefined();
     expect(warnings).toHaveLength(0);
   });
 
@@ -73,15 +75,15 @@ describe('enforcePositionLocks (#1108)', () => {
       makeModule({ id: 'mod-2', label: 'Unlocked Moved', position: { x: 8, y: 8, w: 6, h: 3 } }),
     ];
 
-    const warnings = enforcePositionLocks(incoming, existing);
+    const { modules, warnings } = enforcePositionLocks(incoming, existing);
 
     // Locked module: position preserved
-    expect(incoming[0].position).toEqual({ x: 0, y: 0, w: 4, h: 2 });
-    expect(incoming[0].locked).toBe(true);
+    expect(modules[0].position).toEqual({ x: 0, y: 0, w: 4, h: 2 });
+    expect(modules[0].locked).toBe(true);
 
     // Unlocked module: position updated
-    expect(incoming[1].position).toEqual({ x: 8, y: 8, w: 6, h: 3 });
-    expect(incoming[1].locked).toBeUndefined();
+    expect(modules[1].position).toEqual({ x: 8, y: 8, w: 6, h: 3 });
+    expect(modules[1].locked).toBeUndefined();
 
     expect(warnings).toHaveLength(1);
   });
@@ -91,9 +93,9 @@ describe('enforcePositionLocks (#1108)', () => {
       makeModule({ id: 'mod-1', label: 'New', position: { x: 2, y: 2, w: 3, h: 2 } }),
     ];
 
-    const warnings = enforcePositionLocks(incoming, []);
+    const { modules, warnings } = enforcePositionLocks(incoming, []);
 
-    expect(incoming[0].position).toEqual({ x: 2, y: 2, w: 3, h: 2 });
+    expect(modules[0].position).toEqual({ x: 2, y: 2, w: 3, h: 2 });
     expect(warnings).toHaveLength(0);
   });
 });

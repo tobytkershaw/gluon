@@ -894,17 +894,17 @@ export function projectAction(session: Session, action: AIAction): Session {
 export function enforcePositionLocks(
   modules: SurfaceModule[],
   existingModules: SurfaceModule[],
-): string[] {
+): { modules: SurfaceModule[]; warnings: string[] } {
   const warnings: string[] = [];
-  for (const mod of modules) {
+  const result = modules.map(mod => {
     const existing = existingModules.find(em => em.id === mod.id);
     if (existing?.locked) {
-      mod.position = { ...existing.position };
-      mod.locked = true;
       warnings.push(`Module '${mod.label}' is position-locked — position/size preserved`);
+      return { ...mod, position: { ...existing.position }, locked: true };
     }
-  }
-  return warnings;
+    return mod;
+  });
+  return { modules: result, warnings };
 }
 
 interface ResolvedMoveTarget {
@@ -3171,7 +3171,7 @@ export class GluonAI {
           return { actions: [], response: errorPayload('Missing required parameter: modules (must be an array)') };
         }
 
-        const modules: SurfaceModule[] = (args.modules as Record<string, unknown>[]).map((m, i) => {
+        let modules: SurfaceModule[] = (args.modules as Record<string, unknown>[]).map((m, i) => {
           const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
           const bindings: ModuleBinding[] = rawBindings.map(b => ({
             role: (b.role as string) ?? 'control',
@@ -3196,7 +3196,9 @@ export class GluonAI {
 
         // Enforce position locks: if an existing module is locked, preserve its position/size
         const surfaceTrack = getTrack(session, args.trackId as string);
-        const warnings: string[] = enforcePositionLocks(modules, surfaceTrack?.surface.modules ?? []);
+        const lockResult = enforcePositionLocks(modules, surfaceTrack?.surface.modules ?? []);
+        modules = lockResult.modules;
+        const warnings: string[] = lockResult.warnings;
 
         // Validate region bindings against actual pattern IDs on the track
         const patternIds = new Set(surfaceTrack?.patterns.map(p => p.id) ?? []);

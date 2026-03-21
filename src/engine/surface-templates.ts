@@ -415,14 +415,23 @@ export function applySurfaceTemplate(track: Track): TrackSurface | null {
 
   const resolvedModules = template.modules.map(m => resolveModule(m, track));
 
+  // Preserve position locks from existing modules
+  const withLocks = resolvedModules.map(mod => {
+    const existing = track.surface.modules.find(e => e.id === mod.id);
+    if (existing?.locked) {
+      return { ...mod, locked: true, position: { ...existing.position } };
+    }
+    return mod;
+  });
+
   // Skip if the surface wouldn't actually change.
   // Compare module IDs and resolved configs (especially semantic control weights
   // which contain processor IDs that change when the chain is rebuilt).
-  if (surfaceModulesEqual(track.surface.modules, resolvedModules)) return null;
+  if (surfaceModulesEqual(track.surface.modules, withLocks)) return null;
 
   return {
     ...track.surface,
-    modules: resolvedModules,
+    modules: withLocks,
   };
 }
 
