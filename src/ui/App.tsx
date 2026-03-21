@@ -6,9 +6,9 @@ import { AudioExporter } from '../audio/audio-exporter';
 import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
 import { renderOffline, renderOfflinePcm } from '../audio/render-offline';
 import { clearSnapshots } from '../audio/snapshot-store';
-import type { Session, AIAction, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface, LiveControlModule } from '../engine/types';
+import type { Session, AIAction, ParamSnapshot, PatternEditSnapshot, ActionGroupSnapshot, SynthParamValues, UndoEntry, ProcessorStateSnapshot, ProcessorSnapshot, ModulatorStateSnapshot, ModulatorSnapshot, ModulationRoutingSnapshot, ModulationRouting, ModulationTarget, SemanticControlDef, Snapshot, ToolCallEntry, ListenEvent, TrackPropertySnapshot, MasterSnapshot, TransportSnapshot, UserSelection, OpenDecision, SurfaceModule, SurfaceSnapshot, TrackSurface, LiveControlModule, DrumPadSnapshot, DrumPad } from '../engine/types';
 import type { MusicalEvent as CanonicalMusicalEvent, ControlState, NoteEvent } from '../engine/canonical-types';
-import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID } from '../engine/types';
+import { getActiveTrack, getActivePattern, getTrack, updateTrack, getTrackKind, getOrderedTracks, MASTER_BUS_ID, MAX_DRUM_PADS } from '../engine/types';
 import { normalizePatternEvents } from '../engine/region-helpers';
 import { shouldSkipTrackModelSync } from './track-sync';
 import { reprojectTrackStepGrid } from '../engine/region-projection';
@@ -1211,14 +1211,89 @@ export default function App() {
     setSession((s) => {
       const track = getTrack(s, vid);
       if (!track.drumRack) return s;
-      const clamped = Math.max(0, Math.min(1, value));
       const newPads = track.drumRack.pads.map(p => {
         if (p.id !== padId) return p;
-        if (param === 'level') return { ...p, level: clamped };
-        if (param === 'pan') return { ...p, pan: clamped };
-        return { ...p, source: { ...p.source, params: { ...p.source.params, [param]: clamped } } };
+        if (param === 'level') return { ...p, level: Math.max(0, Math.min(1, value)) };
+        if (param === 'pan') return { ...p, pan: Math.max(-1, Math.min(1, value)) };
+        return { ...p, source: { ...p.source, params: { ...p.source.params, [param]: Math.max(0, Math.min(1, value)) } } };
       });
       return updateTrack(s, vid, { drumRack: { ...track.drumRack, pads: newPads } });
+    });
+  }, [ensureAudio]);
+
+  /** Change a drum pad's Plaits model from the Rack view — with undo snapshot. */
+  const handleRackDrumPadModelChange = useCallback((padId: string, model: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      if (!track.drumRack) return s;
+      const prevPads = track.drumRack.pads.map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
+      const newPads = track.drumRack.pads.map(p => {
+        if (p.id !== padId) return p;
+        return { ...p, source: { ...p.source, model, params: {} } };
+      });
+      const snapshot: DrumPadSnapshot = {
+        kind: 'drum-pad', trackId: vid, prevPads,
+        timestamp: Date.now(),
+        description: `Change pad "${padId}" model`,
+      };
+      return {
+        ...updateTrack(s, vid, { drumRack: { ...track.drumRack, pads: newPads } }),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  /** Add a new drum pad from the Rack view — with undo snapshot. */
+  const handleRackAddDrumPad = useCallback(() => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      if (!track.drumRack) return s;
+      const pads = track.drumRack.pads;
+      if (pads.length >= MAX_DRUM_PADS) return s;
+      const prevPads = pads.map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
+      const padIndex = pads.length + 1;
+      const newPad: DrumPad = {
+        id: `pad-${Date.now()}`,
+        name: `Pad ${padIndex}`,
+        source: { engine: 'plaits', model: 0, params: {} },
+        level: 0.8,
+        pan: 0,
+      };
+      const newPads = [...pads, newPad];
+      const snapshot: DrumPadSnapshot = {
+        kind: 'drum-pad', trackId: vid, prevPads,
+        timestamp: Date.now(),
+        description: `Add drum pad "${newPad.name}"`,
+      };
+      return {
+        ...updateTrack(s, vid, { drumRack: { ...track.drumRack, pads: newPads } }),
+        undoStack: [...s.undoStack, snapshot],
+      };
+    });
+  }, [ensureAudio]);
+
+  /** Remove a drum pad from the Rack view — with undo snapshot. */
+  const handleRackRemoveDrumPad = useCallback((padId: string) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      if (!track.drumRack) return s;
+      const prevPads = track.drumRack.pads.map(p => ({ ...p, source: { ...p.source, params: { ...p.source.params } } }));
+      const newPads = track.drumRack.pads.filter(p => p.id !== padId);
+      const snapshot: DrumPadSnapshot = {
+        kind: 'drum-pad', trackId: vid, prevPads,
+        timestamp: Date.now(),
+        description: `Remove drum pad "${padId}"`,
+      };
+      return {
+        ...updateTrack(s, vid, { drumRack: { ...track.drumRack, pads: newPads } }),
+        undoStack: [...s.undoStack, snapshot],
+      };
     });
   }, [ensureAudio]);
 
@@ -3578,6 +3653,10 @@ export default function App() {
             onRampRequest={handleHumanRamp}
             onPinControl={handlePinControl}
             pinnedControlIds={getPinnedControlIds}
+            onDrumPadParamChange={handleSurfaceDrumPadParamChange}
+            onDrumPadModelChange={handleRackDrumPadModelChange}
+            onAddDrumPad={handleRackAddDrumPad}
+            onRemoveDrumPad={handleRackRemoveDrumPad}
             onNavigateToPatch={() => setView('patch')}
           />
         )}

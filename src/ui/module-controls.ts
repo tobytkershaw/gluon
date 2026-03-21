@@ -1,6 +1,6 @@
 // src/ui/module-controls.ts
 // Shared helpers to build control definitions from the instrument registry.
-import type { Track } from '../engine/types';
+import type { Track, DrumPad } from '../engine/types';
 import type { ControlKind, DisplayMapping } from '../engine/canonical-types';
 import { getEngineByIndex, getProcessorInstrument, getModulatorInstrument, controlIdToRuntimeParam } from '../audio/instrument-registry';
 
@@ -96,4 +96,46 @@ export function getModulatorControls(mod: { type: string; model: number; params:
     range: c.range,
     displayMapping: c.displayMapping,
   }));
+}
+
+/** Build controls for a drum pad: all engine params + level/pan */
+export function getDrumPadControls(pad: DrumPad): ControlDef[] {
+  const engine = getEngineByIndex(pad.source.model);
+  const engineControls: ControlDef[] = engine
+    ? engine.controls
+        // Skip track-level portamento fields — they don't apply to individual pads
+        .filter(c => !c.binding?.path?.startsWith('track.'))
+        .map(c => ({
+          id: c.id,
+          name: c.name,
+          value: pad.source.params[controlIdToRuntimeParam[c.id] ?? c.id] ?? c.range?.default ?? 0.5,
+          size: c.size ?? 'large',
+          kind: c.kind as ControlKind,
+          range: c.range,
+          displayMapping: c.displayMapping,
+        }))
+    : [];
+
+  // Append per-pad level and pan as medium knobs
+  const mixControls: ControlDef[] = [
+    {
+      id: 'level',
+      name: 'Level',
+      value: pad.level,
+      size: 'medium',
+      kind: 'continuous',
+      displayMapping: { type: 'percent', min: 0, max: 100, unit: '%' },
+    },
+    {
+      id: 'pan',
+      name: 'Pan',
+      // Pan is stored as -1..1 in the model but displayed as 0..1 knob range
+      value: (pad.pan + 1) / 2,
+      size: 'medium',
+      kind: 'continuous',
+      displayMapping: { type: 'linear', min: -100, max: 100, unit: '', decimals: 0 },
+    },
+  ];
+
+  return [...engineControls, ...mixControls];
 }

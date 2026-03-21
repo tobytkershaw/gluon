@@ -6,11 +6,12 @@
 // small knobs for secondary, selectors/toggles for mode pickers.
 import { useState, useMemo } from 'react';
 import type { Track } from '../engine/types';
-import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument } from '../audio/instrument-registry';
+import { MAX_DRUM_PADS } from '../engine/types';
+import { getModelName, getEngineByIndex, getProcessorInstrument, getModulatorInstrument, controlIdToRuntimeParam } from '../audio/instrument-registry';
 import { ModulePanel } from './ModulePanel';
 import { ChainStrip } from './ChainStrip';
 import { RoutingChips } from './RoutingChip';
-import { getSourceControls, getProcessorControls, getModulatorControls } from './module-controls';
+import { getSourceControls, getProcessorControls, getModulatorControls, getDrumPadControls } from './module-controls';
 import { ModuleBrowser } from './ModuleBrowser';
 import type { KnobModulationInfo } from './Knob';
 import { routeSourceModuleParam } from './source-param-routing';
@@ -53,6 +54,11 @@ interface RackViewProps {
   // Pin-to-Surface
   onPinControl?: (moduleId: string, controlId: string) => void;
   pinnedControlIds?: (moduleId: string) => Set<string>;
+  // Drum pad editing
+  onDrumPadParamChange?: (padId: string, param: string, value: number) => void;
+  onDrumPadModelChange?: (padId: string, model: number) => void;
+  onAddDrumPad?: () => void;
+  onRemoveDrumPad?: (padId: string) => void;
   // Navigation
   onNavigateToPatch?: () => void;
 }
@@ -122,6 +128,10 @@ export function RackView({
   onRampRequest,
   onPinControl,
   pinnedControlIds,
+  onDrumPadParamChange,
+  onDrumPadModelChange,
+  onAddDrumPad,
+  onRemoveDrumPad,
   onNavigateToPatch,
 }: RackViewProps) {
   const [browserOpen, setBrowserOpen] = useState(false);
@@ -131,6 +141,10 @@ export function RackView({
   const modulators = activeTrack.modulators ?? [];
   const modulations = activeTrack.modulations ?? [];
   const sourceLabel = activeTrack.model < 0 ? 'No Source' : `Plaits (${getModelName(activeTrack.model)})`;
+
+  // Detect drum rack
+  const isDrumRack = activeTrack.engine === 'drum-rack' && activeTrack.drumRack != null;
+  const drumPads = isDrumRack ? activeTrack.drumRack!.pads : [];
 
   // Build source engine list for mode selector
   const sourceEngines = Array.from({ length: 16 }, (_, i) => {
@@ -155,8 +169,8 @@ export function RackView({
         track={activeTrack}
       />
 
-      {/* Module area: wrap left-to-right with browser hint */}
-      <div className="flex-1 flex flex-wrap gap-4 p-6 overflow-y-auto items-start relative" style={{ alignContent: 'flex-start' }}>
+      {/* Module area */}
+      <div className="flex-1 overflow-y-auto relative" style={{ alignContent: 'flex-start' }}>
         {/* Add module tab (right edge) */}
         <button
           type="button"
@@ -179,122 +193,281 @@ export function RackView({
           <span style={{ fontSize: 11, fontFamily: 'var(--font-mono, monospace)', textTransform: 'uppercase' }}>+ Module</span>
         </button>
 
-        {/* Source module panel */}
-        <ModulePanel
-          label={sourceLabel}
-          accentColor="amber"
-          controls={getSourceControls(activeTrack)}
-          onParamChange={(controlId, value) => routeSourceModuleParam(controlId, value, activeTrack, {
-            onParamChange,
-            onNoteChange,
-            onHarmonicsChange,
-            onExtendedSourceParamChange,
-            onPortamentoChange,
-          })}
-          onInteractionStart={onInteractionStart}
-          onInteractionEnd={onInteractionEnd}
-          engines={sourceEngines}
-          currentModel={activeTrack.model}
-          onModelChange={onModelChange}
-          modulationMap={sourceModMap}
-          onModulationClick={onNavigateToPatch}
-          onModulationDepthChange={onModulationDepthChange}
-          onModulationDepthCommit={onModulationDepthCommit}
-          onRampRequest={onRampRequest}
-          onPinControl={onPinControl ? (controlId) => onPinControl('source', controlId) : undefined}
-          pinnedControlIds={pinnedControlIds?.('source')}
-        />
+        {isDrumRack ? (
+          /* Drum rack layout: labeled row per pad, then shared processors/modulators */
+          <div className="flex flex-col gap-2 p-6">
+            {/* Drum pad section header */}
+            <div className="font-mono text-[10px] uppercase tracking-wider pb-1"
+              style={{ color: 'var(--text-faint, #57534e)', letterSpacing: '0.08em', borderBottom: '1px solid rgba(61,57,53,0.3)' }}
+            >
+              Drum Pads
+            </div>
 
-        {/* Processor module panels */}
-        {processors.map((proc) => {
-          const inst = getProcessorInstrument(proc.type);
-          if (!inst) return null;
-          const engine = inst.engines[proc.model] ?? inst.engines[0];
-          const procLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
-          const procEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
+            {/* One row per pad */}
+            {drumPads.map((pad, padIndex) => {
+              const padLabel = `${pad.name} (${getModelName(pad.source.model)})`;
+              return (
+                <div
+                  key={pad.id}
+                  className="flex items-start gap-4 py-2 px-2 rounded"
+                  style={{
+                    background: padIndex % 2 === 1 ? 'rgba(255,255,255,0.02)' : undefined,
+                    borderBottom: padIndex < drumPads.length - 1 ? '1px solid rgba(63,63,70,0.3)' : undefined,
+                  }}
+                >
+                  <ModulePanel
+                    label={padLabel}
+                    accentColor="amber"
+                    controls={getDrumPadControls(pad)}
+                    onParamChange={(controlId, value) => {
+                      if (!onDrumPadParamChange) return;
+                      if (controlId === 'level') {
+                        onDrumPadParamChange(pad.id, 'level', value);
+                      } else if (controlId === 'pan') {
+                        // Convert 0..1 knob range back to -1..1 model range
+                        onDrumPadParamChange(pad.id, 'pan', value * 2 - 1);
+                      } else {
+                        // Map control ID to runtime param name (e.g. 'frequency' -> 'note')
+                        const runtimeParam = controlIdToRuntimeParam[controlId] ?? controlId;
+                        onDrumPadParamChange(pad.id, runtimeParam, value);
+                      }
+                    }}
+                    onInteractionStart={onInteractionStart}
+                    onInteractionEnd={onInteractionEnd}
+                    engines={sourceEngines}
+                    currentModel={pad.source.model}
+                    onModelChange={onDrumPadModelChange ? (model) => onDrumPadModelChange(pad.id, model) : undefined}
+                    onRemove={onRemoveDrumPad ? () => onRemoveDrumPad(pad.id) : undefined}
+                    onPinControl={onPinControl ? (controlId) => onPinControl(`pad:${pad.id}`, controlId) : undefined}
+                    pinnedControlIds={pinnedControlIds?.(`pad:${pad.id}`)}
+                  />
+                </div>
+              );
+            })}
 
-          return (
+            {/* Add pad button */}
+            {onAddDrumPad && drumPads.length < MAX_DRUM_PADS && (
+              <button
+                type="button"
+                onClick={onAddDrumPad}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-amber-700/40 text-amber-600 hover:text-amber-400 hover:border-amber-600/50 transition-colors self-start"
+              >
+                <span className="text-sm leading-none">+</span>
+                <span className="text-[11px] font-mono uppercase tracking-wider">Add Pad</span>
+              </button>
+            )}
+
+            {/* Processors and modulators section — shared across all pads */}
+            {(processors.length > 0 || modulators.length > 0) && (
+              <>
+                <div className="font-mono text-[10px] uppercase tracking-wider pb-1 mt-4"
+                  style={{ color: 'var(--text-faint, #57534e)', letterSpacing: '0.08em', borderBottom: '1px solid rgba(61,57,53,0.3)' }}
+                >
+                  Signal Chain
+                </div>
+                <div className="flex flex-wrap gap-4 items-start">
+                  {processors.map((proc) => {
+                    const inst = getProcessorInstrument(proc.type);
+                    if (!inst) return null;
+                    const engine = inst.engines[proc.model] ?? inst.engines[0];
+                    const procLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
+                    const procEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
+
+                    return (
+                      <ModulePanel
+                        key={proc.id}
+                        label={procLabel}
+                        accentColor="sky"
+                        controls={getProcessorControls(proc)}
+                        onParamChange={(controlId, value) => onProcessorParamChange(proc.id, controlId, value)}
+                        onInteractionStart={() => onProcessorInteractionStart(proc.id)}
+                        onInteractionEnd={() => onProcessorInteractionEnd(proc.id)}
+                        engines={procEngines}
+                        currentModel={proc.model}
+                        onModelChange={(model) => onProcessorModelChange(proc.id, model)}
+                        onRemove={() => onRemoveProcessor(proc.id)}
+                        onReplace={onReplaceProcessor ? () => { setReplacingProcessorId(proc.id); setBrowserOpen(true); } : undefined}
+                        enabled={proc.enabled}
+                        onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
+                        modulationMap={processorModMaps.get(proc.id)}
+                        onModulationClick={onNavigateToPatch}
+                        onModulationDepthChange={onModulationDepthChange}
+                        onModulationDepthCommit={onModulationDepthCommit}
+                        onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur, proc.id) : undefined}
+                        onPinControl={onPinControl ? (controlId) => onPinControl(proc.id, controlId) : undefined}
+                        pinnedControlIds={pinnedControlIds?.(proc.id)}
+                      />
+                    );
+                  })}
+                  {modulators.map((mod) => {
+                    const inst = getModulatorInstrument(mod.type);
+                    if (!inst) return null;
+                    const engine = inst.engines[mod.model] ?? inst.engines[0];
+                    const modLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
+                    const modEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
+                    const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
+
+                    return (
+                      <ModulePanel
+                        key={mod.id}
+                        label={modLabel}
+                        accentColor="violet"
+                        controls={getModulatorControls(mod)}
+                        onParamChange={(controlId, value) => onModulatorParamChange(mod.id, controlId, value)}
+                        onInteractionStart={() => onModulatorInteractionStart(mod.id)}
+                        onInteractionEnd={() => onModulatorInteractionEnd(mod.id)}
+                        engines={modEngines}
+                        currentModel={mod.model}
+                        onModelChange={(model) => onModulatorModelChange(mod.id, model)}
+                        onRemove={() => onRemoveModulator(mod.id)}
+                      >
+                        <RoutingChips
+                          routings={modRoutings}
+                          track={activeTrack}
+                          interactive
+                          onDepthChange={onModulationDepthChange}
+                          onDepthCommit={onModulationDepthCommit}
+                          onRemove={onRemoveModulation}
+                          onNavigateToPatch={onNavigateToPatch}
+                        />
+                      </ModulePanel>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* Add module button */}
+            <button
+              type="button"
+              onClick={() => setBrowserOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50 transition-colors self-start mt-2"
+            >
+              <span className="text-sm leading-none">+</span>
+              <span className="text-[11px] font-mono uppercase tracking-wider">Add Module</span>
+            </button>
+          </div>
+        ) : (
+          /* Standard layout: source → processors → modulators in flex-wrap */
+          <div className="flex flex-wrap gap-4 p-6 items-start" style={{ alignContent: 'flex-start' }}>
+            {/* Source module panel */}
             <ModulePanel
-              key={proc.id}
-              label={procLabel}
-              accentColor="sky"
-              controls={getProcessorControls(proc)}
-              onParamChange={(controlId, value) => onProcessorParamChange(proc.id, controlId, value)}
-              onInteractionStart={() => onProcessorInteractionStart(proc.id)}
-              onInteractionEnd={() => onProcessorInteractionEnd(proc.id)}
-              engines={procEngines}
-              currentModel={proc.model}
-              onModelChange={(model) => onProcessorModelChange(proc.id, model)}
-              onRemove={() => onRemoveProcessor(proc.id)}
-              onReplace={onReplaceProcessor ? () => { setReplacingProcessorId(proc.id); setBrowserOpen(true); } : undefined}
-              enabled={proc.enabled}
-              onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
-              modulationMap={processorModMaps.get(proc.id)}
+              label={sourceLabel}
+              accentColor="amber"
+              controls={getSourceControls(activeTrack)}
+              onParamChange={(controlId, value) => routeSourceModuleParam(controlId, value, activeTrack, {
+                onParamChange,
+                onNoteChange,
+                onHarmonicsChange,
+                onExtendedSourceParamChange,
+                onPortamentoChange,
+              })}
+              onInteractionStart={onInteractionStart}
+              onInteractionEnd={onInteractionEnd}
+              engines={sourceEngines}
+              currentModel={activeTrack.model}
+              onModelChange={onModelChange}
+              modulationMap={sourceModMap}
               onModulationClick={onNavigateToPatch}
               onModulationDepthChange={onModulationDepthChange}
               onModulationDepthCommit={onModulationDepthCommit}
-              onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur, proc.id) : undefined}
-              onPinControl={onPinControl ? (controlId) => onPinControl(proc.id, controlId) : undefined}
-              pinnedControlIds={pinnedControlIds?.(proc.id)}
+              onRampRequest={onRampRequest}
+              onPinControl={onPinControl ? (controlId) => onPinControl('source', controlId) : undefined}
+              pinnedControlIds={pinnedControlIds?.('source')}
             />
-          );
-        })}
 
-        {/* Modulator module panels */}
-        {modulators.map((mod) => {
-          const inst = getModulatorInstrument(mod.type);
-          if (!inst) return null;
-          const engine = inst.engines[mod.model] ?? inst.engines[0];
-          const modLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
-          const modEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
-          const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
+            {/* Processor module panels */}
+            {processors.map((proc) => {
+              const inst = getProcessorInstrument(proc.type);
+              if (!inst) return null;
+              const engine = inst.engines[proc.model] ?? inst.engines[0];
+              const procLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
+              const procEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
 
-          return (
-            <ModulePanel
-              key={mod.id}
-              label={modLabel}
-              accentColor="violet"
-              controls={getModulatorControls(mod)}
-              onParamChange={(controlId, value) => onModulatorParamChange(mod.id, controlId, value)}
-              onInteractionStart={() => onModulatorInteractionStart(mod.id)}
-              onInteractionEnd={() => onModulatorInteractionEnd(mod.id)}
-              engines={modEngines}
-              currentModel={mod.model}
-              onModelChange={(model) => onModulatorModelChange(mod.id, model)}
-              onRemove={() => onRemoveModulator(mod.id)}
+              return (
+                <ModulePanel
+                  key={proc.id}
+                  label={procLabel}
+                  accentColor="sky"
+                  controls={getProcessorControls(proc)}
+                  onParamChange={(controlId, value) => onProcessorParamChange(proc.id, controlId, value)}
+                  onInteractionStart={() => onProcessorInteractionStart(proc.id)}
+                  onInteractionEnd={() => onProcessorInteractionEnd(proc.id)}
+                  engines={procEngines}
+                  currentModel={proc.model}
+                  onModelChange={(model) => onProcessorModelChange(proc.id, model)}
+                  onRemove={() => onRemoveProcessor(proc.id)}
+                  onReplace={onReplaceProcessor ? () => { setReplacingProcessorId(proc.id); setBrowserOpen(true); } : undefined}
+                  enabled={proc.enabled}
+                  onToggleEnabled={onToggleProcessorEnabled ? () => onToggleProcessorEnabled(proc.id) : undefined}
+                  modulationMap={processorModMaps.get(proc.id)}
+                  onModulationClick={onNavigateToPatch}
+                  onModulationDepthChange={onModulationDepthChange}
+                  onModulationDepthCommit={onModulationDepthCommit}
+                  onRampRequest={onRampRequest ? (controlId, target, dur) => onRampRequest(controlId, target, dur, proc.id) : undefined}
+                  onPinControl={onPinControl ? (controlId) => onPinControl(proc.id, controlId) : undefined}
+                  pinnedControlIds={pinnedControlIds?.(proc.id)}
+                />
+              );
+            })}
+
+            {/* Modulator module panels */}
+            {modulators.map((mod) => {
+              const inst = getModulatorInstrument(mod.type);
+              if (!inst) return null;
+              const engine = inst.engines[mod.model] ?? inst.engines[0];
+              const modLabel = engine ? `${inst.label}: ${engine.label}` : inst.label;
+              const modEngines = inst.engines.map((e, i) => ({ index: i, label: e.label }));
+              const modRoutings = modulations.filter(r => r.modulatorId === mod.id);
+
+              return (
+                <ModulePanel
+                  key={mod.id}
+                  label={modLabel}
+                  accentColor="violet"
+                  controls={getModulatorControls(mod)}
+                  onParamChange={(controlId, value) => onModulatorParamChange(mod.id, controlId, value)}
+                  onInteractionStart={() => onModulatorInteractionStart(mod.id)}
+                  onInteractionEnd={() => onModulatorInteractionEnd(mod.id)}
+                  engines={modEngines}
+                  currentModel={mod.model}
+                  onModelChange={(model) => onModulatorModelChange(mod.id, model)}
+                  onRemove={() => onRemoveModulator(mod.id)}
+                >
+                  <RoutingChips
+                    routings={modRoutings}
+                    track={activeTrack}
+                    interactive
+                    onDepthChange={onModulationDepthChange}
+                    onDepthCommit={onModulationDepthCommit}
+                    onRemove={onRemoveModulation}
+                    onNavigateToPatch={onNavigateToPatch}
+                  />
+                </ModulePanel>
+              );
+            })}
+
+            {/* Add module button — wider hint when chain is empty, compact when populated */}
+            <button
+              type="button"
+              onClick={() => setBrowserOpen(true)}
+              className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed transition-colors ${
+                processors.length === 0 && modulators.length === 0
+                  ? 'border-zinc-700/40 text-zinc-600 hover:text-zinc-400 hover:border-zinc-600/50 bg-zinc-800/20'
+                  : 'border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50'
+              }`}
+              style={{ minWidth: processors.length === 0 && modulators.length === 0 ? 220 : 148, height: 572 }}
             >
-              <RoutingChips
-                routings={modRoutings}
-                track={activeTrack}
-                interactive
-                onDepthChange={onModulationDepthChange}
-                onDepthCommit={onModulationDepthCommit}
-                onRemove={onRemoveModulation}
-                onNavigateToPatch={onNavigateToPatch}
-              />
-            </ModulePanel>
-          );
-        })}
-
-        {/* Add module button — wider hint when chain is empty, compact when populated */}
-        <button
-          type="button"
-          onClick={() => setBrowserOpen(true)}
-          className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed transition-colors ${
-            processors.length === 0 && modulators.length === 0
-              ? 'border-zinc-700/40 text-zinc-600 hover:text-zinc-400 hover:border-zinc-600/50 bg-zinc-800/20'
-              : 'border-zinc-700/50 text-zinc-500 hover:text-zinc-400 hover:border-zinc-600/50'
-          }`}
-          style={{ minWidth: processors.length === 0 && modulators.length === 0 ? 220 : 148, height: 572 }}
-        >
-          <span className="text-xl leading-none">+</span>
-          <span className="text-[11px] font-mono uppercase tracking-wider">Add Module</span>
-          {processors.length === 0 && modulators.length === 0 && (
-            <span className="text-[10px] text-zinc-600 mt-1 max-w-[160px] text-center leading-tight">
-              Add processors and modulators to build your signal chain
-            </span>
-          )}
-        </button>
+              <span className="text-xl leading-none">+</span>
+              <span className="text-[11px] font-mono uppercase tracking-wider">Add Module</span>
+              {processors.length === 0 && modulators.length === 0 && (
+                <span className="text-[10px] text-zinc-600 mt-1 max-w-[160px] text-center leading-tight">
+                  Add processors and modulators to build your signal chain
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Module browser slide-out */}
