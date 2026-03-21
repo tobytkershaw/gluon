@@ -107,6 +107,35 @@ export function appendAudioRuntimeDegradationMessage(prev: string | null, messag
   return `${PREFIX}${[...existingMessages, message].join('; ')}`;
 }
 
+export function getExplicitViewPreference(storage: Pick<Storage, 'getItem'> = localStorage): ViewMode | null {
+  const saved = storage.getItem('gluon-view');
+  if (saved === 'chat' || saved === 'surface' || saved === 'tracker' || saved === 'rack' || saved === 'patch') {
+    return saved;
+  }
+  const savedChatFocused = storage.getItem('gluon-chat-focused');
+  if (savedChatFocused === 'true') return 'chat';
+  if (savedChatFocused === 'false') return 'surface';
+  return null;
+}
+
+export function inferDefaultView(session: Session): ViewMode {
+  const audioTracks = session.tracks.filter(t => getTrackKind(t) === 'audio');
+  const hasContent = audioTracks.length > 1 || audioTracks.some(t => t.patterns.some(p => p.events.length > 0));
+  return hasContent ? 'surface' : 'chat';
+}
+
+export function reconcileAutoManagedView(
+  currentView: ViewMode,
+  autoManagedView: ViewMode | null,
+  session: Session,
+): { nextView: ViewMode; nextAutoManagedView: ViewMode | null } {
+  if (autoManagedView === null || currentView !== autoManagedView) {
+    return { nextView: currentView, nextAutoManagedView: null };
+  }
+  const nextAutoManagedView = inferDefaultView(session);
+  return { nextView: nextAutoManagedView, nextAutoManagedView };
+}
+
 export default function App() {
   const audioRef = useRef(new AudioEngine());
   const audioMetricsRef = useRef(new LiveAudioMetricsStore());
@@ -117,6 +146,11 @@ export default function App() {
   const cancelEditRef = useRef(false);
 
   const [session, setSessionRaw] = useState<Session>(() => loadSession() ?? createSession());
+  const explicitInitialViewRef = useRef<ViewMode | null>(getExplicitViewPreference());
+  const autoManagedViewRef = useRef<ViewMode | null>(
+    explicitInitialViewRef.current === null ? inferDefaultView(session) : null,
+  );
+  const lastAutoManagedProjectIdRef = useRef<string | null>(null);
 
   // Wrap setSession to auto-clear redoStack when a new undo entry is pushed
   // (standard undo/redo behavior: new actions invalidate the redo stack).
@@ -158,21 +192,14 @@ export default function App() {
   const recordingSnapshotPushed = useRef(false);
   const [selectedStep, _setSelectedStep] = useState<number | null>(null);
   const [_stepPage, setStepPage] = useState(0);
-  const [view, setView] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem('gluon-view');
-    if (saved === 'chat' || saved === 'surface' || saved === 'tracker' || saved === 'rack' || saved === 'patch') {
-      return saved;
-    }
-    const savedChatFocused = localStorage.getItem('gluon-chat-focused');
-    if (savedChatFocused === 'true') return 'chat';
-    if (savedChatFocused === 'false') return 'surface';
-    // No saved preference: default to chat for fresh sessions, surface otherwise.
-    const s = loadSession();
-    if (!s) return 'chat';
-    const audioTracks = s.tracks.filter(t => getTrackKind(t) === 'audio');
-    const hasContent = audioTracks.length > 1 || audioTracks.some(t => t.patterns.some(p => p.events.length > 0));
-    return hasContent ? 'surface' : 'chat';
-  });
+  const [view, setViewRaw] = useState<ViewMode>(() => explicitInitialViewRef.current ?? inferDefaultView(session));
+  const setView = useCallback((updater: ViewMode | ((prev: ViewMode) => ViewMode)) => {
+    setViewRaw((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      if (next !== prev) autoManagedViewRef.current = null;
+      return next;
+    });
+  }, []);
   const [_selectedProcessorId, setSelectedProcessorId] = useState<string | null>(null);
   const [_selectedModulatorId, setSelectedModulatorId] = useState<string | null>(null);
   const [activityMap, setActivityMap] = useState<Record<string, number>>({});
@@ -203,6 +230,22 @@ export default function App() {
   useEffect(() => {
     arbRef.current.setOnHoldExpired(() => setHoldGeneration(g => g + 1));
   }, []);
+
+  useEffect(() => {
+    if (explicitInitialViewRef.current !== null || project.projectId === null) return;
+    if (lastAutoManagedProjectIdRef.current === project.projectId) return;
+    lastAutoManagedProjectIdRef.current = project.projectId;
+
+    setViewRaw((currentView) => {
+      const { nextView, nextAutoManagedView } = reconcileAutoManagedView(
+        currentView,
+        autoManagedViewRef.current,
+        session,
+      );
+      autoManagedViewRef.current = nextAutoManagedView;
+      return nextView;
+    });
+  }, [project.projectId, session]);
 
   // Dirty-check refs for sync effects (#142)
   const prevTrackStateRef = useRef<Map<string, { model: number; params?: Record<string, number> }>>(new Map());
