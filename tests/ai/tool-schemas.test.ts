@@ -143,6 +143,12 @@ describe('Tool Schemas', () => {
   it('manage_drum_pad encodes action-specific required fields', () => {
     const drumPad = GLUON_TOOLS.find(t => t.name === 'manage_drum_pad')!;
     expect(drumPad.parameters.required).toEqual(['action', 'trackId', 'padId', 'description']);
+    expect(drumPad.parameters.properties).toHaveProperty('params');
+    expect((drumPad.parameters.properties as Record<string, unknown>).params).toEqual({
+      type: 'object',
+      description: 'Optional initial source params for add. Keys are control IDs like frequency, timbre, harmonics, morph; values are 0.0-1.0 and are clamped if needed.',
+      additionalProperties: { type: 'number' },
+    });
 
     const branches = drumPad.parameters.allOf as Array<Record<string, unknown>>;
     expect(branches).toHaveLength(3);

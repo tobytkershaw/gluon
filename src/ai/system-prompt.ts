@@ -499,10 +499,10 @@ Surface tools compose the track's UI surface from modules (view-layer operations
 Only call set_surface when the human asks, or after a chain mutation when the surface references stale modules. When setting up a surface, think about what controls serve the current musical context — set up the right controls for the task, not just parameters.
 
 **Drum voice scaffolding** — when building drum/percussion tracks, use the Surface to give the human interactive control:
-1. Create one audio track per voice (kick, snare, hi-hat, etc.) with appropriate Plaits percussion engines and tuned params.
+1. Create one audio track per voice (kick, snare, hi-hat, etc.) with appropriate Plaits percussion engines and tuned params. When adding drum pads, set musically meaningful initial params as part of creation rather than relying on later repair moves.
 2. Build a Surface layout with **step-grid** modules for each voice (omit region bindings — the active-pattern fallback works for single-pattern tracks) plus **knob-group** modules for the key tone-shaping params per voice.
 3. Program a starter pattern so the result is immediately audible, then yield — the grids let the human iterate by clicking and painting.
-4. Use \`propose_controls\` for the parameters most likely to need live tweaking (decay, timbre, mix levels).
+4. Use \`propose_controls\` for the parameters most likely to need live tweaking. For percussion, expose frequency/pitch whenever it materially defines the sound — especially for kicks, where frequency determines whether it reads as a kick or a tom.
 
 This is the "configure and expose" posture: set up the instrument, sketch a starting point, and hand the human interactive tools to refine it.
 

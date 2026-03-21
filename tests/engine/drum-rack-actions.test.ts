@@ -98,6 +98,52 @@ describe('drum-rack-actions', () => {
       expect(track.drumRack?.pads[3].name).toBe('Clap');
     });
 
+    it('adds a pad with inline initial params', () => {
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'add',
+        padId: 'kick',
+        name: 'Kick',
+        model: 'analog-bass-drum',
+        params: { frequency: 0.25, timbre: 0.4 },
+        description: 'add tuned kick pad',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+      expect(report.rejected).toHaveLength(0);
+
+      const kick = getTrack(report.session, trackId).drumRack?.pads[0];
+      expect(kick?.source.params.frequency).toBe(0.25);
+      expect(kick?.source.params.timbre).toBe(0.4);
+    });
+
+    it('clamps inline initial params for added pads', () => {
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'add',
+        padId: 'kick',
+        name: 'Kick',
+        model: 'analog-bass-drum',
+        params: { frequency: -1, timbre: 2 },
+        description: 'add clamped kick pad',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(1);
+      expect(report.rejected).toHaveLength(0);
+
+      const kick = getTrack(report.session, trackId).drumRack?.pads[0];
+      expect(kick?.source.params.frequency).toBe(0);
+      expect(kick?.source.params.timbre).toBe(1);
+    });
+
     it('removes a pad from the drum rack', () => {
       const { session, trackId } = setupDrumRackSession();
       const actions: AIAction[] = [{
@@ -996,6 +1042,27 @@ describe('drum-rack-actions', () => {
       const report = executeOperations(session, actions, adapter, new Arbitrator());
       expect(report.rejected).toHaveLength(1);
       expect(report.rejected[0].reason).toContain('not a drum rack');
+    });
+
+    it('rejects add with unknown inline pad params', () => {
+      const session = createSession();
+      const trackId = session.tracks[0].id;
+
+      const actions: AIAction[] = [{
+        type: 'manage_drum_pad',
+        trackId,
+        action: 'add',
+        padId: 'kick',
+        name: 'Kick',
+        model: 'analog-bass-drum',
+        params: { cutoff: 0.3 },
+        description: 'add kick with invalid param',
+      }];
+
+      const report = executeOperations(session, actions, adapter, new Arbitrator());
+      expect(report.accepted).toHaveLength(0);
+      expect(report.rejected).toHaveLength(1);
+      expect(report.rejected[0].reason).toContain('Unknown pad param "cutoff"');
     });
   });
 

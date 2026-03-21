@@ -94,6 +94,12 @@ describe('system prompt generation', () => {
     expect(GLUON_SYSTEM_PROMPT).toContain('v0');
     expect(GLUON_SYSTEM_PROMPT).toContain('How to Work');
   });
+
+  it('guides drum scaffolding to tune pads at creation time and expose kick frequency', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('set musically meaningful initial params as part of creation rather than relying on later repair moves');
+    expect(prompt).toContain('especially for kicks, where frequency determines whether it reads as a kick or a tom');
+  });
 });
 
 describe('dynamic track setup', () => {

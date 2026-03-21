@@ -30,6 +30,7 @@ import { kitToEvents } from '../engine/drum-grid';
 import { setTensionPoints, setTrackTensionMapping, createTensionCurve } from '../engine/tension-curve';
 import { getArrangementArchetype, expandArchetype, ARRANGEMENT_ARCHETYPE_NAMES as ARRANGEMENT_NAMES } from '../engine/arrangement-archetypes';
 import type { TensionPoint, TrackTensionMapping } from '../engine/tension-curve';
+import { clampParam } from '../engine/primitives';
 import { compressState } from './state-compression';
 import type { CompressedAutoDiffSummary } from './state-compression';
 import { buildSystemPrompt } from './system-prompt';
@@ -87,6 +88,36 @@ export function inferSpectralPriorityFromRole(role: string | undefined): number 
   if (/\b(texture|ambient|noise|atmosphere|fx)\b/.test(lower)) return 2;
 
   return 5;
+}
+
+function buildDrumPadParams(
+  modelId: string | undefined,
+  overrides?: Record<string, number>,
+): { params: Record<string, number> } | { error: string } {
+  const padEngine = modelId ? getEngineById(modelId) : undefined;
+  if (!padEngine) return { error: `Unknown model: ${String(modelId)}` };
+
+  const params: Record<string, number> = {};
+  const validControlIds = new Set<string>();
+  for (const ctrl of padEngine.controls) {
+    validControlIds.add(ctrl.id);
+    params[ctrl.id] = ctrl.range?.default ?? 0.5;
+  }
+
+  if (!overrides) return { params };
+
+  for (const [param, value] of Object.entries(overrides)) {
+    if (!validControlIds.has(param)) {
+      return { error: `Unknown pad param "${param}" for model ${modelId}` };
+    }
+    const clamped = clampParam(value);
+    if (clamped === null) {
+      return { error: `Non-finite pad param value for ${param}` };
+    }
+    params[param] = clamped;
+  }
+
+  return { params };
 }
 
 type PatternEventSelector = {
@@ -779,16 +810,12 @@ export function projectAction(session: Session, action: AIAction): Session {
       switch (action.action) {
         case 'add': {
           const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
-          const defaultParams: Record<string, number> = {};
-          if (engineIndex >= 0) {
-            for (const ctrl of plaitsInstrument.engines[engineIndex].controls) {
-              defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5;
-            }
-          }
+          const built = buildDrumPadParams(action.model, action.params);
+          if ('error' in built) return session;
           const newPad: DrumPad = {
             id: action.padId,
             name: action.name ?? action.padId,
-            source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: defaultParams },
+            source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: built.params },
             level: 0.8,
             pan: 0.5,
           };
@@ -3760,6 +3787,21 @@ export class GluonAI {
           return { actions: [], response: trackNotFoundError(String(args.trackId), session) };
         }
 
+        let initialParams: Record<string, number> | undefined;
+        if (args.params !== undefined) {
+          if (!args.params || typeof args.params !== 'object' || Array.isArray(args.params)) {
+            return { actions: [], response: errorPayload('params must be an object mapping control IDs to numeric values') };
+          }
+          const rawParams = Object.entries(args.params as Record<string, unknown>);
+          initialParams = {};
+          for (const [param, value] of rawParams) {
+            if (typeof value !== 'number') {
+              return { actions: [], response: errorPayload(`params.${param} must be a number`) };
+            }
+            initialParams[param] = value;
+          }
+        }
+
         const drumPadAction: AIManageDrumPadAction = {
           type: 'manage_drum_pad',
           trackId: resolvedDrumTrackId,
@@ -3767,6 +3809,7 @@ export class GluonAI {
           padId: args.padId as string,
           ...(typeof args.name === 'string' ? { name: args.name } : {}),
           ...(typeof args.model === 'string' ? { model: args.model } : {}),
+          ...(initialParams ? { params: initialParams } : {}),
           ...(args.chokeGroup !== undefined ? { chokeGroup: args.chokeGroup as number | null } : {}),
           description: args.description as string,
         };

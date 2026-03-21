@@ -181,6 +181,7 @@ Add, remove, rename, or set choke group on a drum rack pad. Drum rack tracks hol
 | `padId` | string | yes | Pad identifier (e.g. "kick", "snare") |
 | `name` | string | no | Human-readable pad name. Required for add/rename. |
 | `model` | string | no | Plaits model for the pad. Required for add. |
+| `params` | object | no | Optional initial source params for add. Keys are control IDs like `frequency`, `timbre`, `harmonics`, `morph`; values are clamped to `0.0-1.0`. |
 | `chokeGroup` | number/null | no | Choke group number (>= 1) or null to remove. Required for set_choke_group. |
 | `description` | string | yes | Short description |
 
