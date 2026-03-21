@@ -10,7 +10,7 @@ import {
   importProject as importProjectInDB, migrateLegacySession,
   type ProjectMeta,
 } from '../engine/project-store';
-import { CURRENT_VERSION, restoreSession, stripForPersistence } from '../engine/persistence';
+import { CURRENT_VERSION, restoreSession, saveSession, stripForPersistence } from '../engine/persistence';
 
 const ACTIVE_KEY = 'gluon-active-project';
 const AUTOSAVE_DELAY = 500;
@@ -56,6 +56,7 @@ export function useProjectLifecycle(
   const [projects, setProjects] = useState<ProjectMeta[]>([]);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [projectActionError, setProjectActionError] = useState<string | null>(null);
+  const [persistenceDegraded, setPersistenceDegraded] = useState(false);
 
   // Guard: suppress auto-save during load/switch
   const loadingRef = useRef(true);
@@ -178,6 +179,7 @@ export function useProjectLifecycle(
       } catch {
         // IndexedDB unavailable — work in memory
         if (!cancelled) {
+          setPersistenceDegraded(true);
           setSaveStatus('error');
           setProjectActionError(null);
           setSession(createSession());
@@ -192,10 +194,17 @@ export function useProjectLifecycle(
 
   // --- Auto-save (debounced) ---
   useEffect(() => {
-    if (loadingRef.current || !projectId) return;
+    if (loadingRef.current) return;
 
     const timer = setTimeout(async () => {
       setSaveStatus('saving');
+      if (persistenceDegraded) {
+        saveSession(session);
+        setSaveStatus('saved');
+        return;
+      }
+
+      if (!projectId) return;
       try {
         await saveProject(projectId, projectNameRef.current, session);
         failureCountRef.current = 0;
@@ -212,7 +221,7 @@ export function useProjectLifecycle(
     }, AUTOSAVE_DELAY);
 
     return () => clearTimeout(timer);
-  }, [session, projectId]);
+  }, [session, projectId, persistenceDegraded]);
 
   // --- Actions ---
 
@@ -364,7 +373,7 @@ export function useProjectLifecycle(
     projectId,
     projectName,
     projects,
-    saveError: saveStatus === 'error',
+    saveError: persistenceDegraded || saveStatus === 'error',
     saveStatus,
     projectActionError,
     createProject: createProjectAction,
