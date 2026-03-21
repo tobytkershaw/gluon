@@ -207,7 +207,7 @@ describe('propose_controls tool handler', () => {
             type: 'step-grid',
             label: 'Pattern',
             bindings: [
-              { role: 'region', target: { kind: 'pattern', patternId: 'p0' } },
+              { role: 'region', target: { kind: 'region', patternId: 'p0' } },
             ],
           }],
         },

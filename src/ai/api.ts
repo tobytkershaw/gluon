@@ -3087,19 +3087,20 @@ export class GluonAI {
           }
         }
 
-        // Lenient binding-role validation for new module types — warn via
-        // console but never reject.  Renderers fall back to sensible defaults.
+        // Lenient binding-role validation for new module types — warn but
+        // never reject.  Renderers fall back to sensible defaults.
+        const proposeWarnings: string[] = [];
         for (const m of proposeModules) {
           const mType = m.type as string;
           const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
           const roles = rawBindings.map(b => b.role as string);
           if (mType === 'xy-pad') {
             if (!roles.includes('x-axis') || !roles.includes('y-axis')) {
-              console.warn(`[propose_controls] xy-pad "${m.label}" missing x-axis/y-axis bindings — renderer will use defaults`);
+              proposeWarnings.push(`xy-pad "${m.label}" missing x-axis/y-axis bindings — renderer will use defaults`);
             }
           } else if (mType === 'step-grid') {
             if (!roles.includes('region')) {
-              console.warn(`[propose_controls] step-grid "${m.label}" missing region binding — renderer will use defaults`);
+              proposeWarnings.push(`step-grid "${m.label}" missing region binding — will use active pattern fallback`);
             }
           }
         }
@@ -3159,6 +3160,7 @@ export class GluonAI {
             description: args.description,
             moduleCount: liveModules.length,
             moduleIds: liveModules.map(m => m.id),
+            ...(proposeWarnings.length > 0 ? { warnings: proposeWarnings } : {}),
             // Carry the updated liveControls for the caller to merge into session
             _liveControls: updatedLiveControls,
           },
