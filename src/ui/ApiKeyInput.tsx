@@ -1,36 +1,23 @@
 import { useState } from 'react';
-import type { ListenerMode } from '../ai/api';
 
 interface Props {
-  onSubmit: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
+  onSubmit: (geminiKey: string) => void;
   isConfigured: boolean;
   disabled?: boolean;
-  currentOpenaiKey?: string;
   currentGeminiKey?: string;
-  listenerMode?: ListenerMode;
   plannerStatus?: 'available' | 'disabled';
   listenerStatus?: 'available' | 'disabled';
 }
-
-const LISTENER_OPTIONS: { value: ListenerMode; label: string }[] = [
-  { value: 'gemini', label: 'Gemini' },
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'both', label: 'Both (side by side)' },
-];
 
 export function ApiKeyInput({
   onSubmit,
   isConfigured,
   disabled = false,
-  currentOpenaiKey = '',
   currentGeminiKey = '',
-  listenerMode: currentListenerMode = 'gemini',
   plannerStatus,
   listenerStatus,
 }: Props) {
-  const [openaiKey, setOpenaiKey] = useState(currentOpenaiKey);
   const [geminiKey, setGeminiKey] = useState(currentGeminiKey);
-  const [listener, setListener] = useState<ListenerMode>(currentListenerMode);
   const [expanded, setExpanded] = useState(!isConfigured);
 
   if (isConfigured && !expanded) {
@@ -38,9 +25,7 @@ export function ApiKeyInput({
       <button
         onClick={() => {
           if (disabled) return;
-          setOpenaiKey(currentOpenaiKey);
           setGeminiKey(currentGeminiKey);
-          setListener(currentListenerMode);
           setExpanded(true);
         }}
         disabled={disabled}
@@ -56,7 +41,7 @@ export function ApiKeyInput({
     );
   }
 
-  const canSubmit = openaiKey.trim() || geminiKey.trim();
+  const canSubmit = geminiKey.trim();
 
   return (
     <div className="bg-zinc-900/50 border border-zinc-800/50 rounded-lg p-3">
@@ -65,25 +50,12 @@ export function ApiKeyInput({
           e.preventDefault();
           if (disabled) return;
           if (canSubmit) {
-            onSubmit(openaiKey.trim(), geminiKey.trim(), listener);
+            onSubmit(geminiKey.trim());
             setExpanded(false);
           }
         }}
         className="flex flex-col gap-2"
       >
-        <div>
-          <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
-            OpenAI API Key
-          </div>
-          <input
-            type="password"
-            value={openaiKey}
-            disabled={disabled}
-            onChange={(e) => setOpenaiKey(e.target.value)}
-            placeholder="sk-..."
-            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
-          />
-        </div>
         <div>
           <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
             Google API Key
@@ -96,21 +68,6 @@ export function ApiKeyInput({
             placeholder="AIza..."
             className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
           />
-        </div>
-        <div>
-          <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-zinc-500 mb-1">
-            Listener Provider
-          </div>
-          <select
-            value={listener}
-            disabled={disabled}
-            onChange={(e) => setListener(e.target.value as ListenerMode)}
-            className="w-full bg-zinc-800 text-[11px] font-mono text-zinc-300 rounded px-2 py-1.5 outline-none border border-zinc-700/50 focus:border-zinc-500 transition-colors"
-          >
-            {LISTENER_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
         </div>
         {(plannerStatus || listenerStatus) && (
           <div className="flex gap-3 text-[10px] text-zinc-500" data-testid="per-model-status">

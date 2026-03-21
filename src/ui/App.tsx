@@ -45,11 +45,9 @@ import { addView, removeView } from '../engine/view-primitives';
 import type { SequencerViewKind } from '../engine/types';
 import type { ScheduledParameterEvent, SequenceAutomationPoint } from '../engine/sequencer-types';
 import { GluonAI } from '../ai/api';
-import type { ListenerMode } from '../ai/api';
 import type { ListenerProvider } from '../ai/types';
 import { GeminiPlannerProvider } from '../ai/providers/gemini-planner';
 import { GeminiListenerProvider } from '../ai/providers/gemini-listener';
-import { OpenAIListenerProvider } from '../ai/providers/openai-listener';
 import { Arbitrator } from '../engine/arbitration';
 import { AutomationEngine } from '../ai/automation';
 import { SurfaceCanvas } from './surface/SurfaceCanvas';
@@ -78,27 +76,10 @@ import { useAiTurnBoundary } from './useAiTurnBoundary';
 // Low risk since adapter is stateless; revisit if tests require separate instances.
 const plaitsAdapter = createPlaitsAdapter();
 
-function createAI(openaiKey: string, geminiKey: string, listenerMode: ListenerMode = 'gemini'): GluonAI {
+function createAI(geminiKey: string): GluonAI {
   const geminiListener = new GeminiListenerProvider(geminiKey);
-  const openaiListener = new OpenAIListenerProvider(openaiKey);
-
-  let primary: ListenerProvider;
-  let listeners: ListenerProvider[];
-  switch (listenerMode) {
-    case 'openai':
-      primary = openaiListener;
-      listeners = [openaiListener];
-      break;
-    case 'both':
-      primary = geminiListener;
-      listeners = [geminiListener, openaiListener];
-      break;
-    case 'gemini':
-    default:
-      primary = geminiListener;
-      listeners = [geminiListener];
-      break;
-  }
+  const primary: ListenerProvider = geminiListener;
+  const listeners: ListenerProvider[] = [geminiListener];
 
   return new GluonAI(
     new GeminiPlannerProvider(geminiKey),
@@ -129,10 +110,8 @@ export function appendAudioRuntimeDegradationMessage(prev: string | null, messag
 export default function App() {
   const audioRef = useRef(new AudioEngine());
   const audioMetricsRef = useRef(new LiveAudioMetricsStore());
-  const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY ?? '');
   const [geminiKey, setGeminiKey] = useState(import.meta.env.VITE_GOOGLE_API_KEY ?? '');
-  const [listenerMode, setListenerMode] = useState<ListenerMode>('gemini');
-  const aiRef = useRef(createAI(openaiKey, geminiKey, listenerMode));
+  const aiRef = useRef(createAI(geminiKey));
   // Signal to discard in-progress tracker inline edits when switching views.
   // mousedown on ViewToggle sets this true before blur fires on EditableCell.
   const cancelEditRef = useRef(false);
@@ -1785,20 +1764,17 @@ export default function App() {
     void handleSend(decisionReply);
   }, [handleSend]);
 
-  const handleApiKey = useCallback((newOpenaiKey: string, newGeminiKey: string, newListenerMode?: ListenerMode) => {
+  const handleApiKey = useCallback((newGeminiKey: string) => {
     invalidateActiveAITurn();
-    setOpenaiKey(newOpenaiKey);
     setGeminiKey(newGeminiKey);
-    const mode = newListenerMode ?? listenerMode;
-    if (newListenerMode !== undefined) setListenerMode(mode);
-    aiRef.current = createAI(newOpenaiKey, newGeminiKey, mode);
+    aiRef.current = createAI(newGeminiKey);
     // Restore conversation context from the current session into the new provider
     if (sessionRef.current.messages.length > 0) {
       aiRef.current.restoreHistory(sessionRef.current.messages);
     }
     setPlannerConfigured(aiRef.current.isPlannerConfigured());
     setListenerConfigured(aiRef.current.isListenerConfigured());
-  }, [invalidateActiveAITurn, listenerMode]);
+  }, [invalidateActiveAITurn]);
 
   const handleContinueWithoutAI = useCallback(() => {
     setManualModeDismissed(true);
@@ -3333,9 +3309,7 @@ export default function App() {
       onApiKey={handleApiKey}
       onContinueWithoutAI={handleContinueWithoutAI}
       setupDismissed={manualModeDismissed}
-      currentOpenaiKey={openaiKey}
       currentGeminiKey={geminiKey}
-      listenerMode={listenerMode}
       onCoinFlip={handleCoinFlip}
       coinNotification={{
         isThinking,

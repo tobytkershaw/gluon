@@ -7,7 +7,6 @@ import type { Track, ChatMessage, UndoEntry, Reaction, OpenDecision, LiveControl
 import type { ProjectMeta } from '../engine/project-store';
 import type { ViewMode } from './view-types';
 import type { SaveStatus } from './useProjectLifecycle';
-import type { ListenerMode } from '../ai/api';
 import { TrackList } from './TrackList';
 import { Coin } from './Coin';
 import type { CoinNotificationProps } from './Coin';
@@ -72,10 +71,8 @@ interface Props {
   onDecisionRespond?: (decision: OpenDecision, response: string) => void;
   apiConfigured: boolean;
   listenerConfigured?: boolean;
-  onApiKey: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
-  currentOpenaiKey?: string;
+  onApiKey: (geminiKey: string) => void;
   currentGeminiKey?: string;
-  listenerMode?: ListenerMode;
   onCoinFlip: () => void;
   // Coin notification card state
   coinNotification: CoinNotificationProps;
@@ -189,7 +186,7 @@ export function AppShell({
   reactions, onReaction,
   onAuditionStart, onAuditionStop, activeAuditionId,
   openDecisions = [], onDecisionRespond,
-  apiConfigured, listenerConfigured = false, onApiKey, currentOpenaiKey, currentGeminiKey, listenerMode,
+  apiConfigured, listenerConfigured = false, onApiKey, currentGeminiKey,
   onCoinFlip,
   coinNotification,
   projectName, projects, saveError, saveStatus, projectActionError = null,
@@ -409,9 +406,7 @@ export function AppShell({
                       onSubmit={onApiKey}
                       isConfigured={apiConfigured}
                       disabled={isActive}
-                      currentOpenaiKey={currentOpenaiKey}
                       currentGeminiKey={currentGeminiKey}
-                      listenerMode={listenerMode}
                     />
                   )}
                 </div>
