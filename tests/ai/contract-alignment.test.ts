@@ -51,6 +51,7 @@ describe('AI Contract alignment with live implementation', () => {
       'add_modulator', 'remove_modulator',
       'connect_modulator', 'disconnect_modulator',
       'add_view', 'remove_view',
+      'explain_chain', 'simplify_chain',
     ];
     for (const oldName of oldToolNames) {
       // Match as a heading (#### `old_name`) — backtick references in prose

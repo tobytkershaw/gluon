@@ -219,7 +219,7 @@ Tools grouped by musical purpose.
 
 ### A. Inspect and collaborate
 
-Help the model reason before acting: `listen(question)`, `compare(candidateIds, question)`, `explain_chain(trackId)`, `ask_clarifying(question)`.
+Help the model reason before acting: `listen(question)`, `compare(candidateIds, question)`, `inspect_chain(trackId, mode)`, `ask_clarifying(question)`.
 
 ### B. Micro edit
 
@@ -430,7 +430,7 @@ The AI's working environment exists at three levels. Each is documented, each is
 
 | Layer | What it is | Document | Status |
 |-------|-----------|----------|--------|
-| **Current contract** | The tools, state format, and validation rules the AI operates with today. 51 tools across programming, observation, transport, structure, mixing, arrangement, UI curation, track metadata, decision, session context, and memory categories. Up to 16 tracks with multiple Plaits engines, 11 processor types, Tides modulator, drum rack with pad grid, canonical events, semantic controls, role-aware state compression, per-project memory, motif development, and chain/modulation/arrangement recipes. | [ai-contract.md](./ai-contract.md) | Implemented |
+| **Current contract** | The tools, state format, and validation rules the AI operates with today. 49 tools across programming, observation, transport, structure, mixing, arrangement, UI curation, track metadata, decision, session context, and memory categories. Up to 16 tracks with multiple Plaits engines, 11 processor types, Tides modulator, drum rack with pad grid, canonical events, semantic controls, role-aware state compression, per-project memory, motif development, and chain/modulation/arrangement recipes. | [ai-contract.md](./ai-contract.md) | Implemented |
 | **Canonical model** | The data model that all current and future tools operate on. Voices, regions, events, control schemas, adapters, provenance. Defines the stable internal vocabulary. | [canonical-musical-model.md](../rfcs/canonical-musical-model.md) | Partially implemented (regions, events, provenance landed; adapters, full schema in progress) |
 | **Musical environment** (this document) | The target environment where the AI reasons about project phase, track roles, structural intent, preservation, and phrase-level editing. Layered state and layered actions. | This document | Design — partially implemented (see Migration Strategy below) |
 

@@ -8,7 +8,7 @@ What the AI agent needs at inference time to interact with Gluon's canonical mus
 
 ## Tools
 
-The AI has 51 tools, declared as neutral JSON Schema and adapted per provider.
+The AI has forty-nine tools, declared as neutral JSON Schema and adapted per provider.
 
 ### Programming
 
@@ -577,25 +577,18 @@ Register, recall, develop, or list musical motifs. Motifs are named melodic/rhyt
 
 When `develop` includes a `trackId`, the result is written as a sketch action. Motifs persist for the session lifetime.
 
-#### `explain_chain`
+#### `inspect_chain`
 
-Generate a musical-language description of a track's signal chain. Read-only — does not modify state.
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
-
-Returns a text description of the track's source engine, processors (type, mode, params, bypass state), modulators, and modulation routings.
-
-#### `simplify_chain`
-
-Analyze a track's signal chain for redundant or no-op processors and suggest removals. Read-only — does not modify state.
+Inspect a track's signal chain. Read-only — does not modify state.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `trackId` | string | yes | Target track — ordinal (e.g. "Track 1") or internal ID (e.g. "v0"). |
+| `mode` | string | yes | `"explain"` for a musical-language description, `"simplify"` for redundancy detection. |
 
-Checks for: bypassed processors, default-valued processors (no knobs moved), duplicate processor types, unrouted modulators. Returns suggestions without modifying session state.
+In `explain` mode, returns a text description of the track's source engine, processors (type, mode, params, bypass state), modulators, and modulation routings.
+
+In `simplify` mode, checks for: bypassed processors, default-valued processors (no knobs moved), duplicate processor types, unrouted modulators. Returns suggestions without modifying session state.
 
 #### `apply_chain_recipe`
 
