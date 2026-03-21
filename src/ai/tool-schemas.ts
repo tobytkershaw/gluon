@@ -1965,6 +1965,11 @@ const manageDrumPadTool: ToolSchema = {
           'chords, vowel-speech, swarm, filtered-noise, particle-dust, ' +
           'inharmonic-string, modal-resonator, analog-bass-drum, analog-snare, analog-hi-hat.',
       },
+      params: {
+        type: 'object',
+        description: 'Optional initial source params for add. Keys are control IDs like frequency, timbre, harmonics, morph; values are 0.0-1.0 and are clamped if needed.',
+        additionalProperties: { type: 'number' },
+      },
       chokeGroup: {
         description: 'Choke group number (integer >= 1). Pads in the same group mute each other on trigger. Set to null to remove from a choke group.',
       },

@@ -43,6 +43,33 @@ function clampNum(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function buildDrumPadParams(
+  modelId: string | undefined,
+  overrides?: Record<string, number>,
+): { params: Record<string, number> } | { error: string } {
+  const padEngine = modelId ? getEngineById(modelId) : undefined;
+  if (!padEngine) return { error: `Unknown model: ${String(modelId)}` };
+
+  const params: Record<string, number> = {};
+  const validControlIds = new Set<string>();
+  for (const ctrl of padEngine.controls) {
+    if (ctrl.binding?.path?.startsWith('track.')) continue;
+    validControlIds.add(ctrl.id);
+    params[ctrl.id] = ctrl.range?.default ?? 0.5;
+  }
+
+  if (!overrides) return { params };
+
+  for (const [param, value] of Object.entries(overrides)) {
+    if (!validControlIds.has(param)) return { error: `Unknown pad param "${param}" for model ${modelId}` };
+    const clamped = clampParam(value);
+    if (clamped === null) return { error: `Non-finite pad param value for ${param}` };
+    params[param] = clamped;
+  }
+
+  return { params };
+}
+
 /**
  * Extract sorted rhythm positions (the `at` values of note and trigger events)
  * from a list of musical events. Parameter events are excluded because they
@@ -674,6 +701,10 @@ export function prevalidateAction(
           if (!action.model) return `action=add requires model`;
           const padEngine = getEngineById(action.model);
           if (!padEngine) return `Unknown model: ${action.model}`;
+          if (action.params) {
+            const built = buildDrumPadParams(action.model, action.params);
+            if ('error' in built) return built.error;
+          }
           break;
         }
         case 'remove':
@@ -2777,9 +2808,12 @@ function executeActionsInternal(
         switch (action.action) {
           case 'add': {
             const engineIndex = plaitsInstrument.engines.findIndex(e => e.id === action.model);
-            const defaultParams: Record<string, number> = {};
-            if (engineIndex >= 0) { for (const ctrl of plaitsInstrument.engines[engineIndex].controls) { if (ctrl.binding?.path?.startsWith('track.')) continue; defaultParams[ctrl.id] = ctrl.range?.default ?? 0.5; } }
-            const newPad: DrumPad = { id: action.padId, name: action.name ?? action.padId, source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: defaultParams }, level: 0.8, pan: 0.5 };
+            const built = buildDrumPadParams(action.model, action.params);
+            if ('error' in built) {
+              rejected.push({ op: action, reason: built.error });
+              continue;
+            }
+            const newPad: DrumPad = { id: action.padId, name: action.name ?? action.padId, source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: built.params }, level: 0.8, pan: 0.5 };
             if (action.chokeGroup != null) (newPad as DrumPad).chokeGroup = action.chokeGroup as number;
             newPads = [...prevPads, newPad];
             break;

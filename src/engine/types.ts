@@ -1221,6 +1221,7 @@ export interface AIManageDrumPadAction {
   padId: string;
   name?: string;
   model?: string;
+  params?: Record<string, number>;
   chokeGroup?: number | null;
   description: string;
 }
