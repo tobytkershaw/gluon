@@ -48,6 +48,18 @@ describe('ensureTypedTarget', () => {
     const result = ensureTypedTarget(binding, 'step-grid', {});
     expect(result).toEqual({ kind: 'region', patternId: 'pattern-1' });
   });
+
+  it('migrates a dot-separated drum pad param string to DrumPadTarget', () => {
+    const binding: ModuleBinding = { role: 'control', trackId: 't1', target: 'kick.timbre' };
+    const result = ensureTypedTarget(binding, 'knob-group', {});
+    expect(result).toEqual({ kind: 'drumPad', padId: 'kick', param: 'timbre' });
+  });
+
+  it('migrates drum pad level binding', () => {
+    const binding: ModuleBinding = { role: 'control', trackId: 't1', target: 'snare.level' };
+    const result = ensureTypedTarget(binding, 'knob-group', {});
+    expect(result).toEqual({ kind: 'drumPad', padId: 'snare', param: 'level' });
+  });
 });
 
 describe('targetLabel', () => {
@@ -65,5 +77,9 @@ describe('targetLabel', () => {
 
   it('returns patternId for region targets', () => {
     expect(targetLabel({ kind: 'region', patternId: 'p1' })).toBe('p1');
+  });
+
+  it('returns padId.param for drumPad targets', () => {
+    expect(targetLabel({ kind: 'drumPad', padId: 'kick', param: 'timbre' })).toBe('kick.timbre');
   });
 });

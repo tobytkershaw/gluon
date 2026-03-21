@@ -41,7 +41,7 @@ export function targetLabel(target: BindingTarget): string {
     case 'mix':
       return target.param;
     case 'drumPad':
-      return target.param;
+      return `${target.padId}.${target.param}`;
     case 'generator':
       return target.param;
     case 'paramShape':

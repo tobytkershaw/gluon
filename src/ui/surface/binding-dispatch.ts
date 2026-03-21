@@ -4,7 +4,7 @@
 import type { BindingTarget, ParamMutation } from '../../engine/types';
 
 /** Target kinds whose writes can be dispatched through existing App.tsx callbacks. */
-const DISPATCHABLE_KINDS = new Set<string>(['source', 'processor']);
+const DISPATCHABLE_KINDS = new Set<string>(['source', 'processor', 'drumPad']);
 
 /** Whether a binding target's writes can be dispatched through the current callback set.
  *  Renderers should treat targets where this returns false as read-only. */
@@ -19,6 +19,7 @@ export function canDispatch(target: BindingTarget): boolean {
 export interface MutationCallbacks {
   onParamChange?: (controlId: string, value: number) => void;
   onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
+  onDrumPadParamChange?: (padId: string, param: string, value: number) => void;
 }
 
 /**
@@ -38,9 +39,11 @@ export function dispatchMutations(
       case 'processorParam':
         callbacks.onProcessorParamChange?.(m.processorId, m.param, m.value);
         break;
+      case 'drumPadParam':
+        callbacks.onDrumPadParamChange?.(m.padId, m.param, m.value);
+        break;
       case 'modulatorParam':
       case 'mixParam':
-      case 'drumPadParam':
         break;
     }
   }

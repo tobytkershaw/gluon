@@ -28,6 +28,7 @@ export function KnobGroupModule({
   roleColor,
   onParamChange,
   onProcessorParamChange,
+  onDrumPadParamChange,
   onInteractionStart,
   onInteractionEnd,
 }: ModuleRendererProps) {
@@ -55,7 +56,7 @@ export function KnobGroupModule({
     (target: BindingTarget, value: number) => {
       const result = writeBinding(track, target, value);
       if (result.status === 'ok') {
-        dispatchMutations(result.mutations, { onParamChange, onProcessorParamChange });
+        dispatchMutations(result.mutations, { onParamChange, onProcessorParamChange, onDrumPadParamChange });
       }
     },
     [track, onParamChange, onProcessorParamChange],

@@ -783,7 +783,7 @@ const setSurfaceTool: ToolSchema = {
                   },
                   target: {
                     type: 'string',
-                    description: 'Target identifier — controlId (e.g. "timbre"), semantic ref (e.g. "brightness"), regionId, etc.',
+                    description: 'Target identifier — controlId (e.g. "timbre"), "processorId:param" (e.g. "reverb-1:decay"), "padId.param" for drum pads (e.g. "kick.timbre", "snare.level"), semantic ref (e.g. "brightness"), regionId, etc.',
                   },
                 },
                 required: ['role', 'target'],

@@ -601,6 +601,33 @@ describe('migrateBinding', () => {
     });
   });
 
+  it('migrates dot-separated drum pad param (padId.param)', () => {
+    const result = migrateBinding(
+      { role: 'control', trackId: 'v0', target: 'kick.frequency' },
+      'knob-group',
+      {},
+    );
+    expect(result.target).toEqual({ kind: 'drumPad', padId: 'kick', param: 'frequency' });
+  });
+
+  it('migrates dot-separated drum pad level', () => {
+    const result = migrateBinding(
+      { role: 'control', trackId: 'v0', target: 'snare.level' },
+      'knob-group',
+      {},
+    );
+    expect(result.target).toEqual({ kind: 'drumPad', padId: 'snare', param: 'level' });
+  });
+
+  it('migrates dot-separated drum pad pan', () => {
+    const result = migrateBinding(
+      { role: 'control', trackId: 'v0', target: 'hat.pan' },
+      'knob-group',
+      {},
+    );
+    expect(result.target).toEqual({ kind: 'drumPad', padId: 'hat', param: 'pan' });
+  });
+
   it('falls back to source for unknown bare string targets', () => {
     const result = migrateBinding(
       { role: 'control', trackId: 'v0', target: 'some-custom-param' },
@@ -608,5 +635,64 @@ describe('migrateBinding', () => {
       {},
     );
     expect(result.target).toEqual({ kind: 'source', param: 'some-custom-param' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// End-to-end: string drum pad binding resolves against drum rack track
+// ---------------------------------------------------------------------------
+
+describe('drum pad knob-group binding end-to-end', () => {
+  it('string "kick.timbre" migrates and resolves against a drum rack track', () => {
+    const track = trackWithDrumRack();
+    // Simulate what ensureTypedTarget does: migrate old string format
+    const migrated = migrateBinding(
+      { role: 'control', trackId: track.id, target: 'kick.timbre' },
+      'knob-group',
+      {},
+    );
+    expect(migrated.target).toEqual({ kind: 'drumPad', padId: 'kick', param: 'timbre' });
+
+    // Verify it resolves correctly
+    const resolved = resolveBinding(track, migrated.target);
+    expect(resolved.status).toBe('ok');
+    expect((resolved as ResolvedScalar).value).toBe(0.3); // kick timbre = 0.3
+  });
+
+  it('string "snare.level" migrates and resolves pad level', () => {
+    const track = trackWithDrumRack();
+    const migrated = migrateBinding(
+      { role: 'control', trackId: track.id, target: 'snare.level' },
+      'knob-group',
+      {},
+    );
+    const resolved = resolveBinding(track, migrated.target);
+    expect(resolved.status).toBe('ok');
+    expect((resolved as ResolvedScalar).value).toBe(0.7); // snare level = 0.7
+  });
+
+  it('string "ghost.timbre" migrates but resolves as stale for missing pad', () => {
+    const track = trackWithDrumRack();
+    const migrated = migrateBinding(
+      { role: 'control', trackId: track.id, target: 'ghost.timbre' },
+      'knob-group',
+      {},
+    );
+    expect(migrated.target).toEqual({ kind: 'drumPad', padId: 'ghost', param: 'timbre' });
+    const resolved = resolveBinding(track, migrated.target);
+    expect(resolved.status).toBe('stale');
+  });
+
+  it('migrated drum pad binding is writable', () => {
+    const track = trackWithDrumRack();
+    const migrated = migrateBinding(
+      { role: 'control', trackId: track.id, target: 'kick.timbre' },
+      'knob-group',
+      {},
+    );
+    const result = writeBinding(track, migrated.target, 0.9);
+    expect(result.status).toBe('ok');
+    const ok = result as { status: 'ok'; mutations: { kind: string; padId: string; param: string; value: number }[] };
+    expect(ok.mutations[0]).toEqual({ kind: 'drumPadParam', padId: 'kick', param: 'timbre', value: 0.9 });
   });
 });

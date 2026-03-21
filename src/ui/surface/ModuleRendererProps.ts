@@ -15,6 +15,8 @@ export interface ModuleRendererProps {
   onParamChange?: (controlId: string, value: number) => void;
   /** Called when module changes a processor param — no per-frame undo */
   onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
+  /** Called when module changes a drum pad param — no per-frame undo */
+  onDrumPadParamChange?: (padId: string, param: string, value: number) => void;
   /** Gesture start — surface handler captures all state for undo */
   onInteractionStart?: () => void;
   /** Gesture end — surface handler diffs and pushes undo */

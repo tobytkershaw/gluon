@@ -27,6 +27,8 @@ interface SurfaceCanvasProps {
   onParamChange?: (controlId: string, value: number) => void;
   /** Called for processor param changes. No per-frame undo. */
   onProcessorParamChange?: (processorId: string, controlId: string, value: number) => void;
+  /** Called for drum pad param changes. No per-frame undo. */
+  onDrumPadParamChange?: (padId: string, param: string, value: number) => void;
   /** Gesture start — captures all source + processor state for single-gesture undo. */
   onInteractionStart?: () => void;
   /** Gesture end — diffs and pushes one grouped undo entry. */
@@ -63,6 +65,7 @@ export function SurfaceCanvas({
   trackIndex = 0,
   onParamChange,
   onProcessorParamChange,
+  onDrumPadParamChange,
   onInteractionStart,
   onInteractionEnd,
   onAddModule,
@@ -269,6 +272,7 @@ export function SurfaceCanvas({
                   roleColor={roleColor}
                   onParamChange={onParamChange}
                   onProcessorParamChange={onProcessorParamChange}
+                  onDrumPadParamChange={onDrumPadParamChange}
                   onInteractionStart={onInteractionStart}
                   onInteractionEnd={onInteractionEnd}
                   onToggleProcessorEnabled={onToggleProcessorEnabled}

@@ -327,6 +327,14 @@ export function migrateBinding(
     return { role, trackId: old.trackId, target: { kind: 'processor', processorId, param } };
   }
 
+  // Dot-separated target: "padId.param" — drum pad parameter binding.
+  // The AI uses this format for drum rack per-pad params (e.g. "kick.timbre", "snare.level").
+  // Must be checked before source params because "kick.frequency" is not a source param name.
+  if (old.target.includes('.')) {
+    const [padId, param] = old.target.split('.', 2);
+    return { role, trackId: old.trackId, target: { kind: 'drumPad', padId, param } };
+  }
+
   // Source target: known param names
   if (KNOWN_SOURCE_PARAMS.has(old.target)) {
     return { role, trackId: old.trackId, target: { kind: 'source', param: old.target } };
