@@ -224,6 +224,21 @@ export class TransportController {
     this.lastTransport = transport;
   }
 
+  /** Externally trigger a track invalidation without relying on _patternDirty.
+   *  Used when audio slots become available after the scheduler already passed
+   *  the events (e.g. async drum pad WASM instantiation). */
+  invalidateTrackNow(trackId: string): void {
+    if (this.runtime.status !== 'playing') return;
+    this.clearParameterEventTimers(trackId);
+    this.scheduler.invalidateTrack(trackId, this.lastStep);
+    recordQaAudioTrace({
+      type: 'transport.arrangement-invalidated',
+      generation: this.runtime.generation,
+      trackId,
+      fromStep: this.lastStep,
+    });
+  }
+
   requestHardStop(): void {
     this.pendingHardStop = true;
   }

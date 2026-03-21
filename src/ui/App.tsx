@@ -482,12 +482,18 @@ export default function App() {
             audioRef.current.removeDrumPad(track.id, existingId);
           }
         }
-        // Add or update pads
+        // Add or update pads — collect promises for newly added pads so we can
+        // invalidate the scheduler after the async WASM instantiation completes.
+        // Without this, the scheduler silently drops notes for pads that don't
+        // exist yet in the audio engine (#1428).
+        const newPadPromises: Promise<void>[] = [];
         for (const pad of track.drumRack.pads) {
           if (!currentPadIds.has(pad.id)) {
-            void audioRef.current.addDrumPad(
-              track.id, pad.id, pad.source.model, pad.source.params,
-              pad.level, pad.pan, pad.chokeGroup,
+            newPadPromises.push(
+              audioRef.current.addDrumPad(
+                track.id, pad.id, pad.source.model, pad.source.params,
+                pad.level, pad.pan, pad.chokeGroup,
+              ),
             );
           } else {
             // Sync model, params, level, pan, choke group
@@ -497,6 +503,14 @@ export default function App() {
             audioRef.current.setDrumPadPan(track.id, pad.id, pad.pan);
             audioRef.current.setDrumPadChokeGroup(track.id, pad.id, pad.chokeGroup);
           }
+        }
+        // After all new pads are instantiated, invalidate the track in the
+        // scheduler so it re-visits events that were silently dropped (#1428).
+        if (newPadPromises.length > 0) {
+          const trackId = track.id;
+          void Promise.all(newPadPromises).then(() => {
+            transportControllerRef.current?.invalidateTrackNow(trackId);
+          });
         }
       }
     }

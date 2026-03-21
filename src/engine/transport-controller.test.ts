@@ -1030,4 +1030,168 @@ describe('TransportController', () => {
 
     controller.dispose();
   });
+
+  it('invalidateTrackNow re-schedules events on a playing track', () => {
+    vi.useFakeTimers();
+    const region = createDefaultPattern('v0', 16);
+    region.events = [{ kind: 'trigger', at: 0, velocity: 0.8 }];
+    const session: Session = {
+      ...makeSession(),
+      tracks: [{
+        id: 'v0',
+        engine: 'plaits',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 16 },
+        patterns: [region],
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
+      }],
+    };
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    let schedulerPositionChange: ((step: number) => void) | null = null;
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onPositionChange }) => {
+        schedulerPositionChange = onPositionChange;
+        return scheduler;
+      },
+    });
+
+    // Start playback and advance cursor past step 0
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+    schedulerPositionChange?.(6);
+
+    // Externally invalidate the track (simulates drum pad WASM ready)
+    controller.invalidateTrackNow('v0');
+
+    // Scheduler should be told to re-visit from the current step
+    expect(scheduler.invalidateTrack).toHaveBeenCalledWith('v0', 6);
+
+    controller.dispose();
+  });
+
+  it('invalidateTrackNow is a no-op when transport is not playing', () => {
+    vi.useFakeTimers();
+    const session = makeSession();
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: () => scheduler,
+    });
+
+    // Transport is stopped — invalidateTrackNow should be a no-op
+    controller.invalidateTrackNow('v0');
+    expect(scheduler.invalidateTrack).not.toHaveBeenCalled();
+
+    controller.dispose();
+  });
+
+  it('simulates drum rack flow: scheduler starts, pad events exist, invalidateTrackNow triggers re-scheduling', () => {
+    vi.useFakeTimers();
+    const region = createDefaultPattern('drums', 16);
+    region.events = [
+      { kind: 'trigger', at: 0, velocity: 0.8, padId: 'kick' },
+      { kind: 'trigger', at: 4, velocity: 0.7, padId: 'snare' },
+    ];
+    const session: Session = {
+      ...makeSession(),
+      tracks: [{
+        id: 'drums',
+        engine: 'drum-rack',
+        model: 0,
+        params: { harmonics: 0.5, timbre: 0.5, morph: 0.5, note: 0.5 },
+        muted: false,
+        solo: false,
+        stepGrid: { steps: [], length: 16 },
+        patterns: [region],
+        surface: { modules: [], thumbprint: { type: 'static-color' } },
+      }],
+    };
+    const scheduler = {
+      start: vi.fn(),
+      stop: vi.fn(),
+      invalidateTrack: vi.fn(),
+    };
+    let schedulerPositionChange: ((step: number) => void) | null = null;
+    const audio = {
+      getCurrentTime: vi.fn(() => 1),
+      getState: vi.fn(() => 'running' as const),
+      scheduleNote: vi.fn(),
+      restoreBaseline: vi.fn(),
+      advanceGeneration: vi.fn(() => 1),
+      releaseGeneration: vi.fn(),
+      silenceGeneration: vi.fn(),
+      silenceMetronome: vi.fn(),
+      setMetronomeVolume: vi.fn(),
+    } as unknown as import('../audio/audio-engine').AudioEngine;
+
+    const controller = new TransportController({
+      audio,
+      getSession: () => session,
+      onPositionChange: vi.fn(),
+      getHeldParams: vi.fn(() => ({})),
+      createScheduler: ({ onPositionChange }) => {
+        schedulerPositionChange = onPositionChange;
+        return scheduler;
+      },
+    });
+
+    // 1. Scheduler starts, cursor advances past the drum events
+    session.transport = { ...session.transport, status: 'playing' };
+    controller.sync();
+    schedulerPositionChange?.(8); // past both events at 0 and 4
+
+    // 2. Drum pad WASM instantiation completes — call invalidateTrackNow
+    controller.invalidateTrackNow('drums');
+
+    // 3. The scheduler should be told to re-visit from step 8
+    expect(scheduler.invalidateTrack).toHaveBeenCalledTimes(1);
+    expect(scheduler.invalidateTrack).toHaveBeenCalledWith('drums', 8);
+
+    // 4. On the next scheduler tick, it will re-schedule events from step 8
+    //    (the real Scheduler bumps the track revision, causing a full re-scan)
+
+    controller.dispose();
+  });
 });
