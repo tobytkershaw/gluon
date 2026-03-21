@@ -152,4 +152,63 @@ describe('Plaits instrument registry', () => {
     expect(isPercussionByIndex(15)).toBe(true);
     expect(isPercussionByIndex(16)).toBe(false);
   });
+
+  describe('per-engine default parameter overrides', () => {
+    function getDefault(engineIndex: number, controlId: string): number | undefined {
+      const engine = getEngineByIndex(engineIndex);
+      const control = engine?.controls.find(c => c.id === controlId);
+      return control?.range?.default;
+    }
+
+    it('analog-bass-drum (13) has percussion-appropriate defaults', () => {
+      expect(getDefault(13, 'frequency')).toBeCloseTo(0.25);
+      expect(getDefault(13, 'harmonics')).toBeCloseTo(0.12);
+      expect(getDefault(13, 'timbre')).toBeCloseTo(0.2);
+      expect(getDefault(13, 'morph')).toBeCloseTo(0.4);
+    });
+
+    it('analog-snare (14) has snare-appropriate defaults', () => {
+      expect(getDefault(14, 'frequency')).toBeCloseTo(0.38);
+      expect(getDefault(14, 'harmonics')).toBeCloseTo(0.4);
+      expect(getDefault(14, 'timbre')).toBeCloseTo(0.35);
+      expect(getDefault(14, 'morph')).toBeCloseTo(0.3);
+    });
+
+    it('analog-hi-hat (15) has hi-hat-appropriate defaults', () => {
+      expect(getDefault(15, 'frequency')).toBeCloseTo(0.65);
+      expect(getDefault(15, 'harmonics')).toBeCloseTo(0.4);
+      expect(getDefault(15, 'timbre')).toBeCloseTo(0.5);
+      expect(getDefault(15, 'morph')).toBeCloseTo(0.15);
+    });
+
+    it('virtual-analog (0) retains standard 0.5 defaults', () => {
+      expect(getDefault(0, 'frequency')).toBe(0.5);
+      expect(getDefault(0, 'harmonics')).toBe(0.5);
+      expect(getDefault(0, 'timbre')).toBe(0.5);
+      expect(getDefault(0, 'morph')).toBe(0.5);
+    });
+
+    it('fm (2) has warmer timbre default', () => {
+      expect(getDefault(2, 'timbre')).toBeCloseTo(0.3);
+      // other params remain at 0.5
+      expect(getDefault(2, 'frequency')).toBe(0.5);
+      expect(getDefault(2, 'harmonics')).toBe(0.5);
+      expect(getDefault(2, 'morph')).toBe(0.5);
+    });
+
+    it('chords (6) has minor triad and warm morph defaults', () => {
+      expect(getDefault(6, 'harmonics')).toBeCloseTo(0.25);
+      expect(getDefault(6, 'morph')).toBeCloseTo(0.2);
+      // frequency and timbre remain at 0.5
+      expect(getDefault(6, 'frequency')).toBe(0.5);
+      expect(getDefault(6, 'timbre')).toBe(0.5);
+    });
+
+    it('non-overridden params keep standard defaults (decay=0.5, mod amounts=0.0)', () => {
+      // Percussion engines should still have standard decay/mod defaults
+      expect(getDefault(13, 'decay')).toBe(0.5);
+      expect(getDefault(13, 'timbre-mod-amount')).toBe(0.0);
+      expect(getDefault(13, 'fm-amount')).toBe(0.0);
+    });
+  });
 });

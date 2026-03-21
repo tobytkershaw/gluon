@@ -258,20 +258,20 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
 
     it('Step 6: changes a per-pad param via move', () => {
       const kickBefore = getTrack(session, trackId).drumRack?.pads.find(p => p.id === 'kick');
-      const timbreBefore = kickBefore?.source.params.timbre ?? 0.5;
+      const timbreBefore = kickBefore?.source.params.timbre ?? 0.2; // analog-bass-drum default
 
       session = exec(session, [
         {
           type: 'move',
           trackId,
           param: 'kick.timbre',
-          target: { absolute: 0.2 },
+          target: { absolute: 0.7 },
         },
       ]);
 
       const kickAfter = getTrack(session, trackId).drumRack?.pads.find(p => p.id === 'kick');
-      expect(kickAfter?.source.params.timbre).toBeCloseTo(0.2);
-      expect(timbreBefore).not.toBeCloseTo(0.2); // sanity: it actually changed
+      expect(kickAfter?.source.params.timbre).toBeCloseTo(0.7);
+      expect(timbreBefore).not.toBeCloseTo(0.7); // sanity: it actually changed
     });
 
     it('Step 7: undoes all operations and verifies clean state', () => {
