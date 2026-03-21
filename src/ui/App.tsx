@@ -1280,6 +1280,7 @@ export default function App() {
         kind: 'surface',
         trackId: liveModule.trackId,
         prevSurface,
+        prevLiveControls: [...s.liveControls],
         timestamp: Date.now(),
         description: `Added ${liveModule.module.label} from Live Controls`,
       };

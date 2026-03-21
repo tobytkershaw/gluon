@@ -254,7 +254,11 @@ function revertSnapshot(session: Session, snapshot: Snapshot): Session {
   }
 
   if (snapshot.kind === 'surface') {
-    return updateTrack(session, snapshot.trackId, { surface: snapshot.prevSurface });
+    let result = updateTrack(session, snapshot.trackId, { surface: snapshot.prevSurface });
+    if (snapshot.prevLiveControls) {
+      result = { ...result, liveControls: snapshot.prevLiveControls };
+    }
+    return result;
   }
 
   if (snapshot.kind === 'claim') {
@@ -637,7 +641,7 @@ function captureReverseSnapshot(session: Session, snapshot: Snapshot): Snapshot 
         position: { ...m.position },
         config: structuredClone(m.config),
       })),
-    }, timestamp: now };
+    }, prevLiveControls: snapshot.prevLiveControls ? [...session.liveControls] : undefined, timestamp: now };
   }
 
   if (snapshot.kind === 'claim') {
