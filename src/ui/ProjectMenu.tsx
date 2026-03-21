@@ -96,7 +96,7 @@ export function ProjectMenu({
         onClick={() => setOpen(o => !o)}
         className="flex items-center gap-1.5 px-2 py-1 rounded hover:bg-zinc-800/50 transition-colors group"
       >
-        <SaveIndicator status={saveStatus} />
+        <SaveIndicator status={saveStatus} degraded={saveError} />
         <span className="text-[12px] font-semibold text-zinc-300 group-hover:text-zinc-100 truncate max-w-[120px]">
           {projectName}
         </span>
@@ -213,20 +213,21 @@ export function ProjectMenu({
   );
 }
 
-function SaveIndicator({ status }: { status: SaveStatus }) {
+function SaveIndicator({ status, degraded }: { status: SaveStatus; degraded: boolean }) {
   // Mockup spec: simple 5px dot.
-  // clean (saved/idle) = emerald at 50% opacity, dirty (saving) = amber full opacity, error = red.
+  // clean (saved/idle) = emerald at 50% opacity, dirty (saving) = amber full opacity, degraded/error = red.
+  const isErrorState = degraded || status === 'error';
   return (
     <span
       className={`w-[5px] h-[5px] rounded-full shrink-0 ${
-        status === 'error'
+        isErrorState
           ? 'bg-red-500'
           : status === 'saving'
             ? 'bg-amber-400'
             : 'bg-emerald-400 opacity-50'
       }`}
       title={
-        status === 'error'
+        isErrorState
           ? 'IndexedDB unavailable; working in memory'
           : status === 'saving'
             ? 'Unsaved changes'

@@ -79,4 +79,26 @@ describe('ProjectMenu', () => {
 
     expect(onExport).toHaveBeenCalledOnce();
   });
+
+  it('shows the degraded indicator even when fallback persistence reports saved', () => {
+    render(
+      <ProjectMenu
+        projectName="Test Project"
+        projects={[]}
+        saveError
+        saveStatus="saved"
+        onRename={noop}
+        onNew={noop}
+        onOpen={noop}
+        onDuplicate={noop}
+        onDelete={noop}
+        onExport={noop}
+        onImport={noop}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /Test Project/ });
+    const indicator = trigger.querySelector('span[title]');
+    expect(indicator?.getAttribute('title')).toBe('IndexedDB unavailable; working in memory');
+  });
 });
