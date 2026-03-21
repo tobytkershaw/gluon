@@ -3099,11 +3099,21 @@ export class GluonAI {
         // Build LiveControlModule instances
         const liveModules: LiveControlModule[] = proposeModules.map((m, i) => {
           const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
-          const bindings: ModuleBinding[] = rawBindings.map(b => ({
-            role: (b.role as string) ?? 'control',
-            trackId,
-            target: (b.target as BindingTarget) ?? { kind: 'source', param: '' },
-          }));
+          const bindings: ModuleBinding[] = rawBindings.map(b => {
+            // Accept both string targets (new format, matching set_surface) and
+            // structured BindingTarget objects (old format) for backward compatibility.
+            const rawTarget = b.target;
+            const target: string | BindingTarget = typeof rawTarget === 'string'
+              ? rawTarget
+              : typeof rawTarget === 'object' && rawTarget !== null && 'kind' in (rawTarget as Record<string, unknown>)
+                ? (rawTarget as BindingTarget)
+                : '';
+            return {
+              role: (b.role as string) ?? 'control',
+              trackId,
+              target,
+            };
+          });
 
           const moduleId = `live-${trackId}-${currentTurn}-${i}-${Date.now()}`;
           const surfaceModule: SurfaceModule = {

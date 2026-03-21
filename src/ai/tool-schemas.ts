@@ -2097,52 +2097,6 @@ const forgetMemoryTool: ToolSchema = {
   },
 };
 
-// --- BindingTarget JSON Schema fragment (shared by propose_controls) ---
-// Flattened into a single object schema for Gemini compatibility (no oneOf with complex types).
-// The `kind` discriminator tells the runtime which fields are relevant.
-const bindingTargetSchema = {
-  type: 'object',
-  description: 'Binding target. Set kind to discriminate: "source" (param), "processor" (processorId + param), "modulator" (modulatorId + param), "mix" (param: "volume"|"pan"), "drumPad" (padId + param), "weighted" (mappings array for macro knobs).',
-  properties: {
-    kind: {
-      type: 'string',
-      enum: ['source', 'processor', 'modulator', 'mix', 'drumPad', 'generator', 'paramShape', 'weighted'],
-      description: 'Target kind.',
-    },
-    param: { type: 'string', description: 'Parameter name (e.g. "timbre", "volume"). Required for scalar targets.' },
-    processorId: { type: 'string', description: 'Processor ID (required when kind is "processor").' },
-    modulatorId: { type: 'string', description: 'Modulator ID (required when kind is "modulator").' },
-    padId: { type: 'string', description: 'Drum pad ID (required when kind is "drumPad").' },
-    generatorId: { type: 'string', description: 'Generator ID (required when kind is "generator").' },
-    shapeId: { type: 'string', description: 'Shape ID (required when kind is "paramShape").' },
-    mappings: {
-      type: 'array',
-      description: 'Weighted mappings (required when kind is "weighted"). Each mapping has a scalar target, weight (0-1), and optional transform.',
-      items: {
-        type: 'object',
-        properties: {
-          target: {
-            type: 'object',
-            description: 'Scalar target within a weighted mapping.',
-            properties: {
-              kind: { type: 'string', enum: ['source', 'processor', 'modulator', 'mix', 'drumPad'], description: 'Scalar target kind.' },
-              param: { type: 'string', description: 'Parameter name.' },
-              processorId: { type: 'string', description: 'Processor ID.' },
-              modulatorId: { type: 'string', description: 'Modulator ID.' },
-              padId: { type: 'string', description: 'Drum pad ID.' },
-            },
-            required: ['kind'],
-          },
-          weight: { type: 'number', description: 'Weight 0-1.' },
-          transform: { type: 'string', enum: ['linear', 'inverse', 'bipolar'], description: 'Transform function.' },
-        },
-        required: ['target', 'weight'],
-      },
-    },
-  },
-  required: ['kind'],
-} as const;
-
 const proposeControlsTool: ToolSchema = {
   name: 'propose_controls',
   description:
@@ -2188,7 +2142,10 @@ const proposeControlsTool: ToolSchema = {
                     enum: ['control', 'x-axis', 'y-axis', 'region'],
                     description: 'Binding role.',
                   },
-                  target: bindingTargetSchema,
+                  target: {
+                    type: 'string',
+                    description: 'Target identifier — "timbre" (source param), "processorId:param" (e.g. "reverb-1:decay"), "padId.param" (e.g. "kick.timbre", "snare.level"). Same format as set_surface bindings.',
+                  },
                 },
                 required: ['role', 'target'],
               },
