@@ -175,6 +175,55 @@ describe('TrackerRow', () => {
     expect(screen.getByText('C-4')).toBeTruthy();
   });
 
+  it('does not preview the top-row note on initial mount', async () => {
+    const { Tracker } = await import('../../src/ui/Tracker');
+    const onNotePreview = vi.fn();
+    const note: NoteEvent = { kind: 'note', at: 0, pitch: 60, velocity: 0.8, duration: 1 };
+
+    render(
+      <Tracker
+        region={{
+          id: 'p0',
+          kind: 'pattern',
+          duration: 4,
+          events: [note],
+        }}
+        playheadStep={null}
+        playing={false}
+        onNotePreview={onNotePreview}
+      />,
+    );
+
+    expect(onNotePreview).not.toHaveBeenCalled();
+  });
+
+  it('previews a note after the tracker cursor moves onto it', async () => {
+    const { Tracker } = await import('../../src/ui/Tracker');
+    const onNotePreview = vi.fn();
+    const note: NoteEvent = { kind: 'note', at: 1, pitch: 62, velocity: 0.8, duration: 1 };
+
+    const { container } = render(
+      <Tracker
+        region={{
+          id: 'p0',
+          kind: 'pattern',
+          duration: 4,
+          events: [note],
+        }}
+        playheadStep={null}
+        playing={false}
+        onNotePreview={onNotePreview}
+      />,
+    );
+
+    const tracker = container.querySelector('[data-shortcut-scope="tracker"]');
+    expect(tracker).toBeTruthy();
+
+    fireEvent.keyDown(tracker!, { key: 'ArrowDown' });
+
+    expect(onNotePreview).toHaveBeenCalledWith(62);
+  });
+
   // --- Text-first note editing (#541) ---
 
   it('typing into an empty cell creates a note at the typed pitch', () => {
