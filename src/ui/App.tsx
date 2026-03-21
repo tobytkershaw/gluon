@@ -2430,6 +2430,11 @@ export default function App() {
     setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
+  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number, patternId?: string) => {
+    ensureAudio();
+    setSession((s) => toggleStepGate(s, trackId, stepIndex, patternId));
+  }, [ensureAudio]);
+
   const _handleStepAccent = useCallback((stepIndex: number) => {
     ensureAudio();
     setSession((s) => toggleStepAccent(s, s.activeTrackId, stepIndex));
@@ -3474,6 +3479,7 @@ export default function App() {
             onUpdateModule={handleSurfaceUpdateModule}
             onRemoveModule={handleSurfaceRemoveModule}
             onToggleProcessorEnabled={handleToggleProcessorEnabled}
+            onStepToggle={handleSurfaceStepToggle}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (
