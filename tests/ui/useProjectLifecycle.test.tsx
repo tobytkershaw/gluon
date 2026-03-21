@@ -2,7 +2,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSession } from '../../src/engine/session';
 import { useProjectLifecycle } from '../../src/ui/useProjectLifecycle';
-import { CURRENT_VERSION, stripForPersistence } from '../../src/engine/persistence';
+import { CURRENT_VERSION, loadSession, stripForPersistence } from '../../src/engine/persistence';
 
 const storeMocks = vi.hoisted(() => ({
   listProjects: vi.fn(),
@@ -327,5 +327,48 @@ describe('useProjectLifecycle', () => {
 
     createElementSpy.mockRestore();
     vi.unstubAllGlobals();
+  });
+
+  it('falls back to legacy localStorage autosave when IndexedDB is unavailable', async () => {
+    vi.useFakeTimers();
+
+    listProjects.mockRejectedValue(new Error('IndexedDB down'));
+    createProject.mockRejectedValue(new Error('IndexedDB down'));
+    migrateLegacySession.mockRejectedValue(new Error('IndexedDB down'));
+
+    const setSession = vi.fn();
+    const initialSession = createSession();
+    const degradedSession = {
+      ...initialSession,
+      transport: {
+        ...initialSession.transport,
+        bpm: 133,
+      },
+      messages: [{ role: 'human' as const, text: 'persist me', timestamp: 1 }],
+    };
+
+    const { result, rerender } = renderHook(
+      ({ session }) => useProjectLifecycle(session, setSession),
+      { initialProps: { session: initialSession } },
+    );
+
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(result.current.saveError).toBe(true);
+
+    rerender({ session: degradedSession });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.transport.bpm).toBe(133);
+    expect(loaded!.messages).toEqual([{ role: 'human', text: 'persist me', timestamp: 1 }]);
+
+    vi.useRealTimers();
   });
 });
