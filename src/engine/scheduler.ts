@@ -417,8 +417,12 @@ export class Scheduler {
         resolvedParams.note = (event as NoteEvent).pitch / 127;
       }
 
-      // For drum rack triggers, resolve per-pad params and include padId
-      const triggerPadId = event.kind === 'trigger' ? (event as TriggerEvent).padId : undefined;
+      // For drum rack events (note or legacy trigger), resolve per-pad params and include padId
+      const triggerPadId = event.kind === 'trigger'
+        ? (event as TriggerEvent).padId
+        : event.kind === 'note'
+          ? (event as NoteEvent).padId
+          : undefined;
       let noteParams = resolvedParams;
       let noteBaseParams = automatedBaseParams;
       if (triggerPadId && track.engine === 'drum-rack' && track.drumRack) {

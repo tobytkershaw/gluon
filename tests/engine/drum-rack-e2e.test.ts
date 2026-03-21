@@ -174,18 +174,18 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
       const events = getActivePattern(track).events;
 
       // Verify event counts per pad
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
-      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
-      const hats = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
+      const snares = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
+      const hats = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
 
       expect(kicks).toHaveLength(8);   // 2 per bar x 4 bars
       expect(snares).toHaveLength(4);  // 1 per bar x 4 bars
       expect(hats).toHaveLength(24);   // 6 per bar x 4 bars
 
-      // All events must have padId
+      // All drum events must have padId
       for (const e of events) {
-        if (e.kind === 'trigger') {
-          expect('padId' in e && e.padId).toBeTruthy();
+        if (e.kind === 'note' && 'padId' in e) {
+          expect(e.padId).toBeTruthy();
         }
       }
     });
@@ -247,12 +247,12 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
 
       // The ghost note should be a snare trigger at step 2
       const ghostSnare = eventsAfter.find(
-        e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare' && e.at === 2
+        e => e.kind === 'note' && 'padId' in e && e.padId === 'snare' && e.at === 2
       );
       expect(ghostSnare).toBeDefined();
 
       // Kick events should be untouched
-      const kicks = eventsAfter.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const kicks = eventsAfter.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
       expect(kicks).toHaveLength(8);
     });
 
@@ -358,16 +358,16 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
       // Parse grid strings back to events
       const roundTripped = kitToEvents(lanes);
 
-      // Original events
+      // Original events (note events with padId = drum rack events)
       const originalEvents = getActivePattern(getTrack(s, tid)).events
-        .filter(e => e.kind === 'trigger');
+        .filter(e => e.kind === 'note' && 'padId' in e);
 
       // Same count
       expect(roundTripped).toHaveLength(originalEvents.length);
 
       // Every original event has a match at the same step and pad
       for (const orig of originalEvents) {
-        if (orig.kind !== 'trigger') continue;
+        if (orig.kind !== 'note') continue;
         const match = roundTripped.find(
           e => e.at === Math.floor(orig.at) && e.padId === ('padId' in orig ? orig.padId : undefined)
         );
@@ -548,7 +548,7 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
       }]);
 
       let events = getActivePattern(getTrack(session, trackId)).events;
-      expect(events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat')).toHaveLength(8);
+      expect(events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat')).toHaveLength(8);
 
       // Sketch kick only -- hats should survive
       session = exec(session, [{
@@ -557,8 +557,8 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
       }]);
 
       events = getActivePattern(getTrack(session, trackId)).events;
-      const hats = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const hats = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
       expect(hats).toHaveLength(8); // preserved
       expect(kicks).toHaveLength(2); // newly added
     });
@@ -599,9 +599,9 @@ describe('Drum Rack End-to-End Integration (#1097)', () => {
       }]);
 
       const events = getActivePattern(getTrack(session, trackId)).events;
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
-      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
-      const hats = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
+      const snares = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
+      const hats = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
 
       expect(kicks).toHaveLength(4);   // preserved
       expect(snares).toHaveLength(2);  // preserved

@@ -1,9 +1,15 @@
 // src/engine/drum-grid.ts
 // Grid string serialiser/parser for drum rack patterns.
-// Converts between canonical TriggerEvent[] and grid notation strings
+// Converts between canonical NoteEvent[] (with padId) and grid notation strings
 // like "x...o...|x..o...." where each character encodes position + velocity.
+//
+// Backward compatibility: eventsToGrid/eventsToKit also accept legacy TriggerEvents
+// so existing patterns render correctly.
 
-import type { TriggerEvent } from './canonical-types';
+import type { NoteEvent, TriggerEvent } from './canonical-types';
+
+/** Default pitch for drum rack NoteEvents (C-4). */
+export const DRUM_NOTE_DEFAULT_PITCH = 60;
 
 /** Grid character → velocity mapping. */
 export interface GridLegend {
@@ -48,16 +54,20 @@ export function velocityToGridChar(velocity: number): string {
   return '.';
 }
 
+/** Union type for events that can be serialised to grid strings. */
+type DrumEvent = NoteEvent | TriggerEvent;
+
 /**
- * Serialise trigger events for a single pad into a grid string.
+ * Serialise drum events for a single pad into a grid string.
+ * Accepts both NoteEvents (new) and TriggerEvents (legacy) for backward compatibility.
  *
- * @param events - TriggerEvent[] filtered to a single padId
+ * @param events - DrumEvent[] filtered to a single padId
  * @param patternLength - total steps in the pattern
  * @param stepsPerBar - steps per bar (default 16 for 4/4 at 16th resolution)
  * @returns grid string with bar lines, e.g. "x...o...|x..o...."
  */
 export function eventsToGrid(
-  events: TriggerEvent[],
+  events: DrumEvent[],
   patternLength: number,
   stepsPerBar = 16,
 ): string {
@@ -83,19 +93,19 @@ export function eventsToGrid(
 }
 
 /**
- * Parse a grid string into TriggerEvent[] for a single pad.
+ * Parse a grid string into NoteEvent[] for a single pad.
  *
  * @param grid - grid string, e.g. "x...o...|x..o...."
- * @param padId - the pad these triggers belong to
+ * @param padId - the pad these notes belong to
  * @param legend - character → velocity mapping (defaults to DEFAULT_LEGEND)
- * @returns TriggerEvent[] with padId set
+ * @returns NoteEvent[] with padId set
  */
 export function gridToEvents(
   grid: string,
   padId: string,
   legend: GridLegend = DEFAULT_LEGEND,
-): TriggerEvent[] {
-  const events: TriggerEvent[] = [];
+): NoteEvent[] {
+  const events: NoteEvent[] = [];
   let step = 0;
 
   for (const char of grid) {
@@ -107,9 +117,11 @@ export function gridToEvents(
     const mapping = legend[char];
     if (mapping) {
       events.push({
-        kind: 'trigger',
+        kind: 'note',
         at: step,
+        pitch: DRUM_NOTE_DEFAULT_PITCH,
         velocity: mapping.velocity,
+        duration: 1,
         padId,
       });
     }
@@ -121,25 +133,27 @@ export function gridToEvents(
 
 /**
  * Serialise a full drum rack kit (multiple pads) into a record of grid strings.
+ * Accepts both NoteEvents (new) and TriggerEvents (legacy) for backward compatibility.
  *
- * @param events - all TriggerEvents in the pattern (mixed pads)
+ * @param events - all drum events in the pattern (mixed pads)
  * @param padIds - ordered list of pad IDs to serialise
  * @param patternLength - total steps in the pattern
  * @param stepsPerBar - steps per bar (default 16)
  * @returns Record mapping padId → grid string
  */
 export function eventsToKit(
-  events: TriggerEvent[],
+  events: DrumEvent[],
   padIds: string[],
   patternLength: number,
   stepsPerBar = 16,
 ): Record<string, string> {
-  const grouped = new Map<string, TriggerEvent[]>();
+  const grouped = new Map<string, DrumEvent[]>();
   for (const id of padIds) grouped.set(id, []);
 
   for (const event of events) {
-    if (event.padId && grouped.has(event.padId)) {
-      grouped.get(event.padId)!.push(event);
+    const ePadId = event.padId;
+    if (ePadId && grouped.has(ePadId)) {
+      grouped.get(ePadId)!.push(event);
     }
   }
 
@@ -151,17 +165,17 @@ export function eventsToKit(
 }
 
 /**
- * Parse a full kit (record of grid strings) into TriggerEvent[].
+ * Parse a full kit (record of grid strings) into NoteEvent[].
  *
  * @param kit - Record mapping padId → grid string
  * @param legend - character → velocity mapping
- * @returns TriggerEvent[] with padId set, sorted by `at`
+ * @returns NoteEvent[] with padId set, sorted by `at`
  */
 export function kitToEvents(
   kit: Record<string, string>,
   legend: GridLegend = DEFAULT_LEGEND,
-): TriggerEvent[] {
-  const events: TriggerEvent[] = [];
+): NoteEvent[] {
+  const events: NoteEvent[] = [];
   for (const [padId, grid] of Object.entries(kit)) {
     events.push(...gridToEvents(grid, padId, legend));
   }

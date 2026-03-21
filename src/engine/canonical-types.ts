@@ -131,6 +131,8 @@ export interface NoteEvent extends BaseEvent {
   pitch: number; // MIDI 0-127
   velocity: number; // 0-1
   duration: number; // length in beats
+  /** For drum rack tracks: which pad this note belongs to. */
+  padId?: string;
 }
 
 /**

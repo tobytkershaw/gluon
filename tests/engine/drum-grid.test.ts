@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TriggerEvent } from '../../src/engine/canonical-types';
+import type { TriggerEvent, NoteEvent } from '../../src/engine/canonical-types';
 import {
   eventsToGrid,
   gridToEvents,
@@ -9,6 +9,7 @@ import {
   velocityToGridChar,
   formatLegend,
   DEFAULT_LEGEND,
+  DRUM_NOTE_DEFAULT_PITCH,
 } from '../../src/engine/drum-grid';
 
 describe('drum-grid', () => {
@@ -105,16 +106,24 @@ describe('drum-grid', () => {
       ];
       expect(eventsToGrid(events, 16)).toBe('x...............');
     });
+
+    it('serialises NoteEvents with padId (new format)', () => {
+      const events: NoteEvent[] = [
+        { kind: 'note', at: 0, pitch: 60, velocity: 0.95, duration: 1, padId: 'kick' },
+        { kind: 'note', at: 4, pitch: 60, velocity: 0.75, duration: 1, padId: 'kick' },
+      ];
+      expect(eventsToGrid(events, 8, 8)).toBe('x...o...');
+    });
   });
 
   describe('gridToEvents', () => {
-    it('parses a basic grid string (no bar lines)', () => {
+    it('parses a basic grid string into NoteEvents', () => {
       const events = gridToEvents('x...o...x...o...', 'kick');
       expect(events).toHaveLength(4);
-      expect(events[0]).toEqual({ kind: 'trigger', at: 0, velocity: 0.95, padId: 'kick' });
-      expect(events[1]).toEqual({ kind: 'trigger', at: 4, velocity: 0.75, padId: 'kick' });
-      expect(events[2]).toEqual({ kind: 'trigger', at: 8, velocity: 0.95, padId: 'kick' });
-      expect(events[3]).toEqual({ kind: 'trigger', at: 12, velocity: 0.75, padId: 'kick' });
+      expect(events[0]).toEqual({ kind: 'note', at: 0, pitch: DRUM_NOTE_DEFAULT_PITCH, velocity: 0.95, duration: 1, padId: 'kick' });
+      expect(events[1]).toEqual({ kind: 'note', at: 4, pitch: DRUM_NOTE_DEFAULT_PITCH, velocity: 0.75, duration: 1, padId: 'kick' });
+      expect(events[2]).toEqual({ kind: 'note', at: 8, pitch: DRUM_NOTE_DEFAULT_PITCH, velocity: 0.95, duration: 1, padId: 'kick' });
+      expect(events[3]).toEqual({ kind: 'note', at: 12, pitch: DRUM_NOTE_DEFAULT_PITCH, velocity: 0.75, duration: 1, padId: 'kick' });
     });
 
     it('parses a grid string with bar lines', () => {
@@ -136,6 +145,8 @@ describe('drum-grid', () => {
       expect(events).toHaveLength(1);
       expect(events[0].velocity).toBe(0.30);
       expect(events[0].padId).toBe('hat');
+      expect(events[0].kind).toBe('note');
+      expect(events[0].pitch).toBe(DRUM_NOTE_DEFAULT_PITCH);
     });
 
     it('handles all velocity categories', () => {
@@ -175,6 +186,8 @@ describe('drum-grid', () => {
       for (let i = 0; i < original.length; i++) {
         expect(parsed[i].at).toBe(original[i].at);
         expect(parsed[i].padId).toBe('kick');
+        // Round-tripped events are now NoteEvents
+        expect(parsed[i].kind).toBe('note');
       }
     });
 
@@ -222,7 +235,7 @@ describe('drum-grid', () => {
   });
 
   describe('eventsToKit / kitToEvents', () => {
-    it('serialises a multi-pad kit', () => {
+    it('serialises a multi-pad kit (legacy TriggerEvents)', () => {
       const events: TriggerEvent[] = [
         { kind: 'trigger', at: 0, velocity: 0.95, padId: 'kick' },
         { kind: 'trigger', at: 4, velocity: 0.95, padId: 'snare' },
@@ -233,6 +246,17 @@ describe('drum-grid', () => {
 
       expect(kit['kick']).toBe('x.......x.......');
       expect(kit['snare']).toBe('....x.......x...');
+    });
+
+    it('serialises a multi-pad kit (NoteEvents)', () => {
+      const events: NoteEvent[] = [
+        { kind: 'note', at: 0, pitch: 60, velocity: 0.95, duration: 1, padId: 'kick' },
+        { kind: 'note', at: 4, pitch: 60, velocity: 0.95, duration: 1, padId: 'snare' },
+      ];
+      const kit = eventsToKit(events, ['kick', 'snare'], 8, 8);
+
+      expect(kit['kick']).toBe('x.......');
+      expect(kit['snare']).toBe('....x...');
     });
 
     it('includes empty lanes for pads with no events', () => {
@@ -266,6 +290,8 @@ describe('drum-grid', () => {
       expect(parsed.filter(e => e.padId === 'kick')).toHaveLength(4);
       expect(parsed.filter(e => e.padId === 'snare')).toHaveLength(2);
       expect(parsed.filter(e => e.padId === 'hat')).toHaveLength(4);
+      // Round-tripped events are NoteEvents
+      expect(parsed.every(e => e.kind === 'note')).toBe(true);
     });
 
     it('kitToEvents returns events sorted by at', () => {

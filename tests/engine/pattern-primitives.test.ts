@@ -99,6 +99,27 @@ describe('Pattern Primitives', () => {
       expect(region.events.some(e => e.kind === 'note' && Math.abs(e.at) < 0.01)).toBe(false);
     });
 
+    it('creates NoteEvent (not TriggerEvent) for drum rack track', () => {
+      let s = createLegacySession();
+      const vid = s.tracks[0].id;
+      // Promote track to drum rack
+      s = updateTrack(s, vid, {
+        engine: 'drum-rack' as const,
+        model: -1,
+        drumRack: { pads: [{ id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: { note: 0.47 } }, level: 0.8, pan: 0 }] },
+      });
+      const result = toggleStepGate(s, vid, 0);
+      const region = getTrack(result, vid).patterns[0];
+      // Should create NoteEvent, not TriggerEvent
+      const noteEvent = region.events.find(e => e.kind === 'note' && Math.abs(e.at) < 0.01) as NoteEvent;
+      expect(noteEvent).toBeDefined();
+      expect(noteEvent.pitch).toBe(60); // C-4 default drum pitch
+      expect(noteEvent.velocity).toBe(0.8);
+      expect(noteEvent.duration).toBe(1);
+      // Should NOT have a trigger event
+      expect(region.events.some(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01)).toBe(false);
+    });
+
     it('derives MIDI pitch from track note param', () => {
       let s = createLegacySession();
       // Use a pitched track and set a specific note param

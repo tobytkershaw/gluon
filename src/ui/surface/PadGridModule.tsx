@@ -27,7 +27,7 @@ export function PadGridModule({ module, track, visualContext, roleColor, onParam
     if (track.patterns.length === 0) return active;
     const pattern = getActivePattern(track);
     for (const event of pattern.events) {
-      if (event.kind === 'trigger') {
+      if (event.kind === 'trigger' || event.kind === 'note') {
         const te = event as TriggerEvent;
         if (te.padId && (te.velocity ?? 0.75) > 0) active.add(te.padId);
       }

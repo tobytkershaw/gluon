@@ -2,7 +2,7 @@
 import type { Session, AIAction, AITransformAction, ActionGroupSnapshot, Snapshot, TransportSnapshot, ModelSnapshot, PatternEditSnapshot, ViewSnapshot, ProcessorSnapshot, ProcessorStateSnapshot, ProcessorConfig, ModulatorConfig, ModulationRouting, ModulatorSnapshot, ModulatorStateSnapshot, ModulationRoutingSnapshot, MasterSnapshot, SurfaceSnapshot, ClaimSnapshot, ActionDiff, TrackSurface, PreservationReport, OpenDecision, ToolCallEntry, ListenEvent, TrackPropertySnapshot, BugReport, ScaleSnapshot, ChordProgressionSnapshot, Track, TrackVisualIdentity, DrumPadSnapshot, DrumPad, MemorySnapshot, ProjectMemory } from './types';
 import { MAX_DRUM_PADS, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES } from './types';
 import { getDefaultVisualIdentity } from './visual-identity';
-import { kitToEvents, gridLength } from './drum-grid';
+import { kitToEvents, gridLength, DRUM_NOTE_DEFAULT_PITCH } from './drum-grid';
 
 /**
  * Prefix used by prevalidateAction to distinguish master-volume permission
@@ -11,7 +11,7 @@ import { kitToEvents, gridLength } from './drum-grid';
  */
 export const MASTER_PERMISSION_PREFIX = 'Permission:';
 import { applySurfaceTemplate, validateSurface, maybeApplySurfaceTemplate } from './surface-templates';
-import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp } from './canonical-types';
+import type { ControlState, SourceAdapter, ExecutionReportLogEntry, MusicalEvent, MoveOp, TriggerEvent } from './canonical-types';
 import type { Arbitrator } from './arbitration';
 import { getTrack, getActivePattern, updateTrack, getTrackKind } from './types';
 import { applyMove, applySketch, clampParam } from './primitives';
@@ -262,10 +262,11 @@ export function prevalidateAction(
         const padIdSet = new Set(pads.map(p => p.id));
         if (action.events) {
           for (const ev of action.events) {
-            if (ev.kind === 'trigger') {
-              const trigger = ev as { padId?: string };
-              if (!trigger.padId) return `Drum rack triggers must have padId`;
-              if (!padIdSet.has(trigger.padId)) return `Pad not found: ${trigger.padId}`;
+            // Drum rack events (note or legacy trigger) must have padId
+            if (ev.kind === 'trigger' || ev.kind === 'note') {
+              const drumEv = ev as { padId?: string };
+              if (!drumEv.padId) return `Drum rack events must have padId`;
+              if (!padIdSet.has(drumEv.padId)) return `Pad not found: ${drumEv.padId}`;
             }
           }
         }
@@ -1305,10 +1306,14 @@ function executeActionsInternal(
           }
 
           // Merge: keep events for pads NOT mentioned in kit, replace events for mentioned pads
+          // Check both note (new) and trigger (legacy) events with padId
           const mentionedPadIds = new Set(Object.keys(action.kit));
-          const keptEvents = prevEvents.filter(e =>
-            e.kind !== 'trigger' || !('padId' in e) || !mentionedPadIds.has((e as { padId?: string }).padId ?? ''),
-          );
+          const keptEvents = prevEvents.filter(e => {
+            if ((e.kind === 'trigger' || e.kind === 'note') && 'padId' in e) {
+              return !mentionedPadIds.has((e as { padId?: string }).padId ?? '');
+            }
+            return true;
+          });
           const mergedEvents = [...keptEvents, ...kitEvents];
 
           const updatedRegion = normalizePatternEvents({ ...sketchRegion, events: mergedEvents });
@@ -1634,33 +1639,36 @@ function executeActionsInternal(
           for (const op of editOps) {
             switch (op.action) {
               case 'add': {
-                if (op.event?.type === 'trigger') {
-                  const newTrigger: MusicalEvent = {
-                    kind: 'trigger',
+                // Drum rack pads always use NoteEvents (enables transpose/pitch editing).
+                // Accept both 'trigger' and 'note' type from AI — always create NoteEvent.
+                if (op.event?.type === 'trigger' || op.event?.type === 'note') {
+                  const newNote: MusicalEvent = {
+                    kind: 'note',
                     at: op.step,
+                    pitch: op.event.pitch ?? DRUM_NOTE_DEFAULT_PITCH,
                     velocity: op.event.velocity ?? 0.8,
-                    accent: op.event.accent ?? false,
+                    duration: op.event.duration ?? 1,
                     padId,
                   } as MusicalEvent;
-                  // Check for existing trigger at this step for this pad
+                  // Check for existing event at this step for this pad (note or legacy trigger)
                   const existingIdx = patternEvents.findIndex(
-                    e => e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
+                    e => (e.kind === 'note' || e.kind === 'trigger') && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
                   );
                   if (existingIdx >= 0) {
-                    patternEvents[existingIdx] = newTrigger;
+                    patternEvents[existingIdx] = newNote;
                   } else {
                     const insertAt = patternEvents.findIndex(e => e.at > op.step);
-                    if (insertAt === -1) patternEvents.push(newTrigger);
-                    else patternEvents.splice(insertAt, 0, newTrigger);
+                    if (insertAt === -1) patternEvents.push(newNote);
+                    else patternEvents.splice(insertAt, 0, newNote);
                   }
                 }
                 break;
               }
               case 'remove': {
-                // Only remove triggers matching this pad
+                // Remove events matching this pad (note or legacy trigger)
                 for (let i = patternEvents.length - 1; i >= 0; i--) {
                   const e = patternEvents[i];
-                  if (e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId) {
+                  if ((e.kind === 'note' || e.kind === 'trigger') && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId) {
                     patternEvents.splice(i, 1);
                     break; // remove one at a time
                   }
@@ -1668,16 +1676,18 @@ function executeActionsInternal(
                 break;
               }
               case 'modify': {
-                // Only modify triggers matching this pad
+                // Modify events matching this pad (note or legacy trigger)
                 const idx = patternEvents.findIndex(
-                  e => e.kind === 'trigger' && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
+                  e => (e.kind === 'note' || e.kind === 'trigger') && Math.abs(e.at - op.step) < 0.001 && 'padId' in e && (e as { padId?: string }).padId === padId,
                 );
                 if (idx >= 0 && op.event) {
-                  const existing = patternEvents[idx] as MusicalEvent & { velocity?: number; accent?: boolean };
+                  const existing = patternEvents[idx] as MusicalEvent & { velocity?: number; accent?: boolean; pitch?: number; duration?: number };
                   patternEvents[idx] = {
                     ...existing,
                     ...(op.event.velocity !== undefined ? { velocity: op.event.velocity } : {}),
                     ...(op.event.accent !== undefined ? { accent: op.event.accent } : {}),
+                    ...(op.event.pitch !== undefined ? { pitch: op.event.pitch } : {}),
+                    ...(op.event.duration !== undefined ? { duration: op.event.duration } : {}),
                   } as MusicalEvent;
                 }
                 break;
@@ -1729,10 +1739,10 @@ function executeActionsInternal(
         const prevDuration = region.duration;
         const padScope = action.pad;
         const sourceEvents = padScope
-          ? region.events.filter(e => e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === padScope)
+          ? region.events.filter(e => (e.kind === 'trigger' || e.kind === 'note') && 'padId' in e && (e as { padId?: string }).padId === padScope)
           : region.events;
         const otherEvents = padScope
-          ? region.events.filter(e => !(e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === padScope))
+          ? region.events.filter(e => !((e.kind === 'trigger' || e.kind === 'note') && 'padId' in e && (e as { padId?: string }).padId === padScope))
           : [];
 
         let newEvents: MusicalEvent[];
@@ -1762,7 +1772,15 @@ function executeActionsInternal(
             break;
           case 'euclidean': {
             let eucEvents = euclidean({ hits: action.hits ?? 4, steps: region.duration, rotation: action.rotation ?? 0, velocity: action.velocity ?? 0.8 });
-            if (padScope) { eucEvents = eucEvents.map(e => e.kind === 'trigger' ? { ...e, padId: padScope } : e); }
+            if (padScope) {
+              // Convert euclidean triggers to NoteEvents with padId for drum rack pads
+              eucEvents = eucEvents.map(e => {
+                if (e.kind === 'trigger') {
+                  return { kind: 'note', at: e.at, pitch: DRUM_NOTE_DEFAULT_PITCH, velocity: (e as TriggerEvent).velocity ?? 0.8, duration: 1, padId: padScope } as MusicalEvent;
+                }
+                return e;
+              });
+            }
             newEvents = eucEvents;
             break;
           }
@@ -2821,7 +2839,7 @@ function executeActionsInternal(
           case 'remove': {
             newPads = prevPads.filter(p => p.id !== action.padId);
             // Snapshot patterns before scrubbing orphaned trigger events so undo can restore them
-            const hasEvents = track.patterns.some(p => p.events.some(e => e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === action.padId));
+            const hasEvents = track.patterns.some(p => p.events.some(e => (e.kind === 'trigger' || e.kind === 'note') && 'padId' in e && (e as { padId?: string }).padId === action.padId));
             if (hasEvents) {
               drumPadSnapshot.prevPatterns = track.patterns.map(p => ({ ...p, events: [...p.events] }));
             }
@@ -2850,7 +2868,12 @@ function executeActionsInternal(
         if (action.action === 'remove' && drumPadSnapshot.prevPatterns) {
           trackUpdate.patterns = track.patterns.map(p => ({
             ...p,
-            events: p.events.filter(e => !(e.kind === 'trigger' && 'padId' in e && (e as { padId?: string }).padId === action.padId)),
+            events: p.events.filter(e => {
+              if ((e.kind === 'trigger' || e.kind === 'note') && 'padId' in e) {
+                return (e as { padId?: string }).padId !== action.padId;
+              }
+              return true;
+            }),
           }));
         }
         next = { ...updateTrack(next, action.trackId, trackUpdate), undoStack: [...next.undoStack, drumPadSnapshot] };

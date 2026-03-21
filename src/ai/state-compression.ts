@@ -9,7 +9,7 @@ import { getChordToneNames, recogniseChord } from '../engine/chords';
 import { getProfile, type ReferenceProfile } from '../engine/reference-profiles';
 import type { AudioMetricsSnapshot, AudioMetricFrame } from '../audio/live-audio-metrics';
 import type { MixWarning } from './mix-warnings';
-import type { TriggerEvent } from '../engine/canonical-types';
+import type { TriggerEvent, NoteEvent } from '../engine/canonical-types';
 import { eventsToGrid, eventsToKit, formatLegend, velocityToGridChar, DEFAULT_LEGEND } from '../engine/drum-grid';
 
 interface CompressedGenericPattern {
@@ -482,7 +482,7 @@ function compressDrumPad(pad: DrumPad): CompressedDrumPad {
  * Keys are "padId@bar.beat.sixteenth", values override velocity and/or offset.
  */
 function buildDetailMap(
-  events: TriggerEvent[],
+  events: Array<TriggerEvent | NoteEvent>,
   stepsPerBar: number,
 ): Record<string, Record<string, number>> | undefined {
   const detail: Record<string, Record<string, number>> = {};
@@ -539,13 +539,16 @@ function compressDrumRackPattern(track: Track): CompressedDrumRackPattern {
     };
   }
 
-  const triggerEvents = region.events.filter(
-    (e): e is TriggerEvent => e.kind === 'trigger'
+  // Collect drum events: both NoteEvents with padId (new) and TriggerEvents (legacy)
+  const drumEvents = region.events.filter(
+    (e): e is (NoteEvent & { padId: string }) | TriggerEvent =>
+      (e.kind === 'note' && 'padId' in e && !!(e as NoteEvent).padId) ||
+      e.kind === 'trigger'
   );
-  const lanes = eventsToKit(triggerEvents, padIds, region.duration, stepsPerBar);
-  const detail = buildDetailMap(triggerEvents, stepsPerBar);
+  const lanes = eventsToKit(drumEvents, padIds, region.duration, stepsPerBar);
+  const detail = buildDetailMap(drumEvents, stepsPerBar);
 
-  const soundEventCount = triggerEvents.filter(e => (e.velocity ?? 0.75) !== 0).length;
+  const soundEventCount = drumEvents.filter(e => (e.velocity ?? 0.75) !== 0).length;
   const density = region.duration > 0 ? round2(soundEventCount / region.duration) : 0;
 
   return {
