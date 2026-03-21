@@ -259,7 +259,7 @@ describe('dynamic prompt reference (#777)', () => {
       model: -1,
       drumRack: {
         pads: [
-          { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.5 },
+          { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 13, params: {} }, level: 0.8, pan: 0.0 },
         ],
       },
     });

@@ -104,7 +104,7 @@ Not all parameters live in 0-1 space. The resolver always reads and writes **nat
 | `mix.pan` | -1.0–1.0 | Track/master pan (center = 0.0) |
 | `drumPad` (source params) | 0.0–1.0 | Per-pad source params are normalized |
 | `drumPad.level` | 0.0–1.0 | Per-pad level |
-| `drumPad.pan` | 0.0–1.0 | Per-pad pan (center = 0.5) — note: different from track pan |
+| `drumPad.pan` | -1.0–1.0 | Per-pad pan (center = 0.0) — same convention as track pan |
 
 The resolver reports the native range alongside the value so renderers can normalize without hardcoding per-target knowledge:
 

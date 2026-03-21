@@ -450,15 +450,15 @@ function compressPattern(track: Track): CompressedPattern {
 
 /**
  * Format pan as a human-readable string: "C", "L20", "R45".
- * Pan is 0.0 (full left) to 1.0 (full right), 0.5 = center.
+ * Pan is -1.0 (full left) to 1.0 (full right), 0.0 = center.
  */
 function formatPan(pan: number): string {
-  if (Math.abs(pan - 0.5) < 0.01) return 'C';
-  if (pan < 0.5) {
-    const pct = Math.round((0.5 - pan) * 200);
+  if (Math.abs(pan) < 0.01) return 'C';
+  if (pan < 0) {
+    const pct = Math.round(Math.abs(pan) * 100);
     return `L${pct}`;
   }
-  const pct = Math.round((pan - 0.5) * 200);
+  const pct = Math.round(pan * 100);
   return `R${pct}`;
 }
 

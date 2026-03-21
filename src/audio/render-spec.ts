@@ -131,7 +131,7 @@ export interface RenderPadSpec {
   extendedParams: RenderPlaitsExtended;
   /** Per-pad volume, 0.0–1.0 */
   level: number;
-  /** Per-pad pan, 0.0–1.0 (0.5 = center) */
+  /** Per-pad pan, -1.0 (left) to 1.0 (right), 0.0 = center */
   pan: number;
   /** Choke group — pads sharing a group silence each other on trigger. */
   chokeGroup?: number;

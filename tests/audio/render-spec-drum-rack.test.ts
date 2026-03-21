@@ -12,7 +12,7 @@ import type { DrumRackConfig, DrumPad } from '../../src/engine/types';
 function makeDrumPad(overrides: Partial<DrumPad> & { id: string; name: string }): DrumPad {
   return {
     level: 0.8,
-    pan: 0.5,
+    pan: 0.0,
     source: {
       engine: 'plaits',
       model: 0,
@@ -33,14 +33,14 @@ function makeDrumRackTrack(session: ReturnType<typeof createSession>): {
       name: 'Kick',
       source: { engine: 'plaits', model: 0, params: { harmonics: 0.3, timbre: 0.2, morph: 0.1, note: 0.3 } },
       level: 0.9,
-      pan: 0.5,
+      pan: 0.0,
     }),
     makeDrumPad({
       id: 'snare',
       name: 'Snare',
       source: { engine: 'plaits', model: 5, params: { harmonics: 0.6, timbre: 0.7, morph: 0.4, note: 0.5 } },
       level: 0.8,
-      pan: 0.5,
+      pan: 0.0,
       chokeGroup: 1,
     }),
     makeDrumPad({
@@ -48,7 +48,7 @@ function makeDrumRackTrack(session: ReturnType<typeof createSession>): {
       name: 'Hi-Hat',
       source: { engine: 'plaits', model: 7, params: { harmonics: 0.9, timbre: 0.8, morph: 0.6, note: 0.7 } },
       level: 0.7,
-      pan: 0.6,
+      pan: 0.2,
       chokeGroup: 1,
     }),
   ];
@@ -115,7 +115,7 @@ describe('buildRenderSpec — drum-rack tracks', () => {
     // Hat: model 7 + offset 8 = 15
     expect(pads[2].id).toBe('hat');
     expect(pads[2].model).toBe(15);
-    expect(pads[2].pan).toBe(0.6);
+    expect(pads[2].pan).toBe(0.2);
     expect(pads[2].chokeGroup).toBe(1);
   });
 

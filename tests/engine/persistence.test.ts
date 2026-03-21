@@ -835,7 +835,7 @@ describe('persistence', () => {
 
     it('#1157: deduplicates drum pad IDs within a drum rack', () => {
       const session = makeSession();
-      const pad: DrumPad = { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 0, params: {} }, level: 0.8, pan: 0.5 };
+      const pad: DrumPad = { id: 'kick', name: 'Kick', source: { engine: 'plaits', model: 0, params: {} }, level: 0.8, pan: 0.0 };
       const withDups = {
         ...session,
         tracks: session.tracks.map((t, i) =>

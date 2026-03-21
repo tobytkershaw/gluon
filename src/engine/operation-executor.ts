@@ -2813,7 +2813,7 @@ function executeActionsInternal(
               rejected.push({ op: action, reason: built.error });
               continue;
             }
-            const newPad: DrumPad = { id: action.padId, name: action.name ?? action.padId, source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: built.params }, level: 0.8, pan: 0.5 };
+            const newPad: DrumPad = { id: action.padId, name: action.name ?? action.padId, source: { engine: 'plaits', model: engineIndex >= 0 ? engineIndex : 0, params: built.params }, level: 0.8, pan: 0.0 };
             if (action.chokeGroup != null) (newPad as DrumPad).chokeGroup = action.chokeGroup as number;
             newPads = [...prevPads, newPad];
             break;
