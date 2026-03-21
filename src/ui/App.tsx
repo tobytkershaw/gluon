@@ -2053,25 +2053,29 @@ export default function App() {
   }, [runWithActiveTurnInvalidation]);
 
   const handleLoopStartClick = useCallback((step: number) => {
-    const currentEnd = session.transport.loopEnd;
-    // If there's already a loop end and the new start is before it, keep the end
-    // Otherwise set a default range of 1 bar (beatsPerBar steps)
-    const beatsPerBar = session.transport.timeSignature?.numerator ?? 4;
-    const end = currentEnd != null && currentEnd > step ? currentEnd : step + beatsPerBar;
     void runWithActiveTurnInvalidation(() => {
-      setSession(s => setLoopRange(s, step, end));
+      setSession(s => {
+        const currentEnd = s.transport.loopEnd;
+        const beatsPerBar = s.transport.timeSignature?.numerator ?? 4;
+        const stepsPerBeat = 16 / (s.transport.timeSignature?.denominator ?? 4);
+        const stepsPerBar = beatsPerBar * stepsPerBeat;
+        const end = currentEnd != null && currentEnd > step ? currentEnd : step + stepsPerBar;
+        return setLoopRange(s, step, end);
+      });
     });
-  }, [runWithActiveTurnInvalidation, session.transport.loopEnd, session.transport.timeSignature?.numerator]);
+  }, [runWithActiveTurnInvalidation]);
 
   const handleLoopEndClick = useCallback((step: number) => {
-    const currentStart = session.transport.loopStart;
-    // End is exclusive, so step + 1
-    const endStep = step + 1;
-    const start = currentStart != null && currentStart < endStep ? currentStart : 0;
     void runWithActiveTurnInvalidation(() => {
-      setSession(s => setLoopRange(s, start, endStep));
+      setSession(s => {
+        const currentStart = s.transport.loopStart;
+        // End is exclusive, so step + 1
+        const endStep = step + 1;
+        const start = currentStart != null && currentStart < endStep ? currentStart : 0;
+        return setLoopRange(s, start, endStep);
+      });
     });
-  }, [runWithActiveTurnInvalidation, session.transport.loopStart]);
+  }, [runWithActiveTurnInvalidation]);
 
   // --- Audition handlers (chat inline preview) ---
 

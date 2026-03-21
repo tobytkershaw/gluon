@@ -639,7 +639,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
       >
         {/* POS column — right-aligned, hex format, text-faint per mockup */}
         <td
-          className={`relative pl-0.5 pr-1.5 py-0 text-right text-zinc-600 text-[9px] tabular-nums w-8 select-none ${cursorCellClass('pos')} ${inLoopRange ? 'cursor-pointer' : ''}`}
+          className={`relative pl-0.5 pr-1.5 py-0 text-right text-zinc-600 text-[9px] tabular-nums w-8 select-none ${cursorCellClass('pos')} ${onLoopStartClick || onLoopEndClick ? 'cursor-pointer' : ''}`}
           onClick={(e) => {
             if (!onLoopStartClick && !onLoopEndClick) return;
             e.stopPropagation();

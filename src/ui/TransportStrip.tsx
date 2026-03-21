@@ -193,10 +193,10 @@ function TopbarPeakMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode, 
 }
 
 /** Convert a step position to bar.beat string (1-indexed). */
-function stepToBarBeat(step: number, beatsPerBar: number): string {
-  const beat = Math.floor(step) + 1;
-  const bar = Math.floor((beat - 1) / beatsPerBar) + 1;
-  const beatInBar = ((beat - 1) % beatsPerBar) + 1;
+function stepToBarBeat(step: number, beatsPerBar: number, stepsPerBeat: number = 4): string {
+  const beatIndex = Math.floor(step / stepsPerBeat);
+  const bar = Math.floor(beatIndex / beatsPerBar) + 1;
+  const beatInBar = (beatIndex % beatsPerBar) + 1;
   return `${bar}.${beatInBar}`;
 }
 
@@ -583,18 +583,20 @@ function TimeSignatureControl({ numerator, denominator, onChange }: {
 }
 
 /** Editable loop range popover with bar.beat entry. */
-function LoopRangeEditor({ loopStart, loopEnd, beatsPerBar, onApply, onClear }: {
+function LoopRangeEditor({ loopStart, loopEnd, beatsPerBar, stepsPerBeat = 4, onApply, onClear }: {
   loopStart?: number;
   loopEnd?: number;
   beatsPerBar: number;
+  stepsPerBeat?: number;
   onApply: (start: number, end: number) => void;
   onClear: () => void;
 }) {
   // Parse bar.beat from existing values, default to 1.1 → 5.1 (bars 1-4)
-  const defaultStartBar = loopStart != null ? Math.floor(loopStart / beatsPerBar) + 1 : 1;
-  const defaultStartBeat = loopStart != null ? (loopStart % beatsPerBar) + 1 : 1;
-  const defaultEndBar = loopEnd != null ? Math.floor((loopEnd - 1) / beatsPerBar) + 1 : 5;
-  const defaultEndBeat = loopEnd != null ? ((loopEnd - 1) % beatsPerBar) + 1 : 1;
+  const stepsPerBar = beatsPerBar * stepsPerBeat;
+  const defaultStartBar = loopStart != null ? Math.floor(loopStart / stepsPerBar) + 1 : 1;
+  const defaultStartBeat = loopStart != null ? Math.floor((loopStart % stepsPerBar) / stepsPerBeat) + 1 : 1;
+  const defaultEndBar = loopEnd != null ? Math.floor((loopEnd - 1) / stepsPerBar) + 1 : 5;
+  const defaultEndBeat = loopEnd != null ? Math.floor(((loopEnd - 1) % stepsPerBar) / stepsPerBeat) + 1 : 1;
 
   const [startBar, setStartBar] = useState(defaultStartBar);
   const [startBeat, setStartBeat] = useState(defaultStartBeat);
@@ -603,9 +605,9 @@ function LoopRangeEditor({ loopStart, loopEnd, beatsPerBar, onApply, onClear }: 
 
   const handleApply = () => {
     // Convert bar.beat to step (0-indexed)
-    const start = (startBar - 1) * beatsPerBar + (startBeat - 1);
+    const start = ((startBar - 1) * beatsPerBar + (startBeat - 1)) * stepsPerBeat;
     // End is exclusive: the step AFTER the last beat in the range
-    const end = (endBar - 1) * beatsPerBar + endBeat;
+    const end = ((endBar - 1) * beatsPerBar + endBeat) * stepsPerBeat;
     if (end > start) {
       onApply(start, end);
     }
