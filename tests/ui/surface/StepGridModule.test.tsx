@@ -171,17 +171,22 @@ describe('StepGridModule', () => {
     expect(onPaintComplete).toHaveBeenCalledWith('trk-1', 'pat-1', []);
   });
 
-  it('does not call onStepToggle when callback is absent (read-only)', () => {
+  it('does not call onStepToggle or onPaintComplete when callback is absent (read-only)', () => {
+    const onPaintComplete = vi.fn();
     const track = makeTrack({ patterns: [makePattern()] });
     const { container } = render(
       <StepGridModule
         module={makeModule()}
         track={track}
+        onPaintComplete={onPaintComplete}
       />,
     );
     const stepCells = getStepCells(container);
-    // Should not throw when clicking without callback
+    // Should not throw when clicking without onStepToggle
     fireEvent.pointerDown(stepCells[0]);
+    fireEvent.pointerUp(document);
+    // Paint never started, so onPaintComplete should not be called
+    expect(onPaintComplete).not.toHaveBeenCalled();
   });
 
   it('adds cursor-pointer class when interactive', () => {

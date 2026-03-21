@@ -144,6 +144,17 @@ describe('Pattern Primitives', () => {
       expect(trigger).toBeDefined();
       expect(trigger.velocity).toBe(0);
     });
+
+    it('does not push undo when pushUndo is false', () => {
+      const s = createSession();
+      const vid = s.tracks[0].id;
+      const initialUndoLength = s.undoStack.length;
+      const result = toggleStepGate(s, vid, 0, undefined, { pushUndo: false });
+      // Gate should still be toggled
+      expect(getTrack(result, vid).stepGrid.steps[0].gate).toBe(true);
+      // But undo stack should not grow
+      expect(result.undoStack.length).toBe(initialUndoLength);
+    });
   });
 
   describe('toggleStepAccent', () => {
