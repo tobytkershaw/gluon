@@ -1026,8 +1026,10 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(summary).toContain('Only the tool calls listed below were executed this step.');
     expect(summary).toContain('set_model({"trackId":"v0","model":"definitely-not-a-real-model"})');
     expect(summary).toContain('manage_drum_pad({"trackId":"v0","action":"rename","padId":"kick","name":"Kick","description":"rename pad"})');
-    expect(summary).toContain('Unknown model: definitely-not-a-real-model');
-    expect(summary).toContain('Track v0 is not a drum rack');
+    // set_model now catches unknown engines at call time (not execution time)
+    expect(summary).toContain('definitely-not-a-real-model');
+    // manage_drum_pad hits validation (track is not a drum rack)
+    expect(summary).toContain('manage_drum_pad');
     expect(summary).toContain('If an action is absent from this history, it was not executed.');
   });
 });

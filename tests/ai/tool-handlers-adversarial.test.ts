@@ -205,8 +205,10 @@ describe('move — adversarial', () => {
       trackId: session.tracks[0].id,
       processorId: 'nonexistent-proc',
     });
-    // Should still produce an action (the handler doesn't validate processor existence at call time)
-    expect(response.applied).toBe(true);
+    // Should return an error identifying the invalid processor ID
+    expect(response.error).toBeDefined();
+    expect(response.error).toContain('nonexistent-proc');
+    expect(response.error).toContain('not found');
   });
 
   it('handles non-existent modulator ID gracefully', async () => {
@@ -217,7 +219,10 @@ describe('move — adversarial', () => {
       trackId: session.tracks[0].id,
       modulatorId: 'nonexistent-mod',
     });
-    expect(response.applied).toBe(true);
+    // Should return an error identifying the invalid modulator ID
+    expect(response.error).toBeDefined();
+    expect(response.error).toContain('nonexistent-mod');
+    expect(response.error).toContain('not found');
   });
 
   it('handles relative move with negative value', async () => {
@@ -782,8 +787,9 @@ describe('set_model — adversarial', () => {
       trackId: session.tracks[0].id,
       model: 'x'.repeat(1000),
     });
-    // Should produce an action (model validation happens at execution time)
-    expect(response.queued).toBe(true);
+    // Should return an error for unknown engine model
+    expect(response.error).toBeDefined();
+    expect(response.error).toContain('Unknown engine model');
   });
 });
 
@@ -860,16 +866,19 @@ describe('manage_processor — adversarial', () => {
     expect(actions).toHaveLength(0);
   });
 
-  it('accepts remove with non-existent processorId (no pre-check)', async () => {
+  it('rejects remove with non-existent processorId', async () => {
     const session = makeSession();
-    const { response } = await callTool(session, 'manage_processor', {
+    const { response, actions } = await callTool(session, 'manage_processor', {
       action: 'remove',
       trackId: session.tracks[0].id,
       processorId: 'nonexistent-proc',
       description: 'remove test',
     });
-    // The handler doesn't validate existence, just creates the action
-    expect(response.applied).toBe(true);
+    // Should return an error identifying the invalid processor ID
+    expect(response.error).toBeDefined();
+    expect(response.error).toContain('nonexistent-proc');
+    expect(response.error).toContain('not found');
+    expect(actions).toHaveLength(0);
   });
 
   it('rejects add with missing description', async () => {
