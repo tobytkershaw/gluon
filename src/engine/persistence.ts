@@ -72,30 +72,11 @@ export function stripForPersistence(session: Session): Session {
  * Check whether a session differs from the default enough to be worth saving.
  */
 function isNonDefault(session: Session): boolean {
-  const defaults = createSession();
-  if (session.tracks.length !== defaults.tracks.length) return true;
-  if (session.messages.length > 0) return true;
-  if (session.transport.bpm !== defaults.transport.bpm) return true;
-  if (session.transport.swing !== defaults.transport.swing) return true;
-  for (let i = 0; i < session.tracks.length; i++) {
-    const v = session.tracks[i];
-    const d = defaults.tracks[i];
-    if (!v || !d) continue;
-    // agency field removed in #926 — skip comparison
-    if (v.model !== d.model) return true;
-    if (v.muted !== d.muted || v.solo !== d.solo) return true;
-    if (v.volume !== d.volume || v.pan !== d.pan) return true;
-    if (v.params.timbre !== d.params.timbre || v.params.morph !== d.params.morph) return true;
-    if (v.params.harmonics !== d.params.harmonics || v.params.note !== d.params.note) return true;
-    // Check patterns for content
-    if (v.patterns.some(p => p.events.length > 0)) return true;
-    // Fallback: check step-grid for content
-    if (v.stepGrid.length !== d.stepGrid.length) return true;
-    for (const step of v.stepGrid.steps) {
-      if (step.gate || step.accent || step.micro !== 0 || step.params) return true;
-    }
-  }
-  return false;
+  // Compare the exact persisted shape rather than a hand-maintained subset.
+  // This avoids silently dropping newer metadata fields when saveSession decides
+  // whether a write is necessary.
+  return JSON.stringify(stripForPersistence(session))
+    !== JSON.stringify(stripForPersistence(createSession()));
 }
 
 /** Validate that a loaded object looks like a Session. */
