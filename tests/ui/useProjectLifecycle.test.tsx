@@ -371,4 +371,49 @@ describe('useProjectLifecycle', () => {
 
     vi.useRealTimers();
   });
+
+  it('imports a project and switches to it', async () => {
+    localStorage.setItem('gluon-active-project', 'p1');
+    loadProject.mockImplementation(async (id: string) => {
+      if (id === 'p1') return { id: 'p1', meta: { id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }, session };
+      if (id === 'imported') return { id: 'imported', meta: { id: 'imported', name: 'Imported', createdAt: 3, updatedAt: 4 }, session: altSession };
+      return null;
+    });
+    listProjects.mockResolvedValue([{ id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }]);
+
+    const file = new File([JSON.stringify({ ok: true })], 'import.gluon', { type: 'application/json' });
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.projectId).toBe('p1'));
+
+    await act(async () => {
+      await result.current.importProject(file);
+    });
+
+    expect(importProject).toHaveBeenCalledWith(JSON.stringify({ ok: true }));
+    expect(result.current.projectId).toBe('imported');
+    expect(result.current.projectName).toBe('Imported');
+  });
+
+  it('surfaces import failures without changing the active project', async () => {
+    localStorage.setItem('gluon-active-project', 'p1');
+    loadProject.mockResolvedValue({ id: 'p1', meta: { id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }, session });
+    listProjects.mockResolvedValue([{ id: 'p1', name: 'One', createdAt: 1, updatedAt: 2 }]);
+    importProject.mockRejectedValue(new Error('Bad project file'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const file = new File(['bad'], 'broken.gluon', { type: 'application/json' });
+    const setSession = vi.fn();
+    const { result } = renderHook(() => useProjectLifecycle(session, setSession));
+    await waitFor(() => expect(result.current.projectId).toBe('p1'));
+
+    await act(async () => {
+      await result.current.importProject(file);
+    });
+
+    expect(result.current.projectId).toBe('p1');
+    expect(result.current.projectActionError).toBe('Bad project file');
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
 });
