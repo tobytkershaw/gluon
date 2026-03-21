@@ -75,11 +75,11 @@ describe('selectStarters', () => {
     expect(result.state).toBe('resume');
   });
 
-  it('tracks-exist starters include track-aware prompts', () => {
+  it('tracks-exist starters include generic next-step prompts', () => {
     const tracks = [makeTrack('kick'), makeTrack('bass')];
     const result = selectStarters(tracks, []);
     expect(result.state).toBe('tracks-exist');
-    expect(result.starters.some(s => s.toLowerCase().includes('mix'))).toBe(true);
+    expect(result.starters).toContain('What would you change?');
   });
 
   it('tracks-exist starters when a blank extra track has non-default mix settings', () => {
