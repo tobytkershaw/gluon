@@ -3542,6 +3542,9 @@ export default function App() {
             onStepToggle={handleSurfaceStepToggle}
             onStepAccentToggle={handleSurfaceStepAccentToggle}
             onPaintComplete={handlePaintComplete}
+            playing={session.transport.status === 'playing'}
+            globalStep={globalStep}
+            bpm={session.transport.bpm}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (
