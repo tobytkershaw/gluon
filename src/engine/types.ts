@@ -632,6 +632,9 @@ export interface SurfaceSnapshot {
   kind: 'surface';
   trackId: string;
   prevSurface: TrackSurface;
+  /** When a live-control module is promoted to the surface, we stash the
+   *  previous liveControls array so undo can restore it. */
+  prevLiveControls?: LiveControlModule[];
   timestamp: number;
   description: string;
 }
