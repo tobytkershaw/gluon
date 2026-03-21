@@ -72,6 +72,8 @@ interface Props {
   onPlayFromRow?: (step: number) => void;
   /** Called when the selection range changes. stepRange is [lo, hi] inclusive, eventIndices are flat indices into region.events. Null when no selection. */
   onSelectionChange?: (selection: { stepRange: [number, number]; eventIndices: number[] } | null) => void;
+  /** Drum pad names for column headers (drum rack tracks only). When provided, replaces CH1/CH2 with abbreviated pad names. */
+  drumPadNames?: string[];
 }
 
 /**
@@ -194,7 +196,27 @@ function getColCount(noteColumns: number, fxColumns: number): number {
   return 1 + noteColumns + 2 + fxColumns;
 }
 
-export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow, onSelectionChange }: Props) {
+/** Abbreviate a drum pad name for a column header (max 3 chars, uppercase). */
+export function abbreviatePadName(name: string): string {
+  const KNOWN: Record<string, string> = {
+    kick: 'KCK', snare: 'SNR', clap: 'CLP', rim: 'RIM',
+    'hi-hat': 'HAT', hihat: 'HAT', 'closed hat': 'CHH', 'open hat': 'OHH',
+    'closed hi-hat': 'CHH', 'open hi-hat': 'OHH',
+    crash: 'CRS', ride: 'RDE', tom: 'TOM',
+    'high tom': 'HTM', 'mid tom': 'MTM', 'low tom': 'LTM',
+    shaker: 'SHK', tambourine: 'TMB', cowbell: 'CWB', conga: 'CNG',
+    bongo: 'BNG', cymbal: 'CYM', perc: 'PRC',
+  };
+  const lower = name.toLowerCase().trim();
+  if (KNOWN[lower]) return KNOWN[lower];
+  // Strip vowels (except leading) to compress, then take first 3 uppercase chars.
+  // If stripping produces fewer than 2 chars, fall back to the raw name.
+  const stripped = lower[0] + lower.slice(1).replace(/[aeiou]/g, '');
+  const candidate = stripped.length >= 2 ? stripped : lower;
+  return candidate.slice(0, 3).toUpperCase();
+}
+
+export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow, onSelectionChange, drumPadNames }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -708,18 +730,21 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
     containerRef.current?.focus();
   }, [anchorRow, cursorRow]);
 
-  // Build note column headers (Ch1, Ch2, Ch3, Ch4)
+  // Build note column headers (Ch1, Ch2, Ch3, Ch4 — or abbreviated pad names for drum racks)
   const noteColumnHeaders = useMemo(() => {
     const headers: React.ReactNode[] = [];
     for (let c = 0; c < maxNoteColumns; c++) {
+      const padName = drumPadNames?.[c];
+      const label = padName ? abbreviatePadName(padName) : `Ch${c + 1}`;
+      const title = padName ?? `Channel ${c + 1}`;
       headers.push(
-        <th key={`note-${c}`} className="px-1 py-0.5 text-center w-10 whitespace-nowrap">
-          Ch{c + 1}
+        <th key={`note-${c}`} className="px-1 py-0.5 text-center w-10 whitespace-nowrap" title={title}>
+          {label}
         </th>
       );
     }
     return headers;
-  }, [maxNoteColumns]);
+  }, [maxNoteColumns, drumPadNames]);
 
   // Build FX column headers
   const fxColumnHeaders = useMemo(() => {
