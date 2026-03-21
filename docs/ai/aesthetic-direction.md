@@ -162,13 +162,7 @@ The undo stack is mixed (human and AI actions interleave), and even AI-provenanc
 
 Taste-informed behavior depends on preservation being enforceable. "Respect what's been approved" only works if the system can protect approved material during edits.
 
-This document assumes that preservation contracts ([preservation-contracts.md](../rfcs/preservation-contracts.md)) land before or alongside this work:
-
-- `mark_approved` and `preserve_material` operations exist as runtime-enforced tools
-- Expansion tools accept preservation constraints as parameters
-- The operation executor validates preservation constraints before applying edits
-
-Without these, taste-informed preservation is just a prompt instruction that the model may ignore under pressure. With them, "respect what the user approved" becomes a runtime invariant.
+Preservation contracts ([preservation-contracts.md](../rfcs/preservation-contracts.md)) are implemented. The `set_track_meta` tool controls claim state (binary claimed/unclaimed), and the operation executor validates preservation constraints before applying edits. "Respect what the user claimed" is a runtime invariant.
 
 ---
 
@@ -190,20 +184,18 @@ No new subsystem. Extends work already planned for the session and collaboration
 
 ### Dependencies
 
-1. **Collaboration state in session** (from ai-musical-environment.md, planned for M4): reaction history, observed patterns, and restraint are additions to this layer.
-2. **Preservation contracts** (from preservation-contracts.md): required for taste-informed preservation to be enforceable.
+1. **Collaboration state in session** (from ai-musical-environment.md): reaction history, observed patterns, and restraint guidance are implemented and shipped in the compressed state. See [ai-contract.md](./ai-contract.md) for the current serialised state format.
+2. **Preservation contracts** (from preservation-contracts.md): implemented and shipped. Runtime enforcement of approved material during AI edits.
 
 ### Incremental Steps
 
-**Step 1: Reaction history.** Add the rolling reaction log to session state. Populate from existing signals: undo events (with AI-provenance tagging), explicit approvals, user comments, manual parameter adjustments following AI edits.
+**Step 1: Reaction history.** (Implemented) Rolling reaction log in the compressed state (`recent_reactions`). Populated from undo events, explicit approvals, user comments, and manual parameter adjustments following AI edits.
 
-**Step 2: Rationale on approvals and rejections.** Extend the existing approved/rejected directions fields to include rationale strings.
+**Step 2: Rationale on approvals and rejections.** (Implemented) Reaction verdicts carry optional rationale strings. The `suggest_reactions` tool generates contextual chips that, when clicked, record `approved` verdicts with the chip text as rationale.
 
-**Step 3: Observed patterns and restraint.** Add these fields. The model updates them during its planning step. Prompt guidance instructs the model to check them before choosing intervention size.
+**Step 3: Observed patterns and restraint.** (Implemented) `observed_patterns` and `restraint_level` fields in the compressed state. Derived from reaction history. The model checks them before choosing intervention size.
 
-**Step 4: Prompt tuning.** Iterate on the prompt rules. This is where behavioral effects land — not in state machinery, but in how the model reasons about enriched state.
-
-Each step is independently useful and testable. Step 1 alone gives the model better context. Step 3 is where the behavioral effects start to appear. Step 4 is ongoing.
+**Step 4: Prompt tuning.** (Ongoing) Iterating on prompt rules and system prompt guidance for taste-informed behavior.
 
 ---
 
