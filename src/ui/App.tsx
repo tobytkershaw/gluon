@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components -- pure helper fn co-located with component */
 // src/ui/App.tsx
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { AudioEngine } from '../audio/audio-engine';
 import { AudioExporter } from '../audio/audio-exporter';
 import { LiveAudioMetricsStore } from '../audio/live-audio-metrics';
@@ -3386,6 +3386,10 @@ export default function App() {
     audioTracks.length <= 1 &&
     audioTracks.every(t => t.patterns.every(p => p.events.length === 0));
 
+  // Stabilize analyser references so downstream components don't restart rAF loops on unrelated re-renders
+  const stableAnalyser = useMemo(() => audioStarted ? audioRef.current.getAnalyser() : null, [audioStarted]);
+  const stableStereoAnalysers = useMemo(() => audioStarted ? audioRef.current.getStereoAnalysers() : null, [audioStarted]);
+
   return (
     <>
     <AppShell
@@ -3496,8 +3500,8 @@ export default function App() {
       cancelEditRef={cancelEditRef}
       masterVolume={session.master.volume}
       masterPan={session.master.pan}
-      analyser={audioStarted ? audioRef.current.getAnalyser() : null}
-      stereoAnalysers={audioStarted ? audioRef.current.getStereoAnalysers() : null}
+      analyser={stableAnalyser}
+      stereoAnalysers={stableStereoAnalysers}
       audioContext={audioStarted ? audioRef.current.getAudioContext() : null}
       audioEngine={audioStarted ? audioRef.current : null}
       onMasterVolumeChange={handleMasterVolumeChange}
