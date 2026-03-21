@@ -199,3 +199,4 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/briefs/sampling.md` - Sampling strategy and implementation.
 - `docs/briefs/modular-roadmap.md` - Modular architecture roadmap.
 - `docs/briefs/ai-memory.md` - Per-project AI memory: durable direction, track-narrative, and decision memories via tool contract. Extends collaboration state from aesthetic-direction.md.
+- `docs/briefs/hardware-integration.md` - Hardware controller integration: target hardware (Novation, Arturia, TouchOSC), Web MIDI API, MIDI Learn, controller profiles, bidirectional feedback, phased implementation.
