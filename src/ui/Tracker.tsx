@@ -761,12 +761,12 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       tabIndex={0}
       onKeyDown={handleKeyDown}
       data-shortcut-scope="tracker"
-      className="outline-none"
+      className="outline-none overflow-x-auto"
     >
       <div className="flex items-center gap-2 px-1 py-0.5 text-[9px] text-zinc-500 font-mono sticky top-0 bg-zinc-900/95 backdrop-blur-sm z-10">
         <span title="Base octave for keyboard-as-piano entry (-/= to shift)">Oct:{Math.floor(BASE_MIDI_LOWER / OCTAVE) - 1 + octaveOffset}</span>
       </div>
-      <table className="w-full border-collapse select-none font-mono text-[11px]">
+      <table className="border-collapse select-none font-mono text-[11px]">
         <thead>
           <tr className="text-[9px] text-zinc-500 uppercase tracking-wider font-medium sticky top-0 bg-zinc-900 border-b border-zinc-700/60 z-[2]">
             <th className="px-1 py-0.5 text-center w-8 whitespace-nowrap">Pos</th>
