@@ -11,9 +11,10 @@ interface LiveControlsPanelProps {
   onAddToSurface: (liveModule: LiveControlModule) => void;
   onParamChange?: (param: string, value: number) => void;
   onProcessorParamChange?: (processorId: string, param: string, value: number) => void;
+  onDrumPadParamChange?: (padId: string, param: string, value: number) => void;
 }
 
-export function LiveControlsPanel({ modules, tracks, onTouch, onAddToSurface, onParamChange, onProcessorParamChange }: LiveControlsPanelProps) {
+export function LiveControlsPanel({ modules, tracks, onTouch, onAddToSurface, onParamChange, onProcessorParamChange, onDrumPadParamChange }: LiveControlsPanelProps) {
   const trackById = (id: string) => tracks.find(t => t.id === id);
 
   return (
@@ -40,6 +41,7 @@ export function LiveControlsPanel({ modules, tracks, onTouch, onAddToSurface, on
             onAddToSurface={onAddToSurface}
             onParamChange={onParamChange}
             onProcessorParamChange={onProcessorParamChange}
+            onDrumPadParamChange={onDrumPadParamChange}
           />
         ))}
 

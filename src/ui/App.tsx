@@ -1189,6 +1189,25 @@ export default function App() {
     });
   }, [ensureAudio]);
 
+  /** Drum pad param change without per-frame undo — used during surface drags. */
+  const handleSurfaceDrumPadParamChange = useCallback((padId: string, param: string, value: number) => {
+    ensureAudio();
+    const vid = sessionRef.current.activeTrackId;
+    arbRef.current.humanTouched(vid, `${padId}.${param}`, value, 'source');
+    setSession((s) => {
+      const track = getTrack(s, vid);
+      if (!track.drumRack) return s;
+      const clamped = Math.max(0, Math.min(1, value));
+      const newPads = track.drumRack.pads.map(p => {
+        if (p.id !== padId) return p;
+        if (param === 'level') return { ...p, level: clamped };
+        if (param === 'pan') return { ...p, pan: clamped };
+        return { ...p, source: { ...p.source, params: { ...p.source.params, [param]: clamped } } };
+      });
+      return updateTrack(s, vid, { drumRack: { ...track.drumRack, pads: newPads } });
+    });
+  }, [ensureAudio]);
+
   /** Update a surface module (label, bindings) with undo. */
   const handleSurfaceUpdateModule = useCallback((updated: SurfaceModule) => {
     setSession((s) => {
@@ -3495,6 +3514,7 @@ export default function App() {
             trackIndex={activeTrackIndex}
             onParamChange={handleSurfaceSourceParamChange}
             onProcessorParamChange={handleSurfaceProcessorParamChange}
+            onDrumPadParamChange={handleSurfaceDrumPadParamChange}
             onInteractionStart={handleSurfaceInteractionStart}
             onInteractionEnd={handleSurfaceInteractionEnd}
             onAddModule={handleAddSurfaceModule}

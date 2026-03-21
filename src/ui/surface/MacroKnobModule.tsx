@@ -23,6 +23,7 @@ export function MacroKnobModule({
   roleColor,
   onParamChange,
   onProcessorParamChange,
+  onDrumPadParamChange,
   onInteractionStart,
   onInteractionEnd,
 }: ModuleRendererProps) {
@@ -46,10 +47,10 @@ export function MacroKnobModule({
       if (!target) return;
       const result = writeBinding(track, target, knobValue);
       if (result.status === 'ok') {
-        dispatchMutations(result.mutations, { onParamChange, onProcessorParamChange });
+        dispatchMutations(result.mutations, { onParamChange, onProcessorParamChange, onDrumPadParamChange });
       }
     },
-    [track, target, onParamChange, onProcessorParamChange],
+    [track, target, onParamChange, onProcessorParamChange, onDrumPadParamChange],
   );
 
   // No config and no binding — show fallback

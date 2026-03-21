@@ -13,6 +13,7 @@ interface LiveModuleRendererProps {
   onAddToSurface: (liveModule: LiveControlModule) => void;
   onParamChange?: (param: string, value: number) => void;
   onProcessorParamChange?: (processorId: string, param: string, value: number) => void;
+  onDrumPadParamChange?: (padId: string, param: string, value: number) => void;
 }
 
 // ── Knob arc helpers (matches MiniKnob conventions) ─────────────────────────
@@ -138,7 +139,7 @@ function bindingLabel(target: string | BindingTarget): string {
 
 // ── Module card ─────────────────────────────────────────────────────────────
 
-export function LiveModuleRenderer({ liveModule, track, onTouch, onAddToSurface, onParamChange, onProcessorParamChange }: LiveModuleRendererProps) {
+export function LiveModuleRenderer({ liveModule, track, onTouch, onAddToSurface, onParamChange, onProcessorParamChange, onDrumPadParamChange }: LiveModuleRendererProps) {
   const mod = liveModule.module;
   const trackName = track?.name ?? liveModule.trackId;
   const accentColor = track ? computeThumbprintColor(track) : 'rgb(167 139 250)';
@@ -153,10 +154,12 @@ export function LiveModuleRenderer({ liveModule, track, onTouch, onAddToSurface,
           onParamChange(m.param, m.value);
         } else if (m.kind === 'processorParam' && onProcessorParamChange) {
           onProcessorParamChange(m.processorId, m.param, m.value);
+        } else if (m.kind === 'drumPadParam' && onDrumPadParamChange) {
+          onDrumPadParamChange(m.padId, m.param, m.value);
         }
       }
     }
-  }, [liveModule.id, track, onTouch, onParamChange, onProcessorParamChange]);
+  }, [liveModule.id, track, onTouch, onParamChange, onProcessorParamChange, onDrumPadParamChange]);
 
   const handleAddToSurface = useCallback(() => {
     onAddToSurface(liveModule);

@@ -34,11 +34,19 @@ describe('dispatchMutations', () => {
     expect(onProcessorParamChange).toHaveBeenCalledTimes(1);
   });
 
+  it('dispatches drumPadParam to onDrumPadParamChange', () => {
+    const onDrumPadParamChange = vi.fn();
+    const mutations: ParamMutation[] = [
+      { kind: 'drumPadParam', padId: 'kick', param: 'timbre', value: 0.4 },
+    ];
+    dispatchMutations(mutations, { onDrumPadParamChange });
+    expect(onDrumPadParamChange).toHaveBeenCalledWith('kick', 'timbre', 0.4);
+  });
+
   it('silently drops mutations without matching callbacks', () => {
     const mutations: ParamMutation[] = [
       { kind: 'modulatorParam', modulatorId: 'lfo1', param: 'rate', value: 0.5 },
       { kind: 'mixParam', param: 'volume', value: 0.8 },
-      { kind: 'drumPadParam', padId: 'kick', param: 'level', value: 0.6 },
     ];
     // No callbacks provided — should not throw
     expect(() => dispatchMutations(mutations, {})).not.toThrow();
@@ -68,8 +76,8 @@ describe('canDispatch', () => {
     expect(canDispatch({ kind: 'mix', param: 'volume' })).toBe(false);
   });
 
-  it('returns false for drumPad targets', () => {
-    expect(canDispatch({ kind: 'drumPad', padId: 'kick', param: 'level' })).toBe(false);
+  it('returns true for drumPad targets', () => {
+    expect(canDispatch({ kind: 'drumPad', padId: 'kick', param: 'level' })).toBe(true);
   });
 
   it('returns true for weighted targets with only source/processor mappings', () => {
