@@ -13,7 +13,8 @@ const TYPE_MAP: Record<string, string> = {
   array: Type.ARRAY,
 };
 
-const UNSUPPORTED_KEYS = ['anyOf', 'additionalProperties', 'nullable'] as const;
+const UNSUPPORTED_KEYS = ['anyOf', 'nullable'] as const;
+const STRIPPED_KEYS = ['additionalProperties'] as const;
 
 /**
  * Flatten a `oneOf` into a single Gemini-compatible type.
@@ -59,6 +60,14 @@ function convertSchema(schema: JsonSchema, path: string): Schema {
         `Unsupported JSON Schema feature "${key}" at ${path}. ` +
         `Gemini's function declaration format does not support this feature.`,
       );
+    }
+  }
+
+  // Silently strip keys that are harmless validation hints unsupported by Gemini
+  for (const key of STRIPPED_KEYS) {
+    if (schema[key] !== undefined) {
+      const { [key]: _, ...rest } = schema;
+      schema = rest as JsonSchema;
     }
   }
 

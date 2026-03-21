@@ -160,17 +160,20 @@ describe('toGeminiDeclarations', () => {
     expect(() => toGeminiDeclarations(tools)).toThrow(/anyOf.*bad\.x/);
   });
 
-  it('throws for additionalProperties', () => {
+  it('silently strips additionalProperties', () => {
     const tools: ToolSchema[] = [{
-      name: 'bad',
-      description: 'bad tool',
+      name: 'test',
+      description: 'test tool',
       parameters: {
         type: 'object',
         additionalProperties: true,
       },
     }];
 
-    expect(() => toGeminiDeclarations(tools)).toThrow(/additionalProperties/);
+    const [decl] = toGeminiDeclarations(tools);
+    expect(decl.parameters!.type).toBe(Type.OBJECT);
+    // additionalProperties should not appear in converted output
+    expect((decl.parameters as Record<string, unknown>).additionalProperties).toBeUndefined();
   });
 
   it('throws for unknown type', () => {
