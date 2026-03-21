@@ -188,6 +188,7 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/rfcs/patch-view-layer.md` - Patch views as projections over chain/modulation data. Node graph is the ground-truth view (like tracker for sequencing); inline modulation, chain strips are projections.
 - `docs/rfcs/audio-analysis-tools.md` - Audio analysis tools (implemented): render, listen, spectral, dynamics, rhythm, masking, diff. Composable primitives with confidence signals and compare mode.
 - `docs/rfcs/parameter-automation-research.md` - Parameter automation research: absolute vs relative, inline vs lanes, interpolation, modulation vs automation, AI legibility. Informs #408, #432, #307, #463.
+- `docs/rfcs/cross-project-memory.md` - Cross-project user memory (taste, workflow, profile). Explicitly supersedes the persistent-taste deferral in aesthetic-direction.md. Requires per-project memory + memory panel UI for parity.
 
 ### Briefs (`docs/briefs/`)
 - `docs/briefs/phase4a.md` - Phase 4A implementation brief.
@@ -197,3 +198,4 @@ These can be combined — e.g. `/review` + `gluon-reviewer` for engine changes. 
 - `docs/briefs/cross-model-consultation.md` - Cross-model consultation patterns.
 - `docs/briefs/sampling.md` - Sampling strategy and implementation.
 - `docs/briefs/modular-roadmap.md` - Modular architecture roadmap.
+- `docs/briefs/ai-memory.md` - Per-project AI memory: durable direction, track-narrative, and decision memories via tool contract. Extends collaboration state from aesthetic-direction.md.
