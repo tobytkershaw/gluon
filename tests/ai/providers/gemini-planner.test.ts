@@ -351,7 +351,9 @@ describe('GeminiPlannerProvider', () => {
     planner.commitTurn();
     vi.clearAllMocks();
 
-    // First call counts system prompt tokens, second counts message + tool tokens
+    // First call counts the system prompt separately. Second call counts only
+    // message contents because Gemini's countTokens endpoint does not accept
+    // systemInstruction or tools config.
     mockCountTokens.mockResolvedValueOnce({ totalTokens: 2_000 });
     mockCountTokens.mockResolvedValueOnce({ totalTokens: 40_000 });
     const tokens = await planner.countContextTokens('system prompt', GLUON_TOOLS);
@@ -361,10 +363,13 @@ describe('GeminiPlannerProvider', () => {
     const sysCall = mockCountTokens.mock.calls[0][0];
     expect(sysCall.model).toBe('gemini-3.1-pro-preview-customtools');
     expect(sysCall.contents).toEqual([{ role: 'user', parts: [{ text: 'system prompt' }] }]);
-    // Second call: messages + tools
+    // Second call: messages only, without config
     const msgCall = mockCountTokens.mock.calls[1][0];
-    expect(msgCall.config.tools).toBeDefined();
-    expect(msgCall.config.systemInstruction).toBeUndefined();
+    expect(msgCall.contents).toEqual([
+      { role: 'user', parts: [{ text: 'msg' }] },
+      { role: 'model', parts: [{ text: 'reply' }] },
+    ]);
+    expect(msgCall.config).toBeUndefined();
   });
 
   it('countContextTokens includes the projected upcoming user message', async () => {
