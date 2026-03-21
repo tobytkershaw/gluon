@@ -87,6 +87,103 @@ interface Props {
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
   onTimeSignatureChange: (numerator: number, denominator: number) => void;
+  stereoAnalysers?: [AnalyserNode, AnalyserNode] | null;
+}
+
+const TOPBAR_METER_WIDTH = 24;
+const TOPBAR_METER_HEIGHT = 18;
+const TOPBAR_BAR_WIDTH = 3;
+const TOPBAR_BAR_GAP = 2;
+
+function TopbarPeakMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode, AnalyserNode] | null }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
+  const bufLRef = useRef<Float32Array | null>(null);
+  const bufRRef = useRef<Float32Array | null>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const totalBarsWidth = TOPBAR_BAR_WIDTH * 2 + TOPBAR_BAR_GAP;
+    const startX = Math.floor((canvas.width - totalBarsWidth) / 2);
+
+    const drawShell = () => {
+      const h = canvas.height;
+      ctx.clearRect(0, 0, canvas.width, h);
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(0, 0, canvas.width, h);
+      ctx.fillStyle = '#3f3f46';
+      ctx.fillRect(startX, h - 2, TOPBAR_BAR_WIDTH, 2);
+      ctx.fillRect(startX + TOPBAR_BAR_WIDTH + TOPBAR_BAR_GAP, h - 2, TOPBAR_BAR_WIDTH, 2);
+    };
+
+    if (!stereoAnalysers) {
+      drawShell();
+      return;
+    }
+
+    const [analyserL, analyserR] = stereoAnalysers;
+    if (!bufLRef.current || bufLRef.current.length !== analyserL.fftSize) {
+      bufLRef.current = new Float32Array(analyserL.fftSize);
+    }
+    if (!bufRRef.current || bufRRef.current.length !== analyserR.fftSize) {
+      bufRRef.current = new Float32Array(analyserR.fftSize);
+    }
+
+    const gradient = ctx.createLinearGradient(0, TOPBAR_METER_HEIGHT, 0, 0);
+    gradient.addColorStop(0, '#34d399');
+    gradient.addColorStop(0.6, '#34d399');
+    gradient.addColorStop(0.85, '#fbbf24');
+    gradient.addColorStop(1, '#fb7185');
+
+    const getPeak = (analyser: AnalyserNode, buf: Float32Array): number => {
+      analyser.getFloatTimeDomainData(buf);
+      let peak = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const abs = Math.abs(buf[i]);
+        if (abs > peak) peak = abs;
+      }
+      return Math.min(1, peak);
+    };
+
+    const draw = () => {
+      rafRef.current = requestAnimationFrame(draw);
+      const peakL = getPeak(analyserL, bufLRef.current!);
+      const peakR = getPeak(analyserR, bufRRef.current!);
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, canvas.width, h);
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(0, 0, canvas.width, h);
+
+      const drawBar = (x: number, level: number) => {
+        const barHeight = Math.max(2, Math.round(level * h));
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, h - barHeight, TOPBAR_BAR_WIDTH, barHeight);
+      };
+
+      drawBar(startX, peakL);
+      drawBar(startX + TOPBAR_BAR_WIDTH + TOPBAR_BAR_GAP, peakR);
+    };
+
+    draw();
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [stereoAnalysers]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={TOPBAR_METER_WIDTH}
+      height={TOPBAR_METER_HEIGHT}
+      className="shrink-0 rounded-[1px]"
+      style={{ imageRendering: 'pixelated' }}
+      title="Master peak meter"
+      aria-label="Master peak meter"
+    />
+  );
 }
 
 export function TransportStrip({
@@ -96,6 +193,7 @@ export function TransportStrip({
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
   onLoopChange, onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
+  stereoAnalysers = null,
 }: Props) {
   const beatsPerBar = timeSignatureNumerator || 4;
   const currentBeat = Math.floor(globalStep) + 1;
@@ -267,6 +365,11 @@ export function TransportStrip({
       </div>
 
       {/* Divider: time display | metronome */}
+      <div className="w-px h-4 bg-zinc-700/60" />
+
+      <TopbarPeakMeter stereoAnalysers={stereoAnalysers} />
+
+      {/* Divider: peak meter | metronome */}
       <div className="w-px h-4 bg-zinc-700/60" />
 
       {/* Metronome */}

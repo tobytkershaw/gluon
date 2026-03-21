@@ -181,6 +181,12 @@ describe('AppShell smoke render', () => {
     expect(screen.getByText('Audio runtime degraded: Plaits init failed, falling back to WebAudioSynth.')).toBeTruthy();
   });
 
+  it('renders the topbar peak meter shell', () => {
+    render(<AppShell {...buildProps('surface', { apiConfigured: true })} />);
+
+    expect(screen.getByLabelText('Master peak meter')).toBeTruthy();
+  });
+
   it('shows degraded-mode banner when planner is not configured (chat view)', () => {
     render(<AppShell {...buildProps('chat', { apiConfigured: false })} />);
     expect(screen.getByTestId('degraded-banner')).toBeTruthy();
