@@ -66,7 +66,7 @@ function makeLiveControl(overrides: Partial<LiveControlModule> = {}): LiveContro
       type: 'knob-group',
       id: 'live-test-1',
       label: 'Test Control',
-      bindings: [{ role: 'control', trackId: 'v0', target: { kind: 'source', param: 'timbre' } }],
+      bindings: [{ role: 'control', trackId: 'v0', target: 'timbre' }],
       position: { x: 0, y: 0, w: 4, h: 2 },
       config: {},
     },
@@ -103,7 +103,7 @@ describe('propose_controls tool handler', () => {
             label: 'Brightness',
             bindings: [{
               role: 'control',
-              target: { kind: 'source', param: 'timbre' },
+              target: 'timbre',
             }],
           }],
         },
@@ -132,6 +132,42 @@ describe('propose_controls tool handler', () => {
     expect(liveControls[0].createdAtTurn).toBe(0);
   });
 
+  it('accepts structured BindingTarget objects for backward compatibility', async () => {
+    const session = makeSession();
+
+    planner.startTurnResults = [{
+      textParts: [],
+      functionCalls: [{
+        id: 'fc1',
+        name: 'propose_controls',
+        args: {
+          trackId: 'v0',
+          description: 'Legacy format',
+          modules: [{
+            type: 'knob-group',
+            label: 'Legacy',
+            bindings: [{
+              role: 'control',
+              target: { kind: 'source', param: 'timbre' },
+            }],
+          }],
+        },
+      }],
+    }];
+    planner.continueTurnResults = [{
+      textParts: ['Done.'],
+      functionCalls: [],
+    }];
+
+    await ai.ask(session, 'legacy controls');
+    const responses = planner.lastFunctionResponses;
+    expect(responses[0].result).toHaveProperty('applied', true);
+    const liveControls = (responses[0].result as Record<string, unknown>)._liveControls as LiveControlModule[];
+    expect(liveControls).toHaveLength(1);
+    // Structured target should be preserved as-is for backward compat
+    expect(liveControls[0].module.bindings[0].target).toEqual({ kind: 'source', param: 'timbre' });
+  });
+
   it('rejects invalid module types', async () => {
     const session = makeSession();
 
@@ -146,7 +182,7 @@ describe('propose_controls tool handler', () => {
           modules: [{
             type: 'foobar',  // Not a valid type
             label: 'Bad',
-            bindings: [{ role: 'control', target: { kind: 'source', param: 'timbre' } }],
+            bindings: [{ role: 'control', target: 'timbre' }],
           }],
         },
       }],
@@ -173,8 +209,8 @@ describe('propose_controls tool handler', () => {
             type: 'xy-pad',
             label: 'Timbre / Morph',
             bindings: [
-              { role: 'x-axis', target: { kind: 'source', param: 'timbre' } },
-              { role: 'y-axis', target: { kind: 'source', param: 'morph' } },
+              { role: 'x-axis', target: 'timbre' },
+              { role: 'y-axis', target: 'morph' },
             ],
           }],
         },
@@ -207,7 +243,7 @@ describe('propose_controls tool handler', () => {
             type: 'step-grid',
             label: 'Pattern',
             bindings: [
-              { role: 'region', target: { kind: 'region', patternId: 'p0' } },
+              { role: 'region', target: 'p0' },
             ],
           }],
         },
@@ -245,7 +281,7 @@ describe('propose_controls tool handler', () => {
           modules: [{
             type: 'knob-group',
             label: 'New Control',
-            bindings: [{ role: 'control', target: { kind: 'source', param: 'morph' } }],
+            bindings: [{ role: 'control', target: 'morph' }],
           }],
         },
       }],

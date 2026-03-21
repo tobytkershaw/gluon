@@ -128,7 +128,7 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
     case 'list_patches':
       return {};
     case 'propose_controls':
-      return { trackId: 'v0', description: 'test controls', modules: [{ type: 'knob-group', label: 'Test', bindings: [{ role: 'control', target: { kind: 'source', param: 'timbre' } }] }] };
+      return { trackId: 'v0', description: 'test controls', modules: [{ type: 'knob-group', label: 'Test', bindings: [{ role: 'control', target: 'timbre' }] }] };
     default:
       return {};
   }
