@@ -567,6 +567,100 @@ describe('set_surface — adversarial', () => {
 });
 
 // ---------------------------------------------------------------------------
+// set_surface — region binding validation
+// ---------------------------------------------------------------------------
+
+describe('set_surface — region binding validation', () => {
+  it('passes through valid region bindings unchanged', async () => {
+    const session = makeSession();
+    const track = session.tracks[0];
+    const patternId = track.patterns[0].id;
+
+    const { response, actions } = await callTool(session, 'set_surface', {
+      trackId: track.id,
+      modules: [
+        {
+          type: 'step-grid',
+          id: 'grid-1',
+          label: 'Grid',
+          bindings: [{ role: 'region', target: patternId }],
+          position: { x: 0, y: 0, w: 4, h: 2 },
+          config: {},
+        },
+      ],
+      description: 'test surface with valid region binding',
+    });
+
+    expect(response.applied).toBe(true);
+    expect(response.warnings).toBeUndefined();
+    const action = actions[0] as { modules: Array<{ bindings: Array<{ role: string; target: string }> }> };
+    expect(action.modules[0].bindings).toHaveLength(1);
+    expect(action.modules[0].bindings[0].role).toBe('region');
+    expect(action.modules[0].bindings[0].target).toBe(patternId);
+  });
+
+  it('strips invalid region bindings and returns warnings', async () => {
+    const session = makeSession();
+    const track = session.tracks[0];
+
+    const { response, actions } = await callTool(session, 'set_surface', {
+      trackId: track.id,
+      modules: [
+        {
+          type: 'step-grid',
+          id: 'kick-grid',
+          label: 'Kick Grid',
+          bindings: [{ role: 'region', target: 'kick' }],
+          position: { x: 0, y: 0, w: 4, h: 2 },
+          config: {},
+        },
+      ],
+      description: 'test surface with invalid region binding',
+    });
+
+    expect(response.applied).toBe(true);
+    const action = actions[0] as { modules: Array<{ bindings: Array<{ role: string }> }> };
+    // The invalid region binding should have been stripped
+    expect(action.modules[0].bindings).toHaveLength(0);
+    // Warnings should be returned to the AI
+    expect(response.warnings).toBeDefined();
+    expect((response.warnings as string[])[0]).toMatch(/kick/);
+    expect((response.warnings as string[])[0]).toMatch(/active pattern fallback/);
+  });
+
+  it('leaves non-region bindings unaffected', async () => {
+    const session = makeSession();
+    const track = session.tracks[0];
+
+    const { response, actions } = await callTool(session, 'set_surface', {
+      trackId: track.id,
+      modules: [
+        {
+          type: 'knob-group',
+          id: 'controls',
+          label: 'Controls',
+          bindings: [
+            { role: 'control', target: 'timbre' },
+            { role: 'region', target: 'nonexistent-pattern' },
+          ],
+          position: { x: 0, y: 0, w: 4, h: 2 },
+          config: {},
+        },
+      ],
+      description: 'test surface with mixed bindings',
+    });
+
+    expect(response.applied).toBe(true);
+    const action = actions[0] as { modules: Array<{ bindings: Array<{ role: string; target: string }> }> };
+    // Only the control binding should remain; the invalid region binding should be stripped
+    expect(action.modules[0].bindings).toHaveLength(1);
+    expect(action.modules[0].bindings[0].role).toBe('control');
+    expect(action.modules[0].bindings[0].target).toBe('timbre');
+    expect(response.warnings).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // set_transport
 // ---------------------------------------------------------------------------
 
