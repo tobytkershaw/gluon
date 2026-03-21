@@ -216,15 +216,102 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
   // --- Octave offset for keyboard-as-piano entry ---
   const [octaveOffset, setOctaveOffset] = useState(0);
 
+  // --- User scroll detection for playhead follow ---
+  // When the user manually scrolls, we stop auto-following the playhead.
+  // Auto-follow resumes when: playback restarts, or playhead re-enters the visible area.
+  const userScrolledRef = useRef(false);
+  const lastPlayheadStepRef = useRef<number | null>(null);
+  const lastPlayingRef = useRef(false);
+
+  // Detect user-initiated scroll on the scroll container (parent of this component).
+  // We attach to the nearest scrollable ancestor.
   useEffect(() => {
-    if (playing && playheadStep !== null && playheadRef.current) {
-      playheadRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    const container = containerRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    if (!container) return;
+
+    let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+    const programmaticScrollRef = { current: false };
+
+    // Store the programmatic scroll flag on the container so the scroll handler can see it
+    (container as unknown as Record<string, unknown>).__programmaticScroll = programmaticScrollRef;
+
+    const handleScroll = () => {
+      if (programmaticScrollRef.current) {
+        programmaticScrollRef.current = false;
+        return;
+      }
+      // Debounce: mark as user-scrolled
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        userScrolledRef.current = true;
+      }, 50);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+    };
+  }, []);
+
+  // Reset user-scroll flag when playback starts/restarts
+  useEffect(() => {
+    if (playing && !lastPlayingRef.current) {
+      userScrolledRef.current = false;
+    }
+    lastPlayingRef.current = playing;
+  }, [playing]);
+
+  // Playhead follow: only scroll when playhead is about to leave the visible area,
+  // and only if the user hasn't manually scrolled away.
+  useEffect(() => {
+    if (!playing || playheadStep === null || !playheadRef.current) return;
+
+    // Detect loop wrap (playhead jumped backwards significantly) — re-enable follow
+    const prevStep = lastPlayheadStepRef.current;
+    if (prevStep !== null && playheadStep < prevStep - 1) {
+      userScrolledRef.current = false;
+    }
+    lastPlayheadStepRef.current = playheadStep;
+
+    if (userScrolledRef.current) {
+      // Check if playhead is back in view — if so, resume following
+      const scrollParent = containerRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+      if (scrollParent && playheadRef.current) {
+        const parentRect = scrollParent.getBoundingClientRect();
+        const rowRect = playheadRef.current.getBoundingClientRect();
+        if (rowRect.top >= parentRect.top && rowRect.bottom <= parentRect.bottom) {
+          userScrolledRef.current = false;
+        }
+      }
+      if (userScrolledRef.current) return;
+    }
+
+    // Scroll only when the playhead row is outside (or near the edge of) the visible area
+    const scrollParent = containerRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+    if (!scrollParent) return;
+
+    const parentRect = scrollParent.getBoundingClientRect();
+    const rowRect = playheadRef.current.getBoundingClientRect();
+    const margin = 40; // px margin before triggering scroll
+
+    const isVisible = rowRect.top >= parentRect.top + margin && rowRect.bottom <= parentRect.bottom - margin;
+    if (!isVisible) {
+      // Mark as programmatic scroll so the scroll handler doesn't interpret it as user scroll
+      const flag = (scrollParent as unknown as Record<string, unknown>).__programmaticScroll as { current: boolean } | undefined;
+      if (flag) flag.current = true;
+      playheadRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [playheadStep, playing]);
 
-  // Scroll cursor row into view when it changes
+  // Scroll cursor row into view when it changes (keyboard navigation)
   useEffect(() => {
     if (cursorRowRef.current) {
+      const scrollParent = containerRef.current?.closest('.overflow-y-auto') as HTMLElement | null;
+      if (scrollParent) {
+        const flag = (scrollParent as unknown as Record<string, unknown>).__programmaticScroll as { current: boolean } | undefined;
+        if (flag) flag.current = true;
+      }
       cursorRowRef.current.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   }, [cursorRow]);
@@ -649,7 +736,7 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
       tabIndex={0}
       onKeyDown={handleKeyDown}
       data-shortcut-scope="tracker"
-      className="outline-none h-full"
+      className="outline-none"
     >
       <div className="flex items-center gap-2 px-1 py-0.5 text-[9px] text-zinc-500 font-mono sticky top-0 bg-zinc-900/95 backdrop-blur-sm z-10">
         <span title="Base octave for keyboard-as-piano entry (-/= to shift)">Oct:{Math.floor(BASE_MIDI_LOWER / OCTAVE) - 1 + octaveOffset}</span>
