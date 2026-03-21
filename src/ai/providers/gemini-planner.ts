@@ -80,11 +80,16 @@ export class GeminiPlannerProvider implements PlannerProvider {
     systemPrompt: string;
     tools: ToolSchema[];
     functionResponses: FunctionResponse[];
+    turnOutcomeSummary?: string;
     onStreamText?: StreamTextCallback;
   }): Promise<GenerateResult> {
-    const parts: Part[] = opts.functionResponses.map(fr =>
+    const parts: Part[] = [];
+    if (opts.turnOutcomeSummary) {
+      parts.push({ text: opts.turnOutcomeSummary });
+    }
+    parts.push(...opts.functionResponses.map(fr =>
       createPartFromFunctionResponse(fr.id, fr.name, fr.result),
-    );
+    ));
     this.pendingContents.push({ role: 'user', parts });
 
     return this.generate(opts.systemPrompt, opts.tools, opts.onStreamText);

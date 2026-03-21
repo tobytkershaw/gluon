@@ -169,6 +169,13 @@ describe('dynamic track setup', () => {
     expect(prompt).toContain('set_chord_progression');
     expect(prompt).toContain('chord_progression');
   });
+
+  it('grounds recovery and final narration in tool evidence', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('Describe only actions confirmed by tool results or resulting state');
+    expect(prompt).toContain('Never describe fallback tool calls that do not appear in the tool-call history for the turn');
+    expect(prompt).toContain('Treat tool errors and post-execution rejections as real state');
+  });
 });
 
 describe('dynamic prompt reference (#777)', () => {
