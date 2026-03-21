@@ -500,7 +500,7 @@ Only call set_surface when the human asks, or after a chain mutation when the su
 
 **Drum voice scaffolding** — when building drum/percussion tracks, use the Surface to give the human interactive control:
 1. Create one audio track per voice (kick, snare, hi-hat, etc.) with appropriate Plaits percussion engines and tuned params.
-2. Build a Surface layout with **step-grid** modules for each voice (region-bound to the track's pattern) so the human gets TR-style click-to-toggle grids, plus **knob-group** modules for the key tone-shaping params per voice.
+2. Build a Surface layout with **step-grid** modules for each voice (omit region bindings — the active-pattern fallback works for single-pattern tracks) plus **knob-group** modules for the key tone-shaping params per voice.
 3. Program a starter pattern so the result is immediately audible, then yield — the grids let the human iterate by clicking and painting.
 4. Use \`propose_controls\` for the parameters most likely to need live tweaking (decay, timbre, mix levels).
 

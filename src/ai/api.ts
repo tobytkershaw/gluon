@@ -3020,6 +3020,23 @@ export class GluonAI {
           };
         });
 
+        // Validate region bindings against actual pattern IDs on the track
+        const surfaceTrack = getTrack(session, args.trackId as string);
+        const patternIds = new Set(surfaceTrack?.patterns.map(p => p.id) ?? []);
+        const warnings: string[] = [];
+
+        for (const mod of modules) {
+          mod.bindings = mod.bindings.filter(b => {
+            if (b.role === 'region' && b.target && !patternIds.has(b.target)) {
+              const msg = `Module '${mod.label}': region binding target '${b.target}' does not match any pattern on this track (removed — will use active pattern fallback)`;
+              warnings.push(msg);
+              console.warn(`[set_surface] ${msg}`);
+              return false;
+            }
+            return true;
+          });
+        }
+
         const setSurfaceAction: AISetSurfaceAction = {
           type: 'set_surface',
           trackId: args.trackId as string,
@@ -3037,6 +3054,7 @@ export class GluonAI {
             trackId: setSurfaceAction.trackId,
             moduleCount: modules.length,
             moduleTypes: modules.map(m => m.type),
+            ...(warnings.length > 0 ? { warnings } : {}),
           },
         };
       }
