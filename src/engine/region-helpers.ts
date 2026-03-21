@@ -114,6 +114,15 @@ export function validatePattern(pattern: Pattern): { valid: boolean; errors: str
         }
       }
 
+      // Invariant 8b: no duplicate drum rack NoteEvents at same position for the same padId
+      if (a.kind === 'note' && b.kind === 'note') {
+        const aPadId = (a as import('./canonical-types').NoteEvent).padId;
+        const bPadId = (b as import('./canonical-types').NoteEvent).padId;
+        if (aPadId && bPadId && aPadId === bPadId) {
+          errors.push(`Duplicate drum NoteEvents at at≈${a.at} for pad "${aPadId}"`);
+        }
+      }
+
       // Invariant 9: no duplicate parameter events for same controlId at same position
       if (
         a.kind === 'parameter' &&
@@ -126,9 +135,12 @@ export function validatePattern(pattern: Pattern): { valid: boolean; errors: str
       }
 
       // Invariant 10: no duplicate notes at same pitch (polyphonic, max 4)
+      // Drum rack NoteEvents (with padId) are keyed by padId, not pitch, so skip this check for them
       if (
         a.kind === 'note' &&
         b.kind === 'note' &&
+        !(a as NoteEvent).padId &&
+        !(b as NoteEvent).padId &&
         (a as NoteEvent).pitch === (b as NoteEvent).pitch
       ) {
         errors.push(
@@ -139,9 +151,10 @@ export function validatePattern(pattern: Pattern): { valid: boolean; errors: str
   }
 
   // Invariant 10b: max 4 notes at the same position (polyphonic column limit)
+  // Drum rack NoteEvents (with padId) are excluded — each pad is independent
   const noteCountByBucket = new Map<number, number>();
   for (const event of pattern.events) {
-    if (event.kind !== 'note') continue;
+    if (event.kind !== 'note' || (event as NoteEvent).padId) continue;
     const bucket = Math.floor(event.at / AT_TOLERANCE);
     const count = (noteCountByBucket.get(bucket) ?? 0) + 1;
     noteCountByBucket.set(bucket, count);
@@ -187,10 +200,11 @@ export function normalizePatternEvents(pattern: Pattern): Pattern {
   // Enforce max 4 notes per step (polyphonic column limit).
   // Notes are already sorted by `at`; within the same bucket keep the first 4
   // (lowest pitches after dedup, since sort is stable and pitch order is preserved).
+  // Drum rack NoteEvents (with padId) are excluded — each pad is independent.
   const MAX_NOTES_PER_STEP = 4;
   const noteCountByBucket = new Map<number, number>();
   const capped = deduped.filter(e => {
-    if (e.kind !== 'note') return true;
+    if (e.kind !== 'note' || (e as NoteEvent).padId) return true;
     const bucket = Math.floor(e.at / AT_TOLERANCE);
     const count = (noteCountByBucket.get(bucket) ?? 0) + 1;
     noteCountByBucket.set(bucket, count);
@@ -216,9 +230,13 @@ function deduplicationKey(event: MusicalEvent): string {
       const padId = (event as import('./canonical-types').TriggerEvent).padId;
       return padId ? `trigger:${padId}@${bucket}` : `trigger@${bucket}`;
     }
-    case 'note':
-      // Polyphonic: dedup by (position, pitch) — different pitches coexist
+    case 'note': {
+      // For drum rack notes (with padId): dedup by padId (same as triggers)
+      // For regular notes: dedup by pitch — different pitches coexist (polyphonic)
+      const notePadId = (event as NoteEvent).padId;
+      if (notePadId) return `note:${notePadId}@${bucket}`;
       return `note:${(event as NoteEvent).pitch}@${bucket}`;
+    }
     case 'parameter':
       return `parameter:${(event as ParameterEvent).controlId}@${bucket}`;
   }

@@ -454,9 +454,9 @@ describe('drum-rack-actions', () => {
       const events = getActivePattern(updatedTrack).events;
 
       // Should have: 2 kick + 1 snare + 8 hat = 11 events
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
-      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
-      const hats = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
+      const snares = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
+      const hats = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
 
       expect(kicks).toHaveLength(2);
       expect(snares).toHaveLength(1);
@@ -498,8 +498,8 @@ describe('drum-rack-actions', () => {
 
       const updatedTrack = getTrack(report.session, trackId);
       const events = getActivePattern(updatedTrack).events;
-      const hats = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const hats = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
 
       expect(hats).toHaveLength(8); // preserved
       expect(kicks).toHaveLength(2); // newly added
@@ -672,9 +672,9 @@ describe('drum-rack-actions', () => {
       const events = getActivePattern(updatedTrack).events;
 
       // Kick and snare should be preserved
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
-      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
-      const hats = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
+      const snares = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
+      const hats = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
 
       expect(kicks).toHaveLength(1); // preserved
       expect(snares).toHaveLength(1); // preserved
@@ -822,7 +822,7 @@ describe('drum-rack-actions', () => {
       // Verify per-pad event counts
       const padCounts = new Map<string, number>();
       for (const e of events) {
-        if (e.kind === 'trigger' && 'padId' in e && e.padId) {
+        if (e.kind === 'note' && 'padId' in e && e.padId) {
           padCounts.set(e.padId, (padCounts.get(e.padId) ?? 0) + 1);
         }
       }
@@ -911,8 +911,8 @@ describe('drum-rack-actions', () => {
       expect(report.accepted).toHaveLength(1);
 
       const events = getActivePattern(getTrack(report.session, trackId)).events;
-      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const snares = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
 
       expect(snares).toHaveLength(1);
       expect(snares[0].at).toBe(4);
@@ -954,8 +954,8 @@ describe('drum-rack-actions', () => {
       expect(report.accepted).toHaveLength(1);
 
       const events = getActivePattern(getTrack(report.session, trackId)).events;
-      const snares = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
-      const kicks = events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
+      const snares = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
+      const kicks = events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
 
       expect(snares).toHaveLength(0); // snare removed
       expect(kicks).toHaveLength(1); // kick preserved
@@ -995,8 +995,8 @@ describe('drum-rack-actions', () => {
       expect(report.accepted).toHaveLength(1);
 
       const events = getActivePattern(getTrack(report.session, trackId)).events;
-      const kick = events.find(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
-      const snare = events.find(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
+      const kick = events.find(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
+      const snare = events.find(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
 
       expect(kick).toBeDefined();
       expect((kick as any).velocity).toBeCloseTo(0.3);
@@ -1145,7 +1145,7 @@ describe('drum-rack-actions', () => {
 
       // Verify hat events exist
       const eventsBeforeRemove = getActivePattern(getTrack(sketchReport.session, trackId)).events;
-      const hatsBefore = eventsBeforeRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      const hatsBefore = eventsBeforeRemove.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
       expect(hatsBefore.length).toBeGreaterThan(0);
 
       // Remove the hat pad
@@ -1165,12 +1165,12 @@ describe('drum-rack-actions', () => {
 
       // Trigger events for hat should also be gone
       const eventsAfterRemove = getActivePattern(trackAfter).events;
-      const hatsAfter = eventsAfterRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat');
+      const hatsAfter = eventsAfterRemove.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat');
       expect(hatsAfter).toHaveLength(0);
 
       // Other pad events should be preserved
-      const kicksAfter = eventsAfterRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'kick');
-      const snaresAfter = eventsAfterRemove.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'snare');
+      const kicksAfter = eventsAfterRemove.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'kick');
+      const snaresAfter = eventsAfterRemove.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'snare');
       expect(kicksAfter).toHaveLength(2);
       expect(snaresAfter).toHaveLength(1);
     });
@@ -1201,7 +1201,7 @@ describe('drum-rack-actions', () => {
       expect(sketchReport.accepted).toHaveLength(1);
 
       const hatCountBefore = getActivePattern(getTrack(sketchReport.session, trackId))
-        .events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat').length;
+        .events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat').length;
       expect(hatCountBefore).toBe(4);
 
       // Remove hat pad (should also remove hat events)
@@ -1221,7 +1221,7 @@ describe('drum-rack-actions', () => {
       expect(trackAfterUndo.drumRack?.pads.some(p => p.id === 'hat')).toBe(true);
 
       const hatCountAfterUndo = getActivePattern(trackAfterUndo)
-        .events.filter(e => e.kind === 'trigger' && 'padId' in e && e.padId === 'hat').length;
+        .events.filter(e => e.kind === 'note' && 'padId' in e && e.padId === 'hat').length;
       expect(hatCountAfterUndo).toBe(hatCountBefore);
     });
   });

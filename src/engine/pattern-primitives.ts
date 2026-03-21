@@ -6,6 +6,7 @@ import type { TriggerEvent, NoteEvent, ParameterEvent, MusicalEvent } from './ca
 import { reprojectTrackStepGrid } from './region-projection';
 import { normalizePatternEvents } from './region-helpers';
 import { runtimeParamToControlId, controlIdToRuntimeParam, isPercussionByIndex } from '../audio/instrument-registry';
+import { DRUM_NOTE_DEFAULT_PITCH } from './drum-grid';
 import type { InverseConversionOptions } from './event-conversion';
 
 // ---------------------------------------------------------------------------
@@ -51,7 +52,13 @@ function findMatchingGateEventAt(
   const targetType = match?.type ?? fallbackType;
 
   if (targetType === 'trigger') {
-    return findTriggerAt(events, stepIndex);
+    // First try actual TriggerEvents (legacy)
+    const trigIdx = findTriggerAt(events, stepIndex);
+    if (trigIdx >= 0) return trigIdx;
+    // Fall back to NoteEvents with padId (drum rack events migrated to NoteEvent)
+    return events.findIndex(
+      e => e.kind === 'note' && 'padId' in e && (e as NoteEvent).padId && sameStep(e.at, stepIndex),
+    );
   }
 
   if (targetType === 'note') {
@@ -148,7 +155,10 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
   if (stepIndex < 0 || stepIndex >= targetPattern.duration) return session;
 
   const padId = options?.padId;
-  const pitched = !isPercussionByIndex(track.model);
+  // Drum rack tracks always use NoteEvents (enables transpose/pitch editing).
+  // Other percussion engines still use TriggerEvents for backward compat.
+  const isDrumRack = track.engine === 'drum-rack';
+  const pitched = isDrumRack || !isPercussionByIndex(track.model);
   const activeReg = targetPattern;
   const events = [...activeReg.events];
   // When padId is specified, find an event matching that padId; otherwise use the generic finder
@@ -181,7 +191,9 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
     // Insert new event, keep sorted
     let newEvent: MusicalEvent;
     if (pitched) {
-      const midiPitch = Math.round(Math.max(0, Math.min(127, track.params.note * 127)));
+      const midiPitch = isDrumRack
+        ? DRUM_NOTE_DEFAULT_PITCH
+        : Math.round(Math.max(0, Math.min(127, track.params.note * 127)));
       newEvent = {
         kind: 'note',
         at: stepIndex,
