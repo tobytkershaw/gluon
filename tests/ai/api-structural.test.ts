@@ -127,6 +127,8 @@ function minimalArgsForTool(toolName: string): Record<string, unknown> {
       return { trackId: 'v0', patch: 'Deep Sub Kick' };
     case 'list_patches':
       return {};
+    case 'propose_controls':
+      return { trackId: 'v0', description: 'test controls', modules: [{ type: 'knob-group', label: 'Test', bindings: [{ role: 'control', target: { kind: 'source', param: 'timbre' } }] }] };
     default:
       return {};
   }
@@ -217,7 +219,7 @@ describe('API Structural Integrity', () => {
     ];
 
     // Analysis-only / non-mutating tools produce no actions (actions: []):
-    const analysisOnlyTools = ['listen', 'render', 'analyze', 'inspect_chain', 'suggest_reactions', 'save_patch', 'list_patches', 'recall_memories'];
+    const analysisOnlyTools = ['listen', 'render', 'analyze', 'inspect_chain', 'suggest_reactions', 'save_patch', 'list_patches', 'recall_memories', 'propose_controls'];
 
     // Together they should cover all GLUON_TOOLS
     const allCovered = [...actionProducingTools, ...analysisOnlyTools].sort();
@@ -231,7 +233,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(49);
+    expect(GLUON_TOOLS.length).toBe(50);
   });
 
   // -----------------------------------------------------------------------

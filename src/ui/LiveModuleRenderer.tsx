@@ -2,7 +2,8 @@
 // Lightweight card wrapper for a single live control module in the Live Controls panel.
 // Renders knobs using simple range-based controls (not full Surface module renderers).
 import { useCallback, useRef } from 'react';
-import type { LiveControlModule, Track } from '../engine/types';
+import type { LiveControlModule, Track, BindingTarget } from '../engine/types';
+import { resolveBinding, writeBinding } from '../engine/binding-resolver';
 import { computeThumbprintColor } from './thumbprint';
 
 interface LiveModuleRendererProps {
@@ -10,6 +11,8 @@ interface LiveModuleRendererProps {
   track: Track | undefined;
   onTouch: (moduleId: string) => void;
   onAddToSurface: (liveModule: LiveControlModule) => void;
+  onParamChange?: (param: string, value: number) => void;
+  onProcessorParamChange?: (processorId: string, param: string, value: number) => void;
 }
 
 // ── Knob arc helpers (matches MiniKnob conventions) ─────────────────────────
@@ -112,37 +115,77 @@ function LiveKnob({ label, value, accentColor, onChange }: LiveKnobProps) {
   );
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Extract a human-readable label from a binding target (string or typed). */
+function bindingLabel(target: string | BindingTarget): string {
+  if (typeof target === 'string') return target;
+  switch (target.kind) {
+    case 'source': return target.param;
+    case 'processor': return `${target.processorId}:${target.param}`;
+    case 'modulator': return `${target.modulatorId}:${target.param}`;
+    case 'mix': return target.param;
+    case 'drumPad': return `${target.padId}:${target.param}`;
+    case 'generator': return `${target.generatorId}:${target.param}`;
+    case 'paramShape': return `${target.shapeId}:${target.param}`;
+    case 'region': return `region:${target.patternId}`;
+    case 'chain': return 'chain';
+    case 'kit': return 'kit';
+    case 'weighted': return 'macro';
+    default: return 'unknown';
+  }
+}
+
 // ── Module card ─────────────────────────────────────────────────────────────
 
-export function LiveModuleRenderer({ liveModule, track, onTouch, onAddToSurface }: LiveModuleRendererProps) {
+export function LiveModuleRenderer({ liveModule, track, onTouch, onAddToSurface, onParamChange, onProcessorParamChange }: LiveModuleRendererProps) {
   const mod = liveModule.module;
   const trackName = track?.name ?? liveModule.trackId;
   const accentColor = track ? computeThumbprintColor(track) : 'rgb(167 139 250)';
 
-  const handleKnobChange = useCallback((_value: number) => {
-    // Mark the module as touched on any interaction.
-    // Actual param changes are not wired yet (AI population comes later).
+  const handleKnobChange = useCallback((target: BindingTarget, value: number) => {
     onTouch(liveModule.id);
-  }, [liveModule.id, onTouch]);
+    if (!track) return;
+    const result = writeBinding(track, target, value);
+    if (result.status === 'ok') {
+      for (const m of result.mutations) {
+        if (m.kind === 'sourceParam' && onParamChange) {
+          onParamChange(m.param, m.value);
+        } else if (m.kind === 'processorParam' && onProcessorParamChange) {
+          onProcessorParamChange(m.processorId, m.param, m.value);
+        }
+      }
+    }
+  }, [liveModule.id, track, onTouch, onParamChange, onProcessorParamChange]);
 
   const handleAddToSurface = useCallback(() => {
     onAddToSurface(liveModule);
   }, [liveModule, onAddToSurface]);
 
-  // Extract knob values from bindings or config
-  const knobs = mod.bindings
+  // Resolve knob values from binding contract
+  const knobEntries = mod.bindings
     .filter(b => b.role === 'control')
-    .map(b => ({
-      label: b.target,
-      value: (mod.config[b.target] as number) ?? 0.5,
-    }));
-
-  // Fallback: if no bindings with role 'control', check config for knob-group style
-  const knobEntries = knobs.length > 0
-    ? knobs
-    : Object.entries(mod.config)
-        .filter(([, v]) => typeof v === 'number')
-        .map(([key, v]) => ({ label: key, value: v as number }));
+    .map(b => {
+      const target: BindingTarget = typeof b.target === 'string'
+        ? { kind: 'source', param: b.target } as BindingTarget
+        : b.target as BindingTarget;
+      let value = 0.5;
+      let disconnected = false;
+      if (track) {
+        const resolved = resolveBinding(track, target);
+        if (resolved.status === 'ok' && 'value' in resolved) {
+          value = resolved.value;
+        } else {
+          disconnected = true;
+        }
+      }
+      return {
+        label: bindingLabel(b.target),
+        value,
+        target,
+        disconnected,
+      };
+    });
 
   return (
     <div
@@ -185,13 +228,14 @@ export function LiveModuleRenderer({ liveModule, track, onTouch, onAddToSurface 
         <div className="px-3 py-3">
           <div className="flex gap-4 justify-center">
             {knobEntries.map((k) => (
-              <LiveKnob
-                key={k.label}
-                label={k.label}
-                value={k.value}
-                accentColor={accentColor}
-                onChange={handleKnobChange}
-              />
+              <div key={k.label} className={k.disconnected ? 'opacity-40 pointer-events-none' : ''}>
+                <LiveKnob
+                  label={k.label}
+                  value={k.value}
+                  accentColor={accentColor}
+                  onChange={v => handleKnobChange(k.target, v)}
+                />
+              </div>
             ))}
           </div>
         </div>

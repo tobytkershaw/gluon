@@ -1083,5 +1083,29 @@ export function compressState(
     } : {}),
   };
 
+  // Add touched live controls — untouched are the AI's own recent proposals and excluded
+  const touchedLiveControls = (session.liveControls ?? []).filter(m => m.touched);
+  if (touchedLiveControls.length > 0) {
+    (result as Record<string, unknown>).liveControls = touchedLiveControls.map(m => {
+      const trackLabel = getTrackOrdinalLabel(
+        session.tracks.find(t => t.id === m.trackId) ?? session.tracks[0],
+        audioTracks,
+        busTracks,
+      );
+      const bindingSummary = m.module.bindings.map(b => {
+        const target = b.target;
+        if (typeof target === 'object' && target !== null && 'kind' in target) {
+          const t = target as import('../engine/types').BindingTarget;
+          if (t.kind === 'source') return `source:${t.param}`;
+          if (t.kind === 'processor') return `processor:${t.processorId}:${t.param}`;
+          if (t.kind === 'weighted') return `weighted(${t.mappings.length})`;
+          return t.kind;
+        }
+        return String(target);
+      }).join(', ');
+      return `${trackLabel}: "${m.module.label}" (${m.module.type}, ${bindingSummary}) [touched]`;
+    });
+  }
+
   return result;
 }

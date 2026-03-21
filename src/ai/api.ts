@@ -1,6 +1,6 @@
 // src/ai/api.ts — Provider-agnostic orchestrator.
 
-import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AISetClaimAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, AIRecallMemoriesAction, AIForgetMemoryAction, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection } from '../engine/types';
+import type { Session, AIAction, AIMoveAction, AISketchAction, AITransportAction, AISetModelAction, AITransformAction, AIEditPatternAction, PatternEditOp, AIAddViewAction, AIRemoveViewAction, AIAddProcessorAction, AIRemoveProcessorAction, AIReplaceProcessorAction, AIBypassProcessorAction, AIAddModulatorAction, AIRemoveModulatorAction, AIConnectModulatorAction, AIDisconnectModulatorAction, AISetMasterAction, AISetMuteSoloAction, AISetTrackMixAction, AIManageSendAction, AIManagePatternAction, AIManageSequenceAction, AISetSurfaceAction, AIPinAction, AIUnpinAction, AILabelAxesAction, AISetImportanceAction, AIRaiseDecisionAction, AISetClaimAction, AIMarkApprovedAction, AIReportBugAction, AIAddTrackAction, AIRemoveTrackAction, AIRenameTrackAction, AISetPortamentoAction, AISetTrackIdentityAction, AISetIntentAction, AISetSectionAction, AISetScaleAction, AISetChordProgressionAction, AIAssignSpectralSlotAction, AIManageMotifAction, AISetTensionAction, AIManageDrumPadAction, AISaveMemoryAction, AIRecallMemoriesAction, AIForgetMemoryAction, PreservationReport, ProcessorConfig, ModulatorConfig, ModulationTarget, TrackSurface, Track, BugReport, BugCategory, BugSeverity, TrackKind, ChatMessage, SessionIntent, SectionMeta, ScaleConstraint, ScaleMode, UserSelection, LiveControlModule, ModuleBinding, BindingTarget, SurfaceModule } from '../engine/types';
 import { getTrack, getActivePattern, updateTrack, getTrackKind, isValidMemoryType, isValidMemoryContent, MAX_PROJECT_MEMORIES, PROJECT_MEMORY_TYPES } from '../engine/types';
 import type { MusicalEvent, NoteEvent, ParameterEvent, Pattern, TriggerEvent } from '../engine/canonical-types';
 import { controlIdToRuntimeParam, plaitsInstrument, getProcessorEngineByName, getModulatorEngineByName, getModelName, getProcessorInstrument, getModulatorInstrument, getProcessorEngineName, getModulatorEngineName, getProcessorControlIds, getModulatorControlIds } from '../audio/instrument-registry';
@@ -1586,6 +1586,11 @@ export class GluonAI {
         stepBaseline = workingSession.undoStack.length;
 
         // Build immutable step payload and notify UI
+        // Apply non-undoable live controls update from propose_controls
+        if (roundResult.liveControlsUpdate) {
+          workingSession = { ...workingSession, liveControls: roundResult.liveControlsUpdate };
+        }
+
         const stepResult: StepResult = {
           textParts: roundResult.textParts,
           actions: roundResult.actions,
@@ -1789,12 +1794,15 @@ export class GluonAI {
     done: boolean;
     truncated: boolean;
     suggestedReactions?: string[];
+    /** Updated liveControls from propose_controls — caller must merge into working session. */
+    liveControlsUpdate?: LiveControlModule[];
   }> {
     const textParts: string[] = [];
     const actions: AIAction[] = [];
     const functionResponses: FunctionResponse[] = [];
     const callOutcomes: StepOutcome['calls'] = [];
     let suggestedReactions: string[] | undefined;
+    let liveControlsUpdate: LiveControlModule[] | undefined;
 
     for (const text of result.textParts) {
       textParts.push(text);
@@ -1852,6 +1860,13 @@ export class GluonAI {
         roundSession = projectAction(roundSession, action);
       }
 
+      // Merge live controls from propose_controls (non-undoable session mutation)
+      if (execResult.response && '_liveControls' in execResult.response && Array.isArray(execResult.response._liveControls)) {
+        const updated = execResult.response._liveControls as LiveControlModule[];
+        roundSession = { ...roundSession, liveControls: updated };
+        liveControlsUpdate = updated;
+      }
+
       // Track whether this call errored (for circuit breaker).
       // errorPayload() returns { error: "message string" }, so check for
       // any truthy `error` field (string or boolean).
@@ -1869,6 +1884,7 @@ export class GluonAI {
       done: result.functionCalls.length === 0,
       truncated: result.truncated ?? false,
       ...(suggestedReactions ? { suggestedReactions } : {}),
+      ...(liveControlsUpdate ? { liveControlsUpdate } : {}),
     };
   }
 
@@ -3004,6 +3020,95 @@ export class GluonAI {
             trackId: setSurfaceAction.trackId,
             moduleCount: modules.length,
             moduleTypes: modules.map(m => m.type),
+          },
+        };
+      }
+
+      case 'propose_controls': {
+        if (typeof args.trackId !== 'string' || !args.trackId) {
+          return { actions: [], response: errorPayload('Missing required parameter: trackId') };
+        }
+        if (typeof args.description !== 'string') {
+          return { actions: [], response: errorPayload('Missing required parameter: description') };
+        }
+        if (!Array.isArray(args.modules) || args.modules.length === 0) {
+          return { actions: [], response: errorPayload('Missing required parameter: modules (must be a non-empty array)') };
+        }
+
+        // Validate trackId exists
+        const proposeTrack = session.tracks.find(t => t.id === args.trackId);
+        if (!proposeTrack) {
+          return { actions: [], response: trackNotFoundError(args.trackId as string, session) };
+        }
+
+        const ALLOWED_LIVE_TYPES = new Set(['knob-group', 'macro-knob']);
+        const proposeModules = args.modules as Record<string, unknown>[];
+
+        // Validate module types
+        for (const m of proposeModules) {
+          const mType = m.type as string;
+          if (!mType || !ALLOWED_LIVE_TYPES.has(mType)) {
+            return { actions: [], response: errorPayload(`Invalid module type "${mType}". Allowed: knob-group, macro-knob`) };
+          }
+        }
+
+        const trackId = args.trackId as string;
+        const currentTurn = session.turnCount;
+
+        // Build LiveControlModule instances
+        const liveModules: LiveControlModule[] = proposeModules.map((m, i) => {
+          const rawBindings = Array.isArray(m.bindings) ? (m.bindings as Record<string, unknown>[]) : [];
+          const bindings: ModuleBinding[] = rawBindings.map(b => ({
+            role: (b.role as string) ?? 'control',
+            trackId,
+            target: (b.target as BindingTarget) ?? { kind: 'source', param: '' },
+          }));
+
+          const moduleId = `live-${trackId}-${currentTurn}-${i}-${Date.now()}`;
+          const surfaceModule: SurfaceModule = {
+            type: (m.type as string) ?? 'knob-group',
+            id: moduleId,
+            label: (m.label as string) ?? `Control ${i}`,
+            bindings,
+            position: { x: 0, y: i * 2, w: 4, h: 2 },
+            config: (m.config as Record<string, unknown>) ?? {},
+          };
+
+          return {
+            id: moduleId,
+            trackId,
+            touched: false,
+            createdAtTurn: currentTurn,
+            module: surfaceModule,
+          };
+        });
+
+        // If replace mode, filter out untouched live controls for this track
+        let updatedLiveControls = [...session.liveControls];
+        if (args.replace) {
+          updatedLiveControls = updatedLiveControls.filter(
+            m => m.trackId !== trackId || m.touched,
+          );
+        }
+
+        // Append new modules — mutate session directly (no undo snapshot per RFC)
+        updatedLiveControls.push(...liveModules);
+
+        // Return no actions — propose_controls doesn't create AIAction entries.
+        // The session mutation happens via a side-channel: the caller (processRound)
+        // projects actions, but liveControls are non-undoable session state.
+        // We communicate the new liveControls back in the response so the
+        // onStep callback can apply them.
+        return {
+          actions: [],
+          response: {
+            applied: true,
+            trackId,
+            description: args.description,
+            moduleCount: liveModules.length,
+            moduleIds: liveModules.map(m => m.id),
+            // Carry the updated liveControls for the caller to merge into session
+            _liveControls: updatedLiveControls,
           },
         };
       }

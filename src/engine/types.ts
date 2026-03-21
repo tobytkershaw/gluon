@@ -324,6 +324,8 @@ export interface LiveControlModule {
   trackId: string;
   /** True if the user has interacted with any control in this module. */
   touched: boolean;
+  /** Turn counter at creation time — used for expiry (3-turn grace period). */
+  createdAtTurn: number;
   /** Reuses the existing SurfaceModule type for module definition. */
   module: SurfaceModule;
 }
@@ -1353,6 +1355,10 @@ export interface Session {
   tensionCurve?: TensionCurve;
   /** Per-project AI memories — persisted direction, track narratives, and decisions. */
   memories?: ProjectMemory[];
+  /** Transient live control modules proposed by the AI. Persisted in session state. */
+  liveControls: LiveControlModule[];
+  /** Monotonic turn counter — incremented at the start of each AI turn. Used for live control expiry. */
+  turnCount: number;
 }
 
 export type ActionDiff =
