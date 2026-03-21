@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import type { Track, SurfaceModule, ModuleBinding } from '../../engine/types';
+import type { Track, SurfaceModule, ModuleBinding, BindingTarget } from '../../engine/types';
+import { targetLabel } from './binding-helpers';
 
 interface ModuleConfigPanelProps {
   module: SurfaceModule;
@@ -7,6 +8,12 @@ interface ModuleConfigPanelProps {
   onUpdateModule: (updated: SurfaceModule) => void;
   onRemoveModule: (moduleId: string) => void;
   onClose: () => void;
+}
+
+/** Safely convert a binding target (string or object) to a display string. */
+function displayTarget(target: string | BindingTarget): string {
+  if (typeof target === 'string') return target;
+  return targetLabel(target);
 }
 
 /** Collect all available param targets from a track (source + processors). */
@@ -134,13 +141,13 @@ export function ModuleConfigPanel({
                 {binding.role}
               </span>
               <select
-                value={binding.target}
+                value={displayTarget(binding.target)}
                 onChange={(e) => handleBindingTargetChange(idx, e.target.value)}
                 className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-200 focus:outline-none focus:border-zinc-500"
               >
                 {/* Keep current value even if not in available list */}
-                {!availableTargets.some((t) => t.value === binding.target) && (
-                  <option value={binding.target}>{binding.target}</option>
+                {!availableTargets.some((t) => t.value === displayTarget(binding.target)) && (
+                  <option value={displayTarget(binding.target)}>{displayTarget(binding.target)}</option>
                 )}
                 {availableTargets.map((t) => (
                   <option key={t.value} value={t.value}>
