@@ -201,6 +201,26 @@ describe('Pattern Primitives', () => {
       s = toggleStepAccent(s, vid, 0);      // accent on disabled NoteEvent
       expect(getTrack(s, vid).stepGrid.steps[0].gate).toBe(false);
     });
+
+    it('targets a specific pattern when patternId is provided', () => {
+      let s = createLegacySession();
+      const vid = s.tracks[0].id;
+      // Add a second pattern to the track
+      const track = getTrack(s, vid);
+      const secondPattern = { ...track.patterns[0], id: 'pat-second', events: [] as typeof track.patterns[0]['events'] };
+      s = updateTrack(s, vid, { patterns: [...track.patterns, secondPattern] });
+
+      // Toggle gate on in the second pattern
+      s = toggleStepGate(s, vid, 0, 'pat-second');
+      // Toggle accent on in the second pattern
+      const result = toggleStepAccent(s, vid, 0, 'pat-second');
+
+      const secondPat = getTrack(result, vid).patterns.find(p => p.id === 'pat-second');
+      expect(secondPat).toBeDefined();
+      const trigger = secondPat!.events.find(e => e.kind === 'trigger' && Math.abs(e.at) < 0.01) as TriggerEvent;
+      expect(trigger).toBeDefined();
+      expect(trigger.accent).toBe(true);
+    });
   });
 
   describe('setStepParamLock', () => {

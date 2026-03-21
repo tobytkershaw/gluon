@@ -54,6 +54,11 @@ function noteAt(step: number, opts: Partial<NoteEvent> = {}): NoteEvent {
   return { kind: 'note', at: step, pitch: 60, velocity: 0.8, duration: 1, ...opts };
 }
 
+/** Get step cells from a rendered container. */
+function getStepCells(container: HTMLElement) {
+  return container.querySelectorAll('[data-step-index]');
+}
+
 // ── Tests ──────────────────────────────────────────────────────
 
 describe('StepGridModule', () => {
@@ -74,11 +79,8 @@ describe('StepGridModule', () => {
         track={makeTrack({ patterns: [makePattern({ duration: 8 })] })}
       />,
     );
-    // Each step has a step number span
-    const stepNumbers = container.querySelectorAll('span');
-    // label + 8 step numbers
-    const numberSpans = Array.from(stepNumbers).filter(s => /^\d+$/.test(s.textContent ?? ''));
-    expect(numberSpans.length).toBe(8);
+    const stepCells = getStepCells(container);
+    expect(stepCells.length).toBe(8);
   });
 
   it('shows active steps for triggers with non-zero velocity', () => {
@@ -91,8 +93,7 @@ describe('StepGridModule', () => {
         track={makeTrack({ patterns: [pattern] })}
       />,
     );
-    // Steps with gates get the accent color as background
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     expect(stepCells.length).toBe(16);
     // Active steps (0, 3, 7) have opacity set via style
     const activeSteps = Array.from(stepCells).filter(
@@ -111,7 +112,7 @@ describe('StepGridModule', () => {
         track={makeTrack({ patterns: [pattern] })}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     // Step 2 should NOT show as active (velocity=0)
     const step2 = stepCells[2] as HTMLElement;
     // Should not have opacity set (inactive gate style has no opacity)
@@ -128,13 +129,13 @@ describe('StepGridModule', () => {
         track={makeTrack({ patterns: [pattern] })}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     const step4 = stepCells[4] as HTMLElement;
     // Should have opacity set (active gate)
     expect(step4.style.opacity).toBe('0.3');
   });
 
-  it('calls onStepToggle with trackId and step index on click', () => {
+  it('calls onStepToggle with trackId and step index on pointerdown', () => {
     const onStepToggle = vi.fn();
     const track = makeTrack({ patterns: [makePattern()] });
     const { container } = render(
@@ -144,9 +145,9 @@ describe('StepGridModule', () => {
         onStepToggle={onStepToggle}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
-    fireEvent.click(stepCells[5]);
-    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 5);
+    const stepCells = getStepCells(container);
+    fireEvent.pointerDown(stepCells[5]);
+    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 5, 'pat-1');
   });
 
   it('does not call onInteractionStart/End for discrete step toggles', () => {
@@ -163,10 +164,12 @@ describe('StepGridModule', () => {
         onInteractionEnd={onInteractionEnd}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
-    fireEvent.click(stepCells[2]);
+    const stepCells = getStepCells(container);
+    fireEvent.pointerDown(stepCells[2]);
+    // Fire pointerup on document to end the paint gesture
+    fireEvent.pointerUp(document);
     expect(onStepToggle).toHaveBeenCalledTimes(1);
-    // Step toggles are discrete — they don't use the continuous gesture boundary
+    // Single-step click should NOT trigger interaction boundary
     expect(onInteractionStart).not.toHaveBeenCalled();
     expect(onInteractionEnd).not.toHaveBeenCalled();
   });
@@ -179,9 +182,9 @@ describe('StepGridModule', () => {
         track={track}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     // Should not throw when clicking without callback
-    fireEvent.click(stepCells[0]);
+    fireEvent.pointerDown(stepCells[0]);
   });
 
   it('adds cursor-pointer class when interactive', () => {
@@ -194,7 +197,7 @@ describe('StepGridModule', () => {
         onStepToggle={onStepToggle}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     expect(stepCells[0].className).toContain('cursor-pointer');
   });
 
@@ -206,7 +209,7 @@ describe('StepGridModule', () => {
         track={track}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     expect(stepCells[0].className).not.toContain('cursor-pointer');
   });
 
@@ -224,7 +227,7 @@ describe('StepGridModule', () => {
       />,
     );
     // Should show 4 steps (from bound pattern), not 16
-    const stepCells = container.querySelectorAll('[data-no-select]');
+    const stepCells = getStepCells(container);
     expect(stepCells.length).toBe(4);
   });
 
@@ -243,8 +246,203 @@ describe('StepGridModule', () => {
         onStepToggle={onStepToggle}
       />,
     );
-    const stepCells = container.querySelectorAll('[data-no-select]');
-    fireEvent.click(stepCells[1]);
+    const stepCells = getStepCells(container);
+    fireEvent.pointerDown(stepCells[1]);
     expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-bound');
+  });
+
+  // ── Drag-to-paint tests ────────────────────────────────────────
+
+  describe('drag-to-paint', () => {
+    it('paints ON direction when starting from empty step', () => {
+      const onStepToggle = vi.fn();
+      const onInteractionStart = vi.fn();
+      const onInteractionEnd = vi.fn();
+      const track = makeTrack({ patterns: [makePattern()] });
+      const { container } = render(
+        <StepGridModule
+          module={makeModule()}
+          track={track}
+          onStepToggle={onStepToggle}
+          onInteractionStart={onInteractionStart}
+          onInteractionEnd={onInteractionEnd}
+        />,
+      );
+      const stepCells = getStepCells(container);
+      const stepContainer = stepCells[0].parentElement!;
+
+      // pointerdown on step 0 (empty → enables)
+      fireEvent.pointerDown(stepCells[0]);
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 0, 'pat-1');
+
+      // Mock document.elementFromPoint to return step 1
+      const originalElementFromPoint = document.elementFromPoint;
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[1]);
+
+      // pointermove → should paint step 1
+      fireEvent.pointerMove(stepContainer, { clientX: 50, clientY: 10 });
+      expect(onInteractionStart).toHaveBeenCalledTimes(1);
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-1');
+
+      // pointermove → should paint step 2
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[2]);
+      fireEvent.pointerMove(stepContainer, { clientX: 100, clientY: 10 });
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 2, 'pat-1');
+
+      // pointerup ends gesture
+      fireEvent.pointerUp(document);
+      expect(onInteractionEnd).toHaveBeenCalledTimes(1);
+
+      // Total: 3 step toggles (steps 0, 1, 2)
+      expect(onStepToggle).toHaveBeenCalledTimes(3);
+
+      document.elementFromPoint = originalElementFromPoint;
+    });
+
+    it('paints OFF direction when starting from active step', () => {
+      const onStepToggle = vi.fn();
+      const pattern = makePattern({
+        events: [triggerAt(0), triggerAt(1), triggerAt(2)],
+      });
+      const track = makeTrack({ patterns: [pattern] });
+      const { container } = render(
+        <StepGridModule
+          module={makeModule()}
+          track={track}
+          onStepToggle={onStepToggle}
+          onInteractionStart={vi.fn()}
+          onInteractionEnd={vi.fn()}
+        />,
+      );
+      const stepCells = getStepCells(container);
+      const stepContainer = stepCells[0].parentElement!;
+
+      // pointerdown on step 0 (active → disables)
+      fireEvent.pointerDown(stepCells[0]);
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 0, 'pat-1');
+
+      const originalElementFromPoint = document.elementFromPoint;
+
+      // Drag to step 1 (active → should be toggled off)
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[1]);
+      fireEvent.pointerMove(stepContainer, { clientX: 50, clientY: 10 });
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-1');
+
+      // Drag to step 2 (active → should be toggled off)
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[2]);
+      fireEvent.pointerMove(stepContainer, { clientX: 100, clientY: 10 });
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 2, 'pat-1');
+
+      fireEvent.pointerUp(document);
+      expect(onStepToggle).toHaveBeenCalledTimes(3);
+
+      document.elementFromPoint = originalElementFromPoint;
+    });
+
+    it('does not revisit already-painted steps', () => {
+      const onStepToggle = vi.fn();
+      const track = makeTrack({ patterns: [makePattern()] });
+      const { container } = render(
+        <StepGridModule
+          module={makeModule()}
+          track={track}
+          onStepToggle={onStepToggle}
+          onInteractionStart={vi.fn()}
+          onInteractionEnd={vi.fn()}
+        />,
+      );
+      const stepCells = getStepCells(container);
+      const stepContainer = stepCells[0].parentElement!;
+
+      fireEvent.pointerDown(stepCells[0]);
+
+      const originalElementFromPoint = document.elementFromPoint;
+
+      // Move to step 1
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[1]);
+      fireEvent.pointerMove(stepContainer, { clientX: 50, clientY: 10 });
+
+      // Move back to step 0 (already visited — should NOT toggle again)
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[0]);
+      fireEvent.pointerMove(stepContainer, { clientX: 10, clientY: 10 });
+
+      fireEvent.pointerUp(document);
+      // Only 2 toggles: step 0 (pointerdown) + step 1 (first visit)
+      expect(onStepToggle).toHaveBeenCalledTimes(2);
+
+      document.elementFromPoint = originalElementFromPoint;
+    });
+  });
+
+  // ── Shift+click accent tests ───────────────────────────────────
+
+  describe('shift+click accent toggle', () => {
+    it('calls onStepAccentToggle with correct args on shift+pointerdown', () => {
+      const onStepToggle = vi.fn();
+      const onStepAccentToggle = vi.fn();
+      const pattern = makePattern({ events: [triggerAt(3)] });
+      const track = makeTrack({ patterns: [pattern] });
+      const { container } = render(
+        <StepGridModule
+          module={makeModule()}
+          track={track}
+          onStepToggle={onStepToggle}
+          onStepAccentToggle={onStepAccentToggle}
+        />,
+      );
+      const stepCells = getStepCells(container);
+      fireEvent.pointerDown(stepCells[3], { shiftKey: true });
+      expect(onStepAccentToggle).toHaveBeenCalledWith('trk-1', 3, 'pat-1');
+    });
+
+    it('does NOT call onStepToggle on shift+click', () => {
+      const onStepToggle = vi.fn();
+      const onStepAccentToggle = vi.fn();
+      const pattern = makePattern({ events: [triggerAt(3)] });
+      const track = makeTrack({ patterns: [pattern] });
+      const { container } = render(
+        <StepGridModule
+          module={makeModule()}
+          track={track}
+          onStepToggle={onStepToggle}
+          onStepAccentToggle={onStepAccentToggle}
+        />,
+      );
+      const stepCells = getStepCells(container);
+      fireEvent.pointerDown(stepCells[3], { shiftKey: true });
+      expect(onStepToggle).not.toHaveBeenCalled();
+    });
+
+    it('does NOT start a paint gesture on shift+click', () => {
+      const onStepToggle = vi.fn();
+      const onStepAccentToggle = vi.fn();
+      const onInteractionStart = vi.fn();
+      const pattern = makePattern({ events: [triggerAt(3)] });
+      const track = makeTrack({ patterns: [pattern] });
+      const { container } = render(
+        <StepGridModule
+          module={makeModule()}
+          track={track}
+          onStepToggle={onStepToggle}
+          onStepAccentToggle={onStepAccentToggle}
+          onInteractionStart={onInteractionStart}
+        />,
+      );
+      const stepCells = getStepCells(container);
+      const stepContainer = stepCells[0].parentElement!;
+
+      fireEvent.pointerDown(stepCells[3], { shiftKey: true });
+
+      const originalElementFromPoint = document.elementFromPoint;
+      document.elementFromPoint = vi.fn().mockReturnValue(stepCells[4]);
+      fireEvent.pointerMove(stepContainer, { clientX: 50, clientY: 10 });
+
+      // No paint should have happened — only the accent toggle
+      expect(onStepToggle).not.toHaveBeenCalled();
+      expect(onInteractionStart).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(document);
+      document.elementFromPoint = originalElementFromPoint;
+    });
   });
 });

@@ -40,6 +40,8 @@ interface SurfaceCanvasProps {
   onToggleProcessorEnabled?: (processorId: string) => void;
   /** Toggle a step gate on/off. patternId targets a specific pattern (for bound regions). */
   onStepToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  /** Toggle accent on an active step. patternId targets a specific pattern (for bound regions). */
+  onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
 }
 
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
@@ -65,6 +67,7 @@ export function SurfaceCanvas({
   onRemoveModule,
   onToggleProcessorEnabled,
   onStepToggle,
+  onStepAccentToggle,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -266,6 +269,7 @@ export function SurfaceCanvas({
                   onInteractionEnd={onInteractionEnd}
                   onToggleProcessorEnabled={onToggleProcessorEnabled}
                   onStepToggle={onStepToggle}
+                  onStepAccentToggle={onStepAccentToggle}
                 />
               </div>
             );

@@ -22,4 +22,6 @@ export interface ModuleRendererProps {
   onToggleProcessorEnabled?: (processorId: string) => void;
   /** Toggle a step gate on/off. patternId targets a specific pattern (for bound regions). */
   onStepToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  /** Toggle accent on an active step. patternId targets a specific pattern (for bound regions). */
+  onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
 }
