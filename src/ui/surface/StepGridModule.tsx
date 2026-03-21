@@ -1,19 +1,28 @@
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
-import type { TriggerEvent } from '../../engine/canonical-types';
+import type { TriggerEvent, NoteEvent } from '../../engine/canonical-types';
 import { getActivePattern } from '../../engine/types';
 import { resolveBinding } from '../../engine/binding-resolver';
 import { getAccentColor } from './visual-utils';
 import { ensureTypedTarget } from './binding-helpers';
 
 /**
- * StepGridModule — TR-style read-only step display for the Surface.
+ * StepGridModule — TR-style interactive step display for the Surface.
  *
  * Binds to a region via module.bindings and reads trigger events from
  * the track's active pattern. Shows up to 16 steps with gate/accent
- * indicators and beat-boundary markers.
+ * indicators and beat-boundary markers. Clicking a step toggles the
+ * trigger on/off via the onStepToggle callback.
  */
-export function StepGridModule({ module, track, visualContext, roleColor }: ModuleRendererProps) {
+export function StepGridModule({
+  module,
+  track,
+  visualContext,
+  roleColor,
+  onStepToggle,
+  onInteractionStart,
+  onInteractionEnd,
+}: ModuleRendererProps) {
   // Step grid uses base role — pattern output is the track's identity
   const accent = roleColor?.full ?? getAccentColor(visualContext);
 
@@ -64,6 +73,18 @@ export function StepGridModule({ module, track, visualContext, roleColor }: Modu
     );
   }
 
+  const interactive = !!onStepToggle;
+
+  const handleStepClick = useCallback(
+    (stepIndex: number) => {
+      if (!onStepToggle) return;
+      onInteractionStart?.();
+      onStepToggle(track.id, stepIndex);
+      onInteractionEnd?.();
+    },
+    [onStepToggle, onInteractionStart, onInteractionEnd, track.id],
+  );
+
   if (!pattern) {
     return (
       <div className="h-full flex flex-col p-2">
@@ -77,14 +98,14 @@ export function StepGridModule({ module, track, visualContext, roleColor }: Modu
     );
   }
 
-  // Extract trigger events from the pattern, keyed by integer step position
+  // Extract gate events (trigger or note) from the pattern, keyed by integer step position
   const stepCount = Math.min(Math.floor(pattern.duration), 16);
-  const triggersByStep = new Map<number, TriggerEvent>();
+  const gatesByStep = new Map<number, TriggerEvent | NoteEvent>();
   for (const event of pattern.events) {
-    if (event.kind === 'trigger') {
+    if (event.kind === 'trigger' || event.kind === 'note') {
       const stepPos = Math.floor(event.at);
       if (stepPos >= 0 && stepPos < stepCount) {
-        triggersByStep.set(stepPos, event as TriggerEvent);
+        gatesByStep.set(stepPos, event as TriggerEvent | NoteEvent);
       }
     }
   }
@@ -96,15 +117,18 @@ export function StepGridModule({ module, track, visualContext, roleColor }: Modu
       </span>
       <div className="flex-1 flex items-center gap-0.5">
         {Array.from({ length: stepCount }, (_, i) => {
-          const trigger = triggersByStep.get(i);
-          const hasGate = trigger !== undefined;
-          const hasAccent = hasGate && trigger.accent === true;
+          const gateEvent = gatesByStep.get(i);
+          // velocity=0 is the disabled sentinel — treat as no gate
+          const velocity = gateEvent?.velocity ?? 0;
+          const hasGate = gateEvent !== undefined && velocity !== 0;
+          const hasAccent = hasGate && gateEvent.kind === 'trigger' && (gateEvent as TriggerEvent).accent === true;
           const isBeatBoundary = i % 4 === 0;
 
           return (
             <div
               key={i}
-              className="relative flex-1 min-w-0 h-full rounded-sm transition-colors border"
+              data-no-select
+              className={`relative flex-1 min-w-0 h-full rounded-sm transition-colors border${interactive ? ' cursor-pointer hover:brightness-125 active:brightness-150' : ''}`}
               style={hasGate
                 ? {
                     backgroundColor: accent,
@@ -116,6 +140,7 @@ export function StepGridModule({ module, track, visualContext, roleColor }: Modu
                     borderColor: 'rgba(63,63,70,0.4)',
                   }
               }
+              onClick={interactive ? () => handleStepClick(i) : undefined}
             >
               {/* Beat boundary marker */}
               {isBeatBoundary && (

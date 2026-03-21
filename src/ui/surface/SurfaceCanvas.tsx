@@ -38,6 +38,8 @@ interface SurfaceCanvasProps {
   onRemoveModule?: (moduleId: string) => void;
   /** Toggle processor enabled/bypass — goes through session state + undo. */
   onToggleProcessorEnabled?: (processorId: string) => void;
+  /** Toggle a step gate on/off in the track's active pattern. */
+  onStepToggle?: (trackId: string, stepIndex: number) => void;
 }
 
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
@@ -62,6 +64,7 @@ export function SurfaceCanvas({
   onUpdateModule,
   onRemoveModule,
   onToggleProcessorEnabled,
+  onStepToggle,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -262,6 +265,7 @@ export function SurfaceCanvas({
                   onInteractionStart={onInteractionStart}
                   onInteractionEnd={onInteractionEnd}
                   onToggleProcessorEnabled={onToggleProcessorEnabled}
+                  onStepToggle={onStepToggle}
                 />
               </div>
             );

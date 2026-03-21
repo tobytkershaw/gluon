@@ -20,4 +20,6 @@ export interface ModuleRendererProps {
   onInteractionEnd?: () => void;
   /** Toggle processor enabled/bypass — goes through session state + undo */
   onToggleProcessorEnabled?: (processorId: string) => void;
+  /** Toggle a step gate on/off in the track's active pattern */
+  onStepToggle?: (trackId: string, stepIndex: number) => void;
 }
