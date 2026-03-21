@@ -1,4 +1,5 @@
 import type { Track, SurfaceModule, ModuleVisualContext } from '../../engine/types';
+import type { MusicalEvent } from '../../engine/canonical-types';
 import type { SurfacePalette, PaletteColor } from './palette';
 
 export interface ModuleRendererProps {
@@ -21,7 +22,9 @@ export interface ModuleRendererProps {
   /** Toggle processor enabled/bypass — goes through session state + undo */
   onToggleProcessorEnabled?: (processorId: string) => void;
   /** Toggle a step gate on/off. patternId targets a specific pattern (for bound regions). */
-  onStepToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  onStepToggle?: (trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }) => void;
   /** Toggle accent on an active step. patternId targets a specific pattern (for bound regions). */
   onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  /** Called when a paint gesture completes to push a single grouped undo entry. */
+  onPaintComplete?: (trackId: string, patternId: string | undefined, prevEvents: MusicalEvent[]) => void;
 }

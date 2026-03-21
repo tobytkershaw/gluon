@@ -2430,15 +2430,32 @@ export default function App() {
     setSession((s) => toggleStepGate(s, s.activeTrackId, stepIndex));
   }, [ensureAudio]);
 
-  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number, patternId?: string) => {
+  const handleSurfaceStepToggle = useCallback((trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }) => {
     ensureAudio();
-    setSession((s) => toggleStepGate(s, trackId, stepIndex, patternId));
+    setSession((s) => toggleStepGate(s, trackId, stepIndex, patternId, options));
   }, [ensureAudio]);
 
   const handleSurfaceStepAccentToggle = useCallback((trackId: string, stepIndex: number, patternId?: string) => {
     ensureAudio();
     setSession((s) => toggleStepAccent(s, trackId, stepIndex, patternId));
   }, [ensureAudio]);
+
+  const handlePaintComplete = useCallback((trackId: string, patternId: string | undefined, prevEvents: import('../engine/canonical-types').MusicalEvent[]) => {
+    setSession((s) => {
+      const track = getTrack(s, trackId);
+      const pattern = patternId ? track.patterns.find(p => p.id === patternId) : getActivePattern(track);
+      if (!pattern) return s;
+      const snapshot: PatternEditSnapshot = {
+        kind: 'pattern-edit',
+        trackId,
+        patternId: pattern.id,
+        prevEvents,
+        timestamp: Date.now(),
+        description: 'Paint steps',
+      };
+      return { ...s, undoStack: [...s.undoStack, snapshot] };
+    });
+  }, []);
 
   const _handleStepAccent = useCallback((stepIndex: number) => {
     ensureAudio();
@@ -3486,6 +3503,7 @@ export default function App() {
             onToggleProcessorEnabled={handleToggleProcessorEnabled}
             onStepToggle={handleSurfaceStepToggle}
             onStepAccentToggle={handleSurfaceStepAccentToggle}
+            onPaintComplete={handlePaintComplete}
           />
         )}
         {!isSessionEmpty && view === 'rack' && (

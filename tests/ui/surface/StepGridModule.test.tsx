@@ -135,7 +135,7 @@ describe('StepGridModule', () => {
     expect(step4.style.opacity).toBe('0.3');
   });
 
-  it('calls onStepToggle with trackId and step index on pointerdown', () => {
+  it('calls onStepToggle with trackId, step index, patternId, and pushUndo:false on pointerdown', () => {
     const onStepToggle = vi.fn();
     const track = makeTrack({ patterns: [makePattern()] });
     const { container } = render(
@@ -147,31 +147,28 @@ describe('StepGridModule', () => {
     );
     const stepCells = getStepCells(container);
     fireEvent.pointerDown(stepCells[5]);
-    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 5, 'pat-1');
+    // All toggles use pushUndo:false — undo is handled by onPaintComplete
+    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 5, 'pat-1', { pushUndo: false });
   });
 
-  it('does not call onInteractionStart/End for discrete step toggles', () => {
+  it('calls onPaintComplete on pointerup with preToggleEvents for single click', () => {
     const onStepToggle = vi.fn();
-    const onInteractionStart = vi.fn();
-    const onInteractionEnd = vi.fn();
+    const onPaintComplete = vi.fn();
     const track = makeTrack({ patterns: [makePattern()] });
     const { container } = render(
       <StepGridModule
         module={makeModule()}
         track={track}
         onStepToggle={onStepToggle}
-        onInteractionStart={onInteractionStart}
-        onInteractionEnd={onInteractionEnd}
+        onPaintComplete={onPaintComplete}
       />,
     );
     const stepCells = getStepCells(container);
     fireEvent.pointerDown(stepCells[2]);
-    // Fire pointerup on document to end the paint gesture
     fireEvent.pointerUp(document);
-    expect(onStepToggle).toHaveBeenCalledTimes(1);
-    // Single-step click should NOT trigger interaction boundary
-    expect(onInteractionStart).not.toHaveBeenCalled();
-    expect(onInteractionEnd).not.toHaveBeenCalled();
+    // Single click should still produce one undo entry via onPaintComplete
+    expect(onPaintComplete).toHaveBeenCalledTimes(1);
+    expect(onPaintComplete).toHaveBeenCalledWith('trk-1', 'pat-1', []);
   });
 
   it('does not call onStepToggle when callback is absent (read-only)', () => {
@@ -248,7 +245,7 @@ describe('StepGridModule', () => {
     );
     const stepCells = getStepCells(container);
     fireEvent.pointerDown(stepCells[1]);
-    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-bound');
+    expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-bound', { pushUndo: false });
   });
 
   // ── Drag-to-paint tests ────────────────────────────────────────
@@ -256,16 +253,14 @@ describe('StepGridModule', () => {
   describe('drag-to-paint', () => {
     it('paints ON direction when starting from empty step', () => {
       const onStepToggle = vi.fn();
-      const onInteractionStart = vi.fn();
-      const onInteractionEnd = vi.fn();
+      const onPaintComplete = vi.fn();
       const track = makeTrack({ patterns: [makePattern()] });
       const { container } = render(
         <StepGridModule
           module={makeModule()}
           track={track}
           onStepToggle={onStepToggle}
-          onInteractionStart={onInteractionStart}
-          onInteractionEnd={onInteractionEnd}
+          onPaintComplete={onPaintComplete}
         />,
       );
       const stepCells = getStepCells(container);
@@ -273,7 +268,7 @@ describe('StepGridModule', () => {
 
       // pointerdown on step 0 (empty → enables)
       fireEvent.pointerDown(stepCells[0]);
-      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 0, 'pat-1');
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 0, 'pat-1', { pushUndo: false });
 
       // Mock document.elementFromPoint to return step 1
       const originalElementFromPoint = document.elementFromPoint;
@@ -281,19 +276,19 @@ describe('StepGridModule', () => {
 
       // pointermove → should paint step 1
       fireEvent.pointerMove(stepContainer, { clientX: 50, clientY: 10 });
-      expect(onInteractionStart).toHaveBeenCalledTimes(1);
-      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-1');
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-1', { pushUndo: false });
 
       // pointermove → should paint step 2
       document.elementFromPoint = vi.fn().mockReturnValue(stepCells[2]);
       fireEvent.pointerMove(stepContainer, { clientX: 100, clientY: 10 });
-      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 2, 'pat-1');
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 2, 'pat-1', { pushUndo: false });
 
-      // pointerup ends gesture
+      // pointerup ends gesture — one grouped undo via onPaintComplete
       fireEvent.pointerUp(document);
-      expect(onInteractionEnd).toHaveBeenCalledTimes(1);
+      expect(onPaintComplete).toHaveBeenCalledTimes(1);
+      expect(onPaintComplete).toHaveBeenCalledWith('trk-1', 'pat-1', []);
 
-      // Total: 3 step toggles (steps 0, 1, 2)
+      // Total: 3 step toggles (steps 0, 1, 2), all with pushUndo:false
       expect(onStepToggle).toHaveBeenCalledTimes(3);
 
       document.elementFromPoint = originalElementFromPoint;
@@ -301,17 +296,16 @@ describe('StepGridModule', () => {
 
     it('paints OFF direction when starting from active step', () => {
       const onStepToggle = vi.fn();
-      const pattern = makePattern({
-        events: [triggerAt(0), triggerAt(1), triggerAt(2)],
-      });
+      const onPaintComplete = vi.fn();
+      const events = [triggerAt(0), triggerAt(1), triggerAt(2)];
+      const pattern = makePattern({ events });
       const track = makeTrack({ patterns: [pattern] });
       const { container } = render(
         <StepGridModule
           module={makeModule()}
           track={track}
           onStepToggle={onStepToggle}
-          onInteractionStart={vi.fn()}
-          onInteractionEnd={vi.fn()}
+          onPaintComplete={onPaintComplete}
         />,
       );
       const stepCells = getStepCells(container);
@@ -319,22 +313,24 @@ describe('StepGridModule', () => {
 
       // pointerdown on step 0 (active → disables)
       fireEvent.pointerDown(stepCells[0]);
-      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 0, 'pat-1');
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 0, 'pat-1', { pushUndo: false });
 
       const originalElementFromPoint = document.elementFromPoint;
 
       // Drag to step 1 (active → should be toggled off)
       document.elementFromPoint = vi.fn().mockReturnValue(stepCells[1]);
       fireEvent.pointerMove(stepContainer, { clientX: 50, clientY: 10 });
-      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-1');
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 1, 'pat-1', { pushUndo: false });
 
       // Drag to step 2 (active → should be toggled off)
       document.elementFromPoint = vi.fn().mockReturnValue(stepCells[2]);
       fireEvent.pointerMove(stepContainer, { clientX: 100, clientY: 10 });
-      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 2, 'pat-1');
+      expect(onStepToggle).toHaveBeenCalledWith('trk-1', 2, 'pat-1', { pushUndo: false });
 
       fireEvent.pointerUp(document);
       expect(onStepToggle).toHaveBeenCalledTimes(3);
+      // onPaintComplete receives the pre-toggle events
+      expect(onPaintComplete).toHaveBeenCalledWith('trk-1', 'pat-1', events);
 
       document.elementFromPoint = originalElementFromPoint;
     });
@@ -347,8 +343,7 @@ describe('StepGridModule', () => {
           module={makeModule()}
           track={track}
           onStepToggle={onStepToggle}
-          onInteractionStart={vi.fn()}
-          onInteractionEnd={vi.fn()}
+          onPaintComplete={vi.fn()}
         />,
       );
       const stepCells = getStepCells(container);
@@ -416,7 +411,7 @@ describe('StepGridModule', () => {
     it('does NOT start a paint gesture on shift+click', () => {
       const onStepToggle = vi.fn();
       const onStepAccentToggle = vi.fn();
-      const onInteractionStart = vi.fn();
+      const onPaintComplete = vi.fn();
       const pattern = makePattern({ events: [triggerAt(3)] });
       const track = makeTrack({ patterns: [pattern] });
       const { container } = render(
@@ -425,7 +420,7 @@ describe('StepGridModule', () => {
           track={track}
           onStepToggle={onStepToggle}
           onStepAccentToggle={onStepAccentToggle}
-          onInteractionStart={onInteractionStart}
+          onPaintComplete={onPaintComplete}
         />,
       );
       const stepCells = getStepCells(container);
@@ -439,7 +434,7 @@ describe('StepGridModule', () => {
 
       // No paint should have happened — only the accent toggle
       expect(onStepToggle).not.toHaveBeenCalled();
-      expect(onInteractionStart).not.toHaveBeenCalled();
+      expect(onPaintComplete).not.toHaveBeenCalled();
 
       fireEvent.pointerUp(document);
       document.elementFromPoint = originalElementFromPoint;

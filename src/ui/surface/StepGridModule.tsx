@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
-import type { TriggerEvent, NoteEvent } from '../../engine/canonical-types';
+import type { TriggerEvent, NoteEvent, MusicalEvent } from '../../engine/canonical-types';
 import { getActivePattern } from '../../engine/types';
 import { resolveBinding } from '../../engine/binding-resolver';
 import { getAccentColor } from './visual-utils';
@@ -10,6 +10,8 @@ interface PaintState {
   active: boolean;
   direction: 'on' | 'off';
   visitedSteps: Set<number>;
+  /** Pattern events captured before the first toggle — used for grouped undo. */
+  preToggleEvents: MusicalEvent[];
 }
 
 /**
@@ -22,7 +24,7 @@ interface PaintState {
  * Interactions:
  * - Click a step: toggle gate on/off (discrete undo)
  * - Shift+click an active step: toggle accent
- * - Drag across steps: paint on/off (grouped undo via onInteractionStart/End)
+ * - Drag across steps: paint on/off (single grouped undo via onPaintComplete)
  */
 export function StepGridModule({
   module,
@@ -31,8 +33,7 @@ export function StepGridModule({
   roleColor,
   onStepToggle,
   onStepAccentToggle,
-  onInteractionStart,
-  onInteractionEnd,
+  onPaintComplete,
 }: ModuleRendererProps) {
   // Step grid uses base role — pattern output is the track's identity
   const accent = roleColor?.full ?? getAccentColor(visualContext);
@@ -68,7 +69,7 @@ export function StepGridModule({
   }, [regionBinding, module.type, module.config, track]);
 
   // Paint state ref — survives re-renders without causing them
-  const paintingRef = useRef<PaintState>({ active: false, direction: 'on', visitedSteps: new Set() });
+  const paintingRef = useRef<PaintState>({ active: false, direction: 'on', visitedSteps: new Set(), preToggleEvents: [] });
 
   // Disconnected state — binding target no longer exists
   if (isDisconnected) {
@@ -120,16 +121,6 @@ export function StepGridModule({
     return ev !== undefined && (ev.velocity ?? 0) !== 0;
   };
 
-  // Step toggles are discrete actions (not continuous gestures like knob drags),
-  // so they don't use onInteractionStart/End. toggleStepGate manages its own undo.
-  const handleStepClick = useCallback(
-    (stepIndex: number) => {
-      if (!onStepToggle) return;
-      onStepToggle(track.id, stepIndex, pattern?.id);
-    },
-    [onStepToggle, track.id, pattern],
-  );
-
   const handleStepAccentClick = useCallback(
     (stepIndex: number) => {
       if (!onStepAccentToggle) return;
@@ -138,7 +129,7 @@ export function StepGridModule({
     [onStepAccentToggle, track.id, pattern],
   );
 
-  /** Apply paint direction to a step (toggle on or off). */
+  /** Apply paint direction to a step (toggle on or off, no undo). */
   const applyPaintToStep = useCallback(
     (stepIndex: number) => {
       if (!onStepToggle) return;
@@ -149,7 +140,7 @@ export function StepGridModule({
       const hasGate = stepHasGate(stepIndex);
       // Only toggle if the step's current state doesn't match the paint direction
       if ((state.direction === 'on' && !hasGate) || (state.direction === 'off' && hasGate)) {
-        onStepToggle(track.id, stepIndex, pattern?.id);
+        onStepToggle(track.id, stepIndex, pattern?.id, { pushUndo: false });
       }
     },
     [onStepToggle, track.id, pattern, gatesByStep],
@@ -176,12 +167,16 @@ export function StepGridModule({
         active: true,
         direction,
         visitedSteps: new Set([stepIndex]),
+        // Capture events BEFORE any toggle — used for grouped undo on paint end
+        preToggleEvents: pattern ? [...pattern.events] : [],
       };
 
-      // Toggle the first step (discrete — own undo entry via toggleStepGate)
-      handleStepClick(stepIndex);
+      // Toggle the first step without undo — undo snapshot is pushed on paint end
+      if (onStepToggle) {
+        onStepToggle(track.id, stepIndex, pattern?.id, { pushUndo: false });
+      }
     },
-    [interactive, handleStepClick, handleStepAccentClick, gatesByStep],
+    [interactive, onStepToggle, handleStepAccentClick, gatesByStep, track.id, pattern],
   );
 
   const handlePointerMove = useCallback(
@@ -198,17 +193,9 @@ export function StepGridModule({
       const stepIndex = parseInt(stepEl.getAttribute('data-step-index') ?? '', 10);
       if (isNaN(stepIndex)) return;
 
-      const state = paintingRef.current;
-      if (state.visitedSteps.has(stepIndex)) return;
-
-      // If this is the second step being painted, start the interaction group
-      if (state.visitedSteps.size === 1) {
-        onInteractionStart?.();
-      }
-
       applyPaintToStep(stepIndex);
     },
-    [applyPaintToStep, onInteractionStart],
+    [applyPaintToStep],
   );
 
   // Document-level pointerup to end paint gesture
@@ -216,13 +203,13 @@ export function StepGridModule({
     const state = paintingRef.current;
     if (!state.active) return;
 
-    // Only call onInteractionEnd if we painted multiple steps (interaction group was started)
-    if (state.visitedSteps.size > 1) {
-      onInteractionEnd?.();
+    // Push a single undo snapshot covering all painted steps
+    if (state.visitedSteps.size > 0 && onPaintComplete && pattern) {
+      onPaintComplete(track.id, pattern.id, state.preToggleEvents);
     }
 
-    paintingRef.current = { active: false, direction: 'on', visitedSteps: new Set() };
-  }, [onInteractionEnd]);
+    paintingRef.current = { active: false, direction: 'on', visitedSteps: new Set(), preToggleEvents: [] };
+  }, [onPaintComplete, track.id, pattern]);
 
   useEffect(() => {
     const handler = () => endPaint();

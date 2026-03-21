@@ -129,7 +129,7 @@ function applyRegionEdit(
 // Public API — human edit functions (all push undo snapshots)
 // ---------------------------------------------------------------------------
 
-export function toggleStepGate(session: Session, trackId: string, stepIndex: number, patternId?: string): Session {
+export function toggleStepGate(session: Session, trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }): Session {
   const track = getTrack(session, trackId);
   if (track.patterns.length === 0) return session;
 
@@ -187,7 +187,8 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
     if (insertAt === -1) events.push(newEvent);
     else events.splice(insertAt, 0, newEvent);
   }
-  return applyRegionEdit(session, trackId, events, undefined, `Toggle gate at step ${stepIndex}`, patternId);
+  const desc = (options?.pushUndo ?? true) ? `Toggle gate at step ${stepIndex}` : undefined;
+  return applyRegionEdit(session, trackId, events, undefined, desc, patternId);
 }
 
 export function toggleStepAccent(session: Session, trackId: string, stepIndex: number, patternId?: string): Session {
