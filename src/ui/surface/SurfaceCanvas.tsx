@@ -2,6 +2,7 @@ import { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import RGL from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import type { Track, SurfaceModule } from '../../engine/types';
+import type { MusicalEvent } from '../../engine/canonical-types';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { deriveModuleVisualContext } from '../../engine/visual-identity';
 import { getModuleContainerStyle } from './visual-utils';
@@ -39,7 +40,11 @@ interface SurfaceCanvasProps {
   /** Toggle processor enabled/bypass — goes through session state + undo. */
   onToggleProcessorEnabled?: (processorId: string) => void;
   /** Toggle a step gate on/off. patternId targets a specific pattern (for bound regions). */
-  onStepToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  onStepToggle?: (trackId: string, stepIndex: number, patternId?: string, options?: { pushUndo?: boolean }) => void;
+  /** Toggle accent on an active step. patternId targets a specific pattern (for bound regions). */
+  onStepAccentToggle?: (trackId: string, stepIndex: number, patternId?: string) => void;
+  /** Called when a paint gesture completes to push a single grouped undo entry. */
+  onPaintComplete?: (trackId: string, patternId: string | undefined, prevEvents: MusicalEvent[]) => void;
 }
 
 const moduleRenderers: Record<string, React.ComponentType<ModuleRendererProps>> = {
@@ -65,6 +70,8 @@ export function SurfaceCanvas({
   onRemoveModule,
   onToggleProcessorEnabled,
   onStepToggle,
+  onStepAccentToggle,
+  onPaintComplete,
 }: SurfaceCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
@@ -266,6 +273,8 @@ export function SurfaceCanvas({
                   onInteractionEnd={onInteractionEnd}
                   onToggleProcessorEnabled={onToggleProcessorEnabled}
                   onStepToggle={onStepToggle}
+                  onStepAccentToggle={onStepAccentToggle}
+                  onPaintComplete={onPaintComplete}
                 />
               </div>
             );
