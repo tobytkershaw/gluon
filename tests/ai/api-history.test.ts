@@ -990,8 +990,7 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     const callArgs = (planner.continueTurn as ReturnType<typeof vi.fn>).mock.calls[0][0];
     const response = callArgs.functionResponses[0].result;
     expect(response.error).toContain('not a drum rack');
-    expect(response.hint).toContain('existing drum rack');
-    expect(response.available).toBeInstanceOf(Array);
+    expect(response.hint).toContain('drum rack');
   });
 
   it('passes execution rejections into the turn outcome summary for recovery grounding', async () => {
@@ -1026,10 +1025,10 @@ describe('GluonAI Orchestrator (provider-agnostic)', () => {
     expect(summary).toContain('Only the tool calls listed below were executed this step.');
     expect(summary).toContain('set_model({"trackId":"v0","model":"definitely-not-a-real-model"})');
     expect(summary).toContain('manage_drum_pad({"trackId":"v0","action":"rename","padId":"kick","name":"Kick","description":"rename pad"})');
-    // set_model now catches unknown engines at call time (not execution time)
-    expect(summary).toContain('definitely-not-a-real-model');
-    // manage_drum_pad hits validation (track is not a drum rack)
-    expect(summary).toContain('manage_drum_pad');
+    // set_model now catches unknown engines at call time with a visible error
+    expect(summary).toContain('Unknown engine model');
+    // manage_drum_pad hits validation — track is not a drum rack
+    expect(summary).toContain('is not a drum rack');
     expect(summary).toContain('If an action is absent from this history, it was not executed.');
   });
 });

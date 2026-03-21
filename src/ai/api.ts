@@ -2469,7 +2469,12 @@ export class GluonAI {
           // Validate processor model name
           const procEngine = getProcessorEngineByName(proc.type, action.model);
           if (procEngine === undefined) {
-            setModelWarnings.push(`Model "${action.model}" may not be valid for processor type "${getProcessorEngineName(proc.type) ?? proc.type}"`);
+            const procInst = getProcessorInstrument(proc.type);
+            const available = procInst ? procInst.engines.map(e => e.id) : [];
+            return { actions: [], response: enrichedError(
+              `Unknown model "${action.model}" for processor type "${proc.type}".`,
+              { hint: 'Use one of the available model names.', available },
+            ) };
           }
         } else if (action.modulatorId) {
           const mod = (setModelTrack?.modulators ?? []).find(m => m.id === action.modulatorId);
@@ -2483,7 +2488,12 @@ export class GluonAI {
           // Validate modulator model name
           const modEngine = getModulatorEngineByName(mod.type, action.model);
           if (modEngine === undefined) {
-            setModelWarnings.push(`Model "${action.model}" may not be valid for modulator type "${getModulatorEngineName(mod.type) ?? mod.type}"`);
+            const modInst = getModulatorInstrument(mod.type);
+            const available = modInst ? modInst.engines.map(e => e.id) : [];
+            return { actions: [], response: enrichedError(
+              `Unknown model "${action.model}" for modulator type "${mod.type}".`,
+              { hint: 'Use one of the available model names.', available },
+            ) };
           }
         } else {
           // Track source engine — validate against engine registry
@@ -3954,18 +3964,25 @@ export class GluonAI {
           }
         }
 
-        // Validate padId exists for non-add actions (only when track is a drum rack)
+        // Validate padId exists for non-add actions
         if (drumPadSubAction !== 'add') {
           const drumTrack = session.tracks.find(t => t.id === resolvedDrumTrackId);
-          if (drumTrack?.engine === 'drum-rack' && drumTrack.drumRack) {
-            const existingPad = drumTrack.drumRack.pads.find(p => p.id === args.padId);
-            if (!existingPad) {
-              const available = drumTrack.drumRack.pads.map(p => `${p.id} (${p.name})`);
-              return { actions: [], response: enrichedError(
-                `Pad "${args.padId}" not found on track "${drumTrack.name ?? resolvedDrumTrackId}".`,
-                { hint: 'Check the pad IDs on this drum rack.', available },
-              ) };
-            }
+          if (!drumTrack) {
+            return { actions: [], response: errorPayload(`Track "${resolvedDrumTrackId}" not found.`) };
+          }
+          if (drumTrack.engine !== 'drum-rack' || !drumTrack.drumRack) {
+            return { actions: [], response: enrichedError(
+              `Track "${drumTrack.name ?? resolvedDrumTrackId}" is not a drum rack.`,
+              { hint: 'manage_drum_pad only works on drum rack tracks.' },
+            ) };
+          }
+          const existingPad = drumTrack.drumRack.pads.find(p => p.id === args.padId);
+          if (!existingPad) {
+            const available = drumTrack.drumRack.pads.map(p => `${p.id} (${p.name})`);
+            return { actions: [], response: enrichedError(
+              `Pad "${args.padId}" not found on track "${drumTrack.name ?? resolvedDrumTrackId}".`,
+              { hint: 'Check the pad IDs on this drum rack.', available },
+            ) };
           }
         }
 
