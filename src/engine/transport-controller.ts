@@ -296,6 +296,9 @@ export class TransportController {
     const nextLoop = next.loop ?? true;
     if (prevLoop !== nextLoop) return true;
 
+    // Loop range changes require scheduler restart to re-anchor timing
+    if (prev.loopStart !== next.loopStart || prev.loopEnd !== next.loopEnd) return true;
+
     const prevTs = prev.timeSignature ?? { numerator: 4, denominator: 4 };
     const nextTs = next.timeSignature ?? { numerator: 4, denominator: 4 };
     return prevTs.numerator !== nextTs.numerator || prevTs.denominator !== nextTs.denominator;

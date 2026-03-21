@@ -26,6 +26,7 @@ import {
   addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation,
   captureABSnapshot, restoreABSnapshot,
   setTransportLoop,
+  setLoopRange,
   resolveDecision,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
@@ -2045,6 +2046,37 @@ export default function App() {
     });
   }, [runWithActiveTurnInvalidation]);
 
+  const handleLoopRangeChange = useCallback((loopStart: number | undefined, loopEnd: number | undefined) => {
+    void runWithActiveTurnInvalidation(() => {
+      setSession(s => setLoopRange(s, loopStart, loopEnd));
+    });
+  }, [runWithActiveTurnInvalidation]);
+
+  const handleLoopStartClick = useCallback((step: number) => {
+    void runWithActiveTurnInvalidation(() => {
+      setSession(s => {
+        const currentEnd = s.transport.loopEnd;
+        const beatsPerBar = s.transport.timeSignature?.numerator ?? 4;
+        const stepsPerBeat = 16 / (s.transport.timeSignature?.denominator ?? 4);
+        const stepsPerBar = beatsPerBar * stepsPerBeat;
+        const end = currentEnd != null && currentEnd > step ? currentEnd : step + stepsPerBar;
+        return setLoopRange(s, step, end);
+      });
+    });
+  }, [runWithActiveTurnInvalidation]);
+
+  const handleLoopEndClick = useCallback((step: number) => {
+    void runWithActiveTurnInvalidation(() => {
+      setSession(s => {
+        const currentStart = s.transport.loopStart;
+        // End is exclusive, so step + 1
+        const endStep = step + 1;
+        const start = currentStart != null && currentStart < endStep ? currentStart : 0;
+        return setLoopRange(s, start, endStep);
+      });
+    });
+  }, [runWithActiveTurnInvalidation]);
+
   // --- Audition handlers (chat inline preview) ---
 
   const handleAuditionStart = useCallback(async (config: import('./AuditionControl').AuditionConfig) => {
@@ -3559,8 +3591,11 @@ export default function App() {
       onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
       transportMode={session.transport.mode ?? 'pattern'}
       loop={session.transport.loop ?? true}
+      loopStart={session.transport.loopStart}
+      loopEnd={session.transport.loopEnd}
       onTransportModeChange={handleTransportModeChange}
       onLoopChange={handleLoopChange}
+      onLoopRangeChange={handleLoopRangeChange}
       timeSignatureNumerator={session.transport.timeSignature?.numerator ?? 4}
       timeSignatureDenominator={session.transport.timeSignature?.denominator ?? 4}
       onTimeSignatureChange={handleTimeSignatureChange}
@@ -3707,6 +3742,10 @@ export default function App() {
             onReorderPatternRef={handleReorderPatternRef}
             onSetSequenceAutomation={handleSetSequenceAutomation}
             onClearSequenceAutomation={handleClearSequenceAutomation}
+            loopStart={session.transport.loopStart}
+            loopEnd={session.transport.loopEnd}
+            onLoopStartClick={handleLoopStartClick}
+            onLoopEndClick={handleLoopEndClick}
           />
         )}
     </AppShell>

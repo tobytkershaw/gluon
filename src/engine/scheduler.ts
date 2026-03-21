@@ -142,6 +142,9 @@ export class Scheduler {
     // globalStep grows monotonically — getLocalSegments handles loop
     // wrapping via its cycle mechanism. We only wrap for the UI position.
     let maxPatternLen = 0;
+    const loopStart = session.transport.loopStart;
+    const loopEnd = session.transport.loopEnd;
+    const hasLoopRange = loopStart != null && loopEnd != null && loopEnd > loopStart;
     if (transportMode === 'pattern') {
       const audibleTracks = getSchedulableTracks(session);
       for (const t of audibleTracks) {
@@ -149,6 +152,18 @@ export class Scheduler {
           const len = getActivePattern(t).duration;
           if (len > maxPatternLen) maxPatternLen = len;
         }
+      }
+
+      // Loop range: when active, wrap globalStep within [loopStart, loopEnd)
+      if (hasLoopRange && maxPatternLen > 0 && globalStep >= loopEnd) {
+        const rangeLen = loopEnd - loopStart;
+        const stepDuration2 = 60 / (bpm * 4);
+        while (globalStep >= loopEnd) {
+          this.startTime += rangeLen * stepDuration2;
+          globalStep -= rangeLen;
+        }
+        this.cursor = loopStart;
+        this.playbackPlan.reset(this.generation);
       }
     }
 

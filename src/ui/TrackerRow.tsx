@@ -5,6 +5,9 @@ import type { EventSelector } from '../engine/event-primitives';
 import { microTimingOffset, formatMicroOffset } from '../engine/micro-timing';
 import type { SlotRow, FxColumnDef } from './Tracker';
 
+/** Loop bracket state for a row: whether this row is at the start, end, or inside the loop range. */
+export type LoopBracketState = 'start' | 'end' | 'inside' | 'start-end' | null;
+
 interface Props {
   slot: SlotRow;
   /** Total note columns to render (auto-expanded based on max polyphony). */
@@ -43,6 +46,12 @@ interface Props {
   onRowDoubleClick?: () => void;
   /** Called when a note cell is hovered (pitch) or unhovered (null). */
   onNotePreview?: (pitch: number | null) => void;
+  /** Loop bracket state for this row. */
+  loopBracket?: LoopBracketState;
+  /** Click handler for setting loop start from gutter click. */
+  onLoopStartClick?: (step: number) => void;
+  /** Shift+click handler for setting loop end from gutter click. */
+  onLoopEndClick?: (step: number) => void;
 }
 
 // --- Formatting helpers ---
@@ -460,6 +469,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     cancelEditRef,
     isCursorRow, cursorColumnType, editRequestCounter,
     isSelected, onRowClick, onRowDoubleClick, onNotePreview,
+    loopBracket, onLoopStartClick, onLoopEndClick,
   }, ref) {
     const editable = !!onUpdate;
     const hasNotes = slot.notes.some(n => n !== null);
@@ -608,6 +618,7 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
     // Beat row tint: every 4 steps gets a subtle bg per mockup
     const isBeatRow = slot.step % stepsPerBeat === 0;
     const hasContent = hasNotes || slot.hasGate;
+    const inLoopRange = loopBracket != null;
 
     return (
       <tr
@@ -617,8 +628,9 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
           ${isCursorRow ? 'outline outline-[1.5px] outline-amber-400 -outline-offset-1' : ''}
           ${isSelected ? 'bg-indigo-500/25' : ''}
           ${isAtPlayhead ? 'bg-amber-400/[0.08]' : ''}
-          ${!isAtPlayhead && !isSelected && hasContent ? 'bg-emerald-400/[0.04]' : ''}
-          ${!isAtPlayhead && !isSelected && !hasContent && isBeatRow ? 'bg-[rgba(61,57,53,0.08)]' : ''}
+          ${!isAtPlayhead && !isSelected && inLoopRange ? 'bg-cyan-400/[0.04]' : ''}
+          ${!isAtPlayhead && !isSelected && !inLoopRange && hasContent ? 'bg-emerald-400/[0.04]' : ''}
+          ${!isAtPlayhead && !isSelected && !hasContent && !inLoopRange && isBeatRow ? 'bg-[rgba(61,57,53,0.08)]' : ''}
           ${!isAtPlayhead && !isCursorRow && !isSelected ? 'hover:bg-zinc-800/30' : ''}
           ${showBeatSeparator ? 'border-t border-zinc-700/40' : ''}
         `}
@@ -626,7 +638,37 @@ export const TrackerRow = forwardRef<HTMLTableRowElement, Props>(
         onDoubleClick={() => onRowDoubleClick?.()}
       >
         {/* POS column — right-aligned, hex format, text-faint per mockup */}
-        <td className={`pl-0.5 pr-1.5 py-0 text-right text-zinc-600 text-[9px] tabular-nums w-8 select-none ${cursorCellClass('pos')}`}>
+        <td
+          className={`relative pl-0.5 pr-1.5 py-0 text-right text-zinc-600 text-[9px] tabular-nums w-8 select-none ${cursorCellClass('pos')} ${onLoopStartClick || onLoopEndClick ? 'cursor-pointer' : ''}`}
+          onClick={(e) => {
+            if (!onLoopStartClick && !onLoopEndClick) return;
+            e.stopPropagation();
+            if (e.shiftKey) {
+              onLoopEndClick?.(slot.step);
+            } else {
+              onLoopStartClick?.(slot.step);
+            }
+          }}
+          title={onLoopStartClick ? 'Click to set loop start, Shift+click for loop end' : undefined}
+        >
+          {/* Loop bracket indicator on left edge */}
+          {inLoopRange && (
+            <div
+              className="absolute left-0 top-0 bottom-0 w-[2px] bg-cyan-400/60"
+              style={{
+                borderTopLeftRadius: loopBracket === 'start' || loopBracket === 'start-end' ? 2 : 0,
+                borderBottomLeftRadius: loopBracket === 'end' || loopBracket === 'start-end' ? 2 : 0,
+              }}
+            />
+          )}
+          {/* Top bracket cap for loop start */}
+          {(loopBracket === 'start' || loopBracket === 'start-end') && (
+            <div className="absolute left-0 top-0 w-2 h-[2px] bg-cyan-400/60 rounded-tl" />
+          )}
+          {/* Bottom bracket cap for loop end */}
+          {(loopBracket === 'end' || loopBracket === 'start-end') && (
+            <div className="absolute left-0 bottom-0 w-2 h-[2px] bg-cyan-400/60 rounded-bl" />
+          )}
           {slot.step.toString(16).toUpperCase().padStart(2, '0')}
           {microOffset !== null && (
             <span className="ml-0.5 text-[9px] text-zinc-600" title="Micro-timing offset from grid">

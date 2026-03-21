@@ -39,6 +39,10 @@ export interface Transport {
   mode?: TransportMode;
   /** Whether playback loops at the end of the sequence (song mode). Pattern mode always loops. Default: true. */
   loop?: boolean;
+  /** Loop range start in steps (inclusive). When set with loopEnd, playback loops within this range. */
+  loopStart?: number;
+  /** Loop range end in steps (exclusive). When set with loopStart, playback loops within this range. */
+  loopEnd?: number;
 }
 
 export interface TransportCommand {

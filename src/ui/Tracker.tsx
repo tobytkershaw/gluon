@@ -2,7 +2,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback, type MutableRefObject } from 'react';
 import type { Pattern, MusicalEvent, NoteEvent, ParameterEvent, TriggerEvent } from '../engine/canonical-types';
 import type { EventSelector } from '../engine/event-primitives';
-import { TrackerRow } from './TrackerRow';
+import { TrackerRow, type LoopBracketState } from './TrackerRow';
 import { keyToMidi, isPianoKey, BASE_MIDI_LOWER, OCTAVE } from './keyboard-piano-map';
 
 /** Number of rows to jump for Page Up / Page Down. */
@@ -74,6 +74,14 @@ interface Props {
   onSelectionChange?: (selection: { stepRange: [number, number]; eventIndices: number[] } | null) => void;
   /** Drum pad names for column headers (drum rack tracks only). When provided, replaces CH1/CH2 with abbreviated pad names. */
   drumPadNames?: string[];
+  /** Loop range start in steps (inclusive). When set with loopEnd, loop brackets are shown. */
+  loopStart?: number;
+  /** Loop range end in steps (exclusive). When set with loopStart, loop brackets are shown. */
+  loopEnd?: number;
+  /** Callback for setting loop start from gutter click. */
+  onLoopStartClick?: (step: number) => void;
+  /** Callback for setting loop end from gutter shift+click. */
+  onLoopEndClick?: (step: number) => void;
 }
 
 /**
@@ -216,7 +224,7 @@ export function abbreviatePadName(name: string): string {
   return candidate.slice(0, 3).toUpperCase();
 }
 
-export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow, onSelectionChange, drumPadNames }: Props) {
+export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onAddParamEvent, onAddNote, cancelEditRef, onDeleteByIndices, onPasteEvents, onTransposeByIndices, onCursorStepChange, stepsPerBeat = 4, onNotePreview, onPlayFromRow, onSelectionChange, drumPadNames, loopStart, loopEnd, onLoopStartClick, onLoopEndClick }: Props) {
   const playheadRef = useRef<HTMLTableRowElement>(null);
   const cursorRowRef = useRef<HTMLTableRowElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -790,6 +798,25 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
             const cursorFxCol = isCursor ? getFxColumnIndex(cursorCol) : null;
             const colType = isCursor ? getColumnType(cursorCol) : 'pos';
 
+            // Compute loop bracket state
+            let loopBracket: LoopBracketState = null;
+            const hasLoopRange = loopStart != null && loopEnd != null && loopEnd > loopStart;
+            if (hasLoopRange) {
+              const step = slot.step;
+              const lastStep = loopEnd! - 1; // loopEnd is exclusive
+              if (step >= loopStart! && step <= lastStep) {
+                if (step === loopStart! && step === lastStep) {
+                  loopBracket = 'start-end';
+                } else if (step === loopStart!) {
+                  loopBracket = 'start';
+                } else if (step === lastStep) {
+                  loopBracket = 'end';
+                } else {
+                  loopBracket = 'inside';
+                }
+              }
+            }
+
             return (
               <TrackerRow
                 key={slot.step}
@@ -814,6 +841,9 @@ export function Tracker({ region, playheadStep, playing, onUpdate, onDelete, onA
                 onRowClick={(shiftKey) => handleRowClick(si, shiftKey)}
                 onRowDoubleClick={onPlayFromRow ? () => onPlayFromRow(slot.step) : undefined}
                 onNotePreview={onNotePreview}
+                loopBracket={loopBracket}
+                onLoopStartClick={onLoopStartClick}
+                onLoopEndClick={onLoopEndClick}
                 ref={isCursor ? cursorRowRef : (isAtPlayhead ? playheadRef : undefined)}
               />
             );
