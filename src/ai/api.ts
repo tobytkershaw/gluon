@@ -886,6 +886,27 @@ export function projectAction(session: Session, action: AIAction): Session {
   }
 }
 
+/**
+ * Enforce position locks on surface modules: if an existing module has
+ * `locked: true`, preserve its position/size and carry through the lock flag.
+ * Returns warnings for each locked module whose position was preserved.
+ */
+export function enforcePositionLocks(
+  modules: SurfaceModule[],
+  existingModules: SurfaceModule[],
+): string[] {
+  const warnings: string[] = [];
+  for (const mod of modules) {
+    const existing = existingModules.find(em => em.id === mod.id);
+    if (existing?.locked) {
+      mod.position = { ...existing.position };
+      mod.locked = true;
+      warnings.push(`Module '${mod.label}' is position-locked — position/size preserved`);
+    }
+  }
+  return warnings;
+}
+
 interface ResolvedMoveTarget {
   target: { absolute: number } | { relative: number };
   tempoSyncLabel?: string;
@@ -3173,10 +3194,12 @@ export class GluonAI {
           };
         });
 
-        // Validate region bindings against actual pattern IDs on the track
+        // Enforce position locks: if an existing module is locked, preserve its position/size
         const surfaceTrack = getTrack(session, args.trackId as string);
+        const warnings: string[] = enforcePositionLocks(modules, surfaceTrack?.surface.modules ?? []);
+
+        // Validate region bindings against actual pattern IDs on the track
         const patternIds = new Set(surfaceTrack?.patterns.map(p => p.id) ?? []);
-        const warnings: string[] = [];
 
         for (const mod of modules) {
           mod.bindings = mod.bindings.filter(b => {

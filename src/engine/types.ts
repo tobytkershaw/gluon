@@ -306,6 +306,7 @@ export interface SurfaceModule {
   bindings: ModuleBinding[];
   position: { x: number; y: number; w: number; h: number }; // grid placement
   config: Record<string, unknown>; // module-type-specific configuration
+  locked?: boolean;       // when true, AI cannot reposition/resize this module (human can still drag — auto-unlocks)
 }
 
 export interface TrackSurface {

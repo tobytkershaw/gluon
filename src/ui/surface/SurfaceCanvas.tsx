@@ -102,6 +102,7 @@ export function SurfaceCanvas({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedModuleId, setSelectedModuleId] = useState<string | null>(null);
+  const [hoveredModuleId, setHoveredModuleId] = useState<string | null>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -183,6 +184,33 @@ export function SurfaceCanvas({
     setSelectedModuleId(null);
   }, []);
 
+  /** Toggle position-lock on a module (undoable via onUpdateModule). */
+  const handleToggleLock = useCallback((moduleId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const mod = modules.find(m => m.id === moduleId);
+    if (!mod) return;
+    onUpdateModule?.({ ...mod, locked: !mod.locked });
+  }, [modules, onUpdateModule]);
+
+  /** Auto-unlock a module when the human drags or resizes it. */
+  const handleDragStop = useCallback((_layout: RGL.Layout[], _oldItem: RGL.Layout, newItem: RGL.Layout) => {
+    const mod = modules.find(m => m.id === newItem.i);
+    if (mod?.locked) {
+      onUpdateModule?.({ ...mod, position: { x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }, locked: false });
+    } else if (mod) {
+      onUpdateModule?.({ ...mod, position: { x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h } });
+    }
+  }, [modules, onUpdateModule]);
+
+  const handleResizeStop = useCallback((_layout: RGL.Layout[], _oldItem: RGL.Layout, newItem: RGL.Layout) => {
+    const mod = modules.find(m => m.id === newItem.i);
+    if (mod?.locked) {
+      onUpdateModule?.({ ...mod, position: { x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h }, locked: false });
+    } else if (mod) {
+      onUpdateModule?.({ ...mod, position: { x: newItem.x, y: newItem.y, w: newItem.w, h: newItem.h } });
+    }
+  }, [modules, onUpdateModule]);
+
   const selectedModule = selectedModuleId
     ? modules.find((m) => m.id === selectedModuleId) ?? null
     : null;
@@ -250,19 +278,23 @@ export function SurfaceCanvas({
           isDraggable={true}
           isResizable={true}
           onLayoutChange={handleLayoutChange}
+          onDragStop={handleDragStop}
+          onResizeStop={handleResizeStop}
           compactType="vertical"
           margin={[8, 8] as [number, number]}
         >
           {modules.map((mod) => {
             const Renderer = moduleRenderers[mod.type] ?? PlaceholderModule;
             const isSelected = mod.id === selectedModuleId;
+            const isHovered = mod.id === hoveredModuleId;
+            const isLocked = !!mod.locked;
             const containerStyle = getModuleContainerStyle(visualContext);
             const role = getPaletteRole(mod.type, mod.config as Record<string, unknown>);
             const roleColor = palette[role];
             return (
               <div
                 key={mod.id}
-                className={`bg-zinc-900 border rounded-lg overflow-hidden cursor-pointer transition-colors ${
+                className={`bg-zinc-900 border rounded-lg overflow-hidden cursor-pointer transition-colors relative ${
                   isSelected
                     ? 'ring-1 ring-zinc-500/50'
                     : ''
@@ -272,7 +304,37 @@ export function SurfaceCanvas({
                   : { ...containerStyle, borderColor: roleColor.tint }
                 }
                 onClick={(e) => handleModuleClick(mod.id, e)}
+                onMouseEnter={() => setHoveredModuleId(mod.id)}
+                onMouseLeave={() => setHoveredModuleId(null)}
               >
+                {/* Lock toggle — always visible when locked, visible on hover/select when unlocked */}
+                {onUpdateModule && (isLocked || isHovered || isSelected) && (
+                  <button
+                    data-no-select
+                    onClick={(e) => handleToggleLock(mod.id, e)}
+                    className="absolute top-1 right-1 z-10 flex items-center justify-center rounded transition-opacity cursor-pointer"
+                    style={{
+                      width: 20,
+                      height: 20,
+                      opacity: isLocked ? 0.8 : 0.4,
+                      color: isLocked ? '#a1a1aa' : '#71717a',
+                      background: 'rgba(24,24,27,0.7)',
+                    }}
+                    title={isLocked ? 'Unlock position (AI can reposition)' : 'Lock position (AI cannot reposition)'}
+                  >
+                    {isLocked ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                      </svg>
+                    )}
+                  </button>
+                )}
                 <Renderer
                   module={mod}
                   track={track}
