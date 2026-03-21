@@ -132,6 +132,8 @@ export class AudioEngine {
   private analyser: AnalyserNode | null = null;
   private analyserL: AnalyserNode | null = null;
   private analyserR: AnalyserNode | null = null;
+  /** Cached stereo analyser tuple to preserve reference identity across calls. */
+  private stereoAnalyserTuple: [AnalyserNode, AnalyserNode] | null = null;
   private channelSplitter: ChannelSplitterNode | null = null;
   private mediaStreamDest: MediaStreamAudioDestinationNode | null = null;
   private _isRunning = false;
@@ -185,6 +187,7 @@ export class AudioEngine {
     this.masterPanner.connect(this.channelSplitter);
     this.channelSplitter.connect(this.analyserL, 0);
     this.channelSplitter.connect(this.analyserR, 1);
+    this.stereoAnalyserTuple = [this.analyserL, this.analyserR];
 
     // Metronome: direct to destination, not through mixer/master chain
     this.metronomeGain = this.ctx.createGain();
@@ -397,6 +400,7 @@ export class AudioEngine {
     this.channelSplitter = null;
     this.analyserL = null;
     this.analyserR = null;
+    this.stereoAnalyserTuple = null;
     this.mediaStreamDest = null;
     this.metronomeGain = null;
     this._isRunning = false;
@@ -886,7 +890,7 @@ export class AudioEngine {
   }
 
   getStereoAnalysers(): [AnalyserNode, AnalyserNode] | null {
-    return this.analyserL && this.analyserR ? [this.analyserL, this.analyserR] : null;
+    return this.stereoAnalyserTuple;
   }
 
   /** Get the per-track analyser node for level metering. */
