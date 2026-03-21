@@ -141,7 +141,9 @@ function findGateEventAtForPad(events: MusicalEvent[], stepIndex: number, padId?
   return events.findIndex(
     e => (e.kind === 'trigger' || e.kind === 'note') &&
          Math.abs(e.at - stepIndex) < 0.001 &&
-         (padId === undefined || (e.kind === 'trigger' && (e as TriggerEvent).padId === padId)),
+         (padId === undefined ||
+          (e.kind === 'trigger' && (e as TriggerEvent).padId === padId) ||
+          (e.kind === 'note' && (e as NoteEvent).padId === padId)),
   );
 }
 
@@ -194,13 +196,16 @@ export function toggleStepGate(session: Session, trackId: string, stepIndex: num
       const midiPitch = isDrumRack
         ? DRUM_NOTE_DEFAULT_PITCH
         : Math.round(Math.max(0, Math.min(127, track.params.note * 127)));
-      newEvent = {
+      const noteEvent: NoteEvent = {
         kind: 'note',
         at: stepIndex,
         pitch: midiPitch,
         velocity: 0.8,
         duration: 1,
-      } as NoteEvent;
+      };
+      // Attach padId when creating a new note for a specific drum pad
+      if (padId !== undefined) noteEvent.padId = padId;
+      newEvent = noteEvent;
     } else {
       const trigger: TriggerEvent = {
         kind: 'trigger',
