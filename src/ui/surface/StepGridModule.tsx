@@ -1,7 +1,10 @@
+import { useMemo } from 'react';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import type { TriggerEvent } from '../../engine/canonical-types';
 import { getActivePattern } from '../../engine/types';
+import { resolveBinding } from '../../engine/binding-resolver';
 import { getAccentColor } from './visual-utils';
+import { ensureTypedTarget } from './binding-helpers';
 
 /**
  * StepGridModule — TR-style read-only step display for the Surface.
@@ -13,12 +16,53 @@ import { getAccentColor } from './visual-utils';
 export function StepGridModule({ module, track, visualContext, roleColor }: ModuleRendererProps) {
   // Step grid uses base role — pattern output is the track's identity
   const accent = roleColor?.full ?? getAccentColor(visualContext);
-  // Resolve pattern from region binding, falling back to active pattern
+
+  // Resolve pattern from region binding through the binding contract
   const regionBinding = module.bindings.find(b => b.role === 'region');
-  const boundPattern = regionBinding
-    ? track.patterns.find(p => p.id === regionBinding.target) ?? null
-    : null;
-  const pattern = boundPattern ?? (track.patterns.length > 0 ? getActivePattern(track) : null);
+
+  const { pattern, isDisconnected, disconnectReason } = useMemo(() => {
+    if (!regionBinding) {
+      // No region binding — fall back to active pattern
+      const fallback = track.patterns.length > 0 ? getActivePattern(track) : null;
+      return { pattern: fallback, isDisconnected: false, disconnectReason: '' };
+    }
+
+    const target = ensureTypedTarget(regionBinding, module.type, module.config);
+    const resolved = resolveBinding(track, target);
+
+    if (resolved.status === 'stale') {
+      return { pattern: null, isDisconnected: true, disconnectReason: resolved.reason };
+    }
+    if (resolved.status === 'unsupported') {
+      return { pattern: null, isDisconnected: true, disconnectReason: resolved.reason };
+    }
+
+    if (resolved.kind === 'region') {
+      // Reconstruct a pattern-like object from the resolved region
+      const trackPattern = track.patterns.find(p => p.id === resolved.patternId);
+      return { pattern: trackPattern ?? null, isDisconnected: false, disconnectReason: '' };
+    }
+
+    // Unexpected binding kind for a region role — treat as disconnected
+    return { pattern: null, isDisconnected: true, disconnectReason: `unexpected binding kind for region role` };
+  }, [regionBinding, module.type, module.config, track]);
+
+  // Disconnected state — binding target no longer exists
+  if (isDisconnected) {
+    return (
+      <div
+        className="h-full flex flex-col p-2 opacity-40"
+        title={`Disconnected: ${disconnectReason}`}
+      >
+        <span className="text-xs text-zinc-400 font-medium truncate">
+          {module.label}
+        </span>
+        <div className="flex-1 flex items-center justify-center text-zinc-600 text-xs">
+          Disconnected
+        </div>
+      </div>
+    );
+  }
 
   if (!pattern) {
     return (

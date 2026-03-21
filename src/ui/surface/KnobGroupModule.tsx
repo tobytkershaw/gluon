@@ -1,27 +1,19 @@
-import { useCallback } from 'react';
-import type { Track } from '../../engine/types';
+import { useCallback, useMemo } from 'react';
+import type { BindingTarget, ResolvedBinding } from '../../engine/types';
+import { resolveBinding, writeBinding } from '../../engine/binding-resolver';
 import { Knob } from '../Knob';
 import type { ModuleRendererProps } from './ModuleRendererProps';
 import { getAccentColor } from './visual-utils';
+import { ensureTypedTarget, targetLabel } from './binding-helpers';
+import { canDispatch, dispatchMutations } from './binding-dispatch';
 // Palette-aware: roleColor.full for knob arcs, roleColor.muted for labels
 
-/** Parse a binding target into moduleId + controlId. */
-function parseTarget(target: string): { moduleId: string; controlId: string } {
-  const colonIdx = target.indexOf(':');
-  if (colonIdx >= 0) {
-    return { moduleId: target.slice(0, colonIdx), controlId: target.slice(colonIdx + 1) };
-  }
-  return { moduleId: 'source', controlId: target };
-}
-
-/** Resolve current value for a binding target from track state. */
-function resolveValue(track: Track, target: string): number {
-  const { moduleId, controlId } = parseTarget(target);
-  if (moduleId === 'source') {
-    return track.params[controlId] ?? 0.5;
-  }
-  const proc = (track.processors ?? []).find(p => p.id === moduleId);
-  return proc?.params[controlId] ?? 0.5;
+/** Resolved control binding with typed target and current resolution. */
+interface ResolvedControl {
+  key: string;
+  label: string;
+  target: BindingTarget;
+  resolved: ResolvedBinding;
 }
 
 /**
@@ -45,16 +37,28 @@ export function KnobGroupModule({
   const arcColor = roleColor?.full ?? getAccentColor(visualContext);
   const labelColor = roleColor?.muted ?? arcColor;
 
+  // Resolve all control bindings through the binding contract
+  const resolvedControls: ResolvedControl[] = useMemo(() => {
+    return controlBindings.map(binding => {
+      const target = ensureTypedTarget(binding, module.type, module.config);
+      const resolved = resolveBinding(track, target);
+      return {
+        key: typeof binding.target === 'string' ? binding.target : JSON.stringify(binding.target),
+        label: targetLabel(target),
+        target,
+        resolved,
+      };
+    });
+  }, [controlBindings, module.type, module.config, track]);
+
   const handleChange = useCallback(
-    (target: string, value: number) => {
-      const { moduleId, controlId } = parseTarget(target);
-      if (moduleId === 'source') {
-        onParamChange?.(controlId, value);
-      } else {
-        onProcessorParamChange?.(moduleId, controlId, value);
+    (target: BindingTarget, value: number) => {
+      const result = writeBinding(track, target, value);
+      if (result.status === 'ok') {
+        dispatchMutations(result.mutations, { onParamChange, onProcessorParamChange });
       }
     },
-    [onParamChange, onProcessorParamChange],
+    [track, onParamChange, onProcessorParamChange],
   );
 
   return (
@@ -70,20 +74,33 @@ export function KnobGroupModule({
         )}
       </div>
       <div className="flex-1 flex items-center justify-center gap-3 flex-wrap">
-        {controlBindings.map(binding => {
-          const value = resolveValue(track, binding.target);
-          const { controlId } = parseTarget(binding.target);
+        {resolvedControls.map(ctrl => {
+          const isDisconnected = ctrl.resolved.status !== 'ok';
+          const isReadOnly = !isDisconnected && !canDispatch(ctrl.target);
+          const value = ctrl.resolved.status === 'ok' && 'value' in ctrl.resolved
+            ? ctrl.resolved.value
+            : 0.5;
+
           return (
-            <Knob
-              key={binding.target}
-              value={value}
-              label={controlId}
-              accentColor={arcColor}
-              onChange={v => handleChange(binding.target, v)}
-              onPointerDown={onInteractionStart}
-              onPointerUp={onInteractionEnd}
-              size={36}
-            />
+            <div
+              key={ctrl.key}
+              className={isDisconnected || isReadOnly ? 'opacity-40 pointer-events-none' : ''}
+              title={isDisconnected
+                ? `Disconnected: ${'reason' in ctrl.resolved ? ctrl.resolved.reason : 'unknown'}`
+                : isReadOnly
+                  ? `Read-only: ${ctrl.target.kind} writes not yet supported`
+                  : undefined}
+            >
+              <Knob
+                value={value}
+                label={ctrl.label}
+                accentColor={arcColor}
+                onChange={v => handleChange(ctrl.target, v)}
+                onPointerDown={onInteractionStart}
+                onPointerUp={onInteractionEnd}
+                size={36}
+              />
+            </div>
           );
         })}
       </div>
