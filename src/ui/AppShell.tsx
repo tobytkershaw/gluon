@@ -113,8 +113,11 @@ interface Props {
   // Transport mode & loop
   transportMode: import('../engine/sequencer-types').TransportMode;
   loop: boolean;
+  loopStart?: number;
+  loopEnd?: number;
   onTransportModeChange: (mode: import('../engine/sequencer-types').TransportMode) => void;
   onLoopChange: (loop: boolean) => void;
+  onLoopRangeChange?: (loopStart: number | undefined, loopEnd: number | undefined) => void;
   // Time signature
   timeSignatureNumerator: number;
   timeSignatureDenominator: number;
@@ -196,7 +199,7 @@ export function AppShell({
   playing, bpm, swing, recordArmed, globalStep, patternLength,
   onTogglePlay, onHardStop, onBpmChange, onBpmCommit, onSwingChange, onSwingCommit, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
-  transportMode, loop, onTransportModeChange, onLoopChange,
+  transportMode, loop, loopStart, loopEnd, onTransportModeChange, onLoopChange, onLoopRangeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
   view, onViewChange, lastNonChatViewRef: lastNonChatViewProp,
   undoStack, redoStack, onUndo, onRedo, onUndoMessage,
@@ -360,6 +363,9 @@ export function AppShell({
               onToggleMetronome={onToggleMetronome}
               onMetronomeVolumeChange={onMetronomeVolumeChange}
               onLoopChange={onLoopChange}
+              onLoopRangeChange={onLoopRangeChange}
+              loopStart={loopStart}
+              loopEnd={loopEnd}
               onTransportModeChange={onTransportModeChange}
               timeSignatureNumerator={timeSignatureNumerator}
               timeSignatureDenominator={timeSignatureDenominator}
@@ -557,6 +563,9 @@ export function AppShell({
             onToggleMetronome={onToggleMetronome}
             onMetronomeVolumeChange={onMetronomeVolumeChange}
             onLoopChange={onLoopChange}
+            onLoopRangeChange={onLoopRangeChange}
+            loopStart={loopStart}
+            loopEnd={loopEnd}
             onTransportModeChange={onTransportModeChange}
             timeSignatureNumerator={timeSignatureNumerator}
             timeSignatureDenominator={timeSignatureDenominator}

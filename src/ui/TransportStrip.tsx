@@ -70,6 +70,10 @@ interface Props {
   patternLength: number;
   transportMode: TransportMode;
   loop: boolean;
+  /** Loop range start in steps (inclusive). Undefined = no loop range. */
+  loopStart?: number;
+  /** Loop range end in steps (exclusive). Undefined = no loop range. */
+  loopEnd?: number;
   onTogglePlay: () => void;
   onHardStop: () => void;
   onBpmChange: (bpm: number) => void;
@@ -82,6 +86,8 @@ interface Props {
   onToggleMetronome: () => void;
   onMetronomeVolumeChange: (v: number) => void;
   onLoopChange: (loop: boolean) => void;
+  /** Callback to set or clear the loop range. Pass undefined to clear. */
+  onLoopRangeChange?: (loopStart: number | undefined, loopEnd: number | undefined) => void;
   onTransportModeChange: (mode: TransportMode) => void;
   // Time signature
   timeSignatureNumerator: number;
@@ -186,12 +192,20 @@ function TopbarPeakMeter({ stereoAnalysers }: { stereoAnalysers: [AnalyserNode, 
   );
 }
 
+/** Convert a step position to bar.beat string (1-indexed). */
+function stepToBarBeat(step: number, beatsPerBar: number): string {
+  const beat = Math.floor(step) + 1;
+  const bar = Math.floor((beat - 1) / beatsPerBar) + 1;
+  const beatInBar = ((beat - 1) % beatsPerBar) + 1;
+  return `${bar}.${beatInBar}`;
+}
+
 export function TransportStrip({
   playing, bpm, swing, recordArmed, globalStep, patternLength: _patternLength,
-  transportMode, loop,
+  transportMode, loop, loopStart, loopEnd,
   onTogglePlay, onHardStop, onBpmChange, onBpmCommit, onSwingChange, onSwingCommit, onToggleRecord,
   metronomeEnabled, metronomeVolume, onToggleMetronome, onMetronomeVolumeChange,
-  onLoopChange, onTransportModeChange,
+  onLoopChange, onLoopRangeChange, onTransportModeChange,
   timeSignatureNumerator, timeSignatureDenominator, onTimeSignatureChange,
   stereoAnalysers = null,
 }: Props) {
@@ -203,6 +217,19 @@ export function TransportStrip({
   // In pattern mode, loop is inherently on — the button is visually locked.
   const isPatternMode = transportMode === 'pattern';
   const loopEnabled = isPatternMode ? true : loop;
+  const hasLoopRange = loopStart != null && loopEnd != null && loopEnd > loopStart;
+  const [showLoopEditor, setShowLoopEditor] = useState(false);
+  const loopEditorRef = useRef<HTMLDivElement>(null);
+
+  // Close loop editor on outside click
+  useEffect(() => {
+    if (!showLoopEditor) return;
+    const handler = (e: MouseEvent) => {
+      if (loopEditorRef.current && !loopEditorRef.current.contains(e.target as Node)) setShowLoopEditor(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showLoopEditor]);
 
   // Three visual states: inactive, armed (waiting for play), actively recording
   const activelyRecording = recordArmed && playing;
@@ -280,6 +307,48 @@ export function TransportStrip({
             <polyline points="7,11 5,13 7,15" />
           </svg>
         </button>
+        {/* Loop range indicator — shown when loop is enabled */}
+        {loopEnabled && (
+          <div ref={loopEditorRef} className="relative">
+            <button
+              onClick={() => setShowLoopEditor(!showLoopEditor)}
+              className={`flex items-center gap-1 px-1.5 py-[2px] rounded text-[9px] font-mono tabular-nums transition-colors border ${
+                hasLoopRange
+                  ? 'bg-cyan-400/10 text-cyan-400 border-cyan-400/25 hover:border-cyan-400/50'
+                  : 'text-zinc-500 border-zinc-700/30 hover:text-zinc-300 hover:border-zinc-700'
+              }`}
+              title={hasLoopRange
+                ? `Loop range: ${stepToBarBeat(loopStart!, beatsPerBar)} → ${stepToBarBeat(loopEnd! - 1, beatsPerBar)}`
+                : 'Set loop range (click to edit)'}
+              aria-label="Loop range"
+            >
+              {hasLoopRange ? (
+                <>
+                  <span>{stepToBarBeat(loopStart!, beatsPerBar)}</span>
+                  <span className="text-cyan-400/50">&rarr;</span>
+                  <span>{stepToBarBeat(loopEnd! - 1, beatsPerBar)}</span>
+                </>
+              ) : (
+                <span className="uppercase tracking-wider">Range</span>
+              )}
+            </button>
+            {showLoopEditor && (
+              <LoopRangeEditor
+                loopStart={loopStart}
+                loopEnd={loopEnd}
+                beatsPerBar={beatsPerBar}
+                onApply={(start, end) => {
+                  onLoopRangeChange?.(start, end);
+                  setShowLoopEditor(false);
+                }}
+                onClear={() => {
+                  onLoopRangeChange?.(undefined, undefined);
+                  setShowLoopEditor(false);
+                }}
+              />
+            )}
+          </div>
+        )}
         {/* Divider: transport buttons | Pat/Song */}
         <div className="w-px h-4 bg-zinc-700/60" />
         {/* Pattern / Song dual toggle (segmented control) */}
@@ -509,6 +578,99 @@ function TimeSignatureControl({ numerator, denominator, onChange }: {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Editable loop range popover with bar.beat entry. */
+function LoopRangeEditor({ loopStart, loopEnd, beatsPerBar, onApply, onClear }: {
+  loopStart?: number;
+  loopEnd?: number;
+  beatsPerBar: number;
+  onApply: (start: number, end: number) => void;
+  onClear: () => void;
+}) {
+  // Parse bar.beat from existing values, default to 1.1 → 5.1 (bars 1-4)
+  const defaultStartBar = loopStart != null ? Math.floor(loopStart / beatsPerBar) + 1 : 1;
+  const defaultStartBeat = loopStart != null ? (loopStart % beatsPerBar) + 1 : 1;
+  const defaultEndBar = loopEnd != null ? Math.floor((loopEnd - 1) / beatsPerBar) + 1 : 5;
+  const defaultEndBeat = loopEnd != null ? ((loopEnd - 1) % beatsPerBar) + 1 : 1;
+
+  const [startBar, setStartBar] = useState(defaultStartBar);
+  const [startBeat, setStartBeat] = useState(defaultStartBeat);
+  const [endBar, setEndBar] = useState(defaultEndBar);
+  const [endBeat, setEndBeat] = useState(defaultEndBeat);
+
+  const handleApply = () => {
+    // Convert bar.beat to step (0-indexed)
+    const start = (startBar - 1) * beatsPerBar + (startBeat - 1);
+    // End is exclusive: the step AFTER the last beat in the range
+    const end = (endBar - 1) * beatsPerBar + endBeat;
+    if (end > start) {
+      onApply(start, end);
+    }
+  };
+
+  return (
+    <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded p-2 z-50 shadow-xl min-w-max">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Loop Range</span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-0.5">
+          <label className="text-[9px] text-zinc-500 uppercase">Start</label>
+          <input
+            type="number"
+            min={1}
+            value={startBar}
+            onChange={(e) => setStartBar(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className="w-8 text-center text-[11px] font-mono bg-zinc-800 border border-zinc-600 rounded text-cyan-400 outline-none focus:border-cyan-500/50"
+          />
+          <span className="text-[11px] text-zinc-600">.</span>
+          <input
+            type="number"
+            min={1}
+            max={beatsPerBar}
+            value={startBeat}
+            onChange={(e) => setStartBeat(Math.max(1, Math.min(beatsPerBar, parseInt(e.target.value, 10) || 1)))}
+            className="w-6 text-center text-[11px] font-mono bg-zinc-800 border border-zinc-600 rounded text-cyan-400 outline-none focus:border-cyan-500/50"
+          />
+        </div>
+        <span className="text-[11px] text-zinc-600">&rarr;</span>
+        <div className="flex items-center gap-0.5">
+          <label className="text-[9px] text-zinc-500 uppercase">End</label>
+          <input
+            type="number"
+            min={1}
+            value={endBar}
+            onChange={(e) => setEndBar(Math.max(1, parseInt(e.target.value, 10) || 1))}
+            className="w-8 text-center text-[11px] font-mono bg-zinc-800 border border-zinc-600 rounded text-cyan-400 outline-none focus:border-cyan-500/50"
+          />
+          <span className="text-[11px] text-zinc-600">.</span>
+          <input
+            type="number"
+            min={1}
+            max={beatsPerBar}
+            value={endBeat}
+            onChange={(e) => setEndBeat(Math.max(1, Math.min(beatsPerBar, parseInt(e.target.value, 10) || 1)))}
+            className="w-6 text-center text-[11px] font-mono bg-zinc-800 border border-zinc-600 rounded text-cyan-400 outline-none focus:border-cyan-500/50"
+          />
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 mt-2">
+        <button
+          onClick={handleApply}
+          className="px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-400/15 text-cyan-400 border border-cyan-400/30 hover:bg-cyan-400/25 transition-colors"
+        >
+          Set
+        </button>
+        <button
+          onClick={onClear}
+          className="px-2 py-0.5 rounded text-[10px] font-mono text-zinc-500 border border-zinc-700/30 hover:text-zinc-300 hover:border-zinc-700 transition-colors"
+        >
+          Clear
+        </button>
+      </div>
     </div>
   );
 }

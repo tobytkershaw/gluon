@@ -26,6 +26,7 @@ import {
   addPatternRef, removePatternRef, reorderPatternRef, setSequenceAutomation, clearSequenceAutomation,
   captureABSnapshot, restoreABSnapshot,
   setTransportLoop,
+  setLoopRange,
   resolveDecision,
 } from '../engine/session';
 import type { ABSnapshot } from '../engine/session';
@@ -2045,6 +2046,33 @@ export default function App() {
     });
   }, [runWithActiveTurnInvalidation]);
 
+  const handleLoopRangeChange = useCallback((loopStart: number | undefined, loopEnd: number | undefined) => {
+    void runWithActiveTurnInvalidation(() => {
+      setSession(s => setLoopRange(s, loopStart, loopEnd));
+    });
+  }, [runWithActiveTurnInvalidation]);
+
+  const handleLoopStartClick = useCallback((step: number) => {
+    const currentEnd = session.transport.loopEnd;
+    // If there's already a loop end and the new start is before it, keep the end
+    // Otherwise set a default range of 1 bar (beatsPerBar steps)
+    const beatsPerBar = session.transport.timeSignature?.numerator ?? 4;
+    const end = currentEnd != null && currentEnd > step ? currentEnd : step + beatsPerBar;
+    void runWithActiveTurnInvalidation(() => {
+      setSession(s => setLoopRange(s, step, end));
+    });
+  }, [runWithActiveTurnInvalidation, session.transport.loopEnd, session.transport.timeSignature?.numerator]);
+
+  const handleLoopEndClick = useCallback((step: number) => {
+    const currentStart = session.transport.loopStart;
+    // End is exclusive, so step + 1
+    const endStep = step + 1;
+    const start = currentStart != null && currentStart < endStep ? currentStart : 0;
+    void runWithActiveTurnInvalidation(() => {
+      setSession(s => setLoopRange(s, start, endStep));
+    });
+  }, [runWithActiveTurnInvalidation, session.transport.loopStart]);
+
   // --- Audition handlers (chat inline preview) ---
 
   const handleAuditionStart = useCallback(async (config: import('./AuditionControl').AuditionConfig) => {
@@ -3559,8 +3587,11 @@ export default function App() {
       onMetronomeVolumeChange={(v) => setSession(s => setMetronomeVolume(s, v))}
       transportMode={session.transport.mode ?? 'pattern'}
       loop={session.transport.loop ?? true}
+      loopStart={session.transport.loopStart}
+      loopEnd={session.transport.loopEnd}
       onTransportModeChange={handleTransportModeChange}
       onLoopChange={handleLoopChange}
+      onLoopRangeChange={handleLoopRangeChange}
       timeSignatureNumerator={session.transport.timeSignature?.numerator ?? 4}
       timeSignatureDenominator={session.transport.timeSignature?.denominator ?? 4}
       onTimeSignatureChange={handleTimeSignatureChange}
@@ -3707,6 +3738,10 @@ export default function App() {
             onReorderPatternRef={handleReorderPatternRef}
             onSetSequenceAutomation={handleSetSequenceAutomation}
             onClearSequenceAutomation={handleClearSequenceAutomation}
+            loopStart={session.transport.loopStart}
+            loopEnd={session.transport.loopEnd}
+            onLoopStartClick={handleLoopStartClick}
+            onLoopEndClick={handleLoopEndClick}
           />
         )}
     </AppShell>

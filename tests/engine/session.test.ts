@@ -7,6 +7,7 @@ import {
   setTimeSignature, setTransportMode, toggleMetronome, setMetronomeVolume,
   setTrackVolume, setTrackPan, setMasterVolume, setMasterPan,
   captureABSnapshot, restoreABSnapshot,
+  setLoopRange,
   MAX_REACTION_HISTORY, MAX_OPEN_DECISIONS,
 } from '../../src/engine/session';
 import { applyUndo } from '../../src/engine/primitives';
@@ -715,6 +716,38 @@ describe('Undo contract: transport helpers', () => {
     s = stopTransport(s);
     expect(s.transport.status).toBe('stopped');
     expect(s.transportCommand).toBeUndefined();
+  });
+
+  it('setLoopRange sets loopStart and loopEnd on transport', () => {
+    const s1 = createSession();
+    const s2 = setLoopRange(s1, 4, 16);
+    expect(s2.transport.loopStart).toBe(4);
+    expect(s2.transport.loopEnd).toBe(16);
+  });
+
+  it('setLoopRange pushes TransportSnapshot', () => {
+    const s1 = createSession();
+    const s2 = setLoopRange(s1, 0, 8);
+    expect(s2.undoStack.length).toBe(1);
+    expect(s2.undoStack[0].kind).toBe('transport');
+  });
+
+  it('setLoopRange is undoable', () => {
+    const s1 = createSession();
+    const s2 = setLoopRange(s1, 4, 16);
+    expect(s2.transport.loopStart).toBe(4);
+    expect(s2.transport.loopEnd).toBe(16);
+    const s3 = applyUndo(s2);
+    expect(s3.transport.loopStart).toBeUndefined();
+    expect(s3.transport.loopEnd).toBeUndefined();
+  });
+
+  it('setLoopRange can clear loop range by passing undefined', () => {
+    const s1 = createSession();
+    const s2 = setLoopRange(s1, 4, 16);
+    const s3 = setLoopRange(s2, undefined, undefined);
+    expect(s3.transport.loopStart).toBeUndefined();
+    expect(s3.transport.loopEnd).toBeUndefined();
   });
 });
 

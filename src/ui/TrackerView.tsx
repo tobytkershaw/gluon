@@ -61,6 +61,14 @@ interface Props {
   onReorderPatternRef?: (fromIndex: number, toIndex: number) => void;
   onSetSequenceAutomation?: (controlId: string, points: SequenceAutomationPoint[]) => void;
   onClearSequenceAutomation?: (controlId: string) => void;
+  /** Loop range start in steps (inclusive). */
+  loopStart?: number;
+  /** Loop range end in steps (exclusive). */
+  loopEnd?: number;
+  /** Set loop start from gutter click. */
+  onLoopStartClick?: (step: number) => void;
+  /** Set loop end from gutter shift+click. */
+  onLoopEndClick?: (step: number) => void;
 }
 
 // --- Inline number input for Rotate/Transpose ---
@@ -121,6 +129,7 @@ export function TrackerView({
   onSelectionChange,
   onAddPatternRef, onRemovePatternRef, onReorderPatternRef,
   onSetSequenceAutomation, onClearSequenceAutomation,
+  loopStart, loopEnd, onLoopStartClick, onLoopEndClick,
 }: Props) {
   const activePatternId = getActivePattern(activeTrack).id;
   const patternDuration = getActivePattern(activeTrack).duration;
@@ -408,6 +417,10 @@ export function TrackerView({
                   onSelectionChange={onSelectionChange}
                   stepsPerBeat={16 / (session.transport.timeSignature?.denominator ?? 4)}
                   drumPadNames={activeTrack.engine === 'drum-rack' && activeTrack.drumRack ? activeTrack.drumRack.pads.map(p => p.name) : undefined}
+                  loopStart={loopStart}
+                  loopEnd={loopEnd}
+                  onLoopStartClick={onLoopStartClick}
+                  onLoopEndClick={onLoopEndClick}
                 />
             ) : (
               <div className="px-4 py-8 text-center text-[11px] text-zinc-600 italic">

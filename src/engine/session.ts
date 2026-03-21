@@ -601,6 +601,18 @@ export function setTransportLoop(session: Session, loop: boolean): Session {
   };
 }
 
+/** Set the loop range (start inclusive, end exclusive, in steps). Pass undefined to clear. */
+export function setLoopRange(session: Session, loopStart: number | undefined, loopEnd: number | undefined): Session {
+  const desc = loopStart != null && loopEnd != null
+    ? `Set loop range ${loopStart}–${loopEnd}`
+    : 'Clear loop range';
+  const withSnapshot = pushTransportSnapshot(session, desc);
+  return {
+    ...withSnapshot,
+    transport: { ...withSnapshot.transport, loopStart, loopEnd },
+  };
+}
+
 // --- Master channel helpers ---
 
 export function setMasterVolume(session: Session, volume: number): Session {
