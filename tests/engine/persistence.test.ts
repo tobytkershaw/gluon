@@ -625,21 +625,42 @@ describe('persistence', () => {
     expect(loaded!.openDecisions).toEqual([]);
   });
 
-  it('isNonDefault does not detect M6-only changes (accepted heuristic limitation)', () => {
-    // isNonDefault is a save-avoidance heuristic. It checks messages, transport, params,
-    // and pattern edits — but NOT claimed, importance, musicalRole, reactionHistory, or
-    // openDecisions. This is an accepted limitation: worst case is an unnecessary no-op save,
-    // not data loss. See NOTE(#215) in isNonDefault's docstring.
+  it('saveSession persists metadata-only changes', () => {
     const session = createSession();
+    const reactions: Reaction[] = [
+      { actionGroupIndex: 0, verdict: 'approved', timestamp: 10, rationale: 'keep it' },
+    ];
+    const decisions: OpenDecision[] = [
+      { id: 'd-metadata', question: 'Keep the groove?', raisedAt: 20 },
+    ];
     const modified = {
       ...session,
       tracks: session.tracks.map((t, i) =>
-        i === 0 ? { ...t, claimed: true } : t,
+        i === 0 ? { ...t, claimed: true, importance: 0.7, musicalRole: 'lead' } : t,
       ),
+      reactionHistory: reactions,
+      openDecisions: decisions,
+      intent: { prompt: 'tense and sparse', updatedAt: 30 },
+      section: { name: 'intro', energy: 0.2, density: 0.1, updatedAt: 40 },
+      scale: { tonic: 2, mode: 'dorian' },
+      chordProgression: [{ bar: 0, chord: 'Dm9' }],
+      tensionCurve: [{ bar: 0, tension: 0.25 }],
     };
-    // No messages, no pattern changes — isNonDefault should return false
+
     saveSession(modified);
-    expect(loadSession()).toBeNull(); // save was skipped, so load returns null
+
+    const loaded = loadSession();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.tracks[0].claimed).toBe(true);
+    expect(loaded!.tracks[0].importance).toBe(0.7);
+    expect(loaded!.tracks[0].musicalRole).toBe('lead');
+    expect(loaded!.reactionHistory).toEqual(reactions);
+    expect(loaded!.openDecisions).toEqual(decisions);
+    expect(loaded!.intent).toEqual(modified.intent);
+    expect(loaded!.section).toEqual(modified.section);
+    expect(loaded!.scale).toEqual(modified.scale);
+    expect(loaded!.chordProgression).toEqual(modified.chordProgression);
+    expect(loaded!.tensionCurve).toEqual(modified.tensionCurve);
   });
 
   it('stripForPersistence preserves M6 fields', () => {
