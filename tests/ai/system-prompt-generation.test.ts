@@ -68,6 +68,21 @@ describe('system prompt generation', () => {
     expect(prompt).toContain('undo');
   });
 
+  it('describes parity as incomplete and Surface as available', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).not.toContain('Any control you have over the music, the human has too.');
+    expect(prompt).toContain('Human/AI capability parity is a design goal');
+    expect(prompt).toContain('Surface (AI-curated controls and modules)');
+    expect(prompt).not.toContain('Surface (AI-curated controls — coming soon)');
+  });
+
+  it('distinguishes chat labels from tool-call IDs', () => {
+    const prompt = defaultPrompt();
+    expect(prompt).toContain('In chat prose, prefer display names');
+    expect(prompt).toContain('In tool calls, internal IDs are valid');
+    expect(prompt).not.toContain('Refer to tracks by display name ("Track 1", "Kick"), never internal IDs.');
+  });
+
   it('does not contain old JSON action syntax', () => {
     const prompt = defaultPrompt();
     expect(prompt).not.toContain('"type": "move"');

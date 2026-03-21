@@ -2,7 +2,7 @@
 
 What the AI agent needs at inference time to interact with Gluon's canonical musical model.
 
-**Architecture:** The AI uses a multi-provider, provider-abstracted function calling architecture (currently Gemini-only: Gemini 3.1 Pro as planner, Gemini Flash as listener). The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
+**Architecture:** The AI uses a provider-abstracted function calling architecture built around neutral JSON-schema tool declarations and provider adapters. In the product runtime today, Gluon uses a Gemini planner and a Gemini listener. The model receives compressed session state with each turn, reasons about the request, and invokes tools to make changes. Tool calls are validated against live session state before the model sees a success response. Actions are collected and dispatched after the tool loop completes.
 
 ---
 

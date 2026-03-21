@@ -170,6 +170,7 @@ describe('AI Contract alignment with live implementation', () => {
   it('contract describes multi-provider architecture', () => {
     expect(contractText).toContain('provider-abstracted');
     expect(contractText).not.toMatch(/The AI uses Gemini native function calling/);
+    expect(contractText).not.toContain('currently Gemini-only');
   });
 
   // ── Transport BPM range matches code ────────────────────────────────────
