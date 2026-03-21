@@ -117,7 +117,6 @@ function ColoredStepCell({
   return (
     <div
       data-no-select
-      data-step-index={stepIndex}
       className={`relative flex-1 min-w-0 h-full rounded-sm transition-colors border${interactive ? ' cursor-pointer hover:brightness-125 active:brightness-150' : ''}`}
       style={hasGate
         ? {
@@ -166,7 +165,6 @@ function VelocityStepCell({
   return (
     <div
       data-no-select
-      data-step-index={stepIndex}
       className={`relative flex-1 min-w-0 h-full rounded-sm border flex items-end justify-center${interactive ? ' cursor-pointer hover:brightness-125 active:brightness-150' : ''}`}
       style={{
         backgroundColor: isPlayhead ? 'rgba(255,255,255,0.08)' : 'rgba(39,39,42,0.4)',
@@ -566,18 +564,21 @@ function DrumMultiRowGrid({
         const ev = padGateMaps[padIndex]?.get(stepIndex);
         const accented = ev && isAccented(ev);
         if (!accented) {
-          // Has gate but not accented -> toggle accent
+          // Has gate but not accented -> toggle accent (no drag)
           handleAccentClick(stepIndex, padId);
           return;
         }
-        // Accented -> remove (toggle off)
+        // Accented -> remove (toggle off) — single click only, no drag paint
+        if (onStepToggle) {
+          onStepToggle(track.id, stepIndex, pattern.id, { pushUndo: true, padId });
+        }
+        return;
       }
 
-      const direction: 'on' | 'off' = hasGate ? 'off' : 'on';
-
+      // Empty -> note: arm drag paint in "on" direction
       paintingRef.current = {
         active: true,
-        direction,
+        direction: 'on',
         padId,
         visitedSteps: new Set([`${padId}:${stepIndex}`]),
         preToggleEvents: [...pattern.events],
