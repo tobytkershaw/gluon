@@ -1209,10 +1209,10 @@ const analyzeTool: ToolSchema = {
   },
 };
 
-const explainChainTool: ToolSchema = {
-  name: 'explain_chain',
+const inspectChainTool: ToolSchema = {
+  name: 'inspect_chain',
   description:
-    'Describe a track\'s signal chain in musical language (source → processors → modulators → routings). Read-only. Use to understand what a track does before modifying it.',
+    'Inspect a track\'s signal chain. "explain" returns a human-readable description of source, processors, modulators, and routings. "simplify" identifies redundant, bypassed, or default-valued processors and unrouted modulators.',
   parameters: {
     type: 'object',
     properties: {
@@ -1220,24 +1220,13 @@ const explainChainTool: ToolSchema = {
         type: 'string',
         description: TRACK_ID_DESC,
       },
-    },
-    required: ['trackId'],
-  },
-};
-
-const simplifyChainTool: ToolSchema = {
-  name: 'simplify_chain',
-  description:
-    'Analyze a track\'s signal chain for redundant or no-op processors and suggest removals. Read-only. Use when a chain feels cluttered or you want to reduce latency.',
-  parameters: {
-    type: 'object',
-    properties: {
-      trackId: {
+      mode: {
         type: 'string',
-        description: TRACK_ID_DESC,
+        enum: ['explain', 'simplify'],
+        description: 'Type of inspection.',
       },
     },
-    required: ['trackId'],
+    required: ['trackId', 'mode'],
   },
 };
 
@@ -2124,8 +2113,7 @@ export const GLUON_TOOLS: ToolSchema[] = [
   renderTool,
   analyzeTool,
   setTrackMetaTool,
-  explainChainTool,
-  simplifyChainTool,
+  inspectChainTool,
   manageTrackTool,
   raiseDecisionTool,
   reportBugTool,

@@ -15,8 +15,7 @@ const AI_ONLY_TOOLS = new Set([
   'render',             // human presses play and listens
   'listen',             // multimodal audio evaluation
   'analyze',            // audio analysis (spectral/dynamics/rhythm)
-  'explain_chain',      // AI-generated chain description
-  'simplify_chain',     // AI-generated simplification suggestions
+  'inspect_chain',      // AI-generated chain description / simplification suggestions
   'raise_decision',     // human types in chat
   'report_bug',         // human reports bugs through other channels
   'suggest_reactions',  // AI suggests contextual reaction chips for human to click
@@ -102,7 +101,7 @@ describe('Human Capability Parity', () => {
   });
 
   it('documents the expected number of AI-only tools', () => {
-    expect(AI_ONLY_TOOLS.size).toBe(11);
+    expect(AI_ONLY_TOOLS.size).toBe(10);
   });
 
   it('most musical tools have UI parity', () => {

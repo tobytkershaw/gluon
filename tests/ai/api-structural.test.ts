@@ -217,7 +217,7 @@ describe('API Structural Integrity', () => {
     ];
 
     // Analysis-only / non-mutating tools produce no actions (actions: []):
-    const analysisOnlyTools = ['listen', 'render', 'analyze', 'explain_chain', 'simplify_chain', 'suggest_reactions', 'save_patch', 'list_patches', 'recall_memories'];
+    const analysisOnlyTools = ['listen', 'render', 'analyze', 'inspect_chain', 'suggest_reactions', 'save_patch', 'list_patches', 'recall_memories'];
 
     // Together they should cover all GLUON_TOOLS
     const allCovered = [...actionProducingTools, ...analysisOnlyTools].sort();
@@ -231,7 +231,7 @@ describe('API Structural Integrity', () => {
 
   it('tool count matches expected value', () => {
     // Update this number if you add or remove tools
-    expect(GLUON_TOOLS.length).toBe(50);
+    expect(GLUON_TOOLS.length).toBe(49);
   });
 
   // -----------------------------------------------------------------------
