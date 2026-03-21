@@ -2,58 +2,23 @@
 // Welcoming onboarding screen shown in the chat area when no AI provider is configured.
 // Replaces the empty-state music note with a friendly setup experience.
 import { useState, useCallback } from 'react';
-import type { ListenerMode } from '../ai/api';
 
 interface Props {
-  onSubmit: (openaiKey: string, geminiKey: string, listenerMode?: ListenerMode) => void;
+  onSubmit: (geminiKey: string) => void;
   onContinueWithoutAI?: () => void;
 }
 
-type ProviderTab = 'gemini' | 'openai';
-
-const PROVIDER_INFO: Record<ProviderTab, { name: string; label: string; placeholder: string; hint: string }> = {
-  gemini: {
-    name: 'Google Gemini',
-    label: 'Google AI API Key',
-    placeholder: 'AIza...',
-    hint: 'Get a key at aistudio.google.com',
-  },
-  openai: {
-    name: 'OpenAI',
-    label: 'OpenAI API Key',
-    placeholder: 'sk-...',
-    hint: 'Get a key at platform.openai.com',
-  },
-};
-
 export function ApiKeySetup({ onSubmit, onContinueWithoutAI }: Props) {
-  const [activeTab, setActiveTab] = useState<ProviderTab>('gemini');
   const [geminiKey, setGeminiKey] = useState('');
-  const [openaiKey, setOpenaiKey] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  const activeKey = activeTab === 'gemini' ? geminiKey : openaiKey;
-  const setActiveKey = activeTab === 'gemini' ? setGeminiKey : setOpenaiKey;
-
-  const canSubmit = geminiKey.trim() || openaiKey.trim();
+  const canSubmit = geminiKey.trim();
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || submitting) return;
     setSubmitting(true);
-
-    // Determine listener mode based on which keys are provided
-    let listenerMode: ListenerMode = 'gemini';
-    if (openaiKey.trim() && !geminiKey.trim()) {
-      listenerMode = 'openai';
-    } else if (openaiKey.trim() && geminiKey.trim()) {
-      listenerMode = 'gemini'; // default to gemini when both present
-    }
-
-    onSubmit(openaiKey.trim(), geminiKey.trim(), listenerMode);
-  }, [canSubmit, submitting, openaiKey, geminiKey, onSubmit]);
-
-  const info = PROVIDER_INFO[activeTab];
+    onSubmit(geminiKey.trim());
+  }, [canSubmit, submitting, geminiKey, onSubmit]);
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-4 py-8 select-none">
@@ -77,47 +42,23 @@ export function ApiKeySetup({ onSubmit, onContinueWithoutAI }: Props) {
           </p>
         </div>
 
-        {/* Provider tabs */}
         <div className="w-full">
-          <div className="flex gap-1 p-0.5 bg-zinc-900/80 rounded-lg mb-3">
-            {(Object.keys(PROVIDER_INFO) as ProviderTab[]).map((tab) => {
-              const isActive = activeTab === tab;
-              const hasKey = tab === 'gemini' ? geminiKey.trim() : openaiKey.trim();
-              return (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-[11px] font-medium transition-all ${
-                    isActive
-                      ? 'bg-zinc-800 text-zinc-200 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-400'
-                  }`}
-                >
-                  {PROVIDER_INFO[tab].name}
-                  {hasKey && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
           {/* Key input form */}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div>
               <label className="block text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-600 mb-1.5">
-                {info.label}
+                Google AI API Key
               </label>
               <input
                 type="password"
-                value={activeKey}
-                onChange={(e) => setActiveKey(e.target.value)}
-                placeholder={info.placeholder}
+                value={geminiKey}
+                onChange={(e) => setGeminiKey(e.target.value)}
+                placeholder="AIza..."
                 autoFocus
                 className="w-full bg-zinc-900/80 text-xs font-mono text-zinc-300 placeholder:text-zinc-700 rounded-lg px-3 py-2.5 outline-none border border-zinc-800/80 focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/20 transition-all"
               />
               <p className="mt-1.5 text-[10px] text-zinc-600">
-                {info.hint}
+                Get a key at aistudio.google.com
               </p>
             </div>
 
@@ -142,11 +83,8 @@ export function ApiKeySetup({ onSubmit, onContinueWithoutAI }: Props) {
           )}
         </div>
 
-        {/* Supported providers note */}
         <p className="text-[10px] text-zinc-700 text-center leading-relaxed">
-          Gemini, OpenAI, and Anthropic are supported.
-          <br />
-          Gemini is recommended for the best experience.
+          Gemini is currently the supported AI provider in Gluon.
         </p>
       </div>
     </div>

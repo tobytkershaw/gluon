@@ -1249,8 +1249,6 @@ function buildPlannerUserMessage(
   return `${contextBlock}Project state:\n${stateJson}\n\nHuman says: ${humanMessage}`;
 }
 
-export type ListenerMode = 'gemini' | 'openai' | 'both';
-
 export class GluonAI {
   /** Fallback exchange cap for providers without token counting. */
   private static FALLBACK_MAX_EXCHANGES = 12;
